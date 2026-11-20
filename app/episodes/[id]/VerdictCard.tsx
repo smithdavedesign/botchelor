@@ -10,6 +10,7 @@ import { requestJson } from "@/app/request";
 import type { CharacterRef } from "@/lib/game";
 import AfterDarkBridge from "./AfterDarkBridge";
 import CastingVerdictLine from "./CastingVerdictLine";
+import DareFriend from "./DareFriend";
 import ShareEnding from "./ShareEnding";
 
 export type VerdictCardProps = {
@@ -40,7 +41,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
  * The ending, who they dated, a line of what their character thought, and "Hear from {first}": the character texts them
  * about the date in its companion thread (POST /api/companion/after-date, lib/after-date-text.ts), which is also the
  * opt-in for its later texts. Under it, notifications for when it texts (email where push can't work here), the share
- * every viewer gets, and Watch again. Keeps `.theater-verdict` and `.ending`: scripts/clips/daily-clip.mjs records up to
+ * every viewer gets (after the dare: a friend's OC dates theirs next), and Watch again. Keeps `.theater-verdict` and `.ending`: scripts/clips/daily-clip.mjs records up to
  * them.
  */
 export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false, afterDark = null }: VerdictCardProps) {
@@ -127,6 +128,8 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
           Watch again
         </button>
       </p>
+      {/* The dare (lib/dare.ts, 2026-11-20): their character's own date link, so a friend's OC dates them next. */}
+      <DareFriend episodeId={episodeId} characterId={you.id} you={you.name} partner={partner.name} />
       {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
       <ShareEnding episodeId={episodeId} names={[you.name, partner.name]} kind="viewer" />
       {afterDark && <AfterDarkBridge href={afterDark.href} />}

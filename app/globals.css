@@ -4634,6 +4634,27 @@ button.rating-chip:hover {
 .verdict-card .share-ending {
   margin: 0;
 }
+/* The dare (app/episodes/[id]/DareFriend.tsx): the card's one share with a next step, in the push row's quiet card. */
+.verdict-card .dare-friend {
+  width: 100%;
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+  text-align: left;
+  color: var(--on-photo);
+  background: color-mix(in srgb, var(--on-photo) 8%, transparent);
+  border-color: color-mix(in srgb, var(--on-photo) 18%, transparent);
+  box-shadow: none;
+}
+.verdict-card .dare-friend p {
+  margin: 0;
+}
+.verdict-card .dare-friend strong {
+  color: var(--on-photo);
+}
+.verdict-card .dare-friend .primary {
+  width: 100%;
+}
 
 /* The date as a messaging thread (app/ChatThread.tsx): one character left, the other right, a bubble per line,
    act dividers and the producer's challenge as centred notes, a typing bubble for the next speaker. "light" on

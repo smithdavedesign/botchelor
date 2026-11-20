@@ -276,6 +276,8 @@ export const ENGAGEMENT_FUNNEL = [
   { key: "date_watched", label: "Watched it end", events: ["date_watched"] },
   // The verdict card's "Hear from {first}" opened their own character's text about the date (app/episodes/[id]/VerdictCard.tsx).
   { key: "after_date_text", label: "Heard from their character", events: ["after_date_text_opened"] },
+  // The verdict card's dare (app/episodes/[id]/DareFriend.tsx, lib/dare.ts): their character's date link, sent to a friend.
+  { key: "dare_sent", label: "Dared a friend's OC", events: ["dare_sent"] },
   // Turned on browser notifications (app/notifications/PushToggle.tsx): the one channel that brings a visitor back.
   { key: "push_opted", label: "Turned on texts", events: ["push_subscribed"] },
   { key: "sign_up", label: "Made an account", events: ["sign_up"] },

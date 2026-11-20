@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
+import { DARE_PARAM, dareEpisodeId, dareShowable } from "@/lib/dare";
 import { dateLinkPath, loadDateLink } from "@/lib/date-invites";
 import { PROFILE_PROMPTS } from "@/lib/extras";
 import { getPublicCharacter } from "@/lib/game";
@@ -11,7 +12,7 @@ import { shortName } from "@/lib/names";
 import AcceptDateLink from "./AcceptDateLink";
 
 export const dynamic = "force-dynamic";
-type Props = { params: Promise<{ code: string }> };
+type Props = { params: Promise<{ code: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 /** The link preview is the character, so a share on any app shows who's asking. */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -33,8 +34,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * visitor with characters picks one and the date is agreed; a visitor without one makes one (the wizard comes back
  * here). A link that's off says so and points at the show.
  */
-export default async function DateLinkPage({ params }: Props) {
+export default async function DateLinkPage({ params, searchParams }: Props) {
   const { code } = await params;
+  const dareId = dareEpisodeId((await searchParams)[DARE_PARAM]);
   const db = await getDb();
   const invite = await loadDateLink(db, code);
   const c = invite?.live ? await getPublicCharacter(db, invite.character_id) : null;
@@ -63,11 +65,21 @@ export default async function DateLinkPage({ params }: Props) {
       ).rows
     : [];
   const first = shortName(c.name);
+  // A dare (lib/dare.ts): the date this link was shared from, shown only when it's this character's and not private.
+  const dared = dareId
+    ? (
+        await db.query<{ id: string; character_a: string; character_b: string; visibility: string }>(
+          `select id, character_a, character_b, visibility from episodes where id = $1`,
+          [dareId],
+        )
+      ).rows[0]
+    : undefined;
+  const dareEpisode = dared && dareShowable(dared, invite.character_id) ? dared.id : null;
   const prompts = (c.extras.prompts ?? []).slice(0, 2).map((p) => ({ label: PROFILE_PROMPTS.find((x) => x.id === p.id)?.label ?? "", answer: p.answer }));
   const portrait = c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null;
   return (
     <div className="page-narrow date-link">
-      <p className="kicker">💌 A blind date invitation</p>
+      <p className="kicker">{dareEpisode ? "🎯 You've been dared" : "💌 A blind date invitation"}</p>
       <div className="date-link-card card">
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={portrait} />
         <div>
@@ -76,6 +88,14 @@ export default async function DateLinkPage({ params }: Props) {
           {c.traits.length > 0 && <p className="muted small">{c.traits.join(" · ")}</p>}
         </div>
       </div>
+      {dareEpisode && (
+        <p className="notice date-link-dare">
+          {first}&apos;s creator dared your OC to go on a date with {first} next.{" "}
+          <Link href={`/episodes/${encodeURIComponent(dareEpisode)}`} data-track="dare-watch">
+            Watch {first}&apos;s last date first
+          </Link>
+        </p>
+      )}
       {prompts.length > 0 && (
         <ul className="date-link-prompts">
           {prompts.map((p) => (
@@ -96,7 +116,7 @@ export default async function DateLinkPage({ params }: Props) {
         <AcceptDateLink code={code} first={first} characters={mine} />
       ) : (
         <p>
-          <Link className="button primary" href={`/create?next=${encodeURIComponent(dateLinkPath(code))}`}>
+          <Link className="button primary" href={`/create?next=${encodeURIComponent(dareEpisode ? `${dateLinkPath(code)}?${DARE_PARAM}=${dareEpisode}` : dateLinkPath(code))}`} data-track={dareEpisode ? "dare-create" : undefined}>
             Make your character for a date with {first}
           </Link>
           <span className="muted small"> Free, about a minute; it comes back here.</span>

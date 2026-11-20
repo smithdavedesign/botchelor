@@ -201,7 +201,7 @@ describe("the Engagement tab", () => {
     expect(e.landing.map((l) => l.key).sort()).toEqual(["/gate", "/watch"]);
     expect(e.devices.map((d) => d.key).sort()).toEqual(["desktop", "phone"]);
     expect(Object.fromEntries(e.funnel.map((f) => [f.key, f.visitors]))).toMatchObject({ visited: 2, entered: 2, engaged: 1, create_opened: 1, character_created: 1, date_started: 1, date_watched: 1, push_opted: 1, sign_up: 0 });
-    expect(e.funnel.map((f) => f.key)).toEqual(["visited", "entered", "engaged", "create_opened", "express_started", "express_drafted", "character_created", "date_started", "date_watched", "after_date_text", "push_opted", "sign_up", "begin_checkout", "purchase"]);
+    expect(e.funnel.map((f) => f.key)).toEqual(["visited", "entered", "engaged", "create_opened", "express_started", "express_drafted", "character_created", "date_started", "date_watched", "after_date_text", "dare_sent", "push_opted", "sign_up", "begin_checkout", "purchase"]);
     expect(e.funnel.find((f) => f.key === "date_started")?.of_first).toBe(50);
     expect(e.events).toEqual(expect.arrayContaining([{ key: "push_subscribed", count: 1, visitors: 1 }]));
     expect(e.daily.find((d) => d.day === today)).toMatchObject({ visitors: 2, page_views: 4 });
