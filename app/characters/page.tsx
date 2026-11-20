@@ -18,7 +18,7 @@ import { companionOpen } from "@/lib/companion-shared";
 import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab, offSeasonHouse, ownCharacterIds, parseDirectoryQuery, privateAmong, searchDirectory, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore } from "@/lib/http";
 import { stepInAccessFromCookies } from "@/lib/step-in-access";
-import { actionsFor, type CardActions, type TextAccess, textVerb, type VerbViewer, viewerCharacter } from "@/lib/character-verb";
+import { actionsFor, type CardActions, cardVerbLabel, type TextAccess, textVerb, type VerbViewer, viewerCharacter } from "@/lib/character-verb";
 import { rememberedCharacter } from "@/lib/current-character";
 import { shortName } from "@/lib/names";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
@@ -195,8 +195,8 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
         {!own && (verb || text) && (
           <div className="dir-actions">
             {verb && (
-              <Link className="button secondary dir-verb" href={verb.href} prefetch={false} data-track={verb.track} data-track-from="card" data-track-verb={verb.kind}>
-                {verb.label}
+              <Link className="button secondary dir-verb" href={verb.href} prefetch={false} aria-label={verb.label} title={verb.label} data-track={verb.track} data-track-from="card" data-track-verb={verb.kind}>
+                {cardVerbLabel(verb)}
               </Link>
             )}
             {text && <TalkButton characterId={text.characterId} name={e.name} label={text.label} className="button secondary" track={text.track} />}

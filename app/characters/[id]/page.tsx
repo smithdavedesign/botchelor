@@ -522,6 +522,96 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const leading = await castingLeadP.then((l) => (l?.lead.id === c.id ? l : null));
   const leadWords = leading ? (leading.phase === "season" ? "This season's lead" : `${leading.month}'s lead`) : null;
   const intro = await introOf(db, c.id);
+  // The owner's tools, and the studios an admin opens on the house cast: under one Manage fold on an owner's page (B11).
+  const ownerTools = (
+    <>
+      {ratings.is_owner && !c.house && (
+        // The owner's next steps (2026-10-31 UX audit: three filled buttons went to side actions, and the way to swipe was
+        // a green text link); the one filled button, swipe or finish the profile, is in the Manage row above. The swipe
+        // deck (lib/swipes.ts) takes a complete dating profile; open to dates puts them in other people's decks.
+        <section className="card owner-next" aria-labelledby="owner-next-title">
+          {profileComplete(c.extras) ? (
+            <>
+              <h2 id="owner-next-title">💘 Find {shortName(c.name)} a date</h2>
+              <p className="cta-row">
+                <Link className="button secondary" href={`/create?character=${c.id}`}>
+                  📅 Send on a date now
+                </Link>
+                <Link href={`/matches?character=${c.id}`}>💬 {shortName(c.name)}&apos;s matches</Link>
+              </p>
+              <p className="muted small">
+                {dating?.open_to_dates
+                  ? `✓ ${shortName(c.name)} is in other people's decks too.`
+                  : `${shortName(c.name)} isn't in other people's decks: Open to dates, below, puts them there.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 id="owner-next-title">💘 Get {shortName(c.name)} dating</h2>
+              <p>
+                To swipe, their dating profile needs {profileMissing(c.extras).map((m) => m.replace(/ \(extras\.\w+\)$/, "")).join(" and ")}.
+              </p>
+            </>
+          )}
+        </section>
+      )}
+      {ratings.is_owner && !c.house && !partnerStyle?.taken && <MixerJoin characterId={c.id} first={shortName(c.name)} />}
+      {ratings.is_owner && !c.house && !c.private && !partnerStyle?.taken && <ShareDateLink characterId={c.id} first={shortName(c.name)} />}
+      {pgStudio && (
+        <section className="card character-studio">
+          <h2>📸 Photo Studio</h2>
+          <p>
+            Photo shoots of {shortName(c.name)} for the show: outfits, places, accessories and styles, their face kept, every picture checked safe.{" "}
+            <Link className="button" href={`/studio?character=${encodeURIComponent(c.id)}`}>
+              Open the Studio
+            </Link>
+          </p>
+        </section>
+      )}
+      {studio && (
+        <section className="card character-studio character-studio-after-dark">
+          <h2>🎨 After Dark Studio</h2>
+          {studio.ready ? (
+            <p>
+              Shoots of {shortName(c.name)}, their face and look, and their gallery, in After Dark.{" "}
+              <Link className="button" href={studio.href}>
+                Open the Studio
+              </Link>
+            </p>
+          ) : (
+            <p className="muted">
+              Switch {shortName(c.name)} into After Dark first, then the Studio opens for them. <Link href={studio.href}>After Dark</Link>
+            </p>
+          )}
+        </section>
+      )}
+      {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
+      {away?.adopted && <p className="muted small character-adopted">🎭 House cast while its agent is away: played by the show, it always likes back and texts back. Its agent gets it back the moment they return.</p>}
+      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} companionOpen={companionOpen() ? (away?.companion_open ?? false) : undefined} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
+      {inviteLine && (
+        <p className="casting-invite-nudge">
+          <Link href={inviteLine.href} data-track="casting-invite-nudge">
+            🌹 Apply {shortName(c.name)} to {inviteLine.month}&apos;s Botchelor →
+          </Link>
+        </p>
+      )}
+      {/* Its owner only (lib/show-ideas.ts): "I'd enter a character" is the answer the list most wants, so ask where one is. */}
+      {ratings.is_owner && !c.house && showIdeasOn() && (
+        <p className="casting-invite-nudge">
+          <Link href="/shows" data-track="shows" data-track-where="character">
+            📺 Which new shows would you enter {shortName(c.name)} in? →
+          </Link>
+        </p>
+      )}
+      {auditionNow && <AuditionPanel id={c.id} name={shortName(c.name)} audition={auditionNow} />}
+      {plays && (
+        <p className="muted small owner-temperament">
+          🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
+          <Link href={`/characters/${c.id}/edit`}>Soul step</Link>.
+        </p>
+      )}
+    </>
+  );
   return (
     <article>
       <JsonLd
@@ -689,98 +779,36 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           </p>
         </section>
       )}
-      {ratings.is_owner && !c.house && (
-        // The owner's one next step, the page's one filled button (2026-10-31 UX audit: three filled buttons went to side
-        // actions, and the way to swipe was a green text link). The swipe deck (lib/swipes.ts) takes a complete dating
-        // profile; open to dates puts them in other people's decks.
-        <section className="card owner-next" aria-labelledby="owner-next-title">
-          {profileComplete(c.extras) ? (
-            <>
-              <h2 id="owner-next-title">💘 Find {shortName(c.name)} a date</h2>
-              <p className="cta-row">
-                <Link className="button" href={`/swipe?character=${c.id}`}>
-                  Swipe for {shortName(c.name)}
-                </Link>
-                <Link className="button secondary" href={`/create?character=${c.id}`}>
-                  📅 Send on a date now
-                </Link>
-                <Link href={`/matches?character=${c.id}`}>💬 {shortName(c.name)}&apos;s matches</Link>
-              </p>
-              <p className="muted small">
-                {dating?.open_to_dates
-                  ? `✓ ${shortName(c.name)} is in other people's decks too.`
-                  : `${shortName(c.name)} isn't in other people's decks: Open to dates, below, puts them there.`}
-              </p>
-            </>
-          ) : (
-            <>
-              <h2 id="owner-next-title">💘 Get {shortName(c.name)} dating</h2>
-              <p>
-                To swipe, their dating profile needs {profileMissing(c.extras).map((m) => m.replace(/ \(extras\.\w+\)$/, "")).join(" and ")}.
-              </p>
-              <p className="cta-row">
-                <Link className="button" href={`/characters/${c.id}/edit`}>
-                  Finish {shortName(c.name)}&apos;s profile
-                </Link>
-              </p>
-            </>
-          )}
-        </section>
-      )}
-      {ratings.is_owner && !c.house && !partnerStyle?.taken && <MixerJoin characterId={c.id} first={shortName(c.name)} />}
-      {ratings.is_owner && !c.house && !c.private && !partnerStyle?.taken && <ShareDateLink characterId={c.id} first={shortName(c.name)} />}
-      {pgStudio && (
-        <section className="card character-studio">
-          <h2>📸 Photo Studio</h2>
-          <p>
-            Photo shoots of {shortName(c.name)} for the show: outfits, places, accessories and styles, their face kept, every picture checked safe.{" "}
-            <Link className="button" href={`/studio?character=${encodeURIComponent(c.id)}`}>
-              Open the Studio
+      {/* The owner's tools in one Manage row (the 2026-11-20 mobile audit, B11): about nine cards of equal weight came
+          before the profile, which started on the second screen. The one next step (swipe, or finish the dating profile)
+          and Edit stay in the row; the rest (send now, matches, mixer, date link, the studios, settings, casting, shows,
+          how they play) folds under Manage, so the profile tabs come next. */}
+      {ratings.is_owner && !c.house ? (
+        <section className="owner-manage" aria-labelledby="owner-manage-title">
+          <h2 id="owner-manage-title" className="sr-only">
+            Manage {shortName(c.name)}
+          </h2>
+          <p className="cta-row owner-manage-row">
+            {profileComplete(c.extras) ? (
+              <Link className="button" href={`/swipe?character=${c.id}`}>
+                Swipe for {shortName(c.name)}
+              </Link>
+            ) : (
+              <Link className="button" href={`/characters/${c.id}/edit`}>
+                Finish {shortName(c.name)}&apos;s profile
+              </Link>
+            )}
+            <Link className="button secondary" href={`/characters/${c.id}/edit`}>
+              Edit
             </Link>
           </p>
+          <details className="owner-manage-more ux-fold" id="manage">
+            <summary>Manage {shortName(c.name)}</summary>
+            {ownerTools}
+          </details>
         </section>
-      )}
-      {studio && (
-        <section className="card character-studio character-studio-after-dark">
-          <h2>🎨 After Dark Studio</h2>
-          {studio.ready ? (
-            <p>
-              Shoots of {shortName(c.name)}, their face and look, and their gallery, in After Dark.{" "}
-              <Link className="button" href={studio.href}>
-                Open the Studio
-              </Link>
-            </p>
-          ) : (
-            <p className="muted">
-              Switch {shortName(c.name)} into After Dark first, then the Studio opens for them. <Link href={studio.href}>After Dark</Link>
-            </p>
-          )}
-        </section>
-      )}
-      {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
-      {away?.adopted && <p className="muted small character-adopted">🎭 House cast while its agent is away: played by the show, it always likes back and texts back. Its agent gets it back the moment they return.</p>}
-      {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} companionOpen={companionOpen() ? (away?.companion_open ?? false) : undefined} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
-      {inviteLine && (
-        <p className="casting-invite-nudge">
-          <Link href={inviteLine.href} data-track="casting-invite-nudge">
-            🌹 Apply {shortName(c.name)} to {inviteLine.month}&apos;s Botchelor →
-          </Link>
-        </p>
-      )}
-      {/* Its owner only (lib/show-ideas.ts): "I'd enter a character" is the answer the list most wants, so ask where one is. */}
-      {ratings.is_owner && !c.house && showIdeasOn() && (
-        <p className="casting-invite-nudge">
-          <Link href="/shows" data-track="shows" data-track-where="character">
-            📺 Which new shows would you enter {shortName(c.name)} in? →
-          </Link>
-        </p>
-      )}
-      {auditionNow && <AuditionPanel id={c.id} name={shortName(c.name)} audition={auditionNow} />}
-      {plays && (
-        <p className="muted small owner-temperament">
-          🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
-          <Link href={`/characters/${c.id}/edit`}>Soul step</Link>.
-        </p>
+      ) : (
+        ownerTools
       )}
 
       {/* Tabs, one part at a time (the design system's character page, 2026-11-11), where a row of jump links used to
