@@ -651,6 +651,22 @@ export function nearDuplicate(a, b) {
   return Math.min(x.length, y.length) >= 24 && (x.includes(y) || y.includes(x));
 }
 
+/**
+ * The same opening with a word swapped (#1832): four words in a row shared within the first eight of both lines, one of
+ * them distinctive (five letters or more, not a common word). "The R is a tough one… just like…" then "Ah, the E is a
+ * tough one, but…": nearDuplicate passes it (the rest differs), a reader hears the same line twice. Returns the run or null.
+ */
+export function sameOpening(a, b) {
+  const x = words(a).slice(0, 8);
+  const y = ` ${words(b).slice(0, 8).join(" ")} `;
+  for (let i = 0; i + 4 <= x.length; i++) {
+    const run = x.slice(i, i + 4);
+    if (!run.some((w) => w.length >= 5 && !COMMON.has(w))) continue;
+    if (y.includes(` ${run.join(" ")} `)) return run.join(" ");
+  }
+  return null;
+}
+
 // Words too common to count as quoting someone's profile back at them.
 const COMMON = new Set(
   (
@@ -811,6 +827,8 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     partner.name ? `- Their name is exactly ${them}. If you use a name for them, spell it ${them}: never your own name (${first}) or anyone else's.` : "",
     lastIsTheirs ? `- Answer what ${them} just said, directly, before anything else.` : "",
     `- Don't quote ${them}'s dating profile back at them. Talk about what was actually said, or about your own life.`,
+    // 2026-11-19-0610 (#1832): Odile thanked a visitor for "your description of the sky"; nobody had described a sky.
+    recent.length ? `- Only bring up things ${them} actually said above. Never say ${them} told you, described or did something they didn't.` : "",
     said.length ? `- Never repeat yourself. You've already said: ${said.slice(-REPLY_HISTORY).map((l) => `"${l}"`).join(" ")}` : "- Never repeat yourself.",
     "- Keep it PG: no real people, nothing sexual.",
     // The production crowd's prompt tests (scripts/crowd/policy.mjs): one style or length to try, picked per text.
@@ -869,7 +887,7 @@ function ownProfile(s) {
 function lineProblem(line, { said, history, partnerName, profile, allowed }) {
   if (words(line).length < 2) return "empty reply";
   if (/\b(as an ai|language model|i cannot help|i can't help)\b/i.test(line)) return "broke character";
-  if (said.some((x) => nearDuplicate(line, x))) return "repeat of its own line";
+  if (said.some((x) => nearDuplicate(line, x) || sameOpening(line, x))) return "repeat of its own line";
   const theirs = history.filter((h) => h.name === partnerName).at(-1);
   if (theirs && nearDuplicate(line, theirs.text)) return "parroted the partner";
   if (echoesProfile(line, profile, allowed)) return "echoed the partner's profile";
@@ -1094,7 +1112,10 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
   if (!why && brain.seedUntil && Date.now() > brain.seedUntil) why = "seed time budget";
   if (!why) {
     let refused = null;
-    for (let attempt = 0; attempt < 2 && brain.enabled; attempt++) {
+    // Two tries; a third when the second was only a repeat (#1832: 14 of 104 crowd lines were pool lines after two
+    // repeats, and a pool line can't answer what the player just said). The retry names the line it repeated.
+    let tries = 2;
+    for (let attempt = 0; attempt < tries && brain.enabled; attempt++) {
       let line;
       try {
         line = cleanReply(await brain.complete(replyMessages({ kind, me: me.entry, partner, history, extra, said, refused })), { name: me.name, partner: partner.name });
@@ -1111,6 +1132,12 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
       const problem = named.problem ?? lineProblem(line, { said, history, partnerName: partner.name, profile, allowed });
       if (problem) {
         why = refused = problem;
+        if (problem === "repeat of its own line") {
+          const was = said.find((x) => nearDuplicate(line, x) || sameOpening(line, x));
+          const last = history.filter((h) => h.name === partner.name).at(-1)?.text;
+          refused = `${problem}: you already said "${String(was).slice(0, 140)}"; open differently${last ? ` and answer what ${firstName(partner.name) || "they"} just said: "${last.slice(0, 160)}"` : ""}`;
+          if (attempt === 1) tries = 3;
+        }
         log(`reply ${who}: model try ${attempt + 1}: ${problem}`);
         continue;
       }

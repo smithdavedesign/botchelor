@@ -65,6 +65,7 @@ export function checkLocalAlias(
 ): { ok: boolean; reason: string | null; deployments?: { model: string | null; api_base: string | null }[] };
 export function normalizeLine(s: string): string;
 export function nearDuplicate(a: string, b: string): boolean;
+export function sameOpening(a: string, b: string): string | null;
 export function echoesProfile(line: string, profileTexts?: string[], allowed?: string): string | null;
 export function cleanReply(raw: string, opts?: { name?: string; partner?: string }): string;
 export function crowdNames(): string[];
