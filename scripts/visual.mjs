@@ -357,6 +357,8 @@ async function main() {
       if (!claim.ok()) throw new Error(`admin claim → ${claim.status()}`);
     };
     let scenePath = "/after-dark";
+    // One of the cast, for a character's page (app/after-dark/characters/[id]).
+    let adCharacter = null;
     {
       const ctx = await browser.newContext();
       await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
@@ -365,7 +367,10 @@ async function main() {
       // A pair's page, not a Studio's or a Short's (the home lists the Studio first since #778); a new admin has none, so
       // two of the cast the pair picker offers, whose page starts their scene.
       const cast = [...new Set(html.match(/house-[a-z]+/g) ?? [])].slice(0, 2).sort();
-      scenePath = html.match(/href="(\/after-dark\/(?!studio\/|shorts\/)[^/"?]+\/[^/"?]+)"/)?.[1] ?? (cast.length === 2 ? `/after-dark/${cast[0]}/${cast[1]}` : scenePath);
+      scenePath = html.match(/href="(\/after-dark\/(?!studio\/|shorts\/|characters\/)[^/"?]+\/[^/"?]+)"/)?.[1] ?? (cast.length === 2 ? `/after-dark/${cast[0]}/${cast[1]}` : scenePath);
+      // The first card on the Characters grid (the cast's first, A to Z, for a new admin with no nights).
+      const grid = await (await ctx.request.get(`${base}/after-dark/characters`)).text();
+      adCharacter = grid.match(/data-character="([^"]+)"/)?.[1] ?? null;
       await ctx.close();
     }
     // The locked picture in a character's texts (lib/locked-picture.ts): the admin's own character goes on a date built
@@ -815,6 +820,9 @@ async function main() {
         },
       },
       { name: "after-dark-account", path: "/after-dark/account", as: "adult-admin" },
+      // Characters (2026-11-20): everyone they can have a night with, a card each, and one character's page.
+      { name: "after-dark-characters", path: "/after-dark/characters", as: "adult-admin" },
+      ...(adCharacter ? [{ name: "after-dark-characters-profile", path: `/after-dark/characters/${adCharacter}`, as: "adult-admin" }] : []),
       // Step in (the viewer in the scene with one character): its set-up, and a scene under way.
       { name: "after-dark-step-in", path: "/after-dark/step-in", as: "adult-admin" },
       ...(stepInScene ? [{ name: "after-dark-step-in-scene", path: `/after-dark/step-in/${stepInScene}`, as: "adult-admin" }] : []),
@@ -823,6 +831,7 @@ async function main() {
       // The same person at the Gallery and the Studio (2026-11-16): the locked preview and the way in, not a not-found.
       { name: "after-dark-gallery-locked", path: "/after-dark/gallery", as: "member" },
       { name: "after-dark-studio-locked", path: "/after-dark/studio?source=pg-studio", as: "member" },
+      { name: "after-dark-characters-locked", path: "/after-dark/characters", as: "member" },
       { name: "admin-after-dark-settings", path: "/admin/after-dark/settings", as: "adult-admin" },
       // Its other tabs (2026-10-31 UX audit, E3): every price and cap in one tab, and the Studio's.
       { name: "admin-after-dark-settings-prices", path: "/admin/after-dark/settings?tab=prices", as: "adult-admin" },

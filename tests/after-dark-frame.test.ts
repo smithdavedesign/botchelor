@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { createElement } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // After Dark's frame (the design kit's After Dark header, 2026-11-12; its doors 2026-11-15, lib/adult/doors.ts): on its
-// own host the header is Scenes · Studio · Gallery, and the account as an icon after them (the Showcase door became a room
-// of the Gallery on 2026-11-18: it took them out of After Dark, app/after-dark/GalleryTabs.tsx; Episodes a section of
-// Scenes the same day, David: "move the episodes tab into scenes as a section"). Who's in
-// and the Studio are on the Studio door's page (/after-dark/characters sends there); the writer and privacy on Account.
-// Nothing dropped: each is one tap from the header, and the hub's row carries them where the header is the show's.
+// own host the header is Scenes · Characters · Studio · Gallery, and the account as an icon after them (the Showcase door
+// became a room of the Gallery on 2026-11-18: it took them out of After Dark, app/after-dark/GalleryTabs.tsx; Episodes a
+// section of Scenes the same day, David: "move the episodes tab into scenes as a section"; Characters its own door again
+// on 2026-11-20, tests/after-dark-characters.test.ts). Who's in and the Studio are on the Studio door's page; the writer
+// and privacy on Account. Nothing dropped: each is one tap from the header, and the hub's row carries them where the
+// header is the show's.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>(), path: "/after-dark", adOnly: false }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
@@ -24,7 +25,6 @@ vi.mock("next/navigation", async (original) => ({
 }));
 import { renderToStaticMarkup } from "react-dom/server";
 import AfterDarkAccount from "@/app/after-dark/account/page";
-import AfterDarkCharacters from "@/app/after-dark/characters/page";
 import AfterDarkStudio from "@/app/after-dark/studio/page";
 import AfterDarkHome from "@/app/after-dark/page";
 import Nav from "@/app/Nav";
@@ -74,23 +74,24 @@ async function admin() {
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 /** The `<a>` for this href is the current page. */
 const current = (html: string, href: string) => [...html.matchAll(/<a\b[^>]*>/g)].some((m) => m[0].includes(`href="${href}"`) && m[0].includes('aria-current="page"'));
-const navLinks = (html: string) => [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2])]);
+const navLinks = (html: string) => [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => [m[1], text(m[2]).replace(/&#x27;/g, "'")]);
 
 describe("the header on After Dark's host", () => {
   const nav = (doors: { studio: boolean; showcase: boolean }) =>
     renderToStaticMarkup(createElement(Nav, { tokens: 0, meter: "none", adHost: true, afterDark: true, hasCharacter: true, adDoors: doors, showHref: "https://show.example" }));
 
-  it("is Scenes, Studio and Gallery, then the account, with the page you're on marked", () => {
+  it("is Scenes, Characters, Studio and Gallery, then the account, with the page you're on marked", () => {
     jar.path = "/after-dark/studio";
     const html = nav({ studio: true, showcase: true });
-    expect(navLinks(html).map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Studio", "Gallery", "Account"]));
+    expect(navLinks(html).map(([, label]) => label)).toEqual(expect.arrayContaining(["Scenes", "Characters", "Studio", "Gallery", "Account"]));
+    expect(current(html, "/after-dark/characters")).toBe(false);
     expect(current(html, "/after-dark/studio")).toBe(true);
     expect(current(html, "/after-dark")).toBe(false);
     // David, 2026-11-18: no door out to the show's showcase ("it takes you out of after dark"); it's the Gallery's room.
     expect(navLinks(html).map(([, label]) => label)).not.toContain("Showcase");
     expect(html).not.toContain("side=after_dark");
     expect(html).not.toContain('href="https://show.example/showcase');
-    // Characters is Studio now (/after-dark/characters sends there). Episodes is a section of Scenes, not a door.
+    // Episodes is a section of Scenes, not a door.
     expect(navLinks(html).map(([, label]) => label)).not.toContain("Shorts");
     expect(navLinks(html).map(([, label]) => label)).not.toContain("Episodes");
     expect(html).not.toContain('href="/after-dark/shorts"');
@@ -98,14 +99,16 @@ describe("the header on After Dark's host", () => {
     expect(navLinks(html).map(([href]) => href)).not.toContain("/watch");
   });
 
-  it("where the Studio isn't open to them, the door says Characters, and there's no Showcase", () => {
-    jar.path = "/after-dark/characters";
+  it("where the Studio isn't open to them, its door says Who's in (Characters is its own door), and there's no Showcase", () => {
+    jar.path = "/after-dark/studio";
     const html = nav({ studio: false, showcase: false });
     const labels = navLinks(html).map(([, label]) => label);
+    expect(labels).toContain("Who's in");
     expect(labels).toContain("Characters");
     expect(labels).not.toContain("Studio");
     expect(labels).not.toContain("Showcase");
     expect(current(html, "/after-dark/studio")).toBe(true);
+    expect(current(html, "/after-dark/characters")).toBe(false);
   });
 
   it("marks Gallery on its Showcase room and that room's reels, not Scenes", () => {
@@ -164,16 +167,6 @@ describe("the Studio door", () => {
     const html = renderToStaticMarkup(await AfterDarkStudio());
     expect(html).toContain("data-whos-in-empty");
     expect(html).toContain('href="/create"');
-  });
-
-  it("is where the old Characters page sends", () => {
-    let digest = "";
-    try {
-      AfterDarkCharacters();
-    } catch (e) {
-      digest = String((e as { digest?: string }).digest);
-    }
-    expect(digest).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/studio;/);
   });
 });
 

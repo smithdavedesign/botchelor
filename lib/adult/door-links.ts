@@ -10,5 +10,8 @@
 export type AdDoors = { studio: boolean; showcase: boolean };
 export const NO_AD_DOORS: AdDoors = { studio: false, showcase: false };
 
-/** The Studio door's word: the Studio where it's open to them, else what its page holds for them, who's in. */
-export const studioDoorLabel = (doors: Pick<AdDoors, "studio">): string => (doors.studio ? "Studio" : "Characters");
+/**
+ * The Studio door's word: the Studio where it's open to them, else what its page holds for them, who's in (their own
+ * characters' switches). "Characters" until 2026-11-20, when Characters became its own door (app/after-dark/characters).
+ */
+export const studioDoorLabel = (doors: Pick<AdDoors, "studio">): string => (doors.studio ? "Studio" : "Who's in");

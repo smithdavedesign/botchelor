@@ -25,11 +25,11 @@ import type { AfterDarkMode } from "../jurisdiction";
 import { readBytes } from "../object-store";
 
 /** How many tiles each page shows. */
-export const PREVIEW_TILES = { gallery: 12, studio: 8 } as const;
+export const PREVIEW_TILES = { gallery: 12, studio: 8, characters: 8 } as const;
 export type PreviewKind = keyof typeof PREVIEW_TILES;
 
 /** The invite request's source for each page's way in (lib/adult/bridge.ts inviteSource keeps it as it is). */
-export const PREVIEW_SOURCE: Record<PreviewKind, string> = { gallery: "gallery", studio: "studio" };
+export const PREVIEW_SOURCE: Record<PreviewKind, string> = { gallery: "gallery", studio: "studio", characters: "characters" };
 /** The source the PG Studio's door carries to the locked Studio, passed on to the invite request. */
 export const PG_STUDIO_SOURCE = "pg-studio";
 
@@ -69,12 +69,12 @@ async function poolOf(db: Db, where: string, limit: number): Promise<Preview> {
 }
 
 /**
- * What a page's preview shows: the counts and the newest tiles. The Studio's is of one character alone, unless there's
- * none of those, then the same as the Gallery's. `tiles: false` (a text-only place): the counts only.
+ * What a page's preview shows: the counts and the newest tiles. The Studio's and Characters' are of one character alone,
+ * unless there's none of those, then the same as the Gallery's. `tiles: false` (a text-only place): the counts only.
  */
 export async function previewOf(db: Db, kind: PreviewKind, opts: { tiles?: boolean } = {}): Promise<Preview> {
   const limit = opts.tiles === false ? 0 : PREVIEW_TILES[kind];
-  if (kind === "studio") {
+  if (kind === "studio" || kind === "characters") {
     const alone = await poolOf(db, ALONE, limit);
     if (alone.pictures + alone.videos > 0) return alone;
   }

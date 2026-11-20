@@ -3694,3 +3694,39 @@ the consent with them.
 `take_back`, `limits`, `move`, `end`, `carry_on`).
 
 **Proof:** `tests/after-dark-step-in.test.ts`.
+
+## Characters: everyone you can have a night with, a page each (2026-11-20)
+
+David, after joi.com's teardown: "the characters page and gallery would be a nice add to our after dark no?" The
+header is now **Scenes · Characters · Studio · Gallery** (`app/Nav.tsx adLinks`). Where the Studio isn't open to someone,
+its door says **Who's in** (it was "Characters", the old name of that page: `lib/adult/door-links.ts`).
+
+- **Who's listed** is After Dark's own rule, `eligibleIds` (`lib/adult/characters.ts`): this season's cast, the agent
+  cast (`after_dark_open`), and the viewer's own characters they've switched In. Nobody else. The query also refuses
+  someone else's private character whatever put its id in the list (`lib/adult/character-list.ts peopleOf`).
+- **The grid** (`/after-dark/characters`): a tall card each with the face After Dark keeps for this viewer (their
+  `adult_face_refs` picture, under the discreet blur; else the show's PG portrait, which the blur leaves alone), the
+  name, up to two type tags, a two-line bio, and the viewer's nights and pictures with them. Search by name, Everyone ·
+  House cast · Yours where that splits the cast, and the type tags this cast has. Theirs under way first, then A to Z.
+  Two to a row on a phone.
+- **Small pages.** Filtering and paging happen on the server (`?q=&whose=&tag=&page=`, 36 a page), and faces and picture
+  counts are read for that page only. The client never gets the whole cast (#1822's 4.6 MB lesson).
+- **A character's page** (`/after-dark/characters/<id>`): the PG portrait, name, tags and bio, then the ways in:
+  - **A night with them** opens the hub's picker with them picked (`/after-dark?with=<id>#scenes`, `PairPicker`'s
+    `preselect`);
+  - **Step in** shows only where Step in is open to the viewer.
+  - Then three sections:
+    - **Your nights with them** (the hub's Continue cards, `NightList`, only nights whose two are both still in);
+    - **Yours of them** (`ownMedia` with `character`);
+    - **On the Showcase**: what creators published to After Dark with them in it (`listShowcase` `character`), for
+      whoever may see that side.
+  - None of the pictures show where only the scenes are allowed.
+- **Who gets what.** Someone After Dark isn't open to gets the locked preview at `/after-dark/characters` (kind
+  `characters`, `lib/adult/preview.ts`: the Studio's single-character tiles, blurred, and the way in, `?source=characters`).
+  A character's page sends them there. A member gets a not-found for anyone After Dark won't pair them with, an
+  id that doesn't exist, and while the PIN is unentered. The title never names the character.
+- **Left out:** age on the cards, and a style filter (drawn styles never reach After Dark). ⭐ (`FavoriteStar`) stars
+  pictures, not people, so a character's page has no star. Followers, likes and chat counts, as joi shows them, have
+  no data behind them here.
+
+**Proof:** `tests/after-dark-characters.test.ts`; the header in `tests/after-dark-frame.test.ts`.
