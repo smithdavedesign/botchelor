@@ -136,7 +136,7 @@ describe("the first evening (the 2026-11-01 After Dark review: tabs hidden in �
 
   it("the page's tabs are a strip along the theater's bottom, the scene first, and no longer in ⋯", () => {
     const html = render({ onWrite: async () => {}, pageTabs: tabs, onPageTab: () => {}, steps: { canRewind: false, canReset: false, onRewind() {}, onRedo() {}, onReset() {} } });
-    expect(html).toMatch(/<nav class="ad-theater-tabs" aria-label="Their night"><span class="ad-theater-tab on" aria-current="page">🎬 Scene<\/span><button[^>]*>🖼 Gallery \(2\)<\/button><button[^>]*>⚙️ Set up<\/button><\/nav>/);
+    expect(html).toMatch(/<nav class="ad-theater-tabs scroll-row" aria-label="Their night"><span class="ad-theater-tab on" aria-current="page">🎬 Scene<\/span><button[^>]*>🖼 Gallery \(2\)<\/button><button[^>]*>⚙️ Set up<\/button><\/nav>/);
     expect(html).not.toContain("ad-tools-page-tab");
   });
 

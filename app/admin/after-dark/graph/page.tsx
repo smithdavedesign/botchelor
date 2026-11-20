@@ -92,39 +92,41 @@ export default async function AfterDarkGraphPage({ searchParams }: { searchParam
 
       <section>
         <h2>Pairs</h2>
-        <table className="ad-pairs">
-          <thead>
-            <tr>
-              <th>Pair</th>
-              <th>Lines</th>
-              <th>Nights</th>
-              <th>Videos</th>
-              <th>Shots</th>
-              <th>Pictures</th>
-              <th>Steps</th>
-              <th>Last</th>
-            </tr>
-          </thead>
-          <tbody>
-            {graph.edges.map((e) => (
-              <tr key={e.key} className={e.key === pickedKey ? "picked" : undefined}>
-                <td>
-                  <Link href={`?pair=${encodeURIComponent(e.key)}`}>
-                    <CharacterName character={{ id: e.a, name: nameOf.get(e.a) ?? "?" }} link={false} /> ×{" "}
-                    <CharacterName character={{ id: e.b, name: nameOf.get(e.b) ?? "?" }} link={false} />
-                  </Link>
-                </td>
-                <td>{e.lines}</td>
-                <td>{e.nights}</td>
-                <td>{e.videos}</td>
-                <td>{e.shots}</td>
-                <td>{e.pictures}</td>
-                <td>{e.steps}</td>
-                <td className="muted small">{day(e.last)}</td>
+        <div className="table-scroll">
+          <table className="ad-pairs">
+            <thead>
+              <tr>
+                <th>Pair</th>
+                <th>Lines</th>
+                <th>Nights</th>
+                <th>Videos</th>
+                <th>Shots</th>
+                <th>Pictures</th>
+                <th>Steps</th>
+                <th>Last</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {graph.edges.map((e) => (
+                <tr key={e.key} className={e.key === pickedKey ? "picked" : undefined}>
+                  <td>
+                    <Link href={`?pair=${encodeURIComponent(e.key)}`}>
+                      <CharacterName character={{ id: e.a, name: nameOf.get(e.a) ?? "?" }} link={false} /> ×{" "}
+                      <CharacterName character={{ id: e.b, name: nameOf.get(e.b) ?? "?" }} link={false} />
+                    </Link>
+                  </td>
+                  <td>{e.lines}</td>
+                  <td>{e.nights}</td>
+                  <td>{e.videos}</td>
+                  <td>{e.shots}</td>
+                  <td>{e.pictures}</td>
+                  <td>{e.steps}</td>
+                  <td className="muted small">{day(e.last)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {picked && !content && <p className="notice">That pair isn&apos;t here.</p>}
@@ -215,31 +217,33 @@ function Pair({ content: c }: { content: PairContent }) {
         lines older than that. Nothing is guessed.
       </p>
       {c.scene || c.nights.length ? (
-        <table className="ad-pairs ad-models">
-          <thead>
-            <tr>
-              <th>Chapter</th>
-              <th>When</th>
-              <th>Written by</th>
-            </tr>
-          </thead>
-          <tbody>
-            {c.scene && (
+        <div className="table-scroll">
+          <table className="ad-pairs ad-models">
+            <thead>
               <tr>
-                <td>{c.scene.chapter} (running)</td>
-                <td className="muted small">{day(c.scene.updated_at)}</td>
-                <td>{writtenByLabel(c.scene.written_by)}</td>
+                <th>Chapter</th>
+                <th>When</th>
+                <th>Written by</th>
               </tr>
-            )}
-            {c.nights.map((n) => (
-              <tr key={n.id}>
-                <td>{n.chapter ?? "—"}</td>
-                <td className="muted small">{day(n.created_at)}</td>
-                <td>{writtenByLabel(n.written_by)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {c.scene && (
+                <tr>
+                  <td>{c.scene.chapter} (running)</td>
+                  <td className="muted small">{day(c.scene.updated_at)}</td>
+                  <td>{writtenByLabel(c.scene.written_by)}</td>
+                </tr>
+              )}
+              {c.nights.map((n) => (
+                <tr key={n.id}>
+                  <td>{n.chapter ?? "—"}</td>
+                  <td className="muted small">{day(n.created_at)}</td>
+                  <td>{writtenByLabel(n.written_by)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <p className="muted">No lines yet.</p>
       )}

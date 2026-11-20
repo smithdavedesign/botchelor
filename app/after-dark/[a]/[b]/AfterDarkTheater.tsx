@@ -1334,7 +1334,7 @@ export default function AfterDarkTheater({
             )
           )}
           {onPageTab && pageTabs?.length ? (
-            <nav className="ad-theater-tabs" aria-label="Their night">
+            <nav className="ad-theater-tabs scroll-row" aria-label="Their night">
               <span className="ad-theater-tab on" aria-current="page">
                 🎬 Scene
               </span>

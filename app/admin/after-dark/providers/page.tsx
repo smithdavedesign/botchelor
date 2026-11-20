@@ -123,7 +123,7 @@ function Billing({ overview, processors }: { overview: Awaited<ReturnType<typeof
         </>
       )}
       {overview.subscriptions.length ? (
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll">
           <table className="ad-pairs">
             <thead>
               <tr>
@@ -157,7 +157,7 @@ function Billing({ overview, processors }: { overview: Awaited<ReturnType<typeof
       )}
       <h3>Latest postbacks</h3>
       {overview.events.length ? (
-        <div style={{ overflowX: "auto" }}>
+        <div className="table-scroll">
           <table className="ad-pairs">
             <thead>
               <tr>
