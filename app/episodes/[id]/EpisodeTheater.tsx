@@ -277,6 +277,8 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
                   Watch again
                 </button>
               </p>
+              {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
+              <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />
               {reportCard && (
                 <p className="theater-report">
                   <Link className="button-ghost" href={reportCard} data-track="report-card-open">
@@ -284,8 +286,6 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
                   </Link>
                 </p>
               )}
-              {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
-              <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />
             </div>
           ))}
       </div>
