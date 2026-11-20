@@ -18,6 +18,7 @@ import { scheduleWelcome } from "@/lib/welcome";
 import type { ImageSignals } from "@/lib/avatar";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { ExtrasInput, extrasFields, normaliseExtras, type ExtrasInputType } from "@/lib/extras";
+import { socialHook } from "@/lib/social/hook";
 import { scheduleConceptEmbedding, scheduleOriginalityRecord } from "@/lib/originality-concept";
 import { stampThisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { assertSafeSoul, clearSignals, isEmptySoul, loadSoul, normaliseSoul, ownsCharacter, saveSignals, saveSoul, SOUL_FIELDS, SoulInput, unknownSoulKeys } from "@/lib/souls";
@@ -280,6 +281,10 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   if (["name", "bio", "traits", "want", "dealbreaker", "voice", "extras"].some((k) => k in input)) await scheduleOriginalityRecord(db, id);
   // A dating profile finished on an edit makes a person's character swipe-ready: the welcome experiment (lib/welcome.ts).
   if ("extras" in input && !isMcpCall(req)) await scheduleWelcome(db, id);
+  // The social network (lib/social/derive.ts), after the response: a new hometown; gone private or public, every tie and
+  // place the public record gives it.
+  if ("visibility" in input) await socialHook("character", (d, deadline) => d.onCharacter(db, id, { deadline, visibility: true }), { key: `character:${id}:visibility` });
+  else if ("extras" in input) await socialHook("character", (d, deadline) => d.onCharacter(db, id, { deadline }), { key: `character:${id}` });
 
   // Its tags: the owner's pick when sent; otherwise a new bio or traits are read again (an owner's pick is never touched).
   const tagsSet = tagCheck?.ok ? await setOwnerTags(db, id, tagCheck.tags) : null;

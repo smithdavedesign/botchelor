@@ -13,6 +13,7 @@ import { overnightAired } from "./overnight";
 import { justSplit, STAGE_NEWS, steppedUp as movedUp } from "./relationship-stages";
 import { pairKey, refreshRelationship, STAGE_LABELS, storedStages, viewRelationship } from "./relationships";
 import { endingLabel } from "./rules";
+import { socialHook } from "./social/hook";
 
 /**
  * Refreshes a pair's edge after one of their dates airs, then tells people about it:
@@ -99,5 +100,10 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   // couple, so a one-partner side's owner hears it first, with the opt-out. 2.9.0: when the date that made them Sparks airs,
   // once (lib/partners.ts warnWhenSparksOut; 2.7.0 sent it when that date was written, ahead of its airing).
   await warnWhenSparksOut(db, lo, hi, rel).catch(() => 0);
+  // The social network (lib/social/derive.ts): an aired public date counts toward its venue and its group night.
+  if (opts.episodeId) {
+    const episodeId = opts.episodeId;
+    await socialHook("date", (d, deadline) => d.onDate(db, episodeId, { deadline }), { key: `date:${episodeId}` });
+  }
   return told;
 }

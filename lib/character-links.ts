@@ -9,6 +9,7 @@
  */
 import type { Db } from "./db";
 import { pairKey } from "./relationships";
+import { socialHook } from "./social/hook";
 
 /** The kinds of link: the show's roleplay setups (lib/tags.ts), so an arc finds roleplays tagged for its pair. */
 export const LINK_KINDS = ["rivals", "second_chance", "fake_dating", "friends_to_more"] as const;
@@ -39,6 +40,8 @@ export async function addLink(db: Db, x: string, y: string, kind: LinkKind, stor
      on conflict (character_a, character_b) do update set kind = excluded.kind, story = excluded.story, source = excluded.source, created_at = now()`,
     [lo, hi, kind, story.trim().slice(0, 240), source],
   );
+  // The social network's backstory tie (lib/social/derive.ts LINK_TIES): rivals, exes, a fake couple, best friends.
+  await socialHook("link", (d, deadline) => d.deriveLinkPair(db, lo, hi, { deadline }), { key: `link:${lo}|${hi}` });
 }
 
 /** The link between two characters, or null. */

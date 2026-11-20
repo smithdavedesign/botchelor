@@ -50,6 +50,7 @@ import { checkSheetText, checkShowText } from "./safety";
 import { leadAndSuitors, showCastIds } from "./season-cast";
 import { seasonFormatNow } from "./season-format-store";
 import { seasonIdOf } from "./season-window";
+import { socialHook } from "./social/hook";
 import { setWant, storyStateOn, tensions, type Tension, type TensionKind, type WantKind } from "./story-state";
 import { VENUE_IDS, venueName, venuePhrase, type VenueId } from "./venues";
 import { inFlight } from "./shared-cache";
@@ -548,6 +549,8 @@ async function produce(db: Db, day: string, now: Date, opts: { model?: Model | n
     [day, KIND_OF[picked.kind], picked.kind, JSON.stringify(who), picked.about, JSON.stringify(picked.evidence), why.slice(0, 600), (written ?? lines.logline).slice(0, 200), written ? "model" : "template",
      lines.previously.slice(0, LINE_MAX), lines.tonight.slice(0, LINE_MAX), twists ? JSON.stringify(twists) : null, JSON.stringify(wants)],
   );
+  // Rivals on the public record are rivals in the social network (lib/social/derive.ts), from the beat's own day.
+  if (picked.kind === "rivals") await beatTies(db);
   return { day, beat: KIND_OF[picked.kind], tension: picked.kind, who, wants: wants.length, twists: twists?.length ?? 0, logline_by: written ? "model" : "template" };
 }
 
@@ -707,13 +710,18 @@ export async function skipBeat(db: Db, day: string): Promise<void> {
      on conflict (day) do update set status = 'skipped', choices = null, updated_at = now()`,
     [day, seasonIdOf(noonOf(day))],
   );
+  await beatTies(db);
 }
 
 /** Takes a skip back. A day the producer hadn't reached is freed for its run; a beat that was withdrawn is staged again. */
 export async function unskipBeat(db: Db, day: string): Promise<void> {
   await db.query(`delete from story_beats where day = $1 and status = 'skipped' and tension is null and arc is null`, [day]);
   await db.query(`update story_beats set status = 'staged', updated_at = now() where day = $1 and status = 'skipped'`, [day]);
+  await beatTies(db);
 }
+
+/** A rivals beat staged or withdrawn: the house's ties again (lib/social/derive.ts deriveHouse reads the beats too). Best effort. */
+const beatTies = (db: Db): Promise<void> => socialHook("beat", (d, deadline) => d.deriveHouse(db, { deadline }), { key: "house" });
 
 export type ProducerBeatView = {
   day: string;
