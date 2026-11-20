@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import ShowcaseGrid from "@/app/showcase/ShowcaseGrid";
+import CharacterFigure from "@/app/stage/CharacterFigure";
 import { pageViewer } from "@/app/showcase/viewer";
 import { adCharacter, nightsWith, OWN_SHOWN, SHOWCASE_SHOWN } from "@/lib/adult/character-list";
 import { afterDarkTitle } from "@/lib/adult/discreet";
@@ -15,8 +16,10 @@ import { ownMedia } from "@/lib/adult/media";
 import { adultAvailable } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { stepInOpen } from "@/lib/adult/step-in";
+import { cutoutsReady, cutoutUrl } from "@/lib/cutout";
 import { getDb, type Db } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
+import { characterPortrait } from "@/lib/portraits";
 import { listShowcase } from "@/lib/showcase";
 import { showcasePaths } from "@/lib/showcase-paths";
 import { tagById } from "@/lib/tags";
@@ -52,9 +55,9 @@ async function showcaseOf(db: Db, id: string): Promise<{ posts: Awaited<ReturnTy
  * then this viewer's nights with them, what they've made of them, and what creators published of them to After Dark's
  * showcase (joi's "Community"). Only for someone After Dark may pair them with this viewer (lib/adult/character-list.ts
  * adCharacter): not found for anyone else, whatever the id. Someone After Dark isn't open to lands on the locked
- * Characters page, as a Studio sends them to the locked Studio. The portrait is the show's PG one (.avatar: the
- * discreet blur leaves it alone); everything made in After Dark is under the blur while it's on, and none of it shows
- * where only the scenes are allowed.
+ * Characters page, as a Studio sends them to the locked Studio. The portrait is the show's PG one standing as Step in's
+ * figure does (.avatar: the discreet blur leaves it alone); everything made in After Dark is under the blur while it's
+ * on, and none of it shows where only the scenes are allowed.
  */
 export default async function AfterDarkCharacterPage({ params }: Props) {
   const { id } = await params;
@@ -69,7 +72,11 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
   const viewer = auth!.userId;
   const c = await adCharacter(db, viewer, id);
   if (!c) notFound();
-  const [here, doors, stepIn] = await Promise.all([currentHere(), afterDarkDoors(db, viewer), stepInOpen(db, viewer)]);
+  const [here, doors, stepIn, cutouts] = await Promise.all([currentHere(), afterDarkDoors(db, viewer), stepInOpen(db, viewer), cutoutsReady()]);
+  // Their whole portrait (a house character's reviewed file first, as their avatar has it), standing as Step in's figure
+  // does (app/stage/CharacterFigure.tsx): cut out of its background where the zone makes cutouts (lib/cutout.ts).
+  const portrait = characterPortrait(c.id) ?? c.portrait;
+  const cutout = cutouts ? cutoutUrl(portrait) : null;
   const pictures = here.mode !== "text_only";
   const [nights, own, showcase] = await Promise.all([
     nightsWith(db, viewer, c.id, { covers: pictures }),
@@ -89,8 +96,12 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
           <Link href="/after-dark/characters">← Characters</Link>
         </p>
         <section className="ad-char-hero" aria-labelledby="ad-char-name">
-          <div className="ad-char-portrait">
-            <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={PORTRAIT} fill eager decorative />
+          <div className={`ad-char-portrait${portrait ? " has-figure" : ""}`}>
+            {portrait ? (
+              <CharacterFigure portrait={portrait} cutout={cutout} className="ad-char-figure" />
+            ) : (
+              <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={null} size={PORTRAIT} fill eager decorative />
+            )}
           </div>
           <div className="ad-char-about">
             <p className="kicker">

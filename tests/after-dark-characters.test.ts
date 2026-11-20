@@ -300,6 +300,10 @@ describe("a character's page", () => {
     expect(page).toContain(`${A.name}</h1>`);
     expect(page).toContain(`A night with ${first(A.name)}`);
     expect(page).not.toContain("/after-dark/step-in");
+    // A house character stands as Step in's figure does (app/stage/CharacterFigure.tsx): their reviewed portrait, whole,
+    // as the show's own picture (.avatar: the discreet blur leaves it alone). No cutouts in tests (lib/cutout.ts).
+    expect(page).toContain('data-figure="portrait"');
+    expect(page).toMatch(new RegExp(`<img[^>]*class="avatar character-figure-img"[^>]*src="/cast/${A.id}-`));
   });
 
   it("is not found for anyone the viewer may not have a night with, or an id that isn't anyone", async () => {

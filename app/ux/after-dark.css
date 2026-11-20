@@ -3973,6 +3973,15 @@ fieldset.ad-si-step {
   border: 1px solid var(--ad-line);
   border-radius: var(--radius-lg);
 }
+/* Their portrait standing in a pool of light (app/stage/CharacterFigure.tsx: a cutout melts into the floor, a portrait
+   fades at every edge), as Step in's figure stands beside the scene. */
+.ad-char-portrait.has-figure {
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--ad-accent) 30%, var(--ad-card)), var(--ad-card) 72%);
+}
+.ad-char-figure {
+  position: absolute;
+  inset: 0;
+}
 @media (max-width: 47.99rem) {
   .ad-char-portrait {
     max-width: 15rem;

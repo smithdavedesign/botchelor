@@ -3711,7 +3711,9 @@ its door says **Who's in** (it was "Characters", the old name of that page: `lib
   Two to a row on a phone.
 - **Small pages.** Filtering and paging happen on the server (`?q=&whose=&tag=&page=`, 36 a page), and faces and picture
   counts are read for that page only. The client never gets the whole cast (#1822's 4.6 MB lesson).
-- **A character's page** (`/after-dark/characters/<id>`): the PG portrait, name, tags and bio, then the ways in:
+- **A character's page** (`/after-dark/characters/<id>`): their PG portrait standing as Step in's figure does
+  (`app/stage/CharacterFigure.tsx`: cut out of its background where the zone makes cutouts, else faded at its edges),
+  name, tags and bio, then the ways in:
   - **A night with them** opens the hub's picker with them picked (`/after-dark?with=<id>#scenes`, `PairPicker`'s
     `preselect`);
   - **Step in** shows only where Step in is open to the viewer.
