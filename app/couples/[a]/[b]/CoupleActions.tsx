@@ -22,7 +22,8 @@ export function FollowButton({ pair, following, followers }: { pair: [string, st
         {following ? "Following ✓" : "🔔 Follow this couple"}
       </button>{" "}
       <span className="muted small">
-        {followers === 1 ? "1 follower" : `${followers} followers`} · hear when they go on another date
+        {/* No count before the first follower (visual audit 2026-11-20), as on a character's and a creator's page. */}
+        {followers > 0 ? `${followers === 1 ? "1 follower" : `${followers} followers`} · hear when they go on another date` : "Hear when they go on another date"}
       </span>
     </p>
   );

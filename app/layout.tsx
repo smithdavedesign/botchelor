@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import NavProgress from "./NavProgress";
-import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { episodeAllowance, freshAllowance, ownAllowance } from "@/lib/allowance";
 import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
 import { afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
 import { afterDarkDoors } from "@/lib/adult/doors";
@@ -128,8 +128,10 @@ export async function generateViewport(): Promise<Viewport> {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The nav's token meter needs this viewer's dates left. Without an identity (a newcomer before their first action, or an
-  // agent reading the page) it shows the fresh weekly allowance as "free dates", not as someone's count (run 2026-10-22-0215).
+  // agent reading the page) it shows the fresh weekly allowance as "free dates", not as someone's count (run 2026-10-22-0215);
+  // so does an anonymous identity that hasn't acted yet (lib/allowance.ts ownAllowance).
   const cookieStore = await cookies();
+  const viewer = authFromCookieStore(cookieStore);
   const viewerId = userIdFromCookieStore(cookieStore);
   // A picked theme (lib/theme.ts, set on /account) paints right from the first byte; "system" writes nothing.
   const theme = themeFromCookie(cookieStore.get(THEME_COOKIE)?.value);
@@ -153,7 +155,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // After Dark's link shows to someone it's open to (lib/adult/entitlement.ts), only where it's offered
     // (lib/jurisdiction.ts); once its public door is opened (lib/adult/door.ts, admins only until payments), to every
     // adult where it isn't blocked.
-    afterDarkDoor(db, authFromCookieStore(cookieStore), await headers()).catch(() => ({ door: false, threshold: false })),
+    afterDarkDoor(db, viewer, await headers()).catch(() => ({ door: false, threshold: false })),
     db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
     // The bell's unread count (lib/notifications.ts): what happened between dates.
     db && viewerId ? unreadCount(db, viewerId).catch(() => 0) : 0,
@@ -216,7 +218,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={Boolean(viewerId)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board).
             A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}

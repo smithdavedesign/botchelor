@@ -18,9 +18,12 @@ export default function MyPrompts() {
   const [busy, setBusy] = useState(false);
   const load = () =>
     fetch("/api/library")
-      .then((r) => {
+      .then(async (r) => {
         if (r.status === 401) setSignedOut(true);
-        return r.ok ? r.json() : null;
+        // Read the body either way: a signed-out visitor's unread 401 held the request open, so /prompts never went
+        // network-idle (a 30 s browser load timed out in the visual audit, 2026-11-20; the page itself loads in ~0.6 s).
+        const body = await r.json().catch(() => null);
+        return r.ok ? body : null;
       })
       .then((d) => d && setMine(d.library.prompts as MyPrompt[]))
       .catch(() => {});
