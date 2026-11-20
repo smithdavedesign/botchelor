@@ -428,6 +428,10 @@ export async function startTestDb() {
         "mcp_sessions",
         "analytics_events",
         "character_embeddings",
+        // The social network's daily numbers and "Might know" (lib/social/metrics-job.ts): the house cast outlives a reset.
+        "social_metrics",
+        "social_network_daily",
+        "social_suggestion_log",
       ]) {
         await db.query(`delete from ${table}`);
       }

@@ -193,6 +193,11 @@ Co-membership ("regulars at the dive bar", "both from Leeds", "coworkers at the 
   - `reason` (`common_friends`, `shared_place`, `same_event`, `friend_of_ex`...), `score`;
   - `shown_at`, `outcome` (`accepted`, `dismissed`, `ignored`), `outcome_at`.
   - This is link-prediction ground truth.
+- **As built (Phase 4 PR 2).**
+  - `constraint` is stored as `burt_constraint`: `constraint` is a reserved word in SQL.
+  - `social_network_daily` also keeps `stats` (transitivity, triangles, the deepest core, how the communities were found, linked pairs) and `complete` and `progress`, so a run that runs out of time is finished the same day by the hourly job's passes.
+  - `social_suggestion_log.id` is a `bigint` identity.
+  - Retention (`lib/retention.ts`): `social_metrics` 400 days day by day, then Mondays only; `social_suggestion_log` 400 days, and with the account; `social_network_daily` kept (no character, no person).
 
 ## 6. Where ties come from
 
@@ -277,9 +282,10 @@ Never derived: anything from `character_opinions`, `character_heard`, `character
 
 - **Daily job:** within a time budget, fill `social_metrics` and `social_network_daily`. The measures are pure functions in `lib/social/analytics.ts`, next to 2a's `lib/social/algorithms.ts` (ego network, rings, signed triads). They are tested against networkx on Zachary's karate club and on small graphs with known answers.
   - PageRank uses power iteration.
-  - Betweenness is exact up to 5,000 characters, then sampled from seeded pivots.
+  - Betweenness is exact up to 5,000 characters, then sampled from seeded pivots. The daily job runs on the show's own instance, so it asks for less: exact up to 1,000 characters a layer, 256 pivots above that, and it yields to the event loop before each measure.
   - Communities run both seeded label propagation and Louvain and keep the split with the higher modularity. Label propagation alone once flooded this graph's clusters into one (`lib/graph.ts`), and on a clustered 100k-node test graph it scored 0.48 to Louvain's 0.79.
   - The whole set runs on 100k characters and 300k ties in about 3 seconds, plus about 5 seconds for 500 betweenness pivots.
+- **The job** (`lib/social/metrics-job.ts`) is a step of the daily job's `growth` part, before the lessons, with a 45-second budget. It reads every public, active tie between two public characters (keyset pages of 5,000), measures each layer and all of them, then writes the rows in batches of 500 that never split a character. A day that runs out of time stays incomplete with a cursor, and the hourly job's passes finish it after their response. A finished day does nothing; the day seeds every random choice.
 - **Admin:** `/admin/social` shows the network's numbers over time, layers, balance, licensable rows by source and model, and the suggestion hit rate.
 - **Dataset builder:** `scripts/social/export-dataset.mjs` (admin, offline) writes a versioned folder:
   - `nodes.jsonl`, `people.jsonl`, `places.jsonl`, `memberships.jsonl`, `ties.jsonl`, `tie_events.jsonl`, `metrics.jsonl`, `network_daily.jsonl`;

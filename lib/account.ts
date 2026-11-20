@@ -110,6 +110,11 @@ export type AccountExport = {
   /** Their taps on the "Botchelor Plus" tile (lib/plus-interest.ts): where, when, and whether they left an email. */
   plus_interest: Record<string, unknown>[];
   /**
+   * The "Might know" suggestions shown to them for their characters (docs/PRDs/social-network.md section 6.3): who was
+   * suggested to which character, why, and whether they took it up. Kept 400 days.
+   */
+  social_suggestions: Record<string, unknown>[];
+  /**
    * Their conversations with companions (lib/companion.ts), a thread each: the character, every message with who said
    * it, when and whether it was said on a call, what the character remembers about them (the facts and the running
    * notes), and the blank markers left by texts they deleted. After Dark is not here: nothing of it is in this export.
@@ -440,6 +445,10 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
       [userId],
     ),
     plus_interest: await q("select place, with_email, created_at from plus_interest where user_id = $1 order by created_at", [userId]),
+    social_suggestions: await q(
+      `select character_id, suggested_id, reason, score, shown_at, outcome, outcome_at from social_suggestion_log where viewer = $1 order by shown_at, id`,
+      [userId],
+    ),
     companion_conversations: await companionConversations(db, userId),
     // A call's row has no words and no sound (its words are messages, marked on_call, in the conversation above).
     companion_calls: await q(
@@ -932,6 +941,8 @@ async function deleteIdentity(db: Db, userId: string): Promise<AccountDeletion> 
   await run("delete from user_feedback where user_id = $1", [userId]);
   // Their taps on the Plus tile (lib/plus-interest.ts); an email they left is on the Sunday letter's list, which has its own exit.
   await run("delete from plus_interest where user_id = $1", [userId]);
+  // The "Might know" suggestions shown to them (lib/social): the rows about their own characters go with those anyway.
+  await run("delete from social_suggestion_log where viewer = $1", [userId]);
   await run("delete from language_seen where actor = $1", [userId]);
   // Site engagement rows logged while signed in (lib/engagement.ts), and every other row from the same browsers.
   await run("delete from web_events where visitor in (select visitor from web_events where user_id = $1)", [userId]);

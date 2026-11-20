@@ -24,6 +24,8 @@ export const RETENTION_DAYS = {
   language_seen: 400,
   web_events: 400,
   plus_interest: 400,
+  social_suggestion_log: 400,
+  social_metrics: 400,
 } as const;
 export type PrunedTable = keyof typeof RETENTION_DAYS;
 
@@ -41,6 +43,11 @@ const PRUNE_SQL: Record<PrunedTable, string> = {
   web_events: `delete from web_events where at < $1`,
   // A tap on the Plus tile (lib/plus-interest.ts) is a signal for a decision; a year on, it's noise.
   plus_interest: `delete from plus_interest where created_at < $1`,
+  // "Might know" suggestions shown, and what came of them (lib/social/metrics-job.ts, docs/PRDs/social-network.md).
+  social_suggestion_log: `delete from social_suggestion_log where shown_at < $1`,
+  // The network's daily numbers per character: past 400 days only one day a week stays (Mondays), so the long view
+  // keeps its shape at a seventh of the rows.
+  social_metrics: `delete from social_metrics where day < $1::timestamptz::date and extract(isodow from day) <> 1`,
 };
 
 /** Deletes what's past its time, table by table (one failing never stops the rest). Returns how many rows each lost. */

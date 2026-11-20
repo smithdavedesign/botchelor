@@ -57,7 +57,7 @@ export const PERSON_ID_NAMES: readonly string[] = [
   "user_id", "owner_id", "agent_id", "reporter_id", "creator_id", "proposed_by", "voter_id", "visitor", "viewer_id", "used_by",
   "reviewer_id", "recipient_id", "rater_id", "proposer_id", "host_id", "holder", "follower_id", "by_user", "booker", "blocker_id",
   "blocked_id", "answerer_user", "from_user", "to_user", "proposer_user", "actor", "created_by", "taken_by", "granted_by",
-  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id",
+  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "viewer",
 ];
 
 /**
@@ -277,6 +277,8 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   // What they sent us, and what we logged.
   { table: "user_feedback", column: "user_id", export: at("feedback"), delete: ROWS, move: SAID_AS },
   { table: "plus_interest", column: "user_id", export: at("plus_interest"), delete: ROWS, move: LOG },
+  // "Might know" (docs/PRDs/social-network.md section 6.3): the suggestions shown to an owner, link-prediction ground truth.
+  { table: "social_suggestion_log", column: "viewer", export: at("social_suggestions"), delete: ROWS, move: LOG },
   { table: "language_seen", column: "actor", export: at("languages_written"), delete: ROWS, move: LOG },
   { table: "web_events", column: "user_id", export: out("a click log with ids taken out of its paths and nothing typed, kept 400 days: deleted with the account"), delete: ROWS, move: LOG },
   { table: "analytics_events", column: "user_id", export: out("funnel events (a small enum each): deleted with the account"), delete: ROWS, move: LOG },
