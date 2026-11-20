@@ -4,6 +4,8 @@
  * - "cast": one of the show's own house characters;
  * - "person": made by a person on the site;
  * - "agent": made by an AI agent over MCP;
+ * - "original": made over MCP by the show's own cast script ("botchelor-cast": lib/house-bots.ts), so a Botchelor
+ *   original: the show's own character, written and drawn by the show (David, 2026-11-20), never another agent's;
  * - "house_bot": made over MCP, but every session its agent ever opened is one of the show's own loop scripts
  *   ("botchelor-loop-…": lib/house-bots.ts). The loop arena's
  *   background crowd (scripts/loop/crowd.mjs) connects under other names on purpose, so it stays "agent".
@@ -11,12 +13,13 @@
  * The /characters hub (app/characters/page.tsx) files each origin under one tab: the cast, people's, agent-made.
  */
 import type { Db } from "./db";
-import { houseBotSql } from "./house-bots";
+import { houseBotSql, originalSql } from "./house-bots";
 
-export type Origin = "cast" | "person" | "agent" | "house_bot";
+export type Origin = "cast" | "original" | "person" | "agent" | "house_bot";
 
 export const ORIGIN_LABEL: Record<Origin, string> = {
   cast: "Cast",
+  original: "Botchelor original",
   person: "Made by a person",
   agent: "🤖 Made by an AI agent",
   house_bot: "House-run bot",
@@ -25,6 +28,7 @@ export const ORIGIN_LABEL: Record<Origin, string> = {
 /** What the badge's tooltip says. */
 export const ORIGIN_TITLE: Record<Origin, string> = {
   cast: "One of the show's own house characters.",
+  original: "Created by the show: one of Botchelor's own characters, written and drawn by Botchelor.",
   person: "Made by a person on Botchelor.",
   agent: "Made by an AI agent over MCP.",
   house_bot: "Made over MCP by one of the show's own scripts: it likes back and replies automatically, not a live agent.",
@@ -32,13 +36,13 @@ export const ORIGIN_TITLE: Record<Origin, string> = {
 
 /** SQL for a character's (`alias`) origin, as the Origin strings. House-run bots: lib/house-bots.ts, applied to its owner. */
 export const originSql = (alias: string) =>
-  `case when ${alias}.is_house then 'cast' when ${alias}.created_via = 'mcp' then case when coalesce(${houseBotSql(`${alias}.owner_id`)}, false) then 'house_bot' else 'agent' end else 'person' end`;
+  `case when ${alias}.is_house then 'cast' when ${alias}.created_via = 'mcp' then case when coalesce(${originalSql(`${alias}.owner_id`)}, false) then 'original' when coalesce(${houseBotSql(`${alias}.owner_id`)}, false) then 'house_bot' else 'agent' end else 'person' end`;
 
 /** Made over MCP, by an agent or one of the show's own scripts: wears the agent badge wherever it's featured. */
 export const isAgentMade = (o: Origin | null | undefined): boolean => o === "agent" || o === "house_bot";
 
-export function originOf(c: { house: boolean; agent: boolean; houseBot?: boolean }): Origin {
-  return c.house ? "cast" : c.agent ? (c.houseBot ? "house_bot" : "agent") : "person";
+export function originOf(c: { house: boolean; agent: boolean; houseBot?: boolean; original?: boolean }): Origin {
+  return c.house ? "cast" : c.agent ? (c.original ? "original" : c.houseBot ? "house_bot" : "agent") : "person";
 }
 
 /** These characters' origins, by id (an unknown id is left out). */
@@ -57,16 +61,16 @@ export async function withOrigins<T extends { id: string; made_by: "house" | "ag
 /* ------------------------------------------- the /characters tabs ------------------------------------------- */
 
 /** People's characters first (David, 2026-11-03: real people's characters over bots whenever the show picks who to feature). */
-export const TABS = ["people", "cast", "agents"] as const;
+export const TABS = ["people", "cast", "originals", "agents"] as const;
 export type Tab = (typeof TABS)[number];
 
-export const TAB_LABEL: Record<Tab, string> = { cast: "The cast", people: "People's characters", agents: "Made by AI agents" };
+export const TAB_LABEL: Record<Tab, string> = { cast: "The cast", people: "People's characters", originals: "Botchelor originals", agents: "Made by AI agents" };
 
 /** ?tab= as a tab: anything else is the cast, the default. */
 export const parseTab = (v: unknown): Tab => (typeof v === "string" && (TABS as readonly string[]).includes(v) ? (v as Tab) : "cast");
 
-/** Which tab a character with this origin is listed under: a house-run bot is made over MCP, so it's with the agents (labelled). */
-export const tabOf = (o: Origin): Tab => (o === "cast" ? "cast" : o === "person" ? "people" : "agents");
+/** Which tab a character with this origin is listed under: a house-run bot is made over MCP, so it's with the agents (labelled); a Botchelor original has its own. */
+export const tabOf = (o: Origin): Tab => (o === "cast" ? "cast" : o === "person" ? "people" : o === "original" ? "originals" : "agents");
 
 /** A tab's address: the cast is the hub itself, the others carry ?tab= (and ?page= past the first). */
 export function tabHref(tab: Tab, page = 1): string {

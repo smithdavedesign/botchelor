@@ -1,6 +1,6 @@
 /**
  * Who made them, as the Characters tabs split it and the Constellation's filter reads it (lib/origin.ts): the show's own
- * cast, people's characters, and agents' (the house-run bots count with the agents, as on the Agents tab). Plus "yours",
+ * cast (its Botchelor originals with it), people's characters, and agents' (the house-run bots count with the agents, as on the Agents tab). Plus "yours",
  * the viewer's own characters (the Yours tab), which goes by id since an origin can't say whose. Its own module, with
  * nothing but a type import, so the Constellation's client filter (app/graph/filter.ts) can use it without pulling
  * lib/graph.ts's server code into the browser.
@@ -18,7 +18,7 @@ export const parseSkyGroup = (v: unknown): SkyGroup | null =>
 
 /** Whether a character's (public) origin puts it in `group`. A private character's is masked, so it's in none. */
 export const inOriginGroup = (origin: Origin | null, group: OriginGroup): boolean =>
-  group === "agent" ? origin === "agent" || origin === "house_bot" : origin === group;
+  group === "agent" ? origin === "agent" || origin === "house_bot" : group === "cast" ? origin === "cast" || origin === "original" : origin === group;
 
 const NONE: ReadonlySet<string> = new Set();
 

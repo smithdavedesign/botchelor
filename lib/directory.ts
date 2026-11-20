@@ -8,6 +8,7 @@ import type { ArtStyle } from "./art-style";
 import { showStyleSql } from "./portrait-sql";
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
+import { originalSql } from "./house-bots";
 import { originSql, type Origin } from "./origin";
 import { DELETED_OWNER } from "./rules";
 import { notPersonaSql } from "./step-in-shared";
@@ -73,10 +74,13 @@ export async function directoryEntries(db: Db, ids: string[], opts: { /** The vi
   return ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
 }
 
-/** Who's on a made-by tab: people's characters, or agents' (house-run bots included, labelled, after the real agents). */
+/** Made by the show's own cast script: a Botchelor original (lib/origin.ts). */
+const ORIGINAL = `coalesce(${originalSql("c.owner_id")}, false)`;
+/** Who's on a made-by tab: people's characters, the show's originals, or agents' (house-run bots included, labelled, after the real agents). */
 const TAB_WHERE = {
   people: `not c.is_house and c.created_via <> 'mcp'`,
-  agents: `not c.is_house and c.created_via = 'mcp'`,
+  originals: `not c.is_house and c.created_via = 'mcp' and ${ORIGINAL}`,
+  agents: `not c.is_house and c.created_via = 'mcp' and not ${ORIGINAL}`,
 } as const;
 /**
  * Listed at all: not a deleted account's ($1), and not someone's "you" from a step-in date (lib/step-in.ts: a seat at
@@ -87,7 +91,7 @@ const LISTED = `c.owner_id is distinct from $1 and ${notPersonaSql("c")}`;
 /** A made-by tab, a page at a time, newest first. */
 export async function listTab(
   db: Db,
-  tab: "people" | "agents",
+  tab: "people" | "originals" | "agents",
   page = 1,
 ): Promise<{ entries: DirectoryEntry[]; total: number; pages: number; page: number }> {
   const total = (await tabCounts(db))[tab];
@@ -116,9 +120,10 @@ export async function privateAmong(db: Db, ids: string[]): Promise<Set<string>> 
 }
 
 /** How many characters each made-by tab lists (private ones included: they're listed by name), and how many of them are private. */
-export async function tabCounts(db: Db): Promise<{ people: number; agents: number; private: number }> {
-  const { rows } = await db.query<{ people: number; agents: number; private: number }>(
+export async function tabCounts(db: Db): Promise<{ people: number; originals: number; agents: number; private: number }> {
+  const { rows } = await db.query<{ people: number; originals: number; agents: number; private: number }>(
     `select count(*) filter (where ${TAB_WHERE.people})::int as people,
+            count(*) filter (where ${TAB_WHERE.originals})::int as originals,
             count(*) filter (where ${TAB_WHERE.agents})::int as agents,
             count(*) filter (where c.visibility = 'private' and not c.is_house)::int as private
        from characters c where ${LISTED}`,

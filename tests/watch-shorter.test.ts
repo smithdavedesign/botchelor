@@ -19,6 +19,15 @@ describe("Watch stays short", () => {
     expect(page).not.toContain("is-two");
   });
 
+  it("puts 'Airing soon: call it' first, right after the lede (the 2026-11-20 mobile audit, A1)", () => {
+    const lede = page.indexOf('className="lede watch-intro"');
+    const airing = page.indexOf('id="airing-soon"');
+    expect(lede).toBeGreaterThan(-1);
+    expect(airing).toBeGreaterThan(lede);
+    expect(airing).toBeLessThan(page.indexOf('id="on-now"'));
+    expect(page).toContain('<section className="watch-block watch-airing-block" aria-labelledby="airing-soon">');
+  });
+
   it("sends the season's games to their own pages, and old #anchors still land on the way there", () => {
     for (const gone of ["BackCast", "CastChat", "ChemistryShiftsPanel", "SeasonPoolPanel", "CallersBoardPanel", "CreateLeagueForm"]) expect(page).not.toContain(gone);
     for (const id of ["season-pool", "cast-chat", "best-callers", "leagues"]) expect(page).toContain(`id="${id}"`);

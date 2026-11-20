@@ -1157,7 +1157,18 @@ body:has(.companion-fullscreen) .site-footer {
   font-size: var(--text-sm);
 }
 .companion-call-how summary {
+  min-height: var(--control-h);
+  padding-block: var(--space-2);
   cursor: pointer;
+}
+/* Call and Not now stay on screen however long the ready screen gets (mobile audit C1): pinned to the bottom of the
+   scrolling call, over a fade into the backdrop, clear of the home indicator. */
+.companion-call-ready .companion-call-controls {
+  position: sticky;
+  bottom: calc(-1 * var(--space-5));
+  margin: 0 calc(-1 * var(--gutter)) calc(-1 * var(--space-5));
+  padding: var(--space-4) var(--gutter) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, transparent, var(--photo-bg) var(--space-4));
 }
 .companion-call-how p {
   margin: var(--space-2) 0 0;
