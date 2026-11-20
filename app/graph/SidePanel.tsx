@@ -61,7 +61,8 @@ const timeAgo = (iso: string | null): string | null => {
   return months === 1 ? "a month ago" : `${months} months ago`;
 };
 
-function Tile({ node }: { node: GraphNode }) {
+/** A star's face in a panel: its portrait, or its initials on its gradient (a private one: a lock). */
+export function Tile({ node }: { node: GraphNode }) {
   const p = avatarPalette(node.id, node.hue);
   return node.portrait && !node.private ? (
     // eslint-disable-next-line @next/next/no-img-element

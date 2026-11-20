@@ -19,6 +19,8 @@ import { parseStages, stagesParam } from "./stages";
 import ShowTabs from "@/app/ShowTabs";
 import StoryMap from "@/app/StoryMap";
 import { cachedStoryMap } from "@/lib/story-map";
+import { lensParam, parseLens } from "@/lib/social/lenses";
+import { cachedLensSky, socialLensesOn } from "@/lib/social/lens-sky";
 
 // Rendered per request (the site chrome reads the session), but the graph itself comes from a 60-second cache that a
 // visibility change, a report or moderation drops at once (lib/graph-cache.ts): crawlers no longer rebuild it each hit.
@@ -66,10 +68,19 @@ async function viewerCharacterIds(): Promise<string[]> {
 export default async function GraphPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const focusParam = sp.focus;
+  // ?lens= (the social network's views, SOCIAL_LENSES): the view the sky opens on. Love, the Constellation, needs none.
+  const lensesOn = socialLensesOn();
+  const lens = lensesOn ? parseLens(sp.lens) : "love";
   // The same cached build for every ?focus=: the focus is applied in the browser (ConstellationApp initialFocus).
   // This week's story map (lib/story-map.ts) rides next to it: its own shared copy, null with STORY_MAP=0.
-  // The viewer's own ids ride along too, for "Yours" (signed in only; the sky itself is everyone's).
-  const [{ nodes, edges, stats, kinds }, week, mine] = await Promise.all([cachedConstellation(), cachedStoryMap().catch(() => null), viewerCharacterIds()]);
+  // The viewer's own ids ride along too, for "Yours" (signed in only; the sky itself is everyone's). A shared view's
+  // sky comes too, so its link draws at once; Love's page carries none (the other views load when they're picked).
+  const [{ nodes, edges, stats, kinds }, week, mine, lensSky] = await Promise.all([
+    cachedConstellation(),
+    cachedStoryMap().catch(() => null),
+    viewerCharacterIds(),
+    lens === "love" ? null : cachedLensSky(lens).catch(() => null),
+  ]);
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const open = edges.filter((e) => !e.masked);
   const singles = nodes.filter((n) => n.degree === 0);
@@ -94,6 +105,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
     when: whenParam(when) ?? undefined,
     still: still ? "1" : undefined,
     world: world ?? undefined,
+    lens: lensParam(lens) ?? undefined,
   };
   // The clock "this season" and "the last 30 days" count from, handed to the browser so both renders draw the same sky.
   const now = Date.now();
@@ -111,24 +123,6 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
           ),
         ]}
       />
-  );
-  const sky = (
-    <>
-      {/* The sky (2026-10-25: the page opened on it; since the story map, 2026-11-15, it is the "All time" section). */}
-      {/* The strongest pairs first; the rest of the sky loads when asked for (or when ?focus= names someone outside it). */}
-      <ConstellationApp
-        data={first}
-        total={first.nodes.length === nodes.length && first.edges.length === edges.length ? null : { characters: nodes.length, pairs: edges.length }}
-        initialFocus={typeof focusParam === "string" ? focusParam : null}
-        initialOrigin={origin ?? "all"}
-        initialStages={stages}
-        initialWhen={when}
-        initialStill={still}
-        initialWorld={world}
-        now={now}
-        mine={mine}
-      />
-    </>
   );
   const numbers = (
         <ul className="constellation-stats" aria-label="The network right now">
@@ -168,6 +162,28 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
             <strong>{stats.singles}</strong> waiting for a first date
           </li>
         </ul>
+  );
+  const sky = (
+    <>
+      {/* The sky (2026-10-25: the page opened on it; since the story map, 2026-11-15, it is the "All time" section). */}
+      {/* The strongest pairs first; the rest of the sky loads when asked for (or when ?focus= names someone outside it). */}
+      <ConstellationApp
+        data={first}
+        total={first.nodes.length === nodes.length && first.edges.length === edges.length ? null : { characters: nodes.length, pairs: edges.length }}
+        initialFocus={typeof focusParam === "string" ? focusParam : null}
+        initialOrigin={origin ?? "all"}
+        initialStages={stages}
+        initialWhen={when}
+        initialStill={still}
+        initialWorld={world}
+        now={now}
+        mine={mine}
+        lensesOn={lensesOn}
+        initialLens={lens}
+        initialLensSky={lensSky}
+        loveNumbers={lensesOn && week ? numbers : null}
+      />
+    </>
   );
   const tables = (
     <>
@@ -343,7 +359,8 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         </h2>
         <p className="muted small">{DESCRIPTION}</p>
         {sky}
-        {numbers}
+        {/* With the views on, the numbers are the sky's own line (each view has its own), drawn by ConstellationApp. */}
+        {!lensesOn && numbers}
       </section>
       {/* Open when a ledger page is asked for (its pager links here), folded otherwise. */}
       <details className="constellation-fold ux-fold" id="tables" open={sp.ledger !== undefined}>
