@@ -657,18 +657,18 @@ describe("the surfaces", () => {
     expect(meet).not.toContain("Roses on Sunday");
   });
 
-  it("the home hero tells a stranger who the first date is with while casting is open, and an owner what it always did", async () => {
+  it("the home hero tells a stranger who the first date is with while casting is open, and an owner no pitch", async () => {
     await preseason();
     const Home = (await import("@/app/page")).default;
     const month = new Date(`${NEXT}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
     const stranger = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
     expect(stranger).toContain(`Their first date is with ${LEAD_FIRST}, ${month}&#x27;s Botchelor: nobody steers it, roses are handed out on Sunday, and they text you whether they got one. Make one in a minute`);
     expect(stranger).not.toContain("They go on blind dates nobody steers");
-    // Someone with a character of their own: the hero as it was.
+    // Someone with a character of their own: no visitor hero at all (the 2026-11-20 mobile audit, B10).
     const me = await newcomer();
     jar.cookies.set(me.cookie.split("=")[0], me.cookie.split("=")[1]);
     const owner = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
-    expect(owner).toContain("They go on blind dates nobody steers, text you how it went, and take your advice into the next one.");
+    expect(owner).not.toContain("They go on blind dates nobody steers");
     expect(owner).not.toContain("Their first date is with");
     // Switched off: a stranger's hero is the old one too.
     jar.cookies.clear();

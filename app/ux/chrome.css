@@ -340,6 +340,12 @@ body:has(.feedback-fab) .site-footer {
   body:has(.tabbar-nav) :is(.phone-action-bar, .beta-toast, .install-hint, .feedback-fab, .studio-select-bar) {
     bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3));
   }
+  /* One bottom bar at a time (the 2026-11-20 mobile audit, A2 and pattern 3): the page's floating action bar stacked on
+     the tab bar made 150-230px of fixed chrome. While the tab bar shows, the bar stays away; the page's own button and
+     the tab bar's doors are enough. Where the tab bar is hidden, the floating bar works as before. */
+  body:has(.tabbar-nav) .phone-action-bar {
+    display: none;
+  }
 
   /* Where it steps aside: the full-screen views the floating Feedback button steps aside for (app/globals.css, "people's
      feedback", the one list), which are classes rather than addresses (app/PhoneTabBar.tsx keeps the addresses), and

@@ -220,6 +220,8 @@ describe("the phone's tab bar", () => {
       expect(hide, where).toContain(where);
     }
     expect(css).toMatch(/body:has\(\.tabbar-nav\) :is\(\.phone-action-bar, \.beta-toast, \.install-hint, \.feedback-fab, \.studio-select-bar\) \{\s*bottom: calc\(var\(--tabbar-h\) \+ env\(safe-area-inset-bottom, 0px\) \+ var\(--space-3\)\);/);
+    // One bottom bar at a time (the 2026-11-20 mobile audit, A2): the floating action bar stays away while the tab bar shows.
+    expect(css).toMatch(/body:has\(\.tabbar-nav\) \.phone-action-bar \{\s*display: none;\s*\}/);
     // A 44px target or more, its label on the type scale (13px and up).
     expect(css).toMatch(/--tabbar-h: 3\.75rem;/);
     expect(css).toMatch(/\.tabbar-tab \{[^}]*min-height: var\(--tabbar-h\);[^}]*font-size: var\(--tabbar-label\);/);

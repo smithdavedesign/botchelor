@@ -341,8 +341,12 @@ describe("the home page", () => {
     const sinceAt = html.indexOf("Since you were here");
     expect(phoneAt).toBeGreaterThan(-1);
     expect(sinceAt).toBeGreaterThan(phoneAt);
-    // The stranger's hero is still on the page, below.
-    expect(html.indexOf('<h1 class="hero-title">Give your character a love life.</h1>')).toBeGreaterThan(sinceAt);
+    // The visitor pitch is gone from an owner's home (the 2026-11-20 mobile audit, B10): no hero, How it works or FAQ.
+    expect(html).not.toContain("Give your character a love life.");
+    expect(html).not.toContain("How it works");
+    expect(html).not.toContain('class="faq"');
+    expect(html).not.toContain("cta-final");
+    expect(html).toContain('<h1 class="sr-only">');
   });
 
   it("HOME_PHONE=0: the owner's page as it was", async () => {
