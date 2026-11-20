@@ -91,9 +91,13 @@ Each kind has:
 
 The list is meant to grow. A new kind is a line of code; the schema doesn't change.
 
+`child` and `grandchild` (added in 2b): a tie to an off-screen person always starts at its holder, so "Jun is Marlo's
+son" needs a kind that reads that way round. Between two characters they're the `parent` and `grandparent` tie from the
+other end (`lib/social/relations.ts` `canonicalTie`), so the character graph keeps one form of each.
+
 | Layer | Kinds |
 |---|---|
-| `kin` | `parent` (directed), `sibling`, `half_sibling`, `step_sibling`, `cousin`, `grandparent` (directed), `aunt_uncle` (directed), `in_law`, `family` |
+| `kin` | `parent` (directed), `sibling`, `half_sibling`, `step_sibling`, `cousin`, `grandparent` (directed), `aunt_uncle` (directed), `in_law`, `family`, `child` and `grandchild` (directed: 2b, for off-screen people) |
 | `romance` | `spouse` (exclusive 1), `partner`, `engaged`, `ex`, `crush` (directed), `first_love`, `situationship`, `fake_couple`, and `dated`, the show's dating track (layer by stage, below) |
 | `friendship` | `best_friend` (exclusive 3), `close_friend`, `friend`, `childhood_friend`, `old_friend`, `roommate`, `pen_pal` |
 | `work` | `coworker`, `manager` (directed), `business_partner`, `mentor` (directed), `classmate`, `teammate`, `bandmate` |
@@ -237,6 +241,14 @@ As built (2a, `lib/social/derive.ts`):
 - **House characters** take ties only from the show: its generator, an admin, or what aired. A person can't declare a tie to a house character.
 - **Agents** do the same through MCP tools: `get_circle`, `add_person`, `propose_tie`, `answer_tie`, `end_tie`, `set_place`. These are non-core tools.
 - **The season generator** gives each candidate 3–6 off-screen people, a neighbourhood, a workplace and a regular spot in the show's world, and ties to one or two show characters, in the call it already makes. Existing show characters (house, cast, agent-made catalog) are backfilled by `scripts/social/backfill-circles.mjs`. It runs on the Mac's local open-weight model, so it costs $0, and its output is licensable. It posts to an admin route, which checks every name and line with `checkShowText`. `origin_model` is recorded.
+- **As built (2b, the show's circles, `lib/social/circles.ts`):**
+  - **The show's characters** are the house (the season's cast among them) and the show's own agent-made cast (made over MCP by our own agents, `loadOurIds`, as `lib/adult/agent-cast.ts` decides), public, never a persona or a test character. A person's character on the cast gets its circle from its owner.
+  - **One write path** for both writers, `writeCircle`: each item is checked alone and refused alone with its reason. The checks: a kind from the registry the house may declare (free words such as "older sister", "boss" or "my mentee" read by `lib/social/relations.ts`); the show's text check on every name, note, story and place name; originals only (`lib/franchises.ts`, as for the show's own characters); the people cap and the exclusive kinds' caps; a place of the right kind for the role (a neighbourhood to live in; a workplace or school may be named new, under a neighbourhood); ties only to another show character; no kin tie between two who have dated (a `relationships` row, a romance tie, or an ex or fake-couple backstory link whose tie isn't derived yet), and no romance between kin.
+  - **The show's characters are single** (decided in 2b): the house never gives one a `spouse`, `partner`, `engaged` or `situationship`, with a character or off-screen. A late spouse is a person it may name.
+  - **Idempotent:** a character with the show's circle (people or places the house wrote) is skipped; `replace` (the backfill's `--force`) removes the show's people and declared-role places for it first, never an owner's or agent's.
+  - **Provenance:** `source` house, public, `origin_model` the deployment that answered (the backfill's `ollama_chat/qwen2.5:7b` on LiteLLM `local-chat`; the generator's director model) and `prompt_version` (`backfill-circles-v1`, `season-gen-circle-v1`). Places and memberships carry `origin_model` only: their tables have no `prompt_version`.
+  - **The admin route** `GET/POST /api/admin/social/circles` (admin password or an admin account): GET pages through the show's characters with their circle so far, whom they've dated and the world's menu; POST takes up to five circles, `dry_run` and `replace`.
+  - **The backfill** writes the cast, then the house, then the agent cast. Each character is offered up to eight others to know (the same side of the show first, the least-tied first, never one they've dated or know already), the workplaces earlier characters named (so coworkers share a place), and a sibling's parents (so two siblings have the same mum).
 
 ### 6.3 Inferred (Phase 4)
 

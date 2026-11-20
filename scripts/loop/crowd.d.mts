@@ -57,7 +57,10 @@ export type CrowdBrain = {
   disable(why: string): void;
   count(path: "model" | "fallback", why?: string | null): void;
   summary(): CrowdBrainSummary;
-  complete(messages: ChatMessage[], opts?: { maxTokens?: number }): Promise<string>;
+  complete(
+    messages: ChatMessage[],
+    opts?: { maxTokens?: number; temperature?: number; json?: boolean; onServed?: (model: string) => void },
+  ): Promise<string>;
 };
 export function checkLocalAlias(
   configText: string,
@@ -98,7 +101,7 @@ export function createBrain(opts?: {
   warm?: boolean;
   log?: (m: string) => void;
 }): Promise<CrowdBrain>;
-export function brainFromEnv(env?: Record<string, string | undefined>, opts?: { log?: (m: string) => void }): Promise<CrowdBrain>;
+export function brainFromEnv(env?: Record<string, string | undefined>, opts?: { log?: (m: string) => void; timeoutMs?: number }): Promise<CrowdBrain>;
 export function mergeLastLines(lines: { name: string; text: string }[], lastLines?: string[]): { name: string; text: string }[];
 
 /** Sends one JSON-RPC message as the given session and user agent; returns the response and the session to use next time. */
