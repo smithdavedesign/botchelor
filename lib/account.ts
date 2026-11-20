@@ -220,6 +220,7 @@ export type AccountExport = {
    * they added to someone else's), the ties that touch their characters or that they declared or answered, those ties'
    * history, the places they added, and their characters' places. Who declared or answered a tie is said only as
    * whether it was them; a private tie that someone else's character holds about theirs is that character's, and not here.
+   * `suggestions`: the "Might know" suggestions shown to them (section 6.3), why, and what they did; kept 400 days.
    */
   social: {
     people: Record<string, unknown>[];
@@ -227,6 +228,7 @@ export type AccountExport = {
     tie_events: Record<string, unknown>[];
     places: Record<string, unknown>[];
     place_memberships: Record<string, unknown>[];
+    suggestions: Record<string, unknown>[];
   };
   /**
    * The anonymous identities this account claimed (lib/account-claim.ts): each one's id, when, and `left_behind`, what
@@ -654,6 +656,9 @@ async function exportSocial(db: Db, userId: string): Promise<AccountExport["soci
          from social_place_members m left join social_places p on p.id = m.place_id
         where m.character_id in ${mine} or m.created_by = $1 order by m.created_at, m.place_id, m.role`,
     ),
+    suggestions: await q(
+      "select character_id, suggested_id, reason, score, shown_at, outcome, outcome_at from social_suggestion_log where viewer = $1 order by shown_at, id",
+    ),
   };
 }
 
@@ -988,6 +993,8 @@ async function deleteIdentity(db: Db, userId: string): Promise<AccountDeletion> 
   await run("delete from user_feedback where user_id = $1", [userId]);
   // Their taps on the Plus tile (lib/plus-interest.ts); an email they left is on the Sunday letter's list, which has its own exit.
   await run("delete from plus_interest where user_id = $1", [userId]);
+  // The "Might know" suggestions shown to them (lib/social): the rows about their own characters go with those anyway.
+  await run("delete from social_suggestion_log where viewer = $1", [userId]);
   await run("delete from language_seen where actor = $1", [userId]);
   // Site engagement rows logged while signed in (lib/engagement.ts), and every other row from the same browsers.
   await run("delete from web_events where visitor in (select visitor from web_events where user_id = $1)", [userId]);

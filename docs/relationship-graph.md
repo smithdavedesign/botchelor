@@ -230,6 +230,17 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
   ![/graph on a desktop: the two rows of controls, then the sky's lines in their five groups](screenshots/graph-lines-desktop.png)
   On a phone: [the sky](screenshots/graph-lines-mobile.png), [the Filters sheet](screenshots/graph-filters-mobile.png).
 
+  **Just them and their world**: a character's panel (search opens it) cuts the sky to them, who they dated and who
+  those dated (`worldOf` in `app/graph/filter.ts`: two steps along the sky's lines, a private pair's included, since
+  it's on the sky already). The world is walked before the line filters, so the chips and When pick lines among the
+  same people, and its centre stays even when none of their lines is left. A line over the sky says whose world it is,
+  with "Show everyone", and the view frames the world as it comes and goes (on a phone the centre's panel closes, since
+  it would cover the world). `/graph?world=<id>` opens on it, and the ledger's pages keep it. It isn't Phase 3's
+  "X's world" page (`/graph/world/[id]`), which draws every kind of tie.
+
+  ![Just one character and their world: the line over the sky, the world framed, the centre's panel open](screenshots/graph-world-desktop.png)
+  On a phone: [their world](screenshots/graph-world-mobile.png).
+
   ![/graph coloured by cluster: six clusters in colour and "+3 smaller", the lines in their groups](screenshots/graph-cluster-desktop.png)
   ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)
   On a phone: [by cluster](screenshots/graph-cluster-mobile.png), [what happened](screenshots/graph-what-happened-mobile.png).

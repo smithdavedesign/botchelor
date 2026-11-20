@@ -43,9 +43,14 @@ export type SkyFilter = {
   when: When;
   /** Still seeing each other (stillSeeing): it replaced "2+ dates", whose pairs the First date chip now covers. */
   still: boolean;
+  /**
+   * "Just them and their world" (worldOf): one character's id, and only they and everyone within WORLD_STEPS of them
+   * stay on the sky; null for everyone.
+   */
+  world: string | null;
 };
 
-export const DEFAULT_FILTER: SkyFilter = { origin: "all", partners: true, kind: "all", showSingles: true, stages: null, when: "all", still: false };
+export const DEFAULT_FILTER: SkyFilter = { origin: "all", partners: true, kind: "all", showSingles: true, stages: null, when: "all", still: false, world: null };
 
 /** ?when= (a shared, filtered sky): "all" for anything it doesn't know. */
 export function parseWhen(v: unknown): When {
@@ -59,6 +64,48 @@ export const whenParam = (w: When): string | null => (w === "all" ? null : w);
 
 /** ?still=1. */
 export const parseStill = (v: unknown): boolean => (Array.isArray(v) ? v[0] : v) === "1";
+
+/** ?world=<id>: the character whose world the sky opens on, or null. Whether they're on the sky is the app's to check. */
+export function parseWorld(v: unknown): string | null {
+  const s = Array.isArray(v) ? v[0] : v;
+  if (typeof s !== "string") return null;
+  const id = s.trim();
+  return id && id.length <= 200 ? id : null;
+}
+
+/** How far "Just them and their world" reaches: them, who they dated, and who those dated. */
+export const WORLD_STEPS = 2;
+
+/**
+ * Everyone within `steps` lines of `id` along `edges`, `id` included. A private pair's line counts: it's on the sky
+ * already, so walking it shows nothing the sky doesn't.
+ */
+export function worldOf(edges: readonly { a_id: string; b_id: string }[], id: string, steps = WORLD_STEPS): Set<string> {
+  const next = new Map<string, string[]>();
+  const link = (x: string, y: string) => {
+    const list = next.get(x);
+    if (list) list.push(y);
+    else next.set(x, [y]);
+  };
+  for (const e of edges) {
+    link(e.a_id, e.b_id);
+    link(e.b_id, e.a_id);
+  }
+  const seen = new Set([id]);
+  let ring = [id];
+  for (let step = 0; step < steps && ring.length > 0; step++) {
+    const out: string[] = [];
+    for (const x of ring) {
+      for (const y of next.get(x) ?? []) {
+        if (seen.has(y)) continue;
+        seen.add(y);
+        out.push(y);
+      }
+    }
+    ring = out;
+  }
+  return seen;
+}
 
 /** The earliest last date (ms) a pair needs under `when`; null for all time. "This season" is the season `now` is in. */
 export function whenSince(when: When, now: number): number | null {
@@ -89,7 +136,10 @@ export const stagesNarrowed = (stages: StageChoice): boolean => stages !== null 
  */
 export const linesNarrowed = (f: SkyFilter): boolean => stagesNarrowed(f.stages) || f.when !== "all" || f.still;
 
-/** How many of the filters behind the phone's Filters button are set (the stage chips sit on the sky, so not those). */
+/**
+ * How many of the filters behind the phone's Filters button are set (the stage chips sit on the sky, and "their world"
+ * has its own line over it, so not those).
+ */
 export function activeFilters(f: SkyFilter): number {
   return [f.origin !== "all", f.origin !== "all" && !f.partners, f.kind !== "all", f.when !== "all", f.still, !f.showSingles].filter(Boolean).length;
 }
@@ -121,20 +171,27 @@ export function filterSky(
   if (f.kind !== "all") ns = ns.filter((n) => !n.private && (f.kind === "unsaid" ? n.kind === null : n.kind === f.kind));
   const ids = new Set(ns.map((n) => n.id));
   const touchesGroup = (e: GraphEdge) => !members || !f.partners || members.has(e.a_id) || members.has(e.b_id);
-  const es = data.edges.filter((e) => ids.has(e.a_id) && ids.has(e.b_id) && touchesGroup(e) && lineKept(e, f, now));
+  const onSky = data.edges.filter((e) => ids.has(e.a_id) && ids.has(e.b_id) && touchesGroup(e));
+  // Their world is walked before the line filters, so it's the same people whichever lines are drawn: the chips count,
+  // and turn on and off, the lines among them.
+  const near = f.world ? worldOf(onSky, f.world) : null;
+  if (near) ns = ns.filter((n) => near.has(n.id));
+  const es = onSky.filter((e) => (!near || (near.has(e.a_id) && near.has(e.b_id))) && lineKept(e, f, now));
   const linked = (): Set<string> => new Set(es.flatMap((e) => [e.a_id, e.b_id]));
+  // The centre of a world stays when none of their lines is left: "nobody this season" is what the sky then says.
+  const centre = (n: GraphNode) => n.id === f.world;
   // A partner is on the sky for a date with the group: one whose dates with it all fell to another filter goes too.
   if (members && f.partners) {
     const on = linked();
-    ns = ns.filter((n) => members.has(n.id) || on.has(n.id));
+    ns = ns.filter((n) => members.has(n.id) || on.has(n.id) || centre(n));
   }
   if (linesNarrowed(f)) {
     const on = linked();
-    ns = ns.filter((n) => on.has(n.id) || n.degree === 0);
+    ns = ns.filter((n) => on.has(n.id) || n.degree === 0 || centre(n));
   }
   if (!f.showSingles) {
     const on = linked();
-    ns = ns.filter((n) => on.has(n.id));
+    ns = ns.filter((n) => on.has(n.id) || centre(n));
   }
   return { nodes: ns, edges: es };
 }

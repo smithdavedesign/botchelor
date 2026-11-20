@@ -40,6 +40,7 @@ import { bookHouseOvernight } from "@/lib/overnight-house";
 import { storyCheckSweep } from "@/lib/story-check";
 import { drawShowShots, SHOTS_FROM_HOUR } from "@/lib/show-shots";
 import { backfillSocial } from "@/lib/social/derive";
+import { resumeSocialMetrics } from "@/lib/social/metrics-job";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -165,6 +166,14 @@ async function run(req: Request): Promise<Response> {
   // its own budget, so what a hook missed (a failed write, a switch that was off) is caught within a day. Writes only
   // what differs; left to the next pass when the run is already long.
   const social = Date.now() - started > LONG_RUN_MS ? null : await backfillSocial(db, { budgetMs: 30_000 }).catch(() => null);
+  // The social network's numbers (lib/social/metrics-job.ts): a day the daily job's run left short at its time budget is
+  // finished here, after the response. One cheap select when there's nothing to pick up, which is nearly always.
+  const socialMetrics = () => resumeSocialMetrics(db).catch(() => null);
+  try {
+    after(socialMetrics);
+  } catch {
+    void socialMetrics(); // outside a request (a test): just run it
+  }
   // The show's Discord (lib/discord-posts.ts, docs/discord.md): the episode digest, Sunday's vote and the board, each
   // posted once, after everything above that changes them. Off until a webhook is set; at most a few posts of 5 seconds,
   // and left to the next pass when the run is already long.

@@ -21,6 +21,8 @@ type Props = {
   onSelect: (s: Selection) => void;
   /** Search-to-focus: pan/zoom to this node and select it (cleared by the wrapper after use). */
   focusId: string | null;
+  /** Frame every star on the sky: each new number asks once (into or out of one character's world). */
+  fit?: number;
   /** What a star's colour means (./colors.ts): its own hue, its kind, or its cluster. */
   colorBy?: ColorBy;
   /** "Show what happened" is on: draw the chevrons (who got turned down). Off by default, like the episode's recap. */
@@ -38,7 +40,7 @@ const edgeKey = (e: GraphEdge) => `${e.a_id}~${e.b_id}`;
  * portraits drawn in circular clips with the avatar gradient as fallback. All per-frame state lives in refs — React
  * renders this component exactly once per data change. Colors come from the CSS tokens so both themes just work.
  */
-export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId, colorBy = "character", showOutcomes = false }: Props) {
+export default function ConstellationCanvas({ nodes, edges, selection, onSelect, focusId, fit = 0, colorBy = "character", showOutcomes = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simRef = useRef<Sim | null>(null);
   const viewRef = useRef<View>({ zoom: 1, panX: 0, panY: 0 });
@@ -545,6 +547,31 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     canvas.dispatchEvent(new Event("constellation:wake"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId]);
+
+  // Frame the sky: every star (the orbit's too when nothing else is on it) in view, centred, no closer than a focus.
+  useEffect(() => {
+    if (!fit) return;
+    const sim = simRef.current;
+    const canvas = canvasRef.current;
+    if (!sim || !canvas) return;
+    const inner = sim.nodes.filter((n) => !n.orbit);
+    const stars = inner.length ? inner : sim.nodes;
+    if (!stars.length) return;
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const n of stars) {
+      x0 = Math.min(x0, n.x - n.r);
+      y0 = Math.min(y0, n.y - n.r);
+      x1 = Math.max(x1, n.x + n.r);
+      y1 = Math.max(y1, n.y + n.r);
+    }
+    const { w, h } = sizeRef.current;
+    const pad = 32;
+    const v = viewRef.current;
+    v.zoom = Math.min(1.6, Math.max(0.4, Math.min((w - 2 * pad) / Math.max(1, x1 - x0), (h - 2 * pad) / Math.max(1, y1 - y0))));
+    v.panX = w / 2 - ((x0 + x1) / 2) * v.zoom;
+    v.panY = h / 2 - ((y0 + y1) / 2) * v.zoom;
+    canvas.dispatchEvent(new Event("constellation:wake"));
+  }, [fit]);
 
   return <canvas ref={canvasRef} className="constellation-canvas" aria-label="The Botchelor constellation: every character and who they've dated" role="img" />;
 }
