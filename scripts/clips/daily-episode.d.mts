@@ -21,6 +21,7 @@ export function keepShort(text: string): number[] | null;
 export function tonightLine(tonight: string | null | undefined): string | null;
 export function isVote(tonight: string | null | undefined): boolean;
 export function reportFromOg(title: string | null | undefined, description: string | null | undefined): Report | null;
+export function reportFromHtml(html: string | null | undefined): Report | null;
 export function spokenGrade(grade: string): string;
 export function standoutSubject(subjects: Report["subjects"] | null | undefined): { label: string; grade: string } | null;
 export function reportSay(ending: string, report: Report): string;

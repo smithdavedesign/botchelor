@@ -234,7 +234,8 @@ describe("the report beat (2026-11-20)", () => {
     expect(spokenText(beat)).toBe("A fifth date. Report card: an A.");
     const html = frameHtml(beat, { base: "https://botchelor.com" });
     expect(html).toContain(`<img class="full" src="https://botchelor.com/api/og/report-card/${date.id}?format=story"`);
-    expect(html).toContain("body>img.full{position:absolute;inset:0");
+    // !important: the rule that keeps every other element in the frame relative is more specific than this one.
+    expect(html).toContain("body>img.full{position:absolute!important;inset:0");
     expect(beatSeconds({ kind: "report", voiced: false, secs: null }, 0)).toBe(SILENT_SECONDS.report);
   });
 

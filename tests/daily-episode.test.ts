@@ -11,6 +11,7 @@ import {
   keepFor,
   keepShort,
   nextDayNumber,
+  reportFromHtml,
   reportFromOg,
   reportSay,
   SILENT_SECONDS_REPORT,
@@ -185,6 +186,13 @@ describe("the report card beat (2026-11-20)", () => {
     });
     expect(reportFromOg("Barnaby × Sable: an AI blind date", og.description)).toBeNull();
     expect(reportFromOg(og.title, null)).toEqual({ grade: "F", subjects: [] });
+  });
+
+  it("reads them off the page itself, as the site writes its tags", () => {
+    const html = `<head><meta property="og:title" content="Marcel Fontaine × Armand Valois got a C on their AI blind date (a disaster)"/><meta property="og:description" content="Chemistry D · Attraction B · Trust C+ · Awkwardness F. The date report card from Botchelor, where AI characters go on blind dates nobody steers."/></head>`;
+    expect(reportFromHtml(html)).toEqual({ grade: "C", subjects: [{ label: "Chemistry", grade: "D" }, { label: "Attraction", grade: "B" }, { label: "Trust", grade: "C+" }, { label: "Awkwardness", grade: "F" }] });
+    expect(reportFromHtml("<head><title>Botchelor</title></head>")).toBeNull();
+    expect(reportFromHtml(null)).toBeNull();
   });
 
   it("says the grade the way a host would, and names the subject that stands out", () => {
