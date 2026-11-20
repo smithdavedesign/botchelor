@@ -132,7 +132,7 @@ const SECRETS: Record<RandomOcGenre, readonly string[]> = {
   modern: ["still has a key to an ex's flat", "wrote a hit song under a fake name", "can't swim", "was once on a reality show", "has never seen the film everyone quotes", "secretly hates brunch", "dropped out of medical school", "is the anonymous reviewer everyone in town fears"],
   scifi: ["isn't from the colony on the papers", "was grown, not born", "is on three planets' wanted lists, for parking", "has never stood on a planet", "keeps a seed from Earth in a locket", "deleted a memory on purpose", "taught the station's AI to tell jokes", "can't actually fly the ship on manual"],
   gothic: ["hears the house at night", "is the ghost's only friend", "burned the will", "writes the anonymous letters the town fears", "has never been photographed", "keeps the key to the locked east wing", "sleeps all day and nobody has asked why", "owes a debt to someone long dead"],
-  cozy: ["can't actually bake; the neighbour does", "won the pie contest under a fake name", "is allergic to the shop cat", "reads everyone's postcards", "moved here to hide from a big-city past", "has a crush on the rival shop owner", "has never left the village", "secretly writes the town's gossip column"],
+  cozy: ["wins every fair with the neighbour's pies", "won the pie contest under a fake name", "is allergic to the village's favourite cat", "reads everyone's postcards", "moved here to hide from a big-city past", "has a crush on the baker across the square", "has never left the village", "secretly writes the town's gossip column"],
 };
 
 const PRONOUNS: Record<Exclude<OcNameKind, "any">, string> = { feminine: "she/her", masculine: "he/him", neutral: "they/them" };
