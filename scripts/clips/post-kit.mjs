@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // A ready-to-post TikTok / Reels / Shorts kit for one aired date (David, 2026-11-09: "prepare everything for a post").
+// Since 2026-11-19 the kit is cut as the day's episode (daily-episode.mjs); what this file describes below is the
+// recorded kit, still made with --recording and when a date is too short to cut.
 // The daily clip (daily-clip.mjs) is a bare theater recording; this wraps it the way short video needs:
 //   1. a hook card (the first ~2.5 s decide whether anyone stays): the pair's faces and one line on why to watch;
 //   2. the date itself, recorded in the theater at phone size (daily-clip.mjs does the recording);
@@ -164,7 +166,19 @@ const slug = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[^a-
 
 async function main() {
   const id = process.argv[2];
-  if (!id || id.startsWith("--")) throw new Error('usage: node scripts/clips/post-kit.mjs <episode_id> [--hook "…"] [--tags "#…"]');
+  if (!id || id.startsWith("--")) throw new Error('usage: node scripts/clips/post-kit.mjs <episode_id> [--recording] [--hook "…"] [--tags "#…"]');
+  // Since 2026-11-19 the kit is the day's episode (daily-episode.mjs): the best line first, the story, the lines, how it
+  // ended, tonight's vote. --recording (or POST_KIT_RECORDING=1) makes the old kit below: the theater recorded at phone
+  // size between a title card and an end card. A date the episode can't be cut from (too few lines) falls back to it.
+  if (!process.argv.includes("--recording") && process.env.POST_KIT_RECORDING !== "1") {
+    const { buildDailyEpisode } = await import("./daily-episode.mjs");
+    try {
+      await buildDailyEpisode(id);
+      return;
+    } catch (err) {
+      console.error(`daily episode: ${err?.message ?? err}; making the recorded kit instead`);
+    }
+  }
   const base = (process.env.CROWD_BASE || "https://botchelor.com").replace(/\/$/, "");
   const headers = { "user-agent": "botchelor-clip/1.0", cookie: "bz_adult=1" };
   const e = await (await fetch(`${base}/api/episodes/${id}`, { headers })).json();
@@ -201,7 +215,8 @@ async function main() {
     }
 
     // Hook, date, reveal, end card: each card a still with a short fade, the date as recorded, one 30 fps H.264 file.
-    const still = (i, secs) => `[${i}:v]scale=1080:1920,setsar=1,fps=30,format=yuv420p,fade=t=in:st=0:d=0.25,fade=t=out:st=${(secs - 0.25).toFixed(2)}:d=0.25[v${i}]`;
+    // The first card starts on its picture, not faded up from black (a black first frame is a black thumbnail).
+    const still = (i, secs) => `[${i}:v]scale=1080:1920,setsar=1,fps=30,format=yuv420p,${i > 0 ? "fade=t=in:st=0:d=0.25," : ""}fade=t=out:st=${(secs - 0.25).toFixed(2)}:d=0.25[v${i}]`;
     execFileSync(process.env.FFMPEG || "ffmpeg", [
       "-y", "-loglevel", "error",
       "-loop", "1", "-t", String(CARD_SECONDS.hook), "-i", join(tmp, "hook.png"),
