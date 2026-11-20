@@ -83,6 +83,15 @@ export function textVerb(access: TextAccess, f: Pick<VerbFacts, "id" | "name" | 
   };
 }
 
+/**
+ * The verb's word on a directory card (the 2026-11-20 mobile audit, A7): "Step into a date with Rafe" wrapped to two
+ * lines in a ~170px card, sixteen times on the cast tab. A card says one short word; its aria-label keeps the full
+ * sentence, and the character's own page still says it in full.
+ */
+export function cardVerbLabel(verb: Pick<Verb, "kind">): string {
+  return verb.kind === "match" ? "Match" : "Date";
+}
+
 /** Where a card's "send" lands: the character's page, its confirm sheet open with this sender picked. */
 export const sendHref = (themId: string, mineId: string): string => `/characters/${encodeURIComponent(themId)}?send=${encodeURIComponent(mineId)}#date`;
 export const stepInHref = (themId: string): string => `/step-in?with=${encodeURIComponent(themId)}`;

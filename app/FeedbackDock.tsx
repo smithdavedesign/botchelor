@@ -36,10 +36,10 @@ const write = (store: () => Storage, key: string, value: string) => {
 };
 
 /** The footer's "Give us feedback": a button (it opens a dialog) dressed exactly like the links beside it. */
-export function FeedbackLink() {
+export function FeedbackLink({ className = "link-button footer-link", label = "Give us feedback" }: { className?: string; label?: string } = {}) {
   return (
-    <button type="button" className="link-button footer-link" aria-haspopup="dialog" onClick={openFeedback}>
-      Give us feedback
+    <button type="button" className={className} aria-haspopup="dialog" onClick={openFeedback}>
+      {label}
     </button>
   );
 }

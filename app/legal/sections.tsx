@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { formatPrice, PACK_15, PACK_5 } from "@/lib/catalog";
@@ -99,7 +100,7 @@ export const listing = (items: readonly string[]) =>
 /** A jump list to the page's headings: these pages run long on a phone. */
 export function OnThisPage({ headings }: { headings: readonly { id: string; title: string }[] }) {
   return (
-    <nav className="legal-toc" aria-label="On this page">
+    <nav className="legal-toc" id="contents" aria-label="On this page">
       <p className="legal-toc-title">On this page</p>
       <TocList headings={headings} />
     </nav>
@@ -112,7 +113,7 @@ export function OnThisPage({ headings }: { headings: readonly { id: string; titl
  */
 export function OnThisPageGrouped({ groups, rest }: { groups: { title: string; headings: readonly { id: string; title: string }[] }[]; rest: readonly { id: string; title: string }[] }) {
   return (
-    <nav className="legal-toc" aria-label="On this page">
+    <nav className="legal-toc" id="contents" aria-label="On this page">
       <p className="legal-toc-title">On this page</p>
       {groups.map((g) => (
         <details className="ux-fold legal-toc-group" key={g.title}>
@@ -124,6 +125,34 @@ export function OnThisPageGrouped({ groups, rest }: { groups: { title: string; h
       ))}
       <TocList headings={rest} />
     </nav>
+  );
+}
+
+/**
+ * The date, and what changed folded under it (the 2026-11-20 mobile audit, A6): the history ran ~2.5 phone screens of
+ * one paragraph before the contents. /terms has always opened on its date and the contents; /legal and /privacy now do.
+ */
+export function LastChanged({ children }: { children?: ReactNode }) {
+  return (
+    <>
+      <p className="muted legal-updated">
+        {TERMS_PRIVACY_UPDATED}
+        {children}
+      </p>
+      <details className="ux-fold legal-changes">
+        <summary>What changed</summary>
+        <p className="muted small">{PRIVACY_CHANGES}</p>
+      </details>
+    </>
+  );
+}
+
+/** Back to the contents from anywhere in a long policy: it rides at the foot of the screen while the page is read. */
+export function BackToContents() {
+  return (
+    <a className="legal-top" href="#contents">
+      ↑ Contents
+    </a>
   );
 }
 

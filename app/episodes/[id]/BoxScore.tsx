@@ -1,10 +1,12 @@
+import Link from "next/link";
 import type { BoxScore as BoxScoreData } from "@/lib/game";
 import { DATE_VARIABLES, VARIABLE_GOOD_WHEN_HIGH, VARIABLE_LABELS } from "@/lib/rules";
 
 const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
 /** The box score (PRD "Further ideas"): how the four variables moved over the date, why it ended so, and the best line. */
-export default function BoxScore({ boxScore, bestLine, why, note }: { boxScore: BoxScoreData; bestLine?: string; why?: string; note?: string }) {
+/** `reportCard`: the date's report card (lib/report-card.ts), once it has aired and anyone may see it; else nothing. */
+export default function BoxScore({ boxScore, bestLine, why, note, reportCard }: { boxScore: BoxScoreData; bestLine?: string; why?: string; note?: string; reportCard?: string | null }) {
   return (
     <section className="card boxscore">
       <h2>The box score</h2>
@@ -32,6 +34,13 @@ export default function BoxScore({ boxScore, bestLine, why, note }: { boxScore: 
         </details>
       )}
       {bestLine && <p className="bestline">“{bestLine}”</p>}
+      {reportCard && (
+        <p className="boxscore-report">
+          <Link className="button-ghost" href={reportCard} data-track="report-card-open">
+            📝 Its report card
+          </Link>
+        </p>
+      )}
     </section>
   );
 }

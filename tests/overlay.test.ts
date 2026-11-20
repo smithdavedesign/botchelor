@@ -65,6 +65,11 @@ describe("the overlays on it", () => {
     "app/ShareButton.tsx",
     "app/episodes/[id]/EpisodeTheater.tsx",
     "app/AgeGate.tsx",
+    "app/companion/[id]/CompanionChat.tsx",
+    "app/after-dark/WriterPicker.tsx",
+    "app/after-dark/[a]/[b]/AfterDarkTheater.tsx",
+    "app/after-dark/[a]/[b]/SetSceneModal.tsx",
+    "app/after-dark/[a]/[b]/SceneWriter.tsx",
   ];
   it.each(ON)("%s uses useOverlay and no hand-rolled Escape listener", (p) => {
     const src = read(p);
@@ -73,7 +78,16 @@ describe("the overlays on it", () => {
   });
 
   it("menus and popovers carry the ✕", () => {
-    for (const p of ["app/CharacterPicker.tsx", "app/couples/[a]/[b]/ThreadMenu.tsx", "app/ShareButton.tsx"]) expect(read(p), p).toMatch(/<OverlayClose /);
+    for (const p of ["app/CharacterPicker.tsx", "app/couples/[a]/[b]/ThreadMenu.tsx", "app/ShareButton.tsx", "app/companion/[id]/CompanionChat.tsx", "app/after-dark/WriterPicker.tsx"]) {
+      expect(read(p), p).toMatch(/<OverlayClose /);
+    }
+    // After Dark: ⋯ Tools and ✨ Make more each have one.
+    expect(read("app/after-dark/[a]/[b]/AfterDarkTheater.tsx").match(/<OverlayClose /g)?.length).toBe(2);
+  });
+
+  it("the companion's scene picker: a 44px Cancel, and no composer to send from while it's up (C14)", () => {
+    expect(read("app/ux/companion.css")).toMatch(/\.place-picker-cancel \{[^}]*min-height: 44px;/);
+    expect(read("app/companion/[id]/CompanionChat.tsx")).toContain('!(picking && !view.scene) && (\n        <form className="companion-composer"');
   });
 
   it("the lock and the ✕ are styled: page overflow hidden, a 44px button", () => {

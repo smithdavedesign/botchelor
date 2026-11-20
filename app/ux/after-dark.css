@@ -3126,6 +3126,24 @@ button.ad-pp-face:hover:not(:disabled) {
   margin: 0 0 var(--space-1);
   font-size: var(--text-md);
 }
+/* The ✕ in each menu's head (app/OverlayClose.tsx; 2026-11-20 mobile audit, C6), kept a 44px circle against the menus'
+   own button rules (the writer list's rows, the sheet's full-width tools). */
+.ad-sheet-head > button.overlay-x.overlay-x {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--night-ink);
+}
+.ad-writer-menu-head {
+  padding: 0 0 0 0.7rem;
+  font-size: var(--text-sm);
+}
 /* In the sheet the tools say their words again: the row hid them to fit a phone. */
 .theater-tools.ad-sheet-mode .ad-tools-items .ad-tool-word {
   display: inline;

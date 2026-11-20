@@ -393,9 +393,11 @@ h3 {
    The one verb for whoever's looking, and Talk under it, at the card's foot so a row of cards lines them up. Each is
    the full width of the card and a full-height control (44px), and a long label ("Send Marisol on a date with
    Juniper") wraps inside a narrow card, two to a row on a phone, instead of widening it. */
+/* The card's verb is one short word (lib/character-verb.ts cardVerbLabel, the 2026-11-20 mobile audit, A7), so it and
+   Text share one row when they fit, and stack when they don't. */
 .characters-hub .dir-card .dir-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: stretch;
   align-self: stretch;
   gap: var(--space-2);
@@ -403,6 +405,7 @@ h3 {
   padding-top: var(--space-2);
 }
 .characters-hub .dir-actions :is(a.button, button) {
+  flex: 1 1 auto;
   min-height: var(--control-h);
   margin: 0;
   padding-inline: var(--space-2);
@@ -414,6 +417,7 @@ h3 {
   overflow-wrap: anywhere;
 }
 .characters-hub .dir-actions .error {
+  flex-basis: 100%;
   margin: 0;
 }
 
@@ -494,6 +498,18 @@ select.sr-only {
   :is(.kicker, .watch-lead-kicker, .watch-tonight-kicker, .tonight-band-eyebrow, .tonight-slot-label, .matches-label, .episode-prev-label, .season-hero-kicker, .season-hero-eyebrow, .season-index-eyebrow, .moon-badge) {
     font-size: var(--text-eyebrow);
   }
+}
+
+/* ---------------- the owner's Manage row on their character's page (the 2026-11-20 mobile audit, B11) ---------------- */
+/* One row (the next step and Edit) and one fold for every other tool, so the profile tabs come right after it. */
+.owner-manage {
+  margin: var(--space-4) 0;
+}
+.owner-manage-row {
+  margin: 0 0 var(--space-2);
+}
+.owner-manage-more[open] > summary {
+  margin-bottom: var(--space-3);
 }
 
 /* ---------------- /account's jump links (the 2026-11-20 mobile audit, C15) ---------------- */

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { FeedbackLink } from "../FeedbackDock";
 import { mailto, roleEmail, STATUS_PAGE_URL } from "@/lib/company";
 import { contactEmail } from "@/lib/legal-entity";
 import { LOGIN_FAILS_PER_HANDLE, LOGIN_WINDOW_MINUTES } from "@/lib/login-guard";
@@ -37,8 +38,8 @@ export default function SecurityPage() {
           </p>
         ) : (
           <p>
-            Use the feedback button at the foot of every page and say it&apos;s about security: we&apos;ll write back to
-            arrange the details.
+            <FeedbackLink label="Write to us" /> (it&apos;s in the ☰ menu on every page) and say it&apos;s about security:
+            we&apos;ll write back to arrange the details.
           </p>
         )}
         <p>Tell us what you found, how to reproduce it, and what it lets someone do. Screenshots or a short script help.</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Icon from "@/app/Icon";
 import { useOverlay } from "@/app/useOverlay";
@@ -59,6 +60,8 @@ type Props = {
   coldOpen?: ColdOpen | null;
   /** The date's short version (lib/home-clip.ts episodeCut), or null: a button beside "Watch in theater" and on the card. */
   cut?: CutLink | null;
+  /** The date's report card (lib/report-card.ts), once it has aired for everyone: a link on the end screen. */
+  reportCard?: string | null;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -116,7 +119,7 @@ function playMsOf(transcript: Turn[]): number {
   return ms;
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, reportCard, onExit }: Props & { onExit: () => void }) {
   // The cold open comes first for anyone starting from the top (never the creator just filmed, nor picking up live).
   const intro = Boolean(coldOpen) && !justFilmed && !(startAt && startAt > 0);
   const [card, setCard] = useState<"first" | "again" | null>(intro ? "first" : null);
@@ -276,6 +279,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
               pushKey={verdict.pushKey}
               onRestart={replay.restart}
               afterDark={verdict.afterDark ?? null}
+              reportCard={reportCard ?? null}
             />
           ) : (
             <div className="theater-verdict">
@@ -288,6 +292,13 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
               </p>
               {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
               <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />
+              {reportCard && (
+                <p className="theater-report">
+                  <Link className="button-ghost" href={reportCard} data-track="report-card-open">
+                    📝 See its report card
+                  </Link>
+                </p>
+              )}
             </div>
           ))}
       </div>

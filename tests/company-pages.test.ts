@@ -138,7 +138,10 @@ describe("the company pages", () => {
 
   it("/contact still works before the address is set", () => {
     vi.stubEnv("CONTACT_EMAIL", "");
-    expect(words(render(ContactPage))).toMatch(/feedback button/);
+    // The feedback form's button right on the page, not a pointer to a footer link a phone folds away (2026-11-20 mobile audit, A5).
+    const html = render(ContactPage);
+    expect(html).toContain('<p class="contact-feedback"><button type="button" class="button" aria-haspopup="dialog">Write to us</button>');
+    expect(html).not.toContain("at the foot of every page");
   });
 
   it("/faq says, on the page, every answer its JSON-LD gives", () => {

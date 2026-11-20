@@ -15,7 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import CharacterPage from "@/app/characters/[id]/page";
 import CharactersPage from "@/app/characters/page";
 import { signSession } from "@/lib/auth";
-import { actionsFor, characterVerb, makeHref, sendHref, stepInHref, textVerb, verbFacts, verbsFor, viewerCharacter, type VerbFacts } from "@/lib/character-verb";
+import { actionsFor, cardVerbLabel, characterVerb, makeHref, sendHref, stepInHref, textVerb, verbFacts, verbsFor, viewerCharacter, type VerbFacts } from "@/lib/character-verb";
 import { companionEligible } from "@/lib/companion";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -223,12 +223,18 @@ describe("what the booking would take, read ahead (verbFacts)", () => {
 });
 
 describe("each card on /characters", () => {
+  it("says one short word on a card: Date, or Match where a first date takes a match (the 2026-11-20 mobile audit, A7)", () => {
+    for (const kind of ["send", "step_in", "make"] as const) expect(cardVerbLabel({ kind })).toBe("Date");
+    expect(cardVerbLabel({ kind: "match" })).toBe("Match");
+  });
+
   it("a stranger steps into a date with the cast, and makes a character to date anyone else who's taking dates", async () => {
     const open = await made("Wren Kestrel", { open_to_dates: true });
     const closed = await made("Pim Alder", { open_to_dates: false });
     const cast = await hub(null, { tab: "cast" });
     const card = cardOf(cast, CAST.id);
-    expect(card).toContain(`<a class="button secondary dir-verb" data-track="step-in" data-track-from="card" data-track-verb="step_in" href="/step-in?with=${CAST.id}">Step into a date with ${first(CAST.name)}</a>`);
+    // One short word on the card (the 2026-11-20 mobile audit, A7); the full sentence is its label.
+    expect(card).toContain(`<a class="button secondary dir-verb" aria-label="Step into a date with ${first(CAST.name)}" title="Step into a date with ${first(CAST.name)}" data-track="step-in" data-track-from="card" data-track-verb="step_in" href="/step-in?with=${CAST.id}">Date</a>`);
     // The card is still one tap through to the profile, and Text is the quieter second (a button: it opens the thread).
     expect(card).toContain(`href="/characters/${CAST.id}"`);
     expect(card).toContain(`<button type="button" class="button secondary" data-track="verb-text">Text ${first(CAST.name)}</button>`);
@@ -242,7 +248,8 @@ describe("each card on /characters", () => {
     expect(off).toContain(`>Text ${first(OFF.name)}</button>`);
 
     const people = await hub(null, { tab: "people" });
-    expect(cardOf(people, open.id)).toContain(`data-track="verb-make" data-track-from="card" data-track-verb="make" href="/create?next=${encodeURIComponent(`/characters/${open.id}`)}">Make a character to date Wren</a>`);
+    expect(cardOf(people, open.id)).toContain(`data-track="verb-make" data-track-from="card" data-track-verb="make" href="/create?next=${encodeURIComponent(`/characters/${open.id}`)}">Date</a>`);
+    expect(cardOf(people, open.id)).toContain('aria-label="Make a character to date Wren"');
     expect(cardOf(people, closed.id)).not.toContain("dir-verb");
     expect(cardOf(people, closed.id)).not.toContain("dir-actions");
   });
@@ -254,7 +261,8 @@ describe("each card on /characters", () => {
     expect(mine.name).toBe("Nan Older");
     const open = await made("Wren Kestrel", { open_to_dates: true });
     const cast = await hub(me.cookie, { tab: "cast" });
-    expect(cardOf(cast, CAST.id)).toContain(`data-track="verb-send" data-track-from="card" data-track-verb="send" href="/characters/${CAST.id}?send=${mine.id}#date">Send Nan on a date with ${first(CAST.name)}</a>`);
+    expect(cardOf(cast, CAST.id)).toContain(`data-track="verb-send" data-track-from="card" data-track-verb="send" href="/characters/${CAST.id}?send=${mine.id}#date">Date</a>`);
+    expect(cardOf(cast, CAST.id)).toContain(`aria-label="Send Nan on a date with ${first(CAST.name)}"`);
     // Their cards send; stepping in themselves stays a strip under the cast.
     expect(cast).toContain('id="stepin-cast-title"');
     const people = await hub(me.cookie, { tab: "people" });
@@ -272,7 +280,8 @@ describe("each card on /characters", () => {
     vi.stubEnv("STEP_IN_GUESTS", "0");
     let card = cardOf(await hub(null, { tab: "cast" }), CAST.id);
     expect(card).not.toContain("Step into a date");
-    expect(card).toContain(`href="/create?meet=${CAST.id}&amp;next=${encodeURIComponent(`/characters/${CAST.id}`)}">Make a character to date ${first(CAST.name)}</a>`);
+    expect(card).toContain(`href="/create?meet=${CAST.id}&amp;next=${encodeURIComponent(`/characters/${CAST.id}`)}">Date</a>`);
+    expect(card).toContain(`aria-label="Make a character to date ${first(CAST.name)}"`);
     // Someone signed in still steps in (they have no character yet).
     expect(cardOf(await hub(signedInCookie(crypto.randomUUID()), { tab: "cast" }), CAST.id)).toContain("Step into a date with");
     vi.stubEnv("STEP_IN_OPEN", "0");
@@ -326,5 +335,19 @@ describe("the head of a character's page", () => {
     expect(html).not.toContain("Step in");
     expect(html).toContain(`href="/create?meet=${CAST.id}&amp;next=${encodeURIComponent(`/characters/${CAST.id}`)}"`);
     expect(html).toContain(`Make a character to date ${first(CAST.name)}`);
+  });
+});
+
+describe("the owner's character page (the 2026-11-20 mobile audit, B11)", () => {
+  it("shows the profile first: the owner's tools sit in one Manage row, the rest folded, before the tabs", async () => {
+    const src = (await import("node:fs")).readFileSync(new URL("../app/characters/[id]/page.tsx", import.meta.url), "utf8");
+    const row = src.indexOf('<p className="cta-row owner-manage-row">');
+    const fold = src.indexOf('<details className="owner-manage-more ux-fold" id="manage">');
+    expect(row).toBeGreaterThan(-1);
+    expect(fold).toBeGreaterThan(row);
+    expect(src.indexOf("{ownerTools}", fold)).toBeGreaterThan(fold);
+    expect(fold).toBeLessThan(src.indexOf("<PageTabs"));
+    // The tools are one block, used once in the fold for an owner and as they were for anyone else (an admin's studios).
+    expect(src.match(/className="card owner-next"/g)?.length).toBe(1);
   });
 });
