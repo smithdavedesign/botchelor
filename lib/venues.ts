@@ -202,6 +202,28 @@ export const venuePhrase = (id: PlaceId | string | null | undefined): string => 
   return name.charAt(0).toLowerCase() + name.slice(1);
 };
 
+/** Words too common in venue text to show a line is set there ("talk", "night", "one"...). */
+const PLACE_STOPWORDS = new Set(
+  "with where they them their that this which whose from into over every keeps keep each other very just only about what when while after before still more than most both someone something nobody there here been being have make made talk line lines first date couple night nights hour full place places somewhere".split(" "),
+);
+const placeWordsOf = (text: string): string[] =>
+  (text.toLowerCase().match(/[a-z]+/g) ?? []).map((w) => w.replace(/(?<!s)s$/, "")).filter((w) => w.length >= 4 && !PLACE_STOPWORDS.has(w));
+
+/**
+ * #1848 (the 2026-11-19-1819 run: a two-agent date booked at the nightclub was written as a lamp room, and the other side
+ * followed): whether any of these lines says something of the place (a word of its name or its stage direction, or its own
+ * label), loosely: "shouting" counts for "shout", "dancefloor" for "dance". A cheap word check for a note, never a refusal.
+ */
+export function linesMentionPlace(lines: readonly string[], place: PlaceId | string | null | undefined): boolean {
+  if (!place) return true;
+  const v = venue(place);
+  const label = placeLabel(place);
+  const words = new Set(placeWordsOf(`${v.name} ${label ? label : v.prompt}`));
+  if (!words.size) return true;
+  const said = placeWordsOf(lines.join(" "));
+  return said.some((w) => [...words].some((p) => w === p || (Math.min(w.length, p.length) >= 5 && (w.startsWith(p) || p.startsWith(w)))));
+}
+
 /** Deals a venue from a seed, the way the producer's situation is dealt: bounded, reproducible, free. */
 export const pickVenue = (seed: number): VenueId => VENUE_IDS[seed % VENUE_IDS.length];
 

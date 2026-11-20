@@ -17,13 +17,14 @@ import { dateNumberSql, publicDateSql } from "./date-number";
 import { takenWith } from "./partners";
 import { loadRelationship } from "./relationships";
 import { isHouseBotAgent } from "./house-bots";
-import { DELETED_OWNER } from "./rules";
+import { DELETED_OWNER, type Ending } from "./rules";
 import { secondDateFreeNow } from "./allowance";
 
 type DateRow = {
   id: string;
   status: string;
   visibility: "public" | "private" | "unlisted";
+  ending: Ending | null;
   sides: { wants_another: boolean }[] | null;
   a_id: string;
   b_id: string;
@@ -47,7 +48,7 @@ type DateRow = {
 
 async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
   const { rows } = await db.query<DateRow>(
-    `select e.id, e.status, e.visibility, e.sides, a.id as a_id, b.id as b_id, a.name as a_name, b.name as b_name,
+    `select e.id, e.status, e.visibility, e.ending, e.sides, a.id as a_id, b.id as b_id, a.name as a_name, b.name as b_name,
             a.owner_id as a_owner, b.owner_id as b_owner, a.open_to_dates as a_open, b.open_to_dates as b_open,
             (select f.id from episodes f where f.followup_of = e.id limit 1) as planned,
             coalesce(${dateNumberSql("e")}, 1) as date_number,
@@ -73,6 +74,11 @@ async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
 export type SecondDateState = {
   /** Both characters wanted to see each other again. Without it there's no second date to plan. */
   mutual: boolean;
+  /**
+   * How the date ended (#1849: "ending friends, yet mutual: true"): mutual is the two characters' wish to meet again
+   * (wants_another), which a friends ending can carry too, so both are said side by side.
+   */
+  ending: Ending | null;
   /** Whether this viewer can plan or say yes to it right now. */
   can_plan: boolean;
   /**
@@ -138,6 +144,7 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
     : null;
   return {
     mutual,
+    ending: d.ending,
     can_plan: reason === null,
     reason,
     taken_with: takenWithName,

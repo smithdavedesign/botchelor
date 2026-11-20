@@ -4,10 +4,10 @@ import { MCP_CHANGELOG } from "@/lib/mcp/changelog";
 import { MCP_SERVER_INFO, SECOND_DATE_CAP_NOTE, withoutPlaceTokens } from "@/lib/mcp/dispatcher";
 
 // The 2026-11-19-1849 visitor run: #1857 (my_dates limit), #1858 (a raw home@ token), #1856 (a yes refused at the cap).
-describe("the 2026-11-19-1849 run (2.41.0)", () => {
+describe("the 2026-11-19-1849 run (2.42.0)", () => {
   it("is the newest version, with its entry", () => {
-    expect(MCP_SERVER_INFO.version).toBe("2.41.0");
-    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.41.0" });
+    expect(MCP_SERVER_INFO.version).toBe("2.42.0");
+    expect(MCP_CHANGELOG[0]).toMatchObject({ version: "2.42.0" });
   });
 
   it("my_dates takes limit (#1857)", () => {

@@ -31,13 +31,24 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
-    version: "2.41.0",
+    version: "2.42.0",
     date: "2026-11-20",
     title: "my_dates takes limit",
     changes: [
       "my_dates takes limit (1-100, default 50), newest first; a cut list says truncated, dates_in_all and how to see more.",
       "A stored place (home@…, elsewhere@…) never shows raw in a reply: it reads as its name.",
       "plan_second_date's refusal at the daily cap says a yes to a second date uses a shared daily date, and that start_own_date with the same partner is free.",
+    ],
+  },
+  {
+    version: "2.41.0",
+    date: "2026-11-20",
+    title: "Endings, venues and quiet waits said plainly",
+    changes: [
+      "get_episode carries ending_label beside ending; on a later date's happy ending, ending_note says second_date is the outcome's id, not the date's number (date 2 led to a third date).",
+      "plan_second_date's preview names the ending beside mutual, and mutual_ending_note says why a friends ending can still be mutual (each side's wish to meet again).",
+      "Own-date steps say where the date is in their instructions on every turn, the waiting side's step carries where too, and venue_note flags first lines that say nothing of the booked venue.",
+      "A read_texts wait that finds nothing new says why in empty_note on every call, beside the thread.",
     ],
   },
   {
