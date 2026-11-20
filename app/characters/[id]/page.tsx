@@ -79,6 +79,8 @@ import { characterNowOn, shapeNow } from "@/lib/character-now";
 import { FollowToggle, HeaderMore } from "./HeaderActions";
 import RightNow from "./RightNow";
 import MightKnow from "./MightKnow";
+import { socialLensesOn } from "@/lib/social/lens-sky";
+import { PERSONA_OWNER_PREFIX } from "@/lib/step-in-shared";
 import { storyView } from "@/lib/story-state";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -439,6 +441,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // Follow (lib/character-follows.ts): anyone but its owner, on a public character whose creator is still here. An
   // owner already hears everything, so their own page shows no control.
   const canFollow = follow !== null && !c.private && !ratings.is_owner && c.owner_id !== DELETED_OWNER;
+  // Their world (/graph/world/[id], SOCIAL_LENSES): everyone they're tied to, drawn round them. A private character's
+  // world says nothing more than this page, so it isn't linked; a deleted account's or a persona has none (a 404).
+  const worldLink = !c.private && c.owner_id !== DELETED_OWNER && !(c.owner_id ?? "").startsWith(PERSONA_OWNER_PREFIX) && socialLensesOn();
   // "Right now" (lib/character-now.ts): shaped from what was read above for everyone, nothing of its own. Null when
   // there is nothing to say, and then nothing is rendered. The newest aired date is the date record's first page's.
   const now =
@@ -1105,9 +1110,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         ) : (
           relationships.length === 0 && <p className="muted">No aired dates yet.</p>
         )}
-        {relationships.length > 0 && (
+        {(relationships.length > 0 || worldLink) && (
           <p className="small">
-            <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>
+            {relationships.length > 0 && <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>}
+            {relationships.length > 0 && worldLink && " · "}
+            {worldLink && <Link href={`/graph/world/${encodeURIComponent(c.id)}`}>🪐 See {shortName(c.name)}&apos;s world</Link>}
           </p>
         )}
       </section>

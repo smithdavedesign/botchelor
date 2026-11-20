@@ -14,7 +14,7 @@ import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import { placeGlyph, type SkyEdge, type SkyNode } from "./lens";
 import LineSwatch from "./LineSwatch";
-import { PANEL_PAGE, Tile } from "./SidePanel";
+import { PANEL_PAGE, Tile, WorldLink } from "./SidePanel";
 
 type Props = {
   lens: SkyLens;
@@ -24,8 +24,11 @@ type Props = {
   edges: SkyEdge[];
   onClose: () => void;
   onFocus: (id: string) => void;
+  /** Whose corner of the sky it's cut to ("Just their corner of the sky", ?world=), or null; onWorld sets or clears it. */
   world?: string | null;
   onWorld?: (id: string | null) => void;
+  /** Every character has a world page (/graph/world/[id]): their panel links it. */
+  worlds?: boolean;
   colorBy: ColorBy;
 };
 
@@ -95,7 +98,7 @@ function Stars({ rows, label, onFocus }: { rows: { node: SkyNode; note?: string 
  * What a tap opens in a social view (./lens.ts): a character and their ties in it, a place and who shares it, or a
  * pair's lines in it. Phase 3's pair panel (every tie between them across views, with what made each) builds on this.
  */
-export default function LensPanel({ lens, selection, nodes, edges, onClose, onFocus, world = null, onWorld, colorBy }: Props) {
+export default function LensPanel({ lens, selection, nodes, edges, onClose, onFocus, world = null, onWorld, worlds = false, colorBy }: Props) {
   if (!selection) return null;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const close = (
@@ -171,6 +174,7 @@ export default function LensPanel({ lens, selection, nodes, edges, onClose, onFo
         {!node.private && rows.length > 0 && <Stars key={`${lens}:${node.id}`} rows={rows} label={`${node.name}'s ties pages`} onFocus={onFocus} />}
         {!node.private && (
           <p className="constellation-panel-links">
+            {worlds && <WorldLink id={node.id} name={node.name} />}
             {onWorld && ties > 0 && (
               <>
                 <button
@@ -180,7 +184,7 @@ export default function LensPanel({ lens, selection, nodes, edges, onClose, onFo
                   title={world === node.id ? "Back to the whole sky" : "Them, their ties here, and those people's ties"}
                   data-track={world === node.id ? "graph-world-off" : "graph-world"}
                 >
-                  {world === node.id ? "Show everyone" : "Just them and their world"}
+                  {world === node.id ? "Show everyone" : "Just their corner of the sky"}
                 </button>{" "}
               </>
             )}

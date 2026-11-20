@@ -232,13 +232,14 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
   ![/graph on a desktop: the two rows of controls, then the sky's lines in their five groups](screenshots/graph-lines-desktop.png)
   On a phone: [the sky](screenshots/graph-lines-mobile.png), [the Filters sheet](screenshots/graph-filters-mobile.png).
 
-  **Just them and their world**: a character's panel (search opens it) cuts the sky to them, who they dated and who
+  **Just their corner of the sky** (called "Just them and their world" until 2026-11-20, when "X's world" became a page
+  of its own, below): a character's panel (search opens it) cuts the sky to them, who they dated and who
   those dated (`worldOf` in `app/graph/filter.ts`: two steps along the sky's lines, a private pair's included, since
   it's on the sky already). The world is walked before the line filters, so the chips and When pick lines among the
   same people, and its centre stays even when none of their lines is left. A line over the sky says whose world it is,
   with "Show everyone", and the view frames the world as it comes and goes (on a phone the centre's panel closes, since
-  it would cover the world). `/graph?world=<id>` opens on it, and the ledger's pages keep it. It isn't Phase 3's
-  "X's world" page (`/graph/world/[id]`), which draws every kind of tie.
+  it would cover the world). `/graph?world=<id>` opens on it, and the ledger's pages keep it. The line over the sky and
+  the character's panel link their world page (`/graph/world/[id]`, below), which draws every kind of tie.
 
   ![Just one character and their world: the line over the sky, the world framed, the centre's panel open](screenshots/graph-world-desktop.png)
   On a phone: [their world](screenshots/graph-world-mobile.png).
@@ -262,6 +263,23 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
   so /graph's first load is the Love sky as before; an address that names a view is drawn by the server. In
   Everything a pair touching a private character is a grey dash, as in Love, and the other views leave it out.
   `SOCIAL_LENSES=0` drops the switch and /graph is as it was.
+
+  **"X's world"** (`/graph/world/[id]`, 2026-11-20, `SOCIAL_LENSES`, [PRD](PRDs/social-network.md) section 9): one
+  character in the middle of everyone they're tied to, drawn on the server as SVG, so it reads without JavaScript,
+  shares with a card of its own and can be indexed. Dunbar's rings go out from them (`rings()` in
+  `lib/social/algorithms.ts`, from the active ties and the places they share: an inner circle of five, then 15, 50 and
+  150), each ring grouped by its people's closest tie (family together, then love, friends, work, places); whoever
+  they're at odds with sits at the foot of their ring on a red arc; their off-screen people are small grey dots with
+  their names; and the places they belong to are labels round the outer edge, each near the people who share it
+  (`lib/social/world-picture.ts`). The lines are the views', a line a group in its colour and dash. Every face links
+  to that character's world and every line to their row in the list below the picture: what they are to each other,
+  the places they share and what made it (`lib/social/evidence.ts`: the date, the house scene, the night), then the
+  people off the show, the private pairs, the ties that are over and their places. The public record only, the same
+  for everyone: a private character's world is its name and the existence of its ties, a pair touching one is a grey
+  dot and a grey dash, and a deleted or persona character is a 404, as is every world with `SOCIAL_LENSES=0`. Indexed
+  only when the character page is and three or more public ties make it more than a name. The character page links it
+  beside "See them in the Constellation", and a character's panel on /graph links it in every view, as its first,
+  filled action on a phone.
 
   ![/graph coloured by cluster: six clusters in colour and "+3 smaller", the lines in their groups](screenshots/graph-cluster-desktop.png)
   ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)
