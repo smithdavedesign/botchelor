@@ -4,7 +4,10 @@ import type { CutEpisode, Edl } from "./episode-cut.mjs";
 export type DailyEpisode = CutEpisode & { best_line?: string | null; featurable?: boolean | null };
 export type DayStory = { day?: string | null; tonight?: string | null; logline?: string | null; episodes?: { id: string; day?: string; logline?: string | null }[] } | null;
 
+export type Report = { grade: string; subjects: { label: string; grade: string }[] };
+
 export const TARGET_SECONDS: number;
+export const SILENT_SECONDS_REPORT: number;
 export const BEFORE: number;
 export const LINE_CHARS: number;
 export const WORDS_PER_SECOND: number;
@@ -17,7 +20,12 @@ export function keepFor(text: string, phrase: string | null | undefined): number
 export function keepShort(text: string): number[] | null;
 export function tonightLine(tonight: string | null | undefined): string | null;
 export function isVote(tonight: string | null | undefined): boolean;
-export function autoEdl(e: DailyEpisode, opts?: { story?: DayStory; n?: number }): Edl;
+export function reportFromOg(title: string | null | undefined, description: string | null | undefined): Report | null;
+export function spokenGrade(grade: string): string;
+export function standoutSubject(subjects: Report["subjects"] | null | undefined): { label: string; grade: string } | null;
+export function reportSay(ending: string, report: Report): string;
+export function fetchReport(base: string, id: string, headers?: Record<string, string>): Promise<Report | null>;
+export function autoEdl(e: DailyEpisode, opts?: { story?: DayStory; n?: number; report?: Report | null }): Edl;
 export function dailyCaption(e: DailyEpisode, edl: Edl, opts?: { story?: DayStory; n?: number; base?: string }): string;
 export function fetchDayStory(base: string, headers?: Record<string, string>): Promise<DayStory>;
 export function nextDayNumber(postsDir: string): number;

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -11,6 +11,11 @@ import {
   keepFor,
   keepShort,
   nextDayNumber,
+  reportFromOg,
+  reportSay,
+  SILENT_SECONDS_REPORT,
+  spokenGrade,
+  standoutSubject,
   storyLine,
   TARGET_SECONDS,
   tonightLine,
@@ -162,5 +167,48 @@ describe("words that come up with the voice", () => {
     expect(args).toContain("[2:a]"); // the voice comes after the stills
     expect(args).not.toContain("fade=");
     expect(segmentArgs({ frame: "f.png", voice: null, seconds: 2, out: "s.mp4" }).join(" ")).toContain("fade=t=in");
+  });
+});
+
+describe("the report card beat (2026-11-20)", () => {
+  const og = { title: "Barnaby Thorne × Sable Quist got an F on their AI blind date (a ninth date)", description: "Chemistry F · Attraction D · Trust C+ · Awkwardness A+. The date report card from Botchelor, where AI characters go on blind dates nobody steers." };
+
+  it("reads the grade and the subjects off the card's tags, and nothing from a page without one", () => {
+    expect(reportFromOg(og.title, og.description)).toEqual({
+      grade: "F",
+      subjects: [
+        { label: "Chemistry", grade: "F" },
+        { label: "Attraction", grade: "D" },
+        { label: "Trust", grade: "C+" },
+        { label: "Awkwardness", grade: "A+" },
+      ],
+    });
+    expect(reportFromOg("Barnaby × Sable: an AI blind date", og.description)).toBeNull();
+    expect(reportFromOg(og.title, null)).toEqual({ grade: "F", subjects: [] });
+  });
+
+  it("says the grade the way a host would, and names the subject that stands out", () => {
+    expect(spokenGrade("B-")).toBe("a B minus");
+    expect(spokenGrade("A+")).toBe("an A plus");
+    expect(spokenGrade("F")).toBe("an F");
+    expect(standoutSubject([{ label: "Trust", grade: "A" }, { label: "Chemistry", grade: "D" }])).toEqual({ label: "Chemistry", grade: "D" });
+    expect(standoutSubject([{ label: "Trust", grade: "B" }])).toBeNull();
+    expect(reportSay("A disaster", { grade: "C", subjects: [{ label: "Awkwardness", grade: "F" }] })).toBe("A disaster. Report card: a C, with an F in awkwardness.");
+    expect(reportSay("Just friends", { grade: "B-", subjects: [] })).toBe("Just friends. Report card: a B minus.");
+  });
+
+  it("puts the card where the ending was, for long enough to read; no card, the plain ending as before", () => {
+    const report = reportFromOg(og.title, og.description)!;
+    const edl = autoEdl(date, { n: 3, report });
+    expect(edl.segments.at(-2)).toEqual({ kind: "report", say: "A ninth date. Report card: an F, with an F in chemistry.", secs: SILENT_SECONDS_REPORT });
+    const beats = resolveBeats(edl, [date]);
+    expect(beats.at(-2)).toMatchObject({ kind: "report", image: "/api/og/report-card/ep9?format=story", voiced: true });
+    expect(autoEdl(date, { n: 3 }).segments.at(-2)).toEqual({ kind: "reveal", say: "A ninth date." });
+  });
+
+  it("asks for the card when it builds the day's episode", () => {
+    const src = readFileSync("scripts/clips/daily-episode.mjs", "utf8");
+    expect(src).toContain("const [story, report] = await Promise.all([fetchDayStory(base), fetchReport(base, e.id)]);");
+    expect(src).toContain("const edl = autoEdl(e, { story, n: day, report });");
   });
 });

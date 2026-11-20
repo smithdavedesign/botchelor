@@ -27,7 +27,7 @@ import { sayLine, sayable, soundSeconds, veniceKey, veniceLine, voiceFor } from 
 /** The frame: drawn at 405×720 CSS px, scaled past 1080×1920 so the push-in never upsamples. */
 export const FRAME = { css: { width: 405, height: 720 }, scale: 3.2, out: { width: 1080, height: 1920 }, fps: 30 };
 /** Silent beats' lengths, seconds (an EDL segment's `secs` overrides). */
-export const SILENT_SECONDS = { title: 2.6, reveal: 3.2, choice: 3, card: 3.4 };
+export const SILENT_SECONDS = { title: 2.6, reveal: 3.2, choice: 3, card: 3.4, report: 3.6 };
 /** Breath around a spoken beat: before the voice starts, and after it ends. */
 export const LEAD_IN = 0.12;
 export const LEAD_OUT = 0.3;
@@ -202,6 +202,15 @@ export function resolveBeats(edl, episodes) {
             : [];
         return { ...base, faces, kicker: s.kicker ?? null, title: s.title, sub: s.sub ?? null, url: s.url ?? null, say: s.say ?? null, voiced: Boolean(s.say), voice: HOST_VOICE };
       }
+      case "report": {
+        // The date's report card at 9:16 (app/api/og/report-card, ?format=story), full screen, under the host's words.
+        // Only its own card: the site draws it only once the date has aired publicly, so it can't spoil anything.
+        if (!ENDING_LABELS[e.ending]) throw new Error(`${where}: the episode has no ending yet`);
+        const own = reportStoryPath(e.id);
+        const image = s.image ?? own;
+        if (image !== own) throw new Error(`${where}: a report beat shows its own episode's card (${own})`);
+        return { ...base, image, title: endingLabel(e), say: s.say ?? null, voiced: Boolean(s.say), voice: HOST_VOICE };
+      }
       case "reveal":
         if (!ENDING_LABELS[e.ending]) throw new Error(`${where}: the episode has no ending yet`);
         return { ...base, ending: e.ending, title: endingLabel(e), sub: s.sub ?? null, say: s.say ?? null, voiced: Boolean(s.say), voice: HOST_VOICE };
@@ -210,6 +219,9 @@ export function resolveBeats(edl, episodes) {
     }
   });
 }
+
+/** A date's report card at 9:16 on the site (app/api/og/report-card/[id], lib/report-card.ts reportCardStoryPath). */
+export const reportStoryPath = (id) => `/api/og/report-card/${encodeURIComponent(id)}?format=story`;
 
 /** A beat's length on screen (pure): its voice plus breath, or its silent length. */
 export function beatSeconds(beat, voiceSeconds) {
@@ -221,7 +233,7 @@ export function beatSeconds(beat, voiceSeconds) {
 /** What a beat says out loud (pure): a character's words, or the host's for a card, title or reveal. */
 export function spokenText(beat) {
   if (!beat.voiced) return "";
-  return sayable(beat.kind === "title" || beat.kind === "card" || beat.kind === "reveal" ? beat.say : beat.text);
+  return sayable(beat.kind === "title" || beat.kind === "card" || beat.kind === "reveal" || beat.kind === "report" ? beat.say : beat.text);
 }
 
 /** The type size that keeps a line on one phone screen (pure). */
@@ -280,6 +292,9 @@ export function frameHtml(beat, { base, shown = null }) {
     case "reveal":
       body = `${top}<p class="kick center">How it ended</p><div class="stage pair small">${e.characters.map((c) => face(c)).join('<span class="x">×</span>')}</div><p class="ending ${esc(beat.ending)}">${esc(beat.title)}</p>${beat.sub ? `<p class="sub">${esc(beat.sub)}</p>` : ""}`;
       break;
+    case "report":
+      body = `<img class="full" src="${img(beat.image, base)}" alt="${esc(`${e.characters[0].name} × ${e.characters[1].name}: their date report card`)}">`;
+      break;
     case "title":
       body = `${beat.kicker ? `<p class="kick center">${esc(beat.kicker)}</p>` : ""}${facesRow(beat.faces, face)}<h1>${esc(beat.title)}</h1>${beat.sub ? `<p class="sub">${esc(beat.sub)}</p>` : ""}`;
       break;
@@ -298,6 +313,7 @@ body{font-family:Inter,system-ui,sans-serif;color:#fff;position:relative;display
 .bg{position:absolute;inset:-12px;background:${bg ? `url("${img(bg, base)}") center/cover` : "none"};filter:blur(3px) saturate(1.1);opacity:.55;z-index:0}
 .veil{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(20,10,24,.55) 0%,rgba(58,20,80,.55) 45%,rgba(20,10,24,.92) 100%)}
 body>*:not(.bg):not(.veil){position:relative;z-index:1}
+body>img.full{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2}
 header{position:absolute!important;top:20px;left:24px;right:24px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#ffd6e3}
 .brand{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:15px;letter-spacing:0;text-transform:none;background:linear-gradient(90deg,#ff5e8c,#c9a6ff);-webkit-background-clip:text;color:transparent}
 .brand.big{font-size:44px}

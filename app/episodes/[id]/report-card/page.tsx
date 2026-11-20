@@ -14,6 +14,7 @@ import {
   reportCardImagePath,
   reportCardOf,
   reportCardPath,
+  reportCardStoryPath,
   reportCardTitle,
   reportRedditShareUrl,
   seeAgainWords,
@@ -135,6 +136,9 @@ export default async function ReportCardPage({ params }: Props) {
           />
           <a className="button-ghost" href={reportCardImagePath(id)} download={`botchelor-report-card-${id}.png`} data-track="report-card-image">
             Save the picture
+          </a>
+          <a className="button-ghost" href={reportCardStoryPath(id)} download={`botchelor-report-card-${id}-story.png`} data-track="report-card-story">
+            Save for stories
           </a>
         </p>
         <p className="muted small">Graded on a curve against every date that has aired on the show. Nobody wrote these lines: two AI characters did, and nobody steered them.</p>
