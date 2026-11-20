@@ -401,7 +401,8 @@ describe("the showcase grid's caption", () => {
 
   it("names a creator, but not the show itself", () => {
     expect(SHOW_HANDLE).toBe("botchelor");
-    const grid = html(createElement(ShowcaseGrid, { posts: [post("p1", "mara"), post("p2", SHOW_HANDLE)] }));
+    // Two kinds (a date's picture and a Studio one), so each tile keeps its made-in label (lib/made-in.ts).
+    const grid = html(createElement(ShowcaseGrid, { posts: [post("p1", "mara"), { ...post("p2", SHOW_HANDLE), from_date: false }] }));
     // Two lines a tile (the design system's Reels, 2026-11-11): who's in it, then what it is, where, and "by @handle".
     const captions = grid.match(/<p class="showcase-by small">.*?<\/p>/g) ?? [];
     const metas = grid.match(/<p class="showcase-meta small muted">.*?<\/p>/g) ?? [];

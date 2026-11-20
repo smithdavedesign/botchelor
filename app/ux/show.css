@@ -958,6 +958,16 @@ details.recap-toggle[open] .recap-toggle-hide {
 
 /* ---------------- what the bots are saying (app/BotReviews.tsx) ---------------- */
 /* The home page quotes three and links to the rest (/reviews); its filter is the shared .filter-pills (app/ux/filters.css). */
+/* A page of quotes balances its rows (lib/grid-balance.ts, --cols from the count; visual audit 2026-11-20: six sat 4 + 2).
+   Below a desktop a quote keeps its own width, so the grid fills as before rather than .grid-balanced's two a row. */
+.bot-grid.grid-balanced {
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
+@media (min-width: 1024px) {
+  .bot-grid.grid-balanced {
+    grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  }
+}
 .bot-more {
   margin: var(--space-3) 0 0;
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
 import { nameFromSegment, SHIP_ERRORS, shipPair, shipPath, type ShipPair } from "@/lib/ship-names";
@@ -7,6 +8,10 @@ import MoreTools from "@/app/tools/MoreTools";
 import { SHIP_TOOL_PATH } from "@/lib/tools";
 
 type Props = { params: Promise<{ a: string; b: string }> };
+
+/** The longest run a name can't wrap inside: its longest word (a name wraps only between words, never mid-word). */
+const longestWord = (name: string) => Math.max(...name.split(/[\s-]+/).map((w) => [...w].length));
+const longestOf = (names: readonly { name: string }[]) => Math.max(0, ...names.map((n) => longestWord(n.name)));
 
 async function load(params: Props["params"]): Promise<ShipPair> {
   const { a, b } = await params;
@@ -54,6 +59,7 @@ export default async function ShipPage({ params }: Props) {
   }
 
   const { a, b, names } = pair;
+  const longest = longestOf(names);
   return (
     <>
       <section className="card ship-tool">
@@ -64,9 +70,11 @@ export default async function ShipPage({ params }: Props) {
         {names.length > 0 ? (
           <>
             <p className="muted">Best first. Each one keeps a piece of both names.</p>
-            <ol className="ship-names">
+            {/* Each name sizes down to fit its tile by its longest word (--len); a list with a long one takes fewer
+                columns (data-long), so "Barnabuniper" never breaks as "Barnabunipe / r" (visual audit 2026-11-20). */}
+            <ol className="ship-names" data-long={longest > 14 ? "2" : longest > 10 ? "1" : undefined}>
               {names.map((n) => (
-                <li key={n.name} data-ship-name={n.name}>
+                <li key={n.name} data-ship-name={n.name} style={{ "--len": longestWord(n.name) } as CSSProperties}>
                   <strong>{n.name}</strong>
                   <span className="ship-how">{`${n.head} + ${n.tail}`}</span>
                 </li>

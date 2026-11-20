@@ -6,10 +6,11 @@ import Icon from "@/app/Icon";
 import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
 import { auditionWords } from "@/lib/audition-words";
 import { isInsider } from "@/lib/crowd-threshold";
-import { getDb } from "@/lib/db";
+import { getDb, type Db } from "@/lib/db";
 import { listMyCharacters } from "@/lib/game";
 import { userIdFromCookieStore } from "@/lib/http";
-import { HOUSE_MIN, SURVIVORS, seasonCastCards, seasonCastSize, type CastCard } from "@/lib/season-cast";
+import { portraitPathSql } from "@/lib/portrait-sql";
+import { HOUSE_MIN, SURVIVORS, leadOverride, seasonCastCards, seasonCastSize, seasonMonth, type CastCard } from "@/lib/season-cast";
 import { seasonFormat, type SeasonFormatDef } from "@/lib/season-format";
 import { seasonFormatSlug } from "@/lib/season-format-store";
 import { seasonPageLiveOn } from "@/lib/season-page";
@@ -25,13 +26,31 @@ export const metadata: Metadata = pageMetadata({ title: "Casting: who's on next 
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
 
+/** A face in a taken slot: this month's cast member, or a lead format's lead. */
+type SlotCard = Pick<CastCard, "id" | "name" | "hue" | "fan" | "portrait" | "archetype">;
+
+/** The lead's card when they aren't on this month's cast (the admin can pick any public house character). */
+async function leadCard(db: Db, id: string): Promise<SlotCard | null> {
+  const { rows } = await db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(
+    `select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c where c.id = $1`,
+    [id],
+  );
+  const r = rows[0];
+  return r ? { id: r.id, name: r.name, hue: r.hue ?? 200, fan: false, portrait: r.portrait, archetype: "From the house" } : null;
+}
+
 /**
  * No auditions yet: the places as slots, so the empty board still shows what's being cast for (the lift, 2026-11-13: one
  * plain box over a blank column). This month's cast in the taken slots, the open places as dashed empty ones, and the
  * one step: make a character to audition, or go to your own when you have one.
+ *
+ * On a lead format (The Botchelor) next month isn't this month's cast: it is the lead and the suitors. The lead, when
+ * picked, has a slot of their own marked as the lead, then the suitors' places; nobody from this month's cast sits in
+ * one (visual audit 2026-11-20: Nell, December's lead, filled a slot under "No suitors yet", as if applying to date herself).
  */
-function CastingSlots({ label, cast, size, open, hasOwn, def }: { label: string; cast: CastCard[]; size: number; open: number; hasOwn: boolean; def: SeasonFormatDef }) {
+function CastingSlots({ label, month, cast, lead, size, open, hasOwn, def }: { label: string; month: string; cast: SlotCard[]; lead: SlotCard | null; size: number; open: number; hasOwn: boolean; def: SeasonFormatDef }) {
   const words = auditionWords(def.lead);
+  const taken = def.lead ? [] : cast.slice(0, size);
   return (
     <section className="card casting-empty" aria-labelledby="casting-empty-title">
       <h2 id="casting-empty-title">No {def.lead ? "suitors" : "auditions"} yet for {label}</h2>
@@ -48,8 +67,19 @@ function CastingSlots({ label, cast, size, open, hasOwn, def }: { label: string;
           </>
         )}
       </p>
-      <ul className="casting-slots" aria-label="This month's cast, and next month's open places">
-        {cast.slice(0, size).map((c) => (
+      <ul className="casting-slots" aria-label={def.lead ? `${month}'s lead, and the suitors' open places` : "This month's cast, and next month's open places"}>
+        {def.lead && lead && (
+          <li className="casting-slot is-taken is-lead tap-card">
+            <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={!lead.fan} portraitSrc={lead.portrait} size={56} decorative />
+            <span className="casting-slot-text">
+              <Link className="stretch" href={`/characters/${lead.id}`}>
+                <strong>{lead.name}</strong>
+              </Link>
+              <span className="muted small">{`${lead.archetype} · ${month}'s lead`}</span>
+            </span>
+          </li>
+        )}
+        {taken.map((c) => (
           <li key={c.id} className="casting-slot is-taken tap-card">
             <Avatar seed={c.id} name={c.name} hue={c.hue} house={!c.fan} portraitSrc={c.portrait} size={56} decorative />
             <span className="casting-slot-text">
@@ -67,7 +97,7 @@ function CastingSlots({ label, cast, size, open, hasOwn, def }: { label: string;
             </span>
             <span className="casting-slot-text">
               <strong>Open</strong>
-              <span className="muted small">your character?</span>
+              <span className="muted small">{def.lead ? `a ${words.noun}: your character?` : "your character?"}</span>
             </span>
           </li>
         ))}
@@ -101,9 +131,15 @@ export default async function CastingPage() {
   const size = def.lead ? def.lead.places : seasonCastSize();
   const open = def.lead ? def.lead.places - 1 : Math.max(0, size - HOUSE_MIN);
   // Only an empty board draws the slots, so a board with auditions costs nothing more.
-  const [cast, own] = board.auditions.length
-    ? [[], []]
-    : await Promise.all([seasonCastCards(db).catch(() => [] as CastCard[]), viewer ? listMyCharacters(db, viewer, 1).catch(() => []) : Promise.resolve([])]);
+  const [cast, own, leadId] = board.auditions.length
+    ? [[], [], null]
+    : await Promise.all([
+        seasonCastCards(db).catch(() => [] as CastCard[]),
+        viewer ? listMyCharacters(db, viewer, 1).catch(() => []) : Promise.resolve([]),
+        // A lead format's lead, once picked on /admin/season (lib/season-cast.ts leadOverride; else it's known on the 1st).
+        def.lead ? leadOverride(db, board.season_id).catch(() => null) : Promise.resolve(null),
+      ]);
+  const lead = leadId ? (cast.find((c) => c.id === leadId) ?? (await leadCard(db, leadId).catch(() => null))) : null;
   // The page as the design system draws it (all-screens board, 2026-11-11): the auditions, and beside them how a
   // character gets in and how to put one up. The rules are lib/season-cast.ts pickCast's, in words.
   return (
@@ -127,7 +163,7 @@ export default async function CastingPage() {
       </header>
       <div className="casting-layout">
         <div className="casting-main">
-          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} insider={insider} /> : <CastingSlots label={board.label} cast={cast} size={size} open={open} hasOwn={own.length > 0} def={def} />}
+          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} insider={insider} /> : <CastingSlots label={board.label} month={seasonMonth(board.season_id)} cast={cast} lead={lead} size={size} open={open} hasOwn={own.length > 0} def={def} />}
         </div>
         <aside className="casting-rail" aria-label="How casting works">
           <section className="card casting-rules">

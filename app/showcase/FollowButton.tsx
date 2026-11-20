@@ -19,10 +19,16 @@ export default function FollowButton({ handle, followers, following }: { handle:
     <p className="creator-follow">
       <button type="button" className={now.following ? "secondary small" : "primary small"} aria-pressed={now.following} disabled={busy} onClick={() => void toggle()}>
         {now.following ? "Following" : "Follow"}
-      </button>{" "}
-      <span className="muted small">
-        {now.followers} follower{now.followers === 1 ? "" : "s"}
-      </span>
+      </button>
+      {/* No count before the first follower, as on a character's page (visual audit 2026-11-20: "Follow · 0 followers"). */}
+      {now.followers > 0 && (
+        <>
+          {" "}
+          <span className="muted small">
+            {now.followers} follower{now.followers === 1 ? "" : "s"}
+          </span>
+        </>
+      )}
       {hint && <span className="muted small"> · {hint}</span>}
     </p>
   );
