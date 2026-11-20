@@ -327,6 +327,15 @@ services:
       # - key: SHOW_IDEAS_PROPOSE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The social network (docs/PRDs/social-network.md, lib/social/): SOCIAL_TIES "0" stops every social write and
+      # read (nothing declared, derived or backfilled; its routes close; rows stay). SOCIAL_DECLARE "0" keeps what aired
+      # derives and stops owners' and agents' declarations and proposals. Both on by default.
+      # - key: SOCIAL_TIES
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: SOCIAL_DECLARE
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
       # - key: CHARACTER_GIFTS_RATE
       #   value: "0.5"

@@ -137,6 +137,8 @@ describe("the registry against a real database", () => {
     // What an account claimed is an identity of its own, never the other person of these rows: deleting the account
     // deletes what is left under it, and the export names it.
     "account_aliases.user_id": { alias_id: crypto.randomUUID() },
+    // A tie goes to a character or to an off-screen person, exactly one (lib/social/): someone else's character, here.
+    social_ties: { to_id: "seed-social-tie-to" },
   };
 
   beforeAll(async () => {

@@ -216,6 +216,19 @@ export type AccountExport = {
   /** Which languages they wrote in, counted by day (lib/language-seen.ts): never the words. */
   languages_written: Record<string, unknown>[];
   /**
+   * Their characters' circles (lib/social/; docs/PRDs/social-network.md): their characters' off-screen people (and any
+   * they added to someone else's), the ties that touch their characters or that they declared or answered, those ties'
+   * history, the places they added, and their characters' places. Who declared or answered a tie is said only as
+   * whether it was them; a private tie that someone else's character holds about theirs is that character's, and not here.
+   */
+  social: {
+    people: Record<string, unknown>[];
+    ties: Record<string, unknown>[];
+    tie_events: Record<string, unknown>[];
+    places: Record<string, unknown>[];
+    place_memberships: Record<string, unknown>[];
+  };
+  /**
    * The anonymous identities this account claimed (lib/account-claim.ts): each one's id, when, and `left_behind`, what
    * stayed under that id because it is one a person (its votes, calls, allowances, settings), exported the same way.
    * An identity that has since got a sign-in of its own is listed without it: that data is that account's.
@@ -484,7 +497,7 @@ type TheRest = Pick<
   | "admin" | "last_seen" | "dates_booked" | "scheduled_dates" | "date_links" | "double_dates" | "date_roleplays" | "thread_reads" | "identity_reveals"
   | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "scene_suggestions" | "character_ratings"
   | "character_reviews" | "blocks" | "reports" | "badges" | "usage" | "watch_parties" | "studio" | "showcase" | "agent" | "plans" | "operator_pass"
-  | "call_renderer" | "renderer_compares" | "languages_written"
+  | "call_renderer" | "renderer_compares" | "languages_written" | "social"
 >;
 
 /**
@@ -603,6 +616,44 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
     call_renderer: await one("select renderer, updated_at from user_live_face where user_id = $1"),
     renderer_compares: await q("select id, character_id, line, voice, audio_seconds, created_at from live_face_compares where user_id = $1 order by created_at"),
     languages_written: await q("select day, surface, lang, n from language_seen where actor = $1 order by day, surface, lang"),
+    social: await exportSocial(db, userId),
+  };
+}
+
+/**
+ * Their characters' circles (lib/social/), one statement each like the rest. Keyed by their id and their characters
+ * alone; another person is never named: who declared or answered a tie, who added a person or did a change, is only
+ * whether it was them.
+ */
+async function exportSocial(db: Db, userId: string): Promise<AccountExport["social"]> {
+  const q = async (sql: string) => (await db.query<Record<string, unknown>>(sql, [userId])).rows;
+  const mine = `(select id from characters where owner_id = $1 and not is_house)`;
+  // The ties of theirs: held by one of their characters, or to one (unless it's another character's private one), or
+  // declared or answered by them.
+  const theirTies = `from_id in ${mine} or (to_id in ${mine} and visibility <> 'private') or created_by = $1 or answered_by = $1`;
+  return {
+    people: await q(
+      `select id, holder_id as character_id, name, pronouns, note, deceased, visibility, source, promoted_to, created_at, updated_at,
+              coalesce(created_by = $1, false) as added_by_you
+         from social_people where holder_id in ${mine} or created_by = $1 order by created_at, id`,
+    ),
+    ties: await q(
+      `select id, from_id, to_id, to_person_id, kind, layer, directed, valence, closeness, status, visibility, source, source_ref, evidence, detail,
+              story, since_text, origin_model, confidence, started_at, ended_at, last_contact_at, created_at, updated_at,
+              coalesce(created_by = $1, false) as declared_by_you, coalesce(answered_by = $1, false) as answered_by_you
+         from social_ties where ${theirTies} order by created_at, id`,
+    ),
+    tie_events: await q(
+      `select tie_id, event, changes, source, source_ref, at, coalesce(actor = $1, false) as by_you
+         from social_tie_events where actor = $1 or tie_id in (select id from social_ties where ${theirTies}) order by at, id`,
+    ),
+    places: await q("select id, key, kind, name, description, visibility, created_at from social_places where created_by = $1 order by created_at, id"),
+    place_memberships: await q(
+      `select m.place_id, p.key as place_key, p.name as place, m.character_id, m.role, m.since_text, m.started_at, m.ended_at, m.source, m.visibility,
+              m.detail, m.created_at, m.updated_at, coalesce(m.created_by = $1, false) as declared_by_you
+         from social_place_members m left join social_places p on p.id = m.place_id
+        where m.character_id in ${mine} or m.created_by = $1 order by m.created_at, m.place_id, m.role`,
+    ),
   };
 }
 
@@ -760,6 +811,11 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   );
   // Their concept embedding (lib/originality-concept.ts): a tombstone keeps the row, so the cascade wouldn't take it.
   await db.query("delete from character_embeddings where character_id = any($1)", [characterIds]);
+  // Their circle as someone declared it (lib/social/): off-screen people (the ties to them go too), declared ties either
+  // way, declared places. What aired made (source 'derived') stays, like the dates it came from.
+  await db.query("delete from social_people where holder_id = any($1)", [characterIds]);
+  await db.query("delete from social_ties where (from_id = any($1) or to_id = any($1)) and source <> 'derived'", [characterIds]);
+  await db.query("delete from social_place_members where character_id = any($1) and source <> 'derived'", [characterIds]);
 }
 
 export type CharacterDeletion = { deleted: boolean; anonymized: boolean };
@@ -996,6 +1052,14 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from job_deals where holder = $1");
   // The record of a claim (lib/account-claim.ts), from either end.
   await run("delete from account_aliases where user_id = $1 or alias_id = $1");
+  // The social network (lib/social/): their own characters' circles went with the characters above. What still has their
+  // id is on someone else's character (a proposal they answered, a person, place or tie an admin added): it stays, without it.
+  await run("update social_ties set created_by = null where created_by = $1");
+  await run("update social_ties set answered_by = null where answered_by = $1");
+  await run("update social_tie_events set actor = null where actor = $1");
+  await run("update social_people set created_by = null where created_by = $1");
+  await run("update social_places set created_by = null where created_by = $1");
+  await run("update social_place_members set created_by = null where created_by = $1");
 }
 
 /** Every After Dark table keyed to a person, and the column it's keyed by: dependents first. */

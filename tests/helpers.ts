@@ -376,6 +376,11 @@ export async function startTestDb() {
         "character_reviews",
         // What kind of person each one is (lib/character-tags.ts).
         "character_tags",
+        // The social network (lib/social/): the house cast outlives a reset, so its ties, people and places would too.
+        "social_tie_events",
+        "social_ties",
+        "social_place_members",
+        "social_people",
         "season_casts",
         "season_cast_rotations",
         "season_candidates",
@@ -431,6 +436,8 @@ export async function startTestDb() {
       ]) {
         await db.query(`delete from ${table}`);
       }
+      // The seeded world (lib/social/world.ts) is written once a database and stays; a place a test made goes.
+      await db.query("delete from social_places where source <> 'house'");
       await db.query("delete from predictions");
       await db.query("delete from episodes");
       await db.query("delete from characters where not is_house");
