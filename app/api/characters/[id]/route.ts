@@ -12,7 +12,7 @@ import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
-import { checkSheetText, type RejectReason } from "@/lib/safety";
+import { checkSheetText, sheetPgIssues, type RejectReason } from "@/lib/safety";
 import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { scheduleWelcome } from "@/lib/welcome";
 import type { ImageSignals } from "@/lib/avatar";
@@ -167,7 +167,7 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   // In any language (lib/language-check.ts): an edit in Spanish is read in English too.
   // Held to the PG show's sheet check (lib/safety.ts checkSheetText, 2026-11-02): the explicit words plus innuendo
   // ("exploring in the bedroom"), which checkFields alone let onto public profiles. After Dark's words aren't sheet fields.
-  const verdict = await checkFieldsAnyLanguage({
+  const sheetFields = {
     name: input.name as string | undefined,
     bio: input.bio as string | undefined,
     traits: input.traits as string[] | undefined,
@@ -178,9 +178,12 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     this_week: (input.this_week as string | null | undefined) ?? undefined,
     hiding: input.hiding as string[] | undefined,
     ...(input.extras ? extrasFields(normaliseExtras(input.extras as ExtrasInputType)) : {}),
-  }, { check: checkSheetText });
+  };
+  const verdict = await checkFieldsAnyLanguage(sheetFields, { check: checkSheetText });
   if (!verdict.ok) {
-    return json({ error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason] }, 422, sess);
+    // Every refused text, not just the first (lib/safety.ts sheetPgIssues): the editor marks them all at once.
+    const issues = sheetPgIssues(sheetFields);
+    return json({ error: "content_rejected", reason: verdict.reason, field: verdict.field, message: REJECTION_MESSAGES[verdict.reason], issues }, 422, sess);
   }
   // #1128 (the 2026-10-31-1616 visitor renamed onto a taken name and nothing said so): the same test create runs.
   const keepName = input.keep_name === true;
