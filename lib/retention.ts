@@ -43,7 +43,7 @@ const PRUNE_SQL: Record<PrunedTable, string> = {
   web_events: `delete from web_events where at < $1`,
   // A tap on the Plus tile (lib/plus-interest.ts) is a signal for a decision; a year on, it's noise.
   plus_interest: `delete from plus_interest where created_at < $1`,
-  // "Might know" suggestions shown, and what came of them (lib/social/metrics-job.ts, docs/PRDs/social-network.md).
+  // "Might know" suggestions shown, and what came of them (docs/PRDs/social-network.md section 6.3; /admin/social reads them).
   social_suggestion_log: `delete from social_suggestion_log where shown_at < $1`,
   // The network's daily numbers per character: past 400 days only one day a week stays (Mondays), so the long view
   // keeps its shape at a seventh of the rows.
