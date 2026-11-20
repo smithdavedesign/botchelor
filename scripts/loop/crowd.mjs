@@ -826,6 +826,12 @@ export function replyMessages({ kind, me, partner, history = [], extra = {}, sai
     // 2026-10-21-0419: a crowd character called its date by the wrong name. The exact first name, said once.
     partner.name ? `- Their name is exactly ${them}. If you use a name for them, spell it ${them}: never your own name (${first}) or anyone else's.` : "",
     lastIsTheirs ? `- Answer what ${them} just said, directly, before anything else.` : "",
+    // 2026-11-19-1746 (#1844): Ines called a visitor's Pip "a man"; Pip's sheet gave no pronouns.
+    partner.name
+      ? partner.pronouns
+        ? `- ${them}'s pronouns are ${partner.pronouns}.`
+        : `- ${them} hasn't said their gender: never call them a man, woman, guy, girl, sir or ma'am, or he or she. Say "you", or their name.`
+      : "",
     `- Don't quote ${them}'s dating profile back at them. Talk about what was actually said, or about your own life.`,
     // 2026-11-19-0610 (#1832): Odile thanked a visitor for "your description of the sky"; nobody had described a sky.
     recent.length ? `- Only bring up things ${them} actually said above. Never say ${them} told you, described or did something they didn't.` : "",
@@ -883,14 +889,35 @@ function ownProfile(s) {
   return parts.length ? `Your own dating profile, which they may have read: ${parts.join(" / ")} That's you: own it if they bring it up.` : "";
 }
 
+// Words that give the person you're talking to a gender (#1844). Third-person he/she aren't here: "my brother, he…" is fine.
+const GENDERED_YOU = {
+  m: /\b(?:you(?:'re| are)\s+(?:such\s+|quite\s+|a\s+real\s+)?(?:an?\s+)?(?:\w+\s+)?(?:man|guy|gentleman|fella|boy|dude)|sir|mister|bro|dude|my man)\b/i,
+  f: /\b(?:you(?:'re| are)\s+(?:such\s+|quite\s+|a\s+real\s+)?(?:an?\s+)?(?:\w+\s+)?(?:woman|girl|lady|gal)|ma'am|madam|miss|my girl)\b/i,
+};
+
+/**
+ * Whether a line genders the partner against what they've said (#1844): a "man"/"sir" for anyone not he/him, a
+ * "woman"/"ma'am" for anyone not she/her. With no pronouns given, either is a slip. Returns the words or null.
+ */
+export function gendersPartner(line, pronouns) {
+  const p = String(pronouns ?? "").toLowerCase();
+  for (const [g, re] of Object.entries(GENDERED_YOU)) {
+    if ((g === "m" && p.startsWith("he")) || (g === "f" && p.startsWith("she"))) continue;
+    const m = line.match(re);
+    if (m) return m[0];
+  }
+  return null;
+}
+
 /** Why a model line can't be sent, before the server sees it (null: it can). */
-function lineProblem(line, { said, history, partnerName, profile, allowed }) {
+function lineProblem(line, { said, history, partnerName, profile, allowed, partnerPronouns }) {
   if (words(line).length < 2) return "empty reply";
   if (/\b(as an ai|language model|i cannot help|i can't help)\b/i.test(line)) return "broke character";
   if (said.some((x) => nearDuplicate(line, x) || sameOpening(line, x))) return "repeat of its own line";
   const theirs = history.filter((h) => h.name === partnerName).at(-1);
   if (theirs && nearDuplicate(line, theirs.text)) return "parroted the partner";
   if (echoesProfile(line, profile, allowed)) return "echoed the partner's profile";
+  if (gendersPartner(line, partnerPronouns)) return "gendered the partner";
   return null;
 }
 
@@ -1129,7 +1156,7 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
       const named = fixNames(line, { me: me.name, partner: partner.name, known: agent.knownNames ?? crowdNames(), thread: history.map((h) => h.name) });
       if (named.repaired) log(`reply ${who}: model try ${attempt + 1}: name repaired`);
       line = named.line;
-      const problem = named.problem ?? lineProblem(line, { said, history, partnerName: partner.name, profile, allowed });
+      const problem = named.problem ?? lineProblem(line, { said, history, partnerName: partner.name, profile, allowed, partnerPronouns: partner.pronouns });
       if (problem) {
         why = refused = problem;
         if (problem === "repeat of its own line") {
@@ -1229,13 +1256,15 @@ const promptAnswers = (c) => (Array.isArray(c?.extras?.prompts) ? c.extras.promp
 /** Who a reply is to: their name and their profile prompt answers (the crowd's own, or read once with get_character). */
 export async function partnerFor(agent, name, id) {
   const known = (id && agent.crowd?.get(id)) || [...(agent.crowd?.values() ?? [])].find((c) => !id && c.name === name);
-  if (known) return { name: known.name, profile: promptAnswers(known.entry.sheet) };
-  if (!id) return { name, profile: [] };
+  if (known) return { name: known.name, profile: promptAnswers(known.entry.sheet), pronouns: known.entry.sheet.pronouns ?? null };
+  if (!id) return { name, profile: [], pronouns: null };
+  if (!agent.pronouns) agent.pronouns = new Map();
   if (!agent.profiles.has(id)) {
     const r = await agent.tool("get_character", { character_id: id }).catch(() => null);
     agent.profiles.set(id, promptAnswers(r?.character));
+    agent.pronouns.set(id, typeof r?.character?.pronouns === "string" ? r.character.pronouns : null);
   }
-  return { name, profile: agent.profiles.get(id) };
+  return { name, profile: agent.profiles.get(id), pronouns: agent.pronouns.get(id) ?? null };
 }
 
 /** A step's last_lines ("Name: words (action)") folded into the date's own record of what was said, without repeats. */
