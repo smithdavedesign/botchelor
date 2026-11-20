@@ -105,7 +105,8 @@ describe("the tool list: the core by default, everything on request", () => {
     // so the cap moved to 63.75 KB.
     // 2026-11-18 (2.38.0, more art styles, world and backstory): five more art_style values and two more extras
     // (world, backstory) in the core tools' schemas: ~60 bytes over, so the cap moved to 63.9 KB.
-    expect(JSON.stringify(core).length).toBeLessThan(63_900);
+    // 2026-11-20 (2.39.0, #1778): get_episode's transcript_only: ~90 bytes over, so the cap moved to 64 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(64_000);
     // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
     // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);

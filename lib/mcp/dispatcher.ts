@@ -296,7 +296,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.37.0 (2026-11-17): art_style (lib/art-style.ts, PRD styles-and-storylines phase 2): create/update_character take
 // how their pictures are drawn (realistic, anime or semi_real, the 2.5D house look), kept as their looks' style;
 // get_character returns it. New arguments and reply fields only.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.38.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.39.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -4905,6 +4905,38 @@ async function datePreview(db: Db, userId: string, args: Record<string, unknown>
  * where, the ending, the best line, the box score's final numbers and why. Anything that isn't the episode (a wait's
  * notes, next) is kept as it is.
  */
+/**
+ * get_episode with transcript_only: true (2.39.0, #1778; the 2026-11-17-0610 visitors: "a transcript-only option"): each
+ * line as "Name: dialogue", in order, plus who, the status and (when the reader may see it) the ending. No scenes, box
+ * score or actions. A wait's notes and next_calls are kept, as summary keeps them.
+ */
+export function episodeTranscript(d: Record<string, unknown>): Record<string, unknown> {
+  const s = episodeSummary(d);
+  const e = (d.episode && typeof d.episode === "object" ? d.episode : d) as Record<string, unknown>;
+  const lines = Array.isArray(e.transcript) ? (e.transcript as { side?: string; dialogue?: string }[]) : [];
+  const ep = s.episode as Record<string, unknown>;
+  const speaker = speakerOf(e);
+  const { episode: _ep, summary_note: _n, ...rest } = s;
+  const out = Object.fromEntries(
+    Object.entries({ id: ep.id, status: ep.status, characters: ep.characters, ending: ep.ending, revealed: ep.revealed, revealed_note: ep.revealed_note }).filter(([, v]) => v !== undefined && v !== null),
+  );
+  return {
+    ...rest,
+    episode: { ...out, lines: lines.filter((t) => t.dialogue).map((t) => `${speaker(t.side)?.split(" ")[0] ?? t.side}: ${t.dialogue}`) },
+    transcript_note: "The lines only, in order. get_episode without transcript_only has the scenes, actions and box score; summary: true has just the result.",
+  };
+}
+
+/** Each side's speaker by the character id the episode pins to it (2.7.0, #645), the characters array's order only as a fallback. */
+function speakerOf(e: Record<string, unknown>): (side?: string) => string | undefined {
+  const chars = Array.isArray(e.characters) ? (e.characters as { id?: string; name?: string }[]) : undefined;
+  const sideIds = Array.isArray(e.goals) ? (e.goals as { character_id?: string }[]).map((g) => g?.character_id) : [];
+  return (side) => {
+    const i = side === "b" ? 1 : 0;
+    return (sideIds[i] ? chars?.find((c) => c.id === sideIds[i])?.name : undefined) ?? chars?.[i]?.name;
+  };
+}
+
 export function episodeSummary(d: Record<string, unknown>): Record<string, unknown> {
   const e = (d.episode && typeof d.episode === "object" ? d.episode : d) as Record<string, unknown>;
   const box = e.box_score && typeof e.box_score === "object" ? (e.box_score as Record<string, { final?: number } | undefined>) : null;
@@ -4939,6 +4971,9 @@ export function episodeSummary(d: Record<string, unknown>): Record<string, unkno
       box_score: box ? Object.fromEntries(Object.entries(box).map(([k, v]) => [k, v?.final])) : undefined,
       why: e.why,
       revealed: e.revealed,
+      // #1710 (the 2026-11-16-0610 run): an ending beside revealed: false read as a spoiler or a bug. It's shown because
+      // the reader owns the date (owners can't predict their own dates); the note says so where revealed sits.
+      revealed_note: e.revealed === false && e.ending ? "You see the ending because it's your date. It isn't public until the date airs, and audiences can still predict it." : undefined,
       visibility: e.visibility,
     }).filter(([, v]) => v !== undefined && v !== null),
   );
@@ -5330,6 +5365,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const houseTalk = talk
         ? { house_talk: { ...talk, call: { tool: "get_house_scene", args: { scene_id: talk.scene_id } }, note: "The house talked about this date. The house tools aren't in the core list: they work by name." } }
         : {};
+      if (args.transcript_only === true) return { ...out, data: { ...episodeTranscript(out.data), ...houseTalk } };
       if (args.summary !== true) return { ...out, data: { ...out.data, ...houseTalk } };
       const summary = episodeSummary(out.data);
       // While it's being written, say how far along it is (2026-10-20 visitors: "just {status: generating}, no ETA").
