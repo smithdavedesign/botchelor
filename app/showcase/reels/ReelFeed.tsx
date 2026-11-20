@@ -258,7 +258,8 @@ export default function ReelFeed(props: Props) {
           </section>
         )}
       </div>
-      {!shown && (
+      {/* Nothing to veil when the feed is empty: the veil drew over "Nothing here yet" (2026-11-20 mobile audit, C12). */}
+      {!shown && feed.length > 0 && (
         <div className={styles.veil} role="dialog" aria-label="After Dark">
           <p>🌙 After Dark: explicit pictures and clips of fictional adults.</p>
           <button type="button" className={styles.cta} onClick={() => setShown(true)}>

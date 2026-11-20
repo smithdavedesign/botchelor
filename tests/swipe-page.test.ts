@@ -216,7 +216,8 @@ describe("the swipe page: whose deck, as faces", () => {
     const html = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({}) }));
     expect(html).not.toContain("character-tabs");
     // The heading names whose matches these are, and its name opens the header's picker.
-    expect(html).toMatch(/<button type="button" class="heading-switch"[^>]*>Wren<\/button>&#x27;s matches/);
+    // The name and its 's kept together (2026-11-20 mobile audit, B2).
+    expect(html).toMatch(/<span class="heading-switch-keep"><button type="button" class="heading-switch"[^>]*>Wren<\/button>&#x27;s<\/span> matches/);
     expect(html).toContain(`href="/swipe?character=${wren}"`);
     // The address still wins.
     const asked = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: lexi }) }));

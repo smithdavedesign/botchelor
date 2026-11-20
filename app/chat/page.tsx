@@ -59,12 +59,13 @@ function Row({ r }: { r: ChatRow }) {
           <span className="matches-row-top">
             <strong className="matches-row-name">{r.title}</strong>
             <span className="chat-kind">{r.says}</span>
-            {r.new_match && <span className="badge matches-new">New match</span>}
             <time className="matches-row-time" dateTime={r.at}>
               <When iso={r.at} />
             </time>
           </span>
+          {/* "New match" leads the preview line rather than squeezing the name (2026-11-20 mobile audit, B3). */}
           <span className="matches-row-preview">
+            {r.new_match && <span className="badge matches-new">New match</span>}
             {r.last ? (
               <>
                 {r.last.by && <span className="muted">{r.last.by}: </span>}

@@ -146,8 +146,7 @@ export default async function MatchesPage({ searchParams }: Props) {
             <span className="heading-face">
               <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={32} decorative round />
               <span>
-                <SwitchCharacter name={first} />
-                &apos;s matches
+                <SwitchCharacter name={first} suffix="'s" /> matches
               </span>
             </span>
           ) : (

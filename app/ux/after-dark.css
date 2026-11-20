@@ -3136,8 +3136,11 @@ button.ad-pp-face:hover:not(:disabled) {
   flex-direction: column;
   align-items: stretch;
 }
+/* The full width of the sheet: the base rule's `width: max-content` survived `max-width: none` and ran the items off the
+   right edge (2026-11-20 mobile audit, C5). */
 .theater-tools.ad-sheet-mode .ad-make-more.open .ad-make-items {
   position: static;
+  width: 100%;
   max-width: none;
   margin-top: var(--space-2);
   box-shadow: none;
