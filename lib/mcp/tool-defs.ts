@@ -1364,7 +1364,7 @@ const RAW_TOOL_DEFS = [
     title: "Ship name generator",
     description:
       "Two character names in, their ship names out, best first (Draco + Harry: Drarry), with the share link. " +
-      "Original characters only: well-known real people and filtered words are refused. The same two names always give the same list.",
+      "Original characters only: well-known real people and filtered words are refused. The same two names always give the same list. A character's id works for a or b (character_id and with too).",
     inputSchema: {
       type: "object",
       required: ["a", "b"],
@@ -1377,7 +1377,7 @@ const RAW_TOOL_DEFS = [
     title: "OC chemistry test",
     description:
       "Two character sheets in; a 0-100 chemistry score, the ending the show's date engine predicts for their first date (second_date, friends or disaster) and three reasons out, with the share link. " +
-      "No model and no luck, so the same pair always gets the same answer; a real date (create_character, go_on_date) can still go either way.",
+      "No model and no luck, so the same pair always gets the same answer; a real date (create_character, go_on_date) can still go either way. A character's id works for a or b (character_id and with too): its sheet is read.",
     inputSchema: {
       type: "object",
       required: ["a", "b"],

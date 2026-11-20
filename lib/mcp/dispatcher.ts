@@ -2849,6 +2849,26 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
 }
 
 /** Which of these characters are private (characters.visibility) to this viewer: everyone's but their owner's. */
+/**
+ * #1862: ship_names and oc_chemistry_test take a character's id for a or b (character_id and with read as a and b): the
+ * character's name for ship_names, its sheet for the chemistry test. A private one that isn't yours is refused by name.
+ */
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function ocCharacterArgs(db: Db, tool: "ship_names" | "oc_chemistry_test", args: Record<string, unknown>, viewerId: string | null): Promise<{ args: Record<string, unknown> } | { error: string }> {
+  const out = { ...args };
+  for (const side of ["a", "b"] as const) {
+    const v = args[side];
+    // An id-shaped string (a uuid, or a house id like "house-rafe"); a ship name that isn't anyone's id stays a name.
+    if (typeof v !== "string" || !/^[\w-]{3,64}$/.test(v.trim())) continue;
+    const id = v.trim();
+    const row = (await db.query<{ name: string; traits: string[]; want: string; dealbreaker: string }>(`select name, traits, want, dealbreaker from characters where id = $1`, [id])).rows[0];
+    if (!row && tool === "ship_names" && !UUID_LIKE.test(id)) continue;
+    if (!row || (await privateIds(db, [id], viewerId)).has(id)) return { error: `${side}: no character you can see has the id ${id}. Pass its name${tool === "oc_chemistry_test" ? " and sheet ({ name, traits, want, dealbreaker })" : ""} instead.` };
+    out[side] = tool === "ship_names" ? row.name : { name: row.name, traits: row.traits, want: row.want, dealbreaker: row.dealbreaker };
+  }
+  return { args: out };
+}
+
 async function privateIds(db: Db, ids: string[], viewerId: string | null): Promise<Set<string>> {
   if (!ids.length) return new Set();
   const { rows } = await db.query<{ id: string }>(
@@ -3796,7 +3816,10 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   // #1362: the speaking character, as agents name it.
   submit_own_date_step: { dialogue: "output", line: "output", speaker: "character_id", speaker_id: "character_id" },
   // #1847 (the 2026-11-19-1819 run: name_b got "did you mean a").
-  ship_names: { name_a: "a", name_b: "b", name1: "a", name2: "b", first: "a", second: "b" },
+  ship_names: { name_a: "a", name_b: "b", name1: "a", name2: "b", first: "a", second: "b", character_id: "a", with: "b", partner_id: "b" },
+  // #1862 (the 2026-11-19-1952 run: "oc_chemistry_test/ship_names take a/b not character_id"): the names every other tool
+  // uses; an id there reads as that character (ocCharacterArgs).
+  oc_chemistry_test: { character_id: "a", with: "b", partner_id: "b" },
 };
 
 /**
@@ -9200,7 +9223,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "oc_names":
     case "oc_question": {
       const who = resolveIdentity(args, session, false);
-      const out = runOcTool(name, args);
+      const read = name === "ship_names" || name === "oc_chemistry_test" ? await ocCharacterArgs(db, name, args, who?.id ?? null) : { args };
+      if ("error" in read) return read;
+      const out = runOcTool(name, read.args);
       return "error" in out ? out : { data: out.data, identity: who ?? undefined };
     }
     case "get_story_so_far": {
@@ -10087,9 +10112,12 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       }
       // 2.7.0 (#642): a boolean or enum of the wrong type is read ("true" as text) or refused with its type, never guessed.
       {
-        const typed = typeProblem(name, args);
+        // #1862: oc_chemistry_test's a or b as a string is a character's id, read in the handler (ocCharacterArgs), not a
+        // sheet of the wrong type.
+        const ocIds = name === "oc_chemistry_test" ? Object.fromEntries((["a", "b"] as const).filter((k) => typeof args[k] === "string").map((k) => [k, args[k]])) : {};
+        const typed = typeProblem(name, Object.fromEntries(Object.entries(args).filter(([k]) => !(k in ocIds))));
         if (typed.error) return refuse({ error: `${typed.error} (${name} takes: ${[...known].join(", ")}.)` });
-        args = typed.args;
+        args = { ...typed.args, ...ocIds };
         aliased.push(...typed.read);
       }
       // 2.8.0 (#650): a value outside an argument's list is read (the same word), refused (a call that spends or writes), or
