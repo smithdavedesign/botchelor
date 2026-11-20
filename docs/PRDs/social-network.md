@@ -209,14 +209,21 @@ Each derivation is idempotent: an upsert on the unique key that appends evidence
 |---|---|---|
 | `relationships` public layer | `dated` per pair, layer by stage (§5.1), detail `{stage, shown_stage, dates, second_dates}` | `refreshRelationship` (best effort), plus a backfill |
 | `character_links` | Declared backstory: `rivals`→`rival`, `second_chance`→`ex`, `fake_dating`→`fake_couple`, `friends_to_more`→`best_friend`. Source `house` (season_gen) or `admin` | `addLink` write-through, plus a backfill |
-| Group nights, once aired | `met_at_group_night` between everyone seated together, detail `{nights}` | Airing, plus a backfill |
-| House scenes, aired, not reported | Confrontation → `feud`, ended with valence 0 if they cleared the air, −1 for agreed to disagree, −2 for worse than before. Challenge → `rival`. Each `told` line → `told` (speaker → listener) and `talked_about` (speaker → subject) | Scene write, plus a backfill |
-| `story_beats` public rivals | `rival` | Beat staged |
-| This season's cast | `housemate`, detail `{seasons}`, plus `house` membership | Season rotation, plus a backfill |
-| Aired dates at venues | `visited` / `regular` membership | Airing, plus a backfill |
+| Group nights, once aired | `met_at_group_night` between everyone seated together (not a date's own two: they're `dated`), detail `{nights}` | Airing, plus a backfill |
+| House scenes, aired, not reported | Confrontation → `feud`, by the latest one's outcome: ended with valence 0 if they cleared the air, −1 for agreed to disagree, −2 for worse than before. Challenge → `rival` between the winner and each other contestant. Each `told` line → `told` (speaker → listener) and `talked_about` (speaker → subject), detail `{count}` | Scene write, a line reported, reviewed or retracted, plus a backfill |
+| `story_beats` public rivals (a public line, its day come) | `rival`, detail `{challenges, beats}` with the challenges' | Beat staged or skipped, plus a backfill |
+| This season's cast (`season_casts`: seasons begun, not withdrawn) | `housemate`, detail `{seasons}`, plus a `lives` membership of the house, ended with the last season | Season rotation, plus a backfill |
+| Aired dates at the world's venues (not "home" or a place named after an "@") | `visited` / `regular` membership, detail `{visits}` | Airing, a date's visibility, reports, plus a backfill |
 | `extras.hometown` | `from` membership | Character save, plus a backfill |
 
 Never derived: anything from `character_opinions`, `character_heard`, `character_wants`, souls, the private relationship layer, After Dark, or a private or unlisted character's dates.
+
+As built (2a, `lib/social/derive.ts`):
+
+- **Whole, not incremental.** Each derivation works out what its record says now (counts counted, the evidence the record's newest 20) and writes only what differs from the stored row, so a hook and the backfill can run over each other. On a derived row the evidence is replaced (`TieInput.wholeEvidence`), so a withdrawn date's ref goes; a declared row only gains evidence.
+- **Withdrawn means gone.** A derived tie or membership whose record is no longer public (a date made private or reported away, a line reported or removed, a character gone private) is deleted with its events. A link's tie is the link's projection: it goes when the link changes kind or an end goes private, and comes back with it.
+- **Hooks** (`lib/social/hook.ts`) run after the response, one at a time a process, a second one with the same key dropped while the first waits, and each writes for at most 20 s; outside a request they run at once. The house's ties wait while `HOUSE_SCENES=0` instead of going.
+- **The backfill** (`backfillSocial`, the hourly lobby job, 30 s a pass) runs each step whole or in batches of 50 with a cursor in `social_backfill`, and goes round again a day after a step finishes.
 
 ### 6.2 Declared (Phase 2b)
 
@@ -313,7 +320,7 @@ Each switch is on unless set to `"0"`. Off means the site is exactly as before.
 
 | Phase | What | Depends on | PRs |
 |---|---|---|---|
-| 1 | /graph filters and lines: stage colours and filter, time, still-seeing, phone filter sheet, focus with two-step world, corrected notes | — | |
+| 1 | /graph filters and lines: stage colours and filter, time, still-seeing, phone filter sheet, focus with two-step world, corrected notes | — | #1913 lines and stage filter |
 | 2a | Core: schema (§5.2–5.4), kinds, `lib/social/` (kinds, ties, people, places, world, derive, read, algorithms basics: ego network, rings, signed triads), derivations and backfills (§6.1), read API (`/api/social/world/[id]`, `/api/social/pair/[a]/[b]`, `/api/social/sky`), data-plan coverage | — | |
 | 2b | Declared: owner UI ("Their people", ties, places, proposals, notifications, rate limits), the generator, the local-model backfill and admin route, MCP tools, the prompt line | 2a | |
 | 3 | The page: views, "X's world", pair panel, tense triangles, place-named clusters, character page links | 2a | |

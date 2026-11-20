@@ -154,8 +154,10 @@ describe("the Constellation's filter (app/graph/filter.ts)", () => {
   });
 
   it("a partner whose dates with the group all fall to another filter leaves; every edge keeps both ends", () => {
-    const deep = filterSky(SKY, { ...DEFAULT_FILTER, origin: "cast", minDates: 2 });
-    expect(ids(deep.nodes)).toEqual(["c1", "c2", "c3", "p1", "x"]); // a1's one date with c2 is under 2
+    // Pairs with more than one date are dating, the rest just met; the masked pair has no public stage.
+    const staged = sky(SKY.nodes, SKY.edges.map((e) => ({ ...e, stage_id: e.masked ? null : e.dates >= 2 ? "dating" : "just_met" })));
+    const deep = filterSky(staged, { ...DEFAULT_FILTER, origin: "cast", stages: new Set(["together"]) });
+    expect(ids(deep.nodes)).toEqual(["c1", "c2", "c3", "p1"]); // a1's one date with c2 is a first date; x's pair is private
     const drawn = new Set(deep.nodes.map((n) => n.id));
     expect(deep.edges.every((e) => drawn.has(e.a_id) && drawn.has(e.b_id))).toBe(true);
     expect(ids(filterSky(SKY, { ...DEFAULT_FILTER, origin: "cast", showSingles: false }).nodes)).not.toContain("c3");
@@ -302,6 +304,23 @@ describe("the pages", () => {
     const plain = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "nonsense" }) }));
     expect(plain).toMatch(/aria-pressed="true" aria-current="page">Everyone<\/button>/);
     expect(plain).not.toContain("Who they dated");
+  });
+
+  it("/graph?stage=&when=&still= opens on that sky: a filtered sky can be shared", async () => {
+    await seedDate();
+    const { default: GraphPage } = await import("@/app/graph/page");
+    const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ stage: "together,friends", when: "season", still: "1" }) }));
+    const chip = (group: string, on: boolean) => new RegExp(`aria-pressed="${on}" title="[^"]*" style="--chip-line:var\\(--constellation-${group}\\)"`);
+    expect(html).toMatch(chip("together", true));
+    expect(html).toMatch(chip("friends", true));
+    expect(html).toMatch(chip("sparks", false));
+    expect(html).toContain('<option value="season" selected="">This season</option>');
+    expect(html).toMatch(/<input type="checkbox" checked=""\/>\s*Still seeing each other/);
+
+    const plain = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ when: "someday", still: "yes" }) }));
+    expect(plain).toMatch(chip("sparks", true));
+    expect(plain).toContain('<option value="all" selected="">All time</option>');
+    expect(plain).toMatch(/<input type="checkbox"\/>\s*Still seeing each other/);
   });
 
   /** Signed in (the plain visitor cookie) as a new person; their id, to own characters. */
