@@ -39,6 +39,21 @@ describe("inertOutside", () => {
     // Inert before it opened, inert after.
     expect(toast.inert).toBe(true);
   });
+
+  it("an overlay opened over another lifts its own branch, and puts it back when it closes", () => {
+    const sheet = el("sheet");
+    const theater = el("theater");
+    const page = el("page", "BODY", [theater, sheet]);
+    el("html", "HTML", [page]);
+    const closeTheater = inertOutside(theater);
+    expect(sheet.inert).toBe(true);
+    const closeSheet = inertOutside(sheet);
+    expect([sheet.inert, theater.inert]).toEqual([false, true]);
+    closeSheet();
+    expect([sheet.inert, theater.inert]).toEqual([true, false]);
+    closeTheater();
+    expect([sheet.inert, theater.inert]).toEqual([false, false]);
+  });
 });
 
 const read = (p: string) => readFileSync(join(__dirname, "..", p), "utf8");

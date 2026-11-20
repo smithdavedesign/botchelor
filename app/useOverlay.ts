@@ -90,27 +90,42 @@ function firstControl(el: HTMLElement): HTMLElement | null {
 }
 
 /** The parts of a tree `inertOutside` walks: an element's parent and its children. A DOM element is one. */
-export type InertNode = { parentElement: InertNode | null; children: ArrayLike<InertNode>; inert: boolean; tagName: string; hasAttribute(name: string): boolean };
+export type InertNode = { parentElement: unknown; children: ArrayLike<unknown>; inert: boolean; tagName: string; hasAttribute(name: string): boolean };
 
 const NEVER = new Set(["SCRIPT", "STYLE", "TEMPLATE", "LINK", "META", "NOSCRIPT"]);
+/** What an open overlay made inert, so one opened over it (a sheet over the theater) can lift it from its own branch. */
+const ours = new WeakSet<InertNode>();
 
 /**
  * Makes everything on the page `inert` except `keep` and what holds it: every sibling of `keep` and of each of its
  * ancestors up to <body>. What was inert already, and an open native <dialog> (it's in the top layer), are left as they
- * are. Returns the undo, which clears only what it set.
+ * are, except that `keep`'s own branch is lifted where an overlay under it had made it inert. Returns the undo, which
+ * puts back only what it changed.
  */
 export function inertOutside(keep: InertNode): () => void {
   const set: InertNode[] = [];
-  for (let node: InertNode | null = keep; node?.parentElement && node.tagName !== "BODY"; node = node.parentElement) {
-    const kids = node.parentElement.children;
+  const lifted: InertNode[] = [];
+  for (let node: InertNode | null = keep; node && node.tagName !== "BODY"; node = node.parentElement as InertNode | null) {
+    if (node.inert && ours.has(node)) {
+      node.inert = false;
+      lifted.push(node);
+    }
+    const parent = node.parentElement as InertNode | null;
+    if (!parent) break;
+    const kids = parent.children;
     for (let i = 0; i < kids.length; i++) {
-      const sib = kids[i];
+      const sib = kids[i] as InertNode;
       if (sib === node || sib.inert || NEVER.has(sib.tagName) || (sib.tagName === "DIALOG" && sib.hasAttribute("open"))) continue;
       sib.inert = true;
+      ours.add(sib);
       set.push(sib);
     }
   }
   return () => {
-    for (const n of set) n.inert = false;
+    for (const n of set) {
+      n.inert = false;
+      ours.delete(n);
+    }
+    for (const n of lifted) n.inert = true;
   };
 }
