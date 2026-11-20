@@ -17,7 +17,7 @@ describe("Characters' tabs", () => {
 
   it("carry no way to text since 2026-11-16: Chat is the door and every card has its own Text button", () => {
     const html = renderToStaticMarkup(createElement(CharactersTabs, { current: "cast", companions: true }));
-    expect(html.match(/class="segmented-tab"/g)).toHaveLength(3);
+    expect(html.match(/class="segmented-tab"/g)).toHaveLength(4); // people, cast, originals (2026-11-20), agents
     expect(html).not.toContain('href="/companion"');
     expect(html).not.toContain("Text someone");
     expect(html).toMatch(/aria-current="page" href="\/characters">The cast/);

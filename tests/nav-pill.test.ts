@@ -132,10 +132,10 @@ describe("the show's tabs: Watch · House · Season", () => {
   it("Characters' tabs are who's here: Yours first for an owner, absent for anyone else; no Text someone, no Reels", () => {
     const render = (props: Parameters<typeof CharactersTabs>[0]) => renderToStaticMarkup(createElement(CharactersTabs, props)).replace(/&#x27;/g, "'");
     const owner = render({ current: "yours", companions: true, yours: true });
-    expect(tabs(owner)).toEqual(["Yours /characters?tab=yours", "People's /characters?tab=people", "The cast /characters", "AI agents /characters?tab=agents"]);
+    expect(tabs(owner)).toEqual(["Yours /characters?tab=yours", "People's /characters?tab=people", "The cast /characters", "Originals /characters?tab=originals", "AI agents /characters?tab=agents"]);
     expect(current(owner)).toBe("Yours");
     const visitor = render({ current: "cast", companions: true });
-    expect(tabs(visitor)).toEqual(["People's /characters?tab=people", "The cast /characters", "AI agents /characters?tab=agents"]);
+    expect(tabs(visitor)).toEqual(["People's /characters?tab=people", "The cast /characters", "Originals /characters?tab=originals", "AI agents /characters?tab=agents"]);
     expect(current(visitor)).toBe("The cast");
   });
 
