@@ -15,7 +15,7 @@ export default function ThemeSetting({ initial }: { initial: Theme }) {
     applyTheme(next);
   };
   return (
-    <section className="card" aria-labelledby="appearance-head">
+    <section className="card" id="appearance" aria-labelledby="appearance-head">
       <h2 id="appearance-head">Appearance</h2>
       <p className="muted small">Light or dark for the show. After Dark is always night.</p>
       <fieldset className="theme-picker">

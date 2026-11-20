@@ -104,7 +104,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
         </p>
       )}
       {claim && <ClaimCard {...claim} />}
-      <AccountPanel next={next} emailConfirmed={emailConfirmed} />
+      <AccountPanel next={next} emailConfirmed={emailConfirmed} persona={personaOn} />
       <ThemeSetting initial={theme} />
       {showStyle && <WritingStylePicker side="show" initial={showStyle} price="included with your plan" />}
       {personaOn && <PersonaCard initial={persona} />}

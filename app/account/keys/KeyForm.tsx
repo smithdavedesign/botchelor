@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { requestJson } from "@/app/request";
 import { CAP_MAX_USD, DEFAULT_ON_CAP, type CapSettings, type Feel, type Job, type ModelOption, type OnCap, type PlainError, type UserProvider } from "@/lib/connections-shared";
@@ -97,6 +97,14 @@ export default function KeyForm({
     setAlsoJobs(new Set(also.filter((a) => a.providers.includes(next.id)).map((a) => a.job)));
   }
 
+  // Opened under its card, the form's first step is brought into view (the 2026-11-20 mobile audit, C16): on a phone it
+  // started below the fold, so tapping Connect looked as if nothing opened.
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    formRef.current?.scrollIntoView?.({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }, []);
+
   // A stored key goes straight to the model step: fetch the models it listed at its last check (OpenRouter's live list).
   const storedPick = useStored && provider?.stored ? provider.id : null;
   useEffect(() => {
@@ -172,7 +180,7 @@ export default function KeyForm({
   const n = providers.length > 1 ? 1 : 0;
 
   return (
-    <form className="connect-flow" onSubmit={save} aria-label={`Connect a key for ${jobTitle}`}>
+    <form ref={formRef} className="connect-flow" onSubmit={save} aria-label={`Connect a key for ${jobTitle}`}>
       {providers.length > 1 && (
         <fieldset className="connect-step">
           <legend>1. Provider</legend>

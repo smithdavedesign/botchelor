@@ -10,7 +10,7 @@ import { requestJson } from "@/app/request";
 type Credit = { handle: string; display_name: string };
 
 /**
- * Applies one of the person's characters with the invite (POST /api/casting/invite/[code]): the terms are above the
+ * Applies one of the person's characters with the invite (POST /api/casting/invite/[code]): the terms are on the page
  * button, so pressing it is the consent. Without a creator name yet, two small optional fields set one (the credit on
  * its page and its casting card). `retry`: the same character's audition date, tried again.
  */
@@ -103,7 +103,7 @@ export default function InviteApply({
       <button type="submit" className="primary" disabled={busy || !pick || half} data-track={retry ? "casting-invite-retry" : "casting-invite-apply"}>
         {busy ? (retry ? "Booking…" : "Applying…") : retry ? `🌹 Book ${first}'s date${lead ? ` with ${lead}` : ""}` : `🌹 Apply with ${first}`}
       </button>
-      {!retry && <p className="muted small">Applying means you agree to the terms above.</p>}
+      {!retry && <p className="muted small">Applying means you agree to the terms below.</p>}
       {half && <p className="muted small">Fill in both the name and the handle, or neither.</p>}
       {error && (
         <p className="error small" role="alert">
