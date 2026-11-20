@@ -1,6 +1,7 @@
 import { showIdeasOn } from "@/lib/show-ideas-switch";
 import type { Metadata } from "next";
 import Link from "next/link";
+import FaceRibbon from "@/app/FaceRibbon";
 import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
 import { STATUS_PAGE_URL } from "@/lib/company";
 import { companionOpen } from "@/lib/companion-shared";
@@ -28,6 +29,8 @@ export default function EverythingPage() {
     <article className="legal-page company-page everything-page page-wide">
       <h1>Everything on Botchelor</h1>
       <p className="lede">Every page that isn&apos;t in the header, in one place.</p>
+      {/* Who the pages are about (the visual pop audit, 2026-11-20). */}
+      <FaceRibbon title="Who's on the show" />
 
       <div className="everything-groups">
         <section aria-labelledby="the-show">

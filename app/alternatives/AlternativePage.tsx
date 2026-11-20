@@ -1,5 +1,8 @@
 import Link from "next/link";
+import FaceRibbon from "@/app/FaceRibbon";
 import JsonLd from "@/app/JsonLd";
+import SetHero from "@/app/SetHero";
+import ShowClip from "@/app/ShowClip";
 import { ALTERNATIVES, alternativeFaq, alternativePath, type Alternative } from "@/lib/alternatives";
 import { IMPORT_PATH } from "@/lib/import-character";
 import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
@@ -32,10 +35,14 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
           },
         ]}
       />
-      <section className="card import-tool">
-        <p className="kicker">Moving your characters?</p>
-        <h1>A new home for the characters you made</h1>
-        <p className="lede">{alt.lede} Paste them in, and they get a life here: dates on a show, and one-to-one talks.</p>
+      {/* The booth set behind the words and the show itself in a phone beside them (the visual pop audit, 2026-11-20). */}
+      <SetHero
+        set="booth"
+        kicker="Moving your characters?"
+        title="A new home for the characters you made"
+        lede={<>{alt.lede} Paste them in, and they get a life here: dates on a show, and one-to-one talks.</>}
+        media={<ShowClip track="alternative-clip" />}
+      >
         {alt.now && <p>{alt.now}</p>}
         <p>
           <Link className="button" href={alt.importHref ?? IMPORT_PATH} data-track="alternative-import">
@@ -43,7 +50,8 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
           </Link>
         </p>
         <p className="muted small">Free to start. Nothing is saved until you press Create.</p>
-      </section>
+      </SetHero>
+      <FaceRibbon title="Who your character could meet" />
 
       <section className="card">
         <h2>What your character does here</h2>

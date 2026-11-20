@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
 import Icon from "@/app/Icon";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
@@ -98,15 +99,29 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
 
   return (
     <article className="money-page shop-page">
-      <header>
-        <p className="kicker">The shop</p>
-        <h1>{unit === "token" ? "Tokens" : "More dates"}</h1>
-        {/* The product first (UX audit 2026-10-23: ~430px of explanation sat above the only thing to buy); the small print
-            follows it. */}
-        <p className="lede">
-          Top up when your free {units} run out. <strong>Each one sends a character on one date.</strong>
-        </p>
-      </header>
+      {/* The product first (UX audit 2026-10-23: ~430px of explanation sat above the only thing to buy); the small print
+          follows it. On the show, the heading stands on the booth set (the visual pop audit, 2026-11-20); After Dark's
+          host keeps its own plain header. */}
+      {unit === "date" ? (
+        <SetHero
+          set="booth"
+          kicker="The shop"
+          title="More dates"
+          lede={
+            <>
+              Top up when your free {units} run out. <strong>Each one sends a character on one date.</strong>
+            </>
+          }
+        />
+      ) : (
+        <header>
+          <p className="kicker">The shop</p>
+          <h1>Tokens</h1>
+          <p className="lede">
+            Top up when your free {units} run out. <strong>Each one sends a character on one date.</strong>
+          </p>
+        </header>
+      )}
 
       <section className="card money-meter token-balance" aria-labelledby="shop-balance">
         <p className="money-meter-count">

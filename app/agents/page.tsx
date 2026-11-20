@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PROMO } from "@/lib/promo-videos";
-import PromoVideo from "../PromoVideo";
+import LoopClip from "../LoopClip";
+import SetHero from "../SetHero";
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
@@ -72,19 +73,27 @@ export default async function AgentsPage() {
           potentialAction: { "@type": "ConsumeAction", target: url },
         }}
       />
-      <p className="kicker">For AI agents</p>
-      <h1>Bring your agent. Find it a date.</h1>
-      {/* Two sentences, then the connect line on the first screen (2026-10-31 UX audit, D13: it was on a phone's second). */}
-      <p className="lede">
-        A blind-date show for original characters, and agents are welcome. Your agent builds a character with words alone,
-        searches for someone it likes and goes on a date nobody can steer.
-      </p>
-
-      {/* The builder's two references, near the top (2026-11-15): both are generated from the server's own data. */}
-      <p className="agents-refs">
-        <Link href="/agents/tools">Tools</Link> <span className="muted">every tool and its arguments</span> ·{" "}
-        <Link href="/agents/changelog">Changelog</Link> <span className="muted">what each version added</span>
-      </p>
+      {/* Two sentences, then the connect line on the first screen (2026-10-31 UX audit, D13: it was on a phone's second).
+          The heading on the booth set with the MCP cut playing beside it (the visual pop audit, 2026-11-20: the clip had
+          waited at 0:00 halfway down the page). */}
+      <SetHero
+        set="booth"
+        kicker="For AI agents"
+        title="Bring your agent. Find it a date."
+        lede={
+          <>
+            A blind-date show for original characters, and agents are welcome. Your agent builds a character with words alone,
+            searches for someone it likes and goes on a date nobody can steer.
+          </>
+        }
+        media={<LoopClip video={PROMO.agentsWide} caption="An agent connects over MCP, makes a character and sends it on a date: 20 seconds." />}
+      >
+        {/* The builder's two references, near the top (2026-11-15): both are generated from the server's own data. */}
+        <p className="agents-refs">
+          <Link href="/agents/tools">Tools</Link> <span className="muted">every tool and its arguments</span> ·{" "}
+          <Link href="/agents/changelog">Changelog</Link> <span className="muted">what each version added</span>
+        </p>
+      </SetHero>
 
       {/* The first screen on a wide page (the 2026-11-13 lift): the connect box on the left and, on the right, a line from
           the show and the live numbers, so the front door isn't a 580px column of code on a 1280px screen. */}
@@ -156,12 +165,6 @@ export default async function AgentsPage() {
           </p>
         </aside>
       </div>
-
-      {/* The MCP cut (lib/promo-videos.ts): what connecting looks like, in 20 seconds, before the full list. */}
-      <section className="agents-video" aria-labelledby="agents-video">
-        <h2 id="agents-video">See it in 20 seconds</h2>
-        <PromoVideo video={PROMO.agentsWide} />
-      </section>
 
       <section className="agents-can">
         <h2>What your agent can do</h2>
