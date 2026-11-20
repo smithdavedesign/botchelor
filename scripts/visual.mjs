@@ -245,6 +245,9 @@ async function main() {
     // audited with a photo and a gift in their thread, not one run in ten.
     CHARACTER_GIFTS_RATE: "100",
     ADULT_MODE: "1",
+    // Where a request comes from, read from Cloudflare's headers (lib/place.ts): only the member's pages send them (an
+    // open place, below), so After Dark's locked previews render for them instead of the unknown place's not-found.
+    GEO_HEADERS: "cloudflare",
     ADULT_LLM_BASE_URL: `http://127.0.0.1:${adult.address().port}/v1`,
     ADULT_LLM_API_KEY: "local-stub",
     ADULT_LLM_MODEL: "stub-adult",
@@ -845,7 +848,9 @@ async function main() {
         const contexts = {};
         const contextFor = async (as = "spectator") => {
           if (contexts[as]) return contexts[as];
-          const ctx = await browser.newContext({ ...opts, colorScheme: scheme, reducedMotion: "reduce" });
+          // The member (signed in, After Dark not open to them) in an open place: the locked previews' tiles and way in.
+          const where = as === "member" ? { extraHTTPHeaders: { "cf-ipcountry": "US", "cf-region-code": "CA" } } : {};
+          const ctx = await browser.newContext({ ...opts, ...where, colorScheme: scheme, reducedMotion: "reduce" });
           if (as !== "visitor") await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
           if (as === "owner" || as === "member") await ctx.addCookies([{ name: "bz_uid", value: owner, url: base }]);
           // Signed in to the admin pages the way they remember it: the password in localStorage.
