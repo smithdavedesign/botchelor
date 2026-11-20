@@ -81,8 +81,8 @@ export function callSupported(): boolean {
 /** A live call needs only a microphone, Web Audio and a socket (./live-audio.ts), so Firefox can call live too. */
 export { liveSupported };
 
-/** Remembered in this browser: how calls work was read, and which voice they pick. */
-const SEEN_KEY = "bz_call_ok";
+/** Remembered in this browser: which voice and way of calling they pick. "How calls work" starts folded every time
+ * (mobile audit C1: open, it pushed Call and Not now off a phone), so whether it was read isn't kept. */
 const VOICE_KEY = "bz_call_voice";
 const MODE_KEY = "bz_call_mode";
 /** The 💬 Transcript open or closed, remembered on this device (closed until it's opened once). */
@@ -179,7 +179,6 @@ export default function CompanionCall({
   const who = { id: character.id, pronouns: character.pronouns ?? null };
   const speech = useSpeech();
   const [phase, setPhase] = useState<Phase>("ready");
-  const [seen, setSeen] = useState(true);
   const [voice, setVoice] = useState<CallVoice>("device");
   const [heard, setHeard] = useState("");
   const [you, setYou] = useState<string | null>(null);
@@ -241,7 +240,6 @@ export default function CompanionCall({
   const endButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    setSeen(stored(SEEN_KEY) === "1");
     const v = stored(VOICE_KEY);
     if (v === "own" && voicePrice !== null) setVoice("own");
     setShowScript(stored(SCRIPT_KEY) === "1");
@@ -474,7 +472,6 @@ export default function CompanionCall({
   }
 
   function start() {
-    store(SEEN_KEY, "1");
     // From the tap, so the browser lets it play their voice (Safari) and speak if it must fall back; and one player for
     // both ways of calling, so their face (LiveFace) can read how loud their voice is.
     ctx.current ??= newAudioContext();
@@ -1189,7 +1186,7 @@ export default function CompanionCall({
                 </label>
               </fieldset>
             )}
-            <details className="companion-call-how" open={!seen}>
+            <details className="companion-call-how">
               <summary>How calls work</summary>
               {canLive && mode === "live" ? (
                 <>
@@ -1216,7 +1213,7 @@ export default function CompanionCall({
               )}
               <p>Each time {first} answers counts as one reply, the same as a text.{left !== null ? ` You have ${left} left.` : ""}</p>
             </details>
-            {/* Always there, above the button that turns the microphone on: "How calls work" folds after the first call. */}
+            {/* Always there, above the button that turns the microphone on: "How calls work" starts folded. */}
             <CallNotice mode={canLive && mode === "live" ? "live" : "classic"} />
             <p className="companion-call-controls">
               <button type="button" className="button companion-call-go" onClick={start} ref={mainButton} data-track="companion-call-start">

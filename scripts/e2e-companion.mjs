@@ -627,7 +627,7 @@ async function main() {
       await page.locator('[data-track="companion-call"]').click();
       const call = page.getByRole("dialog", { name: `Call with ${first}` });
       await call.waitFor({ timeout: 10_000 });
-      assert(await call.locator(".companion-call-how").evaluate((d) => d.open), "how calls work should be open the first time");
+      assert(!(await call.locator(".companion-call-how").evaluate((d) => d.open)), "how calls work should start closed, so Call stays on screen");
       assert(((await call.textContent()) ?? "").includes("only the words come to Botchelor"), "the call should say what's sent where");
       // Live calls are on here (P6): the choice is offered, live first, with its price (free for an admin).
       const liveChoice = call.getByRole("radio", { name: /^Live/ });
@@ -772,12 +772,16 @@ async function main() {
         await callButton.tap();
         const call = p.getByRole("dialog", { name: `Call with ${first}` });
         await call.waitFor({ timeout: 10_000 });
-        // Read on the desktop call (this browser's storage came with it): it starts closed now.
-        assert(!(await call.locator(".companion-call-how").evaluate((d) => d.open)), "how calls work should start closed once read");
+        // It always starts closed, and Call and Not now are pinned on screen at phone size (mobile audit C1).
+        assert(!(await call.locator(".companion-call-how").evaluate((d) => d.open)), "how calls work should start closed");
         const storedMode = await p.evaluate(() => localStorage.getItem("bz_call_mode"));
         assert(await call.getByRole("radio", { name: /Taking turns/ }).isChecked(), `the way picked last time should be picked again (stored: ${storedMode})`);
-        // "How calls work" is folded now, so the line above the button is all a returning caller sees: it must be there.
+        // "How calls work" is folded, so the line above the button is all a returning caller sees: it must be there.
         await callNotice(call, "Your audio never reaches us: your browser turns it into words", 390);
+        for (const name of [`📞 Call ${first}`, "Not now"]) {
+          const box = await call.getByRole("button", { name }).boundingBox();
+          assert(box && box.y + box.height <= 844, `${name} should be on screen before scrolling`);
+        }
         await shot(p, "companion-call-ready-phone");
         await call.getByRole("button", { name: `📞 Call ${first}` }).tap();
         await call.locator(".companion-call-said").waitFor({ timeout: 20_000 });
