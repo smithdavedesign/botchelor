@@ -9771,11 +9771,10 @@ body.ad-host {
   border-bottom-color: var(--night-hot);
   font-weight: 700;
 }
-/* A phone: the six tabs (📸 Shoot … ✨ Create, #1500) wrap to two rows rather than hide half of them off the side. */
+/* A phone: the six tabs (📸 Shoot … ✨ Create, #1500) stay one row that scrolls with an edge fade (.scroll-row, the
+   2026-11-20 mobile audit C8/C9): wrapped to two rows, the last tab read as a heading. */
 @media (max-width: 600px) {
   .ad-studio-tabs {
-    flex-wrap: wrap;
-    overflow-x: visible;
     gap: 0;
   }
   .ad-studio-tabs button {

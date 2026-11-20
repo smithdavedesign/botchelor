@@ -2,6 +2,43 @@
    picture-led episode cards, balanced grids. Loaded last (app/layout.tsx), so it settles what earlier sheets left.
    Tokens only (tests/css-tokens.test.ts). */
 
+/* ---------------- .scroll-row: one sideways row (the 2026-11-20 mobile audit, fix #8) ---------------- */
+/* Every horizontal chip, tab and rail row that can be wider than the screen: it scrolls in its own box, never the page,
+   snaps card by card, and fades at the edge it continues past (the ShowTabs fade, app/globals.css .tabs: the right edge
+   until the end is reached, the left once scrolled). Where scroll timelines are supported the fade only shows on a row
+   that actually overflows; elsewhere a phone gets a fixed right-edge fade. It sets no display: a flex row or a grid
+   rail both work. A wide admin table's scroller (.table-scroll) fades the same way. */
+.scroll-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.scroll-row::-webkit-scrollbar {
+  display: none;
+}
+.scroll-row > * {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+@media (max-width: 720px) {
+  .scroll-row,
+  .table-scroll {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  }
+}
+@supports (animation-timeline: scroll()) {
+  .scroll-row,
+  .table-scroll {
+    -webkit-mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
+    mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
+    animation: tabs-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
 /* ---------------- page widths (docs/brand.md, Layout) ---------------- */
 /* Two widths: the reading column (main's own, --page-read) and the wide one for the pages you browse, which opt in
    with .page-wide on their root (home, the show's five tabs, Characters, Companions; an episode by its own rule). */

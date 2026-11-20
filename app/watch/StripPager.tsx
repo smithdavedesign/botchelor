@@ -13,7 +13,7 @@ export default function StripPager({ children, per = 3, label }: { children: Rea
   const [all, setAll] = useState(false);
   return (
     <>
-      <div className={`watch-lobby watch-strip strip-paged${all ? " is-all" : ""}`} role="group" aria-label={label}>
+      <div className={`watch-lobby watch-strip strip-paged scroll-row${all ? " is-all" : ""}`} role="group" aria-label={label}>
         {items.map((child, i) => (
           <div key={i} className={all || i < per ? "strip-item" : "strip-item off-page"}>
             {child}

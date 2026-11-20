@@ -708,24 +708,6 @@ details.recap-toggle[open] .recap-toggle-hide {
 .watch-votes > .situation {
   margin: 0;
 }
-/* Watch's sideways rails (Airing soon, Ready to start, Premieres) on a phone: the ShowTabs edge fade says there is more
-   to the right, and the left edge fades in once scrolled (the 2026-11-20 mobile audit, A1). From 721px they are grids. */
-@media (max-width: 720px) {
-  .watch-airing,
-  .watch-strip {
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
-    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
-  }
-  @supports (animation-timeline: scroll()) {
-    .watch-airing,
-    .watch-strip {
-      -webkit-mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
-      mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
-      animation: tabs-fade linear both;
-      animation-timeline: scroll(self inline);
-    }
-  }
-}
 .watch-replays {
   margin-top: var(--space-4);
 }

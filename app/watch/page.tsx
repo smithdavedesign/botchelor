@@ -212,7 +212,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             Airing soon: call it
           </h2>
           {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
-          <ul className="watch-airing">
+          <ul className="watch-airing scroll-row">
             {airing.map((episode) => (
               <AiringCard key={episode.id} episode={episode} now={now} />
             ))}

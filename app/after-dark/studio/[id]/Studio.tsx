@@ -922,7 +922,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
           )}
         </details>
       )}
-      <nav className="ad-studio-tabs" role="tablist" aria-label="Studio">
+      <nav className="ad-studio-tabs scroll-row" role="tablist" aria-label="Studio">
         {TABS.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
             {t.label}
@@ -1646,7 +1646,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 ))}
             </div>
           )}
-          <div className="ad-studio-tabs ad-studio-subtabs" role="tablist" aria-label="Where it was made">
+          <div className="ad-studio-tabs ad-studio-subtabs scroll-row" role="tablist" aria-label="Where it was made">
             {(
               [
                 ["studio", `Studio (${s.studio_gallery.length})`],
