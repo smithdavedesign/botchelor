@@ -103,7 +103,7 @@ import { advanceQuietDatesFor, autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
-import { secondDateState } from "../second-date";
+import { pendingSecondDateYeses, secondDateState } from "../second-date";
 import { seasonCastCards, seasonCastIds, showCastIds, SURVIVORS } from "../season-cast";
 import { seasonIdOf, seasonLabel, seasonWindow } from "../season-window";
 import { seasonStanding } from "../leagues";
@@ -192,7 +192,7 @@ import { GENERIC_OPENINGS } from "../scene-cards";
 import { arcQuestion, predictArc } from "../arcs";
 import { extrasText, renameLeftovers } from "../rename-leftovers";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
-import { CONVERSATION_TURNS, TURN_DIALOGUE_MAX } from "../rules";
+import { CONVERSATION_TURNS, dateLabel, TURN_DIALOGUE_MAX } from "../rules";
 import { isPlaceholder, placeLabel, placesLabel, venueName, venuePhrase, venueShown } from "../venues";
 import { movePlace, planPlace } from "../places";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "../feedback";
@@ -299,7 +299,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.44.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.45.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -2090,6 +2090,11 @@ const FIRST_REPLY_LEAVES_OUT = new Set([
   "points_from", "points_note", "dates_note", "linked_account_note", "agents_date_budget_note", "agents_on_now_note",
   "others", "others_note", "live_agents_characters", "live_agents_note", "compact_tip",
 ]);
+
+/** #1878: what my_status's second_date_yeses lists. */
+const SECOND_DATE_YESES_NOTE =
+  "Second dates one creator has said yes to and the other hasn't yet. waiting_on_them: your yes, waiting on their creator (their yes books it, on their dates, and a second_date_booked notice wakes my_status). " +
+  "waiting_on_you: their yes, waiting on yours: plan_second_date (episode_id, preview: true first) books it, on your dates. Whoever says yes last books it.";
 
 /** cursor's format, on every my_status reply (2.5.0, the 2026-10-21-2300 run: "document the since cursor format"). */
 const CURSOR_FORMAT = "An ISO-8601 UTC time to the microsecond: pass it back as since.";
@@ -5958,6 +5963,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const toBookHouse = toBook.length
         ? Boolean((await db.query(`select 1 from characters where id = $1 and is_house`, [toBook[0].with]).catch(() => ({ rows: [] }))).rows.length)
         : false;
+      // #1878 (the 2026-11-20-0610 run: "my yes is recorded, waiting on their creator ... I never saw it complete"): second-date
+      // yeses still open, both ways, so a yes said once isn't lost: yours waiting on their creator, theirs waiting on you.
+      const yeses = await pendingSecondDateYeses(db, who.id, ids).catch(() => ({ waiting_on_them: [], waiting_on_you: [] }));
       // 2.5.0 (the 2026-10-21-2300 run: "I was warned via exclusive_soon in my_status, which I only saw by accident"): one of
       // yours a date from going exclusive, or closed by it, leads the reply as heads_up, with the call that keeps it open.
       const closedNow = ids.length
@@ -6180,6 +6188,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         }
       };
       const nextCalls = nextSteps.map(stepCall).filter((c): c is NextCall => c !== null);
+      // #1878: a second date their creator said yes to is one call from booked; one waiting on theirs, a wait for it.
+      // It goes after your move and any invite, ahead of the rest (and of the same call suggested without their yes).
+      const yesForYou = yeses.waiting_on_you[0];
+      if (yesForYou) {
+        const same = nextCalls.findIndex((c) => c.tool === "plan_second_date" && c.args.episode_id === yesForYou.episode_id);
+        if (same >= 0) nextCalls.splice(same, 1);
+        const at = nextCalls.findIndex((c) => c.tool !== "get_own_date_step" && c.tool !== "answer_match");
+        nextCalls.splice(at < 0 ? nextCalls.length : at, 0, nextCall("plan_second_date", { episode_id: yesForYou.episode_id, preview: true }, `${shortName(yesForYou.with.name)}'s creator said yes to a ${dateLabel(yesForYou.date_number).toLowerCase()} with ${shortName(yesForYou.your_character.name)}: preview shows the cost; confirm: true books it, on your dates.`));
+      } else if (yeses.waiting_on_them.length && news.because !== "unread_at_start") {
+        nextCalls.push(nextCall("my_status", { since: cursor, wait_seconds: WAIT_MAX_SECONDS }, `Waits for ${shortName(yeses.waiting_on_them[0].with.name)}'s creator: their yes books the second date, and its second_date_booked notice wakes this.`));
+      }
       // 2.7.0 (the run's exclusivity surprises): one of yours a date from going exclusive gets the call that keeps it open.
       if (exclusiveSoon[0]) nextCalls.push(stayOpenNext(exclusiveSoon[0].character_id, exclusiveSoon[0].name));
       // 2.8.0 (#651): one of yours out of other agents' decks gets the call that puts it in (the first one, to keep it short).
@@ -6236,6 +6255,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
               }
             : {}),
           ...(toBook.length ? { dates_to_book: toBook.map(tag), dates_to_book_note: "Both said yes, and either side can book it: go_on_date (the show plays it; preview: true first shows the cost), or start_own_date with another agent's character (free). One their agent starts leads heads_up." } : {}),
+          ...(yeses.waiting_on_them.length || yeses.waiting_on_you.length ? { second_date_yeses: yeses, second_date_yeses_note: SECOND_DATE_YESES_NOTE } : {}),
           ...(closedMatches.length ? { matches_closed: closedMatches, matches_closed_note: EXCLUSIVE_RULE } : {}),
           ...(exclusiveSoon.length ? { exclusive_soon: exclusiveSoon, exclusive_soon_note: EXCLUSIVE_SOON } : {}),
           ...(airing.length ? { airing_soon: airing } : {}),
