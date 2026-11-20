@@ -25,14 +25,16 @@ export type NetworkDay = {
 
 /** The last `days` days of social_network_daily, newest first. */
 export async function networkHistory(db: Db, days = 30): Promise<NetworkDay[]> {
-  const { rows } = await db.query<Omit<NetworkDay, "day"> & { day: string | Date }>(
-    `select day, nodes, ties, density, clustering, modularity, communities, giant_component, reciprocity, balance, complete
+  // The day as text, so no driver turns a date into a local midnight.
+  const { rows } = await db.query<NetworkDay>(
+    `select to_char(day, 'YYYY-MM-DD') as day, nodes, ties, density, clustering, modularity, communities, giant_component, reciprocity,
+            balance, complete
        from social_network_daily
-      order by day desc
+      order by social_network_daily.day desc
       limit $1`,
     [days],
   );
-  return rows.map((r) => ({ ...r, day: typeof r.day === "string" ? r.day.slice(0, 10) : r.day.toISOString().slice(0, 10) }));
+  return rows;
 }
 
 export type CentralCharacter = {
@@ -48,9 +50,8 @@ export type CentralCharacter = {
 
 /** The most central characters on the latest day with numbers, across every layer, by PageRank. */
 export async function mostCentral(db: Db, limit = 12): Promise<{ day: string | null; characters: CentralCharacter[] }> {
-  const latest = (await db.query<{ day: string | Date }>(`select max(day) as day from social_metrics where layer = $1`, [ALL_LAYERS])).rows[0]?.day;
-  if (!latest) return { day: null, characters: [] };
-  const day = typeof latest === "string" ? latest.slice(0, 10) : latest.toISOString().slice(0, 10);
+  const day = (await db.query<{ day: string | null }>(`select to_char(max(day), 'YYYY-MM-DD') as day from social_metrics where layer = $1`, [ALL_LAYERS])).rows[0]?.day;
+  if (!day) return { day: null, characters: [] };
   const { rows } = await db.query<CentralCharacter>(
     `select c.id, c.name, m.degree, m.pagerank, m.betweenness, m.kcore, m.community, m.burt_constraint
        from social_metrics m
