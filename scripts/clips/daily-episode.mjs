@@ -139,6 +139,13 @@ export function reportFromOg(title, description) {
   return { grade: g[1], subjects };
 }
 
+/** A report card page's grade and subjects, from its og:title and og:description tags (pure), or null. */
+export function reportFromHtml(html) {
+  const tag = (p) =>
+    new RegExp(`<meta[^>]+property="og:${p}"[^>]+content="([^"]*)"`).exec(String(html ?? ""))?.[1]?.replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&") ?? null;
+  return reportFromOg(tag("title"), tag("description"));
+}
+
 /** A grade as the host says it (pure): "B-" → "B minus", "A+" → "A plus"; with its article, "an F", "a C". */
 export function spokenGrade(grade) {
   const said = String(grade).replace(/\+$/, " plus").replace(/-$/, " minus");
@@ -245,9 +252,7 @@ export async function fetchReport(base, id, headers = { "user-agent": "botchelor
   try {
     const res = await fetch(`${base}/episodes/${encodeURIComponent(id)}/report-card`, { headers, redirect: "manual" });
     if (res.status !== 200) return null;
-    const html = await res.text();
-    const tag = (p) => /<meta[^>]+property="og:${p}"[^>]+content="([^"]*)"/.exec(html)?.[1]?.replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"') ?? null;
-    return reportFromOg(tag("title"), tag("description"));
+    return reportFromHtml(await res.text());
   } catch {
     return null;
   }

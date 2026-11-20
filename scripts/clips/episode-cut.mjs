@@ -313,7 +313,7 @@ body{font-family:Inter,system-ui,sans-serif;color:#fff;position:relative;display
 .bg{position:absolute;inset:-12px;background:${bg ? `url("${img(bg, base)}") center/cover` : "none"};filter:blur(3px) saturate(1.1);opacity:.55;z-index:0}
 .veil{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(20,10,24,.55) 0%,rgba(58,20,80,.55) 45%,rgba(20,10,24,.92) 100%)}
 body>*:not(.bg):not(.veil){position:relative;z-index:1}
-body>img.full{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2}
+body>img.full{position:absolute!important;inset:0;width:100%;height:100%;object-fit:cover;z-index:2!important}
 header{position:absolute!important;top:20px;left:24px;right:24px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#ffd6e3}
 .brand{font-family:Fraunces,Georgia,serif;font-weight:700;font-size:15px;letter-spacing:0;text-transform:none;background:linear-gradient(90deg,#ff5e8c,#c9a6ff);-webkit-background-clip:text;color:transparent}
 .brand.big{font-size:44px}
