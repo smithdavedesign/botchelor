@@ -422,3 +422,41 @@ export function withFranchise(report: OriginalityReport, sheet: SheetDraft): Ori
     verdict_note: "It borrows from someone else's story: a name and a story of its own come first. You can still create it.",
   };
 }
+
+/**
+ * Originality as our metadata (David, 2026-11-20: people found the grade a reason not to make a character, "keep the
+ * grading as a metadata thing for our system"): the saved sheet's score goes on the character (originality_score,
+ * originality_at) for us to read, and nobody is shown it. Run after every save, by the web builder or an agent; a
+ * failure only leaves the old score. Word-based (lib/originality.ts), so it makes no outside call.
+ */
+export async function recordOriginality(db: Db, characterId: string): Promise<number | null> {
+  const row = (
+    await db.query<{ name: string; bio: string; traits: string[]; want: string; dealbreaker: string; voice: string | null; extras: SheetDraft["extras"] }>(
+      `select name, bio, traits, want, dealbreaker, voice, extras from characters where id = $1 and not is_house`,
+      [characterId],
+    )
+  ).rows[0];
+  if (!row) return null;
+  // The word-based check only: the concept pass would embed the sheet again (one paid call a save, on top of the
+  // character's own embedding), and a number nobody sees isn't worth that.
+  const report = await originality(db, row, characterId);
+  await db.query(`update characters set originality_score = $2, originality_at = now() where id = $1`, [characterId, report.score]);
+  return report.score;
+}
+
+/** recordOriginality after the response (the save never waits on it). Inline in tests and outside a request. */
+export async function scheduleOriginalityRecord(db: Db, characterId: string): Promise<void> {
+  const run = () =>
+    recordOriginality(db, characterId)
+      .then(() => undefined)
+      .catch((err) => console.error("[originality] record failed", err instanceof Error ? err.message : err));
+  const { inlineGenerationEnabled } = await import("./jobs");
+  if (inlineGenerationEnabled()) return run();
+  try {
+    const { after } = await import("next/server");
+    after(run);
+  } catch {
+    await run();
+  }
+}
+
