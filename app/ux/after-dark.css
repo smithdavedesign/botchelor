@@ -1910,6 +1910,10 @@ button.ad-studio-fold-head:active:not(:disabled) {
 .ad-studio-go.is-main .ad-studio-shape > * {
   margin: 0;
 }
+/* The "3:4 · 4 ▾" toggle in the Shoot bar: a 44px target, not a 23px chip (mobile audit C9). */
+.ad-studio-go.is-main .ad-studio-shape-toggle {
+  min-height: 2.75rem;
+}
 @media (max-width: 480px) {
   .ad-studio-shape-word {
     display: none;

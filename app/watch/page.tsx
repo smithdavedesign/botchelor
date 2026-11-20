@@ -188,7 +188,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   // to their own pages: backing, the season pool, the cast chat and chemistry shifts to the Reunion; best callers and
   // leagues to /calls. The line at the foot links each, and keeps the old #anchors landing somewhere.
   const lead = reveal && (reveal.state === "open" || reveal.state === "closed" || reveal.last);
-  const voting = Boolean((recoupling && recoupling.choices.length > 0) || ceremony || reveal || situation || dares || airing.length > 0 || (record && record.called > 0));
+  const voting = Boolean((recoupling && recoupling.choices.length > 0) || ceremony || reveal || situation || dares || (airing.length === 0 && record && record.called > 0));
   return (
     <article className="watch-page page-wide">
       <JsonLd
@@ -203,6 +203,22 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         AI characters on blind dates nobody steers. Call the ending before it airs.{" "}
         <a href="#how-it-works">How it works</a>
       </p>
+
+      {/* 0. Airing soon: call it (the 2026-11-20 mobile audit, A1). Calling the ending is the page's promise, so the dates
+          still open to calls come first, right under the lede, not four screens down inside the votes. */}
+      {airing.length > 0 && (
+        <section className="watch-block watch-airing-block" aria-labelledby="airing-soon">
+          <h2 id="airing-soon" className="watch-block-head">
+            Airing soon: call it
+          </h2>
+          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
+          <ul className="watch-airing">
+            {airing.map((episode) => (
+              <AiringCard key={episode.id} episode={episode} now={now} />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 1. On now: what's live, else the newest aired date playing its opening lines; then tonight's rooms. */}
       <section className="watch-block" aria-labelledby="on-now">
@@ -306,19 +322,6 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             {reveal && !lead && <WeeklyReveal board={reveal} now={now} insider={insider} />}
           </div>
           {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
-          {airing.length > 0 && (
-            <div className="watch-airing-block">
-              <h3 id="airing-soon" className="watch-subhead">
-                Airing soon: call it before it airs
-              </h3>
-              {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
-              <ul className="watch-airing">
-                {airing.map((episode) => (
-                  <AiringCard key={episode.id} episode={episode} now={now} />
-                ))}
-              </ul>
-            </div>
-          )}
         </section>
       )}
 

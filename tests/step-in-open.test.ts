@@ -328,7 +328,7 @@ describe("a \"you\" is a seat at the table, not a character (lib/step-in-shared.
     const persona = (await t.db.query<Any>(`select id, name, owner_id, visibility from characters where owner_id = $1`, [`you:${g.id}`])).rows[0];
     expect(persona).toMatchObject({ name: "Sam", visibility: "private" });
     // With step-in open to everyone there's one of these for every visitor who plays.
-    expect(await tabCounts(t.db)).toEqual({ people: 0, agents: 0, private: 0 });
+    expect(await tabCounts(t.db)).toEqual({ people: 0, originals: 0, agents: 0, private: 0 });
     expect((await listTab(t.db, "people")).entries).toEqual([]);
     expect((await searchDirectory(t.db, "Sam")).entries).toEqual([]);
     expect((await listCast(t.db, 200)).some((c) => c.id === persona.id)).toBe(false);

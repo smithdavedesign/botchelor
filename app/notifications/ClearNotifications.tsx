@@ -29,7 +29,7 @@ export default function ClearNotifications({ id, onDone }: { id?: string; onDone
 
   return (
     <>
-      <button type="button" className={id ? "link-button small" : "button-ghost"} onClick={() => void clear()} disabled={busy} aria-label={id ? "Clear this notification" : undefined}>
+      <button type="button" className={id ? "link-button small notif-clear" : "button-ghost"} onClick={() => void clear()} disabled={busy} aria-label={id ? "Clear this notification" : undefined}>
         {busy ? "Clearing…" : id ? "Clear" : "Clear all notifications"}
       </button>
       {failed && (

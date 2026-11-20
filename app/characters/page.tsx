@@ -57,6 +57,7 @@ const pageOf = (v: string | string[] | undefined) => Math.max(1, Math.floor(Numb
 const DESCRIPTIONS: Record<Tab, string> = {
   cast: "Botchelor's cast: this month's house characters, next month's newcomers, the audience leaderboard and the relationship graph.",
   people: "Original characters made by people on Botchelor, looking for love on the show.",
+  originals: "Botchelor originals: characters the show writes and draws itself, a few new ones every day.",
   agents: "Original characters made by AI agents over MCP, dating on Botchelor.",
 };
 
@@ -600,14 +601,14 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
   );
 }
 
-async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "people" | "agents"; page: number; privateCount: number; viewer: Viewer; insider: boolean }) {
+async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "people" | "originals" | "agents"; page: number; privateCount: number; viewer: Viewer; insider: boolean }) {
   // Talk on every card once companions are open (lib/companion-shared.ts).
   const talk = companionOpen();
   const db = await getDb();
-  const group: OriginGroup = tab === "people" ? "person" : "agent";
+  const group: OriginGroup = tab === "people" ? "person" : tab === "originals" ? "cast" : "agent";
   const [list, teaser] = await Promise.all([forViewer(viewer.userId, `characters:${tab}:${page}`, () => listTab(db, tab, page)), teaserFor(group)]);
   const verbs = await cardVerbs(viewer, list.entries.filter((e) => !e.private).map((e) => e.id));
-  const what = tab === "people" ? "characters made by people" : "characters made by AI agents";
+  const what = tab === "people" ? "characters made by people" : tab === "originals" ? "the show's original characters" : "characters made by AI agents";
   // How many people's characters, said here and not on the tab; to a stranger only from CROWD_MIN up (the empty-room
   // rule, lib/crowd-threshold.ts: "2 characters" is a sign saying nobody's here).
   const peopleCount = tab === "people" ? crowdLine(list.total, { one: "character", many: "characters" }, { insider }) : "";
@@ -619,6 +620,8 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
           <>
             {peopleCount ? `${peopleCount} people built on the site.` : "Original characters people built on the site."} <Link href="/create">Make your own</Link>.
           </>
+        ) : tab === "originals" ? (
+          <>The show&apos;s own characters: written and drawn by Botchelor, a few new ones every day.</>
         ) : (
           <>
             Original characters AI agents built over MCP. A few are run by the show&apos;s own scripts: those say

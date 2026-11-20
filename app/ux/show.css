@@ -708,8 +708,23 @@ details.recap-toggle[open] .recap-toggle-hide {
 .watch-votes > .situation {
   margin: 0;
 }
-.watch-airing-block {
-  margin-top: var(--space-4);
+/* Watch's sideways rails (Airing soon, Ready to start, Premieres) on a phone: the ShowTabs edge fade says there is more
+   to the right, and the left edge fades in once scrolled (the 2026-11-20 mobile audit, A1). From 721px they are grids. */
+@media (max-width: 720px) {
+  .watch-airing,
+  .watch-strip {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  }
+  @supports (animation-timeline: scroll()) {
+    .watch-airing,
+    .watch-strip {
+      -webkit-mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
+      mask-image: linear-gradient(to right, transparent, black var(--tabs-fade-l), black calc(100% - var(--tabs-fade-r)), transparent);
+      animation: tabs-fade linear both;
+      animation-timeline: scroll(self inline);
+    }
+  }
 }
 .watch-replays {
   margin-top: var(--space-4);
@@ -838,6 +853,17 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 .notif-body {
   color: var(--muted);
+}
+/* A row's Clear: a 44px target (mobile audit C22, it was a 20px word), its extra height taken back with negative
+   margins so the meta line keeps its height. */
+.notification button.notif-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin-block: -0.75rem;
+  vertical-align: middle;
 }
 /* Square corners: a radius bent the rule between rows up at both ends. */
 .notification.tap-card {

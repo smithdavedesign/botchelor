@@ -9272,7 +9272,8 @@ body.ad-host {
   margin: 0.25rem 0 0;
   white-space: nowrap;
 }
-.badge-origin-cast {
+.badge-origin-cast,
+.badge-origin-original {
   background: color-mix(in srgb, var(--accent) 14%, var(--card));
   color: var(--accent-text);
 }
@@ -9919,6 +9920,14 @@ body.ad-host {
   color: var(--night-ink);
   font-size: var(--text-sm);
   resize: vertical;
+}
+/* Phones: the site's 16px field rule (above) loses to these classes, and iOS Safari zooms the page on focus (mobile
+   audit C9). */
+@media (max-width: 640px) {
+  .ad-studio-custom,
+  input.ad-studio-own {
+    font-size: max(16px, var(--text-sm));
+  }
 }
 .ad-studio-own::placeholder,
 .ad-studio-custom::placeholder {
