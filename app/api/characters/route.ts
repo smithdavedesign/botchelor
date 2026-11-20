@@ -9,7 +9,7 @@ import { cleanOwnSecrets, HidingInput, setOwnSecrets } from "@/lib/cast-secrets"
 import { scheduleWelcome } from "@/lib/welcome";
 import { schedulePortrait } from "@/lib/default-portraits";
 import { recordLanguage } from "@/lib/language-seen";
-import { scheduleConceptEmbedding } from "@/lib/originality-concept";
+import { scheduleConceptEmbedding, scheduleOriginalityRecord } from "@/lib/originality-concept";
 import { gateAfterDarkLooks } from "@/lib/looks-draw";
 import { stampThisWeek, thisWeek, THIS_WEEK_MAX } from "@/lib/life";
 import { CHARACTER_REJECTION_MESSAGES, checkSheetText } from "@/lib/safety";
@@ -183,6 +183,8 @@ export const POST = handle(async (req) => {
   const tags = tagCheck?.ok && tagCheck.tags.length ? await setOwnerTags(db, id, tagCheck.tags) : (await refreshAutoTags(db, id), null);
   // Its concept embedding, after the response (lib/originality-concept.ts; off unless enabled).
   await scheduleConceptEmbedding(db, id);
+  // Its originality score, for us only (characters.originality_score): nobody is shown a grade.
+  await scheduleOriginalityRecord(db, id);
   // Every character has a headshot (lib/default-portraits.ts), drawn after the response whoever made it.
   await schedulePortrait(db, id);
   // A person's character, swipe-ready: the welcome experiment (lib/welcome.ts), after the response. Never an agent's.

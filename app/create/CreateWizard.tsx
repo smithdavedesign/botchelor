@@ -1116,8 +1116,12 @@ export default function CreateWizard({
     );
   }
 
-  // The first stock phrase the sheet leans on, as you type (lib/originality.ts); the review step has the full check.
-  const firstCliche = findCliches({ bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker })[0];
+  // The first stock phrase the sheet leans on, as you type (lib/originality.ts); the review step has the full check. Never
+  // on someone's first character (David, 2026-11-20: getting people to make one is hard enough; the tips come after
+  // their first date, on the character's page).
+  const firstCliche = firstCharacter ? undefined : findCliches({ bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker })[0];
+  // A first character's review opens on Create (and the promise it needs), not under the read-back (David, 2026-11-20).
+  const createOnTop = firstCharacter && !edit;
   const stock = firstCliche ? `“${firstCliche.phrase}” is a phrase a lot of the cast uses. ${firstCliche.tip}` : null;
   const bioHint =
     sheet.bio.trim() && words(sheet.bio) < 8
@@ -1608,6 +1612,19 @@ export default function CreateWizard({
         {step === S.review && (
           <fieldset className="wizard-fields">
             <legend className="wizard-legend">{edit ? "Review" : "Review & create"}</legend>
+            {createOnTop && (
+              <div className="wizard-create-top">
+                <label className="check wizard-attest">
+                  <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
+                  <span>
+                    <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
+                  </span>
+                </label>
+                <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk} data-track="create-top">
+                  {busy === "character" ? "Creating…" : `Create ${sheet.name || "character"}`}
+                </button>
+              </div>
+            )}
             {!edit && !depth && (
               <div className="notice wizard-depth">
                 <p>
@@ -1694,10 +1711,13 @@ export default function CreateWizard({
 
             <DepthMeter words={sheetLength} />
 
-            <OriginalityPanel
-              draft={{ name: sheet.name, bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker, voice, extras: normaliseExtras(extras) }}
-              characterId={edit?.id}
-            />
+            {/* Not on someone's first character: the tips wait for its first date (the character's page). */}
+            {!createOnTop && (
+              <OriginalityPanel
+                draft={{ name: sheet.name, bio: sheet.bio, traits, want: sheet.want, dealbreaker: sheet.dealbreaker, voice, extras: normaliseExtras(extras) }}
+                characterId={edit?.id}
+              />
+            )}
 
             <label className="check wizard-open">
               <input type="checkbox" checked={openToDates} onChange={(e) => setOpenToDates(e.target.checked)} />
@@ -1762,9 +1782,9 @@ export default function CreateWizard({
                 Cancel
               </Link>
             )}
-            {step === last && (
+            {step === last && !createOnTop && (
               // The promise sits on the bar beside Create (UX audit 2026-10-31, B7): on a phone it's in reach with the
-              // button, not under the whole review.
+              // button, not under the whole review. A first character's is at the top, with Create.
               <label className="check wizard-attest">
                 <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
                 <span>

@@ -370,9 +370,10 @@ describe("embedding limits, latency and the daily job (the 2026-10-22 review on 
       const calls = embeddingsOn();
       const a = await make({ name: "Ada Lantern", bio: "Restores lighthouse lenses by hand on an island nobody visits." });
       const b = await make({ name: "Bo Quill", bio: "Writes the crossword for a newspaper that stopped printing in 1998." });
-      // The saves didn't wait on the embedding API: one job each, queued for after the response.
+      // The saves didn't wait on the embedding API: two jobs each, queued for after the response, its embedding first
+      // and then its originality score (ours only; word-based, no outside call).
       expect(calls).toHaveLength(0);
-      expect(queued).toHaveLength(2);
+      expect(queued).toHaveLength(4);
       await queued[0](); // a's runs; b's is lost (say its instance was cut off), so the daily job has one to catch up
       queued.length = 0;
       expect(calls).toHaveLength(1);

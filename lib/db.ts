@@ -4426,6 +4426,12 @@ create index if not exists account_aliases_user_idx on account_aliases (user_id)
 -- cover a claimed character only from this moment on (lib/ml-consent.ts consentedCharactersSql), as a linked agent's do.
 alter table characters add column if not exists claimed_at timestamptz;
 
+-- Originality as our metadata (lib/originality-concept.ts recordOriginality; David, 2026-11-20: "keep the grading as a
+-- metadata thing for our system"): the 0-100 score of the sheet as it was last saved, and when. People never see it;
+-- the builder shows what to change instead, and only once a character has been on a date.
+alter table characters add column if not exists originality_score smallint;
+alter table characters add column if not exists originality_at timestamptz;
+
 -- Writing styles (lib/narration.ts, lib/writing-style.ts; David, 2026-11-17): each person's style for their show dates
 -- and companion scenes (show_style) and for their After Dark scenes (adult_style): 'script' or 'narrated' (admins only
 -- while it's tested). Goes with their account. A narrated companion reply keeps its prose beside the words (beat:

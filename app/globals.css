@@ -5457,6 +5457,22 @@ details.recap-toggle[open] > summary {
 .wizard-attest {
   margin-top: 1rem;
 }
+/* A first character's review opens on Create and its promise (David, 2026-11-20), above the read-back. */
+.wizard-create-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--paper-2);
+}
+.wizard-create-top .wizard-attest {
+  margin-top: 0;
+  flex: 1 1 16rem;
+}
 
 /* The Pro (BYOK image) affordance: a tag, and the portrait hint on the looks step. */
 .pro-tag {
@@ -5823,7 +5839,7 @@ button.dice:hover:not(:disabled) {
   }
 }
 
-/* The builder's originality check (lib/originality.ts). */
+/* The originality check as tips, no score (lib/originality.ts; app/create/OriginalityPanel.tsx). */
 .originality {
   margin-top: 1rem;
   padding: 0.85rem 1rem;
@@ -5837,21 +5853,6 @@ button.dice:hover:not(:disabled) {
   align-items: baseline;
   margin: 0 0 0.4rem;
 }
-.originality-score {
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.originality-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--line);
-  overflow: hidden;
-}
-.originality-bar span {
-  display: block;
-  height: 100%;
-  background: var(--grad);
-}
 .originality ul {
   margin: 0.6rem 0 0.4rem;
   padding-left: 1.1rem;
@@ -5859,9 +5860,6 @@ button.dice:hover:not(:disabled) {
 }
 .originality li + li {
   margin-top: 0.25rem;
-}
-.originality-low .originality-bar span {
-  background: var(--accent);
 }
 .this-week-field {
   display: block;

@@ -7,10 +7,13 @@ import CharacterName from "../CharacterName";
 import type { OriginalityReport, SheetDraft } from "@/lib/originality";
 
 /**
- * The review step's originality check (lib/originality.ts): a friendly "how distinct is this character" read,
- * with what to change. A nudge only — nothing here blocks creating or saving.
+ * The originality check (lib/originality.ts) as tips: characters this one reads like, and what to change. A nudge only:
+ * nothing here blocks creating or saving. No score (David, 2026-11-20: a grade put people off making a character; the
+ * score is our metadata, characters.originality_score). Shown on review for a second character on, on an edit, and on
+ * a character's page once it has been on a date; never while someone makes their first. `quiet`: nothing at all when
+ * there's nothing to change (the character page), rather than "nobody is quite like them".
  */
-export default function OriginalityPanel({ draft, characterId }: { draft: SheetDraft; characterId?: string }) {
+export default function OriginalityPanel({ draft, characterId, quiet = false, title = "Make them stand out" }: { draft: SheetDraft; characterId?: string; quiet?: boolean; title?: string }) {
   const [report, setReport] = useState<OriginalityReport | null>(null);
   const key = JSON.stringify(draft);
 
@@ -28,15 +31,12 @@ export default function OriginalityPanel({ draft, characterId }: { draft: SheetD
   }, [key, characterId]);
 
   if (!report) return null;
-  const tone = report.score >= 75 ? "high" : report.score >= 50 ? "mid" : "low";
+  if (quiet && report.tips.length === 0 && report.similar.length === 0) return null;
   return (
-    <section className={`originality originality-${tone}`} aria-live="polite">
+    <section className="originality" aria-live="polite" data-originality>
       <p className="originality-head">
-        <strong>Originality</strong> <span className="originality-score">{report.score}/100</span>
+        <strong>{title}</strong>
       </p>
-      <div className="originality-bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={report.score} aria-label="Originality">
-        <span style={{ width: `${report.score}%` }} />
-      </div>
       {report.similar.length > 0 && (
         <p className="small">
           Reads a lot like{" "}

@@ -68,6 +68,7 @@ import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
 import { companionGuestFromCookies } from "@/lib/companion-access";
 import LearnedPanel from "./LearnedPanel";
+import OriginalityPanel from "@/app/create/OriginalityPanel";
 import StoryPanel from "./StoryPanel";
 import TalkPanel from "./TalkPanel";
 import Circle from "@/app/Circle";
@@ -981,6 +982,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 </li>
               ))}
             </ul>
+          )}
+          {/* The originality tips, once they've been on a date (David, 2026-11-20): never while someone makes their first
+              character, and no score anywhere (that's ours, characters.originality_score). Nothing when there's
+              nothing to change. */}
+          {isOwner && !c.house && record.dates > 0 && (
+            <OriginalityPanel
+              draft={{ name: c.name, bio: c.bio, traits: c.traits, want: c.want, voice: c.voice, extras: shownExtras }}
+              characterId={c.id}
+              quiet
+              title={`Make ${shortName(c.name)} stand out on their next date`}
+            />
           )}
           {learned && (learned.sections.some((x) => x.items.length) || learned.drift.length > 0 || learned.people.length > 0 || learned.forgotten.length > 0) && (
             <details className="ux-fold character-learned">
