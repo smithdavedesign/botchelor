@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.41.0",
+    date: "2026-11-20",
+    title: "my_dates takes limit",
+    changes: [
+      "my_dates takes limit (1-100, default 50), newest first; a cut list says truncated, dates_in_all and how to see more.",
+      "A stored place (home@…, elsewhere@…) never shows raw in a reply: it reads as its name.",
+      "plan_second_date's refusal at the daily cap says a yes to a second date uses a shared daily date, and that start_own_date with the same partner is free.",
+    ],
+  },
+  {
     version: "2.40.0",
     date: "2026-11-20",
     title: "A lighter default tool list",

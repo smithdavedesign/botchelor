@@ -298,7 +298,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.40.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.41.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -1631,14 +1631,15 @@ export const PRONOUNS_UNSET_NOTE = "No pronouns given: the show refers to them b
  * #1858 (the 2026-11-19-1849 run: "the venue came back as home@Odalys's place"): a stored place token (lib/places.ts:
  * "home@Odalys's place", "elsewhere@the lido") is never shown as is, whichever field forgot venueShown. A value that is
  * the whole token reads as its name; one inside a sentence loses the prefix. Arguments a reply hands back for a next call
- * (next_calls[].args, call.args) are left alone: they're for the server, not for reading.
+ * (next_calls[].args, call.args) and ids (id, place_id) are left alone: they're for the server, not for reading.
  */
 const PLACE_TOKEN = /\b(?:home|elsewhere)@/g;
 export function withoutPlaceTokens<T>(v: T): T {
   if (typeof v === "string") return (/^(?:home|elsewhere)@/.test(v) ? venueName(v) : v.includes("@") ? v.replace(PLACE_TOKEN, "") : v) as T;
   if (Array.isArray(v)) return v.map((x) => withoutPlaceTokens(x)) as T;
   if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype) {
-    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === "args" ? x : withoutPlaceTokens(x)])) as T;
+    // An id (id, place_id, …) is a value for the server, like a next call's args: kept as stored.
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === "args" || k === "id" || k.endsWith("_id") ? x : withoutPlaceTokens(x)])) as T;
   }
   return v;
 }
