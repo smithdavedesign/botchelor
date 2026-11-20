@@ -35,6 +35,7 @@ export const IMMEDIATE_KINDS: ReadonlySet<NotificationKind> = new Set([
   "date_proposal",
   "date_accepted",
   "date_roleplay",
+  "tie_proposal",
   "date_booked_with_yours",
   "own_date_invite",
   "key_usage",

@@ -4606,6 +4606,8 @@ create index if not exists social_ties_person_idx on social_ties (to_person_id) 
 create index if not exists social_ties_layer_idx on social_ties (layer, status);
 create index if not exists social_ties_source_idx on social_ties (source);
 create index if not exists social_ties_updated_idx on social_ties (updated_at);
+-- Proposals waiting on another owner (Phase 2b): the hourly job lapses the ones unanswered for 14 days.
+create index if not exists social_ties_proposed_idx on social_ties (created_at) where status = 'proposed';
 -- Its log: created, proposed, accepted, declined, changed, ended, revived, contact, decayed; changes as field: [from, to].
 -- One row a change, kept as long as its tie. Past about 10 million rows, partition it by month.
 create table if not exists social_tie_events (

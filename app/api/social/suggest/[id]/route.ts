@@ -25,7 +25,7 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   const suggestions = await suggestTies(db, id, { viewer: sess.userId });
   await logShown(db, sess.userId, id, suggestions);
   return json(
-    { character_id: id, suggestions: suggestions.map((s) => ({ id: s.id, name: s.name, portrait: s.portrait, hue: s.hue, reason: s.reason, words: s.words, score: s.score })) },
+    { character_id: id, suggestions: suggestions.map((s) => ({ id: s.id, name: s.name, portrait: s.portrait, hue: s.hue, mine: s.mine, reason: s.reason, words: s.words, score: s.score })) },
     200,
     sess,
   );

@@ -60,6 +60,8 @@ const TYPE_OF: Record<NotificationKind, NotificationType> = {
   date_accepted: "dates",
   date_roleplay: "dates",
   date_roleplay_answer: "dates",
+  tie_proposal: "dates",
+  tie_answer: "dates",
   likes_waiting: "dates",
   recoupling: "show",
   arc_resolved: "show",

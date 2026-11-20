@@ -79,6 +79,8 @@ import { characterNowOn, shapeNow } from "@/lib/character-now";
 import { FollowToggle, HeaderMore } from "./HeaderActions";
 import RightNow from "./RightNow";
 import MightKnow from "./MightKnow";
+import TheirPeople from "./TheirPeople";
+import { placeMenu, theirPeople } from "@/lib/social/declare";
 import { storyView } from "@/lib/story-state";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import AfterDarkPhotos, { afterDarkPhotosOf } from "./AfterDarkPhotos";
@@ -363,6 +365,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     reviewsOpen,
     follow,
     inviteNow,
+    peopleView,
+    placesMenu,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -400,8 +404,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     c.house ? reviewableNow(c.id) : Promise.resolve(true),
     followP,
     inviteP,
+    // "Their people" (lib/social/declare.ts, the social network PRD section 6.2): their circle as this viewer may see it,
+    // and for their owner the places to pick from. Null with SOCIAL_DECLARE=0 (or SOCIAL_TIES=0): no People tab.
+    theirPeople(db, id, viewerId).catch(() => null),
+    isOwner && !c.house && viewerId ? placeMenu(db, viewerId).catch(() => null) : Promise.resolve(null),
   ]);
   const week = thisWeek(c.id, c.this_week);
+  // The People tab: for their owner always (to add to it), for anyone else when there's someone in it.
+  const peopleTab = Boolean(
+    peopleView && (peopleView.character.editable || peopleView.people.length > 0 || peopleView.ties.some((t) => t.layer !== "communication") || peopleView.places.length > 0),
+  );
   // Its creator, credited (the casting invite's promise, lib/casting-invites.ts): their creator page, when they have one.
   const credit = away?.credit_handle && away.credit_name ? { handle: away.credit_handle, name: away.credit_name } : null;
   // The open invite's one line: a character of theirs made on the site that isn't auditioning or on the cast yet.
@@ -817,6 +829,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       <PageTabs
         tabs={[
           { id: "profile", label: "Profile" },
+          ...(peopleTab ? [{ id: "people", label: "People" }] : []),
           ...(secrets ? [{ id: "secrets", label: "Secrets" }] : []),
           talkOfHouse ? { id: "talk", label: "Talk of the house", short: "Talk" } : { id: "audience", label: "Audience" },
           ...(memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) ? [{ id: "story", label: "Story" }] : []),
@@ -942,12 +955,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
       {/* "Might know" (lib/social/suggest.ts, the social network PRD section 6.3): who their character might know, the
-          owner's page only; it asks after the page is up. */}
-      {ratings.is_owner && !c.house && <MightKnow characterId={c.id} name={c.name} />}
+          owner's page only; it asks after the page is up. Inside the People tab when their owner can add to it. */}
+      {ratings.is_owner && !c.house && !peopleView?.character.editable && <MightKnow characterId={c.id} name={c.name} />}
       {c.house && <AfterDarkTeaser character={c.id} />}
       {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
       {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
       </div>
+      {peopleView && peopleTab && (
+        <div data-panel="people" id="panel-people" role="tabpanel" aria-labelledby="tab-people" hidden>
+          <TheirPeople view={peopleView} menu={placesMenu} suggest={!c.house} />
+        </div>
+      )}
       {secrets && (
         <div data-panel="secrets" id="panel-secrets" role="tabpanel" aria-labelledby="tab-secrets" hidden>
           <Secrets name={shortName(c.name)} secrets={secrets} />
