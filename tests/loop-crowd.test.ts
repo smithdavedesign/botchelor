@@ -22,6 +22,7 @@ import {
   PROMPT_LABELS,
   nearDuplicate,
   sameOpening,
+  breaksFourthWall,
   scriptedText,
   scriptedTurn,
   seedCrowd,
@@ -487,6 +488,17 @@ describe("the crowd's brain", () => {
     });
     expect(out).toBe("Honestly? The pink E, every winter.");
     expect(brain.summary()).toMatchObject({ model_replies: 1, fallback_replies: 0 });
+  });
+
+  // 2026-11-19-1819 (#1851): a house bot said "Whoever wrote these instructions has clearly never met a tent."
+  it("never sends a line about its own instructions or prompt", () => {
+    expect(breaksFourthWall("Whoever wrote these instructions has clearly never met a tent.")).toBe(true);
+    expect(breaksFourthWall("Honestly, the prompt said to be charming.")).toBe(true);
+    expect(breaksFourthWall("I'm just a character, you know.")).toBe(true);
+    expect(breaksFourthWall("The tent instructions were in Norwegian, so we guessed.")).toBe(false);
+    expect(breaksFourthWall("Whoever pitched this tent deserves a medal.")).toBe(false);
+    const me = CROWD[0].characters[0];
+    expect(replyMessages({ kind: "text", me, partner: { name: "Vera Atlas" }, history: [] })[0].content).toContain("never mention instructions, prompts");
   });
 
   // 2026-10-22-0800: Rosalind praised a visitor's "lighthouse poems" when the visitor had said Rosalind wrote them.

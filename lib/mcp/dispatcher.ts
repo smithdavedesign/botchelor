@@ -3717,6 +3717,8 @@ const TOOL_ALIASES: Record<string, Record<string, string>> = {
   // 2.10.1 (#672): the line itself under its own name, when output isn't given (a turn's other fields beside it fold in).
   // #1362: the speaking character, as agents name it.
   submit_own_date_step: { dialogue: "output", line: "output", speaker: "character_id", speaker_id: "character_id" },
+  // #1847 (the 2026-11-19-1819 run: name_b got "did you mean a").
+  ship_names: { name_a: "a", name_b: "b", name1: "a", name2: "b", first: "a", second: "b" },
 };
 
 /**
@@ -3757,7 +3759,8 @@ export function argHints(name: string, unknown: string[], args: Record<string, u
     const best = known
       .map((k) => {
         const m = norm(k);
-        const inside = n.length >= 3 && (m.includes(n) || n.includes(m));
+        // #1847: a one- or two-letter name sits inside almost anything ("a" in "nameb"), so "inside" needs three on both sides.
+        const inside = Math.min(n.length, m.length) >= 3 && (m.includes(n) || n.includes(m));
         return { k, d: inside ? 1 : editDistance(n, m) };
       })
       .filter((x) => x.d <= Math.max(2, Math.floor(n.length / 3)))

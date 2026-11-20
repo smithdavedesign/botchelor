@@ -66,6 +66,7 @@ export function checkLocalAlias(
 export function normalizeLine(s: string): string;
 export function nearDuplicate(a: string, b: string): boolean;
 export function sameOpening(a: string, b: string): string | null;
+export function breaksFourthWall(line: string): boolean;
 export function gendersPartner(line: string, pronouns?: string | null): string | null;
 export function echoesProfile(line: string, profileTexts?: string[], allowed?: string): string | null;
 export function cleanReply(raw: string, opts?: { name?: string; partner?: string }): string;
