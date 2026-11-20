@@ -91,9 +91,13 @@ Each kind has:
 
 The list is meant to grow. A new kind is a line of code; the schema doesn't change.
 
+`child` and `grandchild` (added in 2b): a tie to an off-screen person always starts at its holder, so "Jun is Marlo's
+son" needs a kind that reads that way round. Between two characters they're the `parent` and `grandparent` tie from the
+other end (`lib/social/relations.ts` `canonicalTie`), so the character graph keeps one form of each.
+
 | Layer | Kinds |
 |---|---|
-| `kin` | `parent` (directed), `sibling`, `half_sibling`, `step_sibling`, `cousin`, `grandparent` (directed), `aunt_uncle` (directed), `in_law`, `family` |
+| `kin` | `parent` (directed), `sibling`, `half_sibling`, `step_sibling`, `cousin`, `grandparent` (directed), `aunt_uncle` (directed), `in_law`, `family`, `child` and `grandchild` (directed: 2b, for off-screen people) |
 | `romance` | `spouse` (exclusive 1), `partner`, `engaged`, `ex`, `crush` (directed), `first_love`, `situationship`, `fake_couple`, and `dated`, the show's dating track (layer by stage, below) |
 | `friendship` | `best_friend` (exclusive 3), `close_friend`, `friend`, `childhood_friend`, `old_friend`, `roommate`, `pen_pal` |
 | `work` | `coworker`, `manager` (directed), `business_partner`, `mentor` (directed), `classmate`, `teammate`, `bandmate` |
@@ -237,10 +241,29 @@ As built (2a, `lib/social/derive.ts`):
 - **House characters** take ties only from the show: its generator, an admin, or what aired. A person can't declare a tie to a house character.
 - **Agents** do the same through MCP tools: `get_circle`, `add_person`, `propose_tie`, `answer_tie`, `end_tie`, `set_place`. These are non-core tools.
 - **The season generator** gives each candidate 3–6 off-screen people, a neighbourhood, a workplace and a regular spot in the show's world, and ties to one or two show characters, in the call it already makes. Existing show characters (house, cast, agent-made catalog) are backfilled by `scripts/social/backfill-circles.mjs`. It runs on the Mac's local open-weight model, so it costs $0, and its output is licensable. It posts to an admin route, which checks every name and line with `checkShowText`. `origin_model` is recorded.
+- **As built (2b, the show's circles, `lib/social/circles.ts`):**
+  - **The show's characters** are the house (the season's cast among them) and the show's own agent-made cast (made over MCP by our own agents, `loadOurIds`, as `lib/adult/agent-cast.ts` decides), public, never a persona or a test character. A person's character on the cast gets its circle from its owner.
+  - **One write path** for both writers, `writeCircle`: each item is checked alone and refused alone with its reason. The checks: a kind from the registry the house may declare (free words such as "older sister", "boss" or "my mentee" read by `lib/social/relations.ts`); the show's text check on every name, note, story and place name; originals only (`lib/franchises.ts`, as for the show's own characters); the people cap and the exclusive kinds' caps; a place of the right kind for the role (a neighbourhood to live in; a workplace or school may be named new, under a neighbourhood); ties only to another show character; no kin tie between two who have dated (a `relationships` row, a romance tie, or an ex or fake-couple backstory link whose tie isn't derived yet), and no romance between kin.
+  - **The show's characters are single** (decided in 2b): the house never gives one a `spouse`, `partner`, `engaged` or `situationship`, with a character or off-screen. A late spouse is a person it may name.
+  - **Idempotent:** a character with the show's circle (people or places the house wrote) is skipped; `replace` (the backfill's `--force`) removes the show's people and declared-role places for it first, never an owner's or agent's.
+  - **Provenance:** `source` house, public, `origin_model` the deployment that answered (the backfill's `ollama_chat/qwen2.5:7b` on LiteLLM `local-chat`; the generator's director model) and `prompt_version` (`backfill-circles-v1`, `season-gen-circle-v1`). Places and memberships carry `origin_model` only: their tables have no `prompt_version`.
+  - **The admin route** `GET/POST /api/admin/social/circles` (admin password or an admin account): GET pages through the show's characters with their circle so far, whom they've dated and the world's menu; POST takes up to five circles, `dry_run` and `replace`.
+  - **The backfill** writes the cast, then the house, then the agent cast. Each character is offered up to eight others to know (the same side of the show first, the least-tied first, never one they've dated or know already), the workplaces earlier characters named (so coworkers share a place), and a sibling's parents (so two siblings have the same mum).
 
 ### 6.3 Inferred (Phase 4)
 
 `suggestTies(character)` uses common neighbours, Adamic–Adar, shared places, shared events and friend-of-ex, then scores and explains each suggestion. A suggestion is never a tie. It is shown to the owner on the character page and through MCP `suggest_ties`, and the shown suggestion and its outcome go to `social_suggestion_log`.
+
+As built (Phase 4 PR 4, `lib/social/suggest.ts`):
+
+- **Four signals, summed into a score.** The strongest is the logged reason.
+  - Common friends (`common_friends`), by Adamic–Adar over ties that mean knowing someone: active, positive, and neither one of the show's encounters nor a date. The character's own ties may be owner-only, since only its owner sees suggestions; the second hop is public only.
+  - A shared place (`shared_place`): 2a's `SHARED` roles, weighted by the role and by 1 / ln(how many share it).
+  - The same event (`same_event`): one of derive's encounter ties between the two. An encounter is a reason, never an exclusion.
+  - A friend of an ex (`friend_of_ex`).
+- **Never suggested:** someone the character already has a tie with (any kind but an encounter, any status), a house character (a person can't declare one, §6.2), someone else's private character, a persona, or someone dismissed in the last 90 days. Nothing under 0.3 is shown, so one housemate alone isn't enough.
+- **Where it shows.** `GET /api/social/suggest/[id]` (owner only) returns the list and logs what it shows; `POST` with `dismiss` is "Not now". "Might know" is its own block on the owner's character page until 2b's "Their people" exists. MCP `suggest_ties` (outside the core list) gives agents the same.
+- **Outcomes.** The daily job settles the log: a suggestion is `accepted` once any non-encounter tie between the two is made after it was shown, and `ignored` after 30 days.
 
 ## 7. Living network (Phase 4, `SOCIAL_DYNAMICS`)
 
@@ -249,6 +272,13 @@ As built (2a, `lib/social/derive.ts`):
 - **Balance:** a signed triangle census. An unbalanced public triangle becomes a new producer tension, `unbalanced_triangle`, in `lib/story-state.ts`, for example A dating B while B's best friend is A's rival. The producer can stage it, using the public record only.
 - **Introductions:** some show-arranged dates prefer a friend of a friend. The date records `met_via: "introduced"` and the introducer, and both actors know who set them up.
 - **Dialogue:** an actor's prompt can carry one or two lines about the people in its life, with mutual ties first ("you both know Mira; she's your coworker"). It uses public or own ties only, sits behind `SOCIAL_PEOPLE_IN_PROMPTS`, and the engine never reads it.
+- **As built (Phase 4 PR 3).**
+  - `lib/social/dynamics.ts` is a `social_dynamics` step of the daily job's `growth` part, before the metrics, with a 30-second budget. Each day a tie's closeness is replayed from its own event log: an aired contact lifts it 15% of the way to 1, and time decays it by its kind's half-life. A run is idempotent, and a missed day changes nothing.
+  - A declared tie takes the pair's aired contact from their other public ties, through `logContact`. `dated` (its closeness is the pair's tie strength) and ties to off-screen people are left alone.
+  - A friendship fades at the moment it crossed 0.15: it ends with a `decayed` event (a hook in 2a's `setStatus`), and an `old_friend` tie starts from when the friendship did.
+  - The metrics fill `social_network_daily.balance` and, on each character's all-layers row, its balanced and unbalanced triangles and its ring sizes, with 2a's `signedTriads` and `rings`.
+  - `unbalanced_triangle` comes from public, active ties between public characters only: two of the cast at odds who are both close to a third. Its weight is 4, a same-room beat; the house's confrontations take 5 and up.
+  - Introductions (`lib/social/introductions.ts`) are one in four of the lobby's seeded fallback deals: two of the cast who share a public friend and who haven't dated, aren't family and aren't at odds. `setup.introduced_by` holds the friend's character id.
 
 ## 8. Privacy, consent and licensing
 
@@ -339,7 +369,7 @@ Each switch is on unless set to `"0"`. Off means the site is exactly as before.
 | 2a | Core: schema (§5.2–5.4), kinds, `lib/social/` (kinds, ties, people, places, world, derive, read, algorithms basics: ego network, rings, signed triads), derivations and backfills (§6.1), read API (`/api/social/world/[id]`, `/api/social/pair/[a]/[b]`, `/api/social/sky`), data-plan coverage | — | #1911 tie store, people, places and the world; #1915 derivations and the backfill; #1918 the read layer and API |
 | 2b | Declared: owner UI ("Their people", ties, places, proposals, notifications, rate limits), the generator, the local-model backfill and admin route, MCP tools, the prompt line | 2a | |
 | 3 | The page: views, "X's world", pair panel, tense triangles, place-named clusters, character page links | 2a | |
-| 4 | Living network, analytics, suggestions, dataset: dynamics (§7), `social_metrics`, `social_network_daily`, `suggestTies` and its log, `/admin/social`, the dataset builder, data-plan update | 2a | #1908 analytics, #1916 metrics job and /admin/social, #1920 dataset builder |
+| 4 | Living network, analytics, suggestions, dataset: dynamics (§7), `social_metrics`, `social_network_daily`, `suggestTies` and its log, `/admin/social`, the dataset builder, data-plan update | 2a | #1908 analytics, #1916 metrics job and /admin/social, #1920 dataset builder, #1922 living network, #1924 suggestions |
 
 ## 13. Scaling notes
 

@@ -810,6 +810,11 @@
 .casting-slot.is-open strong {
   color: var(--accent-text);
 }
+/* A lead format's lead: their own slot, marked, never one of the suitors' places. */
+.casting-slot.is-lead {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
 .casting-slot-face {
   display: inline-grid;
   flex: none;

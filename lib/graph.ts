@@ -313,6 +313,8 @@ const COARSE_MET: Record<string, MetVia> = {
   show: "set_up",
   // Open casting (lib/casting.ts): the show sent a new character to the season's lead.
   casting: "set_up",
+  // The show set them up through a friend of both (lib/social/introductions.ts).
+  introduced: "set_up",
   match: "asked",
   proposal: "asked",
   chosen: "asked",

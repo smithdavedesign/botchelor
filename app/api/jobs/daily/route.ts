@@ -37,7 +37,9 @@ import { clearStaleOwnDates } from "@/lib/own-date";
 import { refreshLobby } from "@/lib/watch";
 import { seasonGenerationDue } from "@/lib/season-gen";
 import { backfillEmbeddings } from "@/lib/originality-concept";
+import { DYNAMICS_BUDGET_MS, runSocialDynamics } from "@/lib/social/dynamics";
 import { computeSocialMetrics, METRICS_BUDGET_MS } from "@/lib/social/metrics-job";
+import { settleSuggestions } from "@/lib/social/suggest";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
 export const maxDuration = 300;
@@ -189,6 +191,12 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
       .then((urls) => submitIndexNow(urls))
       .catch(() => ({ submitted: 0, status: null })),
   );
+  // The living network (lib/social/dynamics.ts, docs/PRDs/social-network.md section 7): each tie's closeness lifted by
+  // aired contact and decayed by its kind's half-life, and friendships that faded made old friends. Before the numbers,
+  // so they measure today's closeness; no model call; its own budget. SOCIAL_DYNAMICS=0 (or SOCIAL_TIES=0): off.
+  const dynamics = await step("social_dynamics", () =>
+    runSocialDynamics(db, { budgetMs: DYNAMICS_BUDGET_MS }).catch(() => ({ stopped: "error" as const, ties: 0, contacts: 0, moved: 0, faded: 0, ms: 0 })),
+  );
   // The social network's numbers (lib/social/metrics-job.ts, docs/PRDs/social-network.md section 5.5): the public ties
   // between public characters measured once a day, a row per character and layer and one for the whole network, for
   // /admin/social and the dataset. Before the lessons, so it always gets its time; no model call. It stops at its own
@@ -204,6 +212,9 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
       ms: 0,
     })),
   );
+  // What came of "Might know" (lib/social/suggest.ts, PRD section 6.3): a suggestion that became a tie is accepted, one
+  // left 30 days is ignored, for /admin/social's hit rate. Two updates; no model call.
+  const suggestions = await step("social_suggestions", () => settleSuggestions(db).catch(() => ({ accepted: 0, ignored: 0 })));
   // Learning, weekly (lib/character-lessons.ts): what each character that has been out learned about itself, written once
   // a week from its own side of its aired dates, on the free model (the paid default as the fallback, then a template),
   // at most 40 characters a day, two seconds apart (the free model's per-minute limit is the live show's too), then the
@@ -262,12 +273,19 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
     });
   }
   return {
-    body: { indexnow, embeddings, character_lessons: lessons, social_metrics: social },
+    body: { indexnow, embeddings, character_lessons: lessons, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
     counts: {
+      social_dynamics_ties: dynamics.ties,
+      social_dynamics_contacts: dynamics.contacts,
+      social_dynamics_moved: dynamics.moved,
+      social_dynamics_faded: dynamics.faded,
+      social_dynamics_stopped: dynamics.stopped,
       social_metrics_rows: social.rows,
       social_metrics_nodes: social.nodes,
       social_metrics_ties: social.ties,
       social_metrics_stopped: social.stopped,
+      social_suggestions_accepted: suggestions.accepted,
+      social_suggestions_ignored: suggestions.ignored,
       lessons_written: lessons.written,
       lessons_by_template: lessons.by_template,
       lesson_texts: lessons.texts,

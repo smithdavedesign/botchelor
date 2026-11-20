@@ -14,7 +14,11 @@ vi.mock("next/navigation", async (original) => ({
 }));
 import type { ReactNode } from "react";
 import { prerender } from "react-dom/static";
-import { daysLeft, daysLeftLabel, heroVenue, venueIdForPlace } from "@/app/seasons/season-visuals";
+import { daysLeftLabel, heroVenue, venueIdForPlace } from "@/app/seasons/season-visuals";
+import SeasonBanner from "@/app/SeasonBanner";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createElement } from "react";
+import { seasonArc, seasonFormat } from "@/lib/season-format";
 import { venueBackdrop } from "@/lib/portraits";
 import { placeOf, type RecapEpisode } from "@/lib/season-recap";
 import { DATE_VENUES, EXTRA_VENUES } from "@/lib/venues";
@@ -72,11 +76,26 @@ describe("season visuals (app/seasons/season-visuals.ts)", () => {
     expect(heroVenue({ golden: null, rewatch: [] })).toBeNull();
   });
 
-  it("counts the nights left in the month", () => {
-    expect(daysLeft(new Date("2026-11-13T12:00:00Z"))).toBe(18);
-    expect(daysLeft(new Date("2026-11-30T23:00:00Z"))).toBe(1);
-    expect(daysLeftLabel(new Date("2026-11-30T12:00:00Z"))).toBe("Last night of the season");
-    expect(daysLeftLabel(new Date("2026-11-01T00:00:00Z"))).toBe("30 nights left in the month");
+  // Visual audit 2026-11-20: "11 nights left in the month" sat under the header arc's "10 days to the finale". The clock
+  // counts as the arc does (lib/season-format.ts seasonArc), so the two never disagree.
+  it("counts the days to the finale the way the season's arc does", () => {
+    expect(daysLeftLabel(new Date("2026-11-20T15:00:00Z"))).toBe("10 days to the finale");
+    expect(daysLeftLabel(new Date("2026-11-29T12:00:00Z"))).toBe("1 day to the finale");
+    expect(daysLeftLabel(new Date("2026-11-30T12:00:00Z"))).toBe("The finale is tonight");
+    expect(daysLeftLabel(new Date("2026-11-01T00:00:00Z"))).toBe("29 days to the finale");
+    // A lead format's finale is its final rose (the last Sunday); after it, the days left in the season.
+    const lead = seasonFormat("botchelor");
+    expect(daysLeftLabel(new Date("2026-12-20T12:00:00Z"), lead)).toBe("7 days to the finale");
+    expect(daysLeftLabel(new Date("2026-12-27T12:00:00Z"), lead)).toBe("The finale is tonight");
+    expect(daysLeftLabel(new Date("2026-12-28T12:00:00Z"), lead)).toBe("3 days left in the season");
+    expect(daysLeftLabel(new Date("2026-12-31T12:00:00Z"), lead)).toBe("Last night of the season");
+    // The arc under the header says the same number on the same day.
+    for (const [at, def] of [["2026-11-20T15:00:00Z", null], ["2026-12-28T12:00:00Z", lead]] as const) {
+      const now = new Date(at);
+      const arc = renderToStaticMarkup(createElement(SeasonBanner, { now, def }));
+      expect(arc, at).toContain(`${seasonArc(now, def).left} days`);
+      expect(daysLeftLabel(now, def), at).toContain(`${seasonArc(now, def).left} days`);
+    }
   });
 });
 
@@ -154,7 +173,7 @@ describe("the season pages", () => {
     expect(index).toContain('<article class="page-wide seasons-page">');
     const now = section(index, '<section class="card season-now"', "</section>");
     expect(now).toMatch(/Season \d+ · on now/);
-    expect(now).toMatch(/nights left in the month|Last night of the season/);
+    expect(now).toMatch(/to the finale|The finale is tonight|left in the season|Last night of the season/);
     const faces = section(now, '<ul class="season-faces season-now-faces"', "</ul>");
     const shown = faces.match(/<li>/g)?.length ?? 0;
     expect(shown).toBeGreaterThan(0);

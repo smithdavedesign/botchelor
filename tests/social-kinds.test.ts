@@ -15,7 +15,8 @@ import { EVIDENCE_KEPT, LAYERS, RINGS, type Evidence, type Tie } from "@/lib/soc
 
 /** The PRD's kinds, layer by layer (section 5.1): the registry has every one, on that layer, and nothing else. */
 const PRD_KINDS: Record<string, string[]> = {
-  kin: ["parent", "sibling", "half_sibling", "step_sibling", "cousin", "grandparent", "aunt_uncle", "in_law", "family"],
+  // child and grandchild: Phase 2b's, for off-screen people (a tie to a person starts at its holder).
+  kin: ["parent", "sibling", "half_sibling", "step_sibling", "cousin", "grandparent", "aunt_uncle", "in_law", "family", "child", "grandchild"],
   romance: ["spouse", "partner", "engaged", "ex", "crush", "first_love", "situationship", "fake_couple", "dated"],
   friendship: ["best_friend", "close_friend", "friend", "childhood_friend", "old_friend", "roommate", "pen_pal"],
   work: ["coworker", "manager", "business_partner", "mentor", "classmate", "teammate", "bandmate"],
@@ -33,7 +34,7 @@ describe("the kinds registry", () => {
   });
 
   it("marks the PRD's directed, exclusive and derived kinds", () => {
-    expect(TIE_KIND_IDS.filter((k) => TIE_KINDS[k].directed).sort()).toEqual(["aunt_uncle", "crush", "grandparent", "grudge", "manager", "mentor", "parent", "talked_about", "told"]);
+    expect(TIE_KIND_IDS.filter((k) => TIE_KINDS[k].directed).sort()).toEqual(["aunt_uncle", "child", "crush", "grandchild", "grandparent", "grudge", "manager", "mentor", "parent", "talked_about", "told"]);
     expect(Object.fromEntries(TIE_KIND_IDS.filter((k) => TIE_KINDS[k].exclusive).map((k) => [k, TIE_KINDS[k].exclusive]))).toEqual({
       spouse: 1,
       engaged: 1,

@@ -78,7 +78,9 @@ export default function EpisodeActions(props: Props) {
   if (revealed) {
     return (
       <section className="card">
-        <p>{offline ? "The finale aired, and the date is offline now: only its owners see it." : "The finale has aired. Share it anyway:"}</p>
+        {/* Not "the finale": that's the season's last night, and this is any aired date (visual audit 2026-11-20: a speed date
+            said "The finale has aired"). */}
+        <p>{offline ? "This date has aired, and it's offline now: only its owners see it." : "This date has aired, so the guessing's over. Share it anyway:"}</p>
         {!offline && share}
         {isHost && (
           <button type="button" className="secondary small" disabled={busy} onClick={() => run(() => setVisibility(episodeId, offline ? "public" : "private"))}>

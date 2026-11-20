@@ -130,12 +130,19 @@ export default function ShowcaseGrid({
       <img src={big ? src(p) : tileSrc(p)} alt={describe(p)} loading="lazy" onError={fallBack(p, !big)} />
     );
   const p = open === null ? null : posts[open];
+  // Where it was made and what it is, in the galleries' words (lib/made-in.ts): "Night clip", "Studio picture". When every
+  // tile would say the same (a creator's page of nothing but Studio clips), it tells one tile from no other, so it goes
+  // (visual audit 2026-11-20: every tile on /creators/botchelor was captioned "Studio clip").
+  const made = (x: Post) => madeLabel(x.from_date ? "night" : "studio", x.medium, place);
+  const oneKind = posts.length > 1 && new Set(posts.map(made)).size === 1;
   return (
     <>
       <ul className="showcase-grid" ref={setGrid}>
         {posts.map((x, i) => {
           // After Dark's own blur covers its showcase (app/after-dark/discreet.css): no second veil there.
           const veiled = place === "show" && x.rating === "nsfw" && !shown.has(x.id);
+          const meta = [oneKind ? "" : made(x), x.place ? placeLabel(x.place) : ""].filter(Boolean).join(" · ");
+          const by = x.creator.handle !== SHOW_HANDLE;
           return (
             <li key={x.id} className={`showcase-tile${veiled ? " veiled" : ""}`}>
               {/* Hover on the picture and its 🔇 together: reaching for 🔇 doesn't stop the clip. */}
@@ -171,16 +178,17 @@ export default function ShowcaseGrid({
                 </strong>
                 {credits[x.character.id] && <span className="showcase-credit muted" title={credits[x.character.id]}>{credits[x.character.id]}</span>}
               </p>
-              <p className="showcase-meta small muted">
-                {/* Where it was made and what it is, in the galleries' words (lib/made-in.ts): "Night clip", "Studio picture". */}
-                {[madeLabel(x.from_date ? "night" : "studio", x.medium, place), x.place ? placeLabel(x.place) : ""].filter(Boolean).join(" · ")}
-                {x.creator.handle !== SHOW_HANDLE && (
-                  <>
-                    {" · by "}
-                    <Link href={paths.creator(x.creator.handle)}>@{x.creator.handle}</Link>
-                  </>
-                )}
-              </p>
+              {(meta || by) && (
+                <p className="showcase-meta small muted">
+                  {meta}
+                  {by && (
+                    <>
+                      {meta ? " · by " : "by "}
+                      <Link href={paths.creator(x.creator.handle)}>@{x.creator.handle}</Link>
+                    </>
+                  )}
+                </p>
+              )}
             </li>
           );
         })}

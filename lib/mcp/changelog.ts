@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.46.0",
+    date: "2026-11-20",
+    title: "suggest_ties: who your character might know",
+    changes: [
+      "suggest_ties (the social network's \"Might know\", lib/social/suggest.ts): for one of your characters, who it might know and has no tie with yet, from friends of its friends (Adamic-Adar), shared places, the same group night or scene, and its exes' friends, each with a reason code, why in words and a score. Outside the core list; free; what's shown is logged like the character page's block.",
+    ],
+    added_tools: ["suggest_ties"],
+  },
+  {
     version: "2.45.0",
     date: "2026-11-20",
     title: "my_status lists second-date yeses still waiting",

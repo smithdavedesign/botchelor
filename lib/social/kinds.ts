@@ -66,6 +66,11 @@ const DEFS = {
   aunt_uncle: { layer: "kin", directed: true, inverse: "niece_nephew", valence: 1, closeness: 0.4, halfLifeDays: null, declarable: ANYONE, negative: false, emoji: "🧓", words: { pair: "aunt or uncle, and niece or nephew", from: "niece or nephew", to: "aunt or uncle" }, ring: "friends" },
   in_law: { layer: "kin", directed: false, valence: 1, closeness: 0.4, halfLifeDays: null, declarable: ANYONE, negative: false, emoji: "💍", words: { pair: "in-laws", ...same("in-law") }, ring: "friends" },
   family: { layer: "kin", directed: false, valence: 1, closeness: 0.5, halfLifeDays: null, declarable: ANYONE, negative: false, emoji: "🏡", words: { pair: "family", ...same("family") }, ring: "close" },
+  // The younger generation, for off-screen people (Phase 2b): a tie to a person starts at its holder, so "Tom is Ada's
+  // son" needs a kind that reads that way. Between two characters it's the parent (grandparent) tie from the other end
+  // (lib/social/relations.ts canonicalTie), so the character graph has one form of each.
+  child: { layer: "kin", directed: true, inverse: "parent", valence: 1, closeness: 0.7, halfLifeDays: null, declarable: ANYONE, negative: false, emoji: "👶", words: { pair: "parent and child", from: "parent", to: "child" }, ring: "inner" },
+  grandchild: { layer: "kin", directed: true, inverse: "grandparent", valence: 1, closeness: 0.6, halfLifeDays: null, declarable: ANYONE, negative: false, emoji: "🧒", words: { pair: "grandparent and grandchild", from: "grandparent", to: "grandchild" }, ring: "close" },
 
   // ------------------------------------------------------------- romance
   spouse: { layer: "romance", directed: false, valence: 2, closeness: 0.9, halfLifeDays: null, exclusive: 1, declarable: ANYONE, negative: false, emoji: "💒", words: { pair: "married", ...same("spouse") }, ring: "inner" },

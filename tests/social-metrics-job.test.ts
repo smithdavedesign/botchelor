@@ -141,6 +141,33 @@ describe("computeSocialMetrics", () => {
     expect(await metricRows()).toEqual(first);
   });
 
+  it("puts structural balance and the Dunbar rings on the all-layers rows (2a's lib/social/algorithms.ts)", async () => {
+    await world();
+    const balance = async () => (await t.db.query<{ balance: unknown }>(`select balance from social_network_daily where day = $1::date`, [DAY])).rows[0]?.balance;
+    const rowOf = async (id: string, layer: string) =>
+      (
+        await t.db.query(
+          `select triads_balanced, triads_unbalanced, ring_inner, ring_close, ring_friends, ring_acquaintances from social_metrics
+            where day = $1::date and character_id = $2 and layer = $3`,
+          [DAY, id, layer],
+        )
+      ).rows[0];
+    // A and C are rivals and C has a crush on A: the pair nets out, so there's no signed triangle yet.
+    await computeSocialMetrics(t.db, { now: NOW, env: {} });
+    expect(await balance()).toEqual({ balanced: 0, unbalanced: 0, share_balanced: null, by_signs: {} });
+    await t.db.query(`delete from social_ties where kind = 'crush'`);
+    await t.db.query(`delete from social_metrics`);
+    await t.db.query(`delete from social_network_daily`);
+    await computeSocialMetrics(t.db, { now: NOW, env: {} });
+    // Two friendships (A and B, B and C) across a rivalry (A and C): one unbalanced triangle.
+    expect(await balance()).toEqual({ balanced: 0, unbalanced: 1, share_balanced: 0, by_signs: { "++-": 1 } });
+    // A's rings: Mum (a parent, the inner circle), B (a friend), C (a rival, an acquaintance at most).
+    expect(await rowOf(A, ALL_LAYERS)).toEqual({ triads_balanced: 0, triads_unbalanced: 1, ring_inner: 1, ring_close: 0, ring_friends: 1, ring_acquaintances: 1 });
+    expect(await rowOf(D, ALL_LAYERS)).toEqual({ triads_balanced: 0, triads_unbalanced: 0, ring_inner: 0, ring_close: 0, ring_friends: 1, ring_acquaintances: 0 });
+    // Only the all-layers rows carry them.
+    expect(await rowOf(A, "friendship")).toEqual({ triads_balanced: null, triads_unbalanced: null, ring_inner: null, ring_close: null, ring_friends: null, ring_acquaintances: null });
+  });
+
   it("leaves a day it ran out of time on started, and the hourly passes finish it; they never start one", async () => {
     await world();
     expect(await resumeSocialMetrics(t.db, { now: NOW, env: {} })).toMatchObject({ stopped: "not_started" });
@@ -236,6 +263,9 @@ describe("the jobs", () => {
     const growth = daily.slice(daily.indexOf("async function growth("));
     expect(growth.indexOf(`step("social_metrics"`)).toBeGreaterThan(0);
     expect(growth.indexOf(`step("social_metrics"`)).toBeLessThan(growth.indexOf(`step("character_lessons"`));
+    // The living network moves closeness first, so the numbers measure today's (lib/social/dynamics.ts).
+    expect(growth.indexOf(`step("social_dynamics"`)).toBeGreaterThan(0);
+    expect(growth.indexOf(`step("social_dynamics"`)).toBeLessThan(growth.indexOf(`step("social_metrics"`));
     const lobby = readFileSync(new URL("../app/api/jobs/lobby/route.ts", import.meta.url), "utf8");
     expect(lobby).toContain("resumeSocialMetrics(db)");
   });

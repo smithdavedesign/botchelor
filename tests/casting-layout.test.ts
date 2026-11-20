@@ -15,8 +15,10 @@ vi.mock("next/navigation", async (original) => ({
 }));
 import { renderToStaticMarkup } from "react-dom/server";
 import CastingPage from "@/app/casting/page";
-import { AUDITION_MIN_DATES } from "@/lib/auditions";
-import { HOUSE_MIN, SURVIVORS, seasonCastCards, seasonCastSize } from "@/lib/season-cast";
+import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
+import { HOUSE_MIN, SURVIVORS, seasonCastCards, seasonCastSize, seasonMonth, setLeadOverride } from "@/lib/season-cast";
+import { seasonFormat } from "@/lib/season-format";
+import { setSeasonFormat } from "@/lib/season-format-store";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -85,6 +87,31 @@ describe("/casting", () => {
     expect(main).not.toContain('data-track="casting-empty-yours"');
     expect(main).toContain("No auditions yet for");
     expect(main).toContain("<em>Audition</em>");
+  });
+
+  // Visual audit 2026-11-20: on The Botchelor the empty board put this month's cast in the slots, so December's lead sat
+  // in one under "No suitors yet", reading as the lead applying to date herself.
+  it("on a lead format, the lead has a slot of their own and the rest are the suitors' places, none of this month's cast", async () => {
+    const { season_id } = await castingBoard(t.db, null);
+    const cast = await seasonCastCards(t.db);
+    const lead = cast[0];
+    await setSeasonFormat(t.db, season_id, "botchelor");
+    await setLeadOverride(t.db, season_id, lead.id);
+    const places = seasonFormat("botchelor").lead!.places;
+    const { main } = columns(renderToStaticMarkup(await CastingPage()));
+    expect(main).toContain("No suitors yet for");
+    expect(count(main, 'class="casting-slot is-taken is-lead tap-card"')).toBe(1);
+    expect(count(main, 'class="casting-slot is-taken tap-card"')).toBe(0);
+    expect(count(main, 'class="casting-slot is-open"')).toBe(places - 1);
+    expect(main).toContain(`<strong>${lead.name}</strong>`);
+    expect(main).toContain(`${seasonMonth(season_id)}&#x27;s lead`);
+    expect(main).toContain("a suitor: your character?");
+    for (const c of cast.slice(1)) expect(main, c.id).not.toContain(`href="/characters/${c.id}"`);
+    // No lead picked yet: only the suitors' places.
+    await setLeadOverride(t.db, season_id, null);
+    const unpicked = columns(renderToStaticMarkup(await CastingPage())).main;
+    expect(count(unpicked, "is-lead")).toBe(0);
+    expect(count(unpicked, 'class="casting-slot is-open"')).toBe(places - 1);
   });
 
   it("a viewer who has a character is sent to their own characters instead", async () => {

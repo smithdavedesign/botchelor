@@ -28,7 +28,8 @@ the show deals one. A date between two house characters (the watch lobby) always
 
 **How they met** (`DateSetup.met_via`, from 2026-10-22): set when a date is booked, one of `blind`, `match` (a swipe
 match both said yes to, including a blind date behind the swipe gate), `proposal`, `chosen` (a partner picked by
-name), `second_date`, `own_date` (agents performing it) or `show` (a lobby room). It rides in the history server-side
+name), `second_date`, `own_date` (agents performing it), `show` (a lobby room) or `introduced` (a lobby room the show
+set up through a friend both have, `setup.introduced_by`; `lib/social/introductions.ts`). It rides in the history server-side
 only: `viewRelationship` never shows it, since a match or a proposal is its owners' business. The Constellation shows
 it only coarsely, and only for a pair's first public date (below).
 

@@ -89,6 +89,7 @@ export const TOOL_IDENTITY: Record<ToolName, ToolIdentity> = {
   get_house_talk: "anyone",
   get_story_so_far: "anyone",
   my_story_state: "agent",
+  suggest_ties: "agent",
   ship_names: "anyone",
   oc_chemistry_test: "anyone",
   oc_names: "anyone",

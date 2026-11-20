@@ -19,7 +19,22 @@
 import type { Db } from "../db";
 import { originSql } from "../origin";
 import { DELETED_OWNER } from "../rules";
-import { byLayer, measureLayer, metricRows, networkRow, type CharacterMetricRow, type MetricNode, type MetricTie } from "./metrics";
+import { signedTriads } from "./algorithms";
+import {
+  balanceOf,
+  byLayer,
+  measureLayer,
+  metricRows,
+  networkRow,
+  ringSizes,
+  triadsByCharacter,
+  TRIADS_KEPT,
+  withBalanceAndRings,
+  type CharacterMetricRow,
+  type MetricNode,
+  type MetricTie,
+  type PersonRingTie,
+} from "./metrics";
 import { socialTiesOn } from "./switch";
 
 type Env = Record<string, string | undefined>;
@@ -71,6 +86,22 @@ async function tiePage(db: Db, after: string): Promise<(MetricTie & { id: string
     [after, DELETED_OWNER, TIE_PAGE],
   );
   return rows.map((r) => ({ ...r, valence: Number(r.valence), closeness: Number(r.closeness) }));
+}
+
+/** The public, active ties from public characters to their public off-screen people (the rings count them), a page at a time. */
+async function personTiePage(db: Db, after: string): Promise<(PersonRingTie & { id: string })[]> {
+  const { rows } = await db.query<PersonRingTie & { id: string }>(
+    `select t.id, t.from_id, t.to_person_id, t.kind, t.closeness
+       from social_ties t
+       join characters a on a.id = t.from_id
+       join social_people p on p.id = t.to_person_id
+      where t.id > $1 and t.to_person_id is not null and t.status = 'active' and t.visibility = 'public'
+        and p.visibility = 'public' and a.visibility = 'public' and a.owner_id is distinct from $2
+      order by t.id
+      limit $3`,
+    [after, DELETED_OWNER, TIE_PAGE],
+  );
+  return rows.map((r) => ({ ...r, closeness: Number(r.closeness) }));
 }
 
 /** What each character is, who made it and its tags: what the network's mixing is measured by. */
@@ -169,6 +200,18 @@ export async function computeSocialMetrics(db: Db, options: SocialMetricsOptions
     if (page.length < TIE_PAGE) break;
     after = page[page.length - 1].id;
   }
+  // And the ties to their people, which only the rings read.
+  const people: PersonRingTie[] = [];
+  for (let after = ""; ; ) {
+    if (Date.now() > deadline) {
+      if (!today) await db.query(`insert into social_network_daily (day) values ($1::date) on conflict (day) do nothing`, [day]);
+      return result("budget", { ties: ties.length });
+    }
+    const page = await personTiePage(db, after);
+    for (const { id: _id, ...t } of page) people.push(t);
+    if (page.length < TIE_PAGE) break;
+    after = page[page.length - 1].id;
+  }
 
   const layers = [];
   for (const [layer, list] of byLayer(ties)) {
@@ -176,8 +219,15 @@ export async function computeSocialMetrics(db: Db, options: SocialMetricsOptions
   }
   const all = layers[0];
   const network = networkRow(all, layers, await nodeAttributes(db, all.graph.ids));
-  const rows = layers
-    .flatMap(metricRows)
+  // Structural balance and the Dunbar rings (2a's lib/social/algorithms.ts), on the all-layers rows.
+  await tick();
+  const census = signedTriads(
+    ties.map((t) => ({ from: t.from_id, to: t.to_id, valence: t.valence })),
+    { limit: TRIADS_KEPT },
+  );
+  network.balance = balanceOf(census);
+  await tick();
+  const rows = withBalanceAndRings(layers.flatMap(metricRows), triadsByCharacter(census), ringSizes(ties, people))
     .sort((a, b) => (a.character_id < b.character_id ? -1 : a.character_id > b.character_id ? 1 : a.layer < b.layer ? -1 : a.layer > b.layer ? 1 : 0));
 
   await db.query(

@@ -86,6 +86,11 @@ export type Character = {
   /** Set only on a double date's characters: the other couple at the table, as one line (lib/group-dates.ts). */
   table?: string;
   /**
+   * Set only on a show date set up through a friend of both (lib/social/introductions.ts): who set them up and what that
+   * friend is to each of them, from this side, as one line. Both sides know it; the engine never reads it.
+   */
+  introducedBy?: string;
+  /**
    * Set only on a date that plays a roleplay (lib/roleplays.ts): what both agreed to before it, from this side (its title,
    * the premise in their names, who plays whom). Both sides carry it; its words are things both already know. With a
    * scene card (lib/scene-cards.ts) it also has how it starts, where it can go, its tone and the opening, and this

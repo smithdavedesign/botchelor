@@ -48,6 +48,18 @@ function allowance(now: Date, freeUsed: number, packBought: number, packUsed: nu
 /** A visitor without a session: a full week of free dates, no packs. Touches no database. */
 export const freshAllowance = (now = new Date()): Allowance => allowance(now, 0, 0, 0);
 
+/**
+ * Whether the header's meter is this viewer's own count ("2 dates left", with the bell) or the week's allowance said as
+ * such ("3 free dates", app/Nav.tsx `personal`): theirs once they've signed in, made a character, or spent or bought a
+ * date. An identity alone isn't enough: reading a date's thumbs hands a first-time visitor an anonymous one
+ * (app/api/line-feedback GET), and the same visitor, having done nothing, read "3 free dates" on the pages before it and
+ * "3 dates left" with a bell after (visual audit 2026-11-20).
+ */
+export function ownAllowance(viewer: { authenticated: boolean } | null, hasCharacter: boolean, a: Pick<Allowance, "free_left" | "free_per_season" | "pack_left">): boolean {
+  if (!viewer) return false;
+  return viewer.authenticated || hasCharacter || a.free_left < a.free_per_season || a.pack_left > 0;
+}
+
 export async function episodeAllowance(db: Db, userId: string | null, now = new Date()): Promise<Allowance> {
   if (!userId) return freshAllowance(now);
   const { rows } = await db.query<{ free_used: number; pack_bought: number; pack_used: number }>(

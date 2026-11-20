@@ -20,7 +20,7 @@ import { NO_FRANCHISE_WORDS } from "./franchise-words";
 import { franchiseHits, franchiseRefusal } from "./franchises";
 import { ALL_HOUSE_CHARACTERS } from "./house";
 import { drawHouseLook } from "./house-look";
-import { getDirectorModel, type ChatMessage, type Model } from "./model";
+import { directorModelName, getDirectorModel, type ChatMessage, type Model } from "./model";
 import { characterPortrait } from "./portraits";
 import { popularity } from "./reviews";
 import { PRONOUNS, VOICE_MAX, type Pronouns } from "./rules";
@@ -34,6 +34,10 @@ import { HivePausedError } from "./adult/hive-limit";
 import { checkMedia, checkReady, mediaGate } from "./adult/moderation";
 import { ensureBaseline, outputCheckReady, physicalLook, venicePicture } from "./adult/media";
 import { adultKeys } from "./adult/settings";
+import { safely } from "./social/ties";
+import { socialTiesOn } from "./social/switch";
+import { NEIGHBOURHOODS, neighbourhoodOfVenue } from "./social/world";
+import { DATE_VENUES } from "./venues";
 
 /** How many of a season's cast are new, how many candidates are written for them (one spare), and from which day. */
 export const NEWCOMERS = DEFAULT_SEASON_CAST_SIZE - SURVIVORS;
@@ -83,7 +87,28 @@ const EXAMPLE = ALL_HOUSE_CHARACTERS[0];
  * What a draft is asked for beyond a new contestant (PRD styles-and-storylines phase 4): their pronouns, so the season's
  * lineup balances, and who they already know from before the show (lib/character-links.ts).
  */
-export type DraftBrief = { pronouns?: Pronouns; link?: { to: { name: string; archetype: string; bio: string }; kind: LinkKind } };
+export type DraftBrief = { pronouns?: Pronouns; link?: { to: { name: string; archetype: string; bio: string }; kind: LinkKind }; circle?: CircleBrief };
+
+/**
+ * What a newcomer's circle is written from (docs/PRDs/social-network.md section 6.2, Phase 2b), in the same call as the
+ * rest of them: the city's neighbourhoods, its hangouts by id, the workplaces the show has named (so newcomers can be
+ * coworkers) and the show characters they might know (the cast, this season's other newcomers, the one returning).
+ */
+export type CircleBrief = { workplaces: string[]; knows: { name: string; archetype: string }[] };
+/** The version of the circle's part of the prompt (provenance on what it writes: lib/social/circles.ts). */
+export const CIRCLE_PROMPT_VERSION = "season-gen-circle-v1";
+
+/** A newcomer's circle as the model gave it: checked item by item when it's written (lib/social/circles.ts), never here. */
+export type DraftCircle = {
+  people: { name: string; relation: string; note: string | null; pronouns: string | null }[];
+  lives: string | null;
+  works: { name: string; neighbourhood: string | null } | null;
+  regular: string | null;
+  knows: { name: string; relation: string; story: string | null }[];
+};
+
+/** The hangouts a newcomer can be a regular at: the date venues in town, by id. */
+const HANGOUT_IDS = DATE_VENUES.filter((v) => neighbourhoodOfVenue(v.id)).map((v) => v.id);
 
 /** The link's story when a draft leaves it out: the kind alone, in a line the audience could hear. */
 const LINK_FALLBACK: Record<LinkKind, string> = {
@@ -124,7 +149,11 @@ export function draftMessages(taken: { name: string; archetype: string }[], brie
     '"hidden_talent", "pet_peeve", "green_flag" (under 80 characters each), "hobbies": [three], ' +
     '"prompts": [{"id": "win_me_over" or "irrational_fear" or "two_truths" or "together_we_could" or "unpopular_opinion", "answer"}, three of them], ' +
     '"lines": {"hello", "dodge", "flirt", "upset"} in their voice, "tells": {"nervous", "smitten", "bored", "annoyed"} as what they do, "never_says": [two phrases]})' +
-    (link ? `, and "link_story" (one line, under 200 characters: how they and ${link.to.name.split(/\s+/)[0]} know each other, as the audience would hear it).` : ".") +
+    // The keys past the kit: their circle (social network Phase 2b) and the history they arrive with, the last after "and".
+    lastKeys([
+      ...(brief.circle ? [circleSpec(brief.circle)] : []),
+      ...(link ? [`"link_story" (one line, under 200 characters: how they and ${link.to.name.split(/\s+/)[0]} know each other, as the audience would hear it)`] : []),
+    ]) +
     // The census's sweet spot for a whole profile (lib/sheet-words.ts): enough for a date to draw on, every line counting.
     ` Across every field, aim for ${SHEET_WORDS_MIN} to ${SHEET_WORDS_MAX} words in all, with every line earning its place.`;
   return [
@@ -133,8 +162,58 @@ export function draftMessages(taken: { name: string; archetype: string }[], brie
   ];
 }
 
+/** The prompt's last keys, after the kit: ", a, b, and c." (just "." with none). */
+const lastKeys = (keys: string[]): string => (keys.length ? `${keys.length > 1 ? `, ${keys.slice(0, -1).join(", ")}` : ""}, and ${keys[keys.length - 1]}.` : ".");
+
+/** The "circle" key's part of the prompt: the people in their life off the show, where they live, work and hang out, whom they know. */
+function circleSpec(c: CircleBrief): string {
+  const knows = c.knows.length
+    ? `, "knows": [1 or 2 of {"name" (one of: ${c.knows.map((k) => `${k.name} (${k.archetype})`).join(", ")}), "relation" (what they are to this contestant: sibling, cousin, old friend, ex, coworker, classmate, neighbour, rival, roommate or mentor), "story" (one line, under 200 characters, how they know each other)}]`
+    : "";
+  return (
+    '"circle" (their life off the show; every person an adult, their children grown up, nobody real or famous, and no current partner or spouse: they\'re single): ' +
+    '{"people": [3 to 6 of {"name" (invented), "relation" (their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate), "note" (one line about them, under 120 characters)}], ' +
+    `"lives" (one of: ${NEIGHBOURHOODS.map((n) => n.name).join(", ")}), ` +
+    `"works" ({"name": where they work${c.workplaces.length ? `, invented or one of: ${c.workplaces.join(", ")}` : ", invented"}, "neighbourhood"}), ` +
+    `"regular" (the hangout they're a regular at, one of: ${HANGOUT_IDS.join(", ")})${knows}}`
+  );
+}
+
+const textOf = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+
+/** A reply's circle, leniently: what isn't the right shape is dropped, and a missing or broken circle is null (the draft stands). */
+export function parseCircle(v: unknown): DraftCircle | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const c = v as Record<string, unknown>;
+  const list = (x: unknown): Record<string, unknown>[] => (Array.isArray(x) ? x.filter((i): i is Record<string, unknown> => !!i && typeof i === "object") : []);
+  const people = list(c.people)
+    .slice(0, 8)
+    .flatMap((p) => {
+      const name = textOf(p.name, 120);
+      const relation = textOf(p.relation, 80);
+      return name && relation ? [{ name, relation, note: textOf(p.note, 400), pronouns: textOf(p.pronouns, 40) }] : [];
+    });
+  const w = c.works && typeof c.works === "object" ? (c.works as Record<string, unknown>) : typeof c.works === "string" ? { name: c.works } : null;
+  const workName = textOf(w?.name, 120);
+  const knows = list(c.knows)
+    .slice(0, 2)
+    .flatMap((k) => {
+      const name = textOf(k.name, 120);
+      const relation = textOf(k.relation, 80);
+      return name && relation ? [{ name, relation, story: textOf(k.story, 600) }] : [];
+    });
+  const out: DraftCircle = {
+    people,
+    lives: textOf(c.lives, 80),
+    works: workName ? { name: workName, neighbourhood: textOf(w?.neighbourhood, 80) } : null,
+    regular: textOf(c.regular, 80),
+    knows,
+  };
+  return out.people.length || out.lives || out.works || out.regular || out.knows.length ? out : null;
+}
+
 /** The draft in a model's reply, or why it's no good (bad JSON, a field out of bounds, a rule broken, a copy). */
-export function parseDraft(raw: string, takenNames: string[]): { ok: true; draft: DraftCharacter } | { ok: false; reason: string } {
+export function parseDraft(raw: string, takenNames: string[]): { ok: true; draft: DraftCharacter; circle: DraftCircle | null } | { ok: false; reason: string } {
   let json: unknown;
   try {
     const start = raw.indexOf("{");
@@ -158,7 +237,7 @@ export function parseDraft(raw: string, takenNames: string[]): { ok: true; draft
   const lower = (s: string) => s.toLowerCase();
   const first = lower(d.name.split(/\s+/)[0]);
   if (takenNames.some((n) => lower(n) === lower(d.name) || lower(n.split(/\s+/)[0]) === first)) return { ok: false, reason: `name taken: ${d.name}` };
-  return { ok: true, draft: { ...d, kit } };
+  return { ok: true, draft: { ...d, kit }, circle: parseCircle((json as Record<string, unknown>).circle) };
 }
 
 const kitTexts = (k: CharacterExtras): string[] =>
@@ -194,8 +273,16 @@ export async function saveDraft(db: Db, d: DraftCharacter, seasonId: string): Pr
   return id;
 }
 
-/** Writes one new character on the model, retrying a bad draft a couple of times. Null when every try failed. */
-export async function draftCharacter(db: Db, model: Model, tries = 3, brief: DraftBrief = {}): Promise<{ draft: DraftCharacter } | { error: string }> {
+/**
+ * Writes one new character on the model, retrying a bad draft a couple of times; with its circle when the brief asks for
+ * one, and the model that wrote it (provenance). An error when every try failed.
+ */
+export async function draftCharacter(
+  db: Db,
+  model: Model,
+  tries = 3,
+  brief: DraftBrief = {},
+): Promise<{ draft: DraftCharacter; circle: DraftCircle | null; model: string } | { error: string }> {
   const taken = (
     await db.query<{ name: string; archetype: string | null }>(
       `select c.name, sc.archetype from characters c left join season_candidates sc on sc.character_id = c.id where c.is_house`,
@@ -203,13 +290,14 @@ export async function draftCharacter(db: Db, model: Model, tries = 3, brief: Dra
   ).rows.map((r) => ({ name: r.name, archetype: r.archetype ?? ALL_HOUSE_CHARACTERS.find((h) => h.name === r.name)?.archetype ?? "" }));
   let last = "no reply";
   for (let i = 0; i < tries; i++) {
-    const raw = await model.complete(draftMessages(taken, brief), { temperature: 1, maxTokens: 3000 }).catch((e: unknown) => {
+    let served: string | null = null;
+    const raw = await model.complete(draftMessages(taken, brief), { temperature: 1, maxTokens: 3000, onModel: (id) => (served = id) }).catch((e: unknown) => {
       last = e instanceof Error ? e.message : "model error";
       return null;
     });
     if (raw === null) continue;
     const r = parseDraft(raw, taken.map((t) => t.name));
-    if (r.ok) return { draft: r.draft };
+    if (r.ok) return { draft: r.draft, circle: brief.circle ? r.circle : null, model: served ?? directorModelName() ?? process.env.LLM_MODEL ?? "unknown" };
     last = r.reason;
   }
   return { error: last };
@@ -398,6 +486,8 @@ export async function generateCandidates(db: Db, seasonId: string, model: Model 
   const made: string[] = [];
   const errors: string[] = [];
   const plan = live.length < want ? await pairPlan(db, seasonId).catch(() => null) : null;
+  // Their circles (social network Phase 2b), in the same call: whom they might know is the cast and this season's newcomers.
+  const circles = live.length < want && socialTiesOn() ? await circleBriefOf(db, live.map((l) => l.character_id)).catch(() => null) : null;
   for (let i = live.length; i < want; i++) {
     const anchor = live[0] ?? null;
     const brief: DraftBrief = !plan
@@ -405,6 +495,7 @@ export async function generateCandidates(db: Db, seasonId: string, model: Model 
       : anchor
         ? { pronouns: plan.pronouns[1], link: { to: anchor, kind: plan.kind } }
         : { pronouns: plan.pronouns[0], ...(plan.returning ? { link: { to: plan.returning, kind: plan.returning.kind } } : {}) };
+    if (circles) brief.circle = circles.brief;
     const r = await draftCharacter(db, model, 3, brief);
     if ("error" in r) {
       errors.push(r.error);
@@ -413,12 +504,63 @@ export async function generateCandidates(db: Db, seasonId: string, model: Model 
     const id = await saveDraft(db, r.draft, seasonId);
     const linkTo = anchor?.character_id ?? plan?.returning?.id;
     if (brief.link && linkTo) await addLink(db, id, linkTo, brief.link.kind, r.draft.link_story ?? LINK_FALLBACK[brief.link.kind]);
+    if (circles && r.circle) await saveCircle(db, id, r.circle, r.model, circles.ids);
+    if (circles) {
+      circles.brief.knows.push({ name: r.draft.name, archetype: r.draft.archetype });
+      circles.ids.set(r.draft.name.toLowerCase(), id);
+      if (r.circle?.works && !circles.brief.workplaces.includes(r.circle.works.name)) circles.brief.workplaces.push(r.circle.works.name);
+    }
     live.push({ character_id: id, name: r.draft.name, bio: r.draft.bio, archetype: r.draft.archetype });
     const portrait = await makePortrait(db, id);
     if (portrait !== "made") errors.push(`${id}: ${portrait}`);
     made.push(id);
   }
   return { made, errors };
+}
+
+/**
+ * Whom a newcomer might know (this season's cast, which has whoever returns, and the newcomers drafted so far) and the
+ * workplaces the show has named, with the ids the names stand for.
+ */
+async function circleBriefOf(db: Db, newcomers: readonly string[], now: Date = new Date()): Promise<{ brief: CircleBrief; ids: Map<string, string> }> {
+  const { worldMenu } = await import("./social/circles");
+  const ids = [...new Set([...seasonCastIds(now), ...newcomers])];
+  const [people, world] = await Promise.all([
+    db.query<{ id: string; name: string; archetype: string | null }>(
+      `select c.id, c.name, sc.archetype from characters c left join season_candidates sc on sc.character_id = c.id where c.id = any($1::text[]) and c.is_house order by c.name`,
+      [ids],
+    ),
+    worldMenu(db),
+  ]);
+  const archetype = (r: { id: string; archetype: string | null }) => r.archetype ?? ALL_HOUSE_CHARACTERS.find((h) => h.id === r.id)?.archetype ?? "a contestant";
+  return {
+    brief: { workplaces: world.workplaces.slice(-12).map((w) => w.name), knows: people.rows.map((r) => ({ name: r.name, archetype: archetype(r) })) },
+    ids: new Map(people.rows.map((r) => [r.name.toLowerCase(), r.id])),
+  };
+}
+
+/**
+ * A newcomer's circle, written as the house (lib/social/circles.ts writeCircle checks every item; what fails is left out
+ * alone), with the model that wrote it and the prompt's version. "knows" names map to the show characters offered. Best
+ * effort: a circle never stops a candidate.
+ */
+async function saveCircle(db: Db, id: string, c: DraftCircle, model: string, ids: ReadonlyMap<string, string>): Promise<void> {
+  const first = (n: string) => n.toLowerCase().split(/\s+/)[0];
+  const byFirst = new Map([...ids].map(([name, cid]) => [first(name), cid]));
+  await safely("season circle", async () => {
+    const { writeCircle } = await import("./social/circles");
+    const places = [
+      ...(c.lives ? [{ role: "lives", place: c.lives }] : []),
+      ...(c.works ? [{ role: "works", name: c.works.name, neighbourhood: c.works.neighbourhood }] : []),
+      ...(c.regular ? [{ role: "regular", place: c.regular }] : []),
+    ];
+    const ties = c.knows.flatMap((k) => {
+      const to = ids.get(k.name.toLowerCase()) ?? byFirst.get(first(k.name));
+      return to && to !== id ? [{ with: to, relation: k.relation, story: k.story }] : [];
+    });
+    const r = await writeCircle(db, { character_id: id, people: c.people, places, ties }, { source: "house", origin_model: model, prompt_version: CIRCLE_PROMPT_VERSION });
+    if (r.refused.length) console.warn(`[social] ${id}'s circle: ${r.refused.length} refused (${r.refused.map((x) => `${x.item} ${x.what}: ${x.reason}`).join("; ").slice(0, 300)})`);
+  });
 }
 
 /** The daily job's part: from the 20th, next month's candidates. */

@@ -6,11 +6,9 @@
  * venue's id, and the stored shape is frozen (RECAP_VERSION). The phrase is a pure function of the id (placeOf), so the
  * id is found again by computing every venue's phrase once; a place of their own ("Chud's place") has no set and no photo.
  */
+import { seasonArc, type SeasonFormatDef } from "@/lib/season-format";
 import { placeOf, type RecapEpisode, type SeasonRecapData } from "@/lib/season-recap";
-import { seasonWindow } from "@/lib/season-window";
 import { DATE_VENUES, EXTRA_VENUES, venueIdFor } from "@/lib/venues";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 let byPhrase: Map<string, string> | null = null;
 function phrases(): Map<string, string> {
@@ -46,14 +44,16 @@ export function heroVenue(d: Pick<SeasonRecapData, "golden" | "rewatch">): strin
   return null;
 }
 
-/** Whole days until the running season closes: 1 on its last day. */
-export function daysLeft(now: Date): number {
-  return Math.max(1, Math.ceil((seasonWindow(now).end.getTime() - now.getTime()) / DAY_MS));
-}
+const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
-/** The month clock on the seasons index, in the show's voice. */
-export function daysLeftLabel(now: Date): string {
-  const n = daysLeft(now);
-  if (n === 1) return "Last night of the season";
-  return `${n} nights left in the month`;
+/**
+ * The month clock on the seasons index, by the same count as the season's arc under the header (lib/season-format.ts
+ * seasonArc, app/SeasonBanner.tsx): the days to the finale, or after a lead format's final rose, to the season's end.
+ * It counted nights to the month's end its own way, tonight included, so "11 nights left in the month" sat under the
+ * strip's "10 days to the finale" (visual audit 2026-11-20). `def`: the running season's format, as the strip gets it.
+ */
+export function daysLeftLabel(now: Date, def: SeasonFormatDef | null = null): string {
+  const { left, to } = seasonArc(now, def);
+  if (to === "end") return left === 0 ? "Last night of the season" : `${days(left)} left in the season`;
+  return left === 0 ? "The finale is tonight" : `${days(left)} to the finale`;
 }

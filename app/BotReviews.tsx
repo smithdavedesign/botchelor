@@ -1,20 +1,32 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { BOT_REVIEWS, botReviewFilter, botReviewsPage, gripeStatus, innerQuotes, REVIEWS_REPO, tallyLine, type BotReview, type BotReviewFilter, type GripeStatus } from "@/lib/bot-reviews";
+import Icon, { type IconName } from "./Icon";
 import Pager from "./Pager";
+import { balancedColumns } from "@/lib/grid-balance";
 
-const FILTERS: { id: BotReviewFilter; label: string }[] = [
+/** The filter and the chips mark praise and gripes with the interface's icons, not emoji (docs/brand.md, Icons). */
+const FILTERS: { id: BotReviewFilter; label: string; icon?: IconName }[] = [
   { id: "all", label: "Everything" },
-  { id: "loved", label: "💗 Loved it" },
-  { id: "gripe", label: "🛠️ Gripes" },
+  { id: "loved", label: "Loved it", icon: "heart" },
+  { id: "gripe", label: "Gripes", icon: "wrench" },
 ];
 
 /** A gripe's chip says where it stands before the quote is read: a fixed one must never read as a live complaint. */
-const GRIPE_CHIP: Record<GripeStatus, string> = { fixed: "✅ Fixed gripe", open: "🛠️ Gripe · open", answered: "🛠️ Gripe · not a bug" };
+const GRIPE_CHIP: Record<GripeStatus, { icon: IconName; label: string }> = {
+  fixed: { icon: "check", label: "Fixed gripe" },
+  open: { icon: "wrench", label: "Gripe · open" },
+  answered: { icon: "wrench", label: "Gripe · not a bug" },
+};
+const LOVED_CHIP = { icon: "heart", label: "Loved it" } as const;
 
 const day = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** How many /agents quotes (they left the home page in the 2026-11-07 audit, item 16); /reviews has them all. */
 const HOME_SHOWN = 3;
+
+/** A page of reviews never ends on an orphan row (lib/grid-balance.ts): six are 3 + 3, not 4 + 2 (visual audit 2026-11-20). */
+const balanced = (n: number) => ({ "--cols": balancedColumns(n, 4) }) as CSSProperties;
 
 /** An issue or a pull request on GitHub (the repo is public: lib/bot-reviews.ts REVIEWS_REPO). */
 function Gh({ kind, n }: { kind: "issues" | "pull"; n: number }) {
@@ -32,9 +44,12 @@ function Gh({ kind, n }: { kind: "issues" | "pull"; n: number }) {
  */
 function ReviewCard({ r }: { r: BotReview }) {
   const status = gripeStatus(r);
+  const chip = status ? GRIPE_CHIP[status] : LOVED_CHIP;
   return (
     <li className={`card bot-card bot-${r.said}${status ? ` bot-${status}` : ""}`}>
-      <span className="chip">{status ? GRIPE_CHIP[status] : "💗 Loved it"}</span>
+      <span className="chip">
+        <Icon name={chip.icon} /> {chip.label}
+      </span>
       <blockquote>&ldquo;{innerQuotes(r.quote)}&rdquo;</blockquote>
       <p className="bot-by muted">
         {r.model} · rated it {r.rating}/10 · {day(r.date)}
@@ -89,7 +104,7 @@ export default function BotReviews({ said, page, keep, compact = false, reviews 
           AI agents nobody briefed try the show every night and review it, the good and the bad
           {view.average !== null && <>: {view.average}/10 on average</>}.{tally && <> {tally}.</>}
         </p>
-        <ul className="bot-grid">
+        <ul className="bot-grid grid-balanced" style={balanced(Math.min(view.items.length, HOME_SHOWN))}>
           {view.items.slice(0, HOME_SHOWN).map((r) => (
             <ReviewCard key={r.id} r={r} />
           ))}
@@ -116,11 +131,12 @@ export default function BotReviews({ said, page, keep, compact = false, reviews 
       <nav className="filter-pills" aria-label="Which reviews">
         {FILTERS.map((f) => (
           <Link key={f.id} href={href(f.id, 1)} aria-current={f.id === filter ? "true" : undefined} scroll={false}>
+            {f.icon && <Icon name={f.icon} />}
             {f.label}
           </Link>
         ))}
       </nav>
-      <ul className="bot-grid">
+      <ul className="bot-grid grid-balanced" style={balanced(view.items.length)}>
         {view.items.map((r) => (
           <ReviewCard key={r.id} r={r} />
         ))}
