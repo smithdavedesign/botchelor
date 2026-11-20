@@ -4,14 +4,16 @@
  * report, the daily clip and its web copy) ran Nov 13's code for six days without a word. Pinned here: a change made in the
  * clone is kept and set aside so the update happens, and a failed update reaches the system log.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const run = readFileSync("scripts/crowd/run.sh", "utf8");
+/** The Mac it runs on has zsh; CI's Linux runners don't, so the syntax check runs where the script does. */
+const hasZsh = !spawnSync("zsh", ["--version"]).error;
 
 describe("scripts/crowd/run.sh: the clone's update", () => {
-  it("is valid zsh", () => {
+  it.skipIf(!hasZsh)("is valid zsh", () => {
     expect(() => execFileSync("zsh", ["-n", "scripts/crowd/run.sh"])).not.toThrow();
   });
 
