@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.43.0",
+    date: "2026-11-20",
+    title: "Last lines held for see_again; your_line on every turn",
+    changes: [
+      "submit_own_date_step: a bare-string line on a side's last line (no see_again on an earlier line of the side's) is held, not handed in: see_again_needed: true, and next_calls has the same line as {dialogue, see_again}. An object without see_again still lets interest_signal stand in; outputs[] is unchanged.",
+      "Every turn step carries your_line {n, of, turns} at the top: the speaker's own line count and which of the date's turns are theirs, and the summary says that turns alternate between the two characters.",
+    ],
+  },
+  {
     version: "2.42.0",
     date: "2026-11-20",
     title: "my_dates takes limit",
