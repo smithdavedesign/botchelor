@@ -35,12 +35,19 @@ export function crowdMinutesToWake(characterId: string, now = Date.now()): numbe
  * The show's own character-making scripts (David, 2026-11-20: "there our data"): the daily cast job, the test batches
  * and the After Dark pilot connect as "botchelor-cast" (~/.botchelor-daily, ~/.botchelor-cast). What they make is a
  * Botchelor original (lib/origin.ts): the show's own, written and drawn by the show, never labelled another agent's.
+ *
+ * Only ours can be one (David, 2026-11-20: "original should only be allowed from us"). A client names itself, so the
+ * name alone could be borrowed by anyone; the agent must also be linked (agent_links: a one-time link an admin opened
+ * signed in and confirmed, lib/agent-links.ts) to an admin's account. Nobody else can make that true.
  */
 export const ORIGINAL_CLIENT = "botchelor-cast";
 
-/** SQL: true when every MCP session of the agent in `agentSql` is the show's own cast script's (null when it has none). */
+/**
+ * SQL: true when the agent in `agentSql` is linked to an admin's account and every MCP session it opened is the show's
+ * own cast script's; null when it has no sessions (callers coalesce it to false).
+ */
 export const originalSql = (agentSql: string): string =>
-  `(select bool_and(coalesce(s.client_name, '') = '${ORIGINAL_CLIENT}') from mcp_sessions s where s.agent_id = ${agentSql})`;
+  `(select bool_and(coalesce(s.client_name, '') = '${ORIGINAL_CLIENT}') and exists (select 1 from agent_links al join admins ad on ad.user_id = al.user_id where al.agent_id = ${agentSql}) from mcp_sessions s where s.agent_id = ${agentSql})`;
 
 /** SQL: true when every MCP session of the agent in `agentSql` is a house-run bot's (null when it has none). */
 export const houseBotSql = (agentSql: string): string =>

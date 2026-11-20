@@ -15,6 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import CharactersPage from "@/app/characters/page";
 import CastPage from "@/app/cast/page";
 import { DIRECTORY_PAGE, DIRECTORY_QUERY_MAX, directoryEntries, likeWord, listTab, offSeasonHouse, parseDirectoryQuery, searchDirectory, tabCounts } from "@/lib/directory";
+import { claimAdmin } from "@/lib/admins";
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { originsOf, parseTab, tabHref, tabOf } from "@/lib/origin";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -45,6 +46,14 @@ async function agentMade(name: string, client = "claude-code") {
   await t.db.query(`insert into mcp_sessions (id, agent_id, client_name) values ($1, $2, $3)`, [`s-${c.id}`, userIdOf(c.cookie), client]);
   return c;
 }
+/** The show's own: made by the cast script AND its agent linked to an admin's account (lib/house-bots.ts originalSql). */
+async function ours(name: string) {
+  const c = await agentMade(name, "botchelor-cast");
+  const admin = `admin-${c.id}`;
+  await claimAdmin(t.db, admin);
+  await t.db.query(`insert into agent_links (agent_id, user_id) values ($1, $2)`, [userIdOf(c.cookie), admin]);
+  return c;
+}
 const render = async (sp: Record<string, string> = {}) => renderToStaticMarkup(await CharactersPage({ searchParams: Promise.resolve(sp) }));
 
 /** Every public character, by tab, as the hub lists them: the cast tab's season, candidates and off-season house. */
@@ -64,7 +73,7 @@ describe("the Characters hub's tabs", () => {
     const agent = await agentMade("Ada Lumen");
     const bot = await agentMade("Bo Quill", "botchelor-loop-swipe-back");
     const crowd = await agentMade("Cy Fenn", "crowd-agent-7"); // an ordinary client name: a real agent
-    const original = await agentMade("Dee Marlow", "botchelor-cast"); // the show's own cast script: a Botchelor original (2026-11-20)
+    const original = await ours("Dee Marlow"); // the show's own cast script, linked to an admin: a Botchelor original (2026-11-20)
 
     const tabs = await everyTab();
     expect(tabs.people).toEqual([hidden.id, person.id]);
@@ -160,8 +169,16 @@ describe("the Characters hub's tabs", () => {
     expect(agents).toContain(">House-run bot</span>");
 
     // The show's own originals (2026-11-20): their own tab and badge, never with the agents.
-    const original = await agentMade("Dee Marlow", "botchelor-cast");
+    const original = await ours("Dee Marlow");
+    // Anyone can name their client "botchelor-cast"; without the admin link it's an agent's, not ours.
+    const borrowed = await agentMade("Imo Postor", "botchelor-cast");
+    expect(Object.fromEntries(await originsOf(t.db, [original.id, borrowed.id]))).toEqual({ [original.id]: "original", [borrowed.id]: "agent" });
+    // Linked to a person who isn't an admin: still an agent's.
+    await t.db.query(`insert into agent_links (agent_id, user_id) values ($1, $2)`, [userIdOf(borrowed.cookie), "someone-else"]);
+    expect((await originsOf(t.db, [borrowed.id])).get(borrowed.id)).toBe("agent");
+    expect(await render({ tab: "agents" })).toContain(`/characters/${borrowed.id}`);
     const originals = await render({ tab: "originals" });
+    expect(originals).not.toContain(`/characters/${borrowed.id}`);
     expect(originals).toContain(`/characters/${original.id}`);
     expect(originals).toContain(">Botchelor original</span>");
     expect(originals).toMatch(/written and drawn by Botchelor/);
