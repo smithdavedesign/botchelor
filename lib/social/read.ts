@@ -491,6 +491,12 @@ export async function publicPlaces(db: Db, roles: readonly SharedRole[] = SHARED
  * the pairs masked to existence (on `all` only: a lens would tell their layer), and counts over the whole lens for
  * its numbers line. Null when SOCIAL_TIES is off.
  */
+/**
+ * How many of each layer's strongest ties a capped sky keeps before it fills the rest by strength: half the cap shared
+ * between the layers, and at least one, so even a cap of a few draws one of each kind it can.
+ */
+export const layerFloor = (limit: number, layers: number): number => Math.max(1, Math.ceil(limit / (2 * Math.max(1, layers))));
+
 export async function publicSky(db: Db, lens: SkyLens, o: { limit?: number; env?: Env } = {}): Promise<SocialSky | null> {
   if (!socialTiesOn(o.env) || !LENS_LAYERS[lens]) return null;
   const layers = [...LENS_LAYERS[lens]];
@@ -499,14 +505,19 @@ export async function publicSky(db: Db, lens: SkyLens, o: { limit?: number; env?
   const lensSql = `t.to_id is not null and t.visibility = 'public' and t.status in ('active', 'ended') and t.layer = any($1::text[])`;
   const bothSql = `join characters ca on ca.id = t.from_id and ${listedSql("ca")} join characters cb on cb.id = t.to_id and ${listedSql("cb")}`;
   const publicSql = `ca.visibility = 'public' and cb.visibility = 'public'`;
+  // Every kind gets a place under the cap: each layer's strongest ties up to its floor first, then the strongest of the
+  // rest. Sorted by closeness alone, Everything's 400 were all love and "met" and the 3 family ties never showed.
+  const floor = layerFloor(limit, layers.length);
   const [tiesQ, statsQ, maskedQ, places] = await Promise.all([
     db.query<SkyRow>(
-      `select t.from_id, t.to_id, t.kind, t.layer, t.directed, t.valence, t.closeness, t.status, t.detail, t.last_contact_at
-         from social_ties t ${bothSql}
-        where ${lensSql} and ${publicSql}
-        order by t.closeness desc, t.last_contact_at desc nulls last, t.id
+      `select r.from_id, r.to_id, r.kind, r.layer, r.directed, r.valence, r.closeness, r.status, r.detail, r.last_contact_at
+         from (select t.id, t.from_id, t.to_id, t.kind, t.layer, t.directed, t.valence, t.closeness, t.status, t.detail, t.last_contact_at,
+                      row_number() over (partition by t.layer order by t.closeness desc, t.last_contact_at desc nulls last, t.id) as layer_rank
+                 from social_ties t ${bothSql}
+                where ${lensSql} and ${publicSql}) r
+        order by (r.layer_rank <= $3) desc, r.closeness desc, r.last_contact_at desc nulls last, r.id
         limit $2`,
-      [layers, limit],
+      [layers, limit, floor],
     ),
     db.query<{ kind: string; status: string; n: number }>(
       `select t.kind, t.status, count(*)::int as n from social_ties t ${bothSql} where ${lensSql} and ${publicSql} group by t.kind, t.status`,

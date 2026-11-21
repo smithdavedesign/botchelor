@@ -653,7 +653,7 @@ export default function ConstellationApp({
       </Sheet>
       {social && lensData && lensData.shown < lensData.ties && (
         <p className="constellation-more small">
-          Showing the {lensData.shown} strongest of {lensData.ties} ties in {LENS_LABEL[lens]}.
+          Showing {lensData.shown} of {lensData.ties} ties in {LENS_LABEL[lens]}: the strongest of every kind.
         </p>
       )}
       {!social && !whole && total && (

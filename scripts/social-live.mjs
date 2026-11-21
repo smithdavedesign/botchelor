@@ -112,7 +112,7 @@ try {
     const faces = await page.locator(".world-face").count();
     check(faces > 3, `${label}: the world draws ${faces} faces`);
     check(!(await sideways()), `${label}: the world page doesn't scroll sideways`);
-    await scrollTo(".world-sky, svg");
+    await scrollTo(".world-sky");
     await settle(600);
     await shoot("world");
 

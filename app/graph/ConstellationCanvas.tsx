@@ -276,8 +276,9 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       ctx.setLineDash([]);
       ctx.lineCap = "butt";
 
-      // Nodes.
+      // Nodes. A place's name waits for the end (placeLabels), so the names can be laid out together.
       const images = imagesRef.current;
+      const placeLabels: { x: number; y: number; text: string; rank: number; size: number }[] = [];
       for (const sn of sim.nodes) {
         const idx = byId.get(sn.id);
         const data = idx === undefined ? null : ns[idx];
@@ -320,12 +321,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
             diamond(3 / v.zoom);
             ctx.stroke();
           }
-          if (!dim && v.zoom >= 0.5) {
-            ctx.font = `600 ${11 / v.zoom}px Inter, system-ui, sans-serif`;
-            ctx.textBaseline = "top";
-            ctx.fillStyle = theme.muted;
-            ctx.fillText(data.name, sn.x, sn.y + r + 4 / v.zoom);
-          }
+          if (!dim && v.zoom >= 0.5) placeLabels.push({ x: sn.x, y: sn.y + r + 4 / v.zoom, text: data.name, rank: selected ? 2 : ego.has(sn.id) ? 1 : 0, size: sn.r });
           continue;
         }
 
@@ -395,6 +391,32 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
           ctx.textBaseline = "top";
           ctx.fillStyle = theme.muted;
           ctx.fillText(data.name, sn.x, sn.y + sn.r + 4 / v.zoom);
+        }
+      }
+
+      // The places' names, the sky's landmarks: the picked place and its neighbours first, then the biggest, each drawn
+      // only where it clears the names already down (30 places in a dense middle wrote over each other). Zooming in
+      // spreads them out, so more fit; a dark edge keeps each readable over the lines.
+      if (placeLabels.length) {
+        ctx.globalAlpha = 1;
+        ctx.font = `600 ${11 / v.zoom}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 3 / v.zoom;
+        ctx.strokeStyle = theme.bg;
+        ctx.fillStyle = theme.muted;
+        const pad = 3 / v.zoom;
+        const h = 13 / v.zoom;
+        const down: { l: number; t: number; r: number; b: number }[] = [];
+        placeLabels.sort((a, b) => b.rank - a.rank || b.size - a.size);
+        for (const lab of placeLabels) {
+          const w = ctx.measureText(lab.text).width;
+          const box = { l: lab.x - w / 2 - pad, t: lab.y - pad, r: lab.x + w / 2 + pad, b: lab.y + h + pad };
+          if (lab.rank === 0 && down.some((d) => box.l < d.r && box.r > d.l && box.t < d.b && box.b > d.t)) continue;
+          down.push(box);
+          ctx.strokeText(lab.text, lab.x, lab.y);
+          ctx.fillText(lab.text, lab.x, lab.y);
         }
       }
       ctx.globalAlpha = 1;

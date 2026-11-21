@@ -32,7 +32,7 @@ type Env = Record<string, string | undefined>;
 /** The Constellation's social views, "X's world" and the pair panel's every tie (PRD section 11). Off whenever SOCIAL_TIES is. */
 export const socialLensesOn = (env: Env = process.env): boolean => socialTiesOn(env) && env.SOCIAL_LENSES?.trim() !== "0";
 
-/** The most ties a view draws: its strongest. */
+/** The most ties a view draws: each kind's strongest, then the strongest of the rest (lib/social/read.ts layerFloor). */
 export const LENS_TIES = 400;
 /** The most places a view draws as stars, biggest first, and the members each shows (`count` has them all). */
 export const LENS_PLACES = 30;
