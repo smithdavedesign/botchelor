@@ -4,8 +4,10 @@ import Link from "next/link";
 import CountUp from "@/app/motion/CountUp";
 import { getDb } from "@/lib/db";
 import { balancedColumns } from "@/lib/grid-balance";
+import { funnelSteps } from "@/lib/marketing-funnel";
 import { CREDIT_DAYS, publicMarketing, type Leads, type MarketingChannel, type MarketingPost, type PublicMarketing } from "@/lib/public-marketing";
 import { pageMetadata } from "@/lib/seo";
+import MarketingFunnel from "./MarketingFunnel";
 
 export const dynamic = "force-dynamic";
 
@@ -217,6 +219,7 @@ export default async function MarketingPage() {
     .then((db) => publicMarketing(db))
     .catch(() => null);
   const spend = m?.feed?.spend ?? [];
+  const funnel = m ? funnelSteps(m.totals) : null;
   return (
     <article className="legal-page costs-page marketing-page page-wide">
       <h1>Marketing, in the open</h1>
@@ -239,6 +242,9 @@ export default async function MarketingPage() {
             // says the marketing log hasn't reached the site yet, and the site's own numbers still show.
             <p className="muted small">The marketing log hasn&apos;t reached the site yet, so posts and channels read zero until it does. Site numbers refresh every ten minutes.</p>
           )}
+
+          {/* The summary's figures as one funnel that draws itself, above the log it comes from. */}
+          {funnel && <MarketingFunnel steps={funnel} />}
 
           <section id="posts">
             <h2>Every post</h2>
