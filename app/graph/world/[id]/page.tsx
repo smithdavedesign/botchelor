@@ -244,7 +244,6 @@ function Row({ m, centre, seasons }: { m: WorldMember; centre: string; seasons: 
           {[tieWords(m.ties, centre), ...shared].filter(Boolean).join(" · ")}
           {(evidence.length > 0 || dated) && (
             <span className="world-row-links">
-              {" "}
               {dated && !m.private && (
                 <Link href={`/couples/${[centre, m.id].sort().join("/")}`} className="tap-link">
                   their story

@@ -12746,6 +12746,8 @@ html.constellation-locked body {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0 var(--space-2);
+  /* A space inside an inline flexbox is dropped: this keeps "the dive bar" off "their story". */
+  margin-left: var(--space-2);
 }
 .world-person-dot {
   display: inline-block;

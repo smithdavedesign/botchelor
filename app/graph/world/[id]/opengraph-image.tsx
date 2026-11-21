@@ -4,6 +4,7 @@ import { SHARE_CARD_CACHE } from "@/lib/ai-mark";
 import { cachedWorld } from "@/lib/social/cache";
 import { socialLensesOn } from "@/lib/social/lens-sky";
 import { RINGS, type Ring } from "@/lib/social/types";
+import { worldPicture } from "@/lib/social/world-picture";
 
 // "X's world" share card: the character's initials in the middle of their rings, how many sit on each, and who they're
 // at odds with on a red arc. Drawn, never a portrait (the card stays cheap and needs no image pipeline). OG images use
@@ -27,8 +28,11 @@ export default async function Image({ params }: { params: Promise<{ id: string }
   const w = socialLensesOn() && ID.test(id) ? await cachedWorld(id, null).catch(() => null) : null;
   const name = w?.centre.name ?? "Botchelor";
   const palette = avatarPalette(w?.centre.id ?? id, w?.centre.private ? null : (w?.centre.hue ?? null));
-  const counts = Object.fromEntries(RINGS.map((r) => [r, w && !w.centre.private ? w.rings[r].length : 0])) as Record<Ring, number>;
-  const odds = w && !w.centre.private ? new Set(w.ties.filter((t) => t.status === "active" && t.valence < 0).map((t) => t.to_person ?? (t.from === id ? t.to : t.from))).size : 0;
+  // Counted as the page counts them (lib/social/world-picture.ts): who's on the rings, plus those whose ties are over
+  // and those past 150, so the card and the page say the same number.
+  const pic = w && !w.centre.private ? worldPicture(w) : null;
+  const counts = Object.fromEntries(RINGS.map((r) => [r, pic ? pic.members.filter((m) => m.ring === r && !m.masked).length : 0])) as Record<Ring, number>;
+  const odds = pic ? pic.members.filter((m) => m.odds).length : 0;
   const cx = 300;
   const cy = 315;
   // A dot for each, up to 24 a ring, evenly round it.
@@ -39,7 +43,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
       return { ring, x: cx + R[ring] * Math.cos(a), y: cy + R[ring] * Math.sin(a) };
     });
   });
-  const total = RINGS.reduce((s, r) => s + counts[r], 0);
+  const total = pic ? pic.members.length + pic.before.length + pic.beyond : 0;
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", background: BG, color: INK, fontFamily: "sans-serif", position: "relative" }}>
