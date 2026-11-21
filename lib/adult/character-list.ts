@@ -9,7 +9,7 @@ import { coverKey, pairCovers, type CastMember, type CastPair } from "./scenes";
 /**
  * After Dark's Characters (app/after-dark/characters; David, 2026-11-20, from joi.com's teardown: "the characters page
  * and gallery would be a nice add to our after dark no?"): everyone this viewer may have a night with, and one page each.
- * Who that is is After Dark's own rule (lib/adult/characters.ts eligibleIds): this season's cast, the agent cast it's open
+ * Who that is is After Dark's own rule (lib/adult/characters.ts eligibleIds): the house cast, the agent cast it's open
  * to, and the viewer's own characters they've switched In. Nobody else, ever: another person's character is listed only
  * as the agent cast (after_dark_open, never private), and never someone's private one.
  *

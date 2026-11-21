@@ -96,7 +96,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
   {
     name: "after_dark_pairs",
     title: "After dark: the pairs",
-    description: "Admin only. Who can be in after dark (this season's cast and the switched-on characters), every pair, and how long each scene is. A pair with someone who has left the cast is listed only if you already have nights of it, with `earlier` (\"From October's cast\"), and plays as before.",
+    description: "Admin only. Who can be in after dark (the house cast, the open agent cast and the switched-on characters), every pair, and how long each scene is. A pair with someone who has left the cast is listed only if you already have nights of it, with `earlier` (\"From October's cast\"), and plays as before.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
   },
@@ -271,7 +271,7 @@ export const ADULT_TOOLS: { name: string; title: string; description: string; in
   {
     name: "after_dark_switch",
     title: "After dark: switch a character in or out",
-    description: "Admin only. Switches one of your characters, or a house character, in or out of after dark (this season's cast is always in). Switching your own one in first asks whether its profile and portrait read as a grown adult; one that reads young stays out, and the error says why.",
+    description: "Admin only. Switches one of your characters, or a house character, in or out of after dark (the house cast is always in). Switching your own one in first asks whether its profile and portrait read as a grown adult; one that reads young stays out, and the error says why.",
     inputSchema: { type: "object", required: ["character_id", "on"], properties: { character_id: id, on: { type: "boolean" } } },
     annotations: { readOnlyHint: false },
   },

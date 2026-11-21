@@ -51,6 +51,12 @@ beforeEach(async () => {
   vi.stubEnv("VERCEL", "");
   vi.stubEnv("VERCEL_ENV", "");
   setPlaceForTests({ country: "US", region: "CA" });
+  // OFF: a season newcomer outside the house roster (as Barnaby is), off this season's cast: since 2026-11-21 every
+  // roster house character is always in After Dark, so a newcomer is the only house character who can be out.
+  await t.db.query(`create temp table newcomer as select * from characters where id = $1`, [A.id]);
+  await t.db.query(`update newcomer set id = $1, name = $2`, [OFF.id, OFF.name]);
+  await t.db.query(`insert into characters select * from newcomer`);
+  await t.db.query(`drop table newcomer`);
   setSeasonCastForTests([A.id, B.id]);
 });
 afterEach(() => {
@@ -58,8 +64,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** Two of the house cast on this season's cast; OFF, a third, kept off it. */
-const [A, B, OFF] = HOUSE_CHARACTERS.slice(0, 3);
+/** Two of the house cast on this season's cast; every roster house character is in too; OFF, a newcomer, kept off it. */
+const [A, B] = HOUSE_CHARACTERS.slice(0, 2);
+const OFF = { id: "house-newt", name: "Newt Okafor" };
+const HOUSE = HOUSE_CHARACTERS.map((c) => c.id);
 const first = (n: string) => n.split(/\s+/)[0];
 
 const html = async (el: ReactElement) => (await new Response((await prerender(el)).prelude).text()).replace(/<!-- -->/g, "").replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
@@ -141,13 +149,13 @@ async function world() {
 }
 
 describe("who's listed", () => {
-  it("exactly who After Dark lets them pair: the season's cast, the agent cast and their own switched In (a private one of theirs too)", async () => {
+  it("exactly who After Dark lets them pair: the house cast, the agent cast and their own switched In (a private one of theirs too)", async () => {
     const w = await world();
     const listed = new Set((await adCast(t.db, w.me)).map((c) => c.id));
-    expect(listed).toEqual(new Set([A.id, B.id, w.agent, w.mineIn, w.minePrivate]));
+    expect(listed).toEqual(new Set([...HOUSE, w.agent, w.mineIn, w.minePrivate]));
     const page = await grid();
     expect(new Set(cards(page))).toEqual(listed);
-    expect(page).toContain("5 characters");
+    expect(page).toContain(`${HOUSE.length + 3} characters`);
   });
 
   it("never another person's private character, one switched In by someone else, their own that's Out, or a house character off the cast", async () => {
@@ -169,14 +177,14 @@ describe("who's listed", () => {
     const theirs = await grid();
     expect(theirs).not.toContain(w.minePrivate);
     expect(theirs).not.toContain(w.mineIn);
-    expect(new Set(cards(theirs))).toEqual(new Set([A.id, B.id, w.agent, w.theirsPrivate, w.theirsIn]));
+    expect(new Set(cards(theirs))).toEqual(new Set([...HOUSE, w.agent, w.theirsPrivate, w.theirsIn]));
   });
 
   it("a subscriber sees the same rule as an admin", async () => {
     const me = await subscriber();
     const mine = await character(me, "Ula Subscriber");
     await switchIn(me, mine);
-    expect(new Set(cards(await grid()))).toEqual(new Set([A.id, B.id, mine]));
+    expect(new Set(cards(await grid()))).toEqual(new Set([...HOUSE, mine]));
   });
 });
 
@@ -222,8 +230,9 @@ describe("a card", () => {
     expect(cards(one)).toHaveLength(CHARACTERS_PAGE);
     expect(one).toContain('href="/after-dark/characters?page=2"');
     const two = await grid({ page: "2" });
-    expect(cards(two)).toHaveLength(5); // the last five, A to Z, of the 36 + 3 of theirs and the season's two
-    expect(new Set([...cards(one), ...cards(two)]).size).toBe(CHARACTERS_PAGE + 5);
+    const rest = 3 + HOUSE.length; // past the first page, A to Z: the 36 + 3 of theirs and the house cast
+    expect(cards(two)).toHaveLength(rest);
+    expect(new Set([...cards(one), ...cards(two)]).size).toBe(CHARACTERS_PAGE + rest);
   });
 });
 
@@ -261,7 +270,7 @@ describe("finding one", () => {
     const w = await world();
     const found = await grid({ q: "valdecasas" });
     expect(cards(found)).toEqual([w.mineIn]);
-    expect(found).toContain("1 of 5");
+    expect(found).toContain(`1 of ${HOUSE.length + 3}`);
     expect(found).toContain('value="valdecasas"');
     const yours = await grid({ whose: "mine" });
     expect(new Set(cards(yours))).toEqual(new Set([w.mineIn, w.minePrivate]));

@@ -5,7 +5,7 @@ import type { CastMember, CastPair } from "./scenes";
  * pair to be better ux like a picker with a search"): who's in, what the panel shows for what's picked and typed, the
  * Everyone · House cast · Yours filter, and 🎲. No server code: the picker runs in the browser.
  *
- * The page sends the cast and the nights under way, never every pair: any two of this season's cast are a pair
+ * The page sends the cast and the nights under way, never every pair: any two of After Dark's cast are a pair
  * (lib/adult/scenes.ts listCastPairs), and 151 of them made 11,325 pairs, a 4.6 MB hub (measured 2026-11-18). A pair
  * nobody has started is made here from its two faces, at the same address the server gives it (pairPath).
  */
@@ -14,7 +14,7 @@ import type { CastMember, CastPair } from "./scenes";
 export type Whose = "all" | "house" | "mine";
 /** One labelled run of faces in the panel, each with what's under way between them and the first pick, if anything. */
 export type PickGroup = { label: string; faces: { c: CastMember; meta?: string }[] };
-/** What the picker is given: this season's cast (A to Z) and the nights under way (the latest played first). */
+/** What the picker is given: After Dark's cast (A to Z) and the nights under way (the latest played first). */
 export type PickerData = { cast: CastMember[]; nights: CastPair[]; firstScene: string };
 
 /** A name as it's searched: lower case, accents off ("Inès" is found by "ines"). */

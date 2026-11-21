@@ -204,9 +204,9 @@ export async function runAfterDarkEval(db: Db, req: EvalRequest, clock: () => nu
   const started = clock();
   const owner = await firstAdmin(db);
   if (!owner) return { ok: false, status: 409, error: "no_admin", message: "After Dark's scenes run under the first admin, and there's no admin yet." };
-  // David's line: this season's cast and the characters the admin switched on, never anyone else's (lib/adult/characters.ts).
+  // David's line: the house cast, the open agent cast and the characters the admin switched on, never anyone else's (lib/adult/characters.ts).
   const pair = await eligiblePair(db, owner, req.a, req.b);
-  if (!pair) return { ok: false, status: 404, error: "not_in_after_dark", message: "Pick two characters who are in After Dark: this season's cast, or ones the admin switched on." };
+  if (!pair) return { ok: false, status: 404, error: "not_in_after_dark", message: "Pick two characters who are in After Dark: the house cast, or ones the admin switched on." };
   const settings = await getAdultSettings(db);
   const allowed = await allowedModels(db);
   const modelId = req.model?.trim() || settings.text_model;

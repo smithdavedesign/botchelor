@@ -47,7 +47,8 @@ afterEach(() => {
   setReplicatePausesForTests(true);
 });
 
-const [RAFE, JUNIPER, OUTSIDER] = [HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id, HOUSE_CHARACTERS[5].id];
+// OUTSIDER: nobody in their After Dark. Not a house character: since 2026-11-21 every one is always in.
+const [RAFE, JUNIPER, OUTSIDER] = [HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id, crypto.randomUUID()];
 const signedIn = (userId: string) => sessionCookies({ userId, authenticated: true })[0].split(";")[0];
 const call = (handler: (r: Request) => Promise<Response>, path: string, body: unknown, cookie?: string) =>
   handler(new Request(`${BASE_URL}${path}`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) }));

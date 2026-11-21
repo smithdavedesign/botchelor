@@ -33,9 +33,8 @@ import { pairKey } from "../relationships";
 import { shared } from "../shared-cache";
 import { billingOn } from "./billing";
 import { adBridgeOn, invitePath } from "./bridge";
-import { seasonCastIds } from "../season-cast";
 import { notDrawnSql } from "../art-style";
-import { eligibleIds } from "./characters";
+import { afterDarkHouseIds, eligibleIds } from "./characters";
 import { canAfterDark, openEverywhere, type Entitlement } from "./entitlement";
 import { getInvite, type InviteStatus } from "./invites";
 import { adultAvailable } from "./mode";
@@ -199,7 +198,7 @@ export async function whoMayBeSent(db: Db, userIds: readonly string[], pair: rea
     ),
   ]);
   if (two.rows.length !== 2) return out;
-  const cast = new Set(seasonCastIds());
+  const cast = new Set(afterDarkHouseIds());
   const couldOpenFor = (userId: string) => two.rows.every((c) => cast.has(c.id) || (!c.drawn && (c.open_to_all || c.owner_id === userId)));
   for (const r of people.rows) {
     if (!couldOpenFor(r.user_id)) continue;

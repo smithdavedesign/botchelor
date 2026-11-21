@@ -70,7 +70,13 @@ describe("the gate", () => {
     expect((await get(CAST_A, CAST_B, cookie)).status).toBe(404);
   });
 
-  it("is this season's cast only: anyone's own character, or a character with itself, is not found", async () => {
+  it("is every house character, on this season's cast or not (2026-11-21)", async () => {
+    const { cookie } = await admin();
+    const offSeason = HOUSE_CHARACTERS[5].id;
+    expect((await get(CAST_A, offSeason, cookie)).status).toBe(200);
+  });
+
+  it("is the house cast only: anyone's own character, or a character with itself, is not found", async () => {
     const { cookie } = await admin();
     const own = await (await api.createCharacter(validCharacter({ name: "Chud Crusher" }), newUserCookie())).json();
     expect((await get(CAST_A, own.id, cookie)).status).toBe(404);
@@ -849,7 +855,8 @@ describe("pictures on Venice", () => {
     expect(await tool({ character_id: CAST_A })).toMatch(/"kind":"baseline"/);
     // Both kept: the newest is the face later pictures and videos keep, the older one stays to compare.
     expect((await t.db.query(`select 1 from adult_images where character_id = $1 and kind = 'baseline' and status = 'ready'`, [CAST_A])).rows).toHaveLength(2);
-    expect(await tool({ character_id: HOUSE_CHARACTERS[2].id })).toMatch(/Pick a character who is in after dark/);
+    const theirs = (await (await api.createCharacter(validCharacter({ name: "Not Yours" }), newUserCookie())).json()) as { id: string };
+    expect(await tool({ character_id: theirs.id })).toMatch(/Pick a character who is in after dark/);
   });
 
   it("makes them on Venice with safe mode off, checks the bytes with Hive before storing, and keeps clips to fal pictures", async () => {
