@@ -2390,6 +2390,10 @@ button.swatch.chosen {
 .not-found .cta-row {
   justify-content: center;
 }
+/* The error pages (app/PageError.tsx) share the 404's layout: their Try again is a button, level with the link beside it. */
+.not-found .cta-row > button {
+  margin-top: 0;
+}
 
 .cta-final {
   justify-content: center;

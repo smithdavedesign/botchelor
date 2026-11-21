@@ -45,7 +45,15 @@ describe("the header's date meter", () => {
     expect(pill({ tokens: 3, meter: "none", personal: false })).toBe("");
     const { readFileSync } = await import("node:fs");
     const layout = readFileSync("app/layout.tsx", "utf8");
-    expect(layout).toContain('meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"}');
+    expect(layout).toContain('meter={count.failed ? "none" : adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"}');
+  });
+
+  // #1962: the meter's count is the root layout's one read without a fallback of its own. When it fails (the pool busy,
+  // #1948) the meter is left out for that page, never the whole frame failing, nor a full count that isn't theirs.
+  it("is left out when its count doesn't load, rather than the page failing", async () => {
+    const { readFileSync } = await import("node:fs");
+    const layout = readFileSync("app/layout.tsx", "utf8");
+    expect(layout).toMatch(/episodeAllowance\(db, viewerId\)\.then\(\s*\(allowance\) => \(\{ allowance, failed: false \}\),\s*\(err: unknown\) => \{[\s\S]*?return \{ allowance: freshAllowance\(\), failed: true \};/);
   });
 
   it("without an identity, says the weekly allowance, not someone's count", () => {
