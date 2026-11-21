@@ -232,6 +232,8 @@ const lower = (s) => String(s ?? "").trim().toLowerCase();
  */
 const TITLE_ONLY = /^(the\s+)?(mum|mom|mommy|mummy|mama|ma|mother|dad|daddy|papa|pa|pop|father|auntie|aunty|aunt|uncle|gran|granny|grandma|grandpa|grandmother|grandfather|nan|nana|nanna|gramps|sis|bro|sister|brother|cousin|boss|my\s+\w+)$/i;
 export const isTitleOnly = (name) => TITLE_ONLY.test(String(name ?? "").replace(/\s+/g, " ").trim());
+/** A possessive, not a name (2026-11-21 run: "Ignatius's Cinder, sister" for Ignatius Cinder): the backfill leaves that person out. */
+export const isPossessive = (name) => /\p{L}['’]s(?:\s|$)/u.test(String(name ?? ""));
 
 export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
   // Someone on the show isn't an off-screen person (2026-11-20 dry run: "Barnaby Thorne, rival" as one of Juniper's
@@ -247,7 +249,7 @@ export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
       asTies.push({ name: candidate.name, relation });
       return [];
     }
-    if (onShow.has(lower(name)) || lower(name) === lower(me.name) || isTitleOnly(name)) return [];
+    if (onShow.has(lower(name)) || lower(name) === lower(me.name) || isTitleOnly(name) || isPossessive(name)) return [];
     return [{ name, relation, pronouns: str(p?.pronouns, 40), note: str(p?.note, 400), deceased: p?.deceased === true }];
   });
   const places = [];
@@ -328,16 +330,25 @@ export function offerNeighbourhoods(neighbourhoods, homes, { n = HOMES_OFFERED, 
     .map((k) => k.h);
 }
 
+/**
+ * How many of the show's people may have a surname before the prompt stops offering it. The name generator's lists are
+ * short (32 modern surnames), so without a cap the same few came back for everyone (the first minutes of the
+ * 2026-11-21 run: three unrelated Ferreiras and three Duvals in ten circles); past it the offers move on to the other
+ * lists. Only what's offered: a surname the model picks itself isn't capped.
+ */
+export const SURNAME_OFFERED_MAX = 4;
+
 /** The style of names that suits a character (lib/social/person-names.ts nameStyleOf), from its own words. */
 export const styleOf = (c) => nameStyleOf([c.bio, c.archetype, c.occupation, c.hometown, ...(c.traits ?? [])].filter(Boolean).join(" "));
 
 /**
- * The run's record of names (lib/social/person-names.ts NameBook): how often each first name is used among the show's
- * people, every full name taken (theirs and the characters'), and the characters' surnames. `skip`: characters whose
- * circles the run writes again, whose people don't count.
+ * The run's record of names (lib/social/person-names.ts NameBook): how often each first name and surname is used among
+ * the show's people, every full name taken (theirs and the characters'), and the characters' surnames. `skip`:
+ * characters whose circles the run writes again, whose people don't count.
  */
 export function nameBook(everyone, { skip = new Set() } = {}) {
   const firsts = new Map();
+  const lasts = new Map();
   const full = new Set();
   const surnames = new Set();
   for (const c of everyone) {
@@ -347,18 +358,25 @@ export function nameBook(everyone, { skip = new Set() } = {}) {
   }
   const book = {
     firstCount: (f) => firsts.get(lower(f)) ?? 0,
+    lastCount: (l) => lasts.get(lower(l)) ?? 0,
     hasFull: (n) => full.has(lower(n)),
     surnameTaken: (l) => surnames.has(lower(l)),
     add(name) {
       const f = lower(firstNameOf(name));
       firsts.set(f, (firsts.get(f) ?? 0) + 1);
+      const l = lower(surnameOf(name));
+      if (l) lasts.set(l, (lasts.get(l) ?? 0) + 1);
       full.add(lower(name));
     },
     remove(name) {
-      const f = lower(firstNameOf(name));
-      const n = (firsts.get(f) ?? 0) - 1;
-      if (n > 0) firsts.set(f, n);
-      else firsts.delete(f);
+      const drop = (map, key) => {
+        const n = (map.get(key) ?? 0) - 1;
+        if (n > 0) map.set(key, n);
+        else map.delete(key);
+      };
+      drop(firsts, lower(firstNameOf(name)));
+      const l = lower(surnameOf(name));
+      if (l) drop(lasts, l);
       full.delete(lower(name));
     },
   };
@@ -394,7 +412,8 @@ export function nameCircle(me, circle, book) {
  * The characters whose circles break the naming rules, each with what's wrong, in the order the run writes them (so the
  * first three Eleanors keep the name and the fourth is the break): a first name used FIRST_NAME_MAX times already, a
  * full name someone has, someone outside the family with a character's surname (theirs too), family with another
- * character's surname, close family without theirs. --redo-broken writes these again and leaves the rest.
+ * character's surname, close family without theirs, a possessive for a name. --redo-broken writes these again and
+ * leaves the rest.
  */
 export function brokenHolders(everyone) {
   const book = nameBook(everyone, { skip: new Set(everyone.map((c) => c.id)) });
@@ -415,6 +434,7 @@ export function brokenHolders(everyone) {
       if (book.hasFull(p.name) || names.has(lower(p.name))) why.push(`${p.name}: a name someone has`);
       if (last && (kin ? last !== own && book.surnameTaken(last) : last === own || book.surnameTaken(last))) why.push(`${p.name}: ${kin ? "another character's surname" : "a character's surname"}`);
       else if (last && family && sharesSurnameWords(p.relation) && last !== family) why.push(`${p.name}: close family without their surname`);
+      if (isPossessive(p.name)) why.push(`${p.name}: not a name`);
       seen.set(f, (seen.get(f) ?? 0) + 1);
       names.add(lower(p.name));
     }
@@ -433,8 +453,9 @@ export function brokenHolders(everyone) {
 export function nameStats(everyone) {
   const surnames = new Set(everyone.map((c) => lower(surnameOf(c.name))).filter(Boolean));
   const firsts = new Map();
+  const lasts = new Map();
   const fulls = new Map();
-  const s = { holders: 0, people: 0, distinctFirst: 0, top: [], overCap: 0, fullTwice: 0, outsideTaken: 0, kin: 0, kinOwn: 0, kinOther: 0, close: 0, closeOwn: 0, bestFriends: 0 };
+  const s = { holders: 0, people: 0, distinctFirst: 0, top: [], topLast: [], overCap: 0, fullTwice: 0, outsideTaken: 0, kin: 0, kinOwn: 0, kinOther: 0, close: 0, closeOwn: 0, bestFriends: 0 };
   for (const c of everyone) {
     const people = c.circle?.people ?? [];
     if (!people.length) continue;
@@ -447,6 +468,7 @@ export function nameStats(everyone) {
       firsts.set(f, (firsts.get(f) ?? 0) + 1);
       fulls.set(lower(p.name), (fulls.get(lower(p.name)) ?? 0) + 1);
       const last = lower(surnameOf(p.name));
+      if (last) lasts.set(last, (lasts.get(last) ?? 0) + 1);
       if (isFamilyWords(p.relation)) {
         s.kin++;
         if (last && last === own) s.kinOwn++;
@@ -459,7 +481,9 @@ export function nameStats(everyone) {
     }
   }
   s.distinctFirst = firsts.size;
-  s.top = [...firsts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 5);
+  const top5 = (m) => [...m].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 5);
+  s.top = top5(firsts);
+  s.topLast = top5(lasts);
   s.overCap = [...firsts.values()].filter((n) => n > FIRST_NAME_MAX).length;
   s.fullTwice = [...fulls.values()].filter((n) => n > 1).length;
   return s;
@@ -468,6 +492,7 @@ export function nameStats(everyone) {
 /** nameStats as one line. */
 export const statsLine = (s) =>
   `${s.people} people for ${s.holders} characters: ${s.distinctFirst} first names (most used ${s.top.map(([f, n]) => `${f} ${n}`).join(", ") || "none"}; ${s.overCap} past ${FIRST_NAME_MAX}), ` +
+  `surnames most used ${s.topLast.map(([l, n]) => `${l} ${n}`).join(", ") || "none"}, ` +
   `${s.fullTwice} full names twice, ${s.outsideTaken} outside the family with a character's surname, ${s.kinOther} family with another character's, ` +
   `${s.kinOwn} of ${s.kin} family with the character's own (close family ${s.closeOwn} of ${s.close}), ${s.bestFriends} of ${s.holders} with a best friend`;
 
@@ -540,7 +565,7 @@ async function main() {
     const candidates = pickCandidates(me, everyone, ties);
     const offered = offerWorkplaces(workplaces);
     const neighbourhoods = offerNeighbourhoods(world.neighbourhoods, homes);
-    const names = nameIdeas(me.id, styleOf(me), { okFirst: (f) => book.firstCount(f) < FIRST_NAME_MAX, okLast: (l) => !book.surnameTaken(l) });
+    const names = nameIdeas(me.id, styleOf(me), { okFirst: (f) => book.firstCount(f) < FIRST_NAME_MAX, okLast: (l) => !book.surnameTaken(l) && book.lastCount(l) < SURNAME_OFFERED_MAX });
     // A circle written again starts from nobody: its earlier people go when it's written.
     const view = replace ? { ...me, circle: { ...(me.circle ?? {}), people: [] } } : me;
     const messages = circleMessages(view, { world, candidates, byId, workplaces: offered, neighbourhoods, names });

@@ -49,12 +49,14 @@ export type CircleResult = {
 /** A person written under another name than the model gave, and why. */
 export type Rename = { from: string; to: string; why: string };
 /** The run's record of names: the rules' NameBook, plus adding and freeing a name. */
-export type RunNameBook = NameBook & { add(name: string): void; remove(name: string): void };
+export type RunNameBook = NameBook & { lastCount(last: string): number; add(name: string): void; remove(name: string): void };
 export type NameStats = {
   holders: number;
   people: number;
   distinctFirst: number;
   top: [string, number][];
+  /** The five surnames most used. */
+  topLast: [string, number][];
   overCap: number;
   fullTwice: number;
   outsideTaken: number;
@@ -95,6 +97,8 @@ export function parseReply(raw: string | null | undefined): Record<string, unkno
 /** `everyone`: the show's characters, so one of them named as an off-screen person is a tie (a candidate) or left out. */
 /** A title alone ("Mum", "Auntie"), not a name: the backfill leaves that person out. */
 export function isTitleOnly(name: string | null | undefined): boolean;
+/** A possessive ("Ignatius's Cinder"), not a name: the backfill leaves that person out. */
+export function isPossessive(name: string | null | undefined): boolean;
 export function toCircle(me: ShowCharacter, reply: Record<string, unknown>, o: { candidates: ShowCharacter[]; workplaces: Workplace[]; everyone?: ShowCharacter[] }): Circle;
 export function remember(
   me: ShowCharacter,
@@ -106,6 +110,8 @@ export function offerWorkplaces(workplaces: Workplace[], o?: { n?: number; rando
 export const HOMES_OFFERED: number;
 /** The `n` neighbourhoods with the fewest homes this run (`homes`, by key), ties at random: the model leans to one. */
 export function offerNeighbourhoods(neighbourhoods: World["neighbourhoods"], homes: Map<string, number>, o?: { n?: number; random?: () => number }): World["neighbourhoods"];
+/** How many of the show's people may have a surname before the prompt stops offering it. */
+export const SURNAME_OFFERED_MAX: number;
 /** The style of names that suits a character, from its own words. */
 export function styleOf(c: ShowCharacter): OcNameStyle;
 export function nameBook(everyone: ShowCharacter[], o?: { skip?: Set<string> }): RunNameBook;
