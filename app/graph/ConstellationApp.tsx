@@ -23,6 +23,24 @@ import {
 import LineSwatch from "./LineSwatch";
 import { GROUP_LABEL, groupHint, LINE_STYLE, STAGE_GROUPS, stageOn, stagesParam, toggleStage, type StageChoice } from "./stages";
 import SidePanel from "./SidePanel";
+import LensPanel from "./LensPanel";
+import { filterLens, lensCounts, lensGraph, type SkyEdge, type SkyNode } from "./lens";
+import {
+  groupOn,
+  LENS_EMPTY,
+  LENS_GROUPS,
+  LENS_LABEL,
+  LENS_LEGEND,
+  LENSES,
+  lensHref,
+  lensParam,
+  LINE_STYLES,
+  toggleGroup,
+  type GroupChoice,
+  type Lens,
+  type LensSky,
+} from "@/lib/social/lenses";
+import type { SkyLens } from "@/lib/social/types";
 import CharacterName from "@/app/CharacterName";
 import Sheet from "@/app/Sheet";
 
@@ -75,9 +93,15 @@ function useSkyAddress(params: Record<string, string | null>) {
 
 /**
  * The interactive shell around the canvas: two rows above the sky (who's on it: search-to-focus, origin, kind, the
- * orbit, colouring; which lines: the stage chips, when, still seeing each other), the sky itself, and the detail panel,
- * whose "Just them and their world" cuts the sky to one character's world. On a phone everything but search, the chips
- * and full screen sits behind one Filters button, in a bottom sheet.
+ * orbit, colouring; which lines: the view, the stage chips, when, still seeing each other), the sky itself, and the
+ * detail panel, whose "Just them and their world" cuts the sky to one character's world. On a phone everything but
+ * search, the views, the chips and full screen sits behind one Filters button, in a bottom sheet.
+ *
+ * The views (SOCIAL_LENSES, docs/PRDs/social-network.md section 9): Love is the Constellation, who dated whom; Friends
+ * and family, Rivals, Gossip and Everything draw the social network's public ties on the same canvas (./lens.ts), each
+ * fetched the first time it's picked (/api/graph/lens), so none adds to the first load. A view has its own chips, its
+ * own numbers line and its own link (?lens=). The filters for who's on the sky carry across views; the ones about
+ * dating (the stages, when, still seeing each other, the orbit) are Love's.
  * Filtering happens here so the canvas just draws what it's given; edges are always cut down to pairs whose both ends
  * survived the node filter (the canvas relies on that alignment).
  */
@@ -92,6 +116,10 @@ export default function ConstellationApp({
   initialWorld = null,
   now,
   mine = NO_IDS,
+  lensesOn = false,
+  initialLens = "love",
+  initialLensSky = null,
+  loveNumbers = null,
 }: {
   data: GraphData;
   /** The whole sky's size when `data` is only its strongest pairs (lib/graph.ts firstSky); null when it's all of it. */
@@ -110,6 +138,13 @@ export default function ConstellationApp({
   now: number;
   /** The viewer's own character ids: the "Yours" filter (none: no such filter). */
   mine?: string[];
+  /** The social views (SOCIAL_LENSES): off, the sky is the Constellation alone, exactly as before. */
+  lensesOn?: boolean;
+  /** /graph?lens=: the view it opens on, and that view's sky when the server built it (a shared link draws at once). */
+  initialLens?: Lens;
+  initialLensSky?: LensSky | null;
+  /** Love's numbers line (the page renders it): under the sky in Love; another view shows its own there. */
+  loveNumbers?: ReactNode;
 }) {
   // The strongest pairs first; "Show the whole sky" swaps in all of it (/api/graph/sky). 2026-11-07 audit, item 17.
   const [data, setData] = useState<GraphData>(first);
@@ -185,20 +220,66 @@ export default function ConstellationApp({
   // On a phone the filters sit behind one button, in a bottom sheet (2026-10-31 UX audit, D7: the first screen was all
   // filters); a desktop's toolbar has room for them in its two rows, so there the button isn't shown.
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // The view (Love unless ?lens= said otherwise), and each social view's sky once it's in: the server's for the view a
+  // shared link opened on, the rest fetched when first picked.
+  const [lens, setLens] = useState<Lens>(lensesOn ? initialLens : "love");
+  const social: SkyLens | null = lens === "love" ? null : lens;
+  const [lensSkies, setLensSkies] = useState<Partial<Record<SkyLens, LensSky>>>(() => (initialLensSky ? { [initialLensSky.lens]: initialLensSky } : {}));
+  const [lensFailed, setLensFailed] = useState<SkyLens | null>(null);
+  const [lensTry, setLensTry] = useState(0);
+  const lensData = social ? (lensSkies[social] ?? null) : null;
+  useEffect(() => {
+    if (!social || lensSkies[social]) return;
+    let live = true;
+    fetch(`/api/graph/lens?lens=${social}`)
+      .then((r) => (r.ok ? (r.json() as Promise<LensSky>) : null))
+      .catch(() => null)
+      .then((sky) => {
+        if (!live) return;
+        if (sky) setLensSkies((had) => ({ ...had, [social]: sky }));
+        else setLensFailed(social);
+      });
+    return () => {
+      live = false;
+    };
+  }, [social, lensSkies, lensTry]);
+  const lensLoading = social !== null && !lensData && lensFailed !== social;
+  // A view's chips (lib/social/lenses.ts LENS_GROUPS): every group until one is turned off; a new view starts with all.
+  const [groups, setGroups] = useState<GroupChoice>(null);
+  const lensWhole = useMemo(() => (lensData ? lensGraph(lensData) : null), [lensData]);
+  // Whichever sky is up: Love's characters, or the view's characters and places.
+  const skyAll: SkyNode[] = lensWhole ? lensWhole.nodes : social ? [] : data.nodes;
+
   // The kinds anyone on the sky has said, in the vocabulary's order, for the filter and the legend.
-  const kindsPresent = useMemo(() => KINDS.filter((k) => data.nodes.some((n) => n.kind === k.id)), [data.nodes]);
+  const kindsPresent = useMemo(() => KINDS.filter((k) => skyAll.some((n) => n.kind === k.id)), [skyAll]);
   // The clusters on the sky, biggest first (the server numbers them by size): the first CLUSTER_COLORS.length get a
   // colour, the rest share the grey and the key just counts them.
-  const clusters = useMemo(() => [...new Set(data.nodes.map((n) => n.community).filter((c): c is number => c !== null))].sort((x, y) => x - y), [data.nodes]);
+  const clusters = useMemo(() => [...new Set(skyAll.map((n) => n.community).filter((c): c is number => c !== null))].sort((x, y) => x - y), [skyAll]);
 
   const mineSet = useMemo(() => new Set(mine), [mine]);
   // Their world needs them on the sky, and public (as ?focus= does). Until the whole sky is in, someone outside the
-  // first sky isn't found yet; once it is, a world nobody's in is dropped.
-  const worldNode = useMemo(() => (world ? (data.nodes.find((n) => n.id === world && !n.private) ?? null) : null), [data.nodes, world]);
+  // first sky isn't found yet; once it is, a world nobody's in is dropped. In another view, someone with no ties in it
+  // keeps their world (the sky says so), for when Love is picked again.
+  const worldNode = useMemo(() => (world ? (skyAll.find((n) => n.id === world && !n.private && !n.place) ?? null) : null), [skyAll, world]);
   const worldId = worldNode?.id ?? null;
   useEffect(() => {
-    if (world && whole && !worldNode) setWorld(null);
-  }, [world, whole, worldNode]);
+    if (!social && world && whole && !worldNode) setWorld(null);
+  }, [social, world, whole, worldNode]);
+  const worldName = world ? (worldNode?.name ?? data.nodes.find((n) => n.id === world)?.name ?? null) : null;
+  // In a view: the same filters on who's on the sky, its chips on its lines, and their world within it.
+  const lensBase = useMemo(() => ({ origin, kind, world: worldId }), [origin, kind, worldId]);
+  const lensEvery = useMemo(() => (lensWhole ? filterLens(lensWhole, { ...lensBase, groups: null }, mineSet) : null), [lensWhole, lensBase, mineSet]);
+  const lensShown = useMemo(() => (lensWhole && groups ? filterLens(lensWhole, { ...lensBase, groups }, mineSet) : lensEvery), [lensWhole, lensBase, groups, mineSet, lensEvery]);
+  const lensChips = useMemo(() => (social && lensEvery ? lensCounts(LENS_GROUPS[social], lensEvery) : null), [social, lensEvery]);
+  const pickLens = (next: Lens) => {
+    if (next === lens) return;
+    setLens(next);
+    setGroups(null);
+    setLensFailed(null);
+    // A star's panel follows them into the next view (it says if they've no ties there); a pair's closes.
+    setSelection((s) => (s?.kind === "node" ? s : null));
+  };
   const originFilters = mine.length ? ORIGIN_FILTERS : ORIGIN_FILTERS.filter((f) => f.id !== "yours");
   // Every kind of pair under the other filters (the chips count what each would show), then the sky as the chips leave it.
   const others: Omit<SkyFilter, "stages"> = useMemo(
@@ -212,17 +293,26 @@ export default function ConstellationApp({
   );
   const counts = useMemo(() => stageCounts(everyKind.edges), [everyKind.edges]);
   const filter: SkyFilter = { ...others, stages };
-  const active = activeFilters(filter);
+  // In a view, only who made them and what they are: the rest of the sheet is about dating.
+  const active = social ? [origin !== "all", kind !== "all"].filter(Boolean).length : activeFilters(filter);
   const narrowed = linesNarrowed(filter);
   // A kind of pair, a time or someone's world is looked for across the whole sky, not only its strongest pairs (which
   // are mostly couples): a chip turned off, a time picked, a world or a shared link brings the rest in once.
-  const wantsWhole = narrowed || world !== null;
+  const wantsWhole = !social && (narrowed || world !== null);
   useEffect(() => {
     if (wantsWhole) void loadWholeSky();
     // Only when that changes: loadWholeSky is a fresh function each render, and it does nothing twice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantsWhole]);
-  useSkyAddress({ origin: origin === "all" ? null : origin, stage: stagesParam(stages), when: whenParam(when), still: still ? "1" : null, world });
+  // A view's link keeps the filters on who's on the sky and leaves Love's own (they're kept for when Love's picked again).
+  useSkyAddress({
+    ...(lensesOn ? { lens: lensParam(lens) } : {}),
+    origin: origin === "all" ? null : origin,
+    stage: social ? null : stagesParam(stages),
+    when: social ? null : whenParam(when),
+    still: social || !still ? null : "1",
+    world,
+  });
   // Into a world (or out of one, or the whole sky arriving under one): once the stars have moved, frame all of them
   // (`fit`). The centre's panel opens beside the sky on a wider screen; on a phone it would cover the world, so it closes.
   const [fit, setFit] = useState(0);
@@ -234,9 +324,27 @@ export default function ConstellationApp({
     const t = setTimeout(() => setFit((n) => n + 1), 600);
     return () => clearTimeout(t);
   }, [worldId, whole]);
+  // Another view drawn, or Love again: once the stars have moved, frame them (a view's sky is laid out afresh).
+  const arrived = useRef(lens === "love");
+  useEffect(() => {
+    if (arrived.current) {
+      arrived.current = false;
+      return;
+    }
+    if (social && !lensData) return;
+    const t = setTimeout(() => setFit((n) => n + 1), 700);
+    return () => clearTimeout(t);
+  }, [lens, social, lensData]);
+  // What the canvas draws: Love's pairs, or the view's lines and places as its filters leave them.
+  const skyNodes: SkyNode[] = social ? (lensShown?.nodes ?? []) : nodes;
+  const skyEdges: SkyEdge[] = social ? (lensShown?.edges ?? []) : edges;
   // Their world with the centre filtered off the sky (a kind or a group they aren't): nothing of it can be drawn.
-  const worldGone = worldNode !== null && !nodes.some((n) => n.id === worldNode.id);
-  const noLines = (narrowed && edges.length === 0) || worldGone;
+  const worldGone = worldNode !== null && !skyNodes.some((n) => n.id === worldNode.id);
+  const noLines = social ? false : (narrowed && edges.length === 0) || worldGone;
+  // In a view: nothing in it yet, their world with nothing in this view, or filters that leave nothing.
+  const lensEmpty = Boolean(lensData && lensData.pairs.length === 0 && lensData.places.length === 0);
+  const worldAbsent = social !== null && lensWhole !== null && world !== null && worldNode === null;
+  const lensNothing = social !== null && lensShown !== null && !lensEmpty && !worldAbsent && lensShown.edges.length === 0;
   const resetFilters = () => {
     setOrigin("all");
     setPartners(true);
@@ -247,12 +355,14 @@ export default function ConstellationApp({
     setColorBy("character");
   };
   const pairsShown = edges.length;
+  // A view's ties on the sky: its pairs' lines and its places.
+  const tiesShown = social && lensShown ? lensShown.edges.reduce((sum, e) => sum + (e.spoke ? 0 : Math.max(1, e.lines?.length ?? 0)), 0) + lensShown.nodes.filter((n) => n.place).length : 0;
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q.length < 2) return [];
-    return nodes.filter((n) => n.name.toLowerCase().includes(q)).slice(0, 6);
-  }, [query, nodes]);
+    return skyNodes.filter((n) => !n.place && n.name.toLowerCase().includes(q)).slice(0, 6);
+  }, [query, skyNodes]);
 
   const focus = (id: string) => {
     // Re-trigger even for the same node: clear first, set on the next microtask.
@@ -320,8 +430,8 @@ export default function ConstellationApp({
   );
   const originControl = (place: Place) => choice(place, "Who made them", originFilters, origin, setOrigin, true);
   const colourControl = (place: Place) => choice(place, "Colour by", COLOR_BY, colorBy, setColorBy);
-  const partnersControl = (place: Place) => origin !== "all" && check(place, partners, setPartners, "Who they dated", PARTNERS_HINT);
-  const orbitControl = (place: Place) => check(place, showSingles, setShowSingles, "The orbit", ORBIT_HINT);
+  const partnersControl = (place: Place) => !social && origin !== "all" && check(place, partners, setPartners, "Who they dated", PARTNERS_HINT);
+  const orbitControl = (place: Place) => !social && check(place, showSingles, setShowSingles, "The orbit", ORBIT_HINT);
   const stillControl = (place: Place) => check(place, still, setStill, "Still seeing each other", STILL_HINT);
 
   return (
@@ -382,10 +492,59 @@ export default function ConstellationApp({
           </div>
         </div>
       </div>
-      {/* Which lines. The chips: one per kind of pair, drawn as its line is, so the row is the sky's legend and its filter;
-          then when they last dated. A lens switch (Love · Friends and family · Rivals · Gossip · Everything) goes first in
-          this row when the social network's other views arrive: it picks which lines exist, and these filter within it. */}
+      {/* Which lines. The views first (Love · Friends and family · Rivals · Gossip · Everything): they pick which lines
+          exist, and the chips after them filter within. The chips: one per kind of line, drawn as its line is, so the row
+          is the sky's legend and its filter; then, in Love, when they last dated. */}
       <div className="constellation-lines" role="group" aria-label="Which pairs to draw">
+        {lensesOn && (
+          <nav className="segmented constellation-lenses scroll-row" aria-label="Views of the sky">
+            {LENSES.map((l) => (
+              <a
+                key={l}
+                className="segmented-tab"
+                href={lensHref(l)}
+                aria-current={l === lens ? "page" : undefined}
+                data-track={`graph-lens-${l}`}
+                onClick={(e) => {
+                  // A new tab or window gets the link; a plain click switches the view in place.
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  e.preventDefault();
+                  pickLens(l);
+                }}
+              >
+                {LENS_LABEL[l]}
+              </a>
+            ))}
+          </nav>
+        )}
+        {social ? (
+          <ul className="constellation-stage-chips scroll-row">
+            {LENS_GROUPS[social].map((g) => {
+              const n = lensChips?.[g.id] ?? null;
+              return (
+                <li key={g.id}>
+                  <button
+                    type="button"
+                    className="constellation-stage-chip"
+                    aria-pressed={groupOn(groups, g.id)}
+                    title={g.hint}
+                    onClick={() => setGroups((c) => toggleGroup(social, c, g.id))}
+                    style={{ "--chip-line": `var(${LINE_STYLES[g.style].token})` } as CSSProperties}
+                  >
+                    <LineSwatch social={g.style} />
+                    {g.label}
+                    {n !== null && (
+                      <span className="constellation-stage-count">
+                        {n}
+                        <span className="sr-only"> {n === 1 ? "line" : "lines"}</span>
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
         <ul className="constellation-stage-chips scroll-row">
           {STAGE_GROUPS.map((g) => (
             <li key={g}>
@@ -407,6 +566,8 @@ export default function ConstellationApp({
             </li>
           ))}
         </ul>
+        )}
+        {!social && (
         <div className="constellation-when">
           <label className="constellation-filter">
             <span className="constellation-colour-label">When</span>
@@ -420,14 +581,17 @@ export default function ConstellationApp({
           </label>
           {stillControl("bar")}
         </div>
+        )}
       </div>
       <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
         <div className="constellation-sheet">
-          <fieldset>
-            <legend>When they last dated</legend>
-            {choice("sheet", "When they last dated", whenOptions, when, setWhen)}
-            {stillControl("sheet")}
-          </fieldset>
+          {!social && (
+            <fieldset>
+              <legend>When they last dated</legend>
+              {choice("sheet", "When they last dated", whenOptions, when, setWhen)}
+              {stillControl("sheet")}
+            </fieldset>
+          )}
           <fieldset>
             <legend>Who made them</legend>
             {originControl("sheet")}
@@ -437,10 +601,12 @@ export default function ConstellationApp({
             <legend>What they are</legend>
             {kindSelect}
           </fieldset>
-          <fieldset>
-            <legend>Who&apos;s on the sky</legend>
-            {orbitControl("sheet")}
-          </fieldset>
+          {!social && (
+            <fieldset>
+              <legend>Who&apos;s on the sky</legend>
+              {orbitControl("sheet")}
+            </fieldset>
+          )}
           <fieldset>
             <legend>Colour the stars by</legend>
             {colourControl("sheet")}
@@ -450,12 +616,17 @@ export default function ConstellationApp({
               Reset
             </button>
             <button type="button" className="primary" onClick={() => setFiltersOpen(false)}>
-              Show {pairsShown} {pairsShown === 1 ? "pair" : "pairs"}
+              {social ? `Show ${tiesShown} ${tiesShown === 1 ? "tie" : "ties"}` : `Show ${pairsShown} ${pairsShown === 1 ? "pair" : "pairs"}`}
             </button>
           </div>
         </div>
       </Sheet>
-      {!whole && total && (
+      {social && lensData && lensData.shown < lensData.ties && (
+        <p className="constellation-more small">
+          Showing the {lensData.shown} strongest of {lensData.ties} ties in {LENS_LABEL[lens]}.
+        </p>
+      )}
+      {!social && !whole && total && (
         <p className="constellation-more small">
           Showing the {first.edges.filter((e) => !e.masked).length} strongest pairs.{" "}
           <button type="button" className="button-ghost small" onClick={() => void loadWholeSky()} disabled={loadingSky} data-track="graph-whole-sky">
@@ -465,10 +636,17 @@ export default function ConstellationApp({
       )}
       {worldNode && (
         <p className="constellation-more constellation-world small" role="status">
-          <span>
-            Just <strong>{worldNode.name}</strong> and their world: who they dated, and who those dated ({nodes.length}{" "}
-            {nodes.length === 1 ? "character" : "characters"}).
-          </span>{" "}
+          {social ? (
+            <span>
+              Just <strong>{worldNode.name}</strong> and their world in {LENS_LABEL[lens]}: their ties here, and those people&apos;s (
+              {skyNodes.filter((n) => !n.place).length} {skyNodes.filter((n) => !n.place).length === 1 ? "character" : "characters"}).
+            </span>
+          ) : (
+            <span>
+              Just <strong>{worldNode.name}</strong> and their world: who they dated, and who those dated ({nodes.length}{" "}
+              {nodes.length === 1 ? "character" : "characters"}).
+            </span>
+          )}{" "}
           <button type="button" className="button-ghost small" onClick={() => setWorld(null)} data-track="graph-world-off">
             Show everyone
           </button>
@@ -476,15 +654,51 @@ export default function ConstellationApp({
       )}
       <div className="constellation-sky">
         <ConstellationCanvas
-          nodes={nodes}
-          edges={edges}
+          nodes={skyNodes}
+          edges={skyEdges}
           selection={selection}
           onSelect={setSelection}
           focusId={focusId}
           fit={fit}
           colorBy={colorBy}
           showOutcomes={showOutcomes}
+          label={social ? `The Botchelor constellation: ${LENS_LABEL[lens]}` : undefined}
         />
+        {social && (lensLoading || lensFailed === social || lensEmpty || worldAbsent || lensNothing) && (
+          <div className="constellation-empty" role="status">
+            <p>
+              {lensLoading
+                ? `Drawing ${LENS_LABEL[lens]}…`
+                : lensFailed === social
+                  ? `${LENS_LABEL[lens]} didn't load.`
+                  : lensEmpty
+                    ? LENS_EMPTY[social]
+                    : worldAbsent
+                      ? `${worldName ?? "They"} ${worldName ? "has" : "have"} no ties in ${LENS_LABEL[lens]} yet.`
+                      : `No ties like that in ${LENS_LABEL[lens]}.`}
+            </p>
+            {!lensLoading && (
+              <button
+                type="button"
+                className="button-ghost small"
+                onClick={() => {
+                  if (lensFailed === social) {
+                    setLensFailed(null);
+                    setLensTry((n) => n + 1);
+                  } else if (lensEmpty) pickLens("love");
+                  else if (worldAbsent) setWorld(null);
+                  else {
+                    setGroups(null);
+                    setOrigin("all");
+                    setKind("all");
+                  }
+                }}
+              >
+                {lensFailed === social ? "Try again" : lensEmpty ? "Back to Love" : worldAbsent ? "Show everyone" : "Show every tie"}
+              </button>
+            )}
+          </div>
+        )}
         {noLines && (
           <div className="constellation-empty" role="status">
             <p>
@@ -512,18 +726,34 @@ export default function ConstellationApp({
             )}
           </div>
         )}
-        <SidePanel
-          selection={selection}
-          nodes={data.nodes}
-          edges={data.edges}
-          onClose={() => setSelection(null)}
-          onFocus={focus}
-          world={worldId}
-          onWorld={setWorld}
-          colorBy={colorBy}
-          showOutcomes={showOutcomes}
-          onShowOutcomes={setShowOutcomes}
-        />
+        {social ? (
+          lensWhole && (
+            <LensPanel
+              lens={social}
+              selection={selection}
+              nodes={lensWhole.nodes}
+              edges={lensWhole.edges}
+              onClose={() => setSelection(null)}
+              onFocus={focus}
+              world={worldId}
+              onWorld={setWorld}
+              colorBy={colorBy}
+            />
+          )
+        ) : (
+          <SidePanel
+            selection={selection}
+            nodes={data.nodes}
+            edges={data.edges}
+            onClose={() => setSelection(null)}
+            onFocus={focus}
+            world={worldId}
+            onWorld={setWorld}
+            colorBy={colorBy}
+            showOutcomes={showOutcomes}
+            onShowOutcomes={setShowOutcomes}
+          />
+        )}
         {colorBy === "kind" && (
           <ul className="constellation-key small" aria-label="Kinds">
             {kindsPresent.map((k) => (
@@ -548,15 +778,40 @@ export default function ConstellationApp({
                 <span className="constellation-swatch is-grey" aria-hidden /> +{smaller} smaller
               </li>
             )}
-            {clusters.length === 0 && <li>No clusters yet: every pair dates alone.</li>}
-            <li className="muted">Each colour is a circle that dates mostly among itself.</li>
+            {clusters.length === 0 && <li>{social ? "No clusters yet." : "No clusters yet: every pair dates alone."}</li>}
+            <li className="muted">{social ? "Each colour is a circle with most of its ties among itself." : "Each colour is a circle that dates mostly among itself."}</li>
           </ul>
         )}
       </div>
-      <p className="constellation-legend small">
-        Bigger stars have dated more · brighter, thicker lines run deeper · grey dashes keep a pair private
-        {showOutcomes ? " · a chevron points at who got turned down" : ""} · the outer ring is still waiting for a first date
-      </p>
+      {social ? (
+        <p className="constellation-legend small">{LENS_LEGEND[social]}</p>
+      ) : (
+        <p className="constellation-legend small">
+          Bigger stars have dated more · brighter, thicker lines run deeper · grey dashes keep a pair private
+          {showOutcomes ? " · a chevron points at who got turned down" : ""} · the outer ring is still waiting for a first date
+        </p>
+      )}
+      {/* The view's numbers: Love's from the page, another view's from its own build. */}
+      {social
+        ? lensData &&
+          lensData.numbers.length > 0 && (
+            <ul className="constellation-stats" aria-label={`${LENS_LABEL[lens]} right now`}>
+              {lensData.numbers.map((x) => (
+                <li key={x.words}>
+                  {x.who ? (
+                    <>
+                      {x.words}: <strong>{x.who.name}</strong> ({x.n})
+                    </>
+                  ) : (
+                    <>
+                      <strong>{x.n}</strong> {x.words}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )
+        : loveNumbers}
     </div>
   );
 }

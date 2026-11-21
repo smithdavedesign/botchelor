@@ -75,13 +75,23 @@ export function introLineFor(c: Pick<Character, "name" | "bio">): string {
   return (lead + out).trim();
 }
 
-/** The character's ready intro for their card, or null. */
+/**
+ * The character's ready intro for their card, or null. The URL carries the render's time: the clip is cached for a
+ * year (immutable, at Cloudflare too) and a re-render keeps its id, so a new render must be a new URL (2026-11-20,
+ * the four intros re-rendered from the house-look-a portraits).
+ */
 export async function introOf(db: Db, characterId: string): Promise<{ id: string; url: string; line: string; seconds: number | null } | null> {
-  const row = (await db.query<Pick<IntroRow, "id" | "line" | "seconds">>(`select id, line, seconds from character_intros where character_id = $1 and status = 'ready'`, [characterId])).rows[0];
-  return row ? { id: row.id, url: introUrl(row.id), line: row.line, seconds: row.seconds } : null;
+  const row = (
+    await db.query<Pick<IntroRow, "id" | "line" | "seconds"> & { v: string | number }>(
+      `select id, line, seconds, floor(extract(epoch from updated_at))::bigint as v from character_intros where character_id = $1 and status = 'ready'`,
+      [characterId],
+    )
+  ).rows[0];
+  return row ? { id: row.id, url: introUrl(row.id, String(row.v)), line: row.line, seconds: row.seconds } : null;
 }
 
-export const introUrl = (id: string): string => `/api/cast-intro/${encodeURIComponent(id)}/intro.mp4`;
+/** The clip's URL; `version` (the render's time) makes each render its own URL for the year-long cache. */
+export const introUrl = (id: string, version?: string): string => `/api/cast-intro/${encodeURIComponent(id)}/intro.mp4${version ? `?v=${encodeURIComponent(version)}` : ""}`;
 export const introAudioUrl = (id: string): string => `/api/cast-intro/${encodeURIComponent(id)}/audio.wav`;
 
 /** The clip's bytes, when it's ready. */

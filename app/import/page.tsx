@@ -5,6 +5,9 @@ import { CAI_SOURCE, IMPORT_PATH } from "@/lib/import-character";
 import { importDoor } from "@/lib/import-events";
 import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
 import { WRITE_TIME_SPEED } from "@/lib/rules";
+import FaceRibbon from "@/app/FaceRibbon";
+import SetHero from "@/app/SetHero";
+import ShowClip from "@/app/ShowClip";
 import ImportForm from "./ImportForm";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -47,16 +50,32 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
   const history = importMemoriesOn();
   return (
     <>
-      <section className="card import-tool">
-        <p className="kicker">{cai ? "Leaving Character.AI?" : "Bring your character"}</p>
-        <h1>{cai ? "Bring your Character.AI character to Botchelor" : "Bring a character you made in another app"}</h1>
-        {cai ? (
-          <>
-            <p className="lede">
+      {/* The heading on the booth set, the show in a phone beside it (the visual pop audit, 2026-11-20); the tool under it. */}
+      <SetHero
+        set="booth"
+        kicker={cai ? "Leaving Character.AI?" : "Bring your character"}
+        title={cai ? "Bring your Character.AI character to Botchelor" : "Bring a character you made in another app"}
+        lede={
+          cai ? (
+            <>
               Copy what you wrote, paste it below, and they open in the builder with their name, bio, traits, voice and
               hello already in. Then a speed date with the cast, right away.
               {history && " Months of chats behind you? Paste them in the second box and choose what they remember."}
-            </p>
+            </>
+          ) : (
+            <>
+              Paste what you have from Character.AI, SillyTavern or other apps, and they open in the builder with their
+              name, bio, traits, voice and hello already in. Check it over, fill in what&apos;s missing, and they&apos;re
+              ready.
+              {history && " Their history can come too: paste a chat log or a lorebook in the second box and choose what they keep."}
+            </>
+          )
+        }
+        media={<ShowClip track="import-clip" />}
+      />
+      <section className="card import-tool">
+        {cai && (
+          <>
             <ol className="import-how-list import-cai-steps" aria-label="Three steps">
               <li>
                 <strong>Open your character on Character.AI</strong> and go to its page: tap its name at the top of the
@@ -74,16 +93,11 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
               </li>
             </ol>
           </>
-        ) : (
-          <p className="lede">
-            Paste what you have from Character.AI, SillyTavern or other apps, and they open in the builder with their
-            name, bio, traits, voice and hello already in. Check it over, fill in what&apos;s missing, and they&apos;re
-            ready.
-            {history && " Their history can come too: paste a chat log or a lorebook in the second box and choose what they keep."}
-          </p>
         )}
         <ImportForm from={from} history={history} />
       </section>
+      {/* The cast they'll date, after the tool rather than before it: the paste box stays as near the top as it was. */}
+      <FaceRibbon title="Who they'll meet" />
 
       <section className="card">
         <h2>What to paste</h2>

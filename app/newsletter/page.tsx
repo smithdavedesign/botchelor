@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import FaceRibbon from "@/app/FaceRibbon";
+import SetHero from "@/app/SetHero";
 import NewsletterForm from "../NewsletterForm";
 import { newsletterState } from "@/lib/newsletter";
 import { pageMetadata } from "@/lib/seo";
@@ -19,8 +21,9 @@ export default function NewsletterPage() {
   const state = newsletterState();
   return (
     <article className="legal-page newsletter-page">
-      <h1>The Sunday letter</h1>
-      <p className="lede">One email a week, on Sunday evening once the reveal is out. Nothing else, and free.</p>
+      {/* On the elimination set: the letter is the week's reveal (the visual pop audit, 2026-11-20). */}
+      <SetHero set="elimination" kicker="Every Sunday" title="The Sunday letter" lede="One email a week, on Sunday evening once the reveal is out. Nothing else, and free." />
+      <FaceRibbon title="Who you'll read about" />
       <ul>
         <li>Whose secret the audience voted out, and the date that came of it.</li>
         <li>The week&apos;s best dates: the season cast&apos;s first, then the most called and watched.</li>

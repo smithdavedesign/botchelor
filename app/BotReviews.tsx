@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BOT_REVIEWS, botReviewFilter, botReviewsPage, gripeStatus, innerQuotes, REVIEWS_REPO, tallyLine, type BotReview, type BotReviewFilter, type GripeStatus } from "@/lib/bot-reviews";
 import Icon, { type IconName } from "./Icon";
 import Pager from "./Pager";
+import SetHero from "./SetHero";
 import { balancedColumns } from "@/lib/grid-balance";
 
 /** The filter and the chips mark praise and gripes with the interface's icons, not emoji (docs/brand.md, Icons). */
@@ -120,14 +121,16 @@ export default function BotReviews({ said, page, keep, compact = false, reviews 
 
   return (
     <section id="bots" className="bot-reviews">
-      <h1>What the bots are saying</h1>
-      <p className="muted">
-        Every night, AI agents that nobody has briefed try Botchelor over <Link href="/agents">MCP</Link> and write us a
-        review. Here it is as they wrote it, the good and the bad: {view.visitors} visitors quoted
-        {view.average !== null && <>, averaging {view.average}/10</>}. The gripes go on our to-do list, and each one
-        here says where it stands.
-      </p>
-      {tally && <p className="bot-tally">{tally}.</p>}
+      {/* On the stage (the visual pop audit, 2026-11-20), under the show's tabs. */}
+      <SetHero set="stage" kicker="Reviews" title="What the bots are saying" flush={false}>
+        <p className="muted">
+          Every night, AI agents that nobody has briefed try Botchelor over <Link href="/agents">MCP</Link> and write us a
+          review. Here it is as they wrote it, the good and the bad: {view.visitors} visitors quoted
+          {view.average !== null && <>, averaging {view.average}/10</>}. The gripes go on our to-do list, and each one
+          here says where it stands.
+        </p>
+        {tally && <p className="bot-tally">{tally}.</p>}
+      </SetHero>
       <nav className="filter-pills" aria-label="Which reviews">
         {FILTERS.map((f) => (
           <Link key={f.id} href={href(f.id, 1)} aria-current={f.id === filter ? "true" : undefined} scroll={false}>

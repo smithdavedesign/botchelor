@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import SetHero from "@/app/SetHero";
+import LeadFace from "./LeadFace";
 import Avatar from "@/app/Avatar";
+import FaceLoop from "@/app/FaceLoop";
 import Icon from "@/app/Icon";
 import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
 import { auditionWords } from "@/lib/audition-words";
@@ -70,7 +73,9 @@ function CastingSlots({ label, month, cast, lead, size, open, hasOwn, def }: { l
       <ul className="casting-slots" aria-label={def.lead ? `${month}'s lead, and the suitors' open places` : "This month's cast, and next month's open places"}>
         {def.lead && lead && (
           <li className="casting-slot is-taken is-lead tap-card">
-            <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={!lead.fan} portraitSrc={lead.portrait} size={56} decorative />
+            <FaceLoop id={lead.id} radius={56 * 0.28}>
+              <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={!lead.fan} portraitSrc={lead.portrait} size={56} decorative />
+            </FaceLoop>
             <span className="casting-slot-text">
               <Link className="stretch" href={`/characters/${lead.id}`}>
                 <strong>{lead.name}</strong>
@@ -81,7 +86,9 @@ function CastingSlots({ label, month, cast, lead, size, open, hasOwn, def }: { l
         )}
         {taken.map((c) => (
           <li key={c.id} className="casting-slot is-taken tap-card">
-            <Avatar seed={c.id} name={c.name} hue={c.hue} house={!c.fan} portraitSrc={c.portrait} size={56} decorative />
+            <FaceLoop id={c.id} radius={56 * 0.28}>
+              <Avatar seed={c.id} name={c.name} hue={c.hue} house={!c.fan} portraitSrc={c.portrait} size={56} decorative />
+            </FaceLoop>
             <span className="casting-slot-text">
               <Link className="stretch" href={`/characters/${c.id}`}>
                 <strong>{c.name}</strong>
@@ -144,14 +151,19 @@ export default async function CastingPage() {
   // character gets in and how to put one up. The rules are lib/season-cast.ts pickCast's, in words.
   return (
     <article className="casting-page page-wide">
-      <header>
-        <p className="kicker">Casting · {board.label}</p>
-        <h1>{def.lead ? `Who dates the lead on ${def.title}?` : "Who's on next month's show?"}</h1>
-        <p className="lede">
-          {def.lead
+      {/* On the stage, where the cast is chosen (the visual pop audit, 2026-11-20). */}
+      <SetHero
+        set="stage"
+        kicker={`Casting · ${board.label}`}
+        title={def.lead ? `Who dates the lead on ${def.title}?` : "Who's on next month's show?"}
+        // The question's answer, once the lead is picked: their face, big and moving (app/casting/LeadFace.tsx).
+        media={def.lead && lead ? <LeadFace lead={lead} month={seasonMonth(board.season_id)} /> : undefined}
+        lede={
+          def.lead
             ? `These are characters people made, applying to be the suitors on ${board.label}'s ${def.title}: one lead from the house, and a rose ceremony every Sunday. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
-            : `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`}
-        </p>
+            : `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
+        }
+      >
         {/* The lead season's own page (docs/season-page.md): one quiet line, for whoever came to vote not knowing the show. */}
         {def.lead && seasonPageLiveOn() && (
           <p className="small casting-what">
@@ -160,7 +172,7 @@ export default async function CastingPage() {
             </Link>
           </p>
         )}
-      </header>
+      </SetHero>
       <div className="casting-layout">
         <div className="casting-main">
           {board.auditions.length ? <CastingBoard board={board} viewer={viewer} insider={insider} /> : <CastingSlots label={board.label} month={seasonMonth(board.season_id)} cast={cast} lead={lead} size={size} open={open} hasOwn={own.length > 0} def={def} />}

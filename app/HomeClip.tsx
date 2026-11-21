@@ -17,6 +17,8 @@ export type HomeClipProps = {
   /** The line over the caption, and the watch button's words: the show's ad (lib/promo-videos.ts) says its own. */
   kicker?: string;
   watchLabel?: string;
+  /** The data-track prefix of its two buttons: "home-clip" on home, the page's own elsewhere (app/ShowClip.tsx). */
+  track?: string;
 };
 
 /**
@@ -26,7 +28,7 @@ export type HomeClipProps = {
  * poster stays with a play button. Sound never: the clip's voiced cut is for the social sites, and the whole date is
  * one tap away.
  */
-export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref, caption, kicker = "A real date from the show", watchLabel = "Watch the whole date" }: HomeClipProps) {
+export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref, caption, kicker = "A real date from the show", watchLabel = "Watch the whole date", track = "home-clip" }: HomeClipProps) {
   const video = useRef<HTMLVideoElement>(null);
   // "wait": before the page is live (no button yet, so it doesn't flash); "still": the poster and a play button.
   const [state, setState] = useState<"wait" | "still" | "playing">("wait");
@@ -56,7 +58,7 @@ export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref,
             <source src={loopSrc} type="video/mp4" />
           </video>
           {state === "still" && (
-            <button type="button" className="home-clip-play" onClick={play} aria-label="Play the clip" data-track="home-clip-play">
+            <button type="button" className="home-clip-play" onClick={play} aria-label="Play the clip" data-track={`${track}-play`}>
               <Icon name="play" />
             </button>
           )}
@@ -65,7 +67,7 @@ export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref,
       <figcaption className="home-clip-cap">
         <span className="home-clip-kicker">{kicker}</span>
         <span className="home-clip-who">{caption}</span>
-        <Link className="button-ghost home-clip-watch" href={watchHref} data-track="home-clip-watch">
+        <Link className="button-ghost home-clip-watch" href={watchHref} data-track={`${track}-watch`}>
           <Icon name="play" /> {watchLabel}
         </Link>
       </figcaption>
