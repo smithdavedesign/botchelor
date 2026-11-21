@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import FaceLoop from "@/app/FaceLoop";
 import Icon from "@/app/Icon";
 import SetHero from "@/app/SetHero";
 import VenuePhoto from "@/app/VenuePhoto";
@@ -135,7 +136,9 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
           <p className="kicker">The lead</p>
           {lead ? (
             <div className="season-live-lead-row">
-              <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={lead.house} portraitSrc={lead.portrait} size={96} decorative />
+              <FaceLoop id={lead.id} radius={96 * 0.28}>
+                <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={lead.house} portraitSrc={lead.portrait} size={96} decorative />
+              </FaceLoop>
               <div className="season-live-lead-text">
                 <h2 id="season-lead-head">
                   <Link href={`/characters/${lead.id}`}>{lead.name}</Link>

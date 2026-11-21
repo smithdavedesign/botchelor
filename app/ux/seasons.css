@@ -1103,6 +1103,13 @@
   object-position: 50% 20%;
   box-shadow: 0 24px 48px -18px color-mix(in srgb, black 85%, transparent);
 }
+/* The lead's face loop (app/FaceLoop.tsx) sits inside the portrait's border, with its corner. */
+.season-lead-face .avatar + video {
+  inset: 2px;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  border-radius: calc(var(--radius-lg) - 2px);
+}
 .season-lead-face figcaption {
   display: grid;
   gap: 0;

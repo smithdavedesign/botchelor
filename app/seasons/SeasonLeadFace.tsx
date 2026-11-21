@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import FaceLoop from "@/app/FaceLoop";
 
 type Lead = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null };
 
@@ -11,7 +12,10 @@ type Lead = { id: string; name: string; hue: number | null; house: boolean; port
 export default function SeasonLeadFace({ lead, kicker }: { lead: Lead; kicker: string }) {
   return (
     <figure className="season-lead-face">
-      <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={lead.house} portraitSrc={lead.portrait} size={480} fill decorative />
+      {/* Their face, moving while on screen where they have a loop (app/FaceLoop.tsx; the tall cut, the portrait's frame). */}
+      <FaceLoop id={lead.id} fill shape="tall">
+        <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={lead.house} portraitSrc={lead.portrait} size={480} fill decorative />
+      </FaceLoop>
       <figcaption>
         <span className="kicker">{kicker}</span>
         <Link href={`/characters/${lead.id}`} data-track="season-lead-face">
