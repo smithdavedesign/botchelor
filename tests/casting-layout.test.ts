@@ -98,7 +98,13 @@ describe("/casting", () => {
     await setSeasonFormat(t.db, season_id, "botchelor");
     await setLeadOverride(t.db, season_id, lead.id);
     const places = seasonFormat("botchelor").lead!.places;
-    const { main } = columns(renderToStaticMarkup(await CastingPage()));
+    const html = renderToStaticMarkup(await CastingPage());
+    const { main } = columns(html);
+    // The hero answers "Who dates the lead?" with the lead's face (app/casting/LeadFace.tsx).
+    const hero = html.slice(0, html.indexOf('<div class="casting-main">'));
+    expect(hero).toContain('class="set-hero-media"');
+    expect(hero).toContain(`href="/characters/${lead.id}"`);
+    expect(hero).toContain(`${seasonMonth(season_id)}&#x27;s lead`);
     expect(main).toContain("No suitors yet for");
     expect(count(main, 'class="casting-slot is-taken is-lead tap-card"')).toBe(1);
     expect(count(main, 'class="casting-slot is-taken tap-card"')).toBe(0);
@@ -109,7 +115,9 @@ describe("/casting", () => {
     for (const c of cast.slice(1)) expect(main, c.id).not.toContain(`href="/characters/${c.id}"`);
     // No lead picked yet: only the suitors' places.
     await setLeadOverride(t.db, season_id, null);
-    const unpicked = columns(renderToStaticMarkup(await CastingPage())).main;
+    const unpickedHtml = renderToStaticMarkup(await CastingPage());
+    expect(unpickedHtml).not.toContain('class="set-hero-media"');
+    const unpicked = columns(unpickedHtml).main;
     expect(count(unpicked, "is-lead")).toBe(0);
     expect(count(unpicked, 'class="casting-slot is-open"')).toBe(places - 1);
   });

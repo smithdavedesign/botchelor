@@ -1,0 +1,32 @@
+/* The lead, big in the casting hero (app/casting/LeadFace.tsx): their face and who they are, on the set's dark band. */
+.lead {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+.caption {
+  display: grid;
+  gap: var(--space-1);
+}
+.caption :global(.kicker) {
+  margin: 0;
+  color: var(--set-hero-accent);
+}
+.name {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--on-photo);
+  text-decoration: none;
+}
+.name:hover,
+.name:focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--set-hero-edge);
+}
+.role {
+  font-size: var(--text-sm);
+  color: var(--set-hero-soft);
+}
