@@ -276,7 +276,7 @@ const clampValence = (n: number): Valence => Math.max(-2, Math.min(2, Math.round
 /** A tie kind in words for a pair ("rivals", "best friends", "dated on the show"). */
 export const kindPairWords = (kind: TieKindId): string => TIE_KINDS[kind]?.words.pair ?? kind;
 
-/** The verbs of the directed kinds a page says as a sentence ("Ada told Bea"); the rest say "Ada → Bea". */
+/** The verbs of the directed kinds a page says as a sentence ("Ada told Bea"); the rest say what one is to the other. */
 const VERBS: Partial<Record<TieKindId, string>> = { told: "told", talked_about: "talked about", crush: "has a crush on", grudge: "holds a grudge against" };
 
 /**
@@ -289,10 +289,13 @@ export function endWords(kind: TieKindId, theyAreFrom: boolean): string {
   return theyAreFrom ? def.words.to : def.words.from;
 }
 
-/** A directed tie in words, from `from` to `to`: "Ada told Bea", "Ada has a crush on Bea", "Ada → Bea: mentor". */
+/**
+ * A directed tie in words, from `from` to `to`: "Ada told Bea", "Ada has a crush on Bea", and for the rest what `to` is
+ * to `from` (a directed tie reads "to is from's <kind>"): "Bea is Ada's mentor".
+ */
 export function directedWords(kind: TieKindId, from: string, to: string): string {
   const verb = VERBS[kind];
-  return verb ? `${from} ${verb} ${to}` : `${from} → ${to}: ${TIE_KINDS[kind]?.words.to ?? kind}`;
+  return verb ? `${from} ${verb} ${to}` : `${to} is ${from}'s ${TIE_KINDS[kind]?.words.to ?? kind}`;
 }
 
 /** What each view says over an empty sky: what's coming, and how its ties get made. */

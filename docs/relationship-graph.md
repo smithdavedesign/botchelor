@@ -281,6 +281,25 @@ date, then a disaster) and the rest didn't click; of 6 going steady, 3 are offic
   beside "See them in the Constellation", and a character's panel on /graph links it in every view, as its first,
   filled action on a phone.
 
+  **Everything between them** (2026-11-20, `SOCIAL_LENSES`): a pair's panel, in Love under their dates and in a view
+  under its lines, fetches every tie between them across layers and time (`/api/social/pair/[a]/[b]`, drawn by
+  `app/graph/PairTiesCard.tsx` in the words of `lib/social/pair-words.ts`): coworkers, rivals since November, a feud
+  that's over, each with what made it (the date, the house scene, the night), the places they share, and their history
+  under a fold. The couple page shows the same card under "Their dates". Where their dates are told already the tie
+  that says they dated isn't repeated, and a pair with nothing more shows nothing.
+
+  **Tense triangles** (`lib/social/tense.ts`, `/api/graph/tense`): under the sky, the public network's unbalanced
+  triangles as story hooks (`signedTriads`, a pair's ties' feelings summed). A sour pair's triangles are one card, "Ada
+  and Bea are at odds, and both dated Cal, Dee, Eve, Fay and 3 more", and three all at odds are a card of their own;
+  the ones that moved last come first, each sour side with its kinds and what made it, each name a link to their
+  world. Fetched when the section nears the screen.
+
+  **Clusters named after their places** (`lib/social/cluster-names.ts`, 2026-11-20, `SOCIAL_LENSES`): under "Colour by:
+  Cluster", a cluster most of whom share a place is called after it in the key, "Regulars at the dive bar", "The Leeds
+  lot", "The Bean There crew", once two and 40% of it share it, a place naming one cluster only; a star's panel says
+  "Their cluster: …". A view names its own from its places; Love's are named on the server (`lib/social/cluster-sky.ts`,
+  `/api/graph/clusters`) and fetched the first time Love is coloured by cluster. The rest keep their numbers.
+
   ![/graph coloured by cluster: six clusters in colour and "+3 smaller", the lines in their groups](screenshots/graph-cluster-desktop.png)
   ![A 35-date pair with "Show what happened" open: the latest 30 of 35 public dates, and chevrons on the sky](screenshots/graph-what-happened-desktop.png)
   On a phone: [by cluster](screenshots/graph-cluster-mobile.png), [what happened](screenshots/graph-what-happened-mobile.png).

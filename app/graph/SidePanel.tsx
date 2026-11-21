@@ -9,10 +9,12 @@ import { pageOf } from "@/lib/paging";
 import type { GraphEdge, GraphNode, PairTimeline } from "@/lib/graph";
 import { ORIGIN_LABEL } from "@/lib/origin";
 import { shortName } from "@/lib/names";
+import { clusterLine, type ClusterName } from "@/lib/social/cluster-names";
 import { endingLabel } from "@/lib/rules";
 import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import CharacterName from "@/app/CharacterName";
+import PairTiesPanel from "./PairTiesPanel";
 
 type Props = {
   selection: Selection;
@@ -24,10 +26,15 @@ type Props = {
   /** Whose corner of the sky it's cut to ("Just their corner of the sky", ?world=), or null; onWorld sets or clears it. */
   world?: string | null;
   onWorld?: (id: string | null) => void;
-  /** SOCIAL_LENSES: every character has a world page (/graph/world/[id]), and their panel links it. */
+  /**
+   * SOCIAL_LENSES: the social network's pages are on. A character's panel links their world (/graph/world/[id]), and a
+   * pair's shows everything between them beside their dates (./PairTiesPanel.tsx).
+   */
   worlds?: boolean;
   /** What the stars' colours mean right now: under "Cluster", a star's panel names its cluster. */
   colorBy: ColorBy;
+  /** Clusters named after their places (lib/social/cluster-names.ts); the rest keep their numbers. */
+  clusterNames?: ReadonlyMap<number, ClusterName> | null;
   /** "Show what happened": endings, who turned whom down, who left first. Off by default (the episode page's rule). */
   showOutcomes: boolean;
   onShowOutcomes: (on: boolean) => void;
@@ -179,7 +186,7 @@ export function WorldLink({ id, name }: { id: string; name: string }) {
 }
 
 /** What a tap opens: a character's public story, or a pair's. Spoilers wait behind "Show what happened". */
-export default function SidePanel({ selection, nodes, edges, onClose, onFocus, world = null, onWorld, worlds = false, colorBy, showOutcomes, onShowOutcomes }: Props) {
+export default function SidePanel({ selection, nodes, edges, onClose, onFocus, world = null, onWorld, worlds = false, colorBy, clusterNames = null, showOutcomes, onShowOutcomes }: Props) {
   if (!selection) return null;
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
@@ -208,7 +215,7 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, w
             {colorBy === "community" && node.community !== null && (
               <p className="muted small constellation-cluster-name">
                 <span className={`constellation-swatch${clusterColor ? "" : " is-grey"}`} style={clusterColor ? { background: clusterColor } : undefined} aria-hidden />{" "}
-                Cluster {node.community + 1}
+                {clusterLine(node.community, clusterNames)}
                 {clusterColor ? "" : " (a smaller one, in grey)"}
               </p>
             )}
@@ -300,6 +307,9 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, w
           )}
         </div>
       )}
+      {/* Everything else between them (friends, coworkers, rivals...), fetched when the pair is opened; nothing when
+          their dates are all there is. */}
+      {worlds && !edge.masked && <PairTiesPanel key={`${edge.a_id}~${edge.b_id}`} a={edge.a_id} b={edge.b_id} skipDated />}
       {!anyPrivate && (
         <p className="constellation-panel-links">
           <Link className="button-ghost small" href={`/couples/${edge.a_id}/${edge.b_id}`}>

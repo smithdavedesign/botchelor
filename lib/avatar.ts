@@ -49,10 +49,12 @@ export function avatarPalette(seed: string, hueOverride?: number | null): Avatar
 
 /** One or two uppercase initials from a name ("Mira Quell" → "MQ", "Rafe" → "R"). */
 export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  // Whole characters, from words that start with a letter or a digit (2026-11-20): "Zara 🌸" took half the emoji, which
+  // the server sends as U+FFFD and the browser keeps as it is, so every page drawing that avatar failed to hydrate.
+  const parts = name.trim().split(/\s+/).filter((p) => /^[\p{L}\p{N}]/u.test(p));
   if (parts.length === 0) return "?";
-  const first = parts[0][0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] ?? "" : "";
+  const first = Array.from(parts[0])[0] ?? "";
+  const last = parts.length > 1 ? (Array.from(parts[parts.length - 1])[0] ?? "") : "";
   return (first + last).toUpperCase();
 }
 

@@ -12789,6 +12789,82 @@ html.constellation-locked body {
   margin-left: var(--space-1);
 }
 
+/* -------------------- Everything between a pair (app/graph/PairTiesCard.tsx) and tense triangles -------------------- */
+/* The pair panel: in the Constellation's side panel (Love's pair, a view's pair) and on the couple page. */
+.pair-ties {
+  margin: var(--space-3) 0;
+}
+.pair-ties-title {
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-2);
+}
+.pair-tie {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.pair-tie .constellation-line-swatch {
+  flex: none;
+}
+.pair-tie-body,
+.pair-tie-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  min-width: 0;
+}
+.pair-tie.is-over .pair-tie-words {
+  color: var(--muted);
+}
+.pair-ties-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+}
+.pair-ties-shared {
+  margin: var(--space-2) 0 0;
+}
+.pair-ties-history {
+  margin-top: var(--space-2);
+}
+.pair-ties-history ol {
+  margin: 0;
+}
+/* Tense triangles, under the Constellation: a card a hook (a sour pair and everyone they're both close to, or three
+   all at odds), its sour sides under it, each like a pair panel's row. */
+.constellation-tense {
+  margin-top: var(--space-6);
+}
+.tense-list {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+}
+/* The grid's gap spaces the cards: a card's own margins don't collapse in a grid, and doubled the gap between rows. */
+.tense-list > .card {
+  margin: 0;
+}
+.tense-hook {
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+}
+.tense-side {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.tense-side .constellation-line-swatch {
+  flex: none;
+}
+.tense-side-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  min-width: 0;
+}
+
 /* ---------------- /admin/after-dark/graph (2026-10-22): every pair's After Dark content on one page ---------------- */
 .ad-graph-svg {
   display: block;

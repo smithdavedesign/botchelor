@@ -7,6 +7,7 @@ import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
 import { ORIGIN_LABEL } from "@/lib/origin";
 import { pageOf } from "@/lib/paging";
+import { clusterLine, type ClusterName } from "@/lib/social/cluster-names";
 import { TIE_KINDS } from "@/lib/social/kinds";
 import { directedWords, endWords, groupDef, kindPairWords, LENS_LABEL, type LensLine } from "@/lib/social/lenses";
 import type { SkyLens } from "@/lib/social/types";
@@ -14,6 +15,7 @@ import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import { placeGlyph, type SkyEdge, type SkyNode } from "./lens";
 import LineSwatch from "./LineSwatch";
+import PairTiesPanel from "./PairTiesPanel";
 import { PANEL_PAGE, Tile, WorldLink } from "./SidePanel";
 
 type Props = {
@@ -30,6 +32,8 @@ type Props = {
   /** Every character has a world page (/graph/world/[id]): their panel links it. */
   worlds?: boolean;
   colorBy: ColorBy;
+  /** Clusters named after their places (lib/social/cluster-names.ts), under "Colour by: Cluster"; the rest keep their numbers. */
+  clusterNames?: ReadonlyMap<number, ClusterName> | null;
 };
 
 /** A line between two characters in words: its kinds, a directed one with who did it ("Ada told Bea"), and if it's over. */
@@ -96,9 +100,9 @@ function Stars({ rows, label, onFocus }: { rows: { node: SkyNode; note?: string 
 
 /**
  * What a tap opens in a social view (./lens.ts): a character and their ties in it, a place and who shares it, or a
- * pair's lines in it. Phase 3's pair panel (every tie between them across views, with what made each) builds on this.
+ * pair's lines in it, then everything between them in any view, with what made each tie (./PairTiesPanel.tsx).
  */
-export default function LensPanel({ lens, selection, nodes, edges, onClose, onFocus, world = null, onWorld, worlds = false, colorBy }: Props) {
+export default function LensPanel({ lens, selection, nodes, edges, onClose, onFocus, world = null, onWorld, worlds = false, colorBy, clusterNames = null }: Props) {
   if (!selection) return null;
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const close = (
@@ -165,7 +169,7 @@ export default function LensPanel({ lens, selection, nodes, edges, onClose, onFo
             {colorBy === "community" && node.community !== null && (
               <p className="muted small constellation-cluster-name">
                 <span className={`constellation-swatch${clusterColor ? "" : " is-grey"}`} style={clusterColor ? { background: clusterColor } : undefined} aria-hidden />{" "}
-                Cluster {node.community + 1}
+                {clusterLine(node.community, clusterNames)}
                 {clusterColor ? "" : " (a smaller one, in grey)"}
               </p>
             )}
@@ -230,6 +234,8 @@ export default function LensPanel({ lens, selection, nodes, edges, onClose, onFo
           ))}
         </ul>
       )}
+      {/* Every tie between them in any view, over or not, with what made it and their history (./PairTiesPanel.tsx). */}
+      {!edge.masked && !edge.spoke && <PairTiesPanel key={`${edge.a_id}~${edge.b_id}`} a={edge.a_id} b={edge.b_id} />}
       {!anyPrivate && (
         <p className="constellation-panel-links">
           {dated && (

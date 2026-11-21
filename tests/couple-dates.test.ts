@@ -14,6 +14,7 @@ vi.mock("next/navigation", async (original) => ({
 import { prerender } from "react-dom/static";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { venueBackdrop } from "@/lib/portraits";
+import { upsertTie } from "@/lib/social/ties";
 import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -62,5 +63,23 @@ describe("a couple's dates", () => {
     expect(html).not.toContain("couple-timeline");
     // Under the stage, one line on what made it so (lib/relationship-stages.ts).
     expect(html).toContain('<p class="ending">✨ Sparks</p><p class="muted small couple-stage-line">Their last date ended with both wanting another.</p>');
+  });
+
+  it("are followed by everything else between them, and nothing when their dates are all there is", async () => {
+    jar.cookies.clear();
+    const { default: CouplePage } = await import("@/app/couples/[a]/[b]/page");
+    const page = async () => {
+      const { prelude } = await prerender(await CouplePage({ params: Promise.resolve({ a: character, b: partner }), searchParams: Promise.resolve({}) }));
+      return (await new Response(prelude).text()).replace(/<!-- -->/g, "");
+    };
+    // Their dates are above, so the tie that says they dated isn't said again.
+    expect(await page()).not.toContain("Everything between them");
+    const w = await upsertTie(t.db, { from: character, to: partner, kind: "coworker", source: "owner", evidence: { ref: `episode:${episode}` } });
+    expect(w.ok).toBe(true);
+    const html = await page();
+    expect(html).toContain("Everything between them");
+    expect(html).toContain("coworkers");
+    expect(html).toContain(`href="/episodes/${episode}">the date</a>`);
+    expect(html).not.toContain("dated on the show");
   });
 });
