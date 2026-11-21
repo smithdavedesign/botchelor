@@ -3,6 +3,7 @@ import Avatar from "./Avatar";
 import { rightSide } from "./chat-sides";
 import ReportScene from "./house/ReportScene";
 import type { HouseSceneView } from "@/lib/house-scenes";
+import { houseCamTime, houseRoomBackground } from "@/lib/house-rooms";
 
 const dayWords = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -47,19 +48,24 @@ export default function HouseScene({ scene, lead = false, report = true }: { sce
           </>
         )}
       </p>
-      <ol className="cast-chat-thread cast-chat-sides house-lines">
-        {scene.lines.map((l, i) => (
-          <li key={l.n} className={`cast-chat-line${right[i] ? " is-right" : ""}`}>
-            <Link href={`/characters/${l.id}`} className="cast-chat-face" data-track="house-scene" data-track-where="face" aria-label={l.name}>
-              <Avatar seed={l.id} name={l.name} hue={l.hue} house={l.house} size={lead ? 44 : 36} portraitSrc={l.portrait} decorative />
-            </Link>
-            <div className="cast-chat-bubble">
-              <span className="cast-chat-name">{l.name}</span>
-              <span>{l.text}</span>
-            </div>
-          </li>
-        ))}
-      </ol>
+      {/* The scene runs over its room (lib/house-rooms.ts), the house camera rolling: a REC light and its clock, set
+          dressing kept from screen readers. The room pushes in slowly (motion only adds; reduced motion keeps it still). */}
+      <div className={`house-room${lead ? " is-lead" : ""}`} data-rec={`REC · ${houseCamTime(scene.place.id, scene.id)}`}>
+        <span className="house-room-art" aria-hidden="true" style={{ backgroundImage: houseRoomBackground(scene.place.id, lead ? 0.35 : 0.45) }} />
+        <ol className="cast-chat-thread cast-chat-sides house-lines">
+          {scene.lines.map((l, i) => (
+            <li key={l.n} className={`cast-chat-line${right[i] ? " is-right" : ""}`}>
+              <Link href={`/characters/${l.id}`} className="cast-chat-face" data-track="house-scene" data-track-where="face" aria-label={l.name}>
+                <Avatar seed={l.id} name={l.name} hue={l.hue} house={l.house} size={lead ? 44 : 36} portraitSrc={l.portrait} decorative />
+              </Link>
+              <div className="cast-chat-bubble">
+                <span className="cast-chat-name">{l.name}</span>
+                <span>{l.text}</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
       {/* How it came out (lib/house-conflict.ts): decided by the show's rules before a line was written, never by a vote. */}
       {scene.result?.kind === "confrontation" && (
         <p className="house-result">
