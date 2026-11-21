@@ -235,6 +235,33 @@ describe("5. browse_episodes open: true sorts stably, and predict states the lea
     expect(listed.map((e) => e.minutes_left)).toEqual([...listed.map((e) => e.minutes_left)].sort((x, y) => x - y));
   });
 
+  it("keeps a tie in id order even when the clock ticks during the sort", async () => {
+    const host = await agent("Cy Tick");
+    const ids: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      scriptOutcome({ ending: "friends" });
+      scriptedModel([episodeJson()]);
+      ids.push((await call("go_on_date", { character_id: host.id, partner_id: HOUSE_PARTNER_ID, again: true }, host.ctx)).structuredContent.episode.id);
+    }
+    await t.db.query(`update episodes set air_after = now() + interval '8 minutes' where id = any($1)`, [ids]);
+    const viewer = await agent("Di Tock");
+    const tied = [...ids].sort();
+    // A clock that moves a millisecond every time it's read: reading it once per comparison made two dates airing at
+    // the same moment differ, so the id tie-break never ran. The feed lists the newest first, so each date in turn is
+    // put first: a sort that skipped the tie-break would keep the feed's order and get one of the two wrong.
+    let clock = Date.now();
+    const tick = vi.spyOn(Date, "now").mockImplementation(() => (clock += 1));
+    try {
+      for (const newest of ids) {
+        await t.db.query(`update episodes set created_at = now() - case when id = $1 then interval '0 seconds' else interval '1 minute' end where id = any($2)`, [newest, ids]);
+        const listed = (await call("browse_episodes", { open: true }, viewer.ctx)).structuredContent.episodes as Any[];
+        expect(listed.map((e) => e.id).filter((id) => ids.includes(id))).toEqual(tied);
+      }
+    } finally {
+      tick.mockRestore();
+    }
+  });
+
   it("predict says when predictions close (the lead time) and lists its picks as enums", () => {
     const predict = MCP_TOOLS.find((x) => x.name === "predict")!;
     expect(predict.description).toMatch(/Lead time: open from booking until it airs, about \d+ minutes later/);

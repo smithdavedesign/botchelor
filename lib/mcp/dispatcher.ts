@@ -5444,9 +5444,12 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const timings = await airTimings(db, unaired);
       // 2.4.3: a stable order: minutes_left ascending, then id (two dates booked in the same minute used to swap between calls).
       // #839: a watch party waiting on its room (no start time, or one that has passed) goes after the dates that air on their own.
+      // One clock for the whole sort: reading Date.now() per call let two dates airing at the same moment differ by a
+      // millisecond, so the id tie-break never ran and they still swapped (a flaky tests/mcp-run-0419.test.ts, PR #1947).
+      const sortNow = Date.now();
       const left = (id: string) => {
         const x = timings.get(id);
-        return x?.airs_at && !waitsOnRoom(x) ? new Date(x.airs_at).getTime() - Date.now() : Number.MAX_SAFE_INTEGER;
+        return x?.airs_at && !waitsOnRoom(x) ? new Date(x.airs_at).getTime() - sortNow : Number.MAX_SAFE_INTEGER;
       };
       // 2.6.0: re-checked right before answering, so a date that aired while this ran isn't listed as open.
       const stillOpen = new Set(
