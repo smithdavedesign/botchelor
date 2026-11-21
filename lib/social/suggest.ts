@@ -24,6 +24,7 @@
 import type { Db } from "../db";
 import { shortName } from "../names";
 import { portraitPathSql } from "../portrait-sql";
+import { ourIdsCached, showCharacterIds } from "./circles";
 import { otherEnd, TIE_KINDS } from "./kinds";
 import { listedSql, SHARED, sharedSql } from "./read";
 import { socialTiesOn } from "./switch";
@@ -73,6 +74,8 @@ export type TieSuggestion = {
   name: string;
   portrait: string | null;
   hue: number | null;
+  /** One of the viewer's own characters: a tie to it is live at once, any kind (Phase 2b); to anyone else's it's asked. */
+  mine: boolean;
   /** The strongest signal: social_suggestion_log.reason. */
   reason: SuggestionReason;
   /** Why, in words: "Mira's best friend", "Knows Mira and Jo", "Regulars at the dive bar · Met at a group night". */
@@ -253,8 +256,9 @@ export async function suggestTies(db: Db, characterId: string, o: { viewer?: str
   // Who they may be (listed, not the house's, public or the viewer's own), and who's ruled out.
   const ids = [...cands.keys()];
   const [whoQ, tiedQ, dismissedQ] = await Promise.all([
-    db.query<{ id: string; name: string; hue: number | null; portrait: string | null }>(
-      `select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait from characters c
+    db.query<{ id: string; name: string; hue: number | null; portrait: string | null; mine: boolean; created_via: string | null }>(
+      `select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, coalesce(c.owner_id = $2::text, false) as mine, c.created_via
+         from characters c
         where c.id = any($1::text[]) and not c.is_house and ${seen("c")}`,
       [ids, viewer],
     ),
@@ -270,6 +274,10 @@ export async function suggestTies(db: Db, characterId: string, o: { viewer?: str
     ),
   ]);
   const out = new Set([...tiedQ.rows.map((r) => r.w), ...dismissedQ.rows.map((r) => r.w)]);
+  // The show's own agent cast takes its ties from the show, like the house (lib/social/circles.ts): no one can declare
+  // one to them (Phase 2b), so they aren't suggested either. Only an agent-made one can be, so only those are looked up.
+  const made = whoQ.rows.filter((w) => w.created_via === "mcp").map((w) => w.id);
+  if (made.length) for (const id of (await showCharacterIds(db, made, { ours: await ourIdsCached(db) })).keys()) out.add(id);
 
   const suggestions: TieSuggestion[] = [];
   for (const who of whoQ.rows) {
@@ -285,6 +293,7 @@ export async function suggestTies(db: Db, characterId: string, o: { viewer?: str
       name: who.name,
       portrait: who.portrait,
       hue: who.hue,
+      mine: who.mine,
       reason: top[0].reason,
       words,
       score,

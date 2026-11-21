@@ -15659,3 +15659,184 @@ button.link-button.might-know-dismiss {
   min-height: var(--control-h);
   padding-inline: var(--space-2);
 }
+
+/* ---------------- "Their people" (app/characters/[id]/TheirPeople.tsx) ----------------
+   A character page's People tab: who's in their life off the show, their ties by layer and their places, each a face,
+   a name and a line; the owner's Edit opens a sheet. Groups are quiet headings, rows match "Might know". A link to
+   #people (a proposal's notice) lands below the sticky header. */
+.their-people {
+  scroll-margin-top: 5rem;
+}
+.their-people .people-group {
+  margin-top: var(--space-4);
+}
+.their-people .people-group > h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.people-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.people-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+.people-who {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+a.people-who:hover strong,
+a.people-who:focus-visible strong {
+  text-decoration: underline;
+}
+/* An off-screen person or a place has no portrait: their relation's emoji in a disc the size of a face. */
+.people-face {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--soft);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+.people-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.people-text .small {
+  overflow-wrap: anywhere;
+}
+.people-tags {
+  flex: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.people-tag {
+  display: inline-block;
+  padding: 0.05rem var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* A full-height tap target on a phone, still read as a link (as "Not now"). */
+button.link-button.people-edit {
+  flex: none;
+  min-height: var(--control-h);
+  padding-inline: var(--space-2);
+}
+/* A proposal waiting on this owner: Yes and No beside it, under it on a phone. */
+.people-row-waiting {
+  flex-wrap: wrap;
+}
+.people-answer {
+  flex: none;
+  display: inline-flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.people-row-error {
+  flex-basis: 100%;
+}
+.people-met {
+  margin: 0;
+  line-height: 1.7;
+}
+.people-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.people-add > button {
+  margin: 0;
+}
+/* The sheets' forms: the site's labels and controls, one under another. */
+/* The form is a grid item of the sheet's body: without this, a select's longest option (a hangout's name, under "works
+   at") sets the column's width and pushes the sheet, its close button with it, past a phone's edge. */
+.people-form {
+  min-width: 0;
+}
+.people-form > label:first-child,
+.people-form > p:first-child,
+.people-form > .people-picked:first-child {
+  margin-top: 0;
+}
+.people-form .people-visibility {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+.people-form .people-visibility legend {
+  padding: 0 var(--space-1);
+}
+.people-form .people-visibility .check {
+  margin-top: var(--space-1);
+}
+.people-form .sheet-actions {
+  margin-top: var(--space-4);
+}
+.people-picked {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.people-found {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+button.people-found-pick {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-h);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: left;
+}
+button.people-found-pick:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--soft);
+  box-shadow: none;
+  transform: none;
+}
+.people-found-pick > span:first-of-type {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* "Might know" inside "Their people": its two links side by side. */
+.might-know-actions {
+  flex: none;
+  display: inline-flex;
+  gap: var(--space-1);
+}

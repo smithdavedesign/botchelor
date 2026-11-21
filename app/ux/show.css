@@ -847,6 +847,17 @@ details.recap-toggle[open] .recap-toggle-hide {
   margin-block: -0.75rem;
   vertical-align: middle;
 }
+/* A tie proposal's Yes and No (app/notifications/TieAnswer.tsx): answered where it's read, above the row's link. */
+.notif-answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0;
+}
+.notif-answer > button {
+  margin: 0;
+}
 /* Square corners: a radius bent the rule between rows up at both ends. */
 .notification.tap-card {
   padding-right: var(--space-2);

@@ -231,3 +231,31 @@ export function tieFromWords(text: string | null | undefined): { kind: TieKindId
   const kind = kindFromWords(w);
   return kind ? { kind, reversed: false } : null;
 }
+
+/* ------------------------------------------------------ lines ------------------------------------------------------ */
+
+/** Each layer as a heading on a character's page ("Their people") and in the forms' relation lists. */
+export const LAYER_WORDS: Record<Layer, string> = {
+  kin: "Family",
+  romance: "Love life",
+  friendship: "Friends",
+  work: "Work and school",
+  place: "Neighbours",
+  conflict: "Rivals",
+  acquaintance: "Met",
+  communication: "Talk",
+};
+
+/** A kind's word that reads whole on its own ("has a crush on them", "someone they told"), not after "their". */
+const WHOLE = /^(their|has|holds|someone|talked|told|feuding|met|bad)\b/;
+
+/**
+ * What the other end of a tie is to a character, as a list line under their name: "their sister", "their mentee",
+ * "has a crush on them". `fromSide`: the character is the tie's `from` end (the other is their `words.to`).
+ */
+export function tieLine(kind: TieKindId, fromSide: boolean): string {
+  if (kind === "dated") return "dated on the show";
+  const d = TIE_KINDS[kind];
+  const word = fromSide ? d.words.to : d.words.from;
+  return WHOLE.test(word) ? word : `their ${word}`;
+}

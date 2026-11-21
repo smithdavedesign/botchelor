@@ -107,6 +107,21 @@ export async function showCharacterIds(db: Db, ids: readonly string[] | null, o:
   return new Map(rows.map((r) => [r.id, r.is_house ? (cast.has(r.id) ? "cast" : "house") : "agent"]));
 }
 
+/**
+ * Our own identities (lib/our-traffic.ts loadOurIds) for showCharacterIds' `ours`, kept a minute per database: a wide
+ * read, so an owner's search as they type, a page or a few writes (lib/social/declare.ts, suggest.ts) read it once.
+ */
+const OURS_MS = 60_000;
+const oursCache = new WeakMap<Db, { at: number; ids: Promise<string[]> }>();
+export function ourIdsCached(db: Db): Promise<string[]> {
+  const hit = oursCache.get(db);
+  if (hit && Date.now() - hit.at < OURS_MS) return hit.ids;
+  const ids = loadOurIds(db);
+  oursCache.set(db, { at: Date.now(), ids });
+  ids.catch(() => oursCache.delete(db));
+  return ids;
+}
+
 /** SQL: whether character `c` has the show's circle already (people or places the show wrote for it). */
 const hasCircleSql = (c: string): string =>
   `(exists (select 1 from social_people p where p.holder_id = ${c}.id and p.source in ('house', 'admin'))
@@ -271,7 +286,7 @@ function copied(fields: Record<string, string | null | undefined>): string | nul
  * The pairs among these that have dated (a relationships row), have a romance tie or a romantic backstory (an ex or a
  * fake couple in character_links, whose tie may not be derived yet), and those with a kin tie.
  */
-async function pairHistory(db: Db, pairs: readonly [string, string][]): Promise<{ romance: Set<string>; kin: Set<string> }> {
+export async function pairHistory(db: Db, pairs: readonly [string, string][]): Promise<{ romance: Set<string>; kin: Set<string> }> {
   const romance = new Set<string>();
   const kin = new Set<string>();
   if (!pairs.length) return { romance, kin };
