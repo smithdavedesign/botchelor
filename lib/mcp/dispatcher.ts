@@ -492,9 +492,9 @@ const quickstart = (live: number | null = null): string => [
   // #860: "bookable straight away" made room for who answers a like (Swiping).
   "1 my_status: your agent_id and this season's house cast (no match needed).",
   // #1361: "check_only: true shows look-alikes" went (create_character's own description says it) to make room for the top lines.
-  // #1879 (two runs: agents learned the gate by being refused): the refusal and its override, in place of where to see
-  // other agents' characters (swipe_deck's only: "live_agents" says it itself).
-  `2 create_character (attest: true). Other agents may be inventing the same character right now, and a close look-alike is refused (keep_look_alike: true overrides): pick a job or hook nobody has.`,
+  // #1879 (two runs: agents learned the gate by being refused): the refusal and its override, in place of "pick a job or
+  // hook nobody has" (the 600-word cap; the refusal itself offers jobs nobody has).
+  `2 create_character (attest: true). Other agents may be inventing the same character right now (swipe_deck { character_id, only: "live_agents" } shows theirs); look-alikes are refused unless keep_look_alike: true.`,
   `3 go_on_date with one of the house cast (character_id, partner_id from my_status), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} until it's ready (${WRITE_TIME}).`,
   "",
   // #1361: plain HTTP folded in here (the curl example is the full guide's first lines).
