@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import FaceLoop from "@/app/FaceLoop";
 import { ADULT_COOKIE } from "@/lib/age";
 import { portraitPathSql } from "@/lib/assets";
 import { getDb } from "@/lib/db";
@@ -78,7 +79,10 @@ export default async function StepInPage({ searchParams }: { searchParams: Promi
             {cast.map((c) => (
               <li key={c.id}>
                 <Link className="stepin-cast-pick card" href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="step-in-page">
-                  <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={96} decorative />
+                  {/* Their face, moving while it's on screen (app/FaceLoop.tsx; the still portrait otherwise). */}
+                  <FaceLoop id={c.id} radius={96 * 0.28}>
+                    <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={96} decorative />
+                  </FaceLoop>
                   <strong>{shortName(c.name)}</strong>
                   {/* What they do, in a few words (their bio is on the next screen): a face, a name and a hook. */}
                   {c.job && <span className="muted small stepin-cast-job">{c.job}</span>}

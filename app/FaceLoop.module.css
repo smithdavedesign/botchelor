@@ -1,0 +1,30 @@
+/* A cast member's face, moving (app/FaceLoop.tsx): the loop over their portrait, shown only once it plays. */
+/* No clipping here: a house portrait's ring is an outline just outside it (.avatar-house). The video takes the corner. */
+.loop {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  vertical-align: middle;
+}
+.fill {
+  display: block;
+}
+.loop video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.playing video {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loop video {
+    display: none;
+  }
+}
