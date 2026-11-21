@@ -8,8 +8,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import ShowcaseFeature from "@/app/showcase/ShowcaseFeature";
-import type { Post } from "@/lib/showcase";
-import { featureReel, pickFeature } from "@/lib/showcase-feature";
+import { parseFilters, type Post } from "@/lib/showcase";
+import { featureReel, isUnfiltered, pickFeature } from "@/lib/showcase-feature";
 
 const root = join(__dirname, "..");
 const css = readFileSync(join(root, "app", "ux", "showcase.css"), "utf8");
@@ -113,10 +113,27 @@ describe("ShowcaseFeature", () => {
   });
 });
 
+describe("isUnfiltered", () => {
+  // parseFilters always sets page (1 when none is asked for): the live page never showed the feature while the check
+  // read every filter, page included, as having to be unset (2026-11-21).
+  it("is the gallery as it opens, page 1 included, from what parseFilters really returns", () => {
+    expect(parseFilters({}).page).toBe(1);
+    expect(isUnfiltered(parseFilters({}))).toBe(true);
+    expect(isUnfiltered(parseFilters(new URLSearchParams("")))).toBe(true);
+    expect(isUnfiltered(parseFilters({ page: "1" }))).toBe(true);
+    expect(isUnfiltered(parseFilters({ junk: "x" }))).toBe(true);
+  });
+
+  it("is false on a later page or with any filter, sort or side", () => {
+    for (const q of [{ page: "2" }, { sort: "trending" }, { medium: "video" }, { character: "c1" }, { creator: "darood" }, { following: "1" }, { pov: "1" }, { side: "pg" }, { shape: "9:16" }]) {
+      expect(isUnfiltered(parseFilters(q)), JSON.stringify(q)).toBe(false);
+    }
+  });
+});
+
 describe("the page and its styles", () => {
   it("shows it on the unfiltered gallery only, from the shared copy", () => {
-    expect(page).toContain('shared("showcase:feature", () => showcaseFeature(db))');
-    expect(page).toMatch(/unfiltered \? await shared/);
+    expect(page).toContain('isUnfiltered(filters) ? await shared("showcase:feature", () => showcaseFeature(db)) : null');
   });
 
   it("only twinkles where motion is welcome", () => {

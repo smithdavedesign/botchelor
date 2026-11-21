@@ -4,7 +4,7 @@
  * sees it, so it's the same for everyone and only ever PG: a date reel when the top few have one, else the top clip.
  */
 import type { Db } from "./db";
-import { listShowcase, type Post, type ShowcaseViewer } from "./showcase";
+import { listShowcase, type Filters, type Post, type ShowcaseViewer } from "./showcase";
 import { SHOW_HANDLE } from "./showcase-labels";
 import { showcasePaths } from "./showcase-paths";
 
@@ -34,6 +34,15 @@ const STRANGER: ShowcaseViewer = { id: null, admin: false, ratings: ["pg"] };
 const LOOK = 8;
 /** How many clips "Also showing" lists. */
 const ALSO = 4;
+
+/**
+ * Whether the gallery opened as it is, with nothing filtered, on its first page: where "Now showing" goes. parseFilters
+ * always sets `page` (1 when none is asked for), so the page is checked by its number and every other filter by being
+ * unset.
+ */
+export function isUnfiltered(f: Filters): boolean {
+  return (f.page ?? 1) === 1 && Object.entries(f).every(([k, v]) => k === "page" || v === undefined || v === false);
+}
 
 /** The clip to feature from a trending page (pure): PG videos only, a reel first, else the first. */
 export function pickFeature(posts: readonly Post[]): Post | null {

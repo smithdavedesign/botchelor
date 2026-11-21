@@ -12,7 +12,7 @@ import StudioTabs from "@/app/studio/StudioTabs";
 import { pgAccess } from "@/lib/studio/pg";
 import type { Db } from "@/lib/db";
 import { shared } from "@/lib/shared-cache";
-import { showcaseFeature } from "@/lib/showcase-feature";
+import { isUnfiltered, showcaseFeature } from "@/lib/showcase-feature";
 import ShowcaseFeature from "./ShowcaseFeature";
 
 export const dynamic = "force-dynamic";
@@ -55,8 +55,7 @@ export default async function ShowcasePage({ searchParams }: Props) {
   const studio = await studioDoor(db, viewer.id);
   // "Now showing" (lib/showcase-feature.ts): the gallery as it opens, nothing filtered, the same for everyone, so from
   // a few seconds' shared copy (lib/shared-cache.ts).
-  const unfiltered = Object.values(filters).every((v) => v === undefined || v === false);
-  const feature = unfiltered ? await shared("showcase:feature", () => showcaseFeature(db)) : null;
+  const feature = isUnfiltered(filters) ? await shared("showcase:feature", () => showcaseFeature(db)) : null;
   return (
     <div className="showcase-page page-full">
       {/* The Studio door's first room (app/studio/StudioTabs.tsx, 2026-11-16): what everyone made, beside where it's made. */}
