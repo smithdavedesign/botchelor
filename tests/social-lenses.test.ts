@@ -143,7 +143,7 @@ describe("a pair's ties fold into its lines", () => {
   it("says a tie in words, from either end", () => {
     expect(directedWords("told", "Ada", "Bea")).toBe("Ada told Bea");
     expect(directedWords("talked_about", "Ada", "Bea")).toBe("Ada talked about Bea");
-    expect(directedWords("mentor", "Ada", "Bea")).toBe("Ada → Bea: mentor");
+    expect(directedWords("mentor", "Ada", "Bea")).toBe("Bea is Ada's mentor");
     // Ada told Bea: to Ada, Bea is someone she told; to Bea, Ada told her something.
     expect(endWords("told", true)).toBe("someone they told");
     expect(endWords("told", false)).toBe("told them something");

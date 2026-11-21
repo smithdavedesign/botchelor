@@ -458,6 +458,33 @@ type SkyRow = { from_id: string; to_id: string; kind: string; layer: string; dir
 type SkyPlaceRow = PlaceCols & { role: string; count: number; members: string[] };
 
 /**
+ * The places two or more of the public cast share in `roles` (as groups, never pairs), biggest first, with the
+ * SKY_PLACE_MEMBERS of each who joined last: the sky's places (publicSky), and what names /graph's clusters
+ * (lib/social/cluster-sky.ts).
+ */
+export async function publicPlaces(db: Db, roles: readonly SharedRole[] = SHARED_ROLES): Promise<SkyPlace[]> {
+  if (!roles.length) return [];
+  const { rows } = await db.query<SkyPlaceRow>(
+    `select m.place_id, m.role, count(*)::int as count,
+            (array_agg(m.character_id order by m.updated_at desc, m.character_id))[1:$1::int] as members, ${PLACE_SQL("p")}
+       from social_place_members m
+       join social_places p on p.id = m.place_id
+       join characters c on c.id = m.character_id and ${listedSql("c")} and c.visibility = 'public'
+      where ${sharedSql("m", "p", roles)}
+      group by m.place_id, m.role, p.key, p.kind, p.name, p.parent_id, p.venue_id, p.description
+     having count(*) >= 2
+      order by count(*) desc, p.name, m.role
+      limit $2`,
+    [SKY_PLACE_MEMBERS, SKY_PLACES],
+  );
+  return rows.map((r) => {
+    const place = placeOf(r);
+    const role = r.role as SharedRole;
+    return { ...place, role, words: SHARED[role].words(place.name), count: r.count, members: r.members };
+  });
+}
+
+/**
  * One lens of the public sky (PRD section 9): its strongest `limit` public ties between public characters (people's
  * ties aren't on the sky), the places two or more of the public cast share (friends and all: as groups, never pairs),
  * the pairs masked to existence (on `all` only: a lens would tell their layer), and counts over the whole lens for
@@ -471,7 +498,7 @@ export async function publicSky(db: Db, lens: SkyLens, o: { limit?: number; env?
   const lensSql = `t.to_id is not null and t.visibility = 'public' and t.status in ('active', 'ended') and t.layer = any($1::text[])`;
   const bothSql = `join characters ca on ca.id = t.from_id and ${listedSql("ca")} join characters cb on cb.id = t.to_id and ${listedSql("cb")}`;
   const publicSql = `ca.visibility = 'public' and cb.visibility = 'public'`;
-  const [tiesQ, statsQ, maskedQ, placesQ] = await Promise.all([
+  const [tiesQ, statsQ, maskedQ, places] = await Promise.all([
     db.query<SkyRow>(
       `select t.from_id, t.to_id, t.kind, t.layer, t.directed, t.valence, t.closeness, t.status, t.detail, t.last_contact_at
          from social_ties t ${bothSql}
@@ -494,21 +521,7 @@ export async function publicSky(db: Db, lens: SkyLens, o: { limit?: number; env?
           [layers, limit],
         )
       : null,
-    roles.length
-      ? db.query<SkyPlaceRow>(
-          `select m.place_id, m.role, count(*)::int as count,
-                  (array_agg(m.character_id order by m.updated_at desc, m.character_id))[1:$1::int] as members, ${PLACE_SQL("p")}
-             from social_place_members m
-             join social_places p on p.id = m.place_id
-             join characters c on c.id = m.character_id and ${listedSql("c")} and c.visibility = 'public'
-            where ${sharedSql("m", "p", roles)}
-            group by m.place_id, m.role, p.key, p.kind, p.name, p.parent_id, p.venue_id, p.description
-           having count(*) >= 2
-            order by count(*) desc, p.name, m.role
-            limit $2`,
-          [SKY_PLACE_MEMBERS, SKY_PLACES],
-        )
-      : null,
+    publicPlaces(db, roles),
   ]);
 
   const ties: SkyTie[] = tiesQ.rows
@@ -526,11 +539,6 @@ export async function publicSky(db: Db, lens: SkyLens, o: { limit?: number; env?
       last_contact_at: iso(r.last_contact_at),
     }));
   const masked: MaskedPair[] = (maskedQ?.rows ?? []).map((r) => ({ a: r.lo, b: r.hi, masked: true }));
-  const places: SkyPlace[] = (placesQ?.rows ?? []).map((r) => {
-    const place = placeOf(r);
-    const role = r.role as SharedRole;
-    return { ...place, role, words: SHARED[role].words(place.name), count: r.count, members: r.members };
-  });
 
   const ids = new Set<string>();
   for (const t of ties) ids.add(t.from).add(t.to);
