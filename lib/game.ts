@@ -112,6 +112,11 @@ export type DateSetup = {
    * the date is ready, where every ending is final.
    */
   ending_final?: boolean;
+  /**
+   * A people line of this private date came from its host's own "only you" rows (lib/social/people-lines.ts; the job
+   * sets it). Such a date stays private: the visibility route won't make it public or unlisted.
+   */
+  people_only_you?: boolean;
   venue?: PlaceId;
   /**
    * The venues the dealer stepped past: where either person's character had its last dates (lib/venues.ts

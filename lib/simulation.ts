@@ -141,6 +141,11 @@ export type BuiltDate = {
   /** Always carries the venue: DateSetup.venue is only optional for episodes stored before it existed. */
   setup: DateSetup & { venue: PlaceId };
   seed: number;
+  /**
+   * A people line came from an "only you" row (lib/social/people-lines.ts): only ever on a private date, its host's own.
+   * The worker marks the episode (setup.people_only_you) so it can't be made public later (the visibility route).
+   */
+  peopleOnlyYou?: true;
 };
 
 /** Everything a date is assembled from, already loaded: the pure core of buildDate (no database). */
@@ -314,7 +319,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     charB.introducedBy = p.introduction.b;
     charA.pairShared = charB.pairShared = `${charA.pairShared ?? ""} ${p.introduction.by}`.trim();
   }
-  // The people in each one's life (lib/social/people-lines.ts): each side its own lines, from what its own owner may
+  // The people in each one's life (lib/social/people-lines.ts): each side its own lines, from what the date's audience may
   // see; someone both of them know is a name both already know. Flavour, never the engine.
   if (p.people) {
     if (p.people.a.length) charA.peopleInYourLife = p.people.a;
@@ -419,7 +424,7 @@ export function assembleDate(p: DateParts): BuiltDate {
     gameBudget: DEFAULT_GAME_BUDGET,
   };
   const input: DateInput = { a: sideA, b: sideB, history: p.history, ...(p.dateNumber && p.dateNumber > 1 ? { date_number: p.dateNumber } : {}) };
-  return { input, characters: [charA, charB], setup, seed };
+  return { input, characters: [charA, charB], setup, seed, ...(p.people?.only_you ? { peopleOnlyYou: true as const } : {}) };
 }
 
 /**
@@ -482,6 +487,11 @@ export async function buildDate(
     producerPick?: ProducerId | null;
     /** A friend of both set it up (lib/social/introductions.ts), for the lobby's house dates only: each side's line, and the friend's name. */
     introduction?: DateIntroduction | null;
+    /**
+     * A private date (it never airs, and only its host, `creatorId`, sees it): its people lines may also use the host's
+     * own "only you" rows (lib/social/people-lines.ts). Left out, a date is taken to air: public rows only.
+     */
+    offline?: boolean;
   } = {},
 ): Promise<BuiltDate> {
   const [soulA, soulB, memoryA, memoryB, relationship, ex, extras, nudges, seeingA, seeingB] = await Promise.all([
@@ -530,11 +540,13 @@ export async function buildDate(
   const [lessonsA, lessonsB] = await Promise.all([lessonsForPrompt(db, a.id), lessonsForPrompt(db, b.id)]);
   // What each thinks of the other, has heard about them and wants this week (lib/story-state.ts; null with STORY_STATE=0).
   // And the people in each one's life (lib/social/people-lines.ts; null with SOCIAL_PEOPLE_IN_PROMPTS=0): read each build,
-  // never stored, the same while the network stands. Best effort: a failed read is a date without them.
+  // never stored, the same while the network stands. Public rows only, unless the date is private (then also its host's
+  // own "only you" ones). Best effort: a failed read is a date without them.
+  const privateHost = opts.offline === true && opts.creatorId && opts.creatorId !== PUBLIC_ONLY ? opts.creatorId : null;
   const [storyA, storyB, people] = await Promise.all([
     stateFor(db, a.id, { withId: b.id }).catch(() => null),
     stateFor(db, b.id, { withId: a.id }).catch(() => null),
-    peopleForDate(db, a.id, b.id, episodeId).catch(() => null),
+    peopleForDate(db, a.id, b.id, episodeId, { privateHost }).catch(() => null),
   ]);
   const [lo] = pairKey(a.id, b.id);
   const texts = chain.some(isText) ? { a: promptTexts(chain, a.id === lo ? "lo" : "hi"), b: promptTexts(chain, b.id === lo ? "lo" : "hi") } : undefined;

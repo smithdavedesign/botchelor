@@ -5,12 +5,15 @@
  * off-screen people who fits ("Priya, your sister: vets everyone you date."). Flavour, like an introduction's line: the
  * engine never reads it, and the other side's prompt never carries this side's lines.
  *
- * A side's lines use only what its owner may see of the network (lib/social/read.ts tieAccess, with the owner as the
- * viewer): public ties and people, and the owner-only ones of a tie its owner holds an end of. Never a private row, a
- * proposal or an ended tie, never the story state (opinions, what it heard, what it wants), and never the other side's
- * owner-only ties or people unless the same person owns both. Only the kinds a date can carry: family, friends, work,
- * neighbours, rivals, and exes or first loves, never a current partner (a date with one is a cheat), never what aired
- * (the show's own history says that) and never talk or met-on-the-show ties.
+ * The lines use only what the date's audience may see of the network (lib/social/read.ts tieAccess's rule, with that
+ * audience as the viewer), because what an actor is told it may say. A date that can air (public or unlisted, and any
+ * date not known to be private) is anyone's to watch: public, active ties and people only, so an owner's "only you"
+ * person or tie never reaches a date that airs, their own character's included. A private date never airs and only its
+ * host sees it: it may also use the "only you" rows of a tie the host holds an end of (their own characters'), never
+ * another owner's. Never a private row, a proposal or an ended tie, and never the story state (opinions, what it heard,
+ * what it wants). Only the kinds a date can carry: family, friends, work, neighbours, rivals, and exes or first loves,
+ * never a current partner (a date with one is a cheat), never what aired (the show's own history says that) and never
+ * talk or met-on-the-show ties.
  */
 import type { Db } from "../db";
 import { seedFrom } from "../engine";
@@ -123,35 +126,44 @@ export type LineTie = {
   person_visibility: string | null;
 };
 
+/** Whether anyone may see a tie (pure): a public tie between public ends, or to a public person. */
+export function isOpen(t: LineTie): boolean {
+  return t.visibility === "public" && t.from_public && (t.person_id ? t.person_visibility === "public" : t.to_public === true);
+}
+
 /**
- * Whether a viewer (a side's owner, or null) may see a tie (pure; lib/social/read.ts tieAccess's rule): a public tie
- * between public ends (and a public person) to anyone, the rest only to the owner of an end. Never a private row.
+ * Whether a viewer may see a tie (pure; lib/social/read.ts tieAccess's rule): an open one to anyone (a null viewer is
+ * anyone: a date that can air), the rest only to the owner of an end. Never a private row.
  */
 export function seenBy(t: LineTie, viewer: string | null): boolean {
   if (t.visibility === "private" || (t.person_id && (!t.person_name || t.person_visibility === "private"))) return false;
   const mine = viewer !== null && viewer !== DELETED_OWNER && (t.from_owner === viewer || t.to_owner === viewer);
-  const open = t.visibility === "public" && t.from_public && (t.person_id ? t.person_visibility === "public" : t.to_public === true);
-  return open || mine;
+  return isOpen(t) || mine;
 }
 
-/** Each side's lines, and the names both sides' lines share (the words both already know). */
-export type DatePeople = { a: string[]; b: string[]; shared: string[] };
+/**
+ * Each side's lines, the names both sides' lines share (the words both already know), and whether any line came from an
+ * "only you" row (only ever on a private date: its host's own).
+ */
+export type DatePeople = { a: string[]; b: string[]; shared: string[]; only_you: boolean };
 
-type Side = { id: string; owner: string | null; name: string };
+type Side = { id: string; name: string };
 
-/** One side's lines (pure): someone both know first, else one off-screen person who fits, by the date's seed. */
-export function linesFor(me: Side, partner: Side, ties: readonly LineTie[], seed: number): { lines: string[]; mutual: string[] } {
-  const viewer = me.owner;
+/**
+ * One side's lines (pure), from the ties `viewer` may see (null: anyone, on a date that can air): someone both know
+ * first, else one off-screen person who fits, by the date's seed. `onlyYou`: a line came from an "only you" row.
+ */
+export function linesFor(me: Side, partner: Side, ties: readonly LineTie[], seed: number, viewer: string | null = null): { lines: string[]; mutual: string[]; onlyYou: boolean } {
   const usable = ties.filter((t) => t.to_id !== null || t.person_id !== null).filter((t) => lineKind(t.kind) && seenBy(t, viewer));
   // Who each knows: the other end of every usable tie between characters, its kind and its side.
-  type Known = { other: string; name: string; pronouns: string | null; kind: TieKindId; fromSide: boolean; closeness: number };
+  type Known = { other: string; name: string; pronouns: string | null; kind: TieKindId; fromSide: boolean; closeness: number; open: boolean };
   const knows = (id: string): Map<string, Known> => {
     const out = new Map<string, Known>();
     for (const t of usable) {
       if (!t.to_id || (t.from_id !== id && t.to_id !== id)) continue;
       const fromSide = t.from_id === id;
       const other = fromSide ? t.to_id : t.from_id;
-      const known: Known = { other, name: (fromSide ? t.to_name : t.from_name) ?? "", pronouns: fromSide ? t.to_pronouns : t.from_pronouns, kind: t.kind as TieKindId, fromSide, closeness: t.closeness };
+      const known: Known = { other, name: (fromSide ? t.to_name : t.from_name) ?? "", pronouns: fromSide ? t.to_pronouns : t.from_pronouns, kind: t.kind as TieKindId, fromSide, closeness: t.closeness, open: isOpen(t) };
       const was = out.get(other);
       if (known.name && (!was || known.closeness > was.closeness)) out.set(other, known);
     }
@@ -168,6 +180,7 @@ export function linesFor(me: Side, partner: Side, ties: readonly LineTie[], seed
     return {
       lines: both.map(({ k, t }) => mutualLine({ name: k.name, pronouns: k.pronouns }, k, partner.name, t)),
       mutual: both.map(({ k }) => k.name),
+      onlyYou: both.some(({ k, t }) => !k.open || !t.open),
     };
   }
   // No one both know: one of its own off-screen people, the best fits first (a line about them, the closer layers,
@@ -183,18 +196,20 @@ export function linesFor(me: Side, partner: Side, ties: readonly LineTie[], seed
         (x.id < y.id ? -1 : 1),
     )
     .slice(0, PERSON_PICK);
-  if (!people.length) return { lines: [], mutual: [] };
+  if (!people.length) return { lines: [], mutual: [], onlyYou: false };
   const p = people[seed % people.length];
-  return { lines: [personLine({ name: p.person_name!, pronouns: p.person_pronouns, note: p.person_note, deceased: Boolean(p.person_deceased) }, p.kind as TieKindId)], mutual: [] };
+  return { lines: [personLine({ name: p.person_name!, pronouns: p.person_pronouns, note: p.person_note, deceased: Boolean(p.person_deceased) }, p.kind as TieKindId)], mutual: [], onlyYou: !isOpen(p) };
 }
 
 /**
- * The lines for a date between a and b (null when switched off, or when neither has any): each side's own, from what
- * its owner may see, and the names of the people both sides' lines name (words both already know). Deterministic for a
- * date while the network stands, so the worker's rebuild reads the same.
+ * The lines for a date between a and b (null when switched off, or when neither has any): each side's own, and the names
+ * of the people both sides' lines name (words both already know). `privateHost`: the host of a private date, which
+ * never airs, so its lines may also use that host's own "only you" rows; left out (any date that can air, or one not
+ * known to be private), public rows only. Deterministic for a date while the network stands, so a rebuild reads the same.
  */
-export async function peopleForDate(db: Db, a: string, b: string, episodeId: string, env: Env = process.env): Promise<DatePeople | null> {
+export async function peopleForDate(db: Db, a: string, b: string, episodeId: string, o: { privateHost?: string | null } = {}, env: Env = process.env): Promise<DatePeople | null> {
   if (!socialPeopleInPromptsOn(env) || a === b) return null;
+  const viewer = o.privateHost && o.privateHost !== DELETED_OWNER ? o.privateHost : null;
   const read = (id: string) =>
     db.query<LineTie>(
       `select t.id, t.from_id, t.to_id, t.kind, t.visibility, t.closeness::float8 as closeness,
@@ -212,22 +227,22 @@ export async function peopleForDate(db: Db, a: string, b: string, episodeId: str
         limit $3`,
       [id, [...LINE_LAYERS], TIES_READ],
     );
-  const [owners, tiesA, tiesB] = await Promise.all([
-    db.query<{ id: string; owner_id: string | null; name: string }>(`select id, owner_id, name from characters where id = any($1::text[])`, [[a, b]]),
+  const [named, tiesA, tiesB] = await Promise.all([
+    db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1::text[])`, [[a, b]]),
     read(a),
     read(b),
   ]);
   const side = (id: string): Side | null => {
-    const r = owners.rows.find((x) => x.id === id);
-    return r ? { id, owner: r.owner_id && r.owner_id !== DELETED_OWNER ? r.owner_id : null, name: r.name } : null;
+    const r = named.rows.find((x) => x.id === id);
+    return r ? { id, name: r.name } : null;
   };
   const sa = side(a);
   const sb = side(b);
   if (!sa || !sb) return null;
   const ties = [...tiesA.rows, ...tiesB.rows];
-  const la = linesFor(sa, sb, ties, seedFrom("people-lines", episodeId, "a"));
-  const lb = linesFor(sb, sa, ties, seedFrom("people-lines", episodeId, "b"));
+  const la = linesFor(sa, sb, ties, seedFrom("people-lines", episodeId, "a"), viewer);
+  const lb = linesFor(sb, sa, ties, seedFrom("people-lines", episodeId, "b"), viewer);
   if (!la.lines.length && !lb.lines.length) return null;
   const shared = la.mutual.filter((n) => lb.mutual.includes(n)).map((n) => shortName(n) || n);
-  return { a: la.lines, b: lb.lines, shared };
+  return { a: la.lines, b: lb.lines, shared, only_you: la.onlyYou || lb.onlyYou };
 }

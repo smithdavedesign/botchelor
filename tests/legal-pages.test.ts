@@ -151,20 +151,16 @@ describe("the privacy notice", () => {
       const html = render(Page);
       const fold = html.indexOf('<details class="ux-fold legal-changes"><summary>What changed</summary>');
       expect(fold, name).toBeGreaterThan(-1);
-      expect(html.indexOf("Changed (20 November)"), name).toBeGreaterThan(fold);
+      expect(html.indexOf("Changed (19 November)"), name).toBeGreaterThan(fold);
       expect(html.indexOf('id="contents"'), name).toBeGreaterThan(fold);
       expect(html, name).toContain('<a class="legal-top" href="#contents">↑ Contents</a>');
     }
     expect(render(TermsPage)).toContain('<a class="legal-top" href="#contents">');
   });
 
-  it("is dated 20 November 2026, with what changed (and the earlier changes kept under it)", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 20 November 2026\./);
-    // Characters' circles (the social network, docs/PRDs/social-network.md): kept, exported and deleted with them, and
-    // the ones only their owner sees may come up on their own dates.
-    expect(render(PrivacyPage)).toMatch(/Changed \(20 November\): your characters can have circles/);
-    expect(strip(render(PrivacyPage))).toMatch(/On a date a character is reminded of\s+someone in its circle, the ones only you see included/);
-    expect(render(PrivacyPage)).toMatch(/Before that \(19 November\): Botchelor is now run by Botchelor LLC/);
+  it("is dated 19 November 2026, with what changed (and the earlier changes kept under it)", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 19 November 2026\./);
+    expect(render(PrivacyPage)).toMatch(/Changed \(19 November\): Botchelor is now run by Botchelor LLC/);
     expect(render(PrivacyPage)).toMatch(/Before that \(18 November\): the terms say Botchelor owns the characters it makes for the show/);
     expect(render(PrivacyPage)).toMatch(/Before that \(17 November\): the privacy notice says what we keep if you save who you are in scenes/);
     // Who you are in scenes (lib/persona.ts): what's kept, where it goes, and until when.
@@ -183,7 +179,7 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
     expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
-    expect(render(TermsPage)).toMatch(/Last updated 20 November 2026\./);
+    expect(render(TermsPage)).toMatch(/Last updated 19 November 2026\./);
     // Our own cast (2026-11-18): ownership, adults only, no bulk download or AI training.
     expect(strip(render(TermsPage))).toMatch(/<h2 id="our-cast">Our own characters<\/h2>/);
     expect(strip(render(TermsPage))).toMatch(/every one of our characters is a fictional adult/);
