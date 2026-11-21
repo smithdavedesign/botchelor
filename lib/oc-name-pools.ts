@@ -34,6 +34,40 @@ const COZY_FIRST: Gendered = {
 };
 const COZY_LAST = ["Honeywell", "Applegate", "Fairweather", "Kettleby", "Thistlewood", "Featherstone", "Merriweather", "Brambleton", "Hollyhock", "Copperpot", "Larkspur", "Puddingstone", "Butterworth", "Bramblewick", "Teasdale", "Hearthfield", "Plumtree", "Marchbank", "Woolsey", "Goodfellow", "Cobblestone", "Lindenberry", "Muffett", "Quillfeather"];
 
+/**
+ * The last resort, after every list style has been refused (2026-11-21: all 153 list first names had been used three
+ * times by the people in the show's circles, so a fourth Alfie had no rename and 15 circles lost everyone): everyday
+ * names from many places, never drawn while a list name will do, so the OC generator's names don't change.
+ */
+const WIDE_FIRST: Gendered = {
+  feminine: [
+    "Abigail", "Adaeze", "Agnes", "Aiko", "Alba", "Amara", "Amelie", "Anika", "Annika", "Aurora", "Beatriz", "Bianca", "Camila", "Carmen", "Cecily", "Chiara",
+    "Dalia", "Daphne", "Dina", "Edith", "Elena", "Eliza", "Esme", "Esther", "Fatima", "Fiona", "Flora", "Gemma", "Greta", "Hallie", "Helena", "Hilde",
+    "Ines", "Irene", "Isla", "Ivy", "Jana", "Josie", "Kalinda", "Kamala", "Karin", "Kezia", "Lena", "Liesel", "Lina", "Lorna", "Lucy", "Mairead",
+    "Malia", "Margot", "Mariam", "Meera", "Mina", "Mira", "Nadine", "Naomi", "Nora", "Oksana", "Paloma", "Petra", "Philippa", "Rhea", "Rina", "Ruth",
+    "Saoirse", "Selma", "Signe", "Sofia", "Stella", "Suki", "Tamsin", "Thea", "Uma", "Valeria", "Vera", "Vivian", "Winnie", "Ximena", "Yasmin", "Zora",
+  ],
+  masculine: [
+    "Aarav", "Abel", "Adrian", "Ahmed", "Albert", "Amos", "Anders", "Arjun", "Arthur", "August", "Bennett", "Bjorn", "Bruno", "Caleb", "Carlos", "Cyrus",
+    "Daniel", "Dmitri", "Eamon", "Elias", "Emil", "Enzo", "Erik", "Ewan", "Fabian", "Finn", "Frank", "Gabriel", "George", "Gideon", "Hamza", "Harvey",
+    "Henrik", "Ibrahim", "Isaac", "Ivan", "Jakob", "James", "Javier", "Joel", "Jorge", "Kamal", "Karl", "Kwame", "Lars", "Leon", "Levi", "Lionel",
+    "Magnus", "Mario", "Milo", "Nathan", "Oscar", "Pablo", "Patrick", "Pedro", "Ravi", "Reuben", "Rhys", "Rohan", "Ruben", "Samuel",
+    "Santiago", "Seamus", "Stefan", "Tariq", "Tomas", "Umar", "Victor", "Vikram", "Walter", "Xavier", "Yusuf", "Zane",
+  ],
+  neutral: [
+    "Addison", "Alex", "Bailey", "Cameron", "Casey", "Charlie", "Dakota", "Devon", "Drew", "Eden", "Ellis", "Emerson", "Finley", "Frankie", "Hayden", "Harper",
+    "Indigo", "Jamie", "Jordan", "Kendall", "Lennon", "Logan", "Marley", "Max", "Micah", "Nico", "Oakley", "Parker", "Peyton", "Phoenix", "Reagan", "River",
+    "Rory", "Sam", "Skyler", "Spencer", "Sydney", "Tatum", "Taylor", "Toni", "Val", "Yael",
+  ],
+};
+const WIDE_LAST = [
+  "Abara", "Albrecht", "Alvarez", "Andersen", "Arslan", "Asante", "Banerjee", "Barros", "Becker", "Bergstrom", "Bianchi", "Bose", "Calloway", "Chandra", "Costa", "Dahl",
+  "Dimitrov", "Eriksen", "Esposito", "Fischer", "Fontaine", "Gallagher", "Garcia", "Gill", "Grant", "Gustafsson", "Hale", "Hansen", "Hayes", "Horvath", "Ibarra", "Ito",
+  "Jansen", "Jovanovic", "Kamara", "Keane", "Kim", "Kruger", "Lambert", "Larsen", "Lopez", "Lund", "Madsen", "Mahler", "Marsh", "Medina", "Molina", "Murphy",
+  "Nair", "Nguyen", "Nilsen", "Nowak", "Obi", "Olsen", "Ortega", "Park", "Pereira", "Ramos", "Rossi", "Saito", "Santos", "Schmidt", "Shah",
+  "Silva", "Sokolov", "Tan", "Torres", "Ueda", "Vasquez", "Vogel", "Walsh", "Weber", "Yilmaz", "Young", "Zhang",
+];
+
 /** Fantasy first names: a start, sometimes a middle, and an ending that leans the way the kind asks. */
 const FANTASY = {
   start: ["Ae", "Ca", "Ela", "Fae", "Gal", "Ith", "Lo", "Mae", "Ny", "Or", "Sil", "Tha", "Va", "Ys", "Bry", "Cae", "Del", "Ear", "Fen", "Kel", "Lir", "Mor", "Rha", "Sor", "Tal", "Zeph"],
@@ -181,7 +215,7 @@ function inOrder<T>(rand: () => number, list: readonly T[]): T[] {
 /** Whether a first name is on the lists as feminine, masculine or neutral; null for one on none. */
 export function firstNameKind(first: string): NameKind | null {
   const f = first.trim().toLowerCase();
-  for (const lists of Object.values(FIRST_LISTS)) {
+  for (const lists of [...Object.values(FIRST_LISTS), WIDE_FIRST]) {
     for (const kind of ["feminine", "masculine", "neutral"] as const) if (lists[kind].some((n) => n.toLowerCase() === f)) return kind;
   }
   return null;
@@ -190,7 +224,7 @@ export function firstNameKind(first: string): NameKind | null {
 /**
  * A first name in a style and kind that `ok` takes (one not used too often yet, say), or null when there's none. A
  * list style goes through its whole list in an order `rand` picks, then the other list styles' (a real name before
- * none at all); fantasy and sci-fi draw syllables a few dozen times.
+ * none at all); fantasy and sci-fi draw syllables a few dozen times. Then, for any style, the wide everyday names.
  */
 export function drawFirstName(rand: () => number, style: OcNameStyle, kind: NameKind, ok: (first: string) => boolean = () => true): string | null {
   if (!isListStyle(style)) {
@@ -198,29 +232,29 @@ export function drawFirstName(rand: () => number, style: OcNameStyle, kind: Name
       const first = style === "fantasy" ? fantasyFirst(rand, kind) : scifiFirst(rand, kind);
       if (ok(first)) return first;
     }
-    return null;
+  } else {
+    for (const s of [style, ...LIST_STYLES.filter((x) => x !== style)]) {
+      const found = inOrder(rand, FIRST_LISTS[s][kind]).find((n) => ok(n));
+      if (found) return found;
+    }
   }
-  for (const s of [style, ...LIST_STYLES.filter((x) => x !== style)]) {
-    const found = inOrder(rand, FIRST_LISTS[s][kind]).find((n) => ok(n));
-    if (found) return found;
-  }
-  return null;
+  return inOrder(rand, WIDE_FIRST[kind]).find((n) => ok(n)) ?? null;
 }
 
-/** A surname in a style that `ok` takes, or null: the same order of trying as drawFirstName. */
+/** A surname in a style that `ok` takes, or null: the same order of trying as drawFirstName, wide surnames last. */
 export function drawSurname(rand: () => number, style: OcNameStyle, ok: (last: string) => boolean = () => true): string | null {
   if (!isListStyle(style)) {
     for (let i = 0; i < SYLLABLE_TRIES; i++) {
       const last = style === "fantasy" ? fantasyLast(rand) : scifiLast(rand);
       if (ok(last)) return last;
     }
-    return null;
+  } else {
+    for (const s of [style, ...LIST_STYLES.filter((x) => x !== style)]) {
+      const found = inOrder(rand, LAST_LISTS[s]).find((n) => ok(n));
+      if (found) return found;
+    }
   }
-  for (const s of [style, ...LIST_STYLES.filter((x) => x !== style)]) {
-    const found = inOrder(rand, LAST_LISTS[s]).find((n) => ok(n));
-    if (found) return found;
-  }
-  return null;
+  return inOrder(rand, WIDE_LAST).find((n) => ok(n)) ?? null;
 }
 
 /**
