@@ -24,19 +24,23 @@
  *
  * Names (lib/social/person-names.ts): each character is offered a few first names and surnames from the OC name
  * generator's lists, in its own style and seeded by its id; then no first name goes past FIRST_NAME_MAX uses, no full
- * name is used twice, family never has another character's surname and nobody else has a character's surname, theirs
- * included. A person who breaks a rule is renamed (the site renames by the same rules), and the log says why.
+ * name is used twice, close family (parents, full siblings, children) has the character's surname, the rest of the
+ * family never has another character's, and nobody else has a character's surname, theirs included. A person who breaks
+ * a rule is renamed (the site renames by the same rules), and the log says why.
  */
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { nameDraws, nameIdeas } from "../../lib/oc-name-pools.ts";
-import { FIRST_NAME_MAX, firstNameOf, isFamilyWords, nameStyleOf, personName, surnameOf } from "../../lib/social/person-names.ts";
+import { familySurnameOf, FIRST_NAME_MAX, firstNameOf, isFamilyWords, nameStyleOf, personName, sharesSurnameWords, surnameOf } from "../../lib/social/person-names.ts";
 import { brainFromEnv } from "../loop/crowd.mjs";
 
-/** v2 (2026-11-21): the names offered, family's surname, a best friend only if they have one. */
-export const PROMPT_VERSION = "backfill-circles-v2";
+/**
+ * v2 (2026-11-21): the names offered, family's surname, a best friend only if they have one. v3: close family shares
+ * the character's surname (v2's "mostly" left most brothers and sisters with surnames of their own).
+ */
+export const PROMPT_VERSION = "backfill-circles-v3";
 const USER_AGENT = "botchelor-social-backfill/1.0";
 /** How many other show characters a character is offered to know, and how many workplaces to reuse. */
 export const CANDIDATES = 8;
@@ -139,12 +143,12 @@ export function shuffled(list, random = Math.random) {
  * family's surname, and that a best friend is theirs only if they have one (the first run gave 104 of 118 one).
  */
 export function nameLines(me, names) {
-  const own = surnameOf(me.name);
+  const own = familySurnameOf(me.name);
   const others = names?.last?.length ? names.last.join(", ") : null;
   return [
     ...(names?.first?.length ? [`First names to pick from for them (or others like these): ${names.first.join(", ")}.`] : []),
     own
-      ? `Their family mostly shares their surname, ${own}. Nobody else has it, nor the surname of anyone on the show${others ? `: others have surnames like ${others}` : ""}.`
+      ? `Their parents, brothers, sisters and children share their surname, ${own}; other family may have their own. Nobody else has it, nor the surname of anyone on the show${others ? `: others have surnames like ${others}` : ""}.`
       : `Nobody has the surname of anyone on the show${others ? `: use surnames like ${others}` : ""}.`,
     "A best friend only if they really have one: most people here don't.",
   ];
@@ -369,11 +373,12 @@ export function nameBook(everyone, { skip = new Set() } = {}) {
 export function nameCircle(me, circle, book) {
   const draws = nameDraws(me.id, styleOf(me));
   const holderLast = surnameOf(me.name);
+  const familyLast = familySurnameOf(me.name);
   const renamed = [];
   const dropped = [];
   const people = [];
   for (const p of circle.people) {
-    const r = personName(p, { kin: isFamilyWords(p.relation), holderLast, book, draws });
+    const r = personName(p, { kin: isFamilyWords(p.relation), shares: sharesSurnameWords(p.relation), holderLast, familyLast, book, draws });
     if (!r.ok) {
       dropped.push({ name: p.name, reason: r.reason });
       continue;
@@ -389,7 +394,7 @@ export function nameCircle(me, circle, book) {
  * The characters whose circles break the naming rules, each with what's wrong, in the order the run writes them (so the
  * first three Eleanors keep the name and the fourth is the break): a first name used FIRST_NAME_MAX times already, a
  * full name someone has, someone outside the family with a character's surname (theirs too), family with another
- * character's surname. --redo-broken writes these again and leaves the rest.
+ * character's surname, close family without theirs. --redo-broken writes these again and leaves the rest.
  */
 export function brokenHolders(everyone) {
   const book = nameBook(everyone, { skip: new Set(everyone.map((c) => c.id)) });
@@ -398,6 +403,7 @@ export function brokenHolders(everyone) {
     const people = c.circle?.people ?? [];
     if (!people.length) continue;
     const own = lower(surnameOf(c.name));
+    const family = lower(familySurnameOf(c.name));
     const why = [];
     const seen = new Map();
     const names = new Set();
@@ -408,6 +414,7 @@ export function brokenHolders(everyone) {
       if (book.firstCount(f) + (seen.get(f) ?? 0) >= FIRST_NAME_MAX) why.push(`${p.name}: ${FIRST_NAME_MAX} called ${firstNameOf(p.name)} already`);
       if (book.hasFull(p.name) || names.has(lower(p.name))) why.push(`${p.name}: a name someone has`);
       if (last && (kin ? last !== own && book.surnameTaken(last) : last === own || book.surnameTaken(last))) why.push(`${p.name}: ${kin ? "another character's surname" : "a character's surname"}`);
+      else if (last && family && sharesSurnameWords(p.relation) && last !== family) why.push(`${p.name}: close family without their surname`);
       seen.set(f, (seen.get(f) ?? 0) + 1);
       names.add(lower(p.name));
     }
@@ -420,13 +427,14 @@ export function brokenHolders(everyone) {
 /**
  * The names as they stand, for a report: people and the characters holding them, distinct first names and the five
  * most used, first names past FIRST_NAME_MAX, full names used twice, characters' surnames on people (outside the
- * family; another character's on family), family with the character's own surname, and how many have a best friend.
+ * family; another character's on family), family and close family with the character's own surname, and how many have
+ * a best friend.
  */
 export function nameStats(everyone) {
   const surnames = new Set(everyone.map((c) => lower(surnameOf(c.name))).filter(Boolean));
   const firsts = new Map();
   const fulls = new Map();
-  const s = { holders: 0, people: 0, distinctFirst: 0, top: [], overCap: 0, fullTwice: 0, outsideTaken: 0, kin: 0, kinOwn: 0, kinOther: 0, bestFriends: 0 };
+  const s = { holders: 0, people: 0, distinctFirst: 0, top: [], overCap: 0, fullTwice: 0, outsideTaken: 0, kin: 0, kinOwn: 0, kinOther: 0, close: 0, closeOwn: 0, bestFriends: 0 };
   for (const c of everyone) {
     const people = c.circle?.people ?? [];
     if (!people.length) continue;
@@ -443,6 +451,10 @@ export function nameStats(everyone) {
         s.kin++;
         if (last && last === own) s.kinOwn++;
         else if (last && surnames.has(last)) s.kinOther++;
+        if (last && sharesSurnameWords(p.relation)) {
+          s.close++;
+          if (last === own) s.closeOwn++;
+        }
       } else if (last && surnames.has(last)) s.outsideTaken++;
     }
   }
@@ -457,7 +469,7 @@ export function nameStats(everyone) {
 export const statsLine = (s) =>
   `${s.people} people for ${s.holders} characters: ${s.distinctFirst} first names (most used ${s.top.map(([f, n]) => `${f} ${n}`).join(", ") || "none"}; ${s.overCap} past ${FIRST_NAME_MAX}), ` +
   `${s.fullTwice} full names twice, ${s.outsideTaken} outside the family with a character's surname, ${s.kinOther} family with another character's, ` +
-  `${s.kinOwn} of ${s.kin} family with the character's own, ${s.bestFriends} of ${s.holders} with a best friend`;
+  `${s.kinOwn} of ${s.kin} family with the character's own (close family ${s.closeOwn} of ${s.close}), ${s.bestFriends} of ${s.holders} with a best friend`;
 
 function adminKey() {
   if (process.env.FRONTIER_PASSWORD) return process.env.FRONTIER_PASSWORD;

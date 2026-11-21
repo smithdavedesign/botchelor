@@ -28,7 +28,7 @@ import { notPersonaSql } from "../step-in-shared";
 import { DATE_VENUES } from "../venues";
 import { TIE_KINDS, type TieKindId } from "./kinds";
 import { addPerson, checkPerson, peopleOf, updatePerson } from "./people";
-import { firstNameOf, nameStyleOf, personName, surnameOf, type NameBook } from "./person-names";
+import { familySurnameOf, firstNameOf, nameStyleOf, personName, SHARES_SURNAME_KINDS, surnameOf, type NameBook } from "./person-names";
 import { ensurePlace, PLACE_DESCRIPTION_MAX, PLACE_NAME_MAX, MEMBER_SINCE_MAX, placeIdOf, setMembership, slugify, venueKey } from "./places";
 import { canonicalTie, isDeclaredRole, kindFromWords, mayDeclarePerson, mayDeclareTie, NEW_PLACE_FOR, ROLE_PLACES, tieFromWords, type DeclaredRole } from "./relations";
 import { socialTiesOn } from "./switch";
@@ -337,7 +337,10 @@ async function charactersNamed(db: Db, names: readonly (string | null | undefine
  * site's public characters (a new name is never one of theirs), the surnames of the show's characters, and this
  * character's own surname and name style, from its own words.
  */
-async function circleNames(db: Db, me: string): Promise<{ book: NameBook & { add(name: string): void }; holderLast: string | null; style: ReturnType<typeof nameStyleOf> }> {
+async function circleNames(
+  db: Db,
+  me: string,
+): Promise<{ book: NameBook & { add(name: string): void }; holderLast: string | null; familyLast: string | null; style: ReturnType<typeof nameStyleOf> }> {
   const [people, chars, mine, show] = await Promise.all([
     db.query<{ name: string }>(`select name from social_people where source in ('house', 'admin') and holder_id <> $1`, [me]),
     db.query<{ id: string; name: string }>(`select c.id, c.name from characters c where c.visibility = 'public' and c.owner_id is distinct from $1 and ${notPersonaSql("c")}`, [DELETED_OWNER]),
@@ -366,6 +369,7 @@ async function circleNames(db: Db, me: string): Promise<{ book: NameBook & { add
   return {
     book: { firstCount: (f) => firsts.get(lower(f)) ?? 0, hasFull: (n) => full.has(lower(n)), surnameTaken: (l) => surnames.has(lower(l)), add },
     holderLast: own,
+    familyLast: row ? familySurnameOf(row.name) : null,
     style: nameStyleOf(words),
   };
 }
@@ -456,7 +460,7 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
     personNames.add(lower(checked.name!));
     const named = personName(
       { name: checked.name!, relation: p.relation, pronouns: checked.pronouns ?? null, note: checked.note ?? null },
-      { kin: TIE_KINDS[kind].layer === "kin", holderLast: naming.holderLast, book: naming.book, draws },
+      { kin: TIE_KINDS[kind].layer === "kin", shares: SHARES_SURNAME_KINDS.includes(kind), holderLast: naming.holderLast, familyLast: naming.familyLast, book: naming.book, draws },
     );
     if (!named.ok) {
       refused.push({ item: "person", what, reason: named.reason });
