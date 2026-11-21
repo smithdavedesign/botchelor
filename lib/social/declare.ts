@@ -773,7 +773,8 @@ export async function theirPeople(db: Db, characterId: string, viewer: string | 
       key: place.key,
       name: place.name,
       role: m.role,
-      words: `${ROLE_WORDS[m.role]} ${place.name}`,
+      // A hangout's name is a description ("A sticky dive bar on trivia night"): mid-sentence, its article is lower case.
+      words: `${ROLE_WORDS[m.role]} ${place.name.replace(/^(A|An) /, (w) => w.toLowerCase())}`,
       since: m.since_text,
       visibility: m.visibility,
       declared: declaredSource(memberSources.get(`${m.place_id}|${m.role}`)),

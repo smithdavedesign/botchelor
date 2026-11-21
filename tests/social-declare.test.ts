@@ -236,8 +236,12 @@ describe("places", () => {
     expect(await setPlaceFor(t.db, ana, A1, { role: "works", place: "neighbourhood:old-town" })).toMatchObject({ ok: false, error: "invalid_place" });
     expect(await setPlaceFor(t.db, ana, A1, { role: "lives", name: "Narnia" })).toMatchObject({ ok: false, error: "invalid_place" });
     expect(await setPlaceFor(t.db, ana, A1, { role: "haunts", place: "venue:dive_bar" })).toMatchObject({ ok: false, error: "invalid_role" });
+    expect(await setPlaceFor(t.db, ana, A1, { role: "regular", place: "venue:dive_bar" })).toMatchObject({ ok: true, role: "regular" });
     // Coworkers: Ada's people show Bo at the Lantern.
     const view = await theirPeople(t.db, A1, null);
+    // A hangout's name is a description, so its article reads lower case mid-sentence; a workplace's name keeps its own.
+    expect(view!.places.find((p) => p.role === "regular")?.words).toMatch(/^A regular at a [a-z]/);
+    expect(view!.places.find((p) => p.role === "works")?.words).toBe("Works at The Salt Lantern");
     expect(view!.places.find((p) => p.role === "works")).toMatchObject({ name: "The Salt Lantern", since: "2021", declared: true, others: [expect.objectContaining({ id: B1 })] });
     expect((await placeMenu(t.db, ana.userId)).workplaces.map((w) => w.key)).toContain("workplace:the-salt-lantern");
     if (!lantern.ok) return;

@@ -15629,6 +15629,11 @@ button.link-button.people-edit {
   margin: 0;
 }
 /* The sheets' forms: the site's labels and controls, one under another. */
+/* The form is a grid item of the sheet's body: without this, a select's longest option (a hangout's name, under "works
+   at") sets the column's width and pushes the sheet, its close button with it, past a phone's edge. */
+.people-form {
+  min-width: 0;
+}
 .people-form > label:first-child,
 .people-form > p:first-child,
 .people-form > .people-picked:first-child {
