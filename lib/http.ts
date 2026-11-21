@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { signSession, verifySession } from "./auth";
+import { requestLabel, withDbLabel } from "./db-watch";
 
 /**
  * Identity. Historically the user id is a random UUID in the `bz_uid` cookie (anonymous, unsigned). Once an
@@ -155,15 +156,19 @@ export function safeEqual(a: string, b: string): boolean {
   return r === 0;
 }
 
-/** Wraps a route handler: ApiErrors become their JSON response, anything else a generic 500. */
+/**
+ * Wraps a route handler: ApiErrors become their JSON response, anything else a generic 500. Its queries carry its
+ * method and route, so the pool's lines about long waits name it (lib/db-watch.ts, #1948), and so does its error line.
+ */
 export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Promise<Response>) {
   return async (req: Request, ...ctx: C): Promise<Response> => {
+    const label = requestLabel(req);
     try {
-      return await fn(req, ...ctx);
+      return await withDbLabel(label, () => fn(req, ...ctx));
     } catch (err) {
       if (err instanceof ApiError) return json(err.body, err.status);
       const message = err instanceof Error ? err.message : "unknown";
-      console.error("[api] unexpected error:", message);
+      console.error(`[api] unexpected error in ${label}:`, message);
       // Counted for the monitor (lib/errors.ts), which alerts the owner; a lazy import keeps http.ts free of the db.
       await import("./errors").then((m) => m.recordServerError("api", new URL(req.url).pathname, message)).catch(() => {});
       return json({ error: "internal_error" }, 500);

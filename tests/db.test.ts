@@ -1,5 +1,4 @@
 import { PGlite } from "@electric-sql/pglite";
-import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPool, ensureSchema, ensureSchemaCurrent, getDb, isDroppedConnection, pgliteDb, pgPoolDb, schemaVersion, setDbForTests, withVerifyFullSsl } from "@/lib/db";
 import { ENDINGS, getEpisodeView, getPoints } from "@/lib/game";
@@ -7,6 +6,7 @@ import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { CATALOG, ITEM_KINDS } from "@/lib/catalog";
 import { ORDER_STATUSES } from "@/lib/payments";
 import { DRAMA_ANSWERS, DRAMA_QUESTIONS, REPORT_REASONS } from "@/lib/rules";
+import { fakeClient, poolOf } from "./fake-pool";
 import { startTestDb } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -371,13 +371,16 @@ describe("getDb", () => {
 });
 
 describe("pgPoolDb", () => {
-  it("passes parameterized queries and multi-statement DDL straight to the pool", async () => {
-    const query = vi.fn(async () => ({ rows: [{ n: 1 }] }));
-    const db = pgPoolDb({ query } as unknown as Pool);
+  it("passes parameterized queries and multi-statement DDL straight to a pooled connection, then hands it back", async () => {
+    const first = fakeClient(async () => ({ rows: [{ n: 1 }] }));
+    const second = fakeClient(async () => ({ rows: [] }));
+    const db = pgPoolDb(poolOf(first, second).pool);
     expect(await db.query("select $1::int as n", [1])).toEqual({ rows: [{ n: 1 }] });
     await db.exec("select 1; select 2;");
-    expect(query).toHaveBeenNthCalledWith(1, "select $1::int as n", [1]);
-    expect(query).toHaveBeenNthCalledWith(2, "select 1; select 2;");
+    expect(first.query).toHaveBeenCalledWith("select $1::int as n", [1]);
+    expect(second.query).toHaveBeenCalledWith("select 1; select 2;", undefined);
+    expect(first.release).toHaveBeenCalledWith(undefined);
+    expect(second.release).toHaveBeenCalledWith(undefined);
   });
 
   it("gives the one long-lived server ten connections that time out, not three that queue forever (2026-11-01 audit, R1)", async () => {
@@ -399,14 +402,22 @@ describe("pgPoolDb", () => {
 
   it("retries a query once when Neon dropped its connection, and never retries a real query error", async () => {
     const dropped = Object.assign(new Error("terminating connection due to administrator command"), { code: "57P01" });
-    const flaky = vi.fn().mockRejectedValueOnce(dropped).mockResolvedValueOnce({ rows: [{ n: 2 }] });
-    expect(await pgPoolDb({ query: flaky } as unknown as Pool).query("select 2 as n")).toEqual({ rows: [{ n: 2 }] });
-    expect(flaky).toHaveBeenCalledTimes(2);
+    const dead = fakeClient(async () => {
+      throw dropped;
+    });
+    const flaky = poolOf(dead, fakeClient(async () => ({ rows: [{ n: 2 }] })));
+    expect(await pgPoolDb(flaky.pool).query("select 2 as n")).toEqual({ rows: [{ n: 2 }] });
+    expect(flaky.connect).toHaveBeenCalledTimes(2);
+    expect(dead.release).toHaveBeenCalledWith(dropped); // dropped from the pool, not handed out again
 
     const bad = Object.assign(new Error('relation "nope" does not exist'), { code: "42P01" });
-    const broken = vi.fn().mockRejectedValue(bad);
-    await expect(pgPoolDb({ query: broken } as unknown as Pool).query("select * from nope")).rejects.toBe(bad);
-    expect(broken).toHaveBeenCalledTimes(1);
+    const broken = poolOf(
+      fakeClient(async () => {
+        throw bad;
+      }),
+    );
+    await expect(pgPoolDb(broken.pool).query("select * from nope")).rejects.toBe(bad);
+    expect(broken.connect).toHaveBeenCalledTimes(1);
   });
 
   it("knows a dropped connection from a query error", () => {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { afterDarkOnly } from "./after-dark-host";
+import { watchedQueries, type PoolWatchOptions } from "./db-watch";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { HOUSE_KITS } from "./house-kits";
 import { isDeployed } from "./deploy";
@@ -26,21 +27,26 @@ export function isDroppedConnection(err: unknown): boolean {
   return typeof e.message === "string" && /Connection terminated|terminating connection/i.test(e.message);
 }
 
-export function pgPoolDb(pool: Pool): Db {
+/**
+ * The app's database on a pg Pool. Each query takes a connection of its own, timed and labelled with the route it
+ * serves, so a long wait for a connection names who held them (lib/db-watch.ts, #1948).
+ */
+export function pgPoolDb(pool: Pool, watch?: PoolWatchOptions): Db {
+  const run = watchedQueries(pool, watch);
   return {
     async query<T>(sql: string, params: unknown[] = []) {
       let result;
       try {
-        result = await pool.query(sql, params);
+        result = await run(sql, params);
       } catch (err) {
         if (!isDroppedConnection(err)) throw err;
-        // The pool has already discarded the dead client, so this runs on a fresh connection.
-        result = await pool.query(sql, params);
+        // The dead client was dropped with its failed query, so this runs on a fresh connection.
+        result = await run(sql, params);
       }
       return { rows: result.rows as T[] };
     },
     async exec(sql: string) {
-      await pool.query(sql);
+      await run(sql);
     },
   };
 }
