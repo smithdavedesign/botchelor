@@ -302,6 +302,17 @@ h3 {
 .episode-shelf-photo::after {
   background: linear-gradient(180deg, rgba(20, 8, 30, 0.2) 0%, rgba(20, 8, 30, 0.55) 50%, rgba(20, 8, 30, 0.92) 100%);
 }
+/* The camera pushes in on the venue when the card is hovered or focused (the visual pop audit's pass 3), only where
+   motion is welcome. */
+@media (prefers-reduced-motion: no-preference) {
+  .episode-shelf-photo {
+    transition: transform 0.7s var(--ease-out);
+  }
+  .episode-shelf-card:has(.stretch:hover) .episode-shelf-photo,
+  .episode-shelf-card:has(.stretch:focus-visible) .episode-shelf-photo {
+    transform: scale(1.07);
+  }
+}
 .episode-shelf-chip {
   display: inline-flex;
   align-items: center;

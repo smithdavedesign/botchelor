@@ -735,3 +735,86 @@ body:has(.home-open--arc) .season-strip {
     height: 5.5rem;
   }
 }
+
+/* Dust in the stage's two spotlight beams (the visual pop audit's pass 3). Each beam is a soft-edged band laid along the
+   painted beam, holding a field of specks that drifts down through it, a composited transform, only where motion is
+   welcome; at rest the specks hang in the light. It covers the art: on a phone the 16:9 band, from 861px the screen. */
+.home-open-dust {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  pointer-events: none;
+}
+.home-open-beam {
+  position: absolute;
+  top: -14%;
+  width: 24%;
+  height: 100%;
+  overflow: hidden;
+  transform-origin: top center;
+  mask-image: radial-gradient(ellipse 46% 58% at 50% 34%, rgba(0, 0, 0, 1) 25%, transparent 100%);
+}
+.home-open-beam.is-left {
+  left: 0;
+  transform: rotate(-17deg);
+}
+.home-open-beam.is-right {
+  right: 0;
+  transform: rotate(17deg);
+}
+.home-open-beam > i {
+  position: absolute;
+  inset: -160px 0 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(255, 240, 222, 0.9) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 72% 64%, rgba(255, 240, 222, 0.6) 0 1.4px, transparent 2.1px),
+    radial-gradient(circle at 46% 86%, rgba(255, 255, 255, 0.5) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 86% 14%, rgba(255, 246, 232, 0.7) 0 1.1px, transparent 1.7px);
+  background-size: 62px 80px, 96px 160px, 46px 80px, 120px 160px;
+}
+.home-open-beam.is-right > i {
+  background-position: 30px 20px, 50px 70px, 10px 40px, 70px 100px;
+}
+@keyframes home-dust-fall {
+  to {
+    transform: translate3d(0, 160px, 0);
+  }
+}
+@keyframes home-dust-glint {
+  to {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .home-open-beam > i {
+    animation: home-dust-fall 34s linear infinite, home-dust-glint 4.5s ease-in-out infinite alternate;
+  }
+  .home-open-beam.is-right > i {
+    animation-duration: 41s, 5.5s;
+  }
+}
+@media (min-width: 861px) {
+  .home-open-dust {
+    height: 100%;
+    aspect-ratio: auto;
+  }
+}
+
+/* The stage's night, run on under the next section before the page turns to paper (pass 3): a fade from the stage's
+   dark under the stage, which the next section (positioned, so it paints over it) overlaps. */
+.home-open:has(+ .home-open-tail) {
+  margin-bottom: 0;
+}
+.home-open-tail {
+  width: 100vw;
+  height: 16rem;
+  margin: 0 0 calc(var(--space-6) - 16rem) calc(50% - 50vw);
+  background: linear-gradient(to bottom, var(--card-dark), color-mix(in srgb, var(--card-dark) 0%, transparent));
+  pointer-events: none;
+}
+.home-open-tail + * {
+  position: relative;
+}
