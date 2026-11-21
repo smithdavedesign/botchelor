@@ -10,7 +10,9 @@ import {
   labelPath,
   labelSpan,
   lineEnds,
+  nameLayout,
   norm,
+  PERSON_RADIUS,
   ROLE_WORDS,
   oddsArc,
   RING_RADIUS,
@@ -18,6 +20,7 @@ import {
   spreadLabels,
   WORLD_SIZE,
   worldPicture,
+  type WorldMember,
 } from "@/lib/social/world-picture";
 
 const node = (id: string, extra: Partial<{ private: boolean; portrait: string | null; hue: number | null }> = {}) => ({ id, name: id.toUpperCase(), private: false, portrait: null, hue: null, ...extra });
@@ -194,5 +197,61 @@ describe("a world as a picture", () => {
     const eve = p.members.find((m) => m.id === "eve")!;
     expect(Math.abs(norm(p.places[0].angle - eve.angle))).toBeLessThan(1);
     expect(EDGE_RADIUS).toBeGreaterThan(RING_RADIUS.acquaintances);
+  });
+});
+
+describe("names on the picture", () => {
+  const MID = WORLD_SIZE / 2;
+  const member = (id: string, x: number, y: number, o: Partial<WorldMember> = {}): WorldMember => ({
+    id,
+    name: id,
+    person: false,
+    private: false,
+    hue: null,
+    portrait: null,
+    ring: "close",
+    angle: 0,
+    x,
+    y,
+    r: o.person ? PERSON_RADIUS : 16,
+    lines: [],
+    odds: false,
+    masked: false,
+    ties: [],
+    shared: [],
+    ...o,
+  });
+  const text = (m: WorldMember) => m.name;
+
+  it("puts a face's name under it and an off-screen person's beside their dot, on the outer side", () => {
+    const names = nameLayout([member("Juniper", MID - 60, MID + 100), member("Amara Okoye", MID + 150, MID - 40, { person: true }), member("Mum", MID - 150, MID - 40, { person: true })], text);
+    expect(names.get("Juniper")).toEqual({ x: MID - 60, y: MID + 100 + 16 + 4, anchor: "middle" });
+    expect(names.get("Amara Okoye")).toMatchObject({ x: MID + 150 + PERSON_RADIUS + 4, anchor: "start" });
+    expect(names.get("Mum")).toMatchObject({ x: MID - 150 - PERSON_RADIUS - 4, anchor: "end" });
+  });
+
+  it("turns a person's name inward when the outer side would run into the places round the edge", () => {
+    const kofi = member("Kofi Dabo", MID + RING_RADIUS.acquaintances, MID, { person: true, ring: "acquaintances" });
+    expect(nameLayout([kofi], text).get("Kofi Dabo")).toMatchObject({ x: kofi.x - PERSON_RADIUS - 4, anchor: "end" });
+  });
+
+  it("moves or leaves off a name that would overlap one already down, the inner circle's first", () => {
+    // Zenobia's name hangs under the face; Amara's dot sits just above that, so Amara's goes the other way, then under.
+    const zenobia = member("Zenobia", MID + 160, MID + 60, { ring: "inner", r: 22 });
+    const amara = member("Amara Okoye", MID + 150, MID + 92, { person: true });
+    const names = nameLayout([amara, zenobia], text);
+    expect(names.get("Zenobia")).toMatchObject({ anchor: "middle" });
+    expect(names.get("Amara Okoye")?.anchor).not.toBe("start");
+    // Two people on one spot: the second has nowhere left that's clear on its own side, so one of them yields.
+    const crowd = [0, 1, 2, 3].map((i) => member(`Person ${i}`, MID + 150, MID - 40 + i, { person: true }));
+    expect(nameLayout(crowd, text).size).toBeLessThan(4);
+    // Nothing over the centre's face.
+    const near = member("Near", MID + 30, MID - 30, { person: true });
+    expect(nameLayout([near], text).get("Near")).toBeUndefined();
+  });
+
+  it("names only the inner and close rings' faces", () => {
+    const far = member("Far", MID, MID - RING_RADIUS.friends, { ring: "friends", r: 11 });
+    expect(nameLayout([far], text).has("Far")).toBe(false);
   });
 });

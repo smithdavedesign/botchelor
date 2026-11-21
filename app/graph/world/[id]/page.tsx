@@ -17,7 +17,7 @@ import { TIE_KINDS } from "@/lib/social/kinds";
 import { endWords, LINE_STYLES } from "@/lib/social/lenses";
 import { socialLensesOn } from "@/lib/social/lens-sky";
 import type { EgoNetwork, Ring, TieView } from "@/lib/social/types";
-import { arcPath, CENTRE_RADIUS, labelPath, lineEnds, ROLE_WORDS, worldPicture, WORLD_SIZE, type WorldMember, type WorldPicture } from "@/lib/social/world-picture";
+import { arcPath, CENTRE_RADIUS, labelPath, lineEnds, nameLayout, ROLE_WORDS, worldPicture, WORLD_SIZE, type NamePlace, type WorldMember, type WorldPicture } from "@/lib/social/world-picture";
 
 export const dynamic = "force-dynamic";
 
@@ -56,15 +56,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return indexable ? meta : { ...meta, robots: { index: false, follow: true } };
 }
 
-/** A face on the picture: their portrait or their initials on their colour, linked to their own world. */
-function Face({ m }: { m: WorldMember }) {
+/**
+ * A face on the picture: their portrait or their initials on their colour, linked to their own world. `at` is where its
+ * name goes (nameLayout), absent when it has none or none fits.
+ */
+function Face({ m, at }: { m: WorldMember; at?: NamePlace }) {
   if (m.person) {
     return (
       <g className="world-person">
         <circle cx={m.x} cy={m.y} r={m.r} />
-        <text x={m.x + (m.x >= WORLD_SIZE / 2 ? m.r + 4 : -m.r - 4)} y={m.y + 4} textAnchor={m.x >= WORLD_SIZE / 2 ? "start" : "end"}>
-          {m.name}
-        </text>
+        {at && (
+          <text x={at.x} y={at.y} textAnchor={at.anchor}>
+            {m.name}
+          </text>
+        )}
       </g>
     );
   }
@@ -79,8 +84,8 @@ function Face({ m }: { m: WorldMember }) {
   const p = avatarPalette(m.id, m.hue);
   const src = characterPortrait(m.id) ?? m.portrait;
   const clip = `world-clip-${m.id}`;
-  // Names under the closest faces only (the list names everyone); on a phone, the inner circle's alone, bigger.
-  const label = m.ring === "inner" || m.ring === "close";
+  // Names under the closest faces only (the list names everyone; nameLayout leaves off any that would overlap); on a
+  // phone, the inner circle's alone, bigger.
   return (
     <a href={`/graph/world/${encodeURIComponent(m.id)}`} className="world-face">
       <title>{`${m.name}: their world`}</title>
@@ -103,8 +108,8 @@ function Face({ m }: { m: WorldMember }) {
         </>
       )}
       <circle cx={m.x} cy={m.y} r={m.r} className="world-face-ring" />
-      {label && (
-        <text x={m.x} y={m.y + m.r + 4} textAnchor="middle" dominantBaseline="hanging" className={`world-name is-${m.ring}`}>
+      {at && (
+        <text x={at.x} y={at.y} textAnchor={at.anchor} dominantBaseline="hanging" className={`world-name is-${m.ring}`}>
           {shortName(m.name)}
         </text>
       )}
@@ -162,6 +167,7 @@ function Picture({ pic, label }: { pic: WorldPicture; label: string }) {
   const src = c.private ? null : (characterPortrait(c.id) ?? c.portrait);
   // Lines under faces, the outer rings' first, so an inner face is never crossed.
   const outerFirst = [...pic.members].reverse();
+  const names = nameLayout(pic.members, (m) => (m.person ? m.name : shortName(m.name)));
   return (
     <svg className="world-sky" viewBox={`0 0 ${WORLD_SIZE} ${WORLD_SIZE}`} role="img" aria-label={label}>
       <defs>
@@ -182,7 +188,7 @@ function Picture({ pic, label }: { pic: WorldPicture; label: string }) {
         <Lines key={m.id} m={m} />
       ))}
       {outerFirst.map((m) => (
-        <Face key={m.id} m={m} />
+        <Face key={m.id} m={m} at={names.get(m.id)} />
       ))}
       <g className="world-centre">
         <circle cx={mid} cy={mid} r={CENTRE_RADIUS} fill={p.from} />
