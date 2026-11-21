@@ -315,8 +315,9 @@ export function portraitPrompt(look: string, age: number): string {
 
 /**
  * A portrait on Venice (safe mode on), photoreal, checked by Hive before it's kept, stored in the asset ledger as
- * pending (served only once approved). A season candidate's waits for the candidate's review (reviewCandidate approves
- * both; a rejected one's stays unserved). A house cast member's has no review of its own to wait for: the admin who
+ * pending (served only once approved). A pending season candidate's is approved once it passes, so their public page
+ * and the ballot show a face (2026-11-21: Bramwell Vance showed initials); rejecting the candidate takes it down
+ * (reviewCandidate), and a rejected one's redraw stays unserved. A house cast member's has no review of its own to wait for: the admin who
  * asked for the redraw is the approval (2026-11-07 audit, item 15: one art style for the cast). It's their face from
  * then on, unless the show draws them from a committed file (lib/portraits.ts, the fixed house cast), which wins until
  * the redraw is committed there; the note says which. Anyone else's (a person's or an agent's character) stays
@@ -361,9 +362,15 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
     const look = c.house ? await drawHouseLook(db, { id: c.id, look: houseLook ?? c.look.physical ?? physicalLook(c), age: c.age, hue: c.look.hue }, pic.bytes) : null;
     const face = look?.ok ? look.assetId : asset;
     await db.query(`update season_candidates set portrait_asset = $2, check_note = 'passed' where character_id = $1`, [characterId, face]);
-    if (c.house && !(await unapprovedCandidate(db, characterId))) {
-      await reviewAsset(db, asset, "approved", "the show's own portrait, redrawn by an admin: drawn from their look in safe mode, PG-checked");
-      if (look?.ok) await reviewAsset(db, look.assetId, "approved", "the show's own portrait in the house look, redrawn from that photograph: PG-checked");
+    // A candidate's face shows while the audience weighs them up (their page is public, and the "who joins next season?"
+    // ballot lists them): the check passed, the bar a voted or unreviewed newcomer already joins on. Rejecting them takes
+    // it down (reviewCandidate). A rejected candidate's redraw stays unserved.
+    const candidacy = c.house ? await candidateStatus(db, characterId) : null;
+    if (c.house && candidacy !== "rejected") {
+      const why = candidacy === "pending" ? "a season candidate's portrait, shown while they're weighed up" : "the show's own portrait, redrawn by an admin";
+      await reviewAsset(db, asset, "approved", `${why}: drawn from their look in safe mode, PG-checked`);
+      if (look?.ok) await reviewAsset(db, look.assetId, "approved", `${why}, in the house look, redrawn from that photograph: PG-checked`);
+      if (candidacy === "pending") return "made: their face while they're a candidate (rejecting them takes it down)";
       const file = characterPortrait(characterId);
       return file ? `made and approved: the show draws them from ${file} until this one is committed there (lib/portraits.ts)` : "made: it's their portrait now";
     }
@@ -375,9 +382,10 @@ export async function makePortrait(db: Db, characterId: string): Promise<string>
   }
 }
 
-/** Whether the character is a season candidate not approved: waiting for its review (which approves its portrait with it) or rejected. */
-async function unapprovedCandidate(db: Db, characterId: string): Promise<boolean> {
-  return (await db.query(`select 1 from season_candidates where character_id = $1 and status <> 'approved'`, [characterId])).rows.length > 0;
+/** The character's candidacy, if they're a season candidate: pending (their face shows meanwhile), approved or rejected. */
+async function candidateStatus(db: Db, characterId: string): Promise<"pending" | "approved" | "rejected" | null> {
+  const rows = (await db.query<{ status: "pending" | "approved" | "rejected" }>(`select status from season_candidates where character_id = $1`, [characterId])).rows;
+  return rows[0]?.status ?? null;
 }
 
 /** The candidates for a season, oldest first, with their portrait's state. */
@@ -401,8 +409,10 @@ export async function listCandidates(db: Db, seasonId: string): Promise<Candidat
 export async function reviewCandidate(db: Db, characterId: string, status: "approved" | "rejected"): Promise<boolean> {
   const row = (await db.query<{ portrait_asset: string | null }>(`update season_candidates set status = $2, reviewed_at = now() where character_id = $1 returning portrait_asset`, [characterId, status])).rows[0];
   if (!row) return false;
+  // Approving serves what's waiting; rejecting also takes down the face shown while they were a candidate (makePortrait).
   const pending = await db.query<{ id: string }>(
-    `select id from character_assets where character_id = $1 and kind = 'portrait' and review_status = 'pending' order by created_at`,
+    `select id from character_assets where character_id = $1 and kind = 'portrait'
+        and review_status = ${status === "rejected" ? "any(array['pending', 'approved'])" : "'pending'"} order by created_at`,
     [characterId],
   );
   const ids = new Set([...pending.rows.map((r) => r.id), ...(row.portrait_asset ? [row.portrait_asset] : [])]);
@@ -517,7 +527,7 @@ export async function generateCandidates(db: Db, seasonId: string, model: Model 
     }
     live.push({ character_id: id, name: r.draft.name, bio: r.draft.bio, archetype: r.draft.archetype });
     const portrait = await makePortrait(db, id);
-    if (portrait !== "made") errors.push(`${id}: ${portrait}`);
+    if (!portrait.startsWith("made")) errors.push(`${id}: ${portrait}`);
     made.push(id);
   }
   return { made, errors };

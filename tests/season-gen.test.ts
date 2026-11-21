@@ -19,6 +19,7 @@ import {
   newcomerPronouns,
   pairPlan,
   parseDraft,
+  makePortrait,
   reviewCandidate,
   seasonGenerationDue,
 } from "@/lib/season-gen";
@@ -146,7 +147,7 @@ describe("writing a candidate", () => {
     expect(parseDraft("not json at all", [])).toEqual({ ok: false, reason: "not JSON" });
   });
 
-  it("stores the sheet, kit, soul and look; paints a PG portrait (safe mode) that's served only once approved", async () => {
+  it("stores the sheet, kit, soul and look; paints a PG portrait (safe mode) that's served while they're a candidate", async () => {
     await keys();
     const venice = fakeProviders();
     const model = script([JSON.stringify(draft("Odessa Brine")), JSON.stringify(draft("Bram Tolliver", { pronouns: "he/him" })), JSON.stringify(draft("Wynn Arbor"))]);
@@ -161,9 +162,10 @@ describe("writing a candidate", () => {
     expect(c.baseSignals.humor).toBeGreaterThan(0.5);
 
     const [first] = await listCandidates(t.db, "2026-11-01");
-    expect(first).toMatchObject({ status: "pending", portrait_status: "pending", check_note: "passed", archetype: "The commentator" });
+    expect(first).toMatchObject({ status: "pending", portrait_status: "approved", check_note: "passed", archetype: "The commentator" });
     const served = () => assetGet(new Request(`${BASE_URL}/api/assets/${first.portrait_asset}`), { params: Promise.resolve({ id: first.portrait_asset! }) });
-    expect((await served()).status).toBe(404);
+    // Their public page and the ballot show it before the review (2026-11-21: Bramwell Vance showed initials).
+    expect((await served()).status).toBe(200);
     await reviewCandidate(t.db, "house-odessa", "approved");
     expect((await served()).status).toBe(200);
     // Topping up again writes nothing: there are already three.
@@ -254,9 +256,10 @@ describe("writing a candidate", () => {
       (await t.db.query<{ id: string; prompt_version: string; review_status: string }>(`select id, prompt_version, review_status from character_assets where character_id = 'house-odessa' order by created_at`)).rows;
     const [shot, look] = await assets();
     expect([shot.prompt_version, look.prompt_version]).toEqual(["season-gen-v1", HOUSE_LOOK_VERSION]);
-    // The admin reviews the face the show will use; approving approves both.
+    // Both are shown while they're a candidate (their page and the ballot have a face); the house look is the one used.
     const [c] = await listCandidates(t.db, "2026-11-01");
     expect(c.portrait_asset).toBe(look.id);
+    expect((await assets()).map((a) => a.review_status)).toEqual(["approved", "approved"]);
     await reviewCandidate(t.db, "house-odessa", "approved");
     expect((await assets()).map((a) => a.review_status)).toEqual(["approved", "approved"]);
 
@@ -275,6 +278,18 @@ describe("writing a candidate", () => {
     expect(rows).toEqual([{ id: c.portrait_asset, prompt_version: "season-gen-v1" }]);
     await reviewCandidate(t.db, "house-odessa", "approved");
     expect((await t.db.query<{ s: string }>(`select ${showStyleSql("c")} as s from characters c where c.id = 'house-odessa'`)).rows[0].s).toBe("realistic");
+  });
+
+  it("takes a candidate's face down when they're rejected, and doesn't serve a rejected one's redraw", async () => {
+    await keys();
+    fakeProviders();
+    await generateCandidates(t.db, "2026-11-01", script([JSON.stringify(draft("Odessa Brine"))]), 1);
+    const statuses = async () => (await t.db.query<{ review_status: string }>(`select review_status from character_assets where character_id = 'house-odessa' order by created_at`)).rows.map((r) => r.review_status);
+    expect(await statuses()).toEqual(["approved"]);
+    await reviewCandidate(t.db, "house-odessa", "rejected");
+    expect(await statuses()).toEqual(["rejected"]);
+    expect(await makePortrait(t.db, "house-odessa")).toBe("made");
+    expect(await statuses()).toEqual(["rejected", "pending"]);
   });
 
   it("discards a portrait the check refuses, and keeps the candidate without one", async () => {
