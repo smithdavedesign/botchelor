@@ -323,15 +323,15 @@ describe("the pages", () => {
     expect(plain).toMatch(/<input type="checkbox"\/>\s*Still seeing each other/);
   });
 
-  it("/graph?world= opens on just them and their world; a world nobody's in is no world", async () => {
+  it("/graph?world= opens on just their corner of the sky; a corner nobody's in is none", async () => {
     await seedDate();
     const { default: GraphPage } = await import("@/app/graph/page");
     const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ world: HOUSE }) }));
-    expect(html).toMatch(/Just <strong>[^<]+<\/strong> and their world: who they dated, and who those dated \(2 characters\)/);
+    expect(html).toMatch(/Just <strong>[^<]+<\/strong>&#x27;s corner of the sky: who they dated, and who those dated \(2 characters\)/);
     expect(html).toContain("Show everyone");
     for (const world of ["nobody-at-all", ""]) {
       const plain = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ world }) }));
-      expect(plain).not.toContain("and their world");
+      expect(plain).not.toContain("corner of the sky:");
     }
   });
 

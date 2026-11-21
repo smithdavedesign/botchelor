@@ -12633,6 +12633,162 @@ html.constellation-locked body {
   }
 }
 
+/* ------------------------- "X's world" (/graph/world/[id]): one character and their rings ------------------------- */
+/* app/graph/world/[id]/page.tsx: server-drawn SVG on the Constellation's night sky (its colours are validated there),
+   then the list, ring by ring. */
+.world-header {
+  margin: var(--space-4) 0 var(--space-3);
+}
+.world-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+.world-figure {
+  margin: 0 0 var(--space-4);
+}
+/* The picture's own type, in picture units (its 640-unit viewBox, lib/social/world-picture.ts), not the page's type
+   scale: the picture is scaled to fit, about 1.1 on a desktop and 0.56 on a phone, so these are picked for the size
+   they come out at, 12px or more. The phone's place labels are what world-picture.ts LABEL_TYPE lays the edge out for. */
+.world-sky {
+  --world-type-name: 12px;
+  --world-type-place: 13px;
+  display: block;
+  width: 100%;
+  max-width: 44rem;
+  height: auto;
+  margin: 0 auto;
+  background: var(--constellation-bg);
+  border-radius: var(--radius-lg);
+}
+.world-figure figcaption {
+  text-align: center;
+  margin-top: var(--space-2);
+}
+.world-ring {
+  fill: none;
+  stroke: var(--constellation-line);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+.world-odds {
+  fill: none;
+  stroke: var(--social-conflict);
+  stroke-width: 10;
+  stroke-linecap: round;
+  opacity: 0.28;
+}
+.world-line-hit {
+  stroke: transparent;
+  stroke-width: 14;
+}
+.world-line-private {
+  stroke: var(--constellation-line);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 4;
+}
+.world-face-ring {
+  fill: none;
+  stroke: var(--constellation-bg);
+  stroke-width: 2;
+}
+.world-initials {
+  font-weight: 700;
+}
+.world-name,
+.world-person text,
+.world-place {
+  fill: var(--constellation-label);
+  font-size: var(--world-type-name);
+}
+.world-place {
+  font-size: var(--world-type-place);
+  letter-spacing: 0.02em;
+}
+.world-person circle,
+.world-private circle {
+  fill: var(--constellation-line);
+}
+.world-face:focus-visible,
+.world-tie:focus-visible {
+  outline: none;
+}
+.world-face:focus-visible .world-face-ring,
+.world-face:hover .world-face-ring {
+  stroke: var(--constellation-ink);
+}
+.world-tie:hover line:not(.world-line-hit),
+.world-tie:focus-visible line:not(.world-line-hit) {
+  opacity: 1;
+  stroke-width: 3;
+}
+.world-ring-list h2 {
+  margin-bottom: var(--space-1);
+}
+.world-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  scroll-margin-top: 5rem;
+}
+.world-row:target {
+  background: var(--soft);
+  border-radius: var(--radius-sm);
+}
+.world-row-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+.world-row-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  /* A space inside an inline flexbox is dropped: this keeps "the dive bar" off "their story". */
+  margin-left: var(--space-2);
+}
+.world-person-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+/* A phone draws the picture at about half size: type in picture units doubles to stay readable, so only the inner
+   circle keeps its names (the list below names everyone), and the places' labels are laid out for this size
+   (lib/social/world-picture.ts LABEL_TYPE). */
+@media (max-width: 640px) {
+  .world-sky {
+    --world-type-name: 22px;
+    --world-type-place: 22px;
+  }
+  .world-sky .world-name,
+  .world-sky .world-person text {
+    display: none;
+  }
+  .world-sky .world-name.is-inner {
+    display: inline;
+  }
+}
+
+/* "See their world" in a character's side panel (Love and the views): on a phone it's the panel's first action, filled,
+   since the sky is cramped there and their world page isn't. */
+@media (max-width: 640px) {
+  .constellation-panel-links .constellation-world-link {
+    order: -1;
+    flex: 1 1 100%;
+    text-align: center;
+    background: var(--grad);
+    border-color: transparent;
+    color: var(--accent-ink);
+  }
+}
+.constellation-world .constellation-world-link {
+  margin-left: var(--space-1);
+}
+
 /* ---------------- /admin/after-dark/graph (2026-10-22): every pair's After Dark content on one page ---------------- */
 .ad-graph-svg {
   display: block;

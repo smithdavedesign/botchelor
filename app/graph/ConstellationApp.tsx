@@ -1,9 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { GraphData } from "@/lib/graph";
 import { KINDS } from "@/lib/kinds";
+import { shortName } from "@/lib/names";
 import { communityColor, kindHue, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import {
@@ -94,7 +96,7 @@ function useSkyAddress(params: Record<string, string | null>) {
 /**
  * The interactive shell around the canvas: two rows above the sky (who's on it: search-to-focus, origin, kind, the
  * orbit, colouring; which lines: the view, the stage chips, when, still seeing each other), the sky itself, and the
- * detail panel, whose "Just them and their world" cuts the sky to one character's world. On a phone everything but
+ * detail panel, whose "Just their corner of the sky" cuts the sky to one character's corner. On a phone everything but
  * search, the views, the chips and full screen sits behind one Filters button, in a bottom sheet.
  *
  * The views (SOCIAL_LENSES, docs/PRDs/social-network.md section 9): Love is the Constellation, who dated whom; Friends
@@ -132,7 +134,7 @@ export default function ConstellationApp({
   /** /graph?when= and ?still=1 (./filter.ts): when the pairs drawn last dated. */
   initialWhen?: When;
   initialStill?: boolean;
-  /** /graph?world=<id>: the sky opens on just that character and their world (./filter.ts worldOf). */
+  /** /graph?world=<id>: the sky opens on just that character's corner of it (./filter.ts worldOf). */
   initialWorld?: string | null;
   /** The server's clock (ms) when it rendered the page: "this season" and "the last 30 days" count from it on both sides. */
   now: number;
@@ -213,7 +215,7 @@ export default function ConstellationApp({
   // When they last dated, and "Still seeing each other" (which replaced "2+ dates": the First date chip covers those).
   const [when, setWhen] = useState<When>(initialWhen);
   const [still, setStill] = useState(initialStill);
-  // "Just them and their world" (./filter.ts worldOf): a character's id, from their panel or ?world=.
+  // "Just their corner of the sky" (./filter.ts worldOf): a character's id, from their panel or ?world=.
   const [world, setWorld] = useState<string | null>(initialWorld);
   // "Show what happened": endings, turn-downs, who left first and the chevrons. Off, like the episode page's recap.
   const [showOutcomes, setShowOutcomes] = useState(false);
@@ -267,7 +269,7 @@ export default function ConstellationApp({
     if (!social && world && whole && !worldNode) setWorld(null);
   }, [social, world, whole, worldNode]);
   const worldName = world ? (worldNode?.name ?? data.nodes.find((n) => n.id === world)?.name ?? null) : null;
-  // In a view: the same filters on who's on the sky, its chips on its lines, and their world within it.
+  // In a view: the same filters on who's on the sky, its chips on its lines, and their corner within it.
   const lensBase = useMemo(() => ({ origin, kind, world: worldId }), [origin, kind, worldId]);
   const lensEvery = useMemo(() => (lensWhole ? filterLens(lensWhole, { ...lensBase, groups: null }, mineSet) : null), [lensWhole, lensBase, mineSet]);
   const lensShown = useMemo(() => (lensWhole && groups ? filterLens(lensWhole, { ...lensBase, groups }, mineSet) : lensEvery), [lensWhole, lensBase, groups, mineSet, lensEvery]);
@@ -638,18 +640,24 @@ export default function ConstellationApp({
         <p className="constellation-more constellation-world small" role="status">
           {social ? (
             <span>
-              Just <strong>{worldNode.name}</strong> and their world in {LENS_LABEL[lens]}: their ties here, and those people&apos;s (
+              Just <strong>{worldNode.name}</strong>&apos;s corner of {LENS_LABEL[lens]}: their ties here, and those people&apos;s (
               {skyNodes.filter((n) => !n.place).length} {skyNodes.filter((n) => !n.place).length === 1 ? "character" : "characters"}).
             </span>
           ) : (
             <span>
-              Just <strong>{worldNode.name}</strong> and their world: who they dated, and who those dated ({nodes.length}{" "}
+              Just <strong>{worldNode.name}</strong>&apos;s corner of the sky: who they dated, and who those dated ({nodes.length}{" "}
               {nodes.length === 1 ? "character" : "characters"}).
             </span>
           )}{" "}
           <button type="button" className="button-ghost small" onClick={() => setWorld(null)} data-track="graph-world-off">
             Show everyone
           </button>
+          {/* Their whole world, every kind of tie, is a page of its own (/graph/world/[id]). */}
+          {lensesOn && (
+            <Link className="tap-link constellation-world-link" href={`/graph/world/${encodeURIComponent(worldNode.id)}`} data-track="graph-world-page">
+              See {shortName(worldNode.name)}&apos;s world →
+            </Link>
+          )}
         </p>
       )}
       <div className="constellation-sky">
@@ -737,6 +745,7 @@ export default function ConstellationApp({
               onFocus={focus}
               world={worldId}
               onWorld={setWorld}
+              worlds={lensesOn}
               colorBy={colorBy}
             />
           )
@@ -749,6 +758,7 @@ export default function ConstellationApp({
             onFocus={focus}
             world={worldId}
             onWorld={setWorld}
+            worlds={lensesOn}
             colorBy={colorBy}
             showOutcomes={showOutcomes}
             onShowOutcomes={setShowOutcomes}
