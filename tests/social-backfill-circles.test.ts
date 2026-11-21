@@ -7,6 +7,7 @@ import {
   brokenHolders,
   circleMessages,
   familyHints,
+  isPossessive,
   isTitleOnly,
   nameBook,
   nameCircle,
@@ -21,6 +22,7 @@ import {
   shuffled,
   statsLine,
   styleOf,
+  SURNAME_OFFERED_MAX,
   tieIndex,
   toCircle,
   type Circle,
@@ -197,10 +199,13 @@ describe("the prompt and the reply", () => {
         { name: "The Boss", relation: "boss" },
         { name: "Auntie Meg", relation: "aunt" },
         { name: "Al", relation: "best friend" },
+        { name: "Ignatius's Cinder", relation: "sister" },
+        { name: "Liam O'Shea", relation: "friend" },
       ],
     };
-    expect(toCircle(char("me"), reply, { candidates: [], workplaces: [] }).people.map((p) => p.name)).toEqual(["Auntie Meg", "Al"]);
+    expect(toCircle(char("me"), reply, { candidates: [], workplaces: [] }).people.map((p) => p.name)).toEqual(["Auntie Meg", "Al", "Liam O'Shea"]);
     expect([isTitleOnly("Mum"), isTitleOnly(" my  mum "), isTitleOnly("Uncle Fen"), isTitleOnly("Ma Rainey")]).toEqual([true, true, false, false]);
+    expect([isPossessive("Ignatius's Cinder"), isPossessive("Bo’s"), isPossessive("Liam O'Shea"), isPossessive("D'Souza")]).toEqual([true, true, false, false]);
   });
 
   it("remembers what was written: the ties both ways, a new workplace for the next character", () => {
@@ -374,19 +379,27 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
       holder("a6", "Flo Six", [["Gus One", "friend"]], { kind: "house" }),
       holder("a7", "Gil Seven", [["Hal Seven", "father"], ["Ivy Two", "aunt"]], { kind: "house" }),
       holder("a8", "Hana Eight", [], { kind: "house" }),
+      holder("a9", "Ike Nine", [["Ike's Nine", "sister"]], { kind: "house" }),
     ];
     const broken = brokenHolders(everyone);
-    expect([...broken.keys()].sort()).toEqual(["a4", "a5", "a6", "a7"]);
+    expect([...broken.keys()].sort()).toEqual(["a4", "a5", "a6", "a7", "a9"]);
+    expect(broken.get("a9")).toEqual(["Ike's Nine: not a name"]);
     expect(broken.get("a4")).toEqual(["Eleanor Rook: 3 called Eleanor already", "Eleanor Rook: close family without their surname"]);
     expect(broken.get("a5")).toEqual(["Maeve Fenn: a name someone has"]);
     expect(broken.get("a6")).toEqual(["Gus One: a character's surname"]);
     // His father may have his surname; his aunt may not have Bea Two's.
     expect(broken.get("a7")).toEqual(["Ivy Two: another character's surname"]);
     // --redo-broken writes those again, and the ones still without a circle.
-    expect(queue(everyone, { limit: 99, redo: new Set(broken.keys()) }).map((c) => c.id)).toEqual(["a4", "a5", "a6", "a7", "a8"]);
+    expect(queue(everyone, { limit: 99, redo: new Set(broken.keys()) }).map((c) => c.id)).toEqual(["a4", "a5", "a6", "a7", "a8", "a9"]);
     // The run's book doesn't count the circles it writes again.
     const book = nameBook(everyone, { skip: new Set(broken.keys()) });
     expect([book.firstCount("Eleanor"), book.hasFull("Maeve Fenn"), book.firstCount("Gus"), book.surnameTaken("two")]).toEqual([3, true, 0, true]);
+    // Surnames are counted too, so the prompt stops offering one past SURNAME_OFFERED_MAX.
+    expect([book.lastCount("Fenn"), book.lastCount("Rook")]).toEqual([1, 0]);
+    for (let i = 0; i < SURNAME_OFFERED_MAX; i++) book.add(`Nia${i} Rook`);
+    expect(book.lastCount("rook")).toBe(SURNAME_OFFERED_MAX);
+    book.remove("Nia0 Rook");
+    expect(book.lastCount("Rook")).toBe(SURNAME_OFFERED_MAX - 1);
   });
 
   it("counts the names for a report", () => {
@@ -398,6 +411,7 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
     const s = nameStats(everyone);
     expect(s).toMatchObject({ holders: 2, people: 6, distinctFirst: 3, overCap: 1, fullTwice: 1, outsideTaken: 1, kin: 2, kinOwn: 1, kinOther: 1, close: 2, closeOwn: 1, bestFriends: 1 });
     expect(s.top).toEqual([["eleanor", 4], ["rob", 1], ["tom", 1]]);
+    expect(s.topLast).toEqual([["hart", 2], ["quill", 2], ["moss", 1], ["stone", 1]]);
     expect(statsLine(s)).toContain("6 people for 2 characters: 3 first names (most used eleanor 4, rob 1, tom 1; 1 past 3)");
     expect(statsLine(s)).toContain("1 of 2 family with the character's own (close family 1 of 2)");
   });
