@@ -1920,6 +1920,68 @@ main:has(> .couple-page) {
 .house-scene-lead .cast-chat-bubble {
   font-size: var(--text-md);
 }
+/* The scene over its room (lib/house-rooms.ts; the visual pop audit's pass 3): the room under a dark wash, the lines in
+   their own bubbles on it, and the house camera's REC light and clock in the corner, set dressing (content's empty
+   alternative keeps it from screen readers). Complete at rest; the room pushes in slowly only where motion is welcome. */
+.house-room {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-top: var(--space-3);
+  padding: calc(var(--space-4) + 1.1rem) var(--space-3) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--photo-bg);
+  color: var(--on-photo);
+}
+.house-room.is-lead {
+  padding: calc(var(--space-5) + 1.1rem) var(--space-4) var(--space-4);
+}
+.house-room-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+}
+.house-room::before {
+  content: attr(data-rec);
+  content: attr(data-rec) / "";
+  position: absolute;
+  top: var(--space-3);
+  left: calc(var(--space-3) + 0.85rem);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-photo);
+}
+.house-room::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--space-3) + 0.3rem);
+  left: var(--space-3);
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--bad);
+}
+.house-room.is-lead::before {
+  left: calc(var(--space-4) + 0.85rem);
+}
+.house-room.is-lead::after {
+  left: var(--space-4);
+}
+.house-room > .house-lines {
+  margin: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .house-room::after {
+    animation: watch-pulse 1.6s ease-in-out infinite;
+  }
+  .house-room-art {
+    animation: set-push-in 40s ease-in-out infinite alternate;
+  }
+}
 .house-earlier {
   display: flex;
   flex-direction: column;
