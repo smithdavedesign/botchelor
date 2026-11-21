@@ -1,5 +1,6 @@
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
+import ToolPreview from "./ToolPreview";
 import { OC_NAME_STYLE_INFO, OC_NAME_STYLES, OC_NAMES_PATH, ocNamesHref } from "@/lib/oc-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS_PATH } from "@/lib/oc-questions";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
@@ -85,7 +86,9 @@ export default function ToolsPage() {
       </section>
 
       {FREE_TOOLS.map((t) => (
-        <section key={t.path} className="card tools-item" aria-labelledby={`tool-${t.path.split("/").pop()}`}>
+        <section key={t.path} className="card tools-item rise-in" aria-labelledby={`tool-${t.path.split("/").pop()}`}>
+          {/* What the tool makes, from its own output (app/tools/ToolPreview.tsx). */}
+          <ToolPreview path={t.path} />
           <h2 id={`tool-${t.path.split("/").pop()}`}>
             <Link href={t.path}>{t.name}</Link>
           </h2>

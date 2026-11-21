@@ -10863,6 +10863,202 @@ html.ad-studio-locked {
   gap: var(--space-2) var(--space-4);
   margin-top: var(--space-3);
 }
+/* What each tool makes, beside its card's words (app/tools/ToolPreview.tsx, pass 2 of the visual pop audit): floated
+   right so the words keep their flow, smaller on a phone. */
+.tools-item {
+  display: flow-root;
+}
+.tool-preview {
+  float: right;
+  width: 10rem;
+  margin: 0 0 var(--space-2) var(--space-4);
+}
+/* The generator: a fanned hand of three house faces that spreads under the pointer. */
+.tool-fan {
+  position: relative;
+  height: 7.5rem;
+}
+.tool-fan img {
+  position: absolute;
+  top: 0.5rem;
+  left: calc(50% - 2.25rem);
+  width: 4.5rem;
+  height: 6rem;
+  border: 2px solid var(--card);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  object-position: 50% 18%;
+  background: var(--photo-bg);
+  box-shadow: var(--shadow);
+  transform-origin: 50% 110%;
+}
+.tool-fan img:nth-child(1) {
+  rotate: -14deg;
+  translate: -1.4rem 0.4rem;
+}
+.tool-fan img:nth-child(3) {
+  rotate: 14deg;
+  translate: 1.4rem 0.4rem;
+}
+.tool-fan img:nth-child(2) {
+  z-index: 1;
+}
+/* A few of the name generator's names, as chips. */
+.tool-names {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+.tool-names li {
+  margin: 0;
+  padding: 0.15rem var(--space-2);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent-text);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.tool-names li:nth-child(2) {
+  margin-right: var(--space-3);
+}
+/* A question, as a speech bubble. */
+.tool-question {
+  position: relative;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-xs) var(--radius-md);
+  background: var(--soft);
+  color: var(--ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+/* Ship names turning over in a window under the pair. */
+.tool-ship,
+.tool-chem {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: var(--radius-md);
+  background: var(--paper-2);
+  text-align: center;
+}
+.tool-ship-pair,
+.tool-chem-pair,
+.tool-chem-ending {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.tool-ship-window {
+  display: block;
+  height: 1.35em;
+  overflow: hidden;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.35;
+}
+.tool-ship-reel {
+  display: grid;
+}
+/* The example chemistry score, and its meter filling (app/ux/motion.css .fill-in). */
+.tool-chem-score {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+.tool-chem-score small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.tool-chem-track {
+  display: block;
+  width: 100%;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--soft);
+  overflow: hidden;
+}
+.tool-chem-track > span {
+  display: block;
+  height: 100%;
+  background: var(--grad);
+}
+@media (max-width: 520px) {
+  .tool-preview {
+    width: 7rem;
+    margin-left: var(--space-3);
+  }
+  .tool-fan {
+    height: 6rem;
+  }
+  .tool-fan img {
+    left: calc(50% - 1.75rem);
+    width: 3.5rem;
+    height: 4.75rem;
+  }
+  .tool-fan img:nth-child(1) {
+    translate: -1rem 0.3rem;
+  }
+  .tool-fan img:nth-child(3) {
+    translate: 1rem 0.3rem;
+  }
+  .tool-names li:nth-child(2) {
+    margin-right: var(--space-2);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tool-fan img {
+    transition: rotate 0.35s var(--ease-out), translate 0.35s var(--ease-out);
+  }
+  .tools-item:hover .tool-fan img:nth-child(1) {
+    rotate: -24deg;
+    translate: -2.2rem 0.6rem;
+  }
+  .tools-item:hover .tool-fan img:nth-child(3) {
+    rotate: 24deg;
+    translate: 2.2rem 0.6rem;
+  }
+  .tool-ship-reel {
+    animation: tool-ship-turn calc(var(--turns, 4) * 2.2s) var(--ease-out) infinite;
+  }
+  /* The generator deals its characters in, one after another. */
+  .random-oc {
+    animation: oc-deal 0.55s var(--ease-out) calc(var(--i, 0) * 90ms) backwards;
+  }
+}
+@keyframes tool-ship-turn {
+  0%,
+  20% {
+    translate: 0 0;
+  }
+  25%,
+  45% {
+    translate: 0 -1.35em;
+  }
+  50%,
+  70% {
+    translate: 0 -2.7em;
+  }
+  75%,
+  95% {
+    translate: 0 -4.05em;
+  }
+  100% {
+    translate: 0 -5.4em;
+  }
+}
+@keyframes oc-deal {
+  from {
+    opacity: 0.15;
+    transform: perspective(40rem) translateY(-1rem) rotateY(55deg) rotate(-3deg);
+  }
+}
 
 /* ---------------- the prompts library (/prompts, lib/prompts-library.ts) ---------------- */
 

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import PackVenues from "@/app/PackVenues";
+import PlanFace from "@/app/PlanFace";
 import SetHero from "@/app/SetHero";
 import { formatPrice, onSale, PACK_5 } from "@/lib/catalog";
 import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen, extraTerms } from "@/lib/companion-shared";
@@ -74,6 +76,8 @@ export default function PricingPage() {
         {/* One card per pack on sale (lib/catalog.ts onSale): the 5-pack always, the 15-pack once its link is set. */}
         {onSale().map((pack) => (
           <li key={pack.sku} className={card(pack.sku === PACK_5.sku ? "pack" : pack.sku)} id={pack.sku === PACK_5.sku ? "pack" : pack.sku}>
+            {/* One place for each date it buys (app/PackVenues.tsx). */}
+            <PackVenues dates={pack.episodes} />
             <h2>{pack.name}</h2>
             <p className="pricing-price">
               {formatPrice(pack.price_cents)} <span className="muted small">paid once</span>
@@ -99,7 +103,8 @@ export default function PricingPage() {
         ))}
 
         {companions && (
-          <li className={card("companion-plan")} id="companion-plan">
+          <li className={`${card("companion-plan")} has-plan-face`} id="companion-plan">
+            <PlanFace />
             <h2>{PLANS.companion.name}</h2>
             <p className="pricing-price">{planPrice("companion")}</p>
             <ul>
