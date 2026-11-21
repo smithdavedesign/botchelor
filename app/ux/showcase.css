@@ -468,3 +468,194 @@ a.showcase-reels-link {
 .studio-proof figcaption {
   margin-top: var(--space-2);
 }
+
+/* ---------------- "Now showing" (app/showcase/ShowcaseFeature.tsx; the visual pop audit's pass 3) ----------------
+   The gallery as a cinema: one clip large on a dark screen above the grid, marquee bulbs along its top and the
+   projector's beam over it. Dark in both themes, like the show's stages; the grid stays on the show's paper, so the
+   show's Gallery is never mistaken for After Dark's (David, 2026-10-18: never unsure which mode you're in). Complete at
+   rest; the bulbs only twinkle where motion is welcome. */
+.showcase-feature {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-5);
+  margin: var(--space-4) 0 var(--space-2);
+  padding: calc(var(--space-5) + 0.6rem) var(--space-5) var(--space-5);
+  border-radius: var(--radius);
+  background: var(--grad-dark);
+  color: var(--on-photo);
+  box-shadow: var(--shadow);
+}
+/* The marquee's bulbs along the top edge. */
+.showcase-feature::before {
+  content: "";
+  position: absolute;
+  inset: 0.55rem var(--space-4) auto;
+  height: 0.4rem;
+  background: radial-gradient(circle, var(--frame-gold) 0 0.13rem, transparent 0.17rem) 0 50% / 1.1rem 0.4rem repeat-x;
+  opacity: 0.9;
+}
+/* The projector's beam, from the back of the room onto the screen. */
+.showcase-feature::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse 60% 95% at 16% -12%, rgba(255, 236, 214, 0.17), transparent 70%);
+  pointer-events: none;
+}
+.showcase-feature-screen {
+  position: relative;
+  height: min(26rem, 62vh);
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--media-bg);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14), 0 0 3rem rgba(255, 236, 214, 0.14);
+}
+.showcase-feature-screen > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.showcase-feature-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--photo-bg) 35%, transparent);
+  box-shadow: none;
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.showcase-feature-play .icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--grad);
+}
+.showcase-feature-words > * {
+  margin: 0;
+}
+.showcase-feature-kicker {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--frame-gold);
+}
+.showcase-feature-words > h2 {
+  margin: var(--space-2) 0 var(--space-1);
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  color: var(--on-photo);
+}
+.showcase-feature-meta {
+  color: rgba(255, 255, 255, 0.8);
+}
+.showcase-feature-meta a {
+  color: var(--on-photo);
+}
+.showcase-feature-calls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+a.showcase-feature-second {
+  color: var(--on-photo);
+  font-weight: 700;
+}
+/* "Also showing": the next few clips' stills, small, each opening the reels at itself. */
+.showcase-feature-also {
+  margin-top: var(--space-5);
+}
+.showcase-feature-also-head {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+.showcase-feature-also ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 7rem));
+  gap: var(--space-3);
+}
+.showcase-feature-also a {
+  display: grid;
+  gap: var(--space-1);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+.showcase-feature-also img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--media-bg);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.showcase-feature-also span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.showcase-feature-also a:hover img,
+.showcase-feature-also a:focus-visible img {
+  box-shadow: 0 0 0 2px var(--frame-gold);
+}
+@media (max-width: 640px) {
+  .showcase-feature-also ul {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .showcase-feature {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: var(--space-4);
+    padding: calc(var(--space-4) + 0.6rem) var(--space-4) var(--space-4);
+    text-align: center;
+  }
+  .showcase-feature-screen {
+    height: min(20rem, 48vh);
+  }
+  .showcase-feature-calls {
+    justify-content: center;
+  }
+}
+@keyframes showcase-bulbs {
+  to {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .showcase-feature::before {
+    animation: showcase-bulbs 1.4s steps(2, jump-none) infinite alternate;
+  }
+  .showcase-feature-also img {
+    transition: transform 0.2s var(--ease-out), box-shadow 0.2s ease;
+  }
+  .showcase-feature-also a:hover img {
+    transform: translateY(-3px);
+  }
+}
