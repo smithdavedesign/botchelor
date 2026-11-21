@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { nameIdeas } from "@/lib/oc-name-pools";
+import { TIE_KINDS } from "@/lib/social/kinds";
+import { FIRST_NAME_MAX, isFamilyWords, nameStyleOf } from "@/lib/social/person-names";
+import { kindFromWords } from "@/lib/social/relations";
 import {
+  brokenHolders,
   circleMessages,
   familyHints,
   isTitleOnly,
+  nameBook,
+  nameCircle,
+  nameStats,
   offerNeighbourhoods,
   offerWorkplaces,
   parseArgs,
@@ -11,8 +19,11 @@ import {
   queue,
   remember,
   shuffled,
+  statsLine,
+  styleOf,
   tieIndex,
   toCircle,
+  type Circle,
   type ShowCharacter,
   type World,
 } from "../scripts/social/backfill-circles.mjs";
@@ -57,10 +68,15 @@ describe("the backfill's run", () => {
       limit: 3,
       dryRun: true,
       force: false,
+      redoBroken: false,
+      stats: false,
       only: ["a", "b"],
       base: "http://localhost:3000",
     });
     expect(parseArgs(["--limit", "400", "--force"])).toMatchObject({ limit: 400, force: true, base: "https://botchelor.com" });
+    expect(parseArgs(["--limit", "400", "--redo-broken"])).toMatchObject({ limit: 400, redoBroken: true, force: false });
+    // The names' numbers need no limit: nothing is written.
+    expect(parseArgs(["--stats"])).toMatchObject({ stats: true, limit: null });
   });
 
   it("writes the cast first, then the house, then the agent cast; those with a circle only when forced", () => {
@@ -231,3 +247,153 @@ describe("the prompt and the reply", () => {
     expect(offerWorkplaces(many.slice(0, 3), { n: 6 })).toHaveLength(3);
   });
 });
+
+/** A circle as the run has it, people only. */
+const peopleCircle = (id: string, people: { name: string; relation: string; pronouns?: string | null; note?: string | null }[]): Circle => ({
+  character_id: id,
+  people: people.map((p) => ({ pronouns: null, note: null, deceased: false, ...p })),
+  places: [],
+  ties: [],
+});
+/** A show character whose circle holds these people (as the site lists them: name and relation). */
+const holder = (id: string, name: string, people: [string, string][] = [], o: Partial<ShowCharacter> = {}): ShowCharacter =>
+  char(id, { name, has_circle: people.length > 0, circle: { people: people.map(([n, relation]) => ({ name: n, relation })), ties: [] }, ...o });
+
+describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby Thorne's family)", () => {
+  it("reads a character's style from its own words, modern unless they say otherwise", () => {
+    expect(nameStyleOf("Pilots a starship between asteroid farms.")).toBe("scifi");
+    expect(nameStyleOf("A court mage who brews potions badly.")).toBe("fantasy");
+    expect(nameStyleOf("A vampire who keeps a crypt tidy.")).toBe("gothic");
+    expect(nameStyleOf("Runs the bakery on the corner.")).toBe("cozy");
+    // Words ordinary bios use don't count.
+    expect(nameStyleOf("Night nurse, waiting for a knight in shining armour, saving the planet, fairy lights everywhere; that spells trouble.")).toBe("modern");
+    expect(styleOf(char("me", { bio: "Quiet.", occupation: "Baker" }))).toBe("cozy");
+    expect(styleOf(char("me", { bio: "Quiet.", occupation: "Lawyer", traits: ["dry"] }))).toBe("modern");
+  });
+
+  it("offers each character a few names of its own from the name generator, the same every time", () => {
+    const a = nameIdeas("char-a", "modern");
+    expect(a.first).toHaveLength(6);
+    expect(a.last).toHaveLength(3);
+    expect(nameIdeas("char-a", "modern")).toEqual(a);
+    expect(nameIdeas("char-b", "modern")).not.toEqual(a);
+    // Never a name used up, or a surname a character has.
+    const capped = new Set(a.first.map((f) => f.toLowerCase()));
+    const taken = new Set(a.last.map((l) => l.toLowerCase()));
+    const again = nameIdeas("char-a", "modern", { okFirst: (f) => !capped.has(f.toLowerCase()), okLast: (l) => !taken.has(l.toLowerCase()) });
+    expect(again.first.some((f) => capped.has(f.toLowerCase()))).toBe(false);
+    expect(again.last.some((l) => taken.has(l.toLowerCase()))).toBe(false);
+    expect(nameIdeas("char-a", "fantasy").first.every((f) => /^[A-Z][a-z]+$/.test(f))).toBe(true);
+  });
+
+  it("puts the names, family's surname and an optional best friend in the prompt", () => {
+    const names = { first: ["Imani", "Theo", "Rowan"], last: ["Okafor", "Varga"] };
+    const [, user] = circleMessages(char("me", { name: "Caspar Yeoland" }), { world, candidates: [], byId: new Map(), workplaces: [], names });
+    expect(user.content).toContain("First names to pick from for them (or others like these): Imani, Theo, Rowan.");
+    expect(user.content).toContain("Their family mostly shares their surname, Yeoland. Nobody else has it, nor the surname of anyone on the show: others have surnames like Okafor, Varga.");
+    expect(user.content).toContain("A best friend only if they really have one: most people here don't.");
+    expect(user.content).toContain("mentor, roommate or best friend");
+    // A one-word name has no surname to share.
+    const [, solo] = circleMessages(char("me", { name: "Zephyr" }), { world, candidates: [], byId: new Map(), workplaces: [], names });
+    expect(solo.content).toContain("Nobody has the surname of anyone on the show: use surnames like Okafor, Varga.");
+  });
+
+  it("knows family words as the site does (kindFromWords puts them in the kin layer)", () => {
+    const words = [
+      "their mother", "father", "sister", "brother", "son", "daughter", "grandmother", "cousin", "aunt", "uncle", "twin",
+      "half-sibling", "step-sibling", "aunt or uncle", "in-law", "family", "grandparent", "grandchild", "child", "parent", "sibling",
+      "best friend", "friend", "ex", "boss", "coworker", "neighbour", "rival", "mentor", "roommate", "childhood friend", "family friend",
+    ];
+    for (const w of words) {
+      const kind = kindFromWords(w);
+      expect([w, isFamilyWords(w)]).toEqual([w, kind ? TIE_KINDS[kind].layer === "kin" : false]);
+    }
+  });
+
+  it("renames a fourth first name, family with another character's surname, and anyone else with a character's", () => {
+    const me = holder("me", "Caspar Yeoland", [], { occupation: "Lawyer" });
+    const barnaby = holder("barnaby", "Barnaby Thorne", [["Eleanor Vance", "friend"], ["Eleanor Moss", "sibling"], ["Eleanor Hart", "friend"]]);
+    const book = nameBook([me, barnaby]);
+    const out = nameCircle(
+      me,
+      peopleCircle("me", [
+        { name: "Eleanor Thorne", relation: "mother", pronouns: "she/her", note: "Eleanor still calls him Cas." },
+        { name: "Milo Thorne", relation: "best friend", pronouns: "he/him" },
+        { name: "Lydia Yeoland", relation: "grandmother" },
+        { name: "Sam Yeoland", relation: "coworker" },
+        { name: "Ines Marr", relation: "neighbour" },
+      ]),
+      book,
+    );
+    const [mum, milo, gran, sam, ines] = out.circle.people;
+    // Family takes his surname over Barnaby's, and a fourth Eleanor is a new (feminine) first name; her note follows.
+    expect(mum.name).toMatch(/^\S+ Yeoland$/);
+    expect(mum.name.startsWith("Eleanor")).toBe(false);
+    expect(mum.note).toBe(`${mum.name.split(" ")[0]} still calls him Cas.`);
+    // Outside the family: never a character's surname, his own included.
+    expect(milo.name.startsWith("Milo ")).toBe(true);
+    expect(milo.name.endsWith("Thorne")).toBe(false);
+    expect(sam.name.startsWith("Sam ")).toBe(true);
+    expect(sam.name.endsWith("Yeoland")).toBe(false);
+    // Already by the rules: untouched.
+    expect([gran.name, ines.name]).toEqual(["Lydia Yeoland", "Ines Marr"]);
+    expect(out.renamed.map((r) => [r.from, r.why])).toEqual([
+      ["Eleanor Thorne", "family: their surname, not another character's; 3 called Eleanor already"],
+      ["Milo Thorne", "not family: not a character's surname"],
+      ["Sam Yeoland", "not family: not their surname"],
+    ]);
+    // What was kept is in the book: a second Ines Marr would be renamed.
+    expect(book.hasFull("Ines Marr")).toBe(true);
+    expect(book.firstCount("eleanor")).toBe(FIRST_NAME_MAX);
+    const next = nameCircle(holder("other", "Odile Park"), peopleCircle("other", [{ name: "Ines Marr", relation: "rival" }, { name: "Ines Marr", relation: "sister" }]), book);
+    expect(next.circle.people[0].name).toMatch(/^Ines (?!Marr$)/);
+    expect(next.circle.people[1].name).toMatch(/^\S+ Marr$/);
+    expect(next.circle.people[1].name.startsWith("Ines")).toBe(false);
+  });
+
+  it("finds the circles that break the rules in the order they were written, so the first ones keep their names", () => {
+    const everyone = [
+      holder("a1", "Ada One", [["Eleanor Quill", "friend"]], { kind: "house" }),
+      holder("a2", "Bea Two", [["Eleanor Moss", "friend"]], { kind: "house" }),
+      holder("a3", "Cy Three", [["Eleanor Hart", "friend"], ["Maeve Fenn", "neighbour"]], { kind: "house" }),
+      holder("a4", "Di Four", [["Eleanor Rook", "mother"]], { kind: "house" }),
+      holder("a5", "Ed Five", [["Maeve Fenn", "coworker"]], { kind: "house" }),
+      holder("a6", "Flo Six", [["Gus One", "friend"]], { kind: "house" }),
+      holder("a7", "Gil Seven", [["Hal Seven", "father"], ["Ivy Two", "aunt"]], { kind: "house" }),
+      holder("a8", "Hana Eight", [], { kind: "house" }),
+    ];
+    const broken = brokenHolders(everyone);
+    expect([...broken.keys()].sort()).toEqual(["a4", "a5", "a6", "a7"]);
+    expect(broken.get("a4")).toEqual(["Eleanor Rook: 3 called Eleanor already"]);
+    expect(broken.get("a5")).toEqual(["Maeve Fenn: a name someone has"]);
+    expect(broken.get("a6")).toEqual(["Gus One: a character's surname"]);
+    // His father may have his surname; his aunt may not have Bea Two's.
+    expect(broken.get("a7")).toEqual(["Ivy Two: another character's surname"]);
+    // --redo-broken writes those again, and the ones still without a circle.
+    expect(queue(everyone, { limit: 99, redo: new Set(broken.keys()) }).map((c) => c.id)).toEqual(["a4", "a5", "a6", "a7", "a8"]);
+    // The run's book doesn't count the circles it writes again.
+    const book = nameBook(everyone, { skip: new Set(broken.keys()) });
+    expect([book.firstCount("Eleanor"), book.hasFull("Maeve Fenn"), book.firstCount("Gus"), book.surnameTaken("two")]).toEqual([3, true, 0, true]);
+  });
+
+  it("counts the names for a report", () => {
+    const everyone = [
+      holder("a1", "Ada Quill", [["Eleanor Quill", "parent"], ["Eleanor Moss", "best friend"], ["Tom Stone", "friend"]]),
+      holder("a2", "Bea Stone", [["Eleanor Hart", "friend"], ["Eleanor Hart", "coworker"], ["Rob Quill", "sibling"]]),
+      holder("a3", "Cy Lone"),
+    ];
+    const s = nameStats(everyone);
+    expect(s).toMatchObject({ holders: 2, people: 6, distinctFirst: 3, overCap: 1, fullTwice: 1, outsideTaken: 1, kin: 2, kinOwn: 1, kinOther: 1, bestFriends: 1 });
+    expect(s.top).toEqual([["eleanor", 4], ["rob", 1], ["tom", 1]]);
+    expect(statsLine(s)).toContain("6 people for 2 characters: 3 first names (most used eleanor 4, rob 1, tom 1; 1 past 3)");
+  });
+
+  it("remembers a circle written again from nobody, under the names the site gave", () => {
+    const me = holder("me", "Mae Rook", [["Eleanor Old", "friend"]]);
+    const byId = new Map([["me", me]]);
+    const circle = peopleCircle("me", [{ name: "Nadia Brennan", relation: "friend" }, { name: "Theo Rook", relation: "brother" }]);
+    remember(me, circle, { character_id: "me", status: "written", people: 2, places: 0, ties: 0, refused: [], renamed: [{ from: "Nadia Brennan", to: "Nadia Varga", why: "x" }] }, { byId, ties: tieIndex([]), workplaces: [], world, replace: true });
+    expect(me.circle!.people).toEqual([{ name: "Nadia Varga", relation: "friend" }, { name: "Theo Rook", relation: "brother" }]);
+  });
+});
+

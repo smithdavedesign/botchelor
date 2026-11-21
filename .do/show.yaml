@@ -345,6 +345,11 @@ services:
       # - key: SOCIAL_DYNAMICS
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # SOCIAL_PEOPLE_IN_PROMPTS "0" takes the people in a character's life out of its date prompts
+      # (lib/social/people-lines.ts): someone both of them know, or one of its own people off the show.
+      # - key: SOCIAL_PEOPLE_IN_PROMPTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # How often a gift comes, as a multiple of the built-in chances (1 when unset; "0.5" halves them).
       # - key: CHARACTER_GIFTS_RATE
       #   value: "0.5"

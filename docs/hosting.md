@@ -255,6 +255,11 @@ ignore it.
   share a friend (`met_via: "introduced"`, `lib/social/introductions.ts`), and an unbalanced public triangle is a
   producer tension (`unbalanced_triangle`). Off: closeness stays where it is, no introductions, no triangle tension.
   No model call, no cost.
+- **`SOCIAL_PEOPLE_IN_PROMPTS`** (the show's app, not a secret; on unless `0`, and off whenever `SOCIAL_TIES` is): the
+  people in a character's life in its own date prompt (`lib/social/people-lines.ts`, PRD §7 "Dialogue"). Each actor
+  reads one or two lines: someone both of them know first, else one of its own off-screen people, from what its own
+  owner may see (public, plus the owner's own; never another owner's owner-only or private rows). The engine never
+  reads it. Off: the prompts are as before. No model call, no cost.
 - **`HOUSE_ROOM_TEXTS`** (the show's app, not a secret; on by default, `0` turns it off without a deploy of code): a
   house room on Watch writes morning-after texts like a booked date does (`lib/watch.ts`, `lib/afterglow.ts`; a few
   short model calls a room, about a cent on the paid model), and a house couple's page shows each aired date's texts to

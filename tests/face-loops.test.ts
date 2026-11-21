@@ -6,9 +6,9 @@ import { FACE_LOOP_IDS, faceLoopOf } from "@/lib/face-loops";
 describe("face loops", () => {
   it("each is a small file in public/, for one of the house cast", () => {
     expect(FACE_LOOP_IDS.length).toBeGreaterThan(0);
-    for (const id of FACE_LOOP_IDS) {
-      const src = faceLoopOf(id)!;
-      expect(src).toMatch(/^\/cast\/[a-z-]+-loop-[a-z0-9]+\.mp4$/);
+    for (const [id, shape] of FACE_LOOP_IDS.flatMap((id) => (["square", "tall"] as const).map((shape) => [id, shape] as const))) {
+      const src = faceLoopOf(id, shape)!;
+      expect(src).toMatch(/^\/cast\/[a-z-]+-loop-(tall-)?[a-z0-9]+\.mp4$/);
       const file = join(process.cwd(), "public", src);
       expect(existsSync(file), src).toBe(true);
       // A face on a list, not a reel: a few seconds, small enough to play four at once on a phone.

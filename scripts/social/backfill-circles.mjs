@@ -8,6 +8,8 @@
  *
  *   node scripts/social/backfill-circles.mjs --limit 3 --dry-run       # what it would write, for three characters
  *   node scripts/social/backfill-circles.mjs --limit 400                # every show character still without a circle
+ *   node scripts/social/backfill-circles.mjs --limit 400 --redo-broken  # those, and again the circles whose names break the rules
+ *   node scripts/social/backfill-circles.mjs --stats                    # the names as they stand, and which circles break the rules
  *     [--force] (write over the show's earlier circle) [--only id,id] [--base https://botchelor.com]
  *
  * Free: the model is LiteLLM's `local-chat` on this Mac (scripts/loop/crowd.mjs createBrain refuses anything that isn't
@@ -19,14 +21,22 @@
  * the agent cast for the agent cast), the least-tied first, never one they've dated or are tied to already; the
  * workplaces earlier characters named are offered again, so coworkers share a place; and a sibling's parents are passed
  * on, so two siblings have the same mum.
+ *
+ * Names (lib/social/person-names.ts): each character is offered a few first names and surnames from the OC name
+ * generator's lists, in its own style and seeded by its id; then no first name goes past FIRST_NAME_MAX uses, no full
+ * name is used twice, family never has another character's surname and nobody else has a character's surname, theirs
+ * included. A person who breaks a rule is renamed (the site renames by the same rules), and the log says why.
  */
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { nameDraws, nameIdeas } from "../../lib/oc-name-pools.ts";
+import { FIRST_NAME_MAX, firstNameOf, isFamilyWords, nameStyleOf, personName, surnameOf } from "../../lib/social/person-names.ts";
 import { brainFromEnv } from "../loop/crowd.mjs";
 
-export const PROMPT_VERSION = "backfill-circles-v1";
+/** v2 (2026-11-21): the names offered, family's surname, a best friend only if they have one. */
+export const PROMPT_VERSION = "backfill-circles-v2";
 const USER_AGENT = "botchelor-social-backfill/1.0";
 /** How many other show characters a character is offered to know, and how many workplaces to reuse. */
 export const CANDIDATES = 8;
@@ -41,9 +51,9 @@ const clip = (s, n) => {
 };
 const first = (name) => String(name ?? "").split(/\s+/)[0];
 
-/** The command line: --limit (required), --dry-run, --force, --only, --base. */
+/** The command line: --limit (required, but for --stats), --dry-run, --force, --redo-broken, --stats, --only, --base. */
 export function parseArgs(argv) {
-  const o = { limit: null, dryRun: false, force: false, only: null, base: "https://botchelor.com" };
+  const o = { limit: null, dryRun: false, force: false, redoBroken: false, stats: false, only: null, base: "https://botchelor.com" };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const value = () => {
@@ -54,18 +64,23 @@ export function parseArgs(argv) {
     if (a === "--limit") o.limit = Number(value());
     else if (a === "--dry-run") o.dryRun = true;
     else if (a === "--force") o.force = true;
+    else if (a === "--redo-broken") o.redoBroken = true;
+    else if (a === "--stats") o.stats = true;
     else if (a === "--only") o.only = value().split(",").map((s) => s.trim()).filter(Boolean);
     else if (a === "--base") o.base = value().replace(/\/$/, "");
     else throw new Error(`unknown flag ${a}`);
   }
-  if (!Number.isInteger(o.limit) || o.limit < 1) throw new Error("--limit <n> is required (a whole number, 1 or more)");
+  if (!o.stats && (!Number.isInteger(o.limit) || o.limit < 1)) throw new Error("--limit <n> is required (a whole number, 1 or more)");
   return o;
 }
 
-/** Who to write, in order: the cast, then the house, then the agent cast; by id within each. Those with a circle only with force. */
-export function queue(characters, { force = false, only = null, limit }) {
+/**
+ * Who to write, in order: the cast, then the house, then the agent cast; by id within each. Those with a circle only
+ * with force, or when `redo` has them (circles written again for their names).
+ */
+export function queue(characters, { force = false, only = null, limit, redo = null }) {
   return characters
-    .filter((c) => (only ? only.includes(c.id) : true) && (force || !c.has_circle))
+    .filter((c) => (only ? only.includes(c.id) : true) && (force || !c.has_circle || redo?.has(c.id) === true))
     .sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .slice(0, limit);
 }
@@ -119,8 +134,24 @@ export function shuffled(list, random = Math.random) {
   return list.map((x) => ({ x, r: random() })).sort((a, b) => a.r - b.r).map((k) => k.x);
 }
 
+/**
+ * What the prompt says about names: the first names and surnames offered (`names`, lib/oc-name-pools.ts nameIdeas),
+ * family's surname, and that a best friend is theirs only if they have one (the first run gave 104 of 118 one).
+ */
+export function nameLines(me, names) {
+  const own = surnameOf(me.name);
+  const others = names?.last?.length ? names.last.join(", ") : null;
+  return [
+    ...(names?.first?.length ? [`First names to pick from for them (or others like these): ${names.first.join(", ")}.`] : []),
+    own
+      ? `Their family mostly shares their surname, ${own}. Nobody else has it, nor the surname of anyone on the show${others ? `: others have surnames like ${others}` : ""}.`
+      : `Nobody has the surname of anyone on the show${others ? `: use surnames like ${others}` : ""}.`,
+    "A best friend only if they really have one: most people here don't.",
+  ];
+}
+
 /** The prompt for one character's circle: who they are, what's in their life already, the world to place them in, and whom they might know. */
-export function circleMessages(me, { world, candidates, byId, workplaces, neighbourhoods = world.neighbourhoods, random = Math.random }) {
+export function circleMessages(me, { world, candidates, byId, workplaces, neighbourhoods = world.neighbourhoods, random = Math.random, names = null }) {
   const kit = [me.archetype, me.occupation && `works as ${me.occupation}`, me.hometown && `from ${me.hometown}`].filter(Boolean).join("; ");
   const already = [
     ...(me.circle?.people ?? []).map((p) => `${p.name} (their ${p.relation})`),
@@ -142,6 +173,7 @@ export function circleMessages(me, { world, candidates, byId, workplaces, neighb
     ...(me.voice ? [`How they talk: ${clip(me.voice, 200)}`] : []),
     ...(already.length ? [`Already in their life (keep to it, don't repeat them): ${already.join("; ")}.`] : []),
     ...hints,
+    ...nameLines(me, names),
     "",
     `They live in ${world.city.name}, a seaside town. Neighbourhoods their home could be in: ${hoods.map((n) => `${n.name} (${clip(n.description, 90)})`).join("; ")}.`,
     `Places to be a regular at, by id: ${hangouts.map((h) => `${h.key.replace(/^venue:/, "")} (${clip(h.name, 40)}, ${h.neighbourhood})`).join("; ")}.`,
@@ -155,7 +187,7 @@ export function circleMessages(me, { world, candidates, byId, workplaces, neighb
     "",
     "Return this JSON:",
     "{",
-    '  "people": [3 to 6 people in their life, off the show, at least one of them family: {"name": "an invented first and last name (a real name, never only Mum, Dad or Auntie)", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
+    '  "people": [3 to 6 people in their life, off the show, at least one of them family: {"name": "an invented first and last name (a real name, never only Mum, Dad or Auntie)", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, friend, ex, boss, coworker, neighbour, rival, mentor, roommate or best friend", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
     '  "lives": "the one of those neighbourhoods that suits them, where their own home is (its name): not the show\'s house, where only the season\'s cast stays while it airs",',
     '  "works": {"name": "where they work: one of the workplaces above, or a new one with an invented name", "neighbourhood": "its neighbourhood"} (or null if they don\'t work),',
     '  "regular": "the id of the one place above that suits them best, where they\'re a regular",',
@@ -239,16 +271,21 @@ export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
   return { character_id: me.id, people, places, ties };
 }
 
-/** What a result wrote, back into the run's picture: the people (minus the refused), the ties, a new workplace. */
-export function remember(me, circle, result, { byId, ties, workplaces, world, homes = null }) {
+/**
+ * What a result wrote, back into the run's picture: the people (minus the refused, under the names the site gave them),
+ * the ties, a new workplace. `replace`: the circle was written again, so its earlier people are gone.
+ */
+export function remember(me, circle, result, { byId, ties, workplaces, world, homes = null, replace = false }) {
   if (!result || result.status !== "written") return;
   const refused = new Set((result.refused ?? []).map((r) => `${r.item}|${lower(r.what)}`));
+  const renamedTo = new Map((result.renamed ?? []).map((r) => [lower(r.from), r.to]));
   const home = circle.places.find((p) => p.role === "lives");
   const bare = (x) => lower(x).replace(/^the\s+/, "");
   const hood = home && world.neighbourhoods.find((n) => n.key === lower(home.place) || bare(n.name) === bare(home.place));
   if (homes && hood && !refused.has(`place|${lower(`lives ${home.place}`)}`)) homes.set(hood.key, (homes.get(hood.key) ?? 0) + 1);
   me.circle = me.circle ?? { people: [], ties: [] };
-  for (const p of circle.people) if (!refused.has(`person|${lower(p.name)}`)) me.circle.people.push({ name: p.name, relation: p.relation });
+  if (replace) me.circle.people = [];
+  for (const p of circle.people) if (!refused.has(`person|${lower(p.name)}`)) me.circle.people.push({ name: renamedTo.get(lower(p.name)) ?? p.name, relation: p.relation });
   for (const t of circle.ties) {
     const other = byId.get(t.with);
     if (!other || refused.has(`tie|${lower(`${t.relation} ${t.with}`)}`)) continue;
@@ -286,6 +323,141 @@ export function offerNeighbourhoods(neighbourhoods, homes, { n = HOMES_OFFERED, 
     .slice(0, n)
     .map((k) => k.h);
 }
+
+/** The style of names that suits a character (lib/social/person-names.ts nameStyleOf), from its own words. */
+export const styleOf = (c) => nameStyleOf([c.bio, c.archetype, c.occupation, c.hometown, ...(c.traits ?? [])].filter(Boolean).join(" "));
+
+/**
+ * The run's record of names (lib/social/person-names.ts NameBook): how often each first name is used among the show's
+ * people, every full name taken (theirs and the characters'), and the characters' surnames. `skip`: characters whose
+ * circles the run writes again, whose people don't count.
+ */
+export function nameBook(everyone, { skip = new Set() } = {}) {
+  const firsts = new Map();
+  const full = new Set();
+  const surnames = new Set();
+  for (const c of everyone) {
+    full.add(lower(c.name));
+    const last = surnameOf(c.name);
+    if (last) surnames.add(lower(last));
+  }
+  const book = {
+    firstCount: (f) => firsts.get(lower(f)) ?? 0,
+    hasFull: (n) => full.has(lower(n)),
+    surnameTaken: (l) => surnames.has(lower(l)),
+    add(name) {
+      const f = lower(firstNameOf(name));
+      firsts.set(f, (firsts.get(f) ?? 0) + 1);
+      full.add(lower(name));
+    },
+    remove(name) {
+      const f = lower(firstNameOf(name));
+      const n = (firsts.get(f) ?? 0) - 1;
+      if (n > 0) firsts.set(f, n);
+      else firsts.delete(f);
+      full.delete(lower(name));
+    },
+  };
+  for (const c of everyone) if (!skip.has(c.id)) for (const p of c.circle?.people ?? []) book.add(p.name);
+  return book;
+}
+
+/**
+ * A circle's people by the naming rules, against the run's book: renamed where one breaks a rule (with why), left out
+ * where no name would do. Each name kept goes in the book.
+ */
+export function nameCircle(me, circle, book) {
+  const draws = nameDraws(me.id, styleOf(me));
+  const holderLast = surnameOf(me.name);
+  const renamed = [];
+  const dropped = [];
+  const people = [];
+  for (const p of circle.people) {
+    const r = personName(p, { kin: isFamilyWords(p.relation), holderLast, book, draws });
+    if (!r.ok) {
+      dropped.push({ name: p.name, reason: r.reason });
+      continue;
+    }
+    if (r.why.length) renamed.push({ from: p.name, to: r.name, why: r.why.join("; ") });
+    book.add(r.name);
+    people.push({ ...p, name: r.name, note: r.note });
+  }
+  return { circle: { ...circle, people }, renamed, dropped };
+}
+
+/**
+ * The characters whose circles break the naming rules, each with what's wrong, in the order the run writes them (so the
+ * first three Eleanors keep the name and the fourth is the break): a first name used FIRST_NAME_MAX times already, a
+ * full name someone has, someone outside the family with a character's surname (theirs too), family with another
+ * character's surname. --redo-broken writes these again and leaves the rest.
+ */
+export function brokenHolders(everyone) {
+  const book = nameBook(everyone, { skip: new Set(everyone.map((c) => c.id)) });
+  const broken = new Map();
+  for (const c of queue(everyone, { force: true, limit: everyone.length })) {
+    const people = c.circle?.people ?? [];
+    if (!people.length) continue;
+    const own = lower(surnameOf(c.name));
+    const why = [];
+    const seen = new Map();
+    const names = new Set();
+    for (const p of people) {
+      const f = lower(firstNameOf(p.name));
+      const last = lower(surnameOf(p.name));
+      const kin = isFamilyWords(p.relation);
+      if (book.firstCount(f) + (seen.get(f) ?? 0) >= FIRST_NAME_MAX) why.push(`${p.name}: ${FIRST_NAME_MAX} called ${firstNameOf(p.name)} already`);
+      if (book.hasFull(p.name) || names.has(lower(p.name))) why.push(`${p.name}: a name someone has`);
+      if (last && (kin ? last !== own && book.surnameTaken(last) : last === own || book.surnameTaken(last))) why.push(`${p.name}: ${kin ? "another character's surname" : "a character's surname"}`);
+      seen.set(f, (seen.get(f) ?? 0) + 1);
+      names.add(lower(p.name));
+    }
+    if (why.length) broken.set(c.id, why);
+    else for (const p of people) book.add(p.name);
+  }
+  return broken;
+}
+
+/**
+ * The names as they stand, for a report: people and the characters holding them, distinct first names and the five
+ * most used, first names past FIRST_NAME_MAX, full names used twice, characters' surnames on people (outside the
+ * family; another character's on family), family with the character's own surname, and how many have a best friend.
+ */
+export function nameStats(everyone) {
+  const surnames = new Set(everyone.map((c) => lower(surnameOf(c.name))).filter(Boolean));
+  const firsts = new Map();
+  const fulls = new Map();
+  const s = { holders: 0, people: 0, distinctFirst: 0, top: [], overCap: 0, fullTwice: 0, outsideTaken: 0, kin: 0, kinOwn: 0, kinOther: 0, bestFriends: 0 };
+  for (const c of everyone) {
+    const people = c.circle?.people ?? [];
+    if (!people.length) continue;
+    s.holders++;
+    if (people.some((p) => /best friend/i.test(p.relation))) s.bestFriends++;
+    const own = lower(surnameOf(c.name));
+    for (const p of people) {
+      s.people++;
+      const f = lower(firstNameOf(p.name));
+      firsts.set(f, (firsts.get(f) ?? 0) + 1);
+      fulls.set(lower(p.name), (fulls.get(lower(p.name)) ?? 0) + 1);
+      const last = lower(surnameOf(p.name));
+      if (isFamilyWords(p.relation)) {
+        s.kin++;
+        if (last && last === own) s.kinOwn++;
+        else if (last && surnames.has(last)) s.kinOther++;
+      } else if (last && surnames.has(last)) s.outsideTaken++;
+    }
+  }
+  s.distinctFirst = firsts.size;
+  s.top = [...firsts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 5);
+  s.overCap = [...firsts.values()].filter((n) => n > FIRST_NAME_MAX).length;
+  s.fullTwice = [...fulls.values()].filter((n) => n > 1).length;
+  return s;
+}
+
+/** nameStats as one line. */
+export const statsLine = (s) =>
+  `${s.people} people for ${s.holders} characters: ${s.distinctFirst} first names (most used ${s.top.map(([f, n]) => `${f} ${n}`).join(", ") || "none"}; ${s.overCap} past ${FIRST_NAME_MAX}), ` +
+  `${s.fullTwice} full names twice, ${s.outsideTaken} outside the family with a character's surname, ${s.kinOther} family with another character's, ` +
+  `${s.kinOwn} of ${s.kin} family with the character's own, ${s.bestFriends} of ${s.holders} with a best friend`;
 
 function adminKey() {
   if (process.env.FRONTIER_PASSWORD) return process.env.FRONTIER_PASSWORD;
@@ -328,8 +500,20 @@ async function main() {
     after = page.next;
   }
   const byId = new Map(everyone.map((c) => [c.id, c]));
-  const todo = queue(everyone, o);
-  log(`${everyone.length} show characters, ${everyone.filter((c) => c.has_circle).length} with a circle; writing ${todo.length}${o.dryRun ? " (dry run: nothing is written)" : ""}`);
+  const broken = o.redoBroken || o.stats ? brokenHolders(everyone) : new Map();
+  if (o.stats) {
+    log(`names: ${statsLine(nameStats(everyone))}`);
+    log(`${broken.size} circles break the naming rules${broken.size ? `, e.g. ${[...broken].slice(0, 5).map(([id, why]) => `${byId.get(id)?.name ?? id} (${why[0]})`).join("; ")}` : ""}`);
+    return;
+  }
+  const todo = queue(everyone, { ...o, redo: new Set(broken.keys()) });
+  // The circles written again (with --force, or for their names): their earlier people go, so their names don't count.
+  const rewrite = new Set(todo.filter((c) => c.has_circle && (o.force || broken.has(c.id))).map((c) => c.id));
+  const book = nameBook(everyone, { skip: rewrite });
+  log(
+    `${everyone.length} show characters, ${everyone.filter((c) => c.has_circle).length} with a circle; writing ${todo.length}` +
+      `${rewrite.size ? ` (${rewrite.size} again${o.force ? "" : ", for their names"})` : ""}${o.dryRun ? " (dry run: nothing is written)" : ""}`,
+  );
   if (!todo.length) return;
 
   const brain = await brainFromEnv(process.env, { log, timeoutMs: 240_000 });
@@ -337,13 +521,17 @@ async function main() {
   const ties = tieIndex(everyone);
   const workplaces = [...(world.workplaces ?? [])];
   const homes = new Map();
-  const totals = { characters: 0, people: 0, places: 0, ties: 0, refused: 0, skipped: 0, failed: 0 };
+  const totals = { characters: 0, people: 0, places: 0, ties: 0, refused: 0, renamed: 0, skipped: 0, failed: 0 };
   const models = new Set();
   for (const me of todo) {
+    const replace = rewrite.has(me.id);
     const candidates = pickCandidates(me, everyone, ties);
     const offered = offerWorkplaces(workplaces);
     const neighbourhoods = offerNeighbourhoods(world.neighbourhoods, homes);
-    const messages = circleMessages(me, { world, candidates, byId, workplaces: offered, neighbourhoods });
+    const names = nameIdeas(me.id, styleOf(me), { okFirst: (f) => book.firstCount(f) < FIRST_NAME_MAX, okLast: (l) => !book.surnameTaken(l) });
+    // A circle written again starts from nobody: its earlier people go when it's written.
+    const view = replace ? { ...me, circle: { ...(me.circle ?? {}), people: [] } } : me;
+    const messages = circleMessages(view, { world, candidates, byId, workplaces: offered, neighbourhoods, names });
     let circle = null;
     let served = null;
     for (let attempt = 0; attempt < 2 && !circle; attempt++) {
@@ -363,19 +551,26 @@ async function main() {
       continue;
     }
     models.add(served);
+    const naming = nameCircle(me, circle, book);
+    circle = naming.circle;
     let out;
     try {
       out = await api(o.base, "/api/admin/social/circles", {
         method: "POST",
-        body: JSON.stringify({ origin_model: served, prompt_version: PROMPT_VERSION, replace: o.force, dry_run: o.dryRun, circles: [circle] }),
+        body: JSON.stringify({ origin_model: served, prompt_version: PROMPT_VERSION, replace, dry_run: o.dryRun, circles: [circle] }),
       });
     } catch (e) {
       log(`${me.name}: ${e.message}`);
+      for (const p of circle.people) book.remove(p.name);
       totals.failed++;
       continue;
     }
     const r = out.results[0];
+    // The book follows what the site did: a person it refused frees the name, one it renamed takes the new one.
+    for (const x of r.renamed ?? []) (book.remove(x.from), book.add(x.to));
+    for (const x of r.refused ?? []) if (x.item === "person" && circle.people.some((p) => lower(p.name) === lower(x.what))) book.remove(x.what);
     if (r.status === "skipped" || r.status === "refused") {
+      for (const p of circle.people) book.remove(p.name);
       totals.skipped++;
       log(`${me.name}: ${r.status} (${r.reason})`);
       continue;
@@ -385,17 +580,22 @@ async function main() {
     totals.places += r.places;
     totals.ties += r.ties;
     totals.refused += r.refused.length;
+    const renames = [...naming.renamed, ...(r.renamed ?? [])];
+    totals.renamed += renames.length;
     const named = (ids) => ids.map((t) => `${t.relation} ${byId.get(t.with)?.name ?? t.with}`).join(", ");
     const placed = circle.places.map((p) => `${p.role} ${p.name ?? p.place}${p.neighbourhood ? ` (${p.neighbourhood})` : ""}`).join(", ");
     log(
       `${me.name} [${me.kind}]: ${r.people} people (${circle.people.map((p) => `${p.name}, ${p.relation}`).join("; ")}), ${r.places} places${placed ? ` (${placed})` : ""}, ${r.ties} ties${circle.ties.length ? ` (${named(circle.ties)})` : ""}` +
+        (renames.length ? `; renamed: ${renames.map((x) => `${x.from} → ${x.to} (${x.why})`).join("; ")}` : "") +
+        (naming.dropped.length ? `; left out: ${naming.dropped.map((x) => `${x.name} (${x.reason})`).join("; ")}` : "") +
         (r.refused.length ? `; refused: ${r.refused.map((x) => `${x.item} ${x.what}: ${x.reason}`).join("; ")}` : ""),
     );
-    if (!o.dryRun) remember(me, circle, r, { byId, ties, workplaces, world, homes });
+    if (!o.dryRun) remember(me, circle, r, { byId, ties, workplaces, world, homes, replace });
   }
-  const summary = `${o.dryRun ? "dry run: would write" : "wrote"} ${totals.characters} circles: ${totals.people} people, ${totals.places} places, ${totals.ties} ties; ${totals.refused} items refused, ${totals.skipped} skipped, ${totals.failed} failed (model ${[...models].join(", ") || "none"}, ${PROMPT_VERSION})`;
+  const summary = `${o.dryRun ? "dry run: would write" : "wrote"} ${totals.characters} circles: ${totals.people} people, ${totals.places} places, ${totals.ties} ties; ${totals.renamed} people renamed, ${totals.refused} items refused, ${totals.skipped} skipped, ${totals.failed} failed (model ${[...models].join(", ") || "none"}, ${PROMPT_VERSION})`;
   if (homes.size) log(`homes: ${[...homes].map(([key, n]) => `${world.neighbourhoods.find((h) => h.key === key)?.name ?? key} ${n}`).join(", ")}`);
   log(summary);
+  if (!o.dryRun) log(`names now: ${statsLine(nameStats(everyone))}`);
   if (!o.dryRun) emit(totals.failed > Math.max(2, todo.length / 4) ? "fail" : "ok", summary);
 }
 

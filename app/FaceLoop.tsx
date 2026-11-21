@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useInViewAutoplay } from "@/app/useInViewAutoplay";
-import { faceLoopOf } from "@/lib/face-loops";
+import { type FaceLoopShape, faceLoopOf } from "@/lib/face-loops";
 import styles from "./FaceLoop.module.css";
 
 /**
@@ -10,10 +10,10 @@ import styles from "./FaceLoop.module.css";
  * that plays while it's on screen by the show's autoplay rules (app/useInViewAutoplay.ts: muted, paused off screen,
  * never with reduced motion). Never on Save-Data. The portrait stays the picture: the loop fades in only once it plays,
  * and a character without a loop is their portrait alone. `radius`: the portrait's corner, for a fixed-size avatar;
- * `fill`: the portrait fills its card (the /characters cards).
+ * `fill`: the portrait fills its card (the /characters cards); `shape`: "tall" for a 3:4 portrait (a season's lead).
  */
-export default function FaceLoop({ id, children, radius, fill = false }: { id: string; children: ReactNode; radius?: number; fill?: boolean }) {
-  const src = faceLoopOf(id);
+export default function FaceLoop({ id, children, radius, fill = false, shape = "square" }: { id: string; children: ReactNode; radius?: number; fill?: boolean; shape?: FaceLoopShape }) {
+  const src = faceLoopOf(id, shape);
   const [root, setRoot] = useState<HTMLSpanElement | null>(null);
   const [allowed, setAllowed] = useState(false);
   const [playing, setPlaying] = useState(false);

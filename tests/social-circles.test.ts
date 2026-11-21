@@ -258,6 +258,61 @@ describe("writing a circle", () => {
     expect(pairClash("ex", "a|b", { romance: new Set(), kin: new Set(["a|b"]) })).toBe("they're family");
   });
 
+  it("names people by the rules: family shares the holder's surname, nobody else has a show character's, no fourth Eleanor", async () => {
+    await cast();
+    // Three Eleanors already in other characters' lives, and a Bo Marsh; a common surname on someone's own character.
+    for (const [holder, name] of [[AG2, "Eleanor Moss"], [AG2, "Eleanor Hart"], [AG3, "Eleanor Pike"], [AG3, "Bo Marsh"]]) {
+      expect((await addPerson(t.db, { holderId: holder, name, visibility: "public", source: "house" })).ok).toBe(true);
+    }
+    await character("sc-chen", { owner: userIdOf(PERSON), via: "web", name: "Maya Chen" });
+    const input: CircleIn = {
+      character_id: AG1,
+      people: [
+        { name: "Maeve Caro", relation: "old friend", note: "Maeve drives him to every ferry." },
+        { name: "Lydia Dacre", relation: "his mother", pronouns: "she/her" },
+        { name: "Sam Venn", relation: "coworker" },
+        { name: "Eleanor Moreau", relation: "aunt", note: "Eleanor knits, and Eleanor's scarves are legend." },
+        { name: "Bo Marsh", relation: "neighbour" },
+        { name: "Rosa Venn", relation: "sister" },
+        { name: "Wen Chen", relation: "friend" },
+      ],
+    };
+    const renames = (r: { renamed?: { from: string; to: string; why: string }[] }) => new Map((r.renamed ?? []).map((x) => [x.from, x]));
+    // A dry run says the same renames, and writes nothing.
+    const dry = await writeCircle(t.db, input, opts({ dryRun: true }));
+    expect([...renames(dry).keys()]).toEqual(["Maeve Caro", "Lydia Dacre", "Sam Venn", "Eleanor Moreau", "Bo Marsh"]);
+    expect(await peopleOf(t.db, AG1)).toEqual([]);
+
+    const r = await writeCircle(t.db, input, opts());
+    expect(r).toMatchObject({ status: "written", people: 7, refused: [] });
+    const by = renames(r);
+    expect([...by.keys()]).toEqual([...renames(dry).keys()]);
+    // Family with another character's surname takes the holder's.
+    expect(by.get("Lydia Dacre")).toEqual({ from: "Lydia Dacre", to: "Lydia Venn", why: "family: their surname, not another character's" });
+    // Anyone else keeps their first name and gets a surname no show character has, the holder's own included.
+    expect(by.get("Maeve Caro")!.why).toBe("not family: not a character's surname");
+    expect(by.get("Sam Venn")!.why).toBe("not family: not their surname");
+    expect(by.get("Bo Marsh")!.why).toBe("a name someone has already");
+    for (const from of ["Maeve Caro", "Sam Venn", "Bo Marsh"]) {
+      const [first, last] = by.get(from)!.to.split(" ");
+      expect(first).toBe(from.split(" ")[0]);
+      // (Vesper Lark and Quist are the house's.)
+      expect(["Venn", "Caro", "Dacre", "Marsh", "Lark", "Quist"]).not.toContain(last);
+    }
+    // A fourth Eleanor gets another first name, and the note follows, word by word.
+    const aunt = by.get("Eleanor Moreau")!;
+    expect(aunt.why).toBe("3 called Eleanor already");
+    const [auntFirst, auntLast] = aunt.to.split(" ");
+    expect(auntFirst).not.toBe("Eleanor");
+    expect(auntLast).toBe("Moreau");
+    const people = await peopleOf(t.db, AG1);
+    expect(people.find((p) => p.name === aunt.to)!.note).toBe(`${auntFirst} knits, and ${auntFirst}'s scarves are legend.`);
+    expect(people.find((p) => p.name === by.get("Maeve Caro")!.to)!.note).toBe("Maeve drives him to every ferry.");
+    // Family with the holder's surname, and a surname only someone's own character has: as given.
+    expect(people.map((p) => p.name)).toEqual(expect.arrayContaining(["Rosa Venn", "Wen Chen"]));
+    expect(people.map((p) => p.name)).not.toEqual(expect.arrayContaining(["Maeve Caro"]));
+  });
+
   it("holds the exclusive kinds' caps: a fourth best friend is refused, and leaves no person behind", async () => {
     await cast();
     const friends = ["Ada", "Bo", "Cy", "Di"].map((name) => ({ name, relation: "best friend" }));

@@ -23,7 +23,7 @@ function assert(cond, msg) {
 const loops = (page) =>
   page.evaluate(() =>
     [...document.querySelectorAll("video[data-autoplay]")]
-      .filter((v) => /-loop-[a-z0-9]+\.mp4$/.test(v.getAttribute("src") ?? ""))
+      .filter((v) => /-loop-(tall-)?[a-z0-9]+\.mp4$/.test(v.getAttribute("src") ?? ""))
       .map((v) => ({ src: v.getAttribute("src"), playing: !v.paused && v.currentTime > 0, muted: v.muted, shown: getComputedStyle(v).opacity === "1" })),
   );
 

@@ -33,11 +33,27 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     }
   }
 
+  // A private date whose characters were told about its host's "only you" people or ties (lib/social/people-lines.ts:
+  // the worker sets setup.people_only_you, only while the date is private) may have said them: it stays private, so what
+  // its owner kept off the page never airs. In the update itself, so a mark saved a moment ago still counts.
   const { rows } = await db.query<{ id: string }>(
-    `update episodes set visibility = $3 where id = $1 and creator_id = $2 returning id`,
+    `update episodes set visibility = $3
+      where id = $1 and creator_id = $2
+        and ($3 = 'private' or (setup->>'people_only_you') is distinct from 'true')
+     returning id`,
     [id, sess.userId, visibility],
   );
-  if (!rows.length) return json({ error: "not_host", message: "Only the person who set up this date can change who sees it." }, 404, sess);
+  if (!rows.length) {
+    const kept = await db.query(`select 1 from episodes where id = $1 and creator_id = $2`, [id, sess.userId]);
+    if (kept.rows.length) {
+      return json(
+        { error: "only_you", message: "This date may mention people or ties you keep to yourself (\"only you\" on their People tab), so it stays private." },
+        409,
+        sess,
+      );
+    }
+    return json({ error: "not_host", message: "Only the person who set up this date can change who sees it." }, 404, sess);
+  }
   // The relationship graph's public layer counts only public dates.
   await refreshEpisodePair(db, id).catch(() => {});
   invalidateGraph(); // and so does the Constellation, at once (lib/graph-cache.ts)
