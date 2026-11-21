@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import type { ArcQuestion } from "@/lib/arcs";
 import { POINTS_PER_ARC } from "@/lib/rules";
+import Icon from "@/app/Icon";
 
 /** Follow a couple (lib/follows.ts). */
 export function FollowButton({ pair, following, followers }: { pair: [string, string]; following: boolean; followers: number }) {
@@ -19,7 +20,16 @@ export function FollowButton({ pair, following, followers }: { pair: [string, st
   return (
     <p className="couple-follow action-hint">
       <button type="button" className={following ? "button-ghost" : "secondary"} onClick={toggle} disabled={busy} aria-pressed={following}>
-        {following ? "Following ✓" : "🔔 Follow this couple"}
+        {/* The interface's own markers are icons, not emoji (app/Icon.tsx; the visual audit's follow-up, 2026-11-21). */}
+        {following ? (
+          <>
+            <Icon name="check" /> Following
+          </>
+        ) : (
+          <>
+            <Icon name="bell" /> Follow this couple
+          </>
+        )}
       </button>{" "}
       <span className="muted small">
         {/* No count before the first follower (visual audit 2026-11-20), as on a character's and a creator's page. */}

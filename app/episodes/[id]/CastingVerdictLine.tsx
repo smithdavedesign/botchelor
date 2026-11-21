@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { okJson } from "@/lib/ok-json";
 
 type Note = { first: string; lead: string; hour: number; minute?: number };
 
@@ -14,7 +15,7 @@ export default function CastingVerdictLine({ episodeId }: { episodeId: string })
   useEffect(() => {
     let live = true;
     fetch(`/api/casting/walk-on?episode=${encodeURIComponent(episodeId)}`, { credentials: "same-origin" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { note?: Note | null } | null) => {
         if (live && d?.note) setNote(d.note);
       })

@@ -12,6 +12,7 @@ import type { PeopleOne, PeoplePlace, PeopleTie, TheirPeople as View } from "@/l
 import { LAYER_WORDS, NEW_PLACE_FOR, personChoices, ROLE_WORDS, tieChoices, type DeclaredRole, type TieChoice } from "@/lib/social/relations";
 import { LAYERS } from "@/lib/social/types";
 import MightKnow, { type Suggestion } from "./MightKnow";
+import { okJson } from "@/lib/ok-json";
 
 /** A character the tie form can pick: one of yours, or someone else's public one. */
 type Candidate = { id: string; name: string; portrait: string | null; hue: number | null; mine: boolean };
@@ -406,7 +407,7 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
     let live = true;
     const timer = setTimeout(() => {
       fetch(`${url}?q=${encodeURIComponent(query)}`)
-        .then((res) => (res.ok ? res.json() : null))
+        .then(okJson)
         .then((data: { candidates?: Candidate[] } | null) => {
           if (live) setFound(Array.isArray(data?.candidates) ? data.candidates : []);
         })

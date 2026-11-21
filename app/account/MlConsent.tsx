@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { requestJson } from "../request";
+import { okJson } from "@/lib/ok-json";
 
 type Consent = { granted: boolean; version: string | null; decided_at: string | null; outdated?: true };
 
@@ -17,7 +18,7 @@ export default function MlConsent() {
 
   useEffect(() => {
     fetch("/api/me/ml-consent")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d) => d && setC(d as Consent))
       .catch(() => {});
   }, []);

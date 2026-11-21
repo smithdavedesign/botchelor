@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { requestJson } from "@/app/request";
 import type { ExportInfo } from "@/lib/media-tools/export";
 import type { StudioApi } from "./selection";
+import { okJson } from "@/lib/ok-json";
 
 const SIZES = [
   { id: "original", label: "As made", w: 3, h: 4 },
@@ -37,7 +38,7 @@ export default function ExportDialog({ ids, api, onClose, label = "picture" }: {
     const d = dialog.current;
     if (d && !d.open) d.showModal?.();
     fetch(api.export)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((j: { exports?: ExportInfo[] } | null) => setRecent(j?.exports ?? []))
       .catch(() => {});
   }, [api.export]);

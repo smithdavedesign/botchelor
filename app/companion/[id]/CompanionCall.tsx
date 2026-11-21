@@ -15,6 +15,7 @@ import CallNotice from "./CallNotice";
 import CallTranscript from "./CallTranscript";
 import LiveFace, { type LiveFaceHandle } from "./LiveFace";
 import { listen as listenLive, liveSupported, Mic, newAudioContext, PcmPlayer, type Listening } from "./live-audio";
+import { okJson } from "@/lib/ok-json";
 
 export type CallVoice = "device" | "own";
 
@@ -1003,7 +1004,7 @@ export default function CompanionCall({
     const t = setInterval(() => {
       if (++tries > 40) return clearInterval(t);
       fetch(`/api/face-kit?character=${encodeURIComponent(character.id)}`)
-        .then((r) => (r.ok ? r.json() : null))
+        .then(okJson)
         .then((data: { kit?: FaceKit | null } | null) => {
           if (!data) return;
           setFaceKit(data.kit ?? null);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import OutOfDates, { type OutOfDatesData } from "@/app/OutOfDates";
 import Sheet from "@/app/Sheet";
+import { okJson } from "@/lib/ok-json";
 
 /**
  * The one step before a date is spent (2026-10-31 UX audit, B5 and C2): every Send and Book opens this sheet, which says
@@ -97,7 +98,7 @@ function useDatesLeft(open: boolean): number | null {
     if (!open) return;
     let live = true;
     fetch("/api/me", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((me) => {
         if (live && typeof me?.dates_left === "number") setLeft(me.dates_left);
       })

@@ -41,6 +41,7 @@ import TileTools, { SelectBar } from "@/app/studio/TileTools";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 import CreateLibrary from "@/app/studio/CreateLibrary";
 import type { Library } from "@/lib/studio/library";
+import { okJson } from "@/lib/ok-json";
 
 /** A tile's time and a shoot's date, in the viewer's own clock (LocalTime.tsx: never on the server). */
 const TILE_TIME = { time: true, hour: "2-digit", minute: "2-digit" } as const;
@@ -257,7 +258,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     const remix = new URLSearchParams(window.location.search).get("remix");
     if (remix) {
       void fetch(`/api/showcase/posts/${encodeURIComponent(remix)}/remix`)
-        .then((r) => (r.ok ? r.json() : null))
+        .then(okJson)
         .then((d: { remix?: { studio: string; kind: "shoot" | "pair"; choices: Record<string, unknown>; format: string | null; creator: string } } | null) => {
           const r = d?.remix;
           if (!r || r.studio !== "after_dark") return setNote({ text: "That post's picks couldn't be loaded.", error: true });

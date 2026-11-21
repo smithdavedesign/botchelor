@@ -9,6 +9,7 @@ import { MediaRequest } from "../../MediaRequest";
 import { PICK_LINES_MAX } from "@/lib/adult/reel-timing";
 import TokenPrice from "../../TokenPrice";
 import PickLines from "./PickLines";
+import { okJson } from "@/lib/ok-json";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -220,7 +221,7 @@ export default function Storyboard({
     setOpen(open?.shot === i && open.what === "pictures" ? null : { shot: i, what: "pictures" });
     if (!suggested) {
       void fetch(`/api/admin/after-dark/reel?suggest=${encodeURIComponent(draft.id)}`)
-        .then((r) => (r.ok ? r.json() : null))
+        .then(okJson)
         .then((d: { suggestions?: Record<number, ShotSuggestion[]> } | null) => setSuggested(d?.suggestions ?? {}))
         .catch(() => setSuggested({}));
     }

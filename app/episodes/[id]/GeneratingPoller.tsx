@@ -17,6 +17,7 @@ import { markDateWatchedLive, msSinceDateStarted } from "@/lib/engagement-keys";
 import type { TheaterVerdict } from "./EpisodeTheater";
 import VerdictCard from "./VerdictCard";
 import PushToggle from "@/app/notifications/PushToggle";
+import Icon from "@/app/Icon";
 
 /** No new line for this long while it's filmed: say it's slower than usual (lines land seconds apart). */
 export const SLOW_LINE_MS = 60_000;
@@ -52,11 +53,13 @@ function SlowNote({ episodeId, slow, offerNotify, pushKey, creator, bare = false
       {offerNotify && creator && (
         <>
           {asked === "yes" ? (
-            <p className="small">🔔 Done: you&apos;ll get a notification the moment it&apos;s filmed, so you can leave this page.</p>
+            <p className="small">
+              <Icon name="bell" /> Done: you&apos;ll get a notification the moment it&apos;s filmed, so you can leave this page.
+            </p>
           ) : (
             <p>
               <button type="button" className="secondary small" data-track="notify_when_filmed" disabled={asked === "busy"} onClick={() => void ask()}>
-                🔔 Tell me when it&apos;s ready
+                <Icon name="bell" /> Tell me when it&apos;s ready
               </button>
               {asked === "failed" && <span className="error small"> That didn&apos;t go through. Try again.</span>}
             </p>

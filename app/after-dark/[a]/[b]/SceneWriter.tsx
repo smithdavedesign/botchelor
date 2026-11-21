@@ -52,6 +52,7 @@ import { tileRatio } from "@/app/studio/FormatChips";
 import { AFTER_DARK_API, useSelection } from "@/app/studio/selection";
 import { videoPrice } from "@/lib/adult/reel-timing";
 import TokenPrice from "../../TokenPrice";
+import { okJson } from "@/lib/ok-json";
 
 /** The tabs under the theater, in order; the gallery opens first. */
 const PAGE_TABS = ["gallery", "make", "setup", "sides"] as const;
@@ -291,7 +292,7 @@ export default function SceneWriter({
     let stop = false;
     const look = async () => {
       if (stop) return;
-      const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(initial.a.id)}&b=${encodeURIComponent(initial.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(initial.a.id)}&b=${encodeURIComponent(initial.b.id)}`).then(okJson).catch(() => null);
       const now = r?.scene as AdultScene | undefined;
       if (now && now.writing_for == null) {
         setScene(now);
@@ -369,7 +370,7 @@ export default function SceneWriter({
    */
   function waitForPicture(beatId: string, started = Date.now()) {
     setTimeout(async () => {
-      const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then(okJson).catch(() => null);
       const landed = ((r?.gallery as Media[] | undefined) ?? []).filter((m) => !galleryIds.current.has(m.id));
       if (landed.length) setGallery((g) => [...landed.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
       const now = r?.scene as AdultScene | undefined;
@@ -392,7 +393,7 @@ export default function SceneWriter({
 
   /** Fetches the gallery once now, adding what's new (a moment drawn in the background just landed on the stage). */
   async function refreshGallery() {
-    const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then(okJson).catch(() => null);
     const landed = ((r?.gallery as Media[] | undefined) ?? []).filter((m) => !galleryIds.current.has(m.id));
     if (!landed.length) return;
     setGallery((g) => [...landed.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
@@ -403,7 +404,7 @@ export default function SceneWriter({
   function lookForPictures(beatId?: string) {
     for (const ms of [20_000, 60_000, 120_000]) {
       setTimeout(async () => {
-        const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+        const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`).then(okJson).catch(() => null);
         const fresh = (r?.gallery as Media[] | undefined) ?? [];
         if (fresh.length) setGallery((g) => [...fresh.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
         // Why a picture didn't come (an age check's refusal says who and what fixes it): on the scene, and said here.

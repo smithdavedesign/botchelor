@@ -620,7 +620,7 @@ describe("the character page", () => {
     expect(row).toContain(`>Text ${first(RAFE)}</button>`);
     // Signed in, the tap will also let them text first, and the control says so before it is pressed.
     expect(row).toContain(`title="Hear when something happens to ${first(RAFE)}, and let ${first(RAFE)} text you"`);
-    expect(row).toMatch(/<button type="button" class="secondary small" aria-pressed="false"[^>]*data-track="character-follow" data-track-to="on">🔔 Follow<\/button>/);
+    expect(row).toMatch(/<button type="button" class="secondary small" aria-pressed="false"[^>]*data-track="character-follow" data-track-to="on"><svg class="icon"[^>]*>[\s\S]*?<\/svg> Follow<\/button>/);
     // ⋯ holds the link to share, closed until it is asked for.
     expect(row).toMatch(/aria-haspopup="menu" aria-expanded="false"[^>]*aria-label="More for [^"]+" title="More">⋯<\/button>/);
     expect(row).toMatch(/role="menu"[^>]*hidden=""/);
@@ -638,13 +638,13 @@ describe("the character page", () => {
     await followCharacter(t.db, guest(userIdOf(fan)), RAFE);
     await followCharacter(t.db, guest("someone-else"), RAFE);
     const theirs = head(await page(RAFE, fan));
-    expect(theirs).toMatch(/<button type="button" class="button-ghost small" aria-pressed="true"[^>]*data-track-to="off">Following ✓<\/button>/);
+    expect(theirs).toMatch(/<button type="button" class="button-ghost small" aria-pressed="true"[^>]*data-track-to="off"><svg class="icon"[^>]*>[\s\S]*?<\/svg> Following<\/button>/);
     expect(theirs).toContain(`2 people follow ${first(RAFE)}.`);
     expect(theirs).not.toContain("someone-else");
     expect(theirs).not.toContain(userIdOf(fan));
     // A stranger: the control, unpressed, and the same count.
     const stranger = head(await page(RAFE, newUserCookie()));
-    expect(stranger).toContain("🔔 Follow</button>");
+    expect(stranger).toContain("</svg> Follow</button>");
     expect(stranger).toContain(`2 people follow ${first(RAFE)}.`);
     // Their own character: no follow (they already hear everything); ⋯ still shares it.
     const owner = newUserCookie();
@@ -654,7 +654,7 @@ describe("the character page", () => {
     expect(own).toContain('data-track="character-share"');
     // A person's public character, to someone else: Follow is there even where Text is not.
     const other = head(await page(mine, newUserCookie()));
-    expect(other).toContain("🔔 Follow</button>");
+    expect(other).toContain("</svg> Follow</button>");
     expect(other).not.toContain(">Text Ira<");
     // Private: the name only.
     const hidden = await person("Wren Lurker", "u-hidden", "private");

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Talk } from "@/lib/adult/talks";
+import { okJson } from "@/lib/ok-json";
 
 /** While one is being made, asked again this often (a clip takes a minute or two). */
 const POLL_MS = 20_000;
@@ -21,7 +22,7 @@ export function useTalks(a: string, b: string, enabled = true) {
     if (!enabled) return;
     let live = true;
     fetch(`/api/admin/after-dark/talk?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { talks?: Talk[]; price?: number } | null) => {
         if (!live || !d) return;
         setTalks(d.talks ?? []);

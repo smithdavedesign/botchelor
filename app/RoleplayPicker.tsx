@@ -11,6 +11,7 @@ import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS } from "@/lib/scene-card
 import type { OpeningChoice } from "@/lib/scene-opening";
 import type { MyRoleplay } from "@/lib/studio/library";
 import { useTagDemand } from "@/app/useTagDemand";
+import { okJson } from "@/lib/ok-json";
 
 /** The roleplays that fit where a pair stands (lib/tags.ts SETUPS_FOR_STAGE): the "For these two" shelf. */
 export function forStage(stage: Stage | null | undefined): typeof DATE_ROLEPLAYS {
@@ -127,7 +128,7 @@ export default function RoleplayPicker({
     if (!signedIn || !asYou) return;
     let live = true;
     fetch("/api/persona")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d) => {
         // `on: false` (SCENE_PERSONA=0): no line at all.
         if (live && d && d.on !== false) setPersona(d.persona && typeof d.persona.name === "string" ? { name: d.persona.name } : null);
@@ -141,7 +142,7 @@ export default function RoleplayPicker({
     if (!signedIn) return;
     let live = true;
     fetch("/api/library")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d) => {
         if (live && d?.library) setYours((d.library.roleplays as MyRoleplay[]).filter((x) => x.mode === "safe"));
       })

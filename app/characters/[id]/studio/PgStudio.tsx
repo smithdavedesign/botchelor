@@ -17,6 +17,7 @@ import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
 import { FORMATS, type FormatId } from "@/lib/studio/formats";
 import PgFilterBar from "@/app/studio/PgFilterBar";
 import { DEFAULT_PG_FILTER, filterPg, type PgFilter } from "@/lib/media-filter";
+import { okJson } from "@/lib/ok-json";
 
 const pictureUrl = (id: string) => `/api/studio/pictures/${id}`;
 
@@ -80,7 +81,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     if (!res.ok) return setNote({ text: res.message, error: true });
     const pics = (res.data.pictures as PgPicture[]) ?? [];
     setFresh(pics);
-    const refresh = await fetch(`/api/characters/${c.id}/studio`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const refresh = await fetch(`/api/characters/${c.id}/studio`).then(okJson).catch(() => null);
     if (refresh) setState(refresh as PgState);
     setNote(res.data.message ? { text: String(res.data.message), error: pics.length === 0 } : { text: `${pics.length} new picture${pics.length === 1 ? "" : "s"}: they're in the gallery too.` });
   }
@@ -93,7 +94,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setBusy(false);
     if (!res) return setNote({ text: "That didn't reach the server. Check your connection and try again.", error: true });
     if (!res.ok) return setNote({ text: res.message, error: true });
-    const refresh = await fetch(`/api/characters/${c.id}/studio`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const refresh = await fetch(`/api/characters/${c.id}/studio`).then(okJson).catch(() => null);
     if (refresh) setState(refresh as PgState);
     const n = ((res.data.pictures as PgPicture[]) ?? []).length;
     setNote(res.data.message ? { text: String(res.data.message), error: n === 0 } : { text: `${n} view${n === 1 ? "" : "s"} drawn: they're in the gallery too.` });
@@ -110,7 +111,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     if (!res.ok) return setNote({ text: res.message, error: true });
     const pics = (res.data.pictures as PgPicture[]) ?? [];
     setFresh(pics);
-    const refresh = await fetch(`/api/characters/${c.id}/studio`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const refresh = await fetch(`/api/characters/${c.id}/studio`).then(okJson).catch(() => null);
     if (refresh) setState(refresh as PgState);
     setNote(res.data.message ? { text: String(res.data.message), error: pics.length === 0 } : { text: `A carousel of ${pics.length}: they're in the gallery, in order.` });
   }
@@ -121,7 +122,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     const remix = new URLSearchParams(window.location.search).get("remix");
     if (!remix) return;
     void fetch(`/api/showcase/posts/${encodeURIComponent(remix)}/remix`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { remix?: { studio: string; choices: Record<string, unknown>; format: string | null; creator: string } } | null) => {
         const r = d?.remix;
         if (!r || r.studio !== "pg") return;
@@ -141,7 +142,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
   const [afterDark, setAfterDark] = useState(false);
   useEffect(() => {
     fetch(`/api/characters/${c.id}/pictures`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d) => d && setAfterDark(Boolean(d.after_dark)))
       .catch(() => {});
   }, [c.id]);

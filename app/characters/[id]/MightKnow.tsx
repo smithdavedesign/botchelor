@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Avatar from "@/app/Avatar";
 import { shortName } from "@/lib/names";
 import { requestJson } from "@/app/request";
+import { okJson } from "@/lib/ok-json";
 
 /** `mine`: one of the viewer's own characters (a tie to it is live at once, any kind; to anyone else's it's asked). */
 export type Suggestion = { id: string; name: string; portrait: string | null; hue: number | null; words: string; mine?: boolean };
@@ -26,7 +27,7 @@ export default function MightKnow({ characterId, name, embedded = false, onKnow 
   useEffect(() => {
     let live = true;
     fetch(`/api/social/suggest/${encodeURIComponent(characterId)}`)
-      .then((res) => (res.ok ? res.json() : null))
+      .then(okJson)
       .then((data: { suggestions?: Suggestion[] } | null) => {
         if (live) setList(Array.isArray(data?.suggestions) ? data.suggestions : []);
       })

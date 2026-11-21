@@ -6,6 +6,7 @@ import FeedbackModal from "./FeedbackModal";
 import Icon from "./Icon";
 import { claimToastVisit, toastVisitFree, useToastRoom } from "./useToastRoom";
 import { BETA_PROMPT_KEY, betaPromptDue, OPEN_FEEDBACK_EVENT, openFeedback, promptPathBlocked } from "@/lib/user-feedback-shared";
+import { okJson } from "@/lib/ok-json";
 
 /**
  * The floating Feedback button is there "for now" (David, 2026-10-22: "add a floating one too for now"). Set this to
@@ -99,7 +100,7 @@ export default function FeedbackDock() {
     const timer = window.setTimeout(async () => {
       write(() => sessionStorage, PROMPT_CHECKED_KEY, String(Date.now()));
       const facts = (await fetch("/api/feedback", { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
+        .then(okJson)
         .then((body: { prompt?: PromptFacts } | null) => body?.prompt ?? null)
         .catch(() => null)) as PromptFacts | null;
       if (cancelled || !facts) return;

@@ -12,6 +12,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { CATEGORY_LABELS, FEEDBACK_CATEGORIES, FEEDBACK_EMAIL_MAX, FEEDBACK_MESSAGE_MAX, RATING_MAX, RATING_MIN, type FeedbackCategory } from "@/lib/user-feedback-shared";
+import { okJson } from "@/lib/ok-json";
 
 const SCALE = Array.from({ length: RATING_MAX - RATING_MIN + 1 }, (_, i) => RATING_MIN + i);
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([tabindex="-1"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -71,7 +72,7 @@ export default function FeedbackModal({ open, onClose, page }: Props) {
     if (!open || prefilled.current) return;
     prefilled.current = true;
     fetch("/api/feedback", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((ctx: { email?: string | null } | null) => {
         if (ctx?.email) setEmail((typed) => typed || (ctx.email as string));
       })

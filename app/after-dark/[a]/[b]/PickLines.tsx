@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TranscriptLine } from "@/lib/adult/reels";
+import { okJson } from "@/lib/ok-json";
 
 /**
  * Pick lines from the night's transcript to add as shots (David, 2026-11-04: "a quick modal popup that allows them to
@@ -36,7 +37,7 @@ export default function PickLines({
   useEffect(() => {
     let live = true;
     fetch(`/api/admin/after-dark/reel?transcript=${encodeURIComponent(reelId)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { lines?: TranscriptLine[] } | null) => {
         if (!live) return;
         if (d?.lines) setLines(d.lines);
