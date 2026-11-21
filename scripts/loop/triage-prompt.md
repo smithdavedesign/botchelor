@@ -14,6 +14,7 @@ Your job: turn it into a short list of real, fixable problems, as GitHub issues.
 2. For each distinct problem in the input, decide:
    - DUPLICATE of an open issue → add a short comment there with the new evidence (`gh issue comment`), once per issue.
    - ALREADY FIXED, BY DESIGN, or NOT REAL (check the code to be sure) → skip it.
+   - A SLOW, EMPTY OR TIMED-OUT REPLY from tonight's arena: first read {{ARENA}}/world.json (`host`: stalls, longest_s, pressure_peak) and the `[arena]` lines in {{ARENA}}/server.log. If the server was slow to answer its own health check around that time, the Mac was starved (the local model, other jobs), not the code: skip it and say so in the summary (#1969).
    - NEEDS DAVID: anything touching content rules (lib/safety.ts), payments or tokens, accounts and auth, privacy between owners, spending, or a product decision → an issue labelled `agent-feedback` and `needs-david`.
    - OTHERWISE a fixable bug or small improvement → an issue labelled `agent-feedback`.
 3. Each issue: a plain title; a body with what happened (quote the agent, with its run and agent id, and the board votes if any), where it lives in the code, and a proposed fix. At most {{MAX_ISSUES}} new issues; the most important first (how much it hurts, how many agents hit it, and votes).

@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { appEnv, client, persona, ROOT, startShowrunner } from "../harness.mjs";
 import { PAIRS } from "../sim-pairs.mjs";
-import { brainFromEnv, CROWD, httpTransport, runCrowd, seedCrowd } from "./crowd.mjs";
+import { brainFromEnv, CROWD, hostPressure, httpTransport, runCrowd, seedCrowd } from "./crowd.mjs";
 
 const [out, portArg] = process.argv.slice(2);
 const port = Number(portArg || 4420);
@@ -103,6 +103,8 @@ for (const [a] of made.slice(0, SEED_DATES)) {
 // when that's off: LOOP_STUB=1, or LiteLLM not answering within 2 seconds. It never calls the show's model.
 const crowdLog = (m) => console.error(`crowd ${m}`);
 const brain = CROWD_AGENTS > 0 ? await brainFromEnv(process.env, { log: crowdLog }) : null;
+// #1969: the crowd answers from its script while the Mac's memory is pressed (crowd.mjs speak).
+if (brain) brain.pressure = () => hostPressure();
 const crowd =
   CROWD_AGENTS > 0
     ? await seedCrowd(httpTransport(base), { agents: CROWD_AGENTS, log: crowdLog, brain, seedBudgetMs: num("LOOP_CROWD_SEED_SECONDS", 240) * 1000 }).catch(
@@ -136,6 +138,28 @@ console.error(`SEEDED ${booked.length} dates; world ${JSON.stringify(world)}`);
 // The crowd stays busy for as long as the arena runs: likes, answers, texts and its side of dates.
 const busy = crowd ? runCrowd(crowd.agents, { books: CROWD_BOOKS, log: crowdLog }) : null;
 const crowdTimer = brain ? setInterval(() => writeCrowd(busy?.stats), 60_000) : null;
+// #1969 (the 2026-11-21-0842 run: a visitor's 30 s wait took 131 s and no client was served for 73 s; the code was fine,
+// the Mac was starved): a watchdog asks the server's health every 5 s. An answer slower than 5 s goes in server.log as
+// an [arena] line with the memory pressure, and world.json's host block counts them, so the triage reads a slow reply
+// in that window as the host, not a bug.
+world.host = { stalls: 0, longest_s: 0, pressure_peak: hostPressure() ?? "unknown" };
+const RANK = { normal: 0, warn: 1, critical: 2 };
+let watching = false;
+const watchdog = setInterval(async () => {
+  if (watching) return;
+  watching = true;
+  const t0 = Date.now();
+  const ok = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(120_000) }).then((r) => r.ok, () => false);
+  const secs = (Date.now() - t0) / 1000;
+  const level = hostPressure();
+  if (level && (RANK[level] ?? 0) > (RANK[world.host.pressure_peak] ?? -1)) world.host.pressure_peak = level;
+  if (secs > 5 || !ok) {
+    world.host.stalls++;
+    world.host.longest_s = Math.max(world.host.longest_s, Math.round(secs));
+    log.write(`[arena] ${new Date().toISOString()} the server took ${secs.toFixed(1)} s to answer its health check${ok ? "" : " (no answer)"}; memory pressure: ${level ?? "unknown"}\n`);
+  }
+  watching = false;
+}, 5_000);
 (async () => {
   const rest = booked.slice(1);
   const per = Math.ceil(rest.length / Math.max(1, REVEALS.length));
@@ -151,8 +175,10 @@ const crowdTimer = brain ? setInterval(() => writeCrowd(busy?.stats), 60_000) : 
 })();
 const stop = () => {
   busy?.stop();
+  clearInterval(watchdog);
   if (crowdTimer) clearInterval(crowdTimer);
   writeCrowd(busy?.stats);
+  if (!brain) try { writeFileSync(join(out, "world.json"), JSON.stringify(world, null, 2)); } catch {}
   if (busy) console.error(`crowd stats ${JSON.stringify(busy.stats)}; brain ${JSON.stringify(brain?.summary())}`);
   stub?.close();
   child.kill("SIGTERM");

@@ -17,6 +17,8 @@ import {
   echoesProfile,
   crowdNames,
   fixNames,
+  hostPressure,
+  resetHostPressureForTests,
   mergeLastLines,
   replyMessages,
   PROMPT_LABELS,
@@ -568,6 +570,33 @@ describe("the crowd's brain", () => {
     expect(out).toBe("Canned line, honestly.");
     expect(requests[1].messages[0].content).toContain("Your last try was refused (named someone not in the thread (Feodor))");
     expect(brain.summary().fallback_reasons).toMatchObject({ "named someone not in the thread (Feodor)": 1 });
+  });
+
+  it("answers from the script while the host's memory is pressed, and reads the pressure at most every 10 s (#1969)", async () => {
+    reply = () => ({ content: "Warm white, always, Odalys." });
+    const brain = await brainOn();
+    let level: "normal" | "warn" | "critical" | null = "warn";
+    brain.pressure = () => level;
+    const agent = { brain, said: new Map(), def: CROWD[0] } as unknown as CrowdAgent;
+    const send = async (line: string) => ({ ok: true as const, result: line });
+    const me = { id: "me", name: "Odile Brannock", entry: { sheet: {} } } as never;
+    const partner = { name: "Odalys Fenn" } as never;
+    requests = [];
+    expect(await speak(agent, { kind: "text", me, partner, history: [], send, fallback: () => "Canned line." })).toBe("Canned line.");
+    expect(requests).toHaveLength(0);
+    expect(brain.summary().fallback_reasons).toMatchObject({ "host memory pressure": 1 });
+    level = "normal";
+    expect(await speak(agent, { kind: "text", me, partner, history: [], send, fallback: () => "Another canned line." })).toBe("Warm white, always, Odalys.");
+
+    resetHostPressureForTests();
+    let reads = 0;
+    const read = (v: string) => () => (reads++, v);
+    expect(hostPressure(1_000_000, read("2\n"))).toBe("warn");
+    expect(hostPressure(1_005_000, read("4"))).toBe("warn");
+    expect(hostPressure(1_011_000, read("4"))).toBe("critical");
+    expect(reads).toBe(2);
+    expect(hostPressure(1_030_000, () => { throw new Error("no sysctl"); })).toBeNull();
+    resetHostPressureForTests();
   });
 
   it("falls back to the script when the model fails, and counts every path with its reason", async () => {
