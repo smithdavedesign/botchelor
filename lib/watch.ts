@@ -682,6 +682,8 @@ export type LobbyEntry = {
   followup_of: string | null;
   /** Which date it is for the couple (2, 3, ...) when it follows another. */
   date_number: number | null;
+  /** Where the date is (a venue id, lib/venues.ts): the picture across the top of a room still to start. */
+  venue?: string | null;
 };
 
 /** Joinable rooms for the lobby: always-on templates first, then live and upcoming premieres. */
@@ -703,8 +705,9 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
     watching: number;
     followup_of: string | null;
     date_number: number | null;
+    venue: string | null;
   }>(
-    `select w.id, w.kind, w.starts_at, e.followup_of, (e.setup->>'date_number')::int as date_number,
+    `select w.id, w.kind, w.starts_at, e.followup_of, (e.setup->>'date_number')::int as date_number, e.setup->>'venue' as venue,
             a.id as a_id, a.name as a_name, a.is_house as a_house, a.avatar_hue as a_hue, ${portraitPathSql("a")} as a_portrait,
             b.id as b_id, b.name as b_name, b.is_house as b_house, b.avatar_hue as b_hue, ${portraitPathSql("b")} as b_portrait,
             (select count(*) from watch_presence p
@@ -745,6 +748,7 @@ export async function listLobby(db: Db, now: Date = new Date(), limit = 24): Pro
       starts_at: r.starts_at ? new Date(r.starts_at).toISOString() : null,
       followup_of: r.followup_of,
       date_number: r.followup_of ? (r.date_number ?? 2) : null,
+      venue: r.venue ?? null,
     };
   });
 }
