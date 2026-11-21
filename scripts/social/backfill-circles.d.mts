@@ -1,4 +1,6 @@
 /** Types for scripts/social/backfill-circles.mjs, which stays plain JS so it runs with no build step. */
+import type { OcNameStyle } from "../../lib/oc-name-pools";
+import type { NameBook } from "../../lib/social/person-names";
 import type { ChatMessage } from "../loop/crowd.d.mts";
 
 export type Kind = "cast" | "house" | "agent";
@@ -42,21 +44,49 @@ export type CircleResult = {
   places: number;
   ties: number;
   refused: { item: string; what: string; reason: string }[];
+  renamed?: Rename[];
+};
+/** A person written under another name than the model gave, and why. */
+export type Rename = { from: string; to: string; why: string };
+/** The run's record of names: the rules' NameBook, plus adding and freeing a name. */
+export type RunNameBook = NameBook & { add(name: string): void; remove(name: string): void };
+export type NameStats = {
+  holders: number;
+  people: number;
+  distinctFirst: number;
+  top: [string, number][];
+  overCap: number;
+  fullTwice: number;
+  outsideTaken: number;
+  kin: number;
+  kinOwn: number;
+  kinOther: number;
+  bestFriends: number;
 };
 export type TieIndex = { tied: Map<string, Set<string>>; add(a: string, b: string): void; count(id: string): number; has(a: string, b: string): boolean };
 
 export const PROMPT_VERSION: string;
 export const CANDIDATES: number;
-export function parseArgs(argv: string[]): { limit: number; dryRun: boolean; force: boolean; only: string[] | null; base: string };
-export function queue(characters: ShowCharacter[], o: { force?: boolean; only?: string[] | null; limit: number }): ShowCharacter[];
+export function parseArgs(argv: string[]): { limit: number; dryRun: boolean; force: boolean; redoBroken: boolean; stats: boolean; only: string[] | null; base: string };
+export function queue(characters: ShowCharacter[], o: { force?: boolean; only?: string[] | null; limit: number; redo?: Set<string> | null }): ShowCharacter[];
 export function tieIndex(characters: ShowCharacter[]): TieIndex;
 export function pickCandidates(me: ShowCharacter, everyone: ShowCharacter[], ties: TieIndex, o?: { n?: number; random?: () => number }): ShowCharacter[];
 export function familyHints(me: ShowCharacter, byId: Map<string, ShowCharacter>): string[];
 /** A copy in a random order: each character sees the neighbourhoods and hangouts in its own (the model leans to the last). */
 export function shuffled<T>(list: readonly T[], random?: () => number): T[];
+/** The prompt's lines on names: the names offered, family's surname, a best friend only if they have one. */
+export function nameLines(me: ShowCharacter, names: { first: string[]; last: string[] } | null): string[];
 export function circleMessages(
   me: ShowCharacter,
-  o: { world: World; candidates: ShowCharacter[]; byId: Map<string, ShowCharacter>; workplaces: Workplace[]; neighbourhoods?: World["neighbourhoods"]; random?: () => number },
+  o: {
+    world: World;
+    candidates: ShowCharacter[];
+    byId: Map<string, ShowCharacter>;
+    workplaces: Workplace[];
+    neighbourhoods?: World["neighbourhoods"];
+    random?: () => number;
+    names?: { first: string[]; last: string[] } | null;
+  },
 ): ChatMessage[];
 export function parseReply(raw: string | null | undefined): Record<string, unknown> | null;
 /** `everyone`: the show's characters, so one of them named as an off-screen person is a tie (a candidate) or left out. */
@@ -67,9 +97,17 @@ export function remember(
   me: ShowCharacter,
   circle: Circle,
   result: CircleResult | null,
-  o: { byId: Map<string, ShowCharacter>; ties: TieIndex; workplaces: Workplace[]; world: World; homes?: Map<string, number> | null },
+  o: { byId: Map<string, ShowCharacter>; ties: TieIndex; workplaces: Workplace[]; world: World; homes?: Map<string, number> | null; replace?: boolean },
 ): void;
 export function offerWorkplaces(workplaces: Workplace[], o?: { n?: number; random?: () => number }): Workplace[];
 export const HOMES_OFFERED: number;
 /** The `n` neighbourhoods with the fewest homes this run (`homes`, by key), ties at random: the model leans to one. */
 export function offerNeighbourhoods(neighbourhoods: World["neighbourhoods"], homes: Map<string, number>, o?: { n?: number; random?: () => number }): World["neighbourhoods"];
+/** The style of names that suits a character, from its own words. */
+export function styleOf(c: ShowCharacter): OcNameStyle;
+export function nameBook(everyone: ShowCharacter[], o?: { skip?: Set<string> }): RunNameBook;
+export function nameCircle(me: ShowCharacter, circle: Circle, book: RunNameBook): { circle: Circle; renamed: Rename[]; dropped: { name: string; reason: string }[] };
+/** The characters whose circles break the naming rules, by id, with what's wrong. */
+export function brokenHolders(everyone: ShowCharacter[]): Map<string, string[]>;
+export function nameStats(everyone: ShowCharacter[]): NameStats;
+export function statsLine(s: NameStats): string;
