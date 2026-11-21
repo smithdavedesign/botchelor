@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { saveAdultSettings } from "@/lib/adult/settings";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as verifyRoute } from "@/app/api/after-dark/verify/route";
 import { GET as returnRoute } from "@/app/api/after-dark/verify/return/route";
@@ -257,6 +258,8 @@ describe("what a pass opens", () => {
 
   it("opens AU and BR, so the free taste can start there", async () => {
     turnOn();
+    // The taste waits on its own switch (lib/adult/rollout.ts "taste"); this is about where it can start once opened.
+    await saveAdultSettings(t.db, { rollout: { taste: "everyone" } });
     for (const where of [AU, BR]) {
       at(where);
       const p = person();

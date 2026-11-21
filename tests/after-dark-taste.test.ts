@@ -3,7 +3,9 @@ import { POST as startTasteRoute } from "@/app/api/after-dark/taste/route";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { mediaAllowedFor, mediaRefusal, rememberAccess, forgetRememberedPlacesForTests } from "@/lib/adult/place";
 import { hasSubscription, clipPrice } from "@/lib/adult/pricing";
-import { isTasting, startTaste, TASTE_PER_DAY, TASTE_WRITES, tasteRefusal } from "@/lib/adult/taste";
+import { rolloutConfigOf } from "@/lib/adult/rollout";
+import { saveAdultSettings } from "@/lib/adult/settings";
+import { isTasting, startTaste, TASTE_PER_DAY, TASTE_WRITES, tasteOpen, tasteRefusal } from "@/lib/adult/taste";
 import { countUse, overCap, TASTE_DONE } from "@/lib/adult/usage";
 import { afterDarkAccess } from "@/lib/jurisdiction";
 import { setPlaceForTests } from "@/lib/place";
@@ -24,6 +26,8 @@ beforeEach(async () => {
   await t.db.query(`insert into adult_settings (id) values (1) on conflict (id) do nothing`);
   vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
   setPlaceForTests({ country: "CA", region: "ON" });
+  // The taste waits on its own switch (lib/adult/rollout.ts "taste"); these tests are about the taste once it's opened.
+  await saveAdultSettings(t.db, { rollout: { taste: "everyone" } });
 });
 afterEach(() => {
   setPlaceForTests(null);
@@ -37,6 +41,27 @@ function person() {
 }
 const start = (cookie: string | undefined, body: Record<string, unknown> = { adult: true }) =>
   startTasteRoute(jsonRequest("/api/after-dark/taste", body, { cookie }));
+
+describe("the taste waits on its switch (the 2026-11-21 audit)", () => {
+  it("is off until it's opened: the route answers not found and starts nothing, whoever asks", async () => {
+    await saveAdultSettings(t.db, { rollout: { taste: "admins" } });
+    expect(tasteOpen(rolloutConfigOf(null))).toBe(false);
+    expect(tasteOpen(null)).toBe(false);
+    expect(tasteOpen(rolloutConfigOf({ taste: "everyone" }))).toBe(true);
+    const p = person();
+    const res = await start(p.cookie);
+    expect(res.status).toBe(404);
+    expect((await res.json()).error).toBe("not_open");
+    expect(await isTasting(t.db, p.id)).toBe(false);
+    expect((await t.db.query(`select 1 from adult_tastes`)).rows).toHaveLength(0);
+    expect((await canAfterDark(t.db, { userId: p.id, authenticated: true })).ok).toBe(false);
+  });
+
+  it("a settings row that was never touched leaves it off", async () => {
+    await t.db.query(`update adult_settings set rollout = null where id = 1`);
+    expect((await start(person().cookie)).status).toBe(404);
+  });
+});
 
 describe("starting a free taste", () => {
   it("opens After Dark as a taste for 48 hours, once", async () => {

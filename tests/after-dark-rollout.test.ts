@@ -64,7 +64,7 @@ const open = (piece: string) => saveAdultSettings(t.db, { rollout: { [piece]: "e
 
 describe("the switches", () => {
   it("start on admins only, take everyone, and refuse anything else", async () => {
-    expect(rolloutConfigOf(null)).toEqual({ public_door: "admins", make_more: "admins", phone_sheet: "admins", reader: "admins", narrated: "admins", companion: "admins" });
+    expect(rolloutConfigOf(null)).toEqual({ public_door: "admins", taste: "admins", make_more: "admins", phone_sheet: "admins", reader: "admins", narrated: "admins", companion: "admins" });
     expect(rolloutConfigOf({ reader: "nonsense" }).reader).toBe("admins");
     expect(mergeRolloutConfig(rolloutConfigOf(null), { reader: "everyone" }).reader).toBe("everyone");
     expect(() => mergeRolloutConfig(rolloutConfigOf(null), { reader: "some" })).toThrow();
@@ -130,5 +130,25 @@ describe("the public door", () => {
     // Someone else can't preview: they just see the page as themselves.
     signIn(randomUUID());
     expect(await html(await page({ preview: "visitor" }))).not.toContain("data-preview");
+  });
+
+  it("the landing offers the free taste only once that piece is opened (the 2026-11-21 audit)", async () => {
+    const admin = randomUUID();
+    await claimAdmin(t.db, admin);
+    signIn(admin);
+    const page = (sp: Record<string, string>) => AfterDarkSubscribe({ searchParams: Promise.resolve(sp) });
+    const closedVisitor = await html(await page({ preview: "visitor" }));
+    expect(closedVisitor).toContain("Ask for an invite to the beta.");
+    expect(closedVisitor).not.toMatch(/free taste/i);
+    expect(await html(await page({ preview: "signed-in" }))).not.toContain("data-taste-form");
+
+    await open("taste");
+    const openVisitor = await html(await page({ preview: "visitor" }));
+    expect(openVisitor).toContain("Try a free taste (");
+    expect(openVisitor).toContain("hours of scenes, no card), or ask for an invite to the beta.");
+    // Signed in, somewhere After Dark is fully open: the taste's own box. (The previewing admin already has After Dark,
+    // so a real visitor stands in for the form itself.)
+    signIn(randomUUID());
+    expect(await html(await page({}))).toContain("data-taste-form");
   });
 });

@@ -65,10 +65,16 @@ applies, on production) or `everyone`. `rolloutOn(cfg, piece, admin)` is the one
 - **`public_door`** (`lib/adult/door.ts`, the design review's A3). Open to everyone, the header's door shows to every
   adult where After Dark isn't blocked (`afterDarkDoor`: a visitor's place from `accessFor`, no database read for a
   signed-out visitor; the switch is read through the shared cache), `/after-dark` sends someone it isn't open to yet to
-  `/after-dark/subscribe` (the taste, the invite request, the waitlist) instead of not-found, and the arrival screen
+  `/after-dark/subscribe` (the invite request, the waitlist, and the free taste once `taste` is opened) instead of not-found, and the arrival screen
   (`app/Threshold.tsx`: "Lights low. Doors locked." on the way in, "Back to the show" on the way back, once a session
   each way) shows. On admins only, only the arrival screen shows (to admins), and an admin previews the landing with
   `/after-dark/subscribe?preview=visitor` or `?preview=signed-in`. Payments go live first.
+- **`taste`** (`lib/adult/taste.ts` `tasteOpen`; the 2026-11-21 audit). The free taste below, offered on the subscribe
+  page. It was open to any signed-in adult from the day it was built, while everything else waited here. Off by default
+  now: the route answers 404 `not_open` and the page leaves the taste out. Two reasons to keep it off until billing is
+  live: a taste ends in "subscribe to carry on", which nobody can do yet, and the card processors' applications say
+  there is no trial, so tell them before opening it. There is no admin-only taste (an admin already has After Dark), so
+  the switch is read as a visitor meets it.
 - **`make_more`** (`AfterDarkTheater.tsx` `makeMore`): one "✨ Make more" menu in the theater's top bar holds what makes
   more, each with its price: the video (`VideoChoice`), a picture or clip of the moment (`CaptureMenu`), ⚡ Draw ahead,
   🗣 a talking moment, ✨ Bring them to life, 📍 Take them somewhere else, each of theirs' 🎨 Studio, and ▶▶ Keep going ·
@@ -163,6 +169,7 @@ tokens for extras], but since we're brand new just break even overall is the goa
 
 The competitor review (2026-11-08; David's "1-5") found every adult competitor lets new people in before they pay (CrushOn 50 free messages a day, OurDream 55 free coins), while After Dark had only the invite queue. `lib/adult/taste.ts`:
 
+- **Behind its own switch since 2026-11-21** (`adult_settings.rollout.taste`, off by default: "Not open yet" above). Everything below is the taste once that is opened.
 - A signed-in person who never had After Dark starts it on the subscribe page (`app/api/after-dark/taste`), ticking the 18+ box. No card, no email to David.
 - It's an ordinary pass (`adult_entitlements` provider `taste`) for **48 hours**, so every existing check works; a subscription or beta pass replaces it.
 - **Scenes only:** `mediaAllowedFor` is false and `mediaRefusal` answers 402 `media_needs_subscription`, so no pictures, clips, voice or Hive checks. Chapters cost no tokens.

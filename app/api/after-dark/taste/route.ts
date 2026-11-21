@@ -2,7 +2,8 @@ import { z } from "zod";
 import { isAdmin } from "@/lib/admins";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { accessForUser } from "@/lib/adult/place";
-import { startTaste, TASTE_REFUSAL_TEXT } from "@/lib/adult/taste";
+import { getAdultSettings } from "@/lib/adult/settings";
+import { startTaste, TASTE_REFUSAL_TEXT, tasteOpen } from "@/lib/adult/taste";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, isMcpCall, json, parseBody, readJson } from "@/lib/http";
@@ -18,8 +19,9 @@ const Input = z.object({ adult: z.literal(true, "Confirm you're 18 or older.") }
 
 /**
  * Starts a free taste of After Dark (lib/adult/taste.ts): a signed-in person in a place where After Dark is fully open,
- * once. Refused for an anonymous cookie, an agent or crawler, a text-only or blocked place (451), someone who already
- * has or had After Dark, a second taste, and a day whose tastes are all taken.
+ * once. Not found until the taste is opened in the settings (lib/adult/taste.ts tasteOpen). Refused for an anonymous
+ * cookie, an agent or crawler, a text-only or blocked place (451), someone who already has or had After Dark, a second
+ * taste, and a day whose tastes are all taken.
  */
 export const POST = handle(async (req: Request) => {
   if (isMcpCall(req) || detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"))) {
@@ -28,6 +30,7 @@ export const POST = handle(async (req: Request) => {
   const auth = authFromRequest(req);
   if (!auth?.authenticated) return json({ error: "needs_sign_in", message: "Sign in to your account to start your free taste." }, 401);
   const db = await getDb();
+  if (!tasteOpen((await getAdultSettings(db)).rollout)) return json({ error: "not_open", message: "The free taste isn't open yet." }, 404);
   const visitor = visitorKey(req.headers);
   if ((visitor !== null && (await overLimit(db, "ad_taste", visitor, TASTE_LIMITS))) || (await overLimit(db, "ad_taste_user", auth.userId, TASTE_LIMITS))) {
     return json({ error: "rate_limited", message: "Too many tries. Try again in an hour." }, 429);
