@@ -52,9 +52,11 @@ export function queue(characters: ShowCharacter[], o: { force?: boolean; only?: 
 export function tieIndex(characters: ShowCharacter[]): TieIndex;
 export function pickCandidates(me: ShowCharacter, everyone: ShowCharacter[], ties: TieIndex, o?: { n?: number; random?: () => number }): ShowCharacter[];
 export function familyHints(me: ShowCharacter, byId: Map<string, ShowCharacter>): string[];
+/** A copy in a random order: each character sees the neighbourhoods and hangouts in its own (the model leans to the last). */
+export function shuffled<T>(list: readonly T[], random?: () => number): T[];
 export function circleMessages(
   me: ShowCharacter,
-  o: { world: World; candidates: ShowCharacter[]; byId: Map<string, ShowCharacter>; workplaces: Workplace[] },
+  o: { world: World; candidates: ShowCharacter[]; byId: Map<string, ShowCharacter>; workplaces: Workplace[]; neighbourhoods?: World["neighbourhoods"]; random?: () => number },
 ): ChatMessage[];
 export function parseReply(raw: string | null | undefined): Record<string, unknown> | null;
 /** `everyone`: the show's characters, so one of them named as an off-screen person is a tie (a candidate) or left out. */
@@ -65,6 +67,9 @@ export function remember(
   me: ShowCharacter,
   circle: Circle,
   result: CircleResult | null,
-  o: { byId: Map<string, ShowCharacter>; ties: TieIndex; workplaces: Workplace[]; world: World },
+  o: { byId: Map<string, ShowCharacter>; ties: TieIndex; workplaces: Workplace[]; world: World; homes?: Map<string, number> | null },
 ): void;
 export function offerWorkplaces(workplaces: Workplace[], o?: { n?: number; random?: () => number }): Workplace[];
+export const HOMES_OFFERED: number;
+/** The `n` neighbourhoods with the fewest homes this run (`homes`, by key), ties at random: the model leans to one. */
+export function offerNeighbourhoods(neighbourhoods: World["neighbourhoods"], homes: Map<string, number>, o?: { n?: number; random?: () => number }): World["neighbourhoods"];

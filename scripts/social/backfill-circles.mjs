@@ -31,6 +31,8 @@ const USER_AGENT = "botchelor-social-backfill/1.0";
 /** How many other show characters a character is offered to know, and how many workplaces to reuse. */
 export const CANDIDATES = 8;
 const WORKPLACES_OFFERED = 10;
+/** How many neighbourhoods a character is offered to live in: the emptiest so far. */
+export const HOMES_OFFERED = 3;
 const ORDER = { cast: 0, house: 1, agent: 2 };
 
 const clip = (s, n) => {
@@ -109,14 +111,24 @@ export function familyHints(me, byId) {
   return out;
 }
 
+/**
+ * A copy in a random order. The local model leans to the last place listed (2026-11-20 dry run: all three characters
+ * lived in The Heights, the last neighbourhood, and two were regulars at its hill), so each character sees its own order.
+ */
+export function shuffled(list, random = Math.random) {
+  return list.map((x) => ({ x, r: random() })).sort((a, b) => a.r - b.r).map((k) => k.x);
+}
+
 /** The prompt for one character's circle: who they are, what's in their life already, the world to place them in, and whom they might know. */
-export function circleMessages(me, { world, candidates, byId, workplaces }) {
+export function circleMessages(me, { world, candidates, byId, workplaces, neighbourhoods = world.neighbourhoods, random = Math.random }) {
   const kit = [me.archetype, me.occupation && `works as ${me.occupation}`, me.hometown && `from ${me.hometown}`].filter(Boolean).join("; ");
   const already = [
     ...(me.circle?.people ?? []).map((p) => `${p.name} (their ${p.relation})`),
     ...(me.circle?.ties ?? []).map((t) => `${byId.get(t.with)?.name ?? t.with} (${t.phrase ?? `their ${t.relation}`}, on the show)`),
   ];
   const hints = familyHints(me, byId);
+  const hoods = shuffled(neighbourhoods, random);
+  const hangouts = shuffled(world.hangouts, random);
   const system = [
     "You write the people and places in one character's life for Botchelor, a PG dating show where AI characters go on dates the audience watches.",
     "Everyone you name is a fictional adult: their children are grown up. Nobody real or famous, no brands, nothing sexual, violent, hateful or cruel.",
@@ -131,8 +143,8 @@ export function circleMessages(me, { world, candidates, byId, workplaces }) {
     ...(already.length ? [`Already in their life (keep to it, don't repeat them): ${already.join("; ")}.`] : []),
     ...hints,
     "",
-    `They live in ${world.city.name}, a seaside town. Its neighbourhoods: ${world.neighbourhoods.map((n) => `${n.name} (${clip(n.description, 90)})`).join("; ")}.`,
-    `Places to be a regular at, by id: ${world.hangouts.map((h) => `${h.key.replace(/^venue:/, "")} (${clip(h.name, 40)}, ${h.neighbourhood})`).join("; ")}.`,
+    `They live in ${world.city.name}, a seaside town. Neighbourhoods their home could be in: ${hoods.map((n) => `${n.name} (${clip(n.description, 90)})`).join("; ")}.`,
+    `Places to be a regular at, by id: ${hangouts.map((h) => `${h.key.replace(/^venue:/, "")} (${clip(h.name, 40)}, ${h.neighbourhood})`).join("; ")}.`,
     ...(workplaces.length ? [`Workplaces in town others already work at (pick one if their job fits, so they're coworkers): ${workplaces.map((w) => `${w.name} (${w.neighbourhood ?? world.city.name})`).join("; ")}.`] : []),
     ...(candidates.length
       ? [
@@ -144,9 +156,9 @@ export function circleMessages(me, { world, candidates, byId, workplaces }) {
     "Return this JSON:",
     "{",
     '  "people": [3 to 6 people in their life, off the show, at least one of them family: {"name": "an invented first and last name (a real name, never only Mum, Dad or Auntie)", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
-    '  "lives": "the neighbourhood they live in (its name)",',
+    '  "lives": "the one of those neighbourhoods that suits them, where their own home is (its name): not the show\'s house, where only the season\'s cast stays while it airs",',
     '  "works": {"name": "where they work: one of the workplaces above, or a new one with an invented name", "neighbourhood": "its neighbourhood"} (or null if they don\'t work),',
-    '  "regular": "the id of one place they\'re a regular at",',
+    '  "regular": "the id of the one place above that suits them best, where they\'re a regular",',
     `  "knows": [1 or 2 of the others above: {"name": "their full name, as above", "relation": "what they are to ${first(me.name)}: sibling, cousin, old friend, childhood friend, ex, coworker, classmate, neighbour, roommate, rival or mentor", "story": "how they know each other, one line the audience would hear, under 200 characters"}]`,
     "}",
   ].join("\n");
@@ -228,9 +240,13 @@ export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
 }
 
 /** What a result wrote, back into the run's picture: the people (minus the refused), the ties, a new workplace. */
-export function remember(me, circle, result, { byId, ties, workplaces, world }) {
+export function remember(me, circle, result, { byId, ties, workplaces, world, homes = null }) {
   if (!result || result.status !== "written") return;
   const refused = new Set((result.refused ?? []).map((r) => `${r.item}|${lower(r.what)}`));
+  const home = circle.places.find((p) => p.role === "lives");
+  const bare = (x) => lower(x).replace(/^the\s+/, "");
+  const hood = home && world.neighbourhoods.find((n) => n.key === lower(home.place) || bare(n.name) === bare(home.place));
+  if (homes && hood && !refused.has(`place|${lower(`lives ${home.place}`)}`)) homes.set(hood.key, (homes.get(hood.key) ?? 0) + 1);
   me.circle = me.circle ?? { people: [], ties: [] };
   for (const p of circle.people) if (!refused.has(`person|${lower(p.name)}`)) me.circle.people.push({ name: p.name, relation: p.relation });
   for (const t of circle.ties) {
@@ -256,6 +272,19 @@ export function offerWorkplaces(workplaces, { n = WORKPLACES_OFFERED, random = M
   const recent = workplaces.slice(-Math.ceil(n / 2));
   const older = workplaces.slice(0, -Math.ceil(n / 2)).map((w) => ({ w, r: random() })).sort((a, b) => a.r - b.r).slice(0, n - recent.length).map((x) => x.w);
   return [...older, ...recent];
+}
+
+/**
+ * The neighbourhoods a character is offered to live in: the `n` with the fewest homes this run so far (`homes`, by key),
+ * ties broken at random. The local model puts nearly everyone in The Heights when it can (2026-11-20 dry runs: 5 of 6,
+ * in any order), so each neighbourhood gets its share and the model picks among the emptiest by what suits them.
+ */
+export function offerNeighbourhoods(neighbourhoods, homes, { n = HOMES_OFFERED, random = Math.random } = {}) {
+  return neighbourhoods
+    .map((h) => ({ h, count: homes.get(h.key) ?? 0, r: random() }))
+    .sort((a, b) => a.count - b.count || a.r - b.r)
+    .slice(0, n)
+    .map((k) => k.h);
 }
 
 function adminKey() {
@@ -307,12 +336,14 @@ async function main() {
   if (!brain.enabled) throw new Error(`the local model is off (${brain.reason}): nothing written`);
   const ties = tieIndex(everyone);
   const workplaces = [...(world.workplaces ?? [])];
+  const homes = new Map();
   const totals = { characters: 0, people: 0, places: 0, ties: 0, refused: 0, skipped: 0, failed: 0 };
   const models = new Set();
   for (const me of todo) {
     const candidates = pickCandidates(me, everyone, ties);
     const offered = offerWorkplaces(workplaces);
-    const messages = circleMessages(me, { world, candidates, byId, workplaces: offered });
+    const neighbourhoods = offerNeighbourhoods(world.neighbourhoods, homes);
+    const messages = circleMessages(me, { world, candidates, byId, workplaces: offered, neighbourhoods });
     let circle = null;
     let served = null;
     for (let attempt = 0; attempt < 2 && !circle; attempt++) {
@@ -360,9 +391,10 @@ async function main() {
       `${me.name} [${me.kind}]: ${r.people} people (${circle.people.map((p) => `${p.name}, ${p.relation}`).join("; ")}), ${r.places} places${placed ? ` (${placed})` : ""}, ${r.ties} ties${circle.ties.length ? ` (${named(circle.ties)})` : ""}` +
         (r.refused.length ? `; refused: ${r.refused.map((x) => `${x.item} ${x.what}: ${x.reason}`).join("; ")}` : ""),
     );
-    if (!o.dryRun) remember(me, circle, r, { byId, ties, workplaces, world });
+    if (!o.dryRun) remember(me, circle, r, { byId, ties, workplaces, world, homes });
   }
   const summary = `${o.dryRun ? "dry run: would write" : "wrote"} ${totals.characters} circles: ${totals.people} people, ${totals.places} places, ${totals.ties} ties; ${totals.refused} items refused, ${totals.skipped} skipped, ${totals.failed} failed (model ${[...models].join(", ") || "none"}, ${PROMPT_VERSION})`;
+  if (homes.size) log(`homes: ${[...homes].map(([key, n]) => `${world.neighbourhoods.find((h) => h.key === key)?.name ?? key} ${n}`).join(", ")}`);
   log(summary);
   if (!o.dryRun) emit(totals.failed > Math.max(2, todo.length / 4) ? "fail" : "ok", summary);
 }
