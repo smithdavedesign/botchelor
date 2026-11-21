@@ -92,7 +92,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const origin = asked === "yours" && mine.length === 0 ? null : asked;
   const first = firstSky(origin ? groupSky({ nodes, edges, stats, kinds }, origin, new Set(mine)) : { nodes, edges, stats, kinds });
   // A shared, filtered sky: ?stage= (the kinds of pair, app/graph/stages.ts), ?when= and ?still=1 (when they last dated,
-  // app/graph/filter.ts), ?world=<id> (just them and their world, the same file). The ledger stays every pair.
+  // app/graph/filter.ts), ?world=<id> (just their corner of the sky, the same file). The ledger stays every pair.
   const stages = parseStages(sp.stage);
   const when = parseWhen(sp.when);
   const still = parseStill(sp.still);

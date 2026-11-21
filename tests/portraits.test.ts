@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { afterDarkPortrait, characterPortrait, HOUSE_PORTRAIT_IDS, showStyleOf, venueBackdrop, VENUES_WITH_BACKDROPS } from "@/lib/portraits";
+import { afterDarkPortrait, characterPortrait, HOUSE_PORTRAIT_IDS, HOUSE_STAGE_PICTURES, showStyleOf, stagePicture, venueBackdrop, VENUES_WITH_BACKDROPS } from "@/lib/portraits";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { EXTRA_VENUES, VENUE_IDS } from "@/lib/venues";
 
@@ -45,6 +45,25 @@ describe("portraits — in sync with the cast, the venues and the files", () => 
     for (const c of [...HOUSE_CHARACTERS, ...PREMIUM_HOUSE_CHARACTERS]) {
       expect(HOUSE_PORTRAIT_IDS.has(c.id)).toBe(true);
       expect(files.has(characterPortrait(c.id)!.replace("/cast/", ""))).toBe(true);
+    }
+  });
+
+  it("a house-look portrait has its stage picture (three-quarter length, for a figure); anything else has none", () => {
+    expect(stagePicture("/cast/house-dex-v5.webp")).toBe("/cast/house-dex-v5-stage.webp");
+    expect(stagePicture("/cast/house-dex-v5.webp?w=192")).toBe("/cast/house-dex-v5-stage.webp");
+    // Only the house look: not After Dark's pre-look face, not a stage picture again, not a served asset or nothing.
+    expect(stagePicture("/cast/house-dex-v3.webp")).toBeNull();
+    expect(stagePicture("/cast/house-dex-v5-stage.webp")).toBeNull();
+    expect(stagePicture("/cast/house-nobody-v5.webp")).toBeNull();
+    expect(stagePicture("/api/assets/abc")).toBeNull();
+    expect(stagePicture(null)).toBeNull();
+  });
+
+  it("every stage picture is on disk beside its house-look portrait (one not made yet: the figure is the portrait)", () => {
+    expect(HOUSE_STAGE_PICTURES.size).toBeGreaterThan(0);
+    for (const name of HOUSE_STAGE_PICTURES) {
+      expect(files.has(`${name}-v5.webp`), name).toBe(true);
+      expect(files.has(`${name}-v5-stage.webp`), name).toBe(true);
     }
   });
 

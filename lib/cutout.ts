@@ -16,8 +16,14 @@
  * server asks once (cutoutsReady: one tiny cutout of a house portrait) and keeps the answer for a while; until the
  * answer is yes, no page asks for a cutout and the figure shows the portrait itself, softened at its edges.
  * `CUTOUTS=0` turns them off whatever the zone says.
+ *
+ * A house character stands as their stage picture instead (stageCutout: the house-look portrait taken down to
+ * three-quarter length and cut out ahead of time, lib/portraits.ts stagePicture): a body, not a bust ending at the
+ * frame's edges.
  */
 
+import type { Db } from "./db";
+import { stagePicture } from "./portraits";
 import { siteUrl } from "./site";
 
 /** The pictures a cutout can be made of: a served portrait (`/api/assets/<id>`) or a house file (`/cast/<file>`). */
@@ -40,6 +46,25 @@ export function cutoutUrl(portrait: string | null | undefined, origin: string = 
   const src = path.startsWith("/api/assets/") ? path.replace(/\.webp$/, "") : path;
   if (!CUTTABLE.test(src)) return null;
   return `${origin.replace(/\/+$/, "")}/cdn-cgi/image/${CUTOUT_OPTIONS}${src}`;
+}
+
+/**
+ * The stage picture a house-look portrait's figure stands as (lib/portraits.ts stagePicture): a file already cut out,
+ * so it needs nothing from the zone. Null for anyone else, whose figure is their portrait (cut out by the zone when it
+ * can). A served portrait (`/api/assets/<id>`) is looked up for the file its ledger row records: a house portrait's row
+ * keeps its `/cast/…` path (app/api/assets/[id]/route.ts redirects there), which is also how a season newcomer drawn in
+ * the house look (Barnaby) gets theirs. A failed lookup is null.
+ */
+export async function stageCutout(db: Db, portrait: string | null | undefined): Promise<string | null> {
+  if (!portrait) return null;
+  const direct = stagePicture(portrait);
+  if (direct) return direct;
+  const id = /^\/api\/assets\/([^/?.]+)/.exec(portrait)?.[1];
+  if (!id) return null;
+  const { rows } = await db
+    .query<{ url: string }>(`select url from character_assets where id = $1 and review_status = 'approved' and content_rating = 'pg' and url like '/cast/%'`, [id])
+    .catch(() => ({ rows: [] as { url: string }[] }));
+  return stagePicture(rows[0]?.url);
 }
 
 /** The house portrait the server asks for to learn whether the zone makes cutouts (a file every deploy ships). */
