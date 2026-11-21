@@ -69,8 +69,9 @@ describe("#1154: create_character refuses a look-alike unless keep_look_alike: t
     expect(r.isError).toBe(true);
     const out = r.structuredContent;
     expect(out).toMatchObject({ code: "look_alike", saved: false, look_alikes: [expect.objectContaining({ id: first.id, name: "Ingeborg Salvesen", why: expect.stringMatching(/Ingeborg Salvesen/) })] });
-    expect(out.error).toMatch(/^Nothing was saved because it reads a lot like Ingeborg Salvesen \(/);
-    expect(out.error).toMatch(/call again with keep_look_alike: true\.$/);
+    // #1879: the way to keep it comes first, before the details (what matched, names and jobs to try).
+    expect(out.error).toMatch(/^Nothing was saved: it reads a lot like Ingeborg Salvesen\. To create it as it is anyway, call again with keep_look_alike: true; or change its job or hook\. It reads a lot like Ingeborg Salvesen \(/);
+    expect(out.error).toMatch(/What matched: .*Names nobody's first name matches: /);
     expect(out.try_names.length).toBeGreaterThan(0);
     expect(out.try_instead.length).toBeGreaterThan(0);
     expect(out.originality.verdict).toBe("consider changing");
