@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rings } from "@/lib/social/algorithms";
 import { TIE_KINDS, type TieKindId } from "@/lib/social/kinds";
+import { bareName, midSentence } from "@/lib/social/place-name";
 import type { EgoNetwork, TieView } from "@/lib/social/types";
 import {
   arcPath,
@@ -10,6 +11,7 @@ import {
   labelSpan,
   lineEnds,
   norm,
+  ROLE_WORDS,
   oddsArc,
   RING_RADIUS,
   ringAngles,
@@ -109,6 +111,16 @@ describe("labels round the edge", () => {
     expect(labelSpan("Regular at the dive bar")).toBeGreaterThan(20);
     expect(norm(270)).toBe(-90);
     expect(norm(-270)).toBe(90);
+  });
+
+  it("word a hangout mid-sentence in lower case, and a proper name as it is", () => {
+    expect(ROLE_WORDS.regular("A botanic park before the rain")).toBe("Regular at a botanic park before the rain");
+    expect(ROLE_WORDS.regular("An all-night diner")).toBe("Regular at an all-night diner");
+    expect(ROLE_WORDS.lives("The Heights")).toBe("Lives in The Heights");
+    expect(ROLE_WORDS.works("The Salt Lantern")).toBe("Works at The Salt Lantern");
+    expect(midSentence("Avalon Books")).toBe("Avalon Books");
+    expect(bareName("The Bean There")).toBe("Bean There");
+    expect(bareName("A corner café that closes in an hour")).toBe("corner café that closes in an hour");
   });
 });
 
