@@ -41,6 +41,9 @@ type Theme = { bg: string; ink: string; muted: string; line: string; accent: str
 
 const edgeKey = (e: SkyEdge) => `${e.a_id}~${e.b_id}${e.lines ? `:${e.lines.map((l) => l.g).join("+")}` : ""}`;
 
+/** How many places are named on a zoomed-out sky (a phone's whole sky): the most shared, where they fit. */
+const PLACE_NAMES_ZOOMED_OUT = 6;
+
 /** The sim's view of the stars: a place's star stays small whatever its members (its size isn't anyone's popularity). */
 const simNodes = (ns: readonly SkyNode[]) => ns.map((n) => ({ id: n.id, degree: n.place ? 1 : n.degree }));
 
@@ -278,6 +281,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
 
       // Nodes. A place's name waits for the end (placeLabels), so the names can be laid out together.
       const images = imagesRef.current;
+      // `size`: how many characters share the place (its star's size is the same for all).
       const placeLabels: { x: number; y: number; text: string; rank: number; size: number }[] = [];
       for (const sn of sim.nodes) {
         const idx = byId.get(sn.id);
@@ -321,7 +325,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
             diamond(3 / v.zoom);
             ctx.stroke();
           }
-          if (!dim && v.zoom >= 0.5) placeLabels.push({ x: sn.x, y: sn.y + r + 4 / v.zoom, text: data.name, rank: selected ? 2 : ego.has(sn.id) ? 1 : 0, size: sn.r });
+          if (!dim) placeLabels.push({ x: sn.x, y: sn.y + r + 4 / v.zoom, text: data.name, rank: selected ? 2 : ego.has(sn.id) ? 1 : 0, size: data.place.count });
           continue;
         }
 
@@ -394,10 +398,12 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         }
       }
 
-      // The places' names, the sky's landmarks: the picked place and its neighbours first, then the biggest, each drawn
+      // The places' names, the sky's landmarks: the picked place and its neighbours first, then the most shared, each drawn
       // only where it clears the names already down (30 places in a dense middle wrote over each other). Zooming in
-      // spreads them out, so more fit; a dark edge keeps each readable over the lines.
+      // spreads them out, so more fit; zoomed out (a phone's whole sky) only the few biggest, so the names don't bury
+      // the faces. A dark edge keeps each readable over the lines.
       if (placeLabels.length) {
+        let room = v.zoom >= 0.5 ? Infinity : PLACE_NAMES_ZOOMED_OUT;
         ctx.globalAlpha = 1;
         ctx.font = `600 ${11 / v.zoom}px Inter, system-ui, sans-serif`;
         ctx.textAlign = "center";
@@ -413,7 +419,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
         for (const lab of placeLabels) {
           const w = ctx.measureText(lab.text).width;
           const box = { l: lab.x - w / 2 - pad, t: lab.y - pad, r: lab.x + w / 2 + pad, b: lab.y + h + pad };
-          if (lab.rank === 0 && down.some((d) => box.l < d.r && box.r > d.l && box.t < d.b && box.b > d.t)) continue;
+          if (lab.rank === 0 && (room <= 0 || down.some((d) => box.l < d.r && box.r > d.l && box.t < d.b && box.b > d.t))) continue;
+          if (lab.rank === 0) room--;
           down.push(box);
           ctx.strokeText(lab.text, lab.x, lab.y);
           ctx.fillText(lab.text, lab.x, lab.y);

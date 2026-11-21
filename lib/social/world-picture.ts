@@ -178,6 +178,57 @@ export function spreadLabels(want: readonly { angle: number | null; span: number
   return out;
 }
 
+/** The names' type in picture units on a desktop (app/globals.css --world-type-name). A phone shows only the inner circle's. */
+export const NAME_TYPE = 12;
+
+/** Where a name goes: the point its text hangs from (a face's) or sits on (a person's), and which way it runs. */
+export type NamePlace = { x: number; y: number; anchor: "start" | "middle" | "end" };
+
+/**
+ * Where each name on the picture goes, laid out together so none runs into another, over the centre's face or out
+ * into the places round the edge. A name that fits nowhere is left off; the list below names everyone.
+ *
+ * - Order: the inner circle's names first, then the close ring's (each under its face), then the off-screen people's.
+ * - An off-screen person's name goes beside their dot: on the outer side, else the inner side, else under the dot.
+ * - Only the inner and close rings' faces are named (the page's rule).
+ *
+ * `textOf` is the name as drawn (a face shows its short name). Widths are estimates: about 0.56 of the type a character.
+ */
+export function nameLayout(members: readonly WorldMember[], textOf: (m: WorldMember) => string, type = NAME_TYPE): Map<string, NamePlace> {
+  type Box = { l: number; t: number; r: number; b: number };
+  const h = type * 1.25;
+  const limit = EDGE_RADIUS - type * 0.75;
+  const down: Box[] = [{ l: MID - CENTRE_RADIUS, t: MID - CENTRE_RADIUS, r: MID + CENTRE_RADIUS, b: MID + CENTRE_RADIUS }];
+  const inside = (b: Box) =>
+    [
+      [b.l, b.t],
+      [b.r, b.t],
+      [b.l, b.b],
+      [b.r, b.b],
+    ].every(([x, y]) => Math.hypot(x - MID, y - MID) <= limit);
+  const clear = (b: Box) => inside(b) && !down.some((d) => b.l < d.r && b.r > d.l && b.t < d.b && b.b > d.t);
+  const rank = (m: WorldMember) => (m.person ? 2 : m.ring === "inner" ? 0 : 1);
+  const named = members.filter((m) => m.person || m.ring === "inner" || m.ring === "close").sort((a, b) => rank(a) - rank(b));
+  const out = new Map<string, NamePlace>();
+  for (const m of named) {
+    const w = textOf(m).length * type * 0.56;
+    const options: [NamePlace, Box][] = [];
+    if (m.person) {
+      const right: [NamePlace, Box] = [{ x: m.x + m.r + 4, y: m.y + type / 3, anchor: "start" }, { l: m.x + m.r + 4, t: m.y - h / 2, r: m.x + m.r + 4 + w, b: m.y + h / 2 }];
+      const left: [NamePlace, Box] = [{ x: m.x - m.r - 4, y: m.y + type / 3, anchor: "end" }, { l: m.x - m.r - 4 - w, t: m.y - h / 2, r: m.x - m.r - 4, b: m.y + h / 2 }];
+      options.push(...(m.x >= MID ? [right, left] : [left, right]));
+      options.push([{ x: m.x, y: m.y + m.r + 2 + type, anchor: "middle" }, { l: m.x - w / 2, t: m.y + m.r + 2, r: m.x + w / 2, b: m.y + m.r + 2 + h }]);
+    } else {
+      options.push([{ x: m.x, y: m.y + m.r + 4, anchor: "middle" }, { l: m.x - w / 2, t: m.y + m.r + 4, r: m.x + w / 2, b: m.y + m.r + 4 + h }]);
+    }
+    const fit = options.find(([, b]) => clear(b));
+    if (!fit) continue;
+    down.push(fit[1]);
+    out.set(m.id, fit[0]);
+  }
+  return out;
+}
+
 /** "X's world" placed for drawing, from its ego network (lib/social/read.ts egoNetwork). */
 export function worldPicture(w: EgoNetwork): WorldPicture {
   const id = w.centre.id;
