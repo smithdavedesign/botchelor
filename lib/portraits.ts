@@ -70,13 +70,13 @@ export function afterDarkPortrait(characterId: string | null | undefined): strin
  * look (Barnaby's) comes through the ledger.
  */
 export const HOUSE_STAGE_PICTURES: ReadonlySet<string> = new Set([
-  "house-barnaby", "house-boaz", "house-dex", "house-imogen", "house-juniper", "house-kaz", "house-lior", "house-marisol",
-  "house-nell", "house-orin", "house-perpetua", "house-rafe",
-  // Failed review on 2026-11-20, so their figure is the portrait until a redraw passes: Ines (seated with bare legs, the
-  // seat gone once cut out), Odalys (a long coat over what reads as underwear), Sable (a low top and cleavage her
-  // portrait doesn't have), Teo (little heads printed on his sleeves), Vesper (three strangers and a logo painted below
-  // him), Wally (a sketch tattooed on his forearm). Juniper's first one failed too (bare legs); her redraw asked for
-  // trousers and passed, once the fake signature FLUX wrote across her trouser leg was painted out.
+  "house-barnaby", "house-boaz", "house-dex", "house-imogen", "house-ines", "house-juniper", "house-kaz", "house-lior",
+  "house-marisol", "house-nell", "house-odalys", "house-orin", "house-perpetua", "house-rafe", "house-sable",
+  "house-vesper",
+  // Not listed, so their figure is the portrait: Teo (twice: little heads, then photos of himself, printed on his
+  // sleeves) and Wally (twice: drawings on his forearms; he has no tattoos). Seven failed the first review (2026-11-20);
+  // a redraw that named what was wrong (trousers, a plain top, no one else in the picture) passed for five. Juniper's
+  // also needed the fake signature FLUX wrote across her trouser leg painted out.
 ]);
 
 /** The stage picture for a portrait's file (`/cast/house-<name>-v5.webp`), or null for any other picture. */
