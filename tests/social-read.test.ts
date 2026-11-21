@@ -6,7 +6,7 @@ import { setDbForTests } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { addPerson } from "@/lib/social/people";
 import { ensurePlace, setMembership } from "@/lib/social/places";
-import { CO_MEMBERS_KEPT, egoNetwork, pairTies, publicSky } from "@/lib/social/read";
+import { CO_MEMBERS_KEPT, egoNetwork, layerFloor, pairTies, publicSky } from "@/lib/social/read";
 import { upsertTie } from "@/lib/social/ties";
 import type { EgoNetwork, PairTies, PlaceKind, PlaceRole, SocialSky, TieInput } from "@/lib/social/types";
 import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
@@ -292,6 +292,12 @@ describe("the sky", () => {
     const one = (await publicSky(t.db, "friends", { limit: 1 }))!;
     expect(lines(one)).toEqual([`sibling:${ordered(BEA, CAL).join("|")}`]);
     expect(one.stats).toMatchObject({ ties: 2, shown: 1 });
+    // Every kind gets its place under a cap: Everything at 4 draws one tie of each layer it has (the gossip line, not
+    // the weaker of the two conflicts), where the 4 strongest alone would leave the gossip out.
+    const four = (await publicSky(t.db, "all", { limit: 4 }))!;
+    expect(four.ties.map((x) => x.kind).sort()).toEqual(["friend", "rival", "sibling", "told"]);
+    expect(four.stats).toMatchObject({ ties: 5, shown: 4 });
+    expect([layerFloor(400, 8), layerFloor(400, 4), layerFloor(1, 4), layerFloor(10, 0)]).toEqual([25, 50, 1, 5]);
   });
 
   it("names the places two or more public characters share, as groups, on friends and all", async () => {
