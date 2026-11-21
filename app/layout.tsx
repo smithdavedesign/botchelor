@@ -72,6 +72,7 @@ import "./ux/phone.css";
 import "./ux/stage.css";
 import "./ux/chrome.css";
 import "./ux/catalog.css";
+import "./ux/motion.css";
 
 const TRACKING = trackingConfig();
 

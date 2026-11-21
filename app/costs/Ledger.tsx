@@ -1,3 +1,4 @@
+import CountUp from "@/app/motion/CountUp";
 import type { PublicCosts } from "@/lib/public-costs";
 import { CATEGORY_LABEL } from "@/lib/spend-shared";
 
@@ -11,7 +12,9 @@ export default function Ledger({ costs }: { costs: PublicCosts | null }) {
   return (
     <>
       <p>
-        Since {monthName(costs.firstMonth)}: <strong>{usd(costs.sinceStart)}</strong> in all.
+        Since {monthName(costs.firstMonth)}: <strong>
+          <CountUp value={costs.sinceStart} decimals={2} prefix="$" />
+        </strong> in all.
       </p>
       {costs.months.map((m, i) => (
         <details key={m.month} className="costs-month" open={i < 2}>

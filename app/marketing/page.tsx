@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
+import CountUp from "@/app/motion/CountUp";
 import { getDb } from "@/lib/db";
 import { balancedColumns } from "@/lib/grid-balance";
 import { CREDIT_DAYS, publicMarketing, type Leads, type MarketingChannel, type MarketingPost, type PublicMarketing } from "@/lib/public-marketing";
@@ -30,13 +31,16 @@ const TYPE_LABEL: Record<MarketingPost["type"], string> = { post: "Post", answer
 
 function Summary({ m }: { m: PublicMarketing }) {
   const t = m.totals;
-  const items: [string, string][] = [
-    ["Posts so far", num(t.posts)],
-    ["Channels we post to", num(t.channels)],
-    ["Visitors our posts brought", num(t.visitors)],
-    ["Characters they made", num(t.created)],
-    ["Dates they started", num(t.started)],
-    ["Spent on marketing", usd(t.spent)],
+  // Each figure counts up once on view (app/motion/CountUp.tsx); one that's unknown stays a dash.
+  const count = (n: number | null | undefined, money = false): ReactNode =>
+    n == null ? "—" : <CountUp value={n} decimals={money && n % 1 ? 2 : 0} prefix={money ? "$" : ""} />;
+  const items: [string, ReactNode][] = [
+    ["Posts so far", count(t.posts)],
+    ["Channels we post to", count(t.channels)],
+    ["Visitors our posts brought", count(t.visitors)],
+    ["Characters they made", count(t.created)],
+    ["Dates they started", count(t.started)],
+    ["Spent on marketing", count(t.spent, true)],
   ];
   // Six numbers are 3 + 3, not 4 + 2 (lib/grid-balance.ts; visual audit 2026-11-20).
   return (

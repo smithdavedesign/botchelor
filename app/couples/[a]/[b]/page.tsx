@@ -188,16 +188,22 @@ export default async function CouplePage({ params, searchParams }: Props) {
   const viewerId = userIdFromCookieStore(await cookies());
   const hidden = (c: PublicCharacter) => c.private && c.owner_id !== viewerId;
   const timeline = pageSlice(view.timeline.map((t, i) => ({ ...t, n: i + 1 })), parsePage(sp.dates), TIMELINE_PAGE);
+  // The page opens on their latest date's place, the two of them meeting on it (the motion kit's .slide-pair, pass 2
+  // of the 2026-11-20 visual pop audit); plain faces when no date has a place.
+  const stageVenue = latest ? (placeOf.get(latest.episode_id) ?? null) : null;
+  const faces = (
+    <div className="couple-avatars slide-pair">
+      {[ca, cb].map((c) => {
+        const face = <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={stageVenue ? 88 : 72} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />;
+        return hidden(c) ? <span key={c.id}>{face}</span> : <Link key={c.id} href={`/characters/${c.id}`}>{face}</Link>;
+      })}
+    </div>
+  );
 
   return (
     <div className="couple-page">
       <section className="card couple-head">
-        <div className="couple-avatars">
-          {[ca, cb].map((c) => {
-            const face = <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={72} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />;
-            return hidden(c) ? <span key={c.id}>{face}</span> : <Link key={c.id} href={`/characters/${c.id}`}>{face}</Link>;
-          })}
-        </div>
+        {stageVenue ? <VenuePhoto venue={stageVenue} className="couple-stage" eager>{faces}</VenuePhoto> : faces}
         <h1>
           {first(ca)} × {first(cb)}
         </h1>
