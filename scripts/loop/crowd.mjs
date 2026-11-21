@@ -1116,6 +1116,26 @@ export async function createBrain({
  * LOOP_STUB=1 means scripted unless LOOP_CROWD_BRAIN=1 asks for the local model anyway (a local check of the brain on
  * a stubbed arena); LOOP_CROWD_BRAIN=0 always means scripted.
  */
+/**
+ * #1969 (the 2026-11-21-0842 run: the arena's server stalled 73 s with the local model, two visitors and test runs on
+ * this 16 GB Mac): how hard pressed the host's memory is, from macOS's own level (kern.memorystatus_vm_pressure_level:
+ * 1 normal, 2 warn, 4 critical); null where there's no such reading. Read at most every 10 seconds.
+ */
+let pressureRead = { at: 0, level: null };
+export function hostPressure(now = Date.now(), read = () => execFileSync("sysctl", ["-n", "kern.memorystatus_vm_pressure_level"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2000 })) {
+  if (now - pressureRead.at < 10_000) return pressureRead.level;
+  let level = null;
+  try {
+    level = { 1: "normal", 2: "warn", 4: "critical" }[Number(String(read()).trim())] ?? null;
+  } catch {
+    level = null;
+  }
+  pressureRead = { at: now, level };
+  return level;
+}
+/** Tests: forget the last reading. */
+export const resetHostPressureForTests = () => (pressureRead = { at: 0, level: null });
+
 export async function brainFromEnv(env = process.env, { log = () => {}, timeoutMs } = {}) {
   if (env.LOOP_STUB === "1" && env.LOOP_CROWD_BRAIN !== "1") return createBrain({ stub: true, log });
   if (env.LOOP_CROWD_BRAIN === "0") {
@@ -1162,6 +1182,10 @@ export async function speak(agent, { kind, me, partner, history = [], extra = {}
   const who = `${agent.def.name}/${firstName(me.name)} ${kind}`;
   let why = brain.enabled ? null : brain.reason;
   if (!why && brain.seedUntil && Date.now() > brain.seedUntil) why = "seed time budget";
+  // #1969: with the Mac's memory pressed, the crowd's model calls would starve the arena the visitors are using: the
+  // script answers until it eases (counted as a fallback with this reason). The arena sets brain.pressure (hostPressure).
+  const pressed = why ? null : (brain.pressure?.() ?? null);
+  if (pressed && pressed !== "normal") why = "host memory pressure";
   if (!why) {
     let refused = null;
     // Two tries; a third when the second was only a repeat (#1832: 14 of 104 crowd lines were pool lines after two

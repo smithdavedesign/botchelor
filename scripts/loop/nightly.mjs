@@ -403,6 +403,7 @@ async function main() {
           .replaceAll("{{FEEDBACK}}", `${join(RUN, "feedback-local.json")} and ${join(RUN, "feedback-live.json")}`)
           .replaceAll("{{REPORTS}}", reports.join(", ") || "(none)")
           .replaceAll("{{MAX_ISSUES}}", String(MAX_ISSUES))
+          .replaceAll("{{ARENA}}", join(RUN, "arena"))
           .replaceAll("{{OUT}}", join(RUN, "triage.md"));
         await claude(triage, {
           cwd: REPO,

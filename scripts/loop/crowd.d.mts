@@ -57,6 +57,8 @@ export type CrowdBrain = {
   disable(why: string): void;
   count(path: "model" | "fallback", why?: string | null): void;
   summary(): CrowdBrainSummary;
+  /** #1969: the host's memory pressure; set by the arena. Pressed (warn, critical), the script answers. */
+  pressure?: () => HostPressure;
   complete(
     messages: ChatMessage[],
     opts?: { maxTokens?: number; temperature?: number; json?: boolean; onServed?: (model: string) => void },
@@ -101,6 +103,10 @@ export function createBrain(opts?: {
   warm?: boolean;
   log?: (m: string) => void;
 }): Promise<CrowdBrain>;
+/** #1969: macOS's memory pressure level, or null where there's no reading. */
+export type HostPressure = "normal" | "warn" | "critical" | null;
+export function hostPressure(now?: number, read?: () => string): HostPressure;
+export function resetHostPressureForTests(): void;
 export function brainFromEnv(env?: Record<string, string | undefined>, opts?: { log?: (m: string) => void; timeoutMs?: number }): Promise<CrowdBrain>;
 export function mergeLastLines(lines: { name: string; text: string }[], lastLines?: string[]): { name: string; text: string }[];
 
