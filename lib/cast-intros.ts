@@ -90,8 +90,15 @@ export async function introOf(db: Db, characterId: string): Promise<{ id: string
   return row ? { id: row.id, url: introUrl(row.id, String(row.v)), line: row.line, seconds: row.seconds } : null;
 }
 
-/** The clip's URL; `version` (the render's time) makes each render its own URL for the year-long cache. */
-export const introUrl = (id: string, version?: string): string => `/api/cast-intro/${encodeURIComponent(id)}/intro.mp4${version ? `?v=${encodeURIComponent(version)}` : ""}`;
+/**
+ * The clip's URL; `version` (the render's time) makes each render its own URL for the year-long cache. It goes in the
+ * path (`intro-<v>.mp4`), not a query: Cloudflare skips its cache for any URL with a query string (2026-11-20: `?v=`
+ * came back BYPASS, every view from the app).
+ */
+export const introUrl = (id: string, version?: string): string => `/api/cast-intro/${encodeURIComponent(id)}/intro${version ? `-${encodeURIComponent(version)}` : ""}.mp4`;
+
+/** Whether a file name is the clip: `intro.mp4`, or a render's own `intro-<v>.mp4`. */
+export const isIntroClipFile = (file: string): boolean => /^intro(-\d+)?\.mp4$/.test(file);
 export const introAudioUrl = (id: string): string => `/api/cast-intro/${encodeURIComponent(id)}/audio.wav`;
 
 /** The clip's bytes, when it's ready. */

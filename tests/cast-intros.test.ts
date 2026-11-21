@@ -120,11 +120,13 @@ describe("a cast intro", () => {
     expect(submit.body).toMatchObject({ image_url: `${BASE_URL}/api/assets/asset-${id}` });
     expect(String(submit.body?.audio_url)).toMatch(new RegExp(`^${BASE_URL}/api/cast-intro/[0-9a-f-]+/audio\\.wav$`));
     const intro = (await introOf(t.db, id))!;
-    expect(intro.url).toMatch(/^\/api\/cast-intro\/[0-9a-f-]+\/intro\.mp4\?v=\d+$/);
+    expect(intro.url).toMatch(/^\/api\/cast-intro\/[0-9a-f-]+\/intro-\d+\.mp4$/);
     expect(intro.line).toMatch(/^Hi, I'm Mara\./);
-    const served = await introGet(new Request(`${BASE_URL}${intro.url}`), { params: Promise.resolve({ id: intro.id, file: "intro.mp4" }) });
+    const served = await introGet(new Request(`${BASE_URL}${intro.url}`), { params: Promise.resolve({ id: intro.id, file: intro.url.split("/").pop()! }) });
     expect(served.status).toBe(200);
     expect(served.headers.get("content-type")).toBe("video/mp4");
+    // The plain name still serves it (links made before the version moved into the path).
+    expect((await introGet(new Request(`${BASE_URL}/api/cast-intro/${intro.id}/intro.mp4`), { params: Promise.resolve({ id: intro.id, file: "intro.mp4" }) })).status).toBe(200);
     const audio = await introGet(new Request(`${BASE_URL}/api/cast-intro/${intro.id}/audio.wav`), { params: Promise.resolve({ id: intro.id, file: "audio.wav" }) });
     expect(audio.status).toBe(200);
     expect(audio.headers.get("content-type")).toBe("audio/wav");
