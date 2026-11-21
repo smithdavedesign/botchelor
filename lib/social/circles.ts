@@ -19,6 +19,7 @@
 import type { Db } from "../db";
 import { franchiseHits } from "../franchises";
 import { ALL_HOUSE_CHARACTERS } from "../house";
+import { nameDraws } from "../oc-name-pools";
 import { loadOurIds, OUR_TEST_NAMES, TEST_NAME_SQL } from "../our-traffic";
 import { DELETED_OWNER } from "../rules";
 import { checkShowText } from "../safety";
@@ -27,6 +28,7 @@ import { notPersonaSql } from "../step-in-shared";
 import { DATE_VENUES } from "../venues";
 import { TIE_KINDS, type TieKindId } from "./kinds";
 import { addPerson, checkPerson, peopleOf, updatePerson } from "./people";
+import { firstNameOf, nameStyleOf, personName, surnameOf, type NameBook } from "./person-names";
 import { ensurePlace, PLACE_DESCRIPTION_MAX, PLACE_NAME_MAX, MEMBER_SINCE_MAX, placeIdOf, setMembership, slugify, venueKey } from "./places";
 import { canonicalTie, isDeclaredRole, kindFromWords, mayDeclarePerson, mayDeclareTie, NEW_PLACE_FOR, ROLE_PLACES, tieFromWords, type DeclaredRole } from "./relations";
 import { socialTiesOn } from "./switch";
@@ -81,7 +83,10 @@ export type CircleResult = {
   places: number;
   ties: number;
   refused: CircleRefusal[];
+  /** People written under another name than given (lib/social/person-names.ts), and why; absent when none were. */
+  renamed?: CircleRename[];
 };
+export type CircleRename = { from: string; to: string; why: string };
 
 /* ---------------------------------------------- the show's characters ---------------------------------------------- */
 
@@ -326,6 +331,45 @@ async function charactersNamed(db: Db, names: readonly (string | null | undefine
   return new Set(rows.map((r) => r.name));
 }
 
+/**
+ * What the naming rules read for one character's circle (lib/social/person-names.ts): the first and full names of the
+ * show's people for every other character (this one's go when its circle is written again), the full names of the
+ * site's public characters (a new name is never one of theirs), the surnames of the show's characters, and this
+ * character's own surname and name style, from its own words.
+ */
+async function circleNames(db: Db, me: string): Promise<{ book: NameBook & { add(name: string): void }; holderLast: string | null; style: ReturnType<typeof nameStyleOf> }> {
+  const [people, chars, mine, show] = await Promise.all([
+    db.query<{ name: string }>(`select name from social_people where source in ('house', 'admin') and holder_id <> $1`, [me]),
+    db.query<{ id: string; name: string }>(`select c.id, c.name from characters c where c.visibility = 'public' and c.owner_id is distinct from $1 and ${notPersonaSql("c")}`, [DELETED_OWNER]),
+    db.query<{ name: string; bio: string | null; traits: unknown; extras: Record<string, unknown> | null }>(`select name, bio, traits, extras from characters where id = $1`, [me]),
+    ourIdsCached(db).then((ours) => showCharacterIds(db, null, { ours })),
+  ]);
+  const firsts = new Map<string, number>();
+  const full = new Set<string>();
+  const add = (name: string) => {
+    const f = lower(firstNameOf(name));
+    firsts.set(f, (firsts.get(f) ?? 0) + 1);
+    full.add(lower(name));
+  };
+  for (const r of people.rows) add(r.name);
+  const surnames = new Set<string>();
+  for (const r of chars.rows) {
+    full.add(lower(r.name));
+    const last = show.has(r.id) ? surnameOf(r.name) : null;
+    if (last) surnames.add(lower(last));
+  }
+  const row = mine.rows[0];
+  const own = row ? surnameOf(row.name) : null;
+  if (own) surnames.add(lower(own));
+  const text = (v: unknown): string => (typeof v === "string" ? v : "");
+  const words = row ? [row.bio, ...(Array.isArray(row.traits) ? row.traits : []), row.extras?.archetype, row.extras?.occupation, row.extras?.hometown].map(text).join(" ") : "";
+  return {
+    book: { firstCount: (f) => firsts.get(lower(f)) ?? 0, hasFull: (n) => full.has(lower(n)), surnameTaken: (l) => surnames.has(lower(l)), add },
+    holderLast: own,
+    style: nameStyleOf(words),
+  };
+}
+
 /** Why a tie of this kind can't join this pair's history: kin between two who've dated, or romance between kin. */
 export function pairClash(kind: TieKindId, pair: string, history: { romance: ReadonlySet<string>; kin: ReadonlySet<string> }): string | null {
   const layer = TIE_KINDS[kind].layer;
@@ -337,7 +381,7 @@ export function pairClash(kind: TieKindId, pair: string, history: { romance: Rea
 type PlannedPerson = { name: string; kind: TieKindId; pronouns: string | null; note: string | null; deceased: boolean; story: string | null; since: string | null };
 type PlannedPlace = { role: DeclaredRole; placeId: string; label: string; make: { key: string; kind: PlaceKind; name: string; parentKey: string; description: string | null } | null; since: string | null };
 type PlannedTie = { from: string; to: string; kind: TieKindId; story: string | null; since: string | null; label: string };
-type Plan = { people: PlannedPerson[]; places: PlannedPlace[]; ties: PlannedTie[]; refused: CircleRefusal[] };
+type Plan = { people: PlannedPerson[]; places: PlannedPlace[]; ties: PlannedTie[]; refused: CircleRefusal[]; renamed: CircleRename[] };
 
 type PlaceRow = { id: string; key: string; kind: string; name: string; visibility: string };
 
@@ -368,10 +412,13 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
   const me = input.character_id;
   const by = o.source;
 
-  // People: a name and relation the registry and the text check take; each name once; never someone on the site.
+  // People: a name and relation the registry and the text check take; each name once; never someone on the site; and
+  // named by the naming rules (lib/social/person-names.ts), renamed when they break one.
   const people: PlannedPerson[] = [];
+  const renamed: CircleRename[] = [];
   const personNames = new Set<string>();
-  const onSite = await charactersNamed(db, (input.people ?? []).slice(0, CIRCLE_LIMITS.people).map((p) => p.name));
+  const [onSite, naming] = await Promise.all([charactersNamed(db, (input.people ?? []).slice(0, CIRCLE_LIMITS.people).map((p) => p.name)), circleNames(db, me)]);
+  const draws = nameDraws(me, naming.style);
   for (const p of (input.people ?? []).slice(0, CIRCLE_LIMITS.people)) {
     const what = clean(p.name) || "(no name)";
     const kind = kindFromWords(p.relation);
@@ -407,7 +454,26 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
       continue;
     }
     personNames.add(lower(checked.name!));
-    people.push({ name: checked.name!, kind, pronouns: checked.pronouns ?? null, note: checked.note ?? null, deceased: p.deceased === true, story: words.story, since: words.since });
+    const named = personName(
+      { name: checked.name!, relation: p.relation, pronouns: checked.pronouns ?? null, note: checked.note ?? null },
+      { kin: TIE_KINDS[kind].layer === "kin", holderLast: naming.holderLast, book: naming.book, draws },
+    );
+    if (!named.ok) {
+      refused.push({ item: "person", what, reason: named.reason });
+      continue;
+    }
+    let person = { name: checked.name!, note: checked.note ?? null };
+    if (named.why.length) {
+      const again = checkPerson({ name: named.name, pronouns: checked.pronouns ?? null, note: named.note });
+      if (!again.ok) {
+        refused.push({ item: "person", what, reason: `renamed ${named.name}: ${again.reason}` });
+        continue;
+      }
+      person = { name: again.name!, note: again.note ?? null };
+      renamed.push({ from: checked.name!, to: person.name, why: named.why.join("; ") });
+    }
+    naming.book.add(person.name);
+    people.push({ name: person.name, kind, pronouns: checked.pronouns ?? null, note: person.note, deceased: p.deceased === true, story: words.story, since: words.since });
   }
   for (const p of (input.people ?? []).slice(CIRCLE_LIMITS.people)) refused.push({ item: "person", what: clean(p.name), reason: `more than ${CIRCLE_LIMITS.people} in one write` });
 
@@ -533,7 +599,7 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
     if (clash) refused.push({ item: "tie", what: c.label, reason: clash });
     else ties.push(c);
   }
-  return { people, places, ties, refused };
+  return { people, places, ties, refused, renamed };
 }
 
 /* --------------------------------------------------- the write --------------------------------------------------- */
@@ -573,7 +639,7 @@ export async function writeCircle(db: Db, input: CircleIn, o: CircleOptions, ctx
   if (o.dryRun) {
     const fits = Math.max(0, Math.min(plan.people.length, room + plan.people.filter((p) => had.has(p.name.toLowerCase())).length));
     for (const p of plan.people.slice(fits)) plan.refused.push({ item: "person", what: p.name, reason: "cap" });
-    return { character_id: me, status: "checked", people: fits, places: plan.places.length, ties: plan.ties.length, refused: plan.refused };
+    return { character_id: me, status: "checked", people: fits, places: plan.places.length, ties: plan.ties.length, refused: plan.refused, ...(plan.renamed.length ? { renamed: plan.renamed } : {}) };
   }
 
   const provenance = { origin_model: o.origin_model, prompt_version: o.prompt_version };
@@ -582,7 +648,7 @@ export async function writeCircle(db: Db, input: CircleIn, o: CircleOptions, ctx
     await db.query(`delete from social_people where holder_id = $1 and source in ('house', 'admin')`, [me]);
     await db.query(`delete from social_place_members where character_id = $1 and source in ('house', 'admin') and role = any($2::text[])`, [me, ["lives", "works", "regular", "studied"]]);
   }
-  const out: CircleResult = { character_id: me, status: "written", people: 0, places: 0, ties: 0, refused: plan.refused };
+  const out: CircleResult = { character_id: me, status: "written", people: 0, places: 0, ties: 0, refused: plan.refused, ...(plan.renamed.length ? { renamed: plan.renamed } : {}) };
   for (const p of plan.people) {
     const same = had.get(p.name.toLowerCase());
     const w = same
