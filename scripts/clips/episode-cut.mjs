@@ -20,7 +20,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromiumPath } from "./daily-clip.mjs";
+import { launchChromium } from "./daily-clip.mjs";
 import { creditLines } from "./post-kit.mjs";
 import { sayLine, sayable, soundSeconds, veniceKey, veniceLine, voiceFor } from "./voice.mjs";
 
@@ -478,7 +478,7 @@ export async function renderCut(edl, episodes, { base, out, log = (m) => console
 
     // Each beat's stills: one, or one per part of a spoken line as its words come up with the voice (chunksOf).
     const { chromium } = await import("playwright-core");
-    const browser = await chromium.launch({ executablePath: chromiumPath() });
+    const browser = await launchChromium(chromium);
     const stills = [];
     try {
       const page = await browser.newPage({ viewport: FRAME.css, deviceScaleFactor: FRAME.scale });

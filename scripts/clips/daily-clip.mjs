@@ -86,6 +86,28 @@ export function chromiumPath() {
   throw new Error("No Chromium: set CHROMIUM_PATH (this script never downloads one).");
 }
 
+/**
+ * Chromium, launched with retries. On 2026-11-20 at 17:01 the Mac was starved (OpenClaw's gateway, Headroom and
+ * LiteLLM all down, the watchdog restarting them) and one 180 s launch timed out, so there was no clip and no kit that
+ * day, though the same launch took 3 s later that night. Now each try gets `timeout` ms; after a failed one it waits
+ * `wait` ms for the machine to recover and tries again, up to `attempts` times. Playwright kills a launch that timed out.
+ */
+export async function launchChromium(chromium, { attempts = 3, timeout = 90_000, wait = 60_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), log = console.error, ...options } = {}) {
+  const executablePath = options.executablePath ?? chromiumPath();
+  let last;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await chromium.launch({ ...options, executablePath, timeout });
+    } catch (err) {
+      last = err;
+      const why = String(err?.message ?? err).split("\n")[0];
+      log(`Chromium didn't start (try ${i} of ${attempts}): ${why}`);
+      if (i < attempts) await sleep(wait);
+    }
+  }
+  throw last;
+}
+
 /* ------------------------------------------------------------------------------------------------------------
  * The home page's web loop (lib/home-clip.ts)
  * ------------------------------------------------------------------------------------------------------------ */
@@ -351,7 +373,7 @@ async function main() {
   const { chromium } = await import("playwright-core");
   const tmp = join(out, `.recording-${process.pid}`);
   mkdirSync(tmp, { recursive: true });
-  const browser = await chromium.launch({ executablePath: chromiumPath() });
+  const browser = await launchChromium(chromium);
   // Chrome's own screencast (frames with their timestamps), not Playwright's recorder: that needs a pinned ffmpeg build
   // of Playwright's, and this Mac's ffmpeg does the encoding instead.
   const frames = [];

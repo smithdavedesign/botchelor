@@ -14,6 +14,11 @@ export function pickClip<T extends FeedEpisode>(episodes: T[], opts?: { clipped?
 export function fetchStory(base: string, headers?: Record<string, string>): Promise<Map<string, string>>;
 export function captionFor(e: FeedEpisode, base: string, logline?: string | null): string;
 export function chromiumPath(): string;
+/** Chromium launched with retries: `attempts` tries of `timeout` ms, `wait` ms apart (a starved Mac, 2026-11-20). */
+export function launchChromium<B>(
+  chromium: { launch(options: Record<string, unknown>): Promise<B> },
+  opts?: { attempts?: number; timeout?: number; wait?: number; sleep?: (ms: number) => Promise<void>; log?: (line: string) => void; executablePath?: string; [option: string]: unknown },
+): Promise<B>;
 
 /** The home page's web loop (lib/home-clip.ts). */
 export const WEB_LOOP: { width: number; height: number; fps: number; min: number; max: number; target: number; maxBytes: number };

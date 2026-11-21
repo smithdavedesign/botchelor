@@ -18,7 +18,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { chromiumPath, fetchStory } from "./daily-clip.mjs";
+import { fetchStory, launchChromium } from "./daily-clip.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** How long each card stays up, in seconds. */
@@ -202,7 +202,7 @@ async function main() {
     if (!clip) throw new Error("the recording made no video");
 
     const { chromium } = await import("playwright-core");
-    const browser = await chromium.launch({ executablePath: chromiumPath() });
+    const browser = await launchChromium(chromium);
     try {
       const page = await browser.newPage({ viewport: { width: 405, height: 720 }, deviceScaleFactor: 1080 / 405 });
       for (const kind of ["hook", "reveal", "end"]) {
