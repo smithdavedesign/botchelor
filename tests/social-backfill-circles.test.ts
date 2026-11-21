@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameIdeas } from "@/lib/oc-name-pools";
+import { drawFirstName, nameDraws, nameIdeas, seeded } from "@/lib/oc-name-pools";
 import { TIE_KINDS } from "@/lib/social/kinds";
 import { familySurnameOf, FIRST_NAME_MAX, isFamilyWords, nameStyleOf, SHARES_SURNAME_KINDS, sharesSurnameWords } from "@/lib/social/person-names";
 import { kindFromWords } from "@/lib/social/relations";
@@ -388,6 +388,27 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
     expect(next.circle.people[0].name).toMatch(/^Ines (?!Marr$)/);
     expect(next.circle.people[1].name).toMatch(/^\S+ Marr$/);
     expect(next.circle.people[1].name.startsWith("Ines")).toBe(false);
+  });
+
+  it("still renames once every list name is used up, so nobody is left out (2026-11-21: 15 circles lost everyone)", () => {
+    // Every name the draws know for a kind, in the order they're tried: the style lists, then the wide everyday names.
+    const known = (kind: "feminine" | "masculine" | "neutral") => {
+      const seen: string[] = [];
+      drawFirstName(seeded("all"), "cozy", kind, (n) => (seen.includes(n) || seen.push(n), false));
+      return seen;
+    };
+    const masculine = known("masculine");
+    expect(masculine).toContain("Alfie");
+    expect(masculine.length).toBeGreaterThan(60);
+    // Three of every masculine name but the last: a fourth Alfie takes that one, never nobody.
+    const full = masculine.slice(0, -1).flatMap((f, i) => [0, 1, 2].map((n) => [`${f} Used${i}x${n}`, "friend"] as [string, string]));
+    const me = holder("me", "Ezra Pallister");
+    const book = nameBook([me, holder("others", "Odile Park", full)]);
+    const out = nameCircle(me, peopleCircle("me", [{ name: "Alfie Pallister", relation: "son" }]), book);
+    expect(out.dropped).toEqual([]);
+    expect(out.circle.people[0].name).toBe(`${masculine.at(-1)} Pallister`);
+    // The OC generator's draws, which refuse nothing, are the lists' as before.
+    expect(nameDraws("seed", "cozy").first("masculine", () => true)).toBe(drawFirstName(seeded("name-draws|seed"), "cozy", "masculine"));
   });
 
   it("finds the circles that break the rules in the order they were written, so the first ones keep their names", () => {
