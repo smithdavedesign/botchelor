@@ -58,6 +58,13 @@ describe("avatars are deterministic", () => {
     expect(initials("Mira Quell")).toBe("MQ");
     expect(initials("Rafe")).toBe("R");
   });
+
+  it("takes whole characters for initials, and skips words that don't start with a letter or a digit", () => {
+    // Half an emoji went out from the server as U+FFFD and stayed half in the browser, so the page didn't hydrate.
+    expect(initials("Zara 🌸")).toBe("Z");
+    expect(initials("élodie ünal")).toBe("ÉÜ");
+    expect(initials("🌸 🌸")).toBe("?");
+  });
 });
 
 describe("styling an avatar from an image (in-browser, nothing uploaded)", () => {

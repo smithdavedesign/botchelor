@@ -14,6 +14,7 @@ import { cachedConstellation } from "@/lib/graph-cache";
 import { kindLabel } from "@/lib/kinds";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import ConstellationApp from "./ConstellationApp";
+import TenseTriangles from "./TenseTriangles";
 import { parseStill, parseWhen, parseWorld, whenParam } from "./filter";
 import { parseStages, stagesParam } from "./stages";
 import ShowTabs from "@/app/ShowTabs";
@@ -124,8 +125,10 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         ]}
       />
   );
+  // Keyed: with the views on it's handed to ConstellationApp and drawn among that component's children, where React
+  // warned that a child from this page had no key.
   const numbers = (
-        <ul className="constellation-stats" aria-label="The network right now">
+        <ul key="numbers" className="constellation-stats" aria-label="The network right now">
           <li>
             <strong>{stats.characters}</strong> characters
           </li>
@@ -331,6 +334,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
           <p className="lede">{DESCRIPTION}</p>
           {numbers}
         </header>
+        {lensesOn && <TenseTriangles />}
         {tables}
       </article>
     );
@@ -362,6 +366,8 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         {/* With the views on, the numbers are the sky's own line (each view has its own), drawn by ConstellationApp. */}
         {!lensesOn && numbers}
       </section>
+      {/* The network's tense triangles as story hooks (./TenseTriangles.tsx): fetched as the section nears the screen. */}
+      {lensesOn && <TenseTriangles />}
       {/* Open when a ledger page is asked for (its pager links here), folded otherwise. */}
       <details className="constellation-fold ux-fold" id="tables" open={sp.ledger !== undefined}>
         <summary>The ledger, who dates whom by kind, and what the network doesn&apos;t know yet</summary>

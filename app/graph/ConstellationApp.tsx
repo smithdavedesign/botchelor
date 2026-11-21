@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import type { GraphData } from "@/lib/graph";
 import { KINDS } from "@/lib/kinds";
 import { shortName } from "@/lib/names";
+import { clusterLabel, membersByCommunity, nameClusters, namesThatFit, type ClusterName } from "@/lib/social/cluster-names";
 import { communityColor, kindHue, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import {
@@ -258,6 +259,33 @@ export default function ConstellationApp({
   // The clusters on the sky, biggest first (the server numbers them by size): the first CLUSTER_COLORS.length get a
   // colour, the rest share the grey and the key just counts them.
   const clusters = useMemo(() => [...new Set(skyAll.map((n) => n.community).filter((c): c is number => c !== null))].sort((x, y) => x - y), [skyAll]);
+  // Clusters named after the place most of each shares ("Regulars at the dive bar", lib/social/cluster-names.ts), in
+  // the key and a star's panel. A view names its own from its places; Love's come from /api/graph/clusters, fetched the
+  // first time Love is coloured by cluster (never on the first load), and are kept only while they fit this sky.
+  const [loveNames, setLoveNames] = useState<ClusterName[] | null>(null);
+  const wantLoveNames = lensesOn && !social && colorBy === "community" && loveNames === null;
+  useEffect(() => {
+    if (!wantLoveNames) return;
+    let live = true;
+    fetch("/api/graph/clusters")
+      .then((r) => (r.ok ? (r.json() as Promise<{ names: ClusterName[] }>) : null))
+      .catch(() => null)
+      .then((body) => {
+        if (live && body && Array.isArray(body.names)) setLoveNames(body.names);
+      });
+    return () => {
+      live = false;
+    };
+  }, [wantLoveNames]);
+  const clusterNames = useMemo(() => {
+    if (!lensesOn) return null;
+    if (social) {
+      if (!lensData) return null;
+      const places = lensData.places.map((p) => ({ key: p.id, role: p.role, name: p.name, members: p.members }));
+      return nameClusters(membersByCommunity(lensData.nodes), places);
+    }
+    return loveNames ? namesThatFit(loveNames, data.nodes) : null;
+  }, [lensesOn, social, lensData, loveNames, data.nodes]);
 
   const mineSet = useMemo(() => new Set(mine), [mine]);
   // Their world needs them on the sky, and public (as ?focus= does). Until the whole sky is in, someone outside the
@@ -747,6 +775,7 @@ export default function ConstellationApp({
               onWorld={setWorld}
               worlds={lensesOn}
               colorBy={colorBy}
+              clusterNames={clusterNames}
             />
           )
         ) : (
@@ -760,6 +789,7 @@ export default function ConstellationApp({
             onWorld={setWorld}
             worlds={lensesOn}
             colorBy={colorBy}
+            clusterNames={clusterNames}
             showOutcomes={showOutcomes}
             onShowOutcomes={setShowOutcomes}
           />
@@ -780,7 +810,7 @@ export default function ConstellationApp({
           <ul className="constellation-key small" aria-label="Clusters">
             {coloured.map((c) => (
               <li key={c}>
-                <span className="constellation-swatch" style={{ background: communityColor(c)! }} aria-hidden /> Cluster {c + 1}
+                <span className="constellation-swatch" style={{ background: communityColor(c)! }} aria-hidden /> {clusterLabel(c, clusterNames)}
               </li>
             ))}
             {smaller > 0 && (

@@ -38,6 +38,10 @@ import { followState } from "@/lib/follows";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import OriginBadge from "@/app/OriginBadge";
 import { originOf, originsOf } from "@/lib/origin";
+import PairTiesCard from "@/app/graph/PairTiesCard";
+import { closedSeasons } from "@/lib/season-ref";
+import { cachedPairTies } from "@/lib/social/cache";
+import { socialLensesOn } from "@/lib/social/lens-sky";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +168,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
   // Who made them (lib/origin.ts) is read beside the rest, not after it.
   const originsP = getDb().then((db) => originsOf(db, [lo, hi]));
   originsP.catch(() => {}); // awaited below; unused (and so unhandled) when this is a match or a 404
+  // Everything else between them (friends, coworkers, rivals: lib/social/read.ts pairTies), read beside the rest too.
+  // Null when the views are off, nothing's there, or one of them is private to this viewer.
+  const tiesP = socialLensesOn() ? cookies().then((jar) => cachedPairTies(lo, hi, userIdFromCookieStore(jar))).catch(() => null) : Promise.resolve(null);
   const data = await load(lo, hi);
   if (!data) {
     const match = await loadMatch(lo, hi);
@@ -176,7 +183,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
   const first = (c: PublicCharacter) => shortName(c.name);
-  const origins = await originsP;
+  const [origins, between] = await Promise.all([originsP, tiesP]);
   // A character private to someone else: its name only, never linked (the private-character rule, #509).
   const viewerId = userIdFromCookieStore(await cookies());
   const hidden = (c: PublicCharacter) => c.private && c.owner_id !== viewerId;
@@ -295,6 +302,9 @@ export default async function CouplePage({ params, searchParams }: Props) {
             </ol>
             <Pager page={timeline.page} pages={timeline.pages} label="Their dates pages" href={(n) => pageHref(`/couples/${ca.id}/${cb.id}`, {}, "dates", n, "their-dates")} scroll={false} />
           </section>
+          {/* Every other tie between them, over or not, with what made it and their history (docs/PRDs/social-network.md
+              section 9's pair panel); their dates are above, so the "dated on the show" tie isn't repeated. */}
+          {between && <PairTiesCard pair={between} closedSeasons={new Set(closedSeasons().map((x) => x.id))} skipDated level={2} className="card couple-ties" />}
         </div>
         <aside className="couple-rail" aria-label="The two of them">
 

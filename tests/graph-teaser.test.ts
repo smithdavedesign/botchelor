@@ -123,7 +123,20 @@ describe("origin groups (lib/graph.ts)", () => {
 
 describe("the Constellation's filter (app/graph/filter.ts)", () => {
   it("is safe in the browser: the client files import lib/graph.ts for types only (its values pull server code, e.g. sharp, into the bundle)", () => {
-    for (const file of ["app/graph/filter.ts", "app/graph/ConstellationApp.tsx", "app/graph/ConstellationCanvas.tsx", "app/graph/SidePanel.tsx", "lib/origin-group.ts"]) {
+    for (const file of [
+      "app/graph/filter.ts",
+      "app/graph/ConstellationApp.tsx",
+      "app/graph/ConstellationCanvas.tsx",
+      "app/graph/SidePanel.tsx",
+      "app/graph/LensPanel.tsx",
+      "app/graph/PairTiesCard.tsx",
+      "app/graph/PairTiesPanel.tsx",
+      "app/graph/TenseTriangles.tsx",
+      "lib/origin-group.ts",
+      "lib/social/cluster-names.ts",
+      "lib/social/pair-words.ts",
+      "lib/social/evidence.ts",
+    ]) {
       const src = readFileSync(join(__dirname, "..", file), "utf8");
       expect(src, file).not.toMatch(/^import (?!type )[^;]*from "(@\/lib\/graph|\.\/graph)";/m);
     }
