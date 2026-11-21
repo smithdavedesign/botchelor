@@ -14,6 +14,7 @@
  * - The places they belong to are labels round the outer edge, each near the people who share it.
  */
 import { foldTies, type LensLine } from "./lenses";
+import { midSentence } from "./place-name";
 import { RINGS, type EgoNetwork, type Layer, type PersonView, type PlaceRole, type PlaceView, type Ring, type SharedPlace, type SocialNode, type TieView } from "./types";
 
 /** The picture's side, in SVG units: the page scales it to the screen. */
@@ -74,12 +75,12 @@ export type WorldPicture = {
 
 /** What the centre does at a place, in words. */
 export const ROLE_WORDS: Record<PlaceRole, (place: string) => string> = {
-  lives: (p) => `Lives in ${p}`,
-  works: (p) => `Works at ${p}`,
-  regular: (p) => `Regular at ${p}`,
-  studied: (p) => `Studied at ${p}`,
-  from: (p) => `From ${p}`,
-  visited: (p) => `Been to ${p}`,
+  lives: (p) => `Lives in ${midSentence(p)}`,
+  works: (p) => `Works at ${midSentence(p)}`,
+  regular: (p) => `Regular at ${midSentence(p)}`,
+  studied: (p) => `Studied at ${midSentence(p)}`,
+  from: (p) => `From ${midSentence(p)}`,
+  visited: (p) => `Been to ${midSentence(p)}`,
 };
 
 /** Which groups sit together round a ring, in this order; the ones at odds come last, at the foot. */

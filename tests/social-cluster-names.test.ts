@@ -12,6 +12,9 @@ describe("cluster names", () => {
     expect(clusterWords("lives", "the Old Town")).toBe("The Old Town lot");
     expect(clusterWords("works", "Bean There")).toBe("The Bean There crew");
     expect(clusterWords("studied", "Westbrook Academy")).toBe("Classmates from Westbrook Academy");
+    // The show's hangouts are named like descriptions: their article goes lower case, or drops where the words bring one.
+    expect(clusterWords("regular", "A rooftop bar at golden hour")).toBe("Regulars at a rooftop bar at golden hour");
+    expect(clusterWords("works", "A corner café that closes in an hour")).toBe("The corner café that closes in an hour crew");
   });
 
   it("names a cluster after the place most of it shares, anchored by its first members who share it", () => {

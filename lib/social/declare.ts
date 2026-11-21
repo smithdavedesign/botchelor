@@ -25,6 +25,7 @@ import { DELETED_OWNER } from "../rules";
 import { checkShowText } from "../safety";
 import { notPersonaSql } from "../step-in-shared";
 import { ourIdsCached, pairClash, pairHistory, showCharacterIds, worldMenu, type WorldMenu } from "./circles";
+import { midSentence } from "./place-name";
 import { TIE_KINDS, type TieKindId } from "./kinds";
 import { addPerson, checkPerson, getPerson, removePerson, updatePerson } from "./people";
 import { ensurePlace, getPlaceByKey, MEMBER_SINCE_MAX, PLACE_NAME_MAX, removeMembership, setMembership, slugify } from "./places";
@@ -774,7 +775,7 @@ export async function theirPeople(db: Db, characterId: string, viewer: string | 
       name: place.name,
       role: m.role,
       // A hangout's name is a description ("A sticky dive bar on trivia night"): mid-sentence, its article is lower case.
-      words: `${ROLE_WORDS[m.role]} ${place.name.replace(/^(A|An) /, (w) => w.toLowerCase())}`,
+      words: `${ROLE_WORDS[m.role]} ${midSentence(place.name)}`,
       since: m.since_text,
       visibility: m.visibility,
       declared: declaredSource(memberSources.get(`${m.place_id}|${m.role}`)),

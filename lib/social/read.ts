@@ -26,6 +26,7 @@ import { DELETED_OWNER } from "../rules";
 import { notPersonaSql } from "../step-in-shared";
 import { rings, type RingTie } from "./algorithms";
 import { isTieKind, TIE_KINDS } from "./kinds";
+import { midSentence } from "./place-name";
 import { socialTiesOn } from "./switch";
 import { TIE_COLUMNS, tieFromRow, type TieRow } from "./ties";
 import {
@@ -77,11 +78,11 @@ export const SKY_PLACE_MEMBERS = 100;
  * it can bring someone in a world (as the kind it's like: coworker, classmate, neighbour), and what the pair is called.
  */
 export const SHARED: Record<SharedRole, { layer: Layer; closeness: number; ring: Ring; words: (place: string) => string }> = {
-  works: { layer: "work", closeness: TIE_KINDS.coworker.closeness, ring: TIE_KINDS.coworker.ring, words: (p) => `Coworkers at ${p}` },
-  studied: { layer: "work", closeness: TIE_KINDS.classmate.closeness, ring: TIE_KINDS.classmate.ring, words: (p) => `Studied at ${p}` },
-  lives: { layer: "place", closeness: TIE_KINDS.neighbour.closeness, ring: TIE_KINDS.neighbour.ring, words: (p) => `Neighbours in ${p}` },
-  regular: { layer: "place", closeness: 0.25, ring: "acquaintances", words: (p) => `Regulars at ${p}` },
-  from: { layer: "place", closeness: 0.2, ring: "acquaintances", words: (p) => `Both from ${p}` },
+  works: { layer: "work", closeness: TIE_KINDS.coworker.closeness, ring: TIE_KINDS.coworker.ring, words: (p) => `Coworkers at ${midSentence(p)}` },
+  studied: { layer: "work", closeness: TIE_KINDS.classmate.closeness, ring: TIE_KINDS.classmate.ring, words: (p) => `Studied at ${midSentence(p)}` },
+  lives: { layer: "place", closeness: TIE_KINDS.neighbour.closeness, ring: TIE_KINDS.neighbour.ring, words: (p) => `Neighbours in ${midSentence(p)}` },
+  regular: { layer: "place", closeness: 0.25, ring: "acquaintances", words: (p) => `Regulars at ${midSentence(p)}` },
+  from: { layer: "place", closeness: 0.2, ring: "acquaintances", words: (p) => `Both from ${midSentence(p)}` },
 };
 
 /** Changes an event may hold that a page doesn't show: who (or what model) wrote the tie. */

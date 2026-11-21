@@ -6,6 +6,7 @@
  * payload has no places, so lib/social/cluster-sky.ts names Love's on the server and /api/graph/clusters serves them
  * when someone colours by cluster.
  */
+import { bareName, midSentence } from "./place-name";
 import type { SharedRole } from "./types";
 
 /** A place a group of characters share, and how: lib/social/read.ts SkyPlace, a view's LensPlace. `key` is the place's and role's. */
@@ -27,8 +28,8 @@ export const CLUSTER_NAME_ANCHORS = 3;
 
 /** A cluster's name from the place its people share, by how they share it: "Regulars at the dive bar", "The Leeds lot". */
 export function clusterWords(role: SharedRole, place: string): string {
-  const name = place.trim();
-  const bare = name.replace(/^the\s+/i, "");
+  const name = midSentence(place.trim());
+  const bare = bareName(place);
   switch (role) {
     case "regular":
       return `Regulars at ${name}`;
