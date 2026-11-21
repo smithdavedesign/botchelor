@@ -588,6 +588,8 @@ async function writeAndSave(
     // A double date (lib/group-dates.ts): both tables share the night's venue, and each knows who else is there.
     ...(group ? { venueOverride: group.venue, table: group.table } : {}),
     roleplay,
+    // A private date never airs: its people lines may use its host's own "only you" rows (lib/social/people-lines.ts).
+    offline: (secondDate?.visibility ?? input.visibility ?? "public") === "private",
   });
   // Which date this is for the couple (lib/rules dateLabel): the badge says "Third date", not always "Second".
   if (secondDate) built.setup.date_number = secondDate.dateNumber;

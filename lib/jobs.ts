@@ -135,6 +135,8 @@ type GenRow = {
   creator_id: string;
   reservation: Reservation | null;
   attempts: number;
+  /** Who sees it now: a date made private since it was booked is written as one (its people lines). */
+  visibility: string | null;
   /** From the booking to this claim, on the database's clock (generated_with.timing). */
   queued_ms: number | null;
   a_id: string; a_name: string; a_age: number; a_bio: string; a_traits: string[]; a_want: string; a_dealbreaker: string; a_house: boolean; a_appearance: string | null; a_pronouns: string | null; a_voice: string | null;
@@ -175,7 +177,7 @@ async function claim(db: Db, episodeId: string, now: Date): Promise<GenRow | nul
   ).rows[0];
   if (!claimed) return null;
   const { rows } = await db.query<GenRow>(
-    `select e.seed::text as seed, e.setup, e.note, j.use_frontier, j.creator_id, j.reservation, j.attempts,
+    `select e.seed::text as seed, e.setup, e.note, e.visibility, j.use_frontier, j.creator_id, j.reservation, j.attempts,
             round(extract(epoch from (j.updated_at - j.created_at)) * 1000)::int as queued_ms,
             a.id a_id, a.name a_name, a.age a_age, a.bio a_bio, a.traits a_traits, a.want a_want,
             a.dealbreaker a_dealbreaker, a.is_house a_house, a.appearance a_appearance, a.pronouns a_pronouns, a.voice a_voice,
@@ -235,18 +237,33 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     let takesInTime = true;
     if (fast) takesInTime = await settledWithin(takes, hotTakesWaitMs());
     else await takes;
-    const built = await buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot, {
-      creatorId: row.creator_id,
-      followupOf: row.setup?.followup_of ?? null,
-      dateNumber: dateNumberOf(row.setup),
-      historyOverride: row.setup?.history ?? null,
-      nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
-      avoidVenues: row.setup?.avoid_venues ?? [],
-      venueOverride: row.setup?.venue,
-      agreedPlan: row.setup?.agreed_plan ?? null,
-      table: row.setup?.table ?? null,
-      roleplay: row.setup?.roleplay ?? null,
-    });
+    const build = (offline: boolean) =>
+      buildDate(db, episodeId, forDate("a"), forDate("b"), dateRequest, seed, signalsSnapshot, {
+        creatorId: row!.creator_id,
+        followupOf: row!.setup?.followup_of ?? null,
+        dateNumber: dateNumberOf(row!.setup),
+        historyOverride: row!.setup?.history ?? null,
+        nudges: { a: row!.setup?.nudge_a ?? null, b: row!.setup?.nudge_b ?? null },
+        avoidVenues: row!.setup?.avoid_venues ?? [],
+        venueOverride: row!.setup?.venue,
+        agreedPlan: row!.setup?.agreed_plan ?? null,
+        table: row!.setup?.table ?? null,
+        roleplay: row!.setup?.roleplay ?? null,
+        offline,
+      });
+    // Private now (it never airs): its people lines may use its host's own "only you" rows (lib/social/people-lines.ts).
+    let built = await build(row.visibility === "private");
+    // Such a line keeps the date private: marked before a word of it is written, and only while it is still private, so
+    // the visibility route won't make it public or unlisted (an owner's "only you" never airs). Made public since the
+    // claim, it's built again from public rows only. A mark that fails to save fails the job here, to be retried: nothing
+    // is written unmarked.
+    if (built.peopleOnlyYou) {
+      const marked = await db.query(
+        `update episodes set setup = coalesce(setup, '{}'::jsonb) || '{"people_only_you":true}'::jsonb where id = $1 and visibility = 'private' returning id`,
+        [episodeId],
+      );
+      if (!marked.rows.length) built = await build(false);
+    }
     if (!takesInTime) for (const c of built.characters) if (!c.hotTakes?.length) c.hotTakes = fallbackHotTakes(c);
     // Moves as booked: a date stored before them (no flag) runs without, like the format that keeps one table.
     built.setup.moves = row.setup?.moves === true;
