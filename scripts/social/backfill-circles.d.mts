@@ -46,8 +46,10 @@ export type CircleResult = {
   refused: { item: string; what: string; reason: string }[];
   renamed?: Rename[];
 };
-/** A person written under another name than the model gave, and why. */
-export type Rename = { from: string; to: string; why: string };
+/** A person written under another name than the model gave, or (`item` "place") a workplace given as a job and written as the place it's done, and why. */
+export type Rename = { from: string; to: string; why: string; item?: "place" };
+/** A reply's workplace that was a job (lib/social/place-names.ts): the place read from it, or null for none, and why. */
+export type WorkplaceNote = { from: string; to: string | null; why: string };
 /** The run's record of names: the rules' NameBook, plus adding and freeing a name. */
 export type RunNameBook = NameBook & { lastCount(last: string): number; add(name: string): void; remove(name: string): void };
 export type NameStats = {
@@ -72,7 +74,7 @@ export type TieIndex = { tied: Map<string, Set<string>>; add(a: string, b: strin
 
 export const PROMPT_VERSION: string;
 export const CANDIDATES: number;
-export function parseArgs(argv: string[]): { limit: number; dryRun: boolean; force: boolean; redoBroken: boolean; stats: boolean; only: string[] | null; base: string };
+export function parseArgs(argv: string[]): { limit: number; dryRun: boolean; force: boolean; redoBroken: boolean; stats: boolean; fixWorkplaces: boolean; only: string[] | null; base: string };
 export function queue(characters: ShowCharacter[], o: { force?: boolean; only?: string[] | null; limit: number; redo?: Set<string> | null }): ShowCharacter[];
 export function tieIndex(characters: ShowCharacter[]): TieIndex;
 export function pickCandidates(me: ShowCharacter, everyone: ShowCharacter[], ties: TieIndex, o?: { n?: number; random?: () => number }): ShowCharacter[];
@@ -99,7 +101,12 @@ export function parseReply(raw: string | null | undefined): Record<string, unkno
 export function isTitleOnly(name: string | null | undefined): boolean;
 /** A possessive ("Ignatius's Cinder"), not a name: the backfill leaves that person out. */
 export function isPossessive(name: string | null | undefined): boolean;
-export function toCircle(me: ShowCharacter, reply: Record<string, unknown>, o: { candidates: ShowCharacter[]; workplaces: Workplace[]; everyone?: ShowCharacter[] }): Circle;
+/** `notes`: gets the reply's workplace when it was a job, with the place read from it (or none). */
+export function toCircle(
+  me: ShowCharacter,
+  reply: Record<string, unknown>,
+  o: { candidates: ShowCharacter[]; workplaces: Workplace[]; everyone?: ShowCharacter[]; notes?: WorkplaceNote[] | null },
+): Circle;
 export function remember(
   me: ShowCharacter,
   circle: Circle,
