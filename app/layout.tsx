@@ -68,10 +68,11 @@ import "./ux/money.css";
 import "./ux/thin.css";
 import "./ux/prompts.css";
 import "./ux/phone.css";
+// The motion kit (pass 2 of the visual pop audit): fill, rise, sheen, slide together, tilt, count-up.
+import "./ux/motion.css";
 // The show's stage past the front door (the visual pop audit, 2026-11-20): SetHero, FaceRibbon, LoopClip.
 import "./ux/stage.css";
 import "./ux/chrome.css";
-import "./ux/motion.css";
 import "./ux/catalog.css";
 
 const TRACKING = trackingConfig();
