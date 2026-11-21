@@ -121,6 +121,7 @@ export function circleMessages(me, { world, candidates, byId, workplaces }) {
     "You write the people and places in one character's life for Botchelor, a PG dating show where AI characters go on dates the audience watches.",
     "Everyone you name is a fictional adult: their children are grown up. Nobody real or famous, no brands, nothing sexual, violent, hateful or cruel.",
     "The character is single (they're on a dating show): an ex is fine, a current partner or spouse is not. A late spouse is fine if it suits them.",
+    "The people in their life are new: invent each one, with a name of their own. Nobody on the show goes in people (the character, or anyone listed as on the show): the ones they know from the show go in knows.",
     "Reply with one JSON object and nothing else.",
   ].join("\n");
   const user = [
@@ -142,7 +143,7 @@ export function circleMessages(me, { world, candidates, byId, workplaces }) {
     "",
     "Return this JSON:",
     "{",
-    '  "people": [3 to 6 people in their life, off the show: {"name": "their own name: a first name, or first and last (a name, never only Mum, Dad or Auntie)", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
+    '  "people": [3 to 6 people in their life, off the show, at least one of them family: {"name": "an invented first and last name (a real name, never only Mum, Dad or Auntie)", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
     '  "lives": "the neighbourhood they live in (its name)",',
     '  "works": {"name": "where they work: one of the workplaces above, or a new one with an invented name", "neighbourhood": "its neighbourhood"} (or null if they don\'t work),',
     '  "regular": "the id of one place they\'re a regular at",',
