@@ -11,6 +11,9 @@ import { pageViewer } from "./viewer";
 import StudioTabs from "@/app/studio/StudioTabs";
 import { pgAccess } from "@/lib/studio/pg";
 import type { Db } from "@/lib/db";
+import { shared } from "@/lib/shared-cache";
+import { showcaseFeature } from "@/lib/showcase-feature";
+import ShowcaseFeature from "./ShowcaseFeature";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +53,10 @@ export default async function ShowcasePage({ searchParams }: Props) {
   const sp = await searchParams;
   const filters = parseFilters(sp);
   const studio = await studioDoor(db, viewer.id);
+  // "Now showing" (lib/showcase-feature.ts): the gallery as it opens, nothing filtered, the same for everyone, so from
+  // a few seconds' shared copy (lib/shared-cache.ts).
+  const unfiltered = Object.values(filters).every((v) => v === undefined || v === false);
+  const feature = unfiltered ? await shared("showcase:feature", () => showcaseFeature(db)) : null;
   return (
     <div className="showcase-page page-full">
       {/* The Studio door's first room (app/studio/StudioTabs.tsx, 2026-11-16): what everyone made, beside where it's made. */}
@@ -63,6 +70,7 @@ export default async function ShowcasePage({ searchParams }: Props) {
         </Link>
       </div>
       <p className="muted">Pictures, clips and date reels their creators chose to share. Everything here was made with AI, and every character is a fictional adult.</p>
+      {feature && <ShowcaseFeature reel={feature} />}
       {viewer.id && (await myRequests(db, viewer.id)).length > 0 && (
         <p className="notice">
           📣 Someone wants to share a picture with one of your characters. <Link href="/showcase/requests">See what&apos;s waiting on you</Link>
