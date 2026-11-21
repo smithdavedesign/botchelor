@@ -93,6 +93,9 @@ describe("proposing a date to another owner's character", () => {
 
     const sent = await propose(cass.id, otto.id, me, cass.id);
     expect(sent.status).toBe(201);
+    // 2026-11-21 audit: the reply names the two characters, never either owner (the other owner's id came back here).
+    expect(Object.keys(sent.body.proposal).sort()).toEqual(["created_at", "from_character", "id", "to_character"]);
+    expect(JSON.stringify(sent.body)).not.toContain(userIdOf(them));
     expect((await propose(cass.id, otto.id, me, cass.id)).body.error).toBe("already_proposed");
     const inbox = await listNotifications(t.db, userIdOf(them));
     expect(inbox[0]).toMatchObject({ kind: "date_proposal", title: "💌 Cass wants a date with Otto" });
@@ -102,6 +105,9 @@ describe("proposing a date to another owner's character", () => {
     const theirs = (await nextDate(t.db, userIdOf(them), cass.id, otto.id, null, []))!;
     expect(theirs.mine.id).toBe(otto.id);
     expect(theirs.option).toMatchObject({ kind: "propose", theirs_pending: { id: sent.body.proposal.id } });
+    // What the couple page hands the browser (NextDate) carries no owner's id either.
+    expect(JSON.stringify(theirs)).not.toContain(userIdOf(me));
+    expect(JSON.stringify(next)).not.toContain(userIdOf(them));
 
     // Someone else can't use the proposal, and a wrong id is refused before anything is booked.
     const outsider = newUserCookie();

@@ -29,7 +29,7 @@ import { CASTING_MET_VIA, castingLead, markLeadRequest, optedIn, type Casting } 
 import { generationPaused } from "./compute";
 import type { Db } from "./db";
 import { firstDateFormat } from "./first-date";
-import { MCP_CALL_URL, USER_COOKIE, type Auth } from "./http";
+import { internalRequest, type Auth } from "./http";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { previousSeasonStart, seasonLabel } from "./season-window";
@@ -212,11 +212,7 @@ async function bookAuditionDate(db: Db, ownerId: string, characterId: string, no
   const { POST: postEpisode } = await import("@/app/api/episodes/route");
   const req = markLeadRequest(
     markShowPaidRequest(
-      new Request(MCP_CALL_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", cookie: `${USER_COOKIE}=${ownerId}` },
-        body: JSON.stringify({ character_id: characterId, partner_id: lead.id, format: firstDateFormat(env), visibility: "public" }),
-      }),
+      internalRequest(ownerId, { body: { character_id: characterId, partner_id: lead.id, format: firstDateFormat(env), visibility: "public" } }),
     ),
     { audition: true },
   );

@@ -21,14 +21,32 @@ cookie — exactly as before. An **account is a login attached to that same id**
 `bz_uid` it adopts), so signing up moves no data: the characters, dates, predictions and points already keyed
 to that id are the account's from the first moment.
 
-- **Anonymous** → a legacy unsigned `bz_uid` cookie, or a signed `bz_sess` with `authenticated:false`.
+- **Anonymous** → a signed `bz_sess` with `authenticated:false` (a visitor's first write signs one).
 - **Signed in** → a signed `bz_sess` cookie with `authenticated:true`.
 
-Once an account can own things and hold an API key, the id must be unforgeable, so an authenticated session is
-an **HMAC-signed token** (`lib/auth`, read in `lib/http`). A legacy `bz_uid` is still accepted as an anonymous
-identity, so old sessions and the tests keep working. **Without `SESSION_SECRET` the app never signs** and
-behaves exactly as it did before — accounts and BYOK simply report themselves unavailable (the same pattern as
-the frontier gate). `SESSION_SECRET` is set on production (sensitive, generated into the keychain): in both DigitalOcean apps' environment
+A user id is written in rows, logs and replies, so it is a name and never a password: what makes it yours is the
+signature. A session is an **HMAC-signed token** (`lib/auth`, read in `lib/http`).
+
+**A bare `bz_uid` cookie is nobody in production** (the 2026-11-21 audit; `lib/http` `bareIdsAllowed`). It was how
+identity began, and until then a bare cookie naming any user id was taken as that user: their private soul, an edit,
+a delete. It is read in three cases only:
+
+- a request the server builds to call one of its own routes as someone (`internalRequest`: an MCP tool for its agent,
+  a job booking a date for an owner), which nothing outside the process can make. A route that hands its request on
+  to another route keeps that (`passOn`);
+- an app that cannot sign at all: **without `SESSION_SECRET` the app never signs** and behaves exactly as it did
+  before — accounts and BYOK simply report themselves unavailable (the same pattern as the frontier gate);
+- `LEGACY_BARE_UID=1`, which the test suite and the local harnesses set so their personas stay one line. Never in
+  production.
+
+Nobody was signed out by it: every visitor since signing went live (2026-10-14) holds a signed session, and the only
+older owners without an account are the house, the deleted bucket and eleven seeded characters.
+
+The same holds over MCP, where an agent's `agent_id` is its key to its own characters: no reply carries another
+owner's id (`lib/mcp/owner-ids.ts` replaces one that would), the double-date list says "you" or "them"
+(`lib/group-dates.ts` `doubleView`), a proposal leaves the server as its two characters (`lib/date-proposals.ts`
+`proposalView`), and an `agent_id` that belongs to someone playing on the website is refused (`lib/auth`
+`isWebIdentity`), as an account's already was. `SESSION_SECRET` is set on production (sensitive, generated into the keychain): in both DigitalOcean apps' environment
 since 2026-10-30 (`docs/hosting.md`), on Vercel production before.
 
 **An account is only used signed in** (security review, 2026-10-20). An anonymous identity (a legacy `bz_uid`, an
@@ -342,6 +360,7 @@ it for clips too, and every Google key saved before Connections does both, as it
 | Env | Enables | Without it |
 |---|---|---|
 | `SESSION_SECRET` | signed sessions → accounts and BYOK | anonymous-only, unsigned `bz_uid`, as before |
+| `LEGACY_BARE_UID=1` | tests and local harnesses only: a bare `bz_uid` from a browser counts though sessions are signed | a bare id cookie is nobody (production) |
 | `KEY_ENCRYPTION_SECRET` | stored keys sealed under a secret of their own (v2), so `SESSION_SECRET` can rotate without losing them | keys sealed from `SESSION_SECRET`, as before |
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | "Continue with Google" | the button is hidden; handle+password still works |
 | `OAUTH_REDIRECT_BASE` | pins the OAuth callback to the canonical domain (set on prod to `https://botchelor.com`; `/start` on any other host hops there first, so the state cookie and the callback share a host) | the callback is derived from the request / Vercel's production domain |

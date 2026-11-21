@@ -1,13 +1,19 @@
 import type { z } from "zod";
-import { signSession, verifySession } from "./auth";
+import { sessionsSignable, signSession, verifySession } from "./auth";
 import { requestLabel, withDbLabel } from "./db-watch";
 
 /**
- * Identity. Historically the user id is a random UUID in the `bz_uid` cookie (anonymous, unsigned). Once an
- * account can own things and hold an API key, that id must be unforgeable, so an authenticated session is a
- * SIGNED token in `bz_sess` (lib/auth). Both are read here: a valid signed cookie is authoritative (and may
- * be authenticated); a legacy `bz_uid` is still accepted as an anonymous identity, so anonymous play and the
- * old tests keep working. When SESSION_SECRET is unset the app simply never signs and behaves as before.
+ * Identity. A browser's identity is a SIGNED token in `bz_sess` (lib/auth): anonymous for a visitor, authenticated once
+ * they sign in. The signature is what makes the id theirs: a user id is written in rows, logs and replies, so it is a
+ * name, never a password.
+ *
+ * The bare `bz_uid` cookie (a user id with no signature, which anyone could type in) is how identity began. It is read
+ * in three cases only (bareIdsAllowed, internalRequest), and never from a visitor's browser in production:
+ *  - a request the server builds to call one of its own routes as someone (an MCP tool for its agent, a job booking
+ *    for an owner): internalRequest below, which nothing outside this process can make;
+ *  - an app that cannot sign at all (no SESSION_SECRET: local play), which behaves as it did before accounts;
+ *  - LEGACY_BARE_UID=1, set by the test suite and the local harnesses so their personas stay one line.
+ * 2026-11-21 audit: until then a bare cookie naming any user id was taken as that user, account or not.
  */
 export const USER_COOKIE = "bz_uid";
 export const SESSION_COOKIE = "bz_sess";
@@ -43,13 +49,63 @@ function cookies(req: Request): Map<string, string> {
 
 export type Auth = { userId: string; authenticated: boolean };
 
-/** The request's identity: the signed session if valid, else a legacy anonymous `bz_uid`, else null. */
+type Env = Record<string, string | undefined>;
+
+/**
+ * Whether a bare `bz_uid` from outside is taken as an identity: only where sessions can't be signed at all, or under
+ * LEGACY_BARE_UID=1 (the tests and the local harnesses). Production signs and never sets the switch, so there an id
+ * typed into a cookie is nobody.
+ */
+export const bareIdsAllowed = (env: Env = process.env): boolean => !sessionsSignable(env) || env.LEGACY_BARE_UID === "1";
+
+/**
+ * The requests this process built to call its own routes (internalRequest). Kept on globalThis so every copy of this
+ * module a bundle makes reads the same set; a request from outside can never be in it.
+ */
+const INTERNAL_KEY = Symbol.for("botchelor.internalRequests");
+const internalRequests: WeakSet<Request> = ((globalThis as Record<symbol, unknown>)[INTERNAL_KEY] ??= new WeakSet<Request>()) as WeakSet<Request>;
+
+/**
+ * A request the server makes to one of its own routes as `userId` (lib/mcp/dispatcher.ts callRoute for an agent; the
+ * jobs that book a date for an owner). The route reads who it is from the bare cookie, which it takes only from a
+ * request built here: an agent's id is its credential over MCP, checked there, and never a cookie anyone can send.
+ */
+export function internalRequest(userId: string | null | undefined, opts: { method?: string; body?: unknown; query?: Record<string, string> } = {}): Request {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (userId) headers.cookie = `${USER_COOKIE}=${userId}`;
+  const query = opts.query && Object.keys(opts.query).length ? `?${new URLSearchParams(opts.query)}` : "";
+  const req = new Request(`${MCP_CALL_URL}${query}`, {
+    method: opts.method ?? "POST",
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  internalRequests.add(req);
+  return req;
+}
+
+/** Whether this request was built by internalRequest, in this process. */
+export const isInternalRequest = (req: Request): boolean => internalRequests.has(req);
+
+/**
+ * A route handing its request on to another of our routes (a second date booked through the booking route): the new
+ * request is the server's own call exactly when the one it came from was, so an agent's tool still acts as the agent.
+ * A browser's request passes on as a browser's.
+ */
+export function passOn(from: Request, to: Request): Request {
+  if (internalRequests.has(from)) internalRequests.add(to);
+  return to;
+}
+
+/**
+ * The request's identity: the signed session if valid; else a bare `bz_uid` on the server's own call, or where bare
+ * ids are still allowed (bareIdsAllowed); else null.
+ */
 export function authFromRequest(req: Request): Auth | null {
   const jar = cookies(req);
   const signed = verifySession(jar.get(SESSION_COOKIE));
   if (signed) return { userId: signed.uid, authenticated: signed.authenticated };
-  const legacy = readUserId(jar.get(USER_COOKIE));
-  return legacy ? { userId: legacy, authenticated: false } : null;
+  const bare = readUserId(jar.get(USER_COOKIE));
+  return bare && (isInternalRequest(req) || bareIdsAllowed()) ? { userId: bare, authenticated: false } : null;
 }
 
 /**
@@ -69,15 +125,18 @@ export function userIdFromRequest(req: Request): string | null {
   return authFromRequest(req)?.userId ?? null;
 }
 
-/** The identity from a Next.js server cookie store (server components): signed session first, else legacy. */
+/**
+ * The identity from a Next.js server cookie store (server components): the signed session, else a bare `bz_uid` only
+ * where bare ids are still allowed (bareIdsAllowed). A page is always a browser's request, never the server's own.
+ */
 export function authFromCookieStore(store: { get(name: string): { value: string } | undefined }): Auth | null {
   const signed = verifySession(store.get(SESSION_COOKIE)?.value);
   if (signed) return { userId: signed.uid, authenticated: signed.authenticated };
-  const legacy = readUserId(store.get(USER_COOKIE)?.value);
-  return legacy ? { userId: legacy, authenticated: false } : null;
+  const bare = readUserId(store.get(USER_COOKIE)?.value);
+  return bare && bareIdsAllowed() ? { userId: bare, authenticated: false } : null;
 }
 
-/** The user id from a Next.js server cookie store (server components): signed session first, else legacy. */
+/** The user id from a Next.js server cookie store (server components): as authFromCookieStore. */
 export function userIdFromCookieStore(store: { get(name: string): { value: string } | undefined }): string | null {
   return authFromCookieStore(store)?.userId ?? null;
 }

@@ -25,7 +25,8 @@ import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, budgetWithShare, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
-import { acceptDouble, declineDouble, joinMixer, leaveMixer, listDoubles, MIXER_FILL_HOUR_UTC, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
+import { acceptDouble, declineDouble, doubleView, joinMixer, leaveMixer, listDoubles, MIXER_FILL_HOUR_UTC, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
+import { hideOtherOwners } from "./owner-ids";
 import { bookDoubleNight } from "../group-dates-run";
 import { doubleLinkPath, ensureDoubleLink } from "../double-links";
 import { operatorReserved } from "../operator-pass";
@@ -77,7 +78,7 @@ import { detectBot } from "../bots";
 import { getDb, type Db } from "../db";
 import { dateNumberSql } from "../date-number";
 import { getCharacterHistory, getPoints, getPointsBreakdown, getPublicCharacter, listAiredPage, listAiringSoon, listMyEpisodes, type DateSetup, type EpisodeView } from "../game";
-import { MCP_CALL_URL, readUserId, safeEqual, USER_COOKIE } from "../http";
+import { bareIdsAllowed, internalRequest, readUserId, safeEqual } from "../http";
 import { getDealbreakerQuiz, listCast } from "../mechanics";
 import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeting, PAIR_STATUS_LABELS, personStage, stageFor, type Source } from "../memory";
 import { type Character, loadCharacter, pronounWarnings } from "../character";
@@ -110,7 +111,7 @@ import { seasonCastCards, seasonCastIds, showCastIds, SURVIVORS } from "../seaso
 import { seasonIdOf, seasonLabel, seasonWindow } from "../season-window";
 import { seasonStanding } from "../leagues";
 import { createLinkCode, isLinked } from "../agent-links";
-import { hasAccount } from "../auth";
+import { hasAccount, isWebIdentity } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
 import { compatibility, loadTraitStats, MIN_EVIDENCE } from "../compatibility";
 import { AGENDA_IDS, AUTONOMY_LEVELS, dateNumberOf, DATE_VISIBILITIES, DRAMA_ANSWERS, DRAMA_QUESTION_LABELS, endingLabel, ENDING_LABELS, ENDINGS, FREE_EPISODES_PER_SEASON, WRITE_TIME, GAME_BUDGETS, STRATEGIES, POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DARE, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK, POINTS_PER_RATING_RECEIVED, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, type RatingCategory, WISH_NO_AT, WISH_YES_AT, writingEta } from "../rules";
@@ -302,7 +303,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.47.1" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.48.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -4798,14 +4799,8 @@ async function callRoute(
   handler: RouteHandler,
   opts: { method?: string; agentId?: string; body?: unknown; params?: Record<string, string>; query?: Record<string, string> },
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (opts.agentId) headers.cookie = `${USER_COOKIE}=${opts.agentId}`;
-  const url = opts.query && Object.keys(opts.query).length ? `${MCP_CALL_URL}${MCP_CALL_URL.includes("?") ? "&" : "?"}${new URLSearchParams(opts.query)}` : MCP_CALL_URL;
-  const req = new Request(url, {
-    method: opts.method ?? "POST",
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-  });
+  // The server's own call (lib/http.ts internalRequest): the only kind of request a bare id is read from.
+  const req = internalRequest(opts.agentId, { method: opts.method, body: opts.body, query: opts.query });
   const res = await handler(req, opts.params ? { params: Promise.resolve(opts.params) } : undefined);
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { ok: res.ok, status: res.status, data };
@@ -7015,8 +7010,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (args.list === true || args.character_id === undefined) {
         return {
           data: {
-            nights: await listDoubles(db, who.id),
-            note: "accept: <id> books both tables (yours spends one of your dates); decline: <id> is a no. Invites lapse after 7 days.",
+            // Each night as this booker reads it (lib/group-dates.ts doubleView): "you" or "them", never the other's id.
+            nights: (await listDoubles(db, who.id)).map((g) => doubleView(g, who.id)),
+            note: "accept: <id> books both tables (yours spends one of your dates); decline: <id> is a no. Invites lapse after 7 days. waiting_on says whose answer an open invite needs.",
           },
           identity: who,
         };
@@ -10313,6 +10309,14 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           { error: "That agent_id is a person's Botchelor account, and an account is only used signed in. Leave agent_id out for an id of your own, and link_account to show your characters in their account." },
         );
       }
+      // Nor is a website visitor's id (2026-11-21 audit): theirs lives in a signed cookie in their own browser and is
+      // never given out as an agent_id, so an id that owns a character made on the website isn't this caller's to use.
+      // Where bare ids still count (lib/http.ts bareIdsAllowed: local play, the tests) an id is an id everywhere.
+      if (acting && !bareIdsAllowed() && (await isWebIdentity(db, acting.id))) {
+        return refuse(
+          { error: "That agent_id belongs to someone playing on the website, not to an agent. Leave agent_id out for an id of your own." },
+        );
+      }
       // The house crowd (lib/house-bots.ts): never a vote, and nothing at all while HOUSE_CROWD_PAUSED is on.
       if (acting) {
         const houseBot = await houseBotRefusal(db, acting.id, name);
@@ -10465,6 +10469,23 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // #1865 (the 2026-11-19-2023 run: a header-less swipe said "you have none yet", read as a stray new identity): an error
       // on a call with no session and no agent_id says it ran as nobody, and how to be yourself. Nothing was made.
       if ("error" in out && !session && typeof args.agent_id !== "string") out = { ...out, details: { ...(out.details ?? {}), identity_note: NO_IDENTITY_ERROR_NOTE } };
+      // No reply carries anyone else's id (lib/mcp/owner-ids.ts): an agent's id is its key to its own characters. The
+      // admin's own agents (the admin key) see ids, as the admin pages do. A lookup that fails leaves the reply as it
+      // was: every tool already leaves ids out, and this is the net under them.
+      if (!mcpAdmin(ctx)) {
+        const self = identity?.id ?? null;
+        const scrubbed = await ("error" in out
+          ? hideOtherOwners(db, { error: out.error, details: out.details }, self).then((r) => ({ hidden: r.hidden, out: { ...out, error: r.value.error, ...(r.value.details ? { details: r.value.details } : {}) } as ToolOutcome }))
+          : hideOtherOwners(db, out.data, self).then((r) => ({ hidden: r.hidden, out: { ...out, data: r.value } as ToolOutcome }))
+        ).catch((err: unknown) => {
+          console.error(`[mcp] ${name}: could not check the reply for other owners' ids:`, err instanceof Error ? err.message : err);
+          return null;
+        });
+        if (scrubbed?.hidden) {
+          console.warn(`[mcp] ${name} put ${scrubbed.hidden} other owner id(s) in its reply; hidden before sending`);
+          out = scrubbed.out;
+        }
+      }
       const result = toToolResult(out, session, idNews);
       // Resource-subscription pending updates: a client that subscribed to a URI gets its id in every tool reply's
       // `_meta.botchelor/pending_updates` on the next call after the resource moved. Idempotent: drains them.

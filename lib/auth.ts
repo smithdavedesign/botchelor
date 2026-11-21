@@ -244,6 +244,16 @@ export async function hasAccount(db: Db, userId: string): Promise<boolean> {
 }
 
 /**
+ * Whether this id is a website visitor's: it owns a character made on the website. An agent's id owns only what it
+ * made over MCP, and a visitor's identity is a signed cookie in their own browser, so an id like this was never handed
+ * to an agent by us: over MCP it is refused (lib/mcp/dispatcher.ts), wherever the caller got it.
+ */
+export async function isWebIdentity(db: Db, userId: string): Promise<boolean> {
+  const { rows } = await db.query(`select 1 from characters where owner_id = $1 and coalesce(created_via, 'web') <> 'mcp' limit 1`, [userId]);
+  return rows.length > 0;
+}
+
+/**
  * True when an anonymous identity (an unsigned legacy cookie, an unsigned-in session, an agent_id) names a user id
  * that has an account. An account's data is for its sign-in only, so a user id that got out (or was planted before
  * signing up) can't be used to export, delete or read the account.

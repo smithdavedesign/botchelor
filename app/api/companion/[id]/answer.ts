@@ -4,7 +4,7 @@ import { withAnswer } from "@/lib/character-question-fields";
 import { loadQuestion, markAnswered, thankFor } from "@/lib/character-questions";
 import { crisisCheck, crisisField } from "@/lib/crisis";
 import type { Db } from "@/lib/db";
-import type { session } from "@/lib/http";
+import { passOn, type session } from "@/lib/http";
 
 type Sess = ReturnType<typeof session>;
 /** What the thread route answers with: the body, with the fresh thread, allowance and extras added. */
@@ -15,7 +15,7 @@ function asEdit(req: Request, characterId: string, body: unknown): Request {
   const headers = new Headers(req.headers);
   headers.set("content-type", "application/json");
   headers.delete("content-length");
-  return new Request(new URL(`/api/characters/${characterId}`, req.url), { method: "PATCH", headers, body: JSON.stringify(body) });
+  return passOn(req, new Request(new URL(`/api/characters/${characterId}`, req.url), { method: "PATCH", headers, body: JSON.stringify(body) }));
 }
 
 /**

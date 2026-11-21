@@ -201,6 +201,7 @@ function envFor(showrunnerPort, dataDir, hosts = null, local = null) {
   if (local) env.ADULT_LLM_MODEL = local;
   env.FRONTIER_PASSWORD = ADMIN_PASSWORD;
   env.SESSION_SECRET = SESSION_SECRET;
+  env.LEGACY_BARE_UID = "1"; // the sim's personas are bare id cookies (lib/http.ts bareIdsAllowed); never set in production
   env.SWIPE_GATE = "0"; // one owner's character and a house character, dated twice: no deck to match in first
   env.ADULT_MODE = "1"; // After Dark open here; the model is still OpenRouter's once its key is saved (lib/adult/mode.ts)
   if (DATE_MODEL === "paid") {

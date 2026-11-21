@@ -12,7 +12,7 @@
 import { POST as postEpisode } from "@/app/api/episodes/route";
 import { agentDatesToday } from "./dating";
 import type { Db } from "./db";
-import { MCP_CALL_URL, USER_COOKIE } from "./http";
+import { internalRequest } from "./http";
 import { notify } from "./notifications";
 import { operatorReserved } from "./operator-pass";
 
@@ -105,11 +105,7 @@ export async function cancelScheduledDate(db: Db, creatorId: string, id: string)
 
 /** The same internal call go_on_date makes (dispatcher callRoute): the creator's cookie is its identity. */
 async function book(creatorId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
-  const req = new Request(MCP_CALL_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", cookie: `${USER_COOKIE}=${creatorId}` },
-    body: JSON.stringify(body),
-  });
+  const req = internalRequest(creatorId, { body });
   const res = await postEpisode(req);
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { ok: res.ok, status: res.status, data };

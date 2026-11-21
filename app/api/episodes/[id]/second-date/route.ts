@@ -4,7 +4,7 @@ import { DATE_VISIBILITIES, dateLabel } from "@/lib/rules";
 import { POST as createEpisode } from "@/app/api/episodes/route";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { handle, json, parseBody, passOn, readJson, session } from "@/lib/http";
 import { notify, ownersOf } from "@/lib/notifications";
 import { sayYesToSecondDate, secondDateState } from "@/lib/second-date";
 
@@ -84,16 +84,19 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   headers.set("content-type", "application/json");
   headers.delete("content-length");
   return createEpisode(
-    new Request(new URL("/api/episodes", req.url), {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        character_id: state.my_character_id,
-        partner_id: state.partner_character_id,
-        second_date_of: id,
-        ...(input.visibility ? { visibility: input.visibility } : {}),
-        ...(input.place ? { place: input.place } : {}),
+    passOn(
+      req,
+      new Request(new URL("/api/episodes", req.url), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          character_id: state.my_character_id,
+          partner_id: state.partner_character_id,
+          second_date_of: id,
+          ...(input.visibility ? { visibility: input.visibility } : {}),
+          ...(input.place ? { place: input.place } : {}),
+        }),
       }),
-    }),
+    ),
   );
 });

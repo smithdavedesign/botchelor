@@ -175,6 +175,42 @@ export async function declineDouble(db: Db, userId: string, nightId: string, now
   return true;
 }
 
+/**
+ * A night as one of its two bookers reads it over MCP (double_date { list: true }). The stored row names both bookers
+ * by id, and an agent's id is its key to its own characters, so a reply says "you" or "them" and never the other's id
+ * (the 2026-11-21 audit: the list used to return the row as stored).
+ */
+export type DoubleView = {
+  id: string;
+  kind: GroupNight["kind"];
+  venue: string;
+  status: GroupNight["status"];
+  proposed_by: "you" | "them";
+  /** An open invite: whose answer it waits on. */
+  waiting_on?: "you" | "them";
+  couple_a: Couple;
+  couple_b: Couple;
+  episode_a: string | null;
+  episode_b: string | null;
+  created_at: string;
+};
+
+export function doubleView(g: GroupNight, userId: string): DoubleView {
+  return {
+    id: g.id,
+    kind: g.kind,
+    venue: g.venue,
+    status: g.status,
+    proposed_by: g.created_by === userId ? "you" : "them",
+    ...(g.status === "invited" ? { waiting_on: g.invite_to === userId ? ("you" as const) : ("them" as const) } : {}),
+    couple_a: g.couple_a,
+    couple_b: g.couple_b,
+    episode_a: g.episode_a,
+    episode_b: g.episode_b,
+    created_at: g.created_at,
+  };
+}
+
 /** This user's open invites and recent nights, newest first. */
 export async function listDoubles(db: Db, userId: string, now: Date = new Date()): Promise<GroupNight[]> {
   await lapseOldInvites(db, now).catch(() => {});

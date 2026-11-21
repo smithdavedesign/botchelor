@@ -264,6 +264,9 @@ export function appEnv(showrunnerPort, dataDir) {
     WATCH_ADMIN_TOKEN,
     // A throwaway signing secret so accounts + BYOK are exercised end to end (M16). Never a real key.
     SESSION_SECRET: ["e2e", "session", "secret", randomBytes(16).toString("hex")].join("-"),
+    // persona() below is one bare `bz_uid` cookie, which an app that signs no longer reads from a browser
+    // (lib/http.ts bareIdsAllowed). The harness keeps them working; production never sets this.
+    LEGACY_BARE_UID: "1",
     // Generate episodes inline so the demo/e2e don't race the async after() worker.
     BOTCHELOR_INLINE_GENERATION: "1",
     // The whole house roster on this season's show (lib/season-cast.ts deals 4 a week), so the seeded season

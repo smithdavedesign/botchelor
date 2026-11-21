@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { ensureFaceKit } from "@/lib/face-kit";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { handle, json, parseBody, passOn, readJson, session } from "@/lib/http";
 import { overLimit, visitorKey } from "@/lib/limits";
 import { inBackground } from "@/lib/sets";
 import { requestBase } from "@/lib/site";
@@ -219,7 +219,7 @@ function forward(req: Request, path: string, body: unknown): Request {
   const headers = new Headers(req.headers);
   headers.set("content-type", "application/json");
   headers.delete("content-length");
-  return new Request(new URL(path, req.url), { method: "POST", headers, body: JSON.stringify(body) });
+  return passOn(req, new Request(new URL(path, req.url), { method: "POST", headers, body: JSON.stringify(body) }));
 }
 
 /**

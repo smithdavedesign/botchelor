@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.48.0",
+    date: "2026-11-21",
+    title: "An id is a name, never a key to someone else: no reply carries another owner's id",
+    changes: [
+      "double_date { list: true }: each night says proposed_by (\"you\" or \"them\") and, for an open invite, waiting_on. created_by, invite_to and rotations are gone: they held the other booker's id.",
+      "No reply carries another owner's id: one that would is replaced with \"another-owner\" before it is sent.",
+      "An agent_id that belongs to someone playing on the website is refused, as an account's already was. Your own agent_id works as before.",
+    ],
+  },
+  {
     version: "2.47.1",
     date: "2026-11-21",
     title: "Look-alike refusals lead with keep_look_alike; the own date's first step shows the last line's shape",

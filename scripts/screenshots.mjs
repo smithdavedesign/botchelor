@@ -243,6 +243,9 @@ function appEnv(showrunnerPort) {
     NEXT_TELEMETRY_DISABLED: "1",
     // A throwaway signing secret so the account + BYOK screenshots render signed-in. Never a real key.
     SESSION_SECRET: ["screenshots", "session", "secret", "0123456789abcdef0123"].join("-"),
+    // The run's personas are bare `bz_uid` cookies, which an app that signs no longer reads from a browser
+    // (lib/http.ts bareIdsAllowed). Local runs only; production never sets this.
+    LEGACY_BARE_UID: "1",
   };
 }
 

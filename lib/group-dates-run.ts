@@ -15,7 +15,7 @@ import { POST as postEpisode } from "@/app/api/episodes/route";
 import type { Db } from "./db";
 import { INVITE_DAYS, MIXER_DOORS_MINUTES, MIXER_MAX, MIXER_MIN, MIXER_WAIT_HOURS, mixerSeats, openMixer, type GroupNight, type Rotation } from "./group-dates";
 import { seedFrom } from "./engine";
-import { MCP_CALL_URL, USER_COOKIE } from "./http";
+import { internalRequest } from "./http";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { venuePhrase } from "./venues";
@@ -28,11 +28,7 @@ import { episodeAllowance } from "./allowance";
 import { operatorReserved } from "./operator-pass";
 
 async function book(asUserId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
-  const req = new Request(MCP_CALL_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", cookie: `${USER_COOKIE}=${asUserId}` },
-    body: JSON.stringify(body),
-  });
+  const req = internalRequest(asUserId, { body });
   // The house booking its cast's rotations (lib/house-booker.ts): only a request built here can act as the house.
   if (asUserId === HOUSE_BOOKER) markHouseRequest(req);
   const res = await postEpisode(req);

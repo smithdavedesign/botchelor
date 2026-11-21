@@ -4,7 +4,7 @@ import { track } from "@/lib/analytics";
 import { castDatePrize, claimPrize, releasePrize, spendPrize } from "@/lib/cast-date";
 import { markCastDateRequest } from "@/lib/cast-date-request";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { handle, json, parseBody, passOn, readJson, session } from "@/lib/http";
 
 const Input = z.object({
   character_id: z.string().min(1).max(64),
@@ -33,11 +33,14 @@ export const POST = handle(async (req) => {
   let booked: Response;
   try {
     const forward = markCastDateRequest(
-      new Request(new URL("/api/episodes", req.url), {
-        method: "POST",
-        headers: { "content-type": "application/json", cookie: req.headers.get("cookie") ?? "" },
-        body: JSON.stringify({ character_id: input.character_id, partner_id: input.cast_id, visibility: "public" }),
-      }),
+      passOn(
+        req,
+        new Request(new URL("/api/episodes", req.url), {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie: req.headers.get("cookie") ?? "" },
+          body: JSON.stringify({ character_id: input.character_id, partner_id: input.cast_id, visibility: "public" }),
+        }),
+      ),
     );
     booked = await postEpisode(forward);
   } catch (err) {

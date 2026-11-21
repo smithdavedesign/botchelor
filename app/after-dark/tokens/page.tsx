@@ -42,7 +42,9 @@ const PASS: Record<string, string> = {
  * from. No ledger (the issue's lean: not until someone asks for one).
  *
  * Where they come from (lib/adult/tokens.ts, 2026-11-04): After Dark's own packs on the adult processor once one can sell
- * them, with the buyer back here after paying (?done=1, ?declined=1); until then the show's shop, as dates.
+ * them, with the buyer back here after paying (?done=1, ?declined=1). Until then nothing is on sale here, and the page
+ * says so: the show's shop is Stripe's, whose rules bar paying for adult content, so After Dark never sends a member
+ * there to top up (2026-11-21 audit: this page had a "Top up on the shop" button).
  */
 export default async function AfterDarkTokensPage({ searchParams }: { searchParams: SearchParams }) {
   const db = await getDb();
@@ -153,17 +155,11 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
             />
           </section>
         ) : (
-          <section className="card">
+          <section className="card" data-token-packs-closed>
             <h2>Getting more</h2>
             <p>
-              Tokens are one balance across Botchelor. They&apos;re sold on the show&apos;s shop as packs of <strong>dates</strong>: one date
-              bought there is one token here. The show&apos;s free dates each week are only for the show; After Dark spends only the ones you
-              buy.
-            </p>
-            <p>
-              <Link className="button" href="/shop">
-                Top up on the shop
-              </Link>
+              Token packs for After Dark aren&apos;t on sale yet: they open when After Dark&apos;s own billing does. Your nights don&apos;t
+              wait for them: every chapter, and the pictures of their moments, are included.
             </p>
           </section>
         )}
