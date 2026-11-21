@@ -247,7 +247,7 @@ async function addMessage(
 }
 
 /** Written lines, cleaned and kept only when every one passes the PG line and the crisis list (null otherwise). */
-function writtenLines(raw: readonly string[]): string[] | null {
+export function writtenLines(raw: readonly string[]): string[] | null {
   const lines = raw
     .map((l) => clean(l).slice(0, BUBBLE_MAX))
     .filter(Boolean)
