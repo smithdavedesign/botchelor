@@ -25,6 +25,7 @@ import { ownedSkus } from "@/lib/payments";
 import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv, priceLabelFromEnv } from "@/lib/stripe";
 import CreateWizard, { type Partner } from "./CreateWizard";
+import { houseDeckCards } from "@/lib/house-deck";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +137,8 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       // The home page's sentence box (lib/home-clip.ts homeExpressBoxOn): the same limits as the box here.
       startSay={typeof sp.say === "string" ? sp.say.trim().slice(0, EXPRESS_TEXT_MAX) || null : null}
       startSaid={sp.said === "home"}
+      // Three of the house cast as the example card (lib/house-deck.ts), built here so the client never carries the cast.
+      houseDeck={houseDeckCards()}
     />
     </CastingProvider>
   );

@@ -2,7 +2,9 @@
 
 import type { ReactNode } from "react";
 import Avatar from "../Avatar";
+import HouseDeck from "./HouseDeck";
 import { promptLabel, type CharacterExtras } from "@/lib/extras";
+import type { DeckCard } from "@/lib/house-deck";
 
 type Props = {
   seed: string;
@@ -15,6 +17,10 @@ type Props = {
   extras: CharacterExtras;
   /** Editing: the button that changes their picture, under the card. */
   picture?: ReactNode;
+  /** Three of the house cast (lib/house-deck.ts): while the form is empty they take turns as the example. */
+  examples?: readonly DeckCard[];
+  /** The person is typing their sentence (one-sentence create): the house cards stop on the one in front. */
+  typing?: boolean;
 };
 
 /**
@@ -53,11 +59,23 @@ export const SHEET_EXAMPLE = {
  * While nothing is typed yet it shows the example character, greyed and labelled Example, so the card reads as a card;
  * the first thing typed (a name, usually) switches it to their own, stand-ins and all.
  */
-export default function DeckPreview({ seed, name, age, hue, portrait, bio, want, extras, picture }: Props) {
+export default function DeckPreview({ seed, name, age, hue, portrait, bio, want, extras, picture, examples = [], typing = false }: Props) {
   const job = [extras.occupation?.trim(), extras.hometown?.trim()].filter(Boolean).join(" · ");
   const prompts = (extras.prompts ?? []).filter((p) => p.answer?.trim());
   const interests = (extras.hobbies ?? []).filter((h) => h.trim());
   const empty = !name.trim() && !age.trim() && !bio.trim() && !want.trim() && !job && !prompts.length && !interests.length && !portrait;
+  // Three of the house cast take turns (app/create/HouseDeck.tsx; the visual pop audit's leftovers): real people from
+  // the show, tagged as theirs, rather than the made-up example in initials.
+  if (empty && examples.length > 0) {
+    return (
+      <aside className="wizard-deck" aria-label="How the deck sees them">
+        <p className="kicker">How the deck sees them</p>
+        <HouseDeck cards={examples} still={typing} />
+        <p className="muted small wizard-deck-example-note">Three of the house cast, as the deck shows them. Yours fills in here as you type.</p>
+        {picture}
+      </aside>
+    );
+  }
   if (empty) {
     return (
       <aside className="wizard-deck" aria-label="How the deck sees them">

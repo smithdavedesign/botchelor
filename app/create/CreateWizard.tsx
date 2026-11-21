@@ -29,6 +29,8 @@ import DepthMeter from "./DepthMeter";
 import { sheetWords } from "@/lib/sheet-words";
 import { SPARKS } from "@/lib/sparks";
 import DeckPreview, { SHEET_EXAMPLE } from "./DeckPreview";
+import { HouseStrip } from "./HouseDeck";
+import type { DeckCard } from "@/lib/house-deck";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { languageName } from "@/lib/language";
@@ -367,6 +369,7 @@ export default function CreateWizard({
   express = false,
   startSay = null,
   startSaid = false,
+  houseDeck = [],
   edit,
 }: {
   partners?: Partner[];
@@ -416,6 +419,8 @@ export default function CreateWizard({
    */
   startSay?: string | null;
   startSaid?: boolean;
+  /** Three of the house cast (lib/house-deck.ts): the example deck beside an empty form, a strip of faces on a phone. */
+  houseDeck?: readonly DeckCard[];
   /** Edit an existing character instead of creating one: every field is prefilled and every step open. */
   edit?: { id: string; initial: EditInitial };
 }) {
@@ -1265,6 +1270,8 @@ export default function CreateWizard({
       {!edit && imported && step === S.identity && <ImportPrefill note={imported} />}
       {!edit && expressNote && !expressOpen && step === S.identity && <ExpressPrefill note={expressNote} door={pastPgDoor} />}
 
+      {/* A phone's first step: the house cast's faces above the first question (the deck beside the form doesn't fit). */}
+      {!edit && step === S.identity && <HouseStrip cards={houseDeck} />}
       <Stepper
         step={Math.max(0, track.indexOf(step))}
         max={track.reduce((far, real, i) => (real <= maxStep ? i : far), 0)}
@@ -1958,6 +1965,8 @@ export default function CreateWizard({
         bio={sheet.bio}
         want={sheet.want}
         extras={extras}
+        examples={edit ? [] : houseDeck}
+        typing={expressOpen && expressText.trim().length > 0}
         picture={
           edit && (
             <button type="button" className="link-button wizard-picture-btn" onClick={() => setPictureOpen(true)}>
