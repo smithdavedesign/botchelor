@@ -72,13 +72,13 @@ export function afterDarkPortrait(characterId: string | null | undefined): strin
 export const HOUSE_STAGE_PICTURES: ReadonlySet<string> = new Set([
   "house-barnaby", "house-boaz", "house-dex", "house-imogen", "house-ines", "house-juniper", "house-kaz", "house-lior",
   "house-marisol", "house-nell", "house-odalys", "house-orin", "house-perpetua", "house-rafe", "house-sable",
-  "house-vesper", "house-wally",
-  // Not listed, so his figure is the portrait: Teo, three times (little heads, then photos of himself, printed on his
-  // sleeves; then an embroidered floral band round each arm, too big to paint out cleanly). Seven failed the first
-  // review (2026-11-20); a redraw that named what was wrong (trousers, a plain top, no one else in the picture) passed
-  // for five. Juniper's also needed the fake signature FLUX wrote across her trouser leg painted out. Wally's third
-  // draw passed once the prompt only described what covers the arms (plain long sleeves to the wrist) instead of
-  // naming the tattoos FLUX kept drawing on them.
+  "house-teo", "house-vesper", "house-wally",
+  // Seven failed the first review (2026-11-20); a redraw that named what was wrong (trousers, a plain top, no one else
+  // in the picture) passed for five. Juniper's also needed the fake signature FLUX wrote across her trouser leg painted
+  // out. Wally (tattoos twice) and Teo (heads, photos, then a floral band round each arm, all on his sleeves) passed
+  // once the prompt only described the sleeves (plain long sleeves to the wrist; for Teo "smooth solid white from
+  // shoulder to cuff") and never named what to leave out: FLUX has no negative prompt, so a named thing gets drawn.
+  // Teo took four draws.
 ]);
 
 /** The stage picture for a portrait's file (`/cast/house-<name>-v5.webp`), or null for any other picture. */
