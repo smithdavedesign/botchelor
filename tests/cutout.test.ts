@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fullPortrait } from "@/app/stage/CharacterFigure";
-import { CUTOUT_OPTIONS, cutoutsReady, cutoutUrl, PROBE_PATH, setCutoutsForTests } from "@/lib/cutout";
+import { CUTOUT_OPTIONS, cutoutsReady, cutoutUrl, PROBE_PATH, setCutoutsForTests, stageCutout } from "@/lib/cutout";
+import type { Db } from "@/lib/db";
 
 const SITE = "https://botchelor.com";
 
@@ -84,6 +85,31 @@ describe("cutoutsReady: whether the zone makes them, asked once and kept", () =>
     setCutoutsForTests(null, f as unknown as typeof fetch);
     expect(await cutoutsReady({ SITE_URL: "http://localhost:3000" })).toBe(false);
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe("stageCutout: a house character stands as their stage picture, already cut out", () => {
+  // A ledger with one house-look row (as the season's are: the /cast file's path) and one generated portrait (a data URL).
+  const ledger: Record<string, string> = { "asset-house": "/cast/house-dex-v5.webp", "asset-made": "data:image/png;base64,AAAA" };
+  const db = {
+    query: vi.fn(async (_sql: string, [id]: string[]) => ({ rows: ledger[id]?.startsWith("/cast/") ? [{ url: ledger[id] }] : [] })),
+  } as unknown as Db;
+
+  it("finds a served portrait's house file through the ledger", async () => {
+    expect(await stageCutout(db, "/api/assets/asset-house")).toBe("/cast/house-dex-v5-stage.webp");
+    expect(await stageCutout(db, "/api/assets/asset-house.webp?w=192")).toBe("/cast/house-dex-v5-stage.webp");
+    expect(await stageCutout(db, "/cast/house-dex-v5.webp")).toBe("/cast/house-dex-v5-stage.webp");
+  });
+
+  it("is a same-site file, never the zone's: it works with transformations off or the month's cutouts used up", async () => {
+    expect(await stageCutout(db, "/api/assets/asset-house")).toMatch(/^\/cast\/house-[a-z]+-v5-stage\.webp$/);
+  });
+
+  it("is none for anyone else, and for anyone the lookup fails for (their portrait, cut out by the zone)", async () => {
+    expect(await stageCutout(db, "/api/assets/asset-made")).toBeNull();
+    const broken = { query: vi.fn(async () => Promise.reject(new Error("down"))) } as unknown as Db;
+    expect(await stageCutout(broken, "/api/assets/asset-house")).toBeNull();
+    expect(await stageCutout(db, null)).toBeNull();
   });
 });
 
