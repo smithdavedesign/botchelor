@@ -89,7 +89,7 @@ describe("1. the see_again lever, where it matters", () => {
     const started = (await call("start_own_date", { character_id: own.a, partner_id: own.b }, own.ctx)).structuredContent;
     expect(started.ending_note.startsWith(OWN_ENDING_NOTE)).toBe(true);
     expect(OWN_ENDING_NOTE).toBe(
-      "How it ends: set now, at booking (who it's with and the sheets), never by what the lines say. Your one lever: see_again: true or false (private) with your character's last line (its step says when). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.",
+      "How it ends: set now, at booking (who it's with and the sheets), never by what the lines say. Your one lever: see_again: true or false (private) with your character's last line (its step says when; that line's output is an object, {dialogue, see_again}). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.",
     );
     const keys = Object.keys(started);
     expect(keys.indexOf("ending_note")).toBeLessThan(keys.indexOf("step"));

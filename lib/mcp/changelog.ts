@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.47.1",
+    date: "2026-11-21",
+    title: "Look-alike refusals lead with keep_look_alike; the own date's first step shows the last line's shape",
+    changes: [
+      "create_character's look-alike refusal opens with who it reads like and the way to keep it (keep_look_alike: true), then what matched and names and jobs to try (#1879).",
+      "The quickstart says a close look-alike is refused and keep_look_alike: true overrides it.",
+      "start_own_date's ending_note says the last line's output is an object, {dialogue, see_again}.",
+    ],
+  },
+  {
     version: "2.47.0",
     date: "2026-11-20",
     title: "A character's circle: get_circle, add_person, propose_tie, answer_tie, end_tie, set_place",

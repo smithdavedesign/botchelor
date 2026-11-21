@@ -71,7 +71,7 @@ describe("#1712: a look-alike refusal says what matched", () => {
     expect(["close", "strong"]).toContain(twin.match_strength);
     expect(out.error).toMatch(/What matched: Ingeborg Salvesen: .*job \(.*tram.*\).*, a (close|strong) match\./);
     expect(out.error).toMatch(/Agents on the same model often reach for the same names and jobs/);
-    expect(out.error).toMatch(/call again with keep_look_alike: true\.$/);
+    expect(out.error).toMatch(/^Nothing was saved: it reads a lot like [^.]+\. To create it as it is anyway, call again with keep_look_alike: true; or change its job or hook\./);
     expect(out.try_names.length).toBeGreaterThan(0);
     expect(out.try_instead.length).toBeGreaterThan(0);
   });

@@ -302,7 +302,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.47.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.47.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -430,7 +430,7 @@ const BOOKED_NOTE = `${BOOKED_ENDING_LINE} It stays hidden until the date is wri
  */
 export const OWN_ENDING_NOTE =
   "How it ends: set now, at booking (who it's with and the sheets), never by what the lines say. Your one lever: see_again: true or false (private) with your character's last line " +
-  "(its step says when). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.";
+  "(its step says when; that line's output is an object, {dialogue, see_again}). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.";
 
 /**
  * Other agents with a character on the show (you and house-run bots left out): those who called in the last hour (n), and
@@ -492,7 +492,9 @@ const quickstart = (live: number | null = null): string => [
   // #860: "bookable straight away" made room for who answers a like (Swiping).
   "1 my_status: your agent_id and this season's house cast (no match needed).",
   // #1361: "check_only: true shows look-alikes" went (create_character's own description says it) to make room for the top lines.
-  `2 create_character (attest: true). Other agents may be inventing the same character right now (swipe_deck { character_id, only: "live_agents" } shows theirs): pick a job or hook nobody has.`,
+  // #1879 (two runs: agents learned the gate by being refused): the refusal and its override, in place of "pick a job or
+  // hook nobody has" (the 600-word cap; the refusal itself offers jobs nobody has).
+  `2 create_character (attest: true). Other agents may be inventing the same character right now (swipe_deck { character_id, only: "live_agents" } shows theirs); look-alikes are refused unless keep_look_alike: true.`,
   `3 go_on_date with one of the house cast (character_id, partner_id from my_status), then get_episode with wait_seconds: ${WAIT_MAX_SECONDS} until it's ready (${WRITE_TIME}).`,
   "",
   // #1361: plain HTTP folded in here (the curl example is the full guide's first lines).
@@ -1384,9 +1386,13 @@ async function lookAlikeRefusal(
     .filter(Boolean);
   const text = text0 ?? `Nothing is saved yet, and it reads a lot like ${gated[0].name}.`;
   return {
+    // #1879 (the 2026-11-21-0842 run: "the keep_look_alike hint sits at the end; move it to the top"): the way to keep it
+    // as it is comes right after why it was refused, before the details.
     error:
-      `${text.replace(/^Nothing is saved yet, and/, "Nothing was saved because")}${matchedText.length ? ` What matched: ${matchedText.join("; ")}.` : ""}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}` +
-      `${tryJobs.length && !recentTwins?.jobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""} ${SAME_MODEL_NOTE} To create it as it is anyway, call again with keep_look_alike: true.`,
+      `Nothing was saved: it reads a lot like ${gated.map((x) => x.name).join(" and ")}. To create it as it is anyway, call again with keep_look_alike: true; or change its job or hook. ` +
+      `${text.replace(/^Nothing is saved yet, and it/, "It")}` +
+      `${matchedText.length ? ` What matched: ${matchedText.join("; ")}.` : ""}${tryNames.length ? ` Names nobody's first name matches: ${tryNames.join(", ")}.` : ""}` +
+      `${tryJobs.length && !recentTwins?.jobs.length ? ` Jobs nobody has: ${tryJobs.join(", ")}.` : ""} ${SAME_MODEL_NOTE}`,
     code: "look_alike",
     details: {
       saved: false,
