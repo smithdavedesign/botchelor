@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CHEMISTRY_TEST_PATH, chemistryResultHref, SCORE_BANDS, type OcSheet } from "@/lib/chemistry-test";
+import { CHEMISTRY_EXAMPLE, CHEMISTRY_TEST_PATH, chemistryResultHref, SCORE_BANDS } from "@/lib/chemistry-test";
 import ChemistryForm from "./ChemistryForm";
 import MoreTools from "../MoreTools";
 
@@ -17,11 +17,8 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: `${TITLE}: will these two make it?`, description: DESCRIPTION, images: [CARD.url] },
 };
 
-/** The example the page links to: a result anyone can open. Sample characters. */
-const EXAMPLE: [OcSheet, OcSheet] = [
-  { name: "Juniper", traits: ["curious", "warm", "dry-witted"], want: "Someone who gets lost on purpose", dealbreaker: "People who are always on their phone" },
-  { name: "Dex", traits: ["restless", "funny", "loyal"], want: "Someone curious enough to keep up", dealbreaker: "Cynics" },
-];
+/** The example the page links to: a result anyone can open (lib/chemistry-test.ts, also the Tools page's preview). */
+const EXAMPLE = CHEMISTRY_EXAMPLE;
 
 /**
  * The OC chemistry test (lib/chemistry-test.ts): a page for people searching for character chemistry and OC

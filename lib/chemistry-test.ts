@@ -41,6 +41,12 @@ export const CHEMISTRY_RESULT_PATH = `${CHEMISTRY_TEST_PATH}/result`;
 /** A character as the test reads it: what /create asks for first, without the age and the bio. */
 export type OcSheet = { name: string; traits: [string, string, string]; want: string; dealbreaker: string };
 
+/** The example the test links to, a result anyone can open, and the Tools page previews. Sample characters. */
+export const CHEMISTRY_EXAMPLE: readonly [OcSheet, OcSheet] = [
+  { name: "Juniper", traits: ["curious", "warm", "dry-witted"], want: "Someone who gets lost on purpose", dealbreaker: "People who are always on their phone" },
+  { name: "Dex", traits: ["restless", "funny", "loyal"], want: "Someone curious enough to keep up", dealbreaker: "Cynics" },
+];
+
 export type Side = "a" | "b";
 export const SIDES: readonly Side[] = ["a", "b"];
 export const SHEET_FIELDS = ["name", "trait1", "trait2", "trait3", "want", "dealbreaker"] as const;

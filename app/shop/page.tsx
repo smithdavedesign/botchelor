@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import SetHero from "@/app/SetHero";
 import Icon from "@/app/Icon";
+import PackVenues from "@/app/PackVenues";
+import PlanFace from "@/app/PlanFace";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
 import { CATALOG, formatPrice, frameClass, onSale, PACK_15, PACK_5, PACKS, type ItemKind } from "@/lib/catalog";
@@ -155,6 +157,8 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
           const itemOpen = paymentLinkFromEnv(env, item.sku) !== null;
           return (
             <li key={item.sku} className="card money-tile shop-item" data-shop-sku={item.sku}>
+              {/* On the show, a pack's places, one per date it buys (app/PackVenues.tsx); After Dark's tokens stay plain. */}
+              {unit === "date" && item.kind === "episode_pack" && <PackVenues dates={item.episodes} />}
               <Price amount={formatPrice(item.price_cents)} per="once" />
               <strong className="money-tile-name">{item.name}</strong>
               {/* A pack's name already says what it is ("5 more dates"); the bigger pack gets its one word. */}
@@ -178,7 +182,8 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
           );
         })}
         {planTile && (
-          <li className="card money-tile shop-item shop-plan" data-shop-plan="companion">
+          <li className="card money-tile shop-item shop-plan has-plan-face" data-shop-plan="companion">
+            {unit === "date" && <PlanFace />}
             <Price amount={plan.amount} per={plan.per} />
             <strong className="money-tile-name">{PLANS.companion.name}</strong>
             <span className="badge">Subscription</span>

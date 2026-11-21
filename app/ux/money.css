@@ -374,3 +374,91 @@
   padding-top: var(--space-2);
   font-size: var(--text-sm);
 }
+
+/* ---------------- a date pack's picture (app/PackVenues.tsx) ---------------- */
+/* One place for each date a pack buys, across the top of its card on /pricing and /shop (pass 2 of the visual pop
+   audit). Five share the width in a row; fifteen run past in a slow ribbon that stops under a pointer and stands still
+   under reduced motion. */
+.pack-venues {
+  --pack-venue-h: 4.25rem;
+  margin: 0 0 var(--space-1);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--photo-bg);
+}
+.pack-venues-list {
+  display: flex;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pack-venues-list > li {
+  margin: 0;
+}
+.pack-venues-list img {
+  display: block;
+  width: 100%;
+  height: var(--pack-venue-h);
+  object-fit: cover;
+}
+.pack-venues.is-row .pack-venues-list > li {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.pack-venues.is-ribbon {
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
+  background: none;
+}
+.pack-venues-track {
+  display: flex;
+  width: max-content;
+}
+.pack-venues.is-ribbon .pack-venues-list {
+  padding-right: 3px;
+}
+.pack-venues.is-ribbon .pack-venues-list > li {
+  flex: none;
+  width: calc(var(--pack-venue-h) * 1.5);
+}
+.pack-venues.is-ribbon img {
+  border-radius: var(--radius-sm);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pack-venues-track {
+    animation: pack-venues-run 70s linear infinite;
+  }
+  .pack-venues.is-ribbon:hover .pack-venues-track {
+    animation-play-state: paused;
+  }
+}
+@keyframes pack-venues-run {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* The Companion Plan's face (app/PlanFace.tsx): a house companion mid-sentence in the top corner of the plan's card,
+   inside the call screen's talking pulse. */
+.has-plan-face {
+  position: relative;
+}
+.plan-face {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  line-height: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.has-plan-face > h2,
+.has-plan-face > .money-price,
+.has-plan-face > .pricing-price {
+  padding-right: 4.5rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .plan-face {
+    animation: companion-call-talking 1.6s ease-in-out infinite;
+  }
+}

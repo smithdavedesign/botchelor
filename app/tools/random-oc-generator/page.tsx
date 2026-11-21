@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
 import { chemistryResultHref } from "@/lib/chemistry-test";
@@ -100,7 +101,8 @@ export default async function RandomOcGeneratorPage({ searchParams }: Props) {
           {ocs.map((oc, i) => {
             const partner = ocs[(i + 1) % ocs.length];
             return (
-              <li key={oc.name} className="random-oc">
+              // Dealt in one after another, like a hand of cards (app/globals.css .random-oc, the motion kit).
+              <li key={oc.name} className="random-oc" style={{ "--i": i } as CSSProperties}>
                 <p className="muted small random-oc-meta">
                   {RANDOM_OC_GENRE_INFO[oc.genre].label} · {oc.pronouns} · {oc.age}
                 </p>
