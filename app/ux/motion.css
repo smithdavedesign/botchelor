@@ -1,0 +1,143 @@
+/* The motion kit (docs/audits/2026-11-20-visual-pop-audit.md, pass 2): a few behaviours used everywhere instead of
+   thirty one-off effects. Every page is complete at rest and motion only adds to it: each of these starts from, or
+   ends on, the element's own resting state, and none of them runs under reduced motion.
+
+   - Fill (.meter-fill and the vote bars, or .fill-in on anything): a bar grows from nothing to its value when it
+     appears. On a vote that's when the result shows, right after the click.
+   - Fill on view (.fill-on-view): the same, tied to scrolling, for bars far down a page.
+   - Rise (.rise-in): a card rises into place as it scrolls into view (CSS view timelines; the precedent is
+     app/ux/catalog.css). Browsers without them show it in place.
+   - Sheen (.sheen-once): one gold pass across a title card the first time it comes into view.
+   - Slide together (.slide-pair): two faces start a little apart and meet.
+   - Tilt (app/motion/Tilt.tsx) and count-up (app/motion/CountUp.tsx) need a script; their CSS is here too. */
+
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-fill: 1.1s;
+}
+
+@keyframes fill-grow {
+  from {
+    scale: 0 1;
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0.25;
+    translate: 0 1.75rem;
+  }
+}
+@keyframes sheen-pass {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+@keyframes slide-from-left {
+  from {
+    translate: -1.75rem 0;
+  }
+}
+@keyframes slide-from-right {
+  from {
+    translate: 1.75rem 0;
+  }
+}
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    scale: 1.6;
+    rotate: -14deg;
+  }
+  60% {
+    opacity: 1;
+    scale: 0.94;
+  }
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Fill, as each bar appears. */
+  .fill-in,
+  .meter-fill,
+  .situation-bar span,
+  .money-meter-fill,
+  .watch-bar {
+    transform-origin: left center;
+    animation: fill-grow var(--motion-fill) var(--ease-out) 0.2s both;
+  }
+
+  /* Two faces meet. */
+  .slide-pair > :first-child {
+    animation: slide-from-left 0.9s var(--ease-out) 0.1s both;
+  }
+  .slide-pair > :last-child {
+    animation: slide-from-right 0.9s var(--ease-out) 0.1s both;
+  }
+
+  /* Tilt: the card leans toward the pointer (app/motion/Tilt.tsx sets the two angles). */
+  .tilt {
+    transform: perspective(56rem) rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg));
+    transition: transform 0.35s var(--ease-out);
+    will-change: transform;
+  }
+  .tilt.is-tilting {
+    transition-duration: 0.08s;
+  }
+}
+
+/* Scroll-tied pieces, only where the browser has view timelines. Elsewhere they sit in place. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .fill-on-view,
+    .boxscore .barfill {
+      transform-origin: left center;
+      animation: fill-grow linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 40%;
+    }
+    .rise-in {
+      animation: rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+    .sheen-once {
+      position: relative;
+      isolation: isolate;
+    }
+    .sheen-once::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--frame-gold) 38%, transparent) 50%, transparent 65%)
+        no-repeat;
+      background-size: 220% 100%;
+      animation: sheen-pass linear both;
+      animation-timeline: view();
+      animation-range: entry 40% cover 55%;
+      pointer-events: none;
+    }
+  }
+}
+
+/* A figure that counts up once on view (app/motion/CountUp.tsx): the final figure holds the width, so nothing beside
+   it moves while it counts. */
+.count-up {
+  display: inline-grid;
+  font-variant-numeric: tabular-nums;
+}
+.count-up::before {
+  content: attr(data-final);
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+.count-up > span {
+  grid-area: 1 / 1;
+}

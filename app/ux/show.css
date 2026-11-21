@@ -798,6 +798,30 @@ details.recap-toggle[open] .recap-toggle-hide {
 .couple-head .action-hint {
   justify-content: center;
 }
+/* The couple's latest date's place across the top of their card, the two faces meeting on it (app/ux/motion.css
+   .slide-pair). It runs to the card's edges: the card's own padding, taken back. */
+.couple-stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 10.5rem;
+  margin: -1.1rem -1.25rem var(--space-3);
+  padding-bottom: var(--space-4);
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+}
+.couple-stage .couple-avatars {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 0;
+}
+.couple-stage .couple-avatars .avatar {
+  box-shadow: 0 0 0 3px var(--on-photo), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
+}
+@media (max-width: 30rem) {
+  .couple-stage {
+    height: 8.5rem;
+  }
+}
 
 /* ---------------- notifications (app/notifications/page.tsx) ---------------- */
 /* Every row keeps a gutter for the unread dot, so a read and an unread title start at the same place; the emoji sits
