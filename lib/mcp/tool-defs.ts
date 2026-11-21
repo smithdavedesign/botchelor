@@ -30,6 +30,7 @@ import { bare, BOOKING_RULE, COMPACT_CARDS, CONVERSATION_TURNS, EXCLUSIVE_POINTE
 import { EXAMPLE_CALLS } from "../agents";
 import { WHILE_AWAY_MODES } from "../activity";
 import { STATUS_IDS } from "../tags";
+import { DECLARED_ROLES } from "../social/relations";
 import { withArgDocs } from "./arg-docs";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
@@ -86,6 +87,9 @@ export const BROWSE_MINE = ["include", "only", "exclude"] as const;
 export const BROWSE_STATUSES = ["open", "aired"] as const;
 /** #1532: create_character's compact. */
 export const CREATE_COMPACT = ["min"] as const;
+/** A character's circle (2.47.0, lib/mcp/circle.ts): who sees an item (only_you: its owner, and a tie's other owner), and an answer to a proposed tie. */
+export const CIRCLE_VISIBILITIES = ["public", "only_you"] as const;
+export const TIE_ANSWERS = ["yes", "no"] as const;
 
 /** A character as the OC chemistry test reads it (lib/chemistry-test.ts): what /create asks for first. */
 const OC_SHEET = (who: string): JsonSchema => ({
@@ -1254,6 +1258,119 @@ const RAW_TOOL_DEFS = [
       },
     },
     annotations: READ,
+  },
+  // A character's circle (2.47.0, lib/mcp/circle.ts; the social network PRD section 6.2): the People tab's tools, the
+  // page's own rules (lib/social/declare.ts). None is in the core list.
+  {
+    name: "get_circle",
+    title: "A character's people, ties and places",
+    description:
+      "Who is in a character's life: people off the show (name, relation, a line), its ties to other characters (relation, layer, status, story) and its places (lives, works, regular, studied) with who else is there. " +
+      "Anyone's public parts; for YOUR character also what only you see, proposals waiting on you (answer_tie) and the relations you may use. world: true adds the places set_place takes, by key.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id"],
+      properties: {
+        character_id: str(64, "Any public character, or one of yours."),
+        world: { type: "boolean", default: false, description: "Also list the neighbourhoods, hangouts and workplaces (yours only)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "add_person",
+    title: "Add someone in my character's life",
+    description:
+      "Someone in YOUR character's life off the show: a name, how they're related (mother, sister, best_friend, boss, ex, or a relation id get_circle lists), and optionally pronouns, a line about them, late (they've died) and who sees them. " +
+      "Live at once. Never a character on the site (propose_tie ties to one), never a real person; every word passes the show's check.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "name", "relation"],
+      properties: {
+        character_id: str(64, "One of your characters."),
+        name: str(40, "Their name, up to 40 characters."),
+        relation: str(40, 'What they are to your character: "mother", "older sister", "best_friend".'),
+        pronouns: str(20, "she/her, he/him, they/them."),
+        note: str(160, "One line about them, up to 160 characters."),
+        late: { type: "boolean", default: false, description: "They've died; they're remembered." },
+        visibility: { type: "string", enum: [...CIRCLE_VISIBILITIES], default: "public", description: "Who sees them." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "propose_tie",
+    title: "Tie my character to another",
+    description:
+      "How YOUR character knows another character: with = their character_id, relation = what they are to yours (sister, old_friend, coworker, ex, mentor; mentor:reverse for a mentee). " +
+      "Two of yours: any kind, live at once. Someone else's: a warm kind only (family, friends, work, love history), as a proposal its owner answers (they're told; it lapses after 14 days; 20 a day). " +
+      "Never to the show's own characters, never a rivalry about someone else's (those come from what airs). end_tie withdraws a proposal.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with", "relation"],
+      properties: {
+        character_id: str(64, "One of your characters."),
+        with: str(64, "The other character's id."),
+        relation: str(40, "What they are to your character."),
+        story: str(240, "How they know each other, one line."),
+        since: str(40, '"school", "2019", "forever".'),
+        visibility: { type: "string", enum: [...CIRCLE_VISIBILITIES], default: "public", description: "Who sees it (and the other owner)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "answer_tie",
+    title: "Answer a proposed tie",
+    description: "Yes or no to a tie another owner proposed to one of YOUR characters (get_circle lists the ones waiting on you). Yes puts it on both pages; no drops it, and it isn't asked again for 30 days.",
+    inputSchema: {
+      type: "object",
+      required: ["tie_id", "answer"],
+      properties: {
+        tie_id: str(80, "The proposal's tie_id."),
+        answer: { type: "string", enum: [...TIE_ANSWERS], description: "yes puts the tie on both pages; no drops it." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
+    name: "end_tie",
+    title: "End a tie",
+    description:
+      "A tie YOUR character is in that's over: a friendship, a job or a love history is ended and stays as past; family is taken off; your own proposal is withdrawn. Ties from what aired or from the show stay.",
+    inputSchema: {
+      type: "object",
+      required: ["tie_id"],
+      properties: { tie_id: str(80, "From get_circle."), agent_id: AGENT_ID },
+    },
+    annotations: DELETE,
+  },
+  {
+    name: "set_place",
+    title: "Where my character lives, works or goes",
+    description:
+      "Puts YOUR character at a place of the show's city: role lives (a neighbourhood; a new one replaces the old), works, regular (a hangout) or studied, with place = a place_key from get_circle (world: true). " +
+      "For works or studied, name a new workplace or school instead, with its neighbourhood: the same name is the same place, so its people are coworkers. leave: true takes them out of that place.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "role"],
+      properties: {
+        character_id: str(64, "One of your characters."),
+        role: { type: "string", enum: [...DECLARED_ROLES], description: "lives (a neighbourhood), works, regular (a hangout) or studied." },
+        place: str(120, "A place_key: neighbourhood:old-town, venue:dive_bar, workplace:the-salt-lantern."),
+        name: str(60, "A new workplace or school's name (works, studied)."),
+        neighbourhood: str(80, "The new place's neighbourhood."),
+        since: str(40, '"2021", "two winters".'),
+        leave: { type: "boolean", default: false, description: "Take them out of place (a place_key) in that role." },
+        visibility: { type: "string", enum: [...CIRCLE_VISIBILITIES], default: "public", description: "Who sees it on their page." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
   },
   // Show ideas (2.33.0, lib/mcp/shows.ts): the list on /shows, an answer, a proposal. A demand test; none is in the core list.
   {

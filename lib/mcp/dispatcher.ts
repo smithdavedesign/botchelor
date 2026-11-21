@@ -72,7 +72,7 @@ import {
 // Phase 3 of the lib/mcp.ts split: tool defs + their constants moved out.
 import { bare, BOOKING_RULE, COMPACT_CARDS, EXCLUSIVE_POINTER, EXCLUSIVE_RULE, EXCLUSIVE_SHORT, EXCLUSIVE_SOON, HOUSE_CAST_VS_BOTS, OPEN_MEANS, PARTNER_STYLE_DOC, POINTS_NOTE, SHEET_PROPS, thin } from "./constants";
 export { BOOKING_RULE } from "./constants";
-import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, BROWSE_STATUSES, CREATE_COMPACT, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TOOL_DEFS, TOOL_NOTES, type ToolName } from "./tool-defs";
+import { ARC_PICKS, AUTOPLAY_SIDES, BROWSE_MINE, BROWSE_STATUSES, CIRCLE_VISIBILITIES, CREATE_COMPACT, DEALBREAKER_PICK_NUMBERS, DECK_FILTERS, FEEDBACK_SORTS, FEEDBACK_VOTES, LIST_CAST_KINDS, MY_STATUS_INCLUDES, SEARCH_MADE_BY, TIE_ANSWERS, TOOL_DEFS, TOOL_NOTES, type ToolName } from "./tool-defs";
 import { detectBot } from "../bots";
 import { getDb, type Db } from "../db";
 import { dateNumberSql } from "../date-number";
@@ -97,6 +97,7 @@ import { isLogistics } from "../memory";
 import { describeTemperament, temperamentWords } from "../temperament";
 import { loadSoul, ownsCharacter } from "../souls";
 import { logShown, settleSuggestions, suggestTies } from "../social/suggest";
+import { DECLARED_ROLES } from "../social/relations";
 import { deleteCharacter } from "../account";
 import { invalidateGraph } from "../graph-cache";
 import { isOwnUpdate, thisWeek, type StoredThisWeek } from "../life";
@@ -134,6 +135,7 @@ import { ART_STYLES, artStyleFrom, isArtStyle, type ArtStyle } from "../art-styl
 import { showStyleSql } from "../portrait-sql";
 import { isStatus, STATUS_IDS, STATUSES } from "../tags";
 import { listShowIdeasTool, proposeShowIdeaTool, voteShowIdeaTool } from "./shows";
+import { addPersonTool, answerTieTool, endTieTool, getCircleTool, proposeTieTool, setPlaceTool } from "./circle";
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal, isHouseBotAgent } from "../house-bots";
 import { siteUrl } from "../site";
@@ -300,7 +302,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.46.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.47.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -680,6 +682,12 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   get_story_so_far: FREE,
   my_story_state: FREE,
   suggest_ties: FREE,
+  get_circle: FREE,
+  add_person: FREE,
+  propose_tie: FREE,
+  answer_tie: FREE,
+  end_tie: FREE,
+  set_place: FREE,
   ship_names: FREE,
   oc_chemistry_test: FREE,
   oc_names: FREE,
@@ -841,6 +849,12 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "oc_question.theme": OC_QUESTION_THEMES.map((t) => t.id),
   "random_oc.genre": RANDOM_OC_GENRES,
   "random_oc.kind": OC_NAME_KINDS,
+  // 2.47.0: a character's circle (lib/mcp/circle.ts); the roles are the page's own (lib/social/relations.ts).
+  "add_person.visibility": CIRCLE_VISIBILITIES,
+  "propose_tie.visibility": CIRCLE_VISIBILITIES,
+  "answer_tie.answer": TIE_ANSWERS,
+  "set_place.role": DECLARED_ROLES,
+  "set_place.visibility": CIRCLE_VISIBILITIES,
 };
 /**
  * Tools that work for anyone but are never listed, asked for by name only: request_after_dark until After Dark opens to
@@ -9339,6 +9353,24 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         },
         identity: who,
       };
+    }
+    // A character's circle (2.47.0, lib/mcp/circle.ts): the People tab's own functions (lib/social/declare.ts), so the
+    // rules are the web's. get_circle reads as anyone (an identity adds what's yours); the rest act as your agent.
+    case "get_circle": {
+      const who = resolveIdentity(args, session, false);
+      const out = await getCircleTool(db, who?.id ?? null, args);
+      return "error" in out ? out : { data: out.data, identity: who ?? undefined };
+    }
+    case "add_person":
+    case "propose_tie":
+    case "answer_tie":
+    case "end_tie":
+    case "set_place": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const run = { add_person: addPersonTool, propose_tie: proposeTieTool, answer_tie: answerTieTool, end_tie: endTieTool, set_place: setPlaceTool }[name];
+      const out = await run(db, who.id, args);
+      return "error" in out ? out : { data: out.data, identity: who };
     }
     case "forget_memory": {
       const who = resolveIdentity(args, session, false);
