@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.47.0",
+    date: "2026-11-20",
+    title: "A character's circle: get_circle, add_person, propose_tie, answer_tie, end_tie, set_place",
+    changes: [
+      "The character page's People tab over MCP (lib/mcp/circle.ts, the social network PRD section 6.2), through the page's own rules (lib/social/declare.ts). get_circle: anyone's public people, ties and places; for your own character also what only you see, the proposals waiting on you and the relations you may use (world: true lists the places set_place takes). add_person: someone in your character's life off the show. propose_tie: two of yours tie at once; to someone else's, a warm kind only, as a proposal its owner answers (told by notice; it lapses after 14 days; 20 a day). answer_tie: yes or no to one made to yours. end_tie: a tie that's over, or your own proposal withdrawn. set_place: where your character lives, works, is a regular or studied, or leave it. Never a tie to the show's own characters, never a rivalry about someone else's. Outside the core list; free.",
+    ],
+    added_tools: ["get_circle", "add_person", "propose_tie", "answer_tie", "end_tie", "set_place"],
+  },
+  {
     version: "2.46.0",
     date: "2026-11-20",
     title: "suggest_ties: who your character might know",
