@@ -1,10 +1,16 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
+import SetHero from "@/app/SetHero";
 import VenuePhoto from "@/app/VenuePhoto";
 import When from "@/app/When";
+import { premiereTimeWords } from "@/lib/premiere-clock";
 import { countWord } from "@/lib/season-format";
 import { SEASON_PREMISE, type ScheduleLine, type SeasonLiveData, type Starter, type SuitorCard } from "@/lib/season-page";
+import { premiereEndsAt } from "@/lib/sunday-premiere";
+import PremiereCountdown from "../PremiereCountdown";
+import SeasonLeadFace from "../SeasonLeadFace";
+import { premiereLabel } from "../season-visuals";
 
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
@@ -74,12 +80,15 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
   const leadShort = lead?.short ?? "the lead";
   return (
     <article className="season-live page-wide">
-      <header className="card season-now season-live-hero">
-        <p className="kicker">
-          Season {season.number} · {month} · {def.title}
-        </p>
-        <h1>{SEASON_PREMISE}</h1>
-        <p className="season-now-note">{def.pitch}</p>
+      {/* The title band on the elimination set (the visual pop audit, 2026-11-20): the lead large beside the words, the
+          month's clock, and the next premiere's countdown, an ON AIR light while it plays. */}
+      <SetHero
+        set="elimination"
+        kicker={`Season ${season.number} · ${month} · ${def.title}`}
+        title={SEASON_PREMISE}
+        lede={def.pitch}
+        media={lead ? <SeasonLeadFace lead={lead} kicker={phase === "preseason" ? `${month}'s lead` : "The lead"} /> : undefined}
+      >
         <p className="season-now-clock">
           {arc ? (
             <>
@@ -92,8 +101,17 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
             </>
           )}
         </p>
-        {premiere && <PremiereLine premiere={premiere} />}
-      </header>
+        {premiere && (
+          <PremiereCountdown
+            at={premiere.at}
+            until={premiereEndsAt(premiere.at)}
+            live={premiere.state === "live"}
+            label={premiereLabel(premiere)}
+            words={premiereTimeWords(premiere.at, { day: true })}
+            href={premiere.room_path}
+          />
+        )}
+      </SetHero>
 
       {starters.length > 0 && (
         <section className="season-live-starters" aria-labelledby="season-starters-head" data-track-area="season-starters">
@@ -219,23 +237,5 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
         <Link href="/watch">Watch what&apos;s on →</Link> · <Link href="/reunion">The Reunion →</Link> · <Link href="/seasons">Every season →</Link>
       </p>
     </article>
-  );
-}
-
-/** The next Sunday premiere (lib/sunday-premiere.ts nextPremiere): when, and its room once the job has built it. */
-function PremiereLine({ premiere }: { premiere: NonNullable<SeasonLiveData["premiere"]> }) {
-  const name = premiere.kind === "pilot" ? "The pilot, Meet the lead" : premiere.finale ? "The finale's premiere" : "Sunday's premiere";
-  return (
-    <p className="season-live-premiere" data-track-area="season-premiere">
-      <span className="chip">{premiere.state === "live" ? "Live now" : "Next"}</span> {name}
-      {premiere.suitor ? `: ${premiere.lead.name.split(" ")[0]} and ${premiere.suitor.name.split(" ")[0]}` : ""} ·{" "}
-      <When iso={premiere.at} style="day-time" />
-      {premiere.room_path && (
-        <>
-          {" "}
-          · <Link href={premiere.room_path}>{premiere.state === "live" ? "Watch now →" : "Take your seat →"}</Link>
-        </>
-      )}
-    </p>
   );
 }
