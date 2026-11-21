@@ -10658,6 +10658,70 @@ html.ad-studio-locked {
 .ship-how-list li + li {
   margin-top: var(--space-2);
 }
+/* The best name builds itself (app/ship/[a]/[b]/page.tsx MergedName, pass 2 of the visual pop audit): the two names
+   side by side, the letters each gives up falling away, then the halves meet and the stamp lands. The given-up
+   letters are generated content with no text alternative, so at rest, and under reduced motion, it's just the name. */
+.ship-names li:first-child {
+  position: relative;
+}
+.ship-stamp {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  padding: 0.1rem 0.45rem;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent-text);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  rotate: -8deg;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ship-keep-a::after,
+  .ship-keep-b::before {
+    display: inline-block;
+    max-width: 0;
+    opacity: 0;
+    animation: ship-drop 1.6s var(--ease-out) 0.35s backwards;
+  }
+  .ship-keep-a::after {
+    content: attr(data-drop) "\00a0";
+    content: attr(data-drop) "\00a0" / "";
+    transform-origin: left bottom;
+  }
+  .ship-keep-b::before {
+    content: attr(data-drop);
+    content: attr(data-drop) / "";
+    transform-origin: right bottom;
+    --fall-turn: -16deg;
+  }
+  .ship-stamp {
+    animation: stamp-in 0.45s var(--ease-out) 1.85s backwards;
+  }
+}
+@keyframes ship-drop {
+  0%,
+  35% {
+    max-width: calc(var(--drop-len, 3) * 0.75em + 0.5em);
+    opacity: 1;
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  70% {
+    max-width: calc(var(--drop-len, 3) * 0.75em + 0.5em);
+    opacity: 0;
+    translate: 0 0.9em;
+    rotate: var(--fall-turn, 16deg);
+  }
+  100% {
+    max-width: 0;
+    opacity: 0;
+    translate: 0 0.9em;
+    rotate: var(--fall-turn, 16deg);
+  }
+}
 
 .ship-cta {
   background: var(--paper-2);

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
-import { AgentMark } from "@/app/ReunionPanel";
+import AwardCard from "@/app/AwardCard";
 import VenuePhoto from "@/app/VenuePhoto";
 import { isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
@@ -306,22 +306,7 @@ export default async function SeasonPage({ params, searchParams }: Props) {
           </h2>
           <div className="boards season-awards">
             {d.awards.map((award) => (
-              <div key={award.title} className="card award">
-                <h3>{award.title}</h3>
-                <div className="award-body">
-                  <div className="reunion-faces">
-                    {award.chars.map((c) => (
-                      <Avatar key={c.id} seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={40} decorative />
-                    ))}
-                  </div>
-                  <div>
-                    <p className="award-name">
-                      {award.name} <AgentMark chars={award.chars} />
-                    </p>
-                    <p className="muted">{award.detail}</p>
-                  </div>
-                </div>
-              </div>
+              <AwardCard key={award.title} award={award} line={award.detail} linked={false} />
             ))}
           </div>
         </section>

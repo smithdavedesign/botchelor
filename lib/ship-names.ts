@@ -101,6 +101,30 @@ export function shipPair(rawA: string, rawB: string): ShipPair {
   return { ok: true, a, b, names: blends(a.core, b.core) };
 }
 
+/** How a ship name is cut from its two names: what each keeps and what each gives up (the page's merge, below). */
+export type ShipMerge = { keepA: string; dropA: string; dropB: string; keepB: string };
+
+/** At most this many letters across the two names before the cut, so the uncut pair still fits the top tile. */
+const MERGE_MAX_LETTERS = 16;
+
+/**
+ * The best ship name as the cut that made it (pass 2 of the 2026-11-20 visual pop audit): the head's name with the
+ * letters it gives up, then the tail's. Whichever name the head came from goes first. Null when the blend isn't a
+ * plain head-and-tail cut of the two, when nothing is cut (two whole names glued), or when the pair is too long to
+ * show uncut. keepA + keepB is always the blend's own name.
+ */
+export function shipMerge(a: ShipName, b: ShipName, blend: ShipBlend): ShipMerge | null {
+  const head = blend.head.toLocaleLowerCase("en");
+  const cut = (first: string, second: string): ShipMerge | null =>
+    first.startsWith(head) && second.endsWith(blend.tail) && second.length >= blend.tail.length
+      ? { keepA: blend.head, dropA: first.slice(head.length), dropB: capitalise(second.slice(0, second.length - blend.tail.length)), keepB: blend.tail }
+      : null;
+  const m = cut(a.core, b.core) ?? cut(b.core, a.core);
+  if (!m || (!m.dropA && !m.dropB) || m.keepA + m.keepB !== blend.name) return null;
+  const letters = [...(m.keepA + m.dropA + m.dropB + m.keepB)].length;
+  return letters <= MERGE_MAX_LETTERS ? m : null;
+}
+
 /** The ship names for two names, best first (empty when the pair is refused). */
 export function shipNames(rawA: string, rawB: string): ShipBlend[] {
   const pair = shipPair(rawA, rawB);

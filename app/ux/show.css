@@ -296,22 +296,70 @@ ol.home-features {
   font-size: 1.5rem;
   line-height: 1;
 }
+/* An award as a title card (app/AwardCard.tsx, pass 2 of the visual pop audit): the night surface, gold lettering, the
+   winner's face large and the figure that won it counting up. A gold sheen passes once (app/ux/motion.css). */
+.award-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
+  background: var(--grad-dark);
+  border-color: color-mix(in srgb, var(--frame-gold) 35%, transparent);
+  color: var(--on-photo);
+  box-shadow: var(--shadow);
+}
+.award-card h3 {
+  margin: 0;
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--frame-gold);
+}
+.award-faces {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-1) 0;
+}
+.award-faces.is-pair > * + * {
+  margin-left: -14px;
+}
+.award-faces .avatar {
+  box-shadow: 0 0 0 3px var(--card-dark), 0 0 0 4px color-mix(in srgb, var(--frame-gold) 55%, transparent);
+}
+.award-card .award-name {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  color: var(--on-photo);
+  overflow-wrap: anywhere;
+}
+.award-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: color-mix(in srgb, var(--on-photo) 78%, transparent);
+  overflow-wrap: anywhere;
+}
+.award-line .count-up {
+  color: var(--frame-gold);
+  font-weight: 700;
+}
 /* The awards two to a row on a phone, compact, rather than four full-width cards with wide gaps. */
 @media (max-width: 640px) {
   .reunion-panel .boards {
     grid-template-columns: 1fr 1fr;
     gap: var(--space-2);
   }
-  .reunion-panel .award {
-    padding: var(--space-3);
+  .award-card {
+    padding: var(--space-3) var(--space-2);
   }
-  .reunion-panel .award h3 {
-    font-size: var(--text-sm);
-  }
-  .reunion-panel .award .award-body {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
+  .award-card .award-name {
+    font-size: var(--text-base);
   }
 }
 
