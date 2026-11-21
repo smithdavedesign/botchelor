@@ -44,6 +44,11 @@ export const EXPRESS_DRAFT_ALL_LIMITS = { perHour: 60, perDay: 300 };
 export const IMPORT_HISTORY_LIMITS = { perHour: 4, perDay: 10 };
 export const IMPORT_HISTORY_IP_LIMITS = { perHour: 8, perDay: 24 };
 export const IMPORT_HISTORY_ALL_LIMITS = { perHour: 15, perDay: 60 };
+/**
+ * Ties proposed to someone else's character (lib/social/declare.ts declareTie; the social network PRD section 6.2): 20
+ * a day per person, each one a notification (and maybe an email) to another owner. A burst is a day's worth.
+ */
+export const SOCIAL_PROPOSE_LIMITS = { perHour: 20, perDay: 20 };
 /** Paid-model dates a day unless FRONTIER_DAILY_DATE_CAP says otherwise: about $4–11 at Haiku's 4–11¢ a date. */
 export const DEFAULT_PAID_DATES_PER_DAY = 100;
 /** How long a rate-limit row is kept (the longest window plus a margin). */

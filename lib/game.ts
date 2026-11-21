@@ -1255,7 +1255,16 @@ export async function getCharacterHistory(
 /** One of a character's aired dates on its card, with who it was with (a face and a link: app/CharacterName.tsx). */
 /** date_number: which date it was for the couple (absent on a first date), so its ending reads right. */
 /** aired_at: when it aired (ISO), for the page's "Right now" (lib/character-now.ts). */
-export type CharacterDate = { episode_id: string; share_path: string; partner: CharacterRef; ending: Ending; date_number?: number; aired_at?: string };
+export type CharacterDate = {
+  episode_id: string;
+  share_path: string;
+  partner: CharacterRef;
+  ending: Ending;
+  date_number?: number;
+  aired_at?: string;
+  /** Where it was (the venue's id): the contestant card blurs the latest one behind the character. */
+  venue?: string;
+};
 
 /** A character card's "Date record" this many dates a page (?dates=N). */
 export const CHARACTER_DATES_PAGE = 10;
@@ -1287,8 +1296,9 @@ export async function getCharacterDatesPage(
       p_private: boolean;
       date_number: number | null;
       aired_at: Date | string | null;
+      venue: string | null;
     }>(
-      `select e.id as episode_id, e.ending, e.revealed_at as aired_at, ${dateNumberSql("e")} as date_number, p.id as p_id, p.name as p_name, p.is_house as p_house, p.avatar_hue as p_hue,
+      `select e.id as episode_id, e.ending, e.revealed_at as aired_at, e.setup->>'venue' as venue, ${dateNumberSql("e")} as date_number, p.id as p_id, p.name as p_name, p.is_house as p_house, p.avatar_hue as p_hue,
               ${portraitPathSql("p")} as p_portrait,
               (p.visibility = 'private' and p.owner_id is distinct from $2::text) as p_private
          from episodes e
@@ -1319,6 +1329,7 @@ export async function getCharacterDatesPage(
     ending: r.ending,
     ...(r.date_number ? { date_number: r.date_number } : {}),
     ...(r.aired_at ? { aired_at: new Date(r.aired_at).toISOString() } : {}),
+    ...(r.venue ? { venue: r.venue } : {}),
     partner: { id: r.p_id, name: r.p_name, house: r.p_house, hue: r.p_hue, portrait: r.p_portrait, ...(r.p_private ? { private: true } : {}) },
   }));
   return { dates, record: tally, page: p, pages, total: tally.dates };

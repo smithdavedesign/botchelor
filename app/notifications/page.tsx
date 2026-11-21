@@ -24,6 +24,8 @@ import NotificationSettings from "./NotificationSettings";
 import NotificationMutes from "./NotificationMutes";
 import { mutedTypes } from "@/lib/notification-mutes";
 import PushToggle from "./PushToggle";
+import TieAnswer from "./TieAnswer";
+import { openProposals, proposalOfLink } from "@/lib/social/declare";
 import When from "@/app/When";
 import EmptyState from "@/app/EmptyState";
 
@@ -90,7 +92,16 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const unread = type ? (typeCounts.get(type)?.unread ?? 0) : [...typeCounts.values()].reduce((s, c) => s + c.unread, 0);
   if (viewerId && unread > 0) await markRead(db, viewerId, "all", { kinds });
   const push = pushKeys();
-  const faces = viewerId ? await notificationFaces(db, viewerId, items).catch(() => new Map<string, CharacterRef[]>()) : new Map<string, CharacterRef[]>();
+  // A tie another owner proposed (lib/social/declare.ts) is answered here while it's still waiting, read beside the faces.
+  const proposals = new Map<string, { characterId: string; tieId: string }>();
+  for (const n of items) {
+    const p = n.kind === "tie_proposal" ? proposalOfLink(n.link) : null;
+    if (p) proposals.set(n.id, p);
+  }
+  const [faces, waiting] = await Promise.all([
+    viewerId ? notificationFaces(db, viewerId, items).catch(() => new Map<string, CharacterRef[]>()) : new Map<string, CharacterRef[]>(),
+    openProposals(db, [...proposals.values()].map((p) => p.tieId)).catch(() => new Set<string>()),
+  ]);
   // With nothing here yet, the next step: someone with a character swipes for a match (it said "Make a character" to
   // them too); anyone else makes one.
   const hasCharacter =
@@ -165,6 +176,10 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                 ) : (
                   n.body && <span className="notif-body">{n.body}</span>
                 )}
+                {(() => {
+                  const p = proposals.get(n.id);
+                  return p && waiting.has(p.tieId) ? <TieAnswer characterId={p.characterId} tieId={p.tieId} /> : null;
+                })()}
                 <span className="muted small">
                   <span className="notif-type">{NOTIFICATION_TYPE_LABELS[notificationTypeOf(n.kind)]}</span> · <When iso={n.created_at} /> ·{" "}
                   <ClearNotifications id={n.id} />

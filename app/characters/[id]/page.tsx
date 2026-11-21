@@ -15,7 +15,8 @@ import { castingBadgesOf, castingLead, type Casting } from "@/lib/casting";
 import { seasonPageLiveOn } from "@/lib/season-page";
 import { seasonPath } from "@/lib/season-ref";
 import { shared } from "@/lib/shared-cache";
-import { characterPortrait } from "@/lib/portraits";
+import { characterPortrait, venueBackdrop } from "@/lib/portraits";
+import { showSetPath } from "@/lib/show-sets";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import { portraitPathSql, withPortraits } from "@/lib/assets";
@@ -77,8 +78,11 @@ import { characterTalk } from "@/lib/character-talk";
 import { characterFollowOn, characterFollowState } from "@/lib/character-follows";
 import { characterNowOn, shapeNow } from "@/lib/character-now";
 import { FollowToggle, HeaderMore } from "./HeaderActions";
+import IntroClip from "./IntroClip";
 import RightNow from "./RightNow";
 import MightKnow from "./MightKnow";
+import TheirPeople from "./TheirPeople";
+import { placeMenu, theirPeople } from "@/lib/social/declare";
 import { socialLensesOn } from "@/lib/social/lens-sky";
 import { PERSONA_OWNER_PREFIX } from "@/lib/step-in-shared";
 import { storyView } from "@/lib/story-state";
@@ -365,6 +369,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     reviewsOpen,
     follow,
     inviteNow,
+    peopleView,
+    placesMenu,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -402,8 +408,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     c.house ? reviewableNow(c.id) : Promise.resolve(true),
     followP,
     inviteP,
+    // "Their people" (lib/social/declare.ts, the social network PRD section 6.2): their circle as this viewer may see it,
+    // and for their owner the places to pick from. Null with SOCIAL_DECLARE=0 (or SOCIAL_TIES=0): no People tab.
+    theirPeople(db, id, viewerId).catch(() => null),
+    isOwner && !c.house && viewerId ? placeMenu(db, viewerId).catch(() => null) : Promise.resolve(null),
   ]);
   const week = thisWeek(c.id, c.this_week);
+  // The People tab: for their owner always (to add to it), for anyone else when there's someone in it.
+  const peopleTab = Boolean(
+    peopleView && (peopleView.character.editable || peopleView.people.length > 0 || peopleView.ties.some((t) => t.layer !== "communication") || peopleView.places.length > 0),
+  );
   // Its creator, credited (the casting invite's promise, lib/casting-invites.ts): their creator page, when they have one.
   const credit = away?.credit_handle && away.credit_name ? { handle: away.credit_handle, name: away.credit_name } : null;
   // The open invite's one line: a character of theirs made on the site that isn't auditioning or on the cast yet.
@@ -528,6 +542,29 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const leading = await castingLeadP.then((l) => (l?.lead.id === c.id ? l : null));
   const leadWords = leading ? (leading.phase === "season" ? "This season's lead" : `${leading.month}'s lead`) : null;
   const intro = await introOf(db, c.id);
+  // The contestant card (the visual pop audit, 2026-11-20). Behind it, the place of their latest aired date (the record's
+  // first page has it; a later page asks once), else the stage; the face, their portrait at the card's size.
+  const lastVenue =
+    datesPage === 1
+      ? (episodes[0]?.venue ?? null)
+      : await db
+          .query<{ venue: string | null }>(
+            `select e.setup->>'venue' as venue from episodes e
+              where (e.character_a = $1 or e.character_b = $1) and e.revealed_at is not null and e.visibility = 'public'
+              order by e.revealed_at desc limit 1`,
+            [c.id],
+          )
+          .then((r) => r.rows[0]?.venue ?? null)
+          .catch(() => null);
+  const backdrop = (lastVenue && venueBackdrop(lastVenue)) || showSetPath("stage");
+  const faceSrc = characterPortrait(c.id) ?? (c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}.webp?w=384` : null);
+  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+  const stats: { key: string; n: string | number | null; label: string }[] = [
+    ...(record.dates > 0 ? [{ key: "dates", n: record.dates, label: plural(record.dates, "aired date", "aired dates") }] : []),
+    ...(record.second_dates > 0 ? [{ key: "second", n: record.second_dates, label: plural(record.second_dates, "second date", "second dates") }] : []),
+    ...(reviews.count > 0 && reviews.average !== null ? [{ key: "reviews", n: `${reviews.average.toFixed(1)} ★`, label: `from ${reviews.count} ${plural(reviews.count, "review", "reviews")}` }] : []),
+  ];
+  if (!stats.length) stats.push({ key: "new", n: null, label: c.private ? "Off the show" : "First date still to come" });
   // The owner's tools, and the studios an admin opens on the house cast: under one Manage fold on an owner's page (B11).
   const ownerTools = (
     <>
@@ -630,12 +667,26 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           ]),
         ]}
       />
-      <p className="kicker">
-        <Link href={listHref}>← Characters</Link> · {leading ? "The Botchelor · lead card" : "Contestant card"}
-      </p>
-      <div className="contestant">
-        <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={96} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} />
+      {/* The contestant card (the visual pop audit, 2026-11-20): a dark title card, their hello playing as the face where
+          they have one (it had sat under "Right now"), else the portrait with a slow push-in; the counts as chips; the
+          place of their last date blurred behind, or the stage when they haven't had one. Everything the header held is
+          still in it, in the same order. */}
+      <div className={intro ? "contestant contestant-card has-intro" : "contestant contestant-card"}>
+        <div className="contestant-card-stage" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a static public asset (1024×576), blurred behind the card */}
+          <img src={backdrop} alt="" width={1024} height={576} decoding="async" fetchPriority="low" />
+        </div>
+        <div className="contestant-card-face">
+          {intro ? (
+            <IntroClip src={intro.url} poster={faceSrc ?? undefined} name={shortName(c.name)} />
+          ) : (
+            <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={384} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} fill eager />
+          )}
+        </div>
         <div className="meta">
+          <p className="kicker">
+            <Link href={listHref}>← Characters</Link> · {leading ? "The Botchelor · lead card" : "Contestant card"}
+          </p>
           <h1>
             {c.name}
             {makerHandle ? (
@@ -691,6 +742,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 <AiTag label="AI-generated portrait" />
               </>
             )}
+            {/* Their hello, playing as the card's face, is a generated video (lib/cast-intros.ts). */}
+            {intro && (
+              <>
+                {" "}
+                <AiTag label="AI-generated video" />
+              </>
+            )}
           </p>
           {(c.extras.occupation || c.extras.hometown) && (
             <p className="contestant-job">
@@ -699,6 +757,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               {c.extras.hometown && <>from {c.extras.hometown}</>}
             </p>
           )}
+          {/* Their numbers as chips, from what the page already read (the date record's tally, the reviews, the follows). */}
+          <ul className="contestant-stats" aria-label={`${shortName(c.name)} in numbers`}>
+            {stats.map((st) => (
+              <li key={st.key}>
+                {st.n !== null && <strong>{st.n}</strong>} {st.label}
+              </li>
+            ))}
+          </ul>
           {/* One row of small actions: Text, Follow, and ⋯ for what is rarely used (the link to share, which was a row
               of its own under the header). */}
           {(text || canFollow || !c.private) && (
@@ -733,15 +799,6 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       </div>
       {/* What is going on with them this minute, before anything else on the page; nothing at all when nothing is. */}
       {now && <RightNow name={shortName(c.name)} now={now} />}
-      {intro && (
-        <figure className="intro-card">
-          {/* Their hello (lib/cast-intros.ts): a short OmniHuman clip in their own voice, rendered once; muted until played, like the reels. */}
-          <video src={intro.url} poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : (characterPortrait(c.id) ?? undefined)} muted autoPlay loop playsInline controls preload="metadata" />
-          <figcaption className="muted small">
-            {c.name} says hello{intro.seconds ? ` · ${Math.round(intro.seconds)} s` : ""} · <AiTag label="AI-generated video" />
-          </figcaption>
-        </figure>
-      )}
       <AiFiction />
       {/* One primary action (lib/character-verb.ts): send theirs on a date, or step into one themselves, or make a
           character. #date is where a card's "Send … on a date" lands, its confirm sheet open (?send=). */}
@@ -822,6 +879,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       <PageTabs
         tabs={[
           { id: "profile", label: "Profile" },
+          ...(peopleTab ? [{ id: "people", label: "People" }] : []),
           ...(secrets ? [{ id: "secrets", label: "Secrets" }] : []),
           talkOfHouse ? { id: "talk", label: "Talk of the house", short: "Talk" } : { id: "audience", label: "Audience" },
           ...(memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) ? [{ id: "story", label: "Story" }] : []),
@@ -947,12 +1005,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
       {/* "Might know" (lib/social/suggest.ts, the social network PRD section 6.3): who their character might know, the
-          owner's page only; it asks after the page is up. */}
-      {ratings.is_owner && !c.house && <MightKnow characterId={c.id} name={c.name} />}
+          owner's page only; it asks after the page is up. Inside the People tab when their owner can add to it. */}
+      {ratings.is_owner && !c.house && !peopleView?.character.editable && <MightKnow characterId={c.id} name={c.name} />}
       {c.house && <AfterDarkTeaser character={c.id} />}
       {/* Their own After Dark pictures of them, blurred: the owner's page only. */}
       {adPhotos && <AfterDarkPhotos characterId={c.id} data={adPhotos} />}
       </div>
+      {peopleView && peopleTab && (
+        <div data-panel="people" id="panel-people" role="tabpanel" aria-labelledby="tab-people" hidden>
+          <TheirPeople view={peopleView} menu={placesMenu} suggest={!c.house} />
+        </div>
+      )}
       {secrets && (
         <div data-panel="secrets" id="panel-secrets" role="tabpanel" aria-labelledby="tab-secrets" hidden>
           <Secrets name={shortName(c.name)} secrets={secrets} />

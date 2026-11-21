@@ -40,6 +40,7 @@ import { bookHouseOvernight } from "@/lib/overnight-house";
 import { storyCheckSweep } from "@/lib/story-check";
 import { drawShowShots, SHOTS_FROM_HOUR } from "@/lib/show-shots";
 import { backfillSocial } from "@/lib/social/derive";
+import { lapseProposals } from "@/lib/social/declare";
 import { resumeSocialMetrics } from "@/lib/social/metrics-job";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
@@ -166,6 +167,9 @@ async function run(req: Request): Promise<Response> {
   // its own budget, so what a hook missed (a failed write, a switch that was off) is caught within a day. Writes only
   // what differs; left to the next pass when the run is already long.
   const social = Date.now() - started > LONG_RUN_MS ? null : await backfillSocial(db, { budgetMs: 30_000 }).catch(() => null);
+  // A tie proposed to someone else's character with no answer in 14 days lapses, and its asker is told
+  // (lib/social/declare.ts; the social network PRD section 6.2).
+  const tiesLapsed = await lapseProposals(db).catch(() => 0);
   // The social network's numbers (lib/social/metrics-job.ts): a day the daily job's run left short at its time budget is
   // finished here, after the response. One cheap select when there's nothing to pick up, which is nearly always.
   const socialMetrics = () => resumeSocialMetrics(db).catch(() => null);
@@ -204,7 +208,7 @@ async function run(req: Request): Promise<Response> {
   // The story check (lib/story-check.ts): aired dates whose lines and ending disagree are kept off the featured places,
   // a few short paid calls a pass (featured first), within its own time budget; not on a run that's already long.
   const storyCheck = Date.now() - started > LONG_RUN_MS ? null : await storyCheckSweep(db).catch(() => null);
-  return json({ ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

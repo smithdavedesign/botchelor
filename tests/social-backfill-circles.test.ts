@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   circleMessages,
   familyHints,
+  isTitleOnly,
+  offerNeighbourhoods,
   offerWorkplaces,
   parseArgs,
   parseReply,
   pickCandidates,
   queue,
   remember,
+  shuffled,
   tieIndex,
   toCircle,
   type ShowCharacter,
@@ -105,6 +108,17 @@ describe("the prompt and the reply", () => {
     expect(user.content).toContain("- Ola Doe: The tinkerer, Ferry pilot, from Leeds");
   });
 
+  it("lists the neighbourhoods and hangouts in each character's own order (the model leans to the last one)", () => {
+    const oldTownFirst = (seq: number[]) => {
+      let i = 0;
+      const [, user] = circleMessages(char("me"), { world, candidates: [], byId: new Map(), workplaces: [], random: () => seq[i++ % seq.length] });
+      return user.content.indexOf("Old Town (") < user.content.indexOf("The Front (");
+    };
+    expect(oldTownFirst([0.1, 0.9])).toBe(true);
+    expect(oldTownFirst([0.9, 0.1])).toBe(false);
+    expect(shuffled([3, 1, 2], () => 0.5).sort()).toEqual([1, 2, 3]);
+  });
+
   it("finds the JSON in a reply", () => {
     expect(parseReply('Sure! {"people": []} hope that helps')).toEqual({ people: [] });
     expect(parseReply("no json")).toBeNull();
@@ -159,14 +173,30 @@ describe("the prompt and the reply", () => {
     ]);
   });
 
+  it("leaves out a title that isn't a name (Mum, Auntie), and keeps one with a name in it", () => {
+    const reply = {
+      people: [
+        { name: "Mum", relation: "mother" },
+        { name: "auntie", relation: "aunt" },
+        { name: "The Boss", relation: "boss" },
+        { name: "Auntie Meg", relation: "aunt" },
+        { name: "Al", relation: "best friend" },
+      ],
+    };
+    expect(toCircle(char("me"), reply, { candidates: [], workplaces: [] }).people.map((p) => p.name)).toEqual(["Auntie Meg", "Al"]);
+    expect([isTitleOnly("Mum"), isTitleOnly(" my  mum "), isTitleOnly("Uncle Fen"), isTitleOnly("Ma Rainey")]).toEqual([true, true, false, false]);
+  });
+
   it("remembers what was written: the ties both ways, a new workplace for the next character", () => {
     const me = char("me", { name: "Mae Rook" });
     const ola = char("ola");
     const byId = new Map([["me", me], ["ola", ola]]);
     const ties = tieIndex([]);
     const workplaces = [...world.workplaces];
-    const circle = toCircle(me, { people: [{ name: "Rosa", relation: "mother" }, { name: "Gus", relation: "llama" }], works: { name: "Brine & Daughters", neighbourhood: "Old Town" }, knows: [{ name: "Ola Doe", relation: "mentor" }] }, { candidates: [ola], workplaces });
-    remember(me, circle, { character_id: "me", status: "written", people: 1, places: 1, ties: 1, refused: [{ item: "person", what: "Gus", reason: "not a relation: llama" }] }, { byId, ties, workplaces, world });
+    const homes = new Map<string, number>();
+    const circle = toCircle(me, { people: [{ name: "Rosa", relation: "mother" }, { name: "Gus", relation: "llama" }], lives: "the front", works: { name: "Brine & Daughters", neighbourhood: "Old Town" }, knows: [{ name: "Ola Doe", relation: "mentor" }] }, { candidates: [ola], workplaces });
+    remember(me, circle, { character_id: "me", status: "written", people: 1, places: 2, ties: 1, refused: [{ item: "person", what: "Gus", reason: "not a relation: llama" }] }, { byId, ties, workplaces, world, homes });
+    expect(homes).toEqual(new Map([["neighbourhood:the-front", 1]]));
     expect(me.circle!.people).toEqual([{ name: "Rosa", relation: "mother" }]);
     expect(ties.has("ola", "me")).toBe(true);
     expect(ola.circle!.ties).toEqual([{ with: "me", relation: "mentor", phrase: "they are Mae's mentor" }]);
@@ -174,8 +204,23 @@ describe("the prompt and the reply", () => {
     expect(me.has_circle).toBe(true);
     // A dry run or a skip remembers nothing.
     const other = char("other");
-    remember(other, circle, { character_id: "other", status: "checked", people: 1, places: 1, ties: 1, refused: [] }, { byId, ties, workplaces, world });
+    remember(other, circle, { character_id: "other", status: "checked", people: 1, places: 1, ties: 1, refused: [] }, { byId, ties, workplaces, world, homes });
     expect(other.has_circle).toBe(false);
+    // A home the site refused isn't counted.
+    const third = char("third");
+    remember(third, circle, { character_id: "third", status: "written", people: 1, places: 1, ties: 1, refused: [{ item: "place", what: "lives the front", reason: "x" }] }, { byId, ties, workplaces, world, homes });
+    expect(homes.get("neighbourhood:the-front")).toBe(1);
+  });
+
+  it("offers the emptiest neighbourhoods to live in, so the model can't put everyone in one", () => {
+    const hoods = ["a", "b", "c", "d", "e"].map((x) => ({ key: `neighbourhood:${x}`, name: x.toUpperCase(), description: "" }));
+    const homes = new Map([["neighbourhood:a", 4], ["neighbourhood:b", 1], ["neighbourhood:d", 2]]);
+    expect(offerNeighbourhoods(hoods, homes, { n: 3, random: () => 0.5 }).map((h) => h.name)).toEqual(["C", "E", "B"]);
+    expect(offerNeighbourhoods(hoods, new Map(), { n: 9 })).toHaveLength(5);
+    // The prompt names only the ones offered.
+    const [, user] = circleMessages(char("me"), { world, candidates: [], byId: new Map(), workplaces: [], neighbourhoods: [world.neighbourhoods[1]] });
+    expect(user.content).toContain("The Front (The seafront.)");
+    expect(user.content).not.toContain("Old Town");
   });
 
   it("offers the newest workplaces and a few older ones", () => {

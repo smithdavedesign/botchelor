@@ -846,29 +846,18 @@
    (.season-now) with the premise, three dates to start with (Watch's cards, .watch-latest-list), the lead and the
    suitors side by side from 900px (the suitors as casting's slots), and when things happen. Phone first: the hero stays
    short, so the first date is on the first screen at 390px. Tokens only. ---------------- */
-.season-live-hero {
-  margin: var(--space-3) 0 var(--space-4);
-}
-.season-live-hero h1 {
-  margin: var(--space-1) 0 0;
-  color: var(--on-photo);
+/* The hero is the elimination set's band (app/SetHero.tsx, the visual pop audit 2026-11-20): the premise smaller than a
+   page title on a phone, so the band stays as short as it can. */
+.season-live .set-hero h1 {
   font-size: var(--text-2xl);
   line-height: 1.15;
   text-wrap: balance;
 }
-.season-live-hero .season-now-note {
-  margin-top: var(--space-2);
-}
-.season-live-hero .season-now-clock {
-  margin-top: var(--space-2);
-  font-size: var(--text-md);
-}
-.season-live-hero .season-live-premiere {
+.season-live .set-hero .season-now-clock {
   margin: var(--space-2) 0 0;
-  color: var(--on-photo);
-  font-size: var(--text-sm);
-}
-.season-live-hero .season-live-premiere a {
+  font-family: "Fraunces", Georgia, serif;
+  font-style: italic;
+  font-size: var(--text-md);
   color: var(--on-photo);
 }
 .season-live-starters {
@@ -947,7 +936,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
-  .season-live-hero h1 {
+  .season-live .set-hero h1 {
     font-size: var(--text-display);
   }
 }
@@ -1091,4 +1080,145 @@
 }
 .show-seasons-list a.card p {
   margin: var(--space-1) 0 0;
+}
+
+/* ---------------- The season's hero on the elimination set (app/seasons/page.tsx, app/seasons/[slug]/SeasonLive.tsx) ----
+   The visual pop audit, 2026-11-20, pass 1: the lead's portrait large beside the words, and the next premiere's clock
+   (app/seasons/PremiereCountdown.tsx) that turns into an ON AIR light when it starts. Complete at rest: the time in words
+   is the server's, the numbers fill in once the page is live. */
+.season-lead-face {
+  display: grid;
+  gap: var(--space-2);
+  width: clamp(9rem, 6rem + 10vw, 15rem);
+  margin: 0 auto;
+}
+.season-lead-face .avatar {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  border: 2px solid color-mix(in srgb, var(--on-photo) 35%, transparent);
+  border-radius: var(--radius-lg);
+  object-fit: cover;
+  object-position: 50% 20%;
+  box-shadow: 0 24px 48px -18px color-mix(in srgb, black 85%, transparent);
+}
+.season-lead-face figcaption {
+  display: grid;
+  gap: 0;
+  text-align: center;
+}
+.season-lead-face figcaption .kicker {
+  margin: 0;
+}
+.season-lead-face figcaption a {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.premiere-countdown {
+  /* A studio's ON AIR light. */
+  --premiere-on-air: #ff4d5e;
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+}
+.premiere-countdown > p {
+  margin: 0;
+}
+.premiere-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.premiere-label {
+  color: var(--on-photo);
+}
+.premiere-light {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--on-photo) 30%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--card-dark) 55%, transparent);
+  color: var(--on-photo);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.premiere-light-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--on-photo) 45%, transparent);
+}
+/* On air: the light goes red and glows, the way a studio's does. */
+.premiere-countdown.is-live .premiere-light {
+  border-color: var(--premiere-on-air);
+  background: color-mix(in srgb, var(--premiere-on-air) 22%, transparent);
+}
+.premiere-countdown.is-live .premiere-light-dot {
+  background: var(--premiere-on-air);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--premiere-on-air) 35%, transparent), 0 0 14px var(--premiere-on-air);
+  animation: premiere-on-air 1.6s ease-in-out infinite alternate;
+}
+@keyframes premiere-on-air {
+  to {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--premiere-on-air) 15%, transparent), 0 0 22px var(--premiere-on-air);
+  }
+}
+.premiere-clock {
+  display: flex;
+  gap: var(--space-2);
+}
+.premiere-clock > span {
+  display: grid;
+  justify-items: center;
+  min-width: 3.4rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--on-photo) 18%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--card-dark) 60%, transparent);
+}
+.premiere-clock b {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--on-photo);
+}
+.premiere-clock small {
+  font-size: var(--text-xs);
+  color: var(--set-hero-soft);
+}
+.premiere-words {
+  font-size: var(--text-sm);
+}
+@media (prefers-reduced-motion: reduce) {
+  .premiere-countdown.is-live .premiere-light-dot {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  /* On a phone the lead sits beside their name, so the band stays short. */
+  .season-lead-face {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+  .season-lead-face figcaption {
+    text-align: left;
+  }
+  .premiere-clock > span {
+    min-width: 0;
+    flex: 1;
+  }
 }
