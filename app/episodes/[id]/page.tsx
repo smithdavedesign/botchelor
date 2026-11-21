@@ -185,6 +185,8 @@ function EpisodeHero({
     .join(", ");
   return (
     <header className={`episode-hero${photo ? "" : " no-photo"}`} style={{ backgroundImage: background }}>
+      {/* The theater's camera on the venue: a slow push-in on the same picture (pass 2 of the visual pop audit). */}
+      <span className="episode-hero-art" aria-hidden="true" style={{ backgroundImage: background }} />
       <div className="episode-hero-inner">
         <p className="episode-hero-kicker">
           <span>Botchelor</span>

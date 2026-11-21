@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import VenuePhoto from "@/app/VenuePhoto";
 import Avatar from "@/app/Avatar";
 import { FeedEntry } from "@/app/EpisodeItem";
 import Icon from "@/app/Icon";
@@ -86,6 +87,8 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
   return (
     // "Start it" starts it (lib/watch.ts syncRoom `start`); any other way into a waiting room asks first.
     <Link href={room.status === "ready" ? `${room.room_path}?start=1` : room.room_path} className={`card watch-lobby-card is-${room.status}`}>
+      {/* A room still to start shows where the date is, across its top (pass 2 of the visual pop audit). */}
+      {(room.status === "ready" || room.status === "upcoming") && room.venue && <VenuePhoto venue={room.venue} className="watch-lobby-top" />}
       <div className="watch-lobby-avatars">
         <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={44} />
         <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />
@@ -273,7 +276,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {live.length ? null : (
           // Nothing live: one line, not a heading over an empty space.
           <p className="watch-live-empty">
-            <span className="watch-dot off" aria-hidden /> <strong>Nothing live right now.</strong>{" "}
+            {/* A studio's light, switched off (the seasons page's ON AIR light, dimmed). */}
+            <span className="off-air" aria-hidden="true">
+              <span className="off-air-dot" />
+              Off air
+            </span>{" "}
+            <strong>Nothing live right now.</strong>{" "}
             <span className="muted">
               {ready.length
                 ? "Start an open room: anyone who joins in the next few minutes watches it with you."

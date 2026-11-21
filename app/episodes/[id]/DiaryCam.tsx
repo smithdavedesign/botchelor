@@ -1,6 +1,7 @@
 import Avatar from "@/app/Avatar";
 import type { CharacterRef } from "@/lib/game";
 import type { SeeAgain } from "@/lib/inner-life";
+import { showSetBackground } from "@/lib/show-sets";
 
 const SEE_AGAIN_SAYS: Record<SeeAgain, string> = { yes: "Yes", maybe: "Maybe", no: "No" };
 
@@ -31,7 +32,8 @@ export default function DiaryCam({
       <summary>
         <span aria-hidden="true">📹</span> Diary cam: what they said after
       </summary>
-      <ul className="diary-cam-list">
+      {/* On the confessional set, the camera rolling (pass 2 of the visual pop audit; lib/show-sets.ts). */}
+      <ul className="diary-cam-list on-set diary-cam-set" style={{ backgroundImage: showSetBackground("confessional", 0.6) }}>
         {ids.map((id) => {
           const c = characters.find((x) => x.id === id);
           if (!c) return null;

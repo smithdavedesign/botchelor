@@ -3039,6 +3039,39 @@ button.poll-option.chosen {
 .watch-league-details[open] > summary {
   margin-bottom: var(--space-3);
 }
+/* Nothing live: a studio's light, switched off and dimmed (the seasons page's ON AIR light, app/ux/seasons.css). */
+.off-air {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: center;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.off-air-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+/* A room still to start: where the date is, across the card's top. */
+.watch-lobby-top {
+  display: none;
+}
+.watch-strip .watch-lobby-top {
+  display: block;
+  align-self: stretch;
+  height: 5rem;
+  margin: -1.1rem -1.25rem 0;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+}
 .watch-live-empty {
   display: flex;
   flex-wrap: wrap;
@@ -11792,6 +11825,26 @@ main:has(> .episode-page) {
       linear-gradient(0deg, color-mix(in srgb, var(--photo-bg) 55%, transparent) 0%, color-mix(in srgb, var(--photo-bg) 30%, transparent) 55%, transparent 85%);
   }
 }
+/* The theater's camera on the venue (pass 2 of the visual pop audit): the same picture on its own layer, pushing in
+   slowly under the scrim and the words, as the sets do (app/ux/stage.css set-push-in). Still under reduced motion. */
+.episode-hero {
+  overflow: hidden;
+  isolation: isolate;
+}
+.episode-hero-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--photo-bg);
+  background-size: cover;
+  background-position: center 35%;
+  transform-origin: 55% 45%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .episode-hero-art {
+    animation: set-push-in 30s ease-in-out infinite alternate;
+  }
+}
 .episode-hero-inner {
   position: relative;
   display: flex;
@@ -11995,6 +12048,16 @@ main:has(> .episode-page) {
 }
 .episode-read > h2 {
   margin: 0 0 0.2rem;
+}
+/* "Read it line by line": each line rises in as it scrolls into view (app/ux/motion.css rise-in, view timelines only). */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .episode-read .chat-row {
+      animation: rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+  }
 }
 .episode-read-lede {
   margin: 0 0 var(--space-3);
@@ -15115,6 +15178,41 @@ button.thread-menu-item:hover:not(:disabled) {
   padding: 0;
   display: grid;
   gap: var(--space-3);
+}
+/* The diary cam on the confessional set, the camera rolling: a REC light in the corner (its words hidden from screen
+   readers: it's set dressing). */
+.diary-cam-set {
+  position: relative;
+  padding-top: calc(var(--space-4) + 1.1rem);
+}
+.diary-cam-set::before {
+  content: "REC";
+  content: "REC" / "";
+  position: absolute;
+  top: var(--space-3);
+  left: calc(var(--space-4) + 0.85rem);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--on-photo);
+}
+.diary-cam-set::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--space-3) + 0.3rem);
+  left: var(--space-4);
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--bad);
+}
+.diary-cam-set .diary-choice-q {
+  color: color-mix(in srgb, var(--on-photo) 78%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .diary-cam-set::after {
+    animation: watch-pulse 1.6s ease-in-out infinite;
+  }
 }
 .diary-cam-list li {
   display: flex;
