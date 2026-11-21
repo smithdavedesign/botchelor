@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as register } from "@/app/api/auth/register/route";
 import { GET as readSoul, PUT as writeSoul } from "@/app/api/characters/[id]/soul/route";
@@ -267,5 +269,30 @@ describe("what leaves the server names characters, not owners", () => {
   it("the proposal route is one of the routes that answers with that view", () => {
     // Its happy path is covered in tests/date-proposals.test.ts, which checks the reply carries no owner's id.
     expect(typeof proposeRoute).toBe("function");
+  });
+});
+
+describe("only lib/http.ts makes the server's own request", () => {
+  const root = join(__dirname, "..");
+  function sources(dir: string): string[] {
+    return readdirSync(dir).flatMap((name) => {
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) return name === "node_modules" ? [] : sources(p);
+      return /\.(ts|tsx)$/.test(name) ? [p] : [];
+    });
+  }
+
+  /**
+   * The rest of the suite runs with LEGACY_BARE_UID=1, so a route or job that writes a bare id cookie by hand, or
+   * builds a request to MCP_CALL_URL itself, passes every other test and then acts as a stranger in production (its
+   * request isn't one internalRequest made). This is the test that catches it.
+   */
+  it("no other file writes a bare id cookie or builds a request to MCP_CALL_URL by hand", () => {
+    const BY_HAND = [/\$\{USER_COOKIE\}=/, /bz_uid=\$\{/, /["'`]bz_uid=["'`]\s*\+/, /new Request\(\s*MCP_CALL_URL/];
+    const offenders = [...sources(join(root, "app")), ...sources(join(root, "lib"))]
+      .map((p) => relative(root, p))
+      .filter((p) => p !== join("lib", "http.ts"))
+      .filter((p) => BY_HAND.some((re) => re.test(readFileSync(join(root, p), "utf8"))));
+    expect(offenders, "build it with internalRequest (lib/http.ts), or hand a request on with passOn").toEqual([]);
   });
 });
