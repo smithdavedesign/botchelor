@@ -13,8 +13,9 @@
  * circle from its owner. Every item is checked before anything is written: a kind from the registry that the show may
  * declare, a name, note, story and place name that pass the show's text check (checkShowText), the caps (people a
  * character, the exclusive kinds), a place of the right kind for the role, a tie to another show character only, and no
- * kin tie between two who have dated (nor a romance between kin). What fails is refused alone; the rest is written, with
- * `source` house (or admin), `origin_model` and `prompt_version`, public.
+ * kin tie between two who have dated (nor a romance between kin), and a workplace that's a place, never a job
+ * (lib/social/place-names.ts). What fails is refused alone; the rest is written, with `source` house (or admin),
+ * `origin_model` and `prompt_version`, public.
  */
 import type { Db } from "../db";
 import { franchiseHits } from "../franchises";
@@ -29,12 +30,13 @@ import { DATE_VENUES } from "../venues";
 import { TIE_KINDS, type TieKindId } from "./kinds";
 import { addPerson, checkPerson, peopleOf, updatePerson } from "./people";
 import { familySurnameOf, firstNameOf, nameStyleOf, personName, SHARES_SURNAME_KINDS, surnameOf, type NameBook } from "./person-names";
+import { isJobName, workplaceName } from "./place-names";
 import { ensurePlace, PLACE_DESCRIPTION_MAX, PLACE_NAME_MAX, MEMBER_SINCE_MAX, placeIdOf, setMembership, slugify, venueKey } from "./places";
 import { canonicalTie, isDeclaredRole, kindFromWords, mayDeclarePerson, mayDeclareTie, NEW_PLACE_FOR, ROLE_PLACES, tieFromWords, type DeclaredRole } from "./relations";
 import { socialTiesOn } from "./switch";
 import { SINCE_MAX, STORY_MAX, upsertTie } from "./ties";
 import { ensureWorld, NEIGHBOURHOODS, neighbourhoodOfVenue, WORLD_CITY } from "./world";
-import { PEOPLE_CAP, type PlaceKind } from "./types";
+import { PEOPLE_CAP, type PlaceKind, type Source, type Visibility } from "./types";
 
 type Env = Record<string, string | undefined>;
 
@@ -83,10 +85,13 @@ export type CircleResult = {
   places: number;
   ties: number;
   refused: CircleRefusal[];
-  /** People written under another name than given (lib/social/person-names.ts), and why; absent when none were. */
+  /**
+   * People written under another name than given (lib/social/person-names.ts), and workplaces given as a job and written
+   * as the place it's done (`item` "place", lib/social/place-names.ts), and why; absent when none were.
+   */
   renamed?: CircleRename[];
 };
-export type CircleRename = { from: string; to: string; why: string };
+export type CircleRename = { from: string; to: string; why: string; item?: "place" };
 
 /* ---------------------------------------------- the show's characters ---------------------------------------------- */
 
@@ -242,14 +247,18 @@ export type WorldMenu = {
   workplaces: { key: string; name: string; kind: PlaceKind; neighbourhood: string | null }[];
 };
 
-/** The world's menu (the show's own places only: a place a person named stays theirs to share). */
+/**
+ * The world's menu (the show's own places only: a place a person named stays theirs to share). A workplace named for a
+ * job isn't offered (lib/social/place-names.ts): offered again, "Flat Pack Furniture Maze Manager" had nine coworkers.
+ */
 export async function worldMenu(db: Db, env: Env = process.env): Promise<WorldMenu> {
   await ensureWorld(db, env);
-  const { rows } = await db.query<{ key: string; name: string; kind: string; parent: string | null }>(
+  const { rows: all } = await db.query<{ key: string; name: string; kind: string; parent: string | null }>(
     `select p.key, p.name, p.kind, n.name as parent from social_places p left join social_places n on n.id = p.parent_id
       where p.kind in ('workplace', 'school') and p.source in ('house', 'admin') and p.visibility = 'public'
       order by p.created_at, p.key limit 300`,
   );
+  const rows = all.filter((r) => r.kind !== "workplace" || !isJobName(r.name));
   return {
     city: { key: WORLD_CITY.key, name: WORLD_CITY.name },
     neighbourhoods: NEIGHBOURHOODS.map((n) => ({ key: n.key, name: n.name, description: n.description })),
@@ -340,7 +349,14 @@ async function charactersNamed(db: Db, names: readonly (string | null | undefine
 async function circleNames(
   db: Db,
   me: string,
-): Promise<{ book: NameBook & { add(name: string): void }; holderLast: string | null; familyLast: string | null; style: ReturnType<typeof nameStyleOf> }> {
+): Promise<{
+  book: NameBook & { add(name: string): void };
+  holderLast: string | null;
+  familyLast: string | null;
+  style: ReturnType<typeof nameStyleOf>;
+  /** The character's own job (extras.occupation): a workplace named that is a job, not a place. */
+  occupation: string | null;
+}> {
   const [people, chars, mine, show] = await Promise.all([
     db.query<{ name: string }>(`select name from social_people where source in ('house', 'admin') and holder_id <> $1`, [me]),
     db.query<{ id: string; name: string }>(`select c.id, c.name from characters c where c.visibility = 'public' and c.owner_id is distinct from $1 and ${notPersonaSql("c")}`, [DELETED_OWNER]),
@@ -371,6 +387,7 @@ async function circleNames(
     holderLast: own,
     familyLast: row ? familySurnameOf(row.name) : null,
     style: nameStyleOf(words),
+    occupation: text(row?.extras?.occupation).trim() || null,
   };
 }
 
@@ -396,8 +413,14 @@ type PlaceRow = { id: string; key: string; kind: string; name: string; visibilit
 function keysFor(w: string): string[] {
   const t = w.toLowerCase();
   if (t.includes(":")) return [t];
-  const slug = slugify(t);
-  return [`venue:${t.replace(/[\s-]+/g, "_")}`, ...(slug ? [`neighbourhood:${slug}`, `workplace:${slug}`, `school:${slug}`] : [])];
+  const slugs = theOrNot(slugify(t), "-");
+  return [`venue:${t.replace(/[\s-]+/g, "_")}`, ...slugs.flatMap((slug) => [`neighbourhood:${slug}`, `workplace:${slug}`, `school:${slug}`])];
+}
+
+/** A name with and without a leading "the": "The Lakeside Ruins" and "Lakeside Ruins" are one place. */
+function theOrNot(text: string, gap: string = " "): string[] {
+  const bare = text.replace(new RegExp(`^the${gap}`, "i"), "");
+  return bare ? [...new Set([text, bare, `the${gap}${bare}`])] : [];
 }
 
 /** A neighbourhood of the city by key or name. */
@@ -481,11 +504,24 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
   }
   for (const p of (input.people ?? []).slice(CIRCLE_LIMITS.people)) refused.push({ item: "person", what: clean(p.name), reason: `more than ${CIRCLE_LIMITS.people} in one write` });
 
-  // Places: by key, or by name among the places a role can be at; a workplace or school no one has named is made.
-  const placesIn = (input.places ?? []).slice(0, CIRCLE_LIMITS.places);
+  // Places: by key, or by name among the places a role can be at; a workplace or school no one has named is made. A
+  // workplace given as a job is the place it's done, or none (lib/social/place-names.ts): the local model gave "Flat Pack
+  // Furniture Maze Manager" and "Horticultural Consultant" as workplaces (2026-11-21).
+  const placesIn = (input.places ?? []).slice(0, CIRCLE_LIMITS.places).flatMap((p): CirclePlaceIn[] => {
+    const given = p.role === "works" ? clean(p.name) || (p.place && !p.place.includes(":") ? clean(p.place) : "") : "";
+    if (!given) return [p];
+    const w = workplaceName(given, { job: naming.occupation, max: PLACE_NAME_MAX });
+    if (!w.why) return [p];
+    if (!w.name) {
+      refused.push({ item: "place", what: `works ${given}`, reason: w.why });
+      return [];
+    }
+    renamed.push({ item: "place", from: given, to: w.name, why: w.why });
+    return [{ ...p, place: null, name: w.name }];
+  });
   const wantedOf = (p: CirclePlaceIn): string[] => [clean(p.place), clean(p.name)].filter(Boolean);
   const keys = placesIn.flatMap((p) => wantedOf(p).flatMap(keysFor));
-  const names = placesIn.flatMap((p) => wantedOf(p).map((w) => w.toLowerCase()));
+  const names = placesIn.flatMap((p) => wantedOf(p).flatMap((w) => theOrNot(w.toLowerCase())));
   const known = keys.length
     ? (await db.query<PlaceRow>(`select id, key, kind, name, visibility from social_places where key = any($1::text[]) or lower(name) = any($2::text[])`, [keys, names])).rows.filter(
         (r) => r.visibility === "public",
@@ -503,7 +539,7 @@ async function planCircle(db: Db, input: CircleIn, o: CircleOptions, show: Reado
     const allowed = ROLE_PLACES[role];
     const wanted = wantedOf(p);
     const wantedKeys = new Set(wanted.flatMap(keysFor));
-    const wantedNames = new Set(wanted.map((w) => w.toLowerCase()));
+    const wantedNames = new Set(wanted.flatMap((w) => theOrNot(w.toLowerCase())));
     // A neighbourhood named for "lives" may come as its key, its name, or "the front" for "The Front".
     const hood = role === "lives" ? wanted.map(neighbourhoodOf).find(Boolean) : null;
     const found =
@@ -691,4 +727,117 @@ export async function writeCircle(db: Db, input: CircleIn, o: CircleOptions, ctx
     else out.refused.push({ item: "tie", what: t.label, reason: w.reason });
   }
   return out;
+}
+
+/** One of the show's workplaces named for a job, and what became of it (fixJobWorkplaces). */
+export type WorkplaceFix = {
+  key: string;
+  name: string;
+  /** The characters there, in any role, before the fix. */
+  members: number;
+  /**
+   * renamed: it's the place its name is about now (a new key, its members moved there); merged: the show had that place
+   * already, so its members joined it; removed: no place could be read from it, so the show's members aren't there any
+   * more (it goes when nobody's left).
+   */
+  action: "renamed" | "merged" | "removed";
+  to: { key: string; name: string } | null;
+  why: string;
+};
+
+/**
+ * The show's workplaces named for a job (lib/social/place-names.ts): the local model's backfill made "Flat Pack Furniture
+ * Maze Manager" (nine coworkers), "Horticultural Consultant" and 33 more on 2026-11-21, before planCircle read a
+ * workplace by those rules. Each one becomes the place its name is about, under the same neighbourhood with the same
+ * description and provenance, and its members move there; into the show's place of that name when there is one (a
+ * member there already keeps that membership). When no place can be read from it, the show's memberships go, and the
+ * place with them unless an owner's or agent's character is there too (then it's theirs, and left alone after). A name is a job by the rules alone or by a
+ * member's own job ("Complaint Limericist"). The show's own places only (house or admin): an owner's or agent's are
+ * theirs. Idempotent: run again, it finds nothing. `dryRun` says what it would do and changes nothing.
+ */
+export async function fixJobWorkplaces(db: Db, o: { dryRun?: boolean; env?: Env } = {}): Promise<WorkplaceFix[]> {
+  if (!socialTiesOn(o.env ?? process.env)) return [];
+  const { rows } = await db.query<{
+    id: string;
+    key: string;
+    name: string;
+    source: string;
+    visibility: string;
+    description: string | null;
+    origin_model: string | null;
+    created_by: string | null;
+    parent_key: string | null;
+    jobs: string[] | null;
+    members: number;
+    show_members: number;
+  }>(
+    `select p.id, p.key, p.name, p.source, p.visibility, p.description, p.origin_model, p.created_by, n.key as parent_key,
+            array_remove(array_agg(distinct c.extras->>'occupation'), null) as jobs, count(distinct m.character_id)::int as members,
+            count(distinct m.character_id) filter (where m.source in ('house', 'admin', 'derived'))::int as show_members
+       from social_places p
+       left join social_places n on n.id = p.parent_id
+       left join social_place_members m on m.place_id = p.id
+       left join characters c on c.id = m.character_id
+      where p.kind = 'workplace' and p.source in ('house', 'admin')
+      group by p.id, n.key
+      order by p.created_at, p.key`,
+  );
+  const fixes: WorkplaceFix[] = [];
+  for (const r of rows) {
+    const verdict = [workplaceName(r.name, { max: PLACE_NAME_MAX }), ...(r.jobs ?? []).map((job) => workplaceName(r.name, { job, max: PLACE_NAME_MAX }))].find((v) => v.why);
+    if (!verdict?.why) continue;
+    const slug = verdict.name ? slugify(verdict.name) : "";
+    if (!verdict.name || !slug) {
+      // Only someone else's characters there: nothing of the show's to take off (and run again, nothing to do).
+      if (r.members > 0 && r.show_members === 0) continue;
+      fixes.push({ key: r.key, name: r.name, members: r.members, action: "removed", to: null, why: verdict.why });
+      if (o.dryRun) continue;
+      await db.query(`delete from social_place_members where place_id = $1 and source in ('house', 'admin', 'derived')`, [r.id]);
+      await db.query(`delete from social_places p where p.id = $1 and not exists (select 1 from social_place_members m where m.place_id = p.id)`, [r.id]);
+      continue;
+    }
+    const key = `workplace:${slug}`;
+    if (placeIdOf(key) === r.id) {
+      // Its key was cut short of the job's words already (slugify keeps 48 characters): the same place, its name fixed.
+      fixes.push({ key: r.key, name: r.name, members: r.members, action: "renamed", to: { key, name: verdict.name }, why: verdict.why });
+      if (!o.dryRun) await db.query(`update social_places set name = $2 where id = $1`, [r.id, verdict.name]);
+      continue;
+    }
+    // The show's place of that name ("Flat Pack Furniture Maze"), with or without "the", else a new one.
+    const names = theOrNot(verdict.name.toLowerCase());
+    const there = (
+      await db.query<{ id: string; key: string; name: string }>(
+        `select id, key, name from social_places
+          where id <> $3 and kind = 'workplace' and (key = $1 or (source in ('house', 'admin') and lower(name) = any($2::text[])))
+          order by (key = $1) desc, created_at limit 1`,
+        [key, names, r.id],
+      )
+    ).rows[0];
+    const to = there ? { key: there.key, name: there.name } : { key, name: verdict.name };
+    fixes.push({ key: r.key, name: r.name, members: r.members, action: there ? "merged" : "renamed", to, why: verdict.why });
+    if (o.dryRun) continue;
+    if (!there) {
+      await ensurePlace(db, {
+        key,
+        kind: "workplace",
+        name: verdict.name,
+        parentKey: r.parent_key ?? WORLD_CITY.key,
+        description: r.description,
+        visibility: r.visibility as Visibility,
+        source: r.source as Source,
+        origin_model: r.origin_model,
+        created_by: r.created_by,
+      });
+    }
+    const toId = placeIdOf(to.key);
+    await db.query(
+      `update social_place_members m set place_id = $2, updated_at = now()
+        where m.place_id = $1
+          and not exists (select 1 from social_place_members x where x.place_id = $2 and x.character_id = m.character_id and x.role = m.role)`,
+      [r.id, toId],
+    );
+    // What's left there was at the place already: it goes with the job's row.
+    await db.query(`delete from social_places where id = $1`, [r.id]);
+  }
+  return fixes;
 }

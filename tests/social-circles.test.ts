@@ -1,13 +1,27 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/social/circles/route";
+import { POST as PLACES } from "@/app/api/admin/social/places/route";
 import { claimAdmin } from "@/lib/admins";
 import { setDbForTests } from "@/lib/db";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { getDirectorModel } from "@/lib/model";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { CIRCLE_PROMPT_VERSION, draftMessages, generateCandidates, pairPlan, parseCircle, parseDraft } from "@/lib/season-gen";
-import { circleSummaries, hasCircle, pairClash, showCharacterIds, showCharacters, TAKEN_KINDS, worldMenu, writeCircle, type CircleIn, type CircleOptions } from "@/lib/social/circles";
+import {
+  circleSummaries,
+  fixJobWorkplaces,
+  hasCircle,
+  pairClash,
+  showCharacterIds,
+  showCharacters,
+  TAKEN_KINDS,
+  worldMenu,
+  writeCircle,
+  type CircleIn,
+  type CircleOptions,
+} from "@/lib/social/circles";
 import { addPerson, peopleOf } from "@/lib/social/people";
+import { ensurePlace, placeIdOf, setMembership } from "@/lib/social/places";
 import { canonicalTie, kindFromWords, mayDeclareTie, parseChoice, personChoices, tieChoices, tieFromWords, tieKinds } from "@/lib/social/relations";
 import { PEOPLE_CAP } from "@/lib/social/types";
 import { BASE_URL, newUserCookie, scriptedModel, startTestDb, userIdOf } from "./helpers";
@@ -405,6 +419,144 @@ describe("POST and GET /api/admin/social/circles", () => {
   });
 });
 
+describe("a workplace is a place, never a job", () => {
+  // The 2026-11-21 backfill wrote 35 of its 110 workplaces as job titles ("Flat Pack Furniture Maze Manager", nine
+  // coworkers); lib/social/place-names.ts reads the place from them.
+  const works = (id: string, name: string, o: Partial<CircleIn> = {}): CircleIn => ({ character_id: id, places: [{ role: "works", name, neighbourhood: "The Front" }], ...o });
+  const workplaceOf = async (id: string) =>
+    (
+      await t.db.query<{ key: string; name: string }>(
+        `select p.key, p.name from social_place_members m join social_places p on p.id = m.place_id where m.character_id = $1 and m.role = 'works'`,
+        [id],
+      )
+    ).rows;
+  /** A workplace as the backfill left it before the rule, and who works there. */
+  const leftover = async (key: string, name: string, members: [string, string?][] = [], source: "house" | "owner" = "house") => {
+    await ensurePlace(t.db, { key, kind: "workplace", name, parentKey: "neighbourhood:the-front", description: "Somewhere on the front.", source, origin_model: "ollama_chat/test:7b" });
+    for (const [id, by] of members) {
+      await setMembership(t.db, { placeId: placeIdOf(key), characterId: id, role: "works", source: (by ?? "house") as "house", visibility: "public", origin_model: "ollama_chat/test:7b" });
+    }
+  };
+  const membersOf = async (key: string) =>
+    (await t.db.query<{ character_id: string }>(`select character_id from social_place_members where place_id = $1 order by character_id`, [placeIdOf(key)])).rows.map((r) => r.character_id);
+
+  it("writes a job as the place it's done, joins the show's place of that name, and leaves out a job with no place or their own", async () => {
+    await cast();
+    const r = await writeCircle(t.db, works(AG1, "Flat Pack Furniture Maze Manager"), opts());
+    expect(r).toMatchObject({ status: "written", places: 1, refused: [] });
+    expect(r.renamed).toEqual([{ item: "place", from: "Flat Pack Furniture Maze Manager", to: "Flat Pack Furniture Maze", why: "a job, not a place: where it's done" }]);
+    expect(await workplaceOf(AG1)).toEqual([{ key: "workplace:flat-pack-furniture-maze", name: "Flat Pack Furniture Maze" }]);
+    // A coworker: "The ... Supervisor" works at the same place, with "the" or without.
+    await writeCircle(t.db, works(AG2, "The Flat Pack Furniture Maze Supervisor"), opts());
+    expect(await workplaceOf(AG2)).toEqual([{ key: "workplace:flat-pack-furniture-maze", name: "Flat Pack Furniture Maze" }]);
+    // No place in it, or the character's own job (the test cast are boatwrights): no workplace, and the rest is written.
+    const none = await writeCircle(t.db, works(AG3, "Royal Food Taster & Sensory Analyst", { people: [{ name: "Rosa Dacre", relation: "mother" }] }), opts());
+    expect(none).toMatchObject({ status: "written", people: 1, places: 0, refused: [{ item: "place", what: "works Royal Food Taster & Sensory Analyst", reason: "a job, not a place" }] });
+    const own = await writeCircle(t.db, works(AG3, "Boatwright"), opts({ replace: true }));
+    expect(own.refused).toEqual([{ item: "place", what: "works Boatwright", reason: "their job, not a place" }]);
+    expect(await workplaceOf(AG3)).toEqual([]);
+    // One the backfill left before the rule isn't offered to the next writer.
+    await leftover("workplace:horticultural-consultant", "Horticultural Consultant");
+    expect((await worldMenu(t.db)).workplaces.map((w) => w.name)).toEqual(["Flat Pack Furniture Maze"]);
+  });
+
+  it("fixes the show's workplaces named for a job: renamed, merged into the show's place, or gone when there's no place", async () => {
+    await cast();
+    await leftover("workplace:flat-pack-furniture-maze", "Flat Pack Furniture Maze", [[AG1]]);
+    await leftover("workplace:flat-pack-furniture-maze-manager", "Flat Pack Furniture Maze Manager", [[AG1], [AG2]]);
+    await leftover("workplace:horticultural-consultant", "Horticultural Consultant", [[AG3]]);
+    await leftover("workplace:royal-food-taster-sensory-analyst", "Royal Food Taster & Sensory Analyst", [[AG2]]);
+    await leftover("workplace:canoe-slalom-judge", "Canoe Slalom Judge", [[AG3], [THEIRS, "owner"]]);
+    await leftover("workplace:boatwright", "Boatwright", [[AG1]]);
+    await leftover("workplace:the-salt-lantern", "The Salt Lantern", [[AG2]]);
+    await leftover("workplace:store-manager", "Store Manager", [[THEIRS, "owner"]], "owner");
+    const keys = async () => (await t.db.query<{ key: string }>(`select key from social_places where kind = 'workplace' order by key`)).rows.map((r) => r.key);
+    const before = await keys();
+
+    const dry = await fixJobWorkplaces(t.db, { dryRun: true });
+    const byName = (fixes: typeof dry) => [...fixes].sort((a, b) => a.name.localeCompare(b.name));
+    expect(byName(dry)).toEqual([
+      { key: "workplace:boatwright", name: "Boatwright", members: 1, action: "removed", to: null, why: "their job, not a place" },
+      { key: "workplace:canoe-slalom-judge", name: "Canoe Slalom Judge", members: 2, action: "removed", to: null, why: "a job, not a place" },
+      {
+        key: "workplace:flat-pack-furniture-maze-manager",
+        name: "Flat Pack Furniture Maze Manager",
+        members: 2,
+        action: "merged",
+        to: { key: "workplace:flat-pack-furniture-maze", name: "Flat Pack Furniture Maze" },
+        why: "a job, not a place: where it's done",
+      },
+      {
+        key: "workplace:horticultural-consultant",
+        name: "Horticultural Consultant",
+        members: 1,
+        action: "renamed",
+        to: { key: "workplace:horticultural-consultancy", name: "Horticultural Consultancy" },
+        why: "a job, not a place: where it's done",
+      },
+      { key: "workplace:royal-food-taster-sensory-analyst", name: "Royal Food Taster & Sensory Analyst", members: 1, action: "removed", to: null, why: "a job, not a place" },
+    ]);
+    expect(await keys()).toEqual(before);
+
+    expect(byName(await fixJobWorkplaces(t.db))).toEqual(byName(dry));
+    // Someone else's character still works at the judge's place, so it stays; an owner's own place is theirs.
+    expect(await keys()).toEqual([
+      "workplace:canoe-slalom-judge",
+      "workplace:flat-pack-furniture-maze",
+      "workplace:horticultural-consultancy",
+      "workplace:store-manager",
+      "workplace:the-salt-lantern",
+    ]);
+    expect(await membersOf("workplace:flat-pack-furniture-maze")).toEqual([AG1, AG2]);
+    expect(await membersOf("workplace:canoe-slalom-judge")).toEqual([THEIRS]);
+    expect(await membersOf("workplace:store-manager")).toEqual([THEIRS]);
+    expect(await workplaceOf(AG3)).toEqual([{ key: "workplace:horticultural-consultancy", name: "Horticultural Consultancy" }]);
+    const made = (
+      await t.db.query(
+        `select p.name, p.source, p.origin_model, p.description, n.key as parent from social_places p left join social_places n on n.id = p.parent_id where p.key = 'workplace:horticultural-consultancy'`,
+      )
+    ).rows;
+    expect(made).toEqual([{ name: "Horticultural Consultancy", source: "house", origin_model: "ollama_chat/test:7b", description: "Somewhere on the front.", parent: "neighbourhood:the-front" }]);
+    // Run again, it finds nothing; with the social network off, it does nothing.
+    expect(await fixJobWorkplaces(t.db)).toEqual([]);
+    await leftover("workplace:surf-school-instructor", "Surf School Instructor", [[AG1]]);
+    expect(await fixJobWorkplaces(t.db, { env: { SOCIAL_TIES: "0" } })).toEqual([]);
+    expect(await membersOf("workplace:surf-school-instructor")).toEqual([AG1]);
+  });
+
+  it("POST /api/admin/social/places fixes them for the admin only; a dry run changes nothing", async () => {
+    const call = (body: unknown, key: string | null = PW) =>
+      PLACES(
+        new Request(`${BASE_URL}/api/admin/social/places`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(key ? { "x-frontier-key": key } : {}) },
+          body: JSON.stringify(body),
+        }),
+      );
+    await cast();
+    await leftover("workplace:horticultural-consultant", "Horticultural Consultant", [[AG3]]);
+    expect((await call({ fix: "job_workplaces" }, null)).status).toBe(403);
+    expect((await call({ fix: "job_workplaces" }, "wrong")).status).toBe(403);
+    expect((await call({ fix: "everything" })).status).toBe(422);
+    const fix = {
+      key: "workplace:horticultural-consultant",
+      name: "Horticultural Consultant",
+      members: 1,
+      action: "renamed",
+      to: { key: "workplace:horticultural-consultancy", name: "Horticultural Consultancy" },
+      why: "a job, not a place: where it's done",
+    };
+    expect(await (await call({ fix: "job_workplaces", dry_run: true })).json()).toEqual({ dry_run: true, fixes: [fix] });
+    expect(await membersOf("workplace:horticultural-consultant")).toEqual([AG3]);
+    const res = await call({ fix: "job_workplaces" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ dry_run: false, fixes: [fix] });
+    expect(await workplaceOf(AG3)).toEqual([{ key: "workplace:horticultural-consultancy", name: "Horticultural Consultancy" }]);
+    vi.stubEnv("SOCIAL_TIES", "0");
+    expect((await call({ fix: "job_workplaces" })).status).toBe(409);
+  });
+});
+
 describe("a season's newcomers arrive with their circle", () => {
   it("asks for it in the draft's own call, and reads it leniently", () => {
     const plain = String(draftMessages([])[1]!.content);
@@ -415,6 +567,7 @@ describe("a season's newcomers arrive with their circle", () => {
     expect(asked).toContain("The Salt Lantern");
     expect(asked).toContain("dive_bar");
     expect(asked).toContain("Old Town");
+    expect(asked).toContain("never their job title");
 
     expect(parseCircle(null)).toBeNull();
     expect(parseCircle("a string")).toBeNull();
@@ -426,6 +579,10 @@ describe("a season's newcomers arrive with their circle", () => {
       regular: null,
       knows: [],
     });
+    // A job given as the workplace is the place it's done, or none (lib/social/place-names.ts).
+    const rosa = [{ name: "Rosa", relation: "mum" }];
+    expect(parseCircle({ people: rosa, works: { name: "Horticultural Consultant", neighbourhood: "Old Town" } })!.works).toEqual({ name: "Horticultural Consultancy", neighbourhood: "Old Town" });
+    expect(parseCircle({ people: rosa, works: "Royal Food Taster & Sensory Analyst" })!.works).toBeNull();
   });
 
   it("writes it as the house when the candidate is saved; a broken circle never sinks the draft", async () => {

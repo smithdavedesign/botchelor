@@ -10,6 +10,7 @@
  *   node scripts/social/backfill-circles.mjs --limit 400                # every show character still without a circle
  *   node scripts/social/backfill-circles.mjs --limit 400 --redo-broken  # those, and again the circles whose names break the rules
  *   node scripts/social/backfill-circles.mjs --stats                    # the names as they stand, and which circles break the rules
+ *   node scripts/social/backfill-circles.mjs --fix-workplaces [--dry-run]  # the show's workplaces named for a job, fixed
  *     [--force] (write over the show's earlier circle) [--only id,id] [--base https://botchelor.com]
  *
  * Free: the model is LiteLLM's `local-chat` on this Mac (scripts/loop/crowd.mjs createBrain refuses anything that isn't
@@ -27,6 +28,10 @@
  * name is used twice, close family (parents, full siblings, children) has the character's surname, the rest of the
  * family never has another character's, and nobody else has a character's surname, theirs included. A person who breaks
  * a rule is renamed (the site renames by the same rules), and the log says why.
+ *
+ * A workplace is a place, never a job (lib/social/place-names.ts): a reply's "Flat Pack Furniture Maze Manager" is
+ * written as Flat Pack Furniture Maze, and "Royal Food Taster & Sensory Analyst" as no workplace. --fix-workplaces fixes
+ * the ones the 2026-11-21 run wrote before that rule (POST /api/admin/social/places) and logs the event.
  */
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
@@ -34,13 +39,15 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { nameDraws, nameIdeas } from "../../lib/oc-name-pools.ts";
 import { familySurnameOf, FIRST_NAME_MAX, firstNameOf, isFamilyWords, nameStyleOf, personName, sharesSurnameWords, surnameOf } from "../../lib/social/person-names.ts";
+import { workplaceName } from "../../lib/social/place-names.ts";
 import { brainFromEnv } from "../loop/crowd.mjs";
 
 /**
  * v2 (2026-11-21): the names offered, family's surname, a best friend only if they have one. v3: close family shares
- * the character's surname (v2's "mostly" left most brothers and sisters with surnames of their own).
+ * the character's surname (v2's "mostly" left most brothers and sisters with surnames of their own). v4: "works" is a
+ * place, never their job title (v3 gave "Horticultural Consultant" and "Lost Luggage Reunion Officer" as workplaces).
  */
-export const PROMPT_VERSION = "backfill-circles-v3";
+export const PROMPT_VERSION = "backfill-circles-v4";
 const USER_AGENT = "botchelor-social-backfill/1.0";
 /** How many other show characters a character is offered to know, and how many workplaces to reuse. */
 export const CANDIDATES = 8;
@@ -55,9 +62,9 @@ const clip = (s, n) => {
 };
 const first = (name) => String(name ?? "").split(/\s+/)[0];
 
-/** The command line: --limit (required, but for --stats), --dry-run, --force, --redo-broken, --stats, --only, --base. */
+/** The command line: --limit (required, but for --stats and --fix-workplaces), --dry-run, --force, --redo-broken, --stats, --fix-workplaces, --only, --base. */
 export function parseArgs(argv) {
-  const o = { limit: null, dryRun: false, force: false, redoBroken: false, stats: false, only: null, base: "https://botchelor.com" };
+  const o = { limit: null, dryRun: false, force: false, redoBroken: false, stats: false, fixWorkplaces: false, only: null, base: "https://botchelor.com" };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const value = () => {
@@ -70,11 +77,12 @@ export function parseArgs(argv) {
     else if (a === "--force") o.force = true;
     else if (a === "--redo-broken") o.redoBroken = true;
     else if (a === "--stats") o.stats = true;
+    else if (a === "--fix-workplaces") o.fixWorkplaces = true;
     else if (a === "--only") o.only = value().split(",").map((s) => s.trim()).filter(Boolean);
     else if (a === "--base") o.base = value().replace(/\/$/, "");
     else throw new Error(`unknown flag ${a}`);
   }
-  if (!o.stats && (!Number.isInteger(o.limit) || o.limit < 1)) throw new Error("--limit <n> is required (a whole number, 1 or more)");
+  if (!o.stats && !o.fixWorkplaces && (!Number.isInteger(o.limit) || o.limit < 1)) throw new Error("--limit <n> is required (a whole number, 1 or more)");
   return o;
 }
 
@@ -193,7 +201,7 @@ export function circleMessages(me, { world, candidates, byId, workplaces, neighb
     "{",
     '  "people": [3 to 6 people in their life, off the show, at least one of them family: {"name": "an invented first and last name (a real name, never only Mum, Dad or Auntie)", "relation": "their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, friend, ex, boss, coworker, neighbour, rival, mentor, roommate or best friend", "pronouns": "she/her, he/him or they/them", "note": "one specific, warm or funny line about them, under 120 characters", "deceased": false}],',
     '  "lives": "the one of those neighbourhoods that suits them, where their own home is (its name): not the show\'s house, where only the season\'s cast stays while it airs",',
-    '  "works": {"name": "where they work: one of the workplaces above, or a new one with an invented name", "neighbourhood": "its neighbourhood"} (or null if they don\'t work),',
+    '  "works": {"name": "the place they work at (a shop, studio, office, farm, ship), never their job title: one of the workplaces above, or a new one with an invented name", "neighbourhood": "its neighbourhood"} (or null if they don\'t work),',
     '  "regular": "the id of the one place above that suits them best, where they\'re a regular",',
     `  "knows": [1 or 2 of the others above: {"name": "their full name, as above", "relation": "what they are to ${first(me.name)}: sibling, cousin, old friend, childhood friend, ex, coworker, classmate, neighbour, roommate, rival or mentor", "story": "how they know each other, one line the audience would hear, under 200 characters"}]`,
     "}",
@@ -235,7 +243,7 @@ export const isTitleOnly = (name) => TITLE_ONLY.test(String(name ?? "").replace(
 /** A possessive, not a name (2026-11-21 run: "Ignatius's Cinder, sister" for Ignatius Cinder): the backfill leaves that person out. */
 export const isPossessive = (name) => /\p{L}['’]s(?:\s|$)/u.test(String(name ?? ""));
 
-export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
+export function toCircle(me, reply, { candidates, workplaces, everyone = [], notes = null }) {
   // Someone on the show isn't an off-screen person (2026-11-20 dry run: "Barnaby Thorne, rival" as one of Juniper's
   // people, while Barnaby is in the cast): one of the candidates becomes a tie, anyone else on the show is left out.
   const onShow = new Set(everyone.map((c) => lower(c.name)));
@@ -256,9 +264,14 @@ export function toCircle(me, reply, { candidates, workplaces, everyone = [] }) {
   const lives = str(reply?.lives, 80);
   if (lives) places.push({ role: "lives", place: lives });
   const works = reply?.works && typeof reply.works === "object" ? reply.works : typeof reply?.works === "string" ? { name: reply.works } : null;
-  const workName = str(works?.name, 120);
+  // A job given as the workplace is the place it's done ("Flat Pack Furniture Maze Manager": Flat Pack Furniture Maze),
+  // or none (lib/social/place-names.ts); `notes` gets what was read and why.
+  const given = str(works?.name, 120);
+  const read = given ? workplaceName(given, { job: me.occupation }) : null;
+  if (read?.why) notes?.push({ from: given, to: read.name, why: read.why });
+  const workName = read?.name ?? null;
   if (workName) {
-    const known = workplaces.find((w) => lower(w.name) === lower(workName));
+    const known = workplaces.find((w) => lower(w.name).replace(/^the\s+/, "") === lower(workName).replace(/^the\s+/, ""));
     places.push(known ? { role: "works", place: known.key } : { role: "works", name: workName, neighbourhood: str(works?.neighbourhood, 80) });
   }
   // A hangout by its id ("dive_bar"), key or name: the site reads all three.
@@ -502,9 +515,9 @@ function adminKey() {
 }
 
 /** The system log (RepoHQ docs/logging.md): best effort. */
-function emit(status, message) {
+function emit(status, message, event = "circles") {
   try {
-    execFileSync(join(homedir(), "ai-stack", "bin", "emit-event"), ["botchelor", "social-backfill", "circles", status, message], { stdio: "ignore", timeout: 5000 });
+    execFileSync(join(homedir(), "ai-stack", "bin", "emit-event"), ["botchelor", "social-backfill", event, status, message], { stdio: "ignore", timeout: 5000 });
   } catch {
     /* no ai-stack: the console has it */
   }
@@ -521,9 +534,25 @@ async function api(base, path, init = {}) {
   return body;
 }
 
+/**
+ * --fix-workplaces: the show's workplaces named for a job, fixed by the site (lib/social/circles.ts fixJobWorkplaces),
+ * each one logged with what became of it, and the run in the system log.
+ */
+async function fixWorkplaces(o, log) {
+  const out = await api(o.base, "/api/admin/social/places", { method: "POST", body: JSON.stringify({ fix: "job_workplaces", dry_run: o.dryRun }) });
+  for (const f of out.fixes) log(`${f.name} (${f.members} there): ${f.action}${f.to ? ` as ${f.to.name}` : ""} (${f.why})`);
+  const count = (action) => out.fixes.filter((f) => f.action === action).length;
+  const summary =
+    `${o.dryRun ? "dry run: would fix" : "fixed"} ${out.fixes.length} workplaces named for a job: ${count("renamed")} renamed, ${count("merged")} merged into the show's place of that name, ` +
+    `${count("removed")} with no place (${out.fixes.reduce((n, f) => n + f.members, 0)} memberships there)`;
+  log(summary);
+  if (!o.dryRun) emit("ok", summary, "workplaces");
+}
+
 async function main() {
   const o = parseArgs(process.argv.slice(2));
   const log = (m) => console.log(m);
+  if (o.fixWorkplaces) return fixWorkplaces(o, log);
   // Every show character, a page at a time (the run offers any of them to know), and the world.
   let after = "";
   let world = null;
@@ -571,11 +600,13 @@ async function main() {
     const messages = circleMessages(view, { world, candidates, byId, workplaces: offered, neighbourhoods, names });
     let circle = null;
     let served = null;
+    const workNotes = [];
     for (let attempt = 0; attempt < 2 && !circle; attempt++) {
       try {
         const raw = await brain.complete(messages, { maxTokens: 1200, temperature: 0.8, json: true, onServed: (m) => (served = m) });
         const reply = parseReply(raw);
-        if (reply) circle = toCircle(me, reply, { candidates, workplaces: offered, everyone });
+        workNotes.length = 0;
+        if (reply) circle = toCircle(me, reply, { candidates, workplaces: offered, everyone, notes: workNotes });
         else log(`${me.name}: reply ${attempt + 1} wasn't JSON`);
       } catch (e) {
         log(`${me.name}: model try ${attempt + 1} failed: ${e.message}`);
@@ -604,7 +635,7 @@ async function main() {
     }
     const r = out.results[0];
     // The book follows what the site did: a person it refused frees the name, one it renamed takes the new one.
-    for (const x of r.renamed ?? []) (book.remove(x.from), book.add(x.to));
+    for (const x of r.renamed ?? []) if (x.item !== "place") (book.remove(x.from), book.add(x.to));
     for (const x of r.refused ?? []) if (x.item === "person" && circle.people.some((p) => lower(p.name) === lower(x.what))) book.remove(x.what);
     if (r.status === "skipped" || r.status === "refused") {
       for (const p of circle.people) book.remove(p.name);
@@ -617,14 +648,16 @@ async function main() {
     totals.places += r.places;
     totals.ties += r.ties;
     totals.refused += r.refused.length;
-    const renames = [...naming.renamed, ...(r.renamed ?? [])];
+    const renames = [...naming.renamed, ...(r.renamed ?? []).filter((x) => x.item !== "place")];
     totals.renamed += renames.length;
+    const workplace = [...workNotes, ...(r.renamed ?? []).filter((x) => x.item === "place")];
     const named = (ids) => ids.map((t) => `${t.relation} ${byId.get(t.with)?.name ?? t.with}`).join(", ");
     const placed = circle.places.map((p) => `${p.role} ${p.name ?? p.place}${p.neighbourhood ? ` (${p.neighbourhood})` : ""}`).join(", ");
     log(
       `${me.name} [${me.kind}]: ${r.people} people (${circle.people.map((p) => `${p.name}, ${p.relation}`).join("; ")}), ${r.places} places${placed ? ` (${placed})` : ""}, ${r.ties} ties${circle.ties.length ? ` (${named(circle.ties)})` : ""}` +
         (renames.length ? `; renamed: ${renames.map((x) => `${x.from} → ${x.to} (${x.why})`).join("; ")}` : "") +
         (naming.dropped.length ? `; left out: ${naming.dropped.map((x) => `${x.name} (${x.reason})`).join("; ")}` : "") +
+        (workplace.length ? `; workplace: ${workplace.map((x) => `${x.from} → ${x.to ?? "none"} (${x.why})`).join("; ")}` : "") +
         (r.refused.length ? `; refused: ${r.refused.map((x) => `${x.item} ${x.what}: ${x.reason}`).join("; ")}` : ""),
     );
     if (!o.dryRun) remember(me, circle, r, { byId, ties, workplaces, world, homes, replace });

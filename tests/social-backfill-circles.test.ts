@@ -72,13 +72,15 @@ describe("the backfill's run", () => {
       force: false,
       redoBroken: false,
       stats: false,
+      fixWorkplaces: false,
       only: ["a", "b"],
       base: "http://localhost:3000",
     });
     expect(parseArgs(["--limit", "400", "--force"])).toMatchObject({ limit: 400, force: true, base: "https://botchelor.com" });
     expect(parseArgs(["--limit", "400", "--redo-broken"])).toMatchObject({ limit: 400, redoBroken: true, force: false });
-    // The names' numbers need no limit: nothing is written.
+    // The names' numbers need no limit: nothing is written. Nor does fixing the workplaces named for a job.
     expect(parseArgs(["--stats"])).toMatchObject({ stats: true, limit: null });
+    expect(parseArgs(["--fix-workplaces", "--dry-run"])).toMatchObject({ fixWorkplaces: true, dryRun: true, limit: null });
   });
 
   it("writes the cast first, then the house, then the agent cast; those with a circle only when forced", () => {
@@ -124,6 +126,7 @@ describe("the prompt and the reply", () => {
     expect(user.content).toContain("dive_bar (A sticky dive bar on trivia night, Neon Mile)");
     expect(user.content).toContain("The Salt Lantern (The Front)");
     expect(user.content).toContain("- Ola Doe: The tinkerer, Ferry pilot, from Leeds");
+    expect(user.content).toContain("never their job title");
   });
 
   it("lists the neighbourhoods and hangouts in each character's own order (the model leans to the last one)", () => {
@@ -168,6 +171,24 @@ describe("the prompt and the reply", () => {
     });
     expect(toCircle(char("me"), { works: { name: "Brine & Daughters", neighbourhood: "Old Town" } }, { candidates: [], workplaces: [] }).places).toEqual([
       { role: "works", name: "Brine & Daughters", neighbourhood: "Old Town" },
+    ]);
+  });
+
+  it("reads a workplace given as a job as the place it's done, or leaves it out (lib/social/place-names.ts)", () => {
+    const notes: { from: string; to: string | null; why: string }[] = [];
+    const works = (name: string, workplaces = world.workplaces) => toCircle(char("me"), { works: { name, neighbourhood: "The Front" } }, { candidates: [], workplaces, notes }).places;
+    expect(works("Lunar Lighthouse Keeper")).toEqual([{ role: "works", name: "Lunar Lighthouse", neighbourhood: "The Front" }]);
+    // A place the show has, "the" or not: by its key, so they're coworkers.
+    const maze = { key: "workplace:the-flat-pack-furniture-maze", name: "The Flat Pack Furniture Maze", kind: "workplace", neighbourhood: "The Front" };
+    expect(works("Flat Pack Furniture Maze Manager", [maze])).toEqual([{ role: "works", place: "workplace:the-flat-pack-furniture-maze" }]);
+    expect(works("Royal Food Taster & Sensory Analyst")).toEqual([]);
+    // The character's own job (a clockmaker), whatever its last word.
+    expect(works("Clockmaker")).toEqual([]);
+    expect(notes).toEqual([
+      { from: "Lunar Lighthouse Keeper", to: "Lunar Lighthouse", why: "a job, not a place: where it's done" },
+      { from: "Flat Pack Furniture Maze Manager", to: "Flat Pack Furniture Maze", why: "a job, not a place: where it's done" },
+      { from: "Royal Food Taster & Sensory Analyst", to: null, why: "a job, not a place" },
+      { from: "Clockmaker", to: null, why: "their job, not a place" },
     ]);
   });
 

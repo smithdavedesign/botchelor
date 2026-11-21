@@ -36,6 +36,7 @@ import { ensureBaseline, outputCheckReady, physicalLook, venicePicture } from ".
 import { adultKeys } from "./adult/settings";
 import { safely } from "./social/ties";
 import { socialTiesOn } from "./social/switch";
+import { workplaceName } from "./social/place-names";
 import { NEIGHBOURHOODS, neighbourhoodOfVenue } from "./social/world";
 import { DATE_VENUES } from "./venues";
 
@@ -95,8 +96,11 @@ export type DraftBrief = { pronouns?: Pronouns; link?: { to: { name: string; arc
  * coworkers) and the show characters they might know (the cast, this season's other newcomers, the one returning).
  */
 export type CircleBrief = { workplaces: string[]; knows: { name: string; archetype: string }[] };
-/** The version of the circle's part of the prompt (provenance on what it writes: lib/social/circles.ts). */
-export const CIRCLE_PROMPT_VERSION = "season-gen-circle-v1";
+/**
+ * The version of the circle's part of the prompt (provenance on what it writes: lib/social/circles.ts). v2 (2026-11-21):
+ * "works" is a place, never their job title.
+ */
+export const CIRCLE_PROMPT_VERSION = "season-gen-circle-v2";
 
 /** A newcomer's circle as the model gave it: checked item by item when it's written (lib/social/circles.ts), never here. */
 export type DraftCircle = {
@@ -174,7 +178,7 @@ function circleSpec(c: CircleBrief): string {
     '"circle" (their life off the show; every person an adult, their children grown up, nobody real or famous, and no current partner or spouse: they\'re single): ' +
     '{"people": [3 to 6 of {"name" (invented), "relation" (their mother, father, sister, brother, son, daughter, grandmother, cousin, aunt, best friend, friend, ex, boss, coworker, neighbour, rival, mentor or roommate), "note" (one line about them, under 120 characters)}], ' +
     `"lives" (one of: ${NEIGHBOURHOODS.map((n) => n.name).join(", ")}), ` +
-    `"works" ({"name": where they work${c.workplaces.length ? `, invented or one of: ${c.workplaces.join(", ")}` : ", invented"}, "neighbourhood"}), ` +
+    `"works" ({"name": the place they work at (a shop, studio, office, farm, ship), never their job title${c.workplaces.length ? `, invented or one of: ${c.workplaces.join(", ")}` : ", invented"}, "neighbourhood"}), ` +
     `"regular" (the hangout they're a regular at, one of: ${HANGOUT_IDS.join(", ")})${knows}}`
   );
 }
@@ -194,7 +198,8 @@ export function parseCircle(v: unknown): DraftCircle | null {
       return name && relation ? [{ name, relation, note: textOf(p.note, 400), pronouns: textOf(p.pronouns, 40) }] : [];
     });
   const w = c.works && typeof c.works === "object" ? (c.works as Record<string, unknown>) : typeof c.works === "string" ? { name: c.works } : null;
-  const workName = textOf(w?.name, 120);
+  // A job given as the workplace ("Horticultural Consultant") is the place it's done, or none (lib/social/place-names.ts).
+  const workName = workplaceName(textOf(w?.name, 120) ?? "").name;
   const knows = list(c.knows)
     .slice(0, 2)
     .flatMap((k) => {
