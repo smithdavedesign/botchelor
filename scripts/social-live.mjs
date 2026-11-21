@@ -111,6 +111,12 @@ try {
     check((await page.locator('link[rel="canonical"]').getAttribute("href")) === `${BASE}/graph/world/${WORLD}`, `${label}: the world page's canonical is itself`);
     const faces = await page.locator(".world-face").count();
     check(faces > 3, `${label}: the world draws ${faces} faces`);
+    // Every face a small copy (app/Avatar.tsx sized): an original is a 1–2 MB PNG read from the database past the CDN,
+    // and a world's ~100 at once tied up the site's connections (#1948).
+    const originals = await page
+      .locator(".world-sky image")
+      .evaluateAll((els) => els.filter((e) => /^\/api\/assets\/[^/?.]+$/.test(e.getAttribute("href") ?? "")).length);
+    check(originals === 0, `${label}: the world's faces are small copies (${originals} full-size originals)`);
     check(!(await sideways()), `${label}: the world page doesn't scroll sideways`);
     await scrollTo(".world-sky");
     await settle(600);

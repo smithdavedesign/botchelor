@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import Avatar from "@/app/Avatar";
+import Avatar, { sized } from "@/app/Avatar";
 import JsonLd from "@/app/JsonLd";
 import ShowTabs from "@/app/ShowTabs";
 import { avatarPalette, initials } from "@/lib/avatar";
@@ -26,6 +26,9 @@ type Props = { params: Promise<{ id: string }> };
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 /** A world with fewer public ties than this says noindex: a name and a line or two is thin for a search engine. */
 const INDEX_MIN_TIES = 3;
+
+/** About how big the picture is drawn on a desktop, per picture unit (640 units across ~700px): faces get copies that size. */
+const DRAWN_SCALE = 1.1;
 
 const RING_TITLE: Record<Ring, string> = { inner: "Inner circle", close: "Close", friends: "Friends", acquaintances: "Around them" };
 const RING_HINT: Record<Ring, string> = {
@@ -82,7 +85,9 @@ function Face({ m, at }: { m: WorldMember; at?: NamePlace }) {
     );
   }
   const p = avatarPalette(m.id, m.hue);
-  const src = characterPortrait(m.id) ?? m.portrait;
+  // A small copy at about its drawn size (a desktop draws the picture at about 1.1): the original is a 1–2 MB PNG read
+  // from the database on every request, past the CDN, and a world asks for ~100 at once (#1948: it tied up the pool).
+  const src = sized(characterPortrait(m.id) ?? m.portrait, m.r * 2 * DRAWN_SCALE);
   const clip = `world-clip-${m.id}`;
   // Names under the closest faces only (the list names everyone; nameLayout leaves off any that would overlap); on a
   // phone, the inner circle's alone, bigger.
@@ -164,7 +169,7 @@ function Picture({ pic, label }: { pic: WorldPicture; label: string }) {
   const mid = WORLD_SIZE / 2;
   const c = pic.centre;
   const p = avatarPalette(c.id, c.hue);
-  const src = c.private ? null : (characterPortrait(c.id) ?? c.portrait);
+  const src = c.private ? null : sized(characterPortrait(c.id) ?? c.portrait, CENTRE_RADIUS * 2 * DRAWN_SCALE);
   // Lines under faces, the outer rings' first, so an inner face is never crossed.
   const outerFirst = [...pic.members].reverse();
   const names = nameLayout(pic.members, (m) => (m.person ? m.name : shortName(m.name)));
