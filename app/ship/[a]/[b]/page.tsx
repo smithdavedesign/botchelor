@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
-import { nameFromSegment, SHIP_ERRORS, shipPair, shipPath, type ShipPair } from "@/lib/ship-names";
+import { nameFromSegment, SHIP_ERRORS, shipMerge, shipPair, shipPath, type ShipBlend, type ShipMerge, type ShipPair } from "@/lib/ship-names";
 import ShipForm from "../../ShipForm";
 import MoreTools from "@/app/tools/MoreTools";
 import { SHIP_TOOL_PATH } from "@/lib/tools";
@@ -12,6 +12,26 @@ type Props = { params: Promise<{ a: string; b: string }> };
 /** The longest run a name can't wrap inside: its longest word (a name wraps only between words, never mid-word). */
 const longestWord = (name: string) => Math.max(...name.split(/[\s-]+/).map((w) => [...w].length));
 const longestOf = (names: readonly { name: string }[]) => Math.max(0, ...names.map((n) => longestWord(n.name)));
+
+/**
+ * The best name, built in front of you (pass 2 of the 2026-11-20 visual pop audit, app/ux/motion.css): the two names
+ * side by side, the letters each gives up falling away, what's left meeting in the middle. The given-up letters are
+ * generated content (globals.css .ship-keep-a::after), so the text in the page, for search and screen readers, is the
+ * ship name alone, and at rest or under reduced motion that's all there is.
+ */
+function MergedName({ blend, merge }: { blend: ShipBlend; merge: ShipMerge | null }) {
+  if (!merge) return <strong>{blend.name}</strong>;
+  return (
+    <strong>
+      <span className="ship-keep-a" data-drop={merge.dropA} style={{ "--drop-len": [...merge.dropA].length } as CSSProperties}>
+        {merge.keepA}
+      </span>
+      <span className="ship-keep-b" data-drop={merge.dropB} style={{ "--drop-len": [...merge.dropB].length } as CSSProperties}>
+        {merge.keepB}
+      </span>
+    </strong>
+  );
+}
 
 async function load(params: Props["params"]): Promise<ShipPair> {
   const { a, b } = await params;
@@ -73,10 +93,15 @@ export default async function ShipPage({ params }: Props) {
             {/* Each name sizes down to fit its tile by its longest word (--len); a list with a long one takes fewer
                 columns (data-long), so "Barnabuniper" never breaks as "Barnabunipe / r" (visual audit 2026-11-20). */}
             <ol className="ship-names" data-long={longest > 14 ? "2" : longest > 10 ? "1" : undefined}>
-              {names.map((n) => (
+              {names.map((n, i) => (
                 <li key={n.name} data-ship-name={n.name} style={{ "--len": longestWord(n.name) } as CSSProperties}>
-                  <strong>{n.name}</strong>
+                  {i === 0 ? <MergedName blend={n} merge={shipMerge(a, b, n)} /> : <strong>{n.name}</strong>}
                   <span className="ship-how">{`${n.head} + ${n.tail}`}</span>
+                  {i === 0 && (
+                    <span className="ship-stamp" aria-hidden="true">
+                      Top pick
+                    </span>
+                  )}
                 </li>
               ))}
             </ol>

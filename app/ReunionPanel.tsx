@@ -1,19 +1,14 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
-import OriginBadge from "@/app/OriginBadge";
+import AwardCard, { AgentMark } from "@/app/AwardCard";
 import { showCrowd } from "@/lib/crowd-threshold";
-import { isAgentMade } from "@/lib/origin";
 import type { Reunion, ReunionChar } from "@/lib/reunion";
 import { endingLabel } from "@/lib/rules";
 import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
 import { pageOf } from "@/lib/paging";
 
-/** The agent badge (app/OriginBadge.tsx) when any of these characters was made over MCP; nothing for people's or the cast. */
-export function AgentMark({ chars }: { chars: ReunionChar[] }) {
-  const agent = chars.find((c) => isAgentMade(c.origin));
-  return agent?.origin ? <OriginBadge origin={agent.origin} /> : null;
-}
+export { AgentMark };
 
 /** "Where they stand": this many couples a page. */
 const COUPLES_PAGE = 10;
@@ -133,23 +128,8 @@ export default function ReunionPanel({
       {reunion.awards.length > 0 && (
         <div className="boards">
           {reunion.awards.map((award) => (
-            <div key={award.title} className="card award">
-              <h3>{award.title}</h3>
-              <div className="award-body">
-                <div className="reunion-faces">
-                  {award.chars.map((c) => (
-                    <Face key={c.id} c={c} size={40} />
-                  ))}
-                </div>
-                <div>
-                  <p className="award-name">
-                    {award.name} <AgentMark chars={award.chars} />
-                  </p>
-                  {/* "7 viewers called them…" only when the number is a crowd (or to an insider); else the countless words. */}
-                  <p className="muted">{award.count !== undefined && award.count_line && showCrowd(award.count, { insider }) ? award.count_line : award.detail}</p>
-                </div>
-              </div>
-            </div>
+            // "7 viewers called them…" only when the number is a crowd (or to an insider); else the countless words.
+            <AwardCard key={award.title} award={award} line={award.count !== undefined && award.count_line && showCrowd(award.count, { insider }) ? award.count_line : award.detail} />
           ))}
         </div>
       )}

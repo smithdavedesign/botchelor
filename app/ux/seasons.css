@@ -306,33 +306,12 @@
   font-style: italic;
   overflow-wrap: anywhere;
 }
-/* The awards: the faces overlap in a row, and the name and detail take the rest of the card, so a name never wraps four
-   deep beside three faces. */
+/* The awards: title cards (app/AwardCard.tsx), four across on the wide page; two to a row on a phone (app/ux/show.css). */
 .season-awards {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
 }
 .season-awards .award {
   margin: 0;
-}
-.season-awards .award-body {
-  align-items: center;
-}
-.season-awards .reunion-faces {
-  gap: 0;
-}
-.season-awards .reunion-faces > * + * {
-  margin-left: -12px;
-}
-.season-awards .reunion-faces .avatar {
-  box-shadow: 0 0 0 2px var(--card);
-}
-.season-awards .award-body > div {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.season-awards .award-name,
-.season-awards .award-body p {
-  overflow-wrap: anywhere;
 }
 .season-cast {
   list-style: none;
