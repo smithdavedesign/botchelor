@@ -122,3 +122,40 @@ describe("the morning after runs the critic too", () => {
     expect((calls[3].at(-1) as Any).content).toMatch(/^Revise that text:/);
   });
 });
+
+// #1968 (Lior × Odile, 2026-11-21): a matched house character's opener said "Your profile says you'd rather not be
+// asked where next" (in no profile) and "I'm learning to juggle", which both had been dealt that week. The prompt said
+// it knew them from their profile, but "them" was only their look, and its own news sat at the top level as if shared.
+describe("buildTextMessages: a new match's texts know the other's profile, and whose news is whose", () => {
+  const JUGGLE = "Learning to juggle from videos";
+  const lior = assembleCharacter({ id: "lior", sheet: sheet("Lior Nakamura", "Has lived in nine cities and left a bicycle in each."), soul: null, memory: null, thisWeek: JUGGLE });
+  const odile = assembleCharacter({ id: "odile", sheet: { ...sheet("Odile Fenwick", "A lighthouse-lens restorer with a spreadsheet of fog horns."), dealbreaker: "people who never ask questions" }, soul: null, memory: null, thisWeek: JUGGLE });
+  const dataOf = (messages: ChatMessage[]): Any => JSON.parse(messages[1].content.replace(/^[^\n]*\n/, ""));
+
+  it("matched: 'them' is their public profile (bio, traits, their this_week), never their private side", () => {
+    const messages = buildTextMessages(lior, odile, null, [], { nudge: null, alsoSeeing: [], matched: true });
+    const data = dataOf(messages);
+    expect(data.them).toMatchObject({ name: "Odile Fenwick", bio: odile.bio, traits: odile.persona.traits, this_week: JUGGLE });
+    const them = JSON.stringify(data.them);
+    expect(them).not.toMatch(/never ask questions|someone who laughs easily|soul|memory/);
+    expect(data.them).not.toHaveProperty("dealbreaker");
+    expect(data.them).not.toHaveProperty("want");
+    // The prompt's claim matches what it gets, and says the same news on both sides is a coincidence, not its own.
+    expect(messages[0].content).toMatch(/only from their dating profile \("them": what they put on it, their "this_week" too\)/);
+    expect(messages[0].content).toMatch(/a coincidence to notice, not yours to claim/);
+  });
+
+  it("its own news is in 'you' only, never at the top level beside 'them'", () => {
+    for (const matched of [true, false]) {
+      const data = dataOf(buildTextMessages(lior, odile, null, [], { nudge: null, alsoSeeing: [], matched }));
+      expect(data.you.whats_new_this_week).toBe(JUGGLE);
+      expect(data).not.toHaveProperty("whats_new_this_week");
+    }
+  });
+
+  it("between dates: 'them' stays what shows at a glance (they know each other from their dates)", () => {
+    const data = dataOf(buildTextMessages(lior, odile, { what_they_told_you: [] }, [], { nudge: null, alsoSeeing: [] }));
+    expect(data.them).toHaveProperty("what_you_can_see");
+    expect(data.them).not.toHaveProperty("bio");
+  });
+});
