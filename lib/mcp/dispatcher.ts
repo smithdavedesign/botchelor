@@ -9753,12 +9753,21 @@ async function readResource(uri: string, db: Db, base?: string): Promise<{ mimeT
 const STATS_TTL_MS = 60_000;
 const statsCache = new WeakMap<object, { at: number; text: string }>();
 
-/** #1870: a tool call over SLOW_CALL_MS (not counting what it was asked to wait) goes to the server log by name. */
+/**
+ * #1870: a tool call over SLOW_CALL_MS (not counting what it was asked to wait) goes to the server log by name.
+ * #1969 (the 2026-11-21-0842 run: "read_texts (no wait) hung past 120 seconds", and the log had no line for it): `ms` is
+ * the whole call, the sweep every call makes before its tool runs included (due dates airing, quiet two-agent dates), and
+ * `before` is how much of it that sweep took, so a call held up there says so.
+ */
 export const SLOW_CALL_MS = 5_000;
-export function logSlowCall(tool: string, ms: number, args: Record<string, unknown> = {}): boolean {
+export function logSlowCall(tool: string, ms: number, args: Record<string, unknown> = {}, before = 0): boolean {
   const asked = ["wait_seconds", "timeout_seconds"].reduce((n, k) => Math.max(n, Number(args[k]) || 0), 0) * 1000;
   if (ms - asked < SLOW_CALL_MS) return false;
-  console.warn(`[mcp] slow call: ${tool} took ${(ms / 1000).toFixed(1)} s${asked ? ` (asked to wait up to ${asked / 1000} s)` : ""}`);
+  const notes = [
+    ...(asked ? [`asked to wait up to ${asked / 1000} s`] : []),
+    ...(before >= 1000 ? [`${(before / 1000).toFixed(1)} s of it before the tool ran: airing due dates, quiet two-agent dates`] : []),
+  ];
+  console.warn(`[mcp] slow call: ${tool} took ${(ms / 1000).toFixed(1)} s${notes.length ? ` (${notes.join("; ")})` : ""}`);
   return true;
 }
 
@@ -10285,6 +10294,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       args = enums.args;
       aliased.push(...enums.read);
       const db = await getDb();
+      // #1969: a slow call's clock starts here, so time spent in the sweep below shows in the slow-call log too.
+      const callAt = Date.now();
       // Agents' dates whose prediction window has closed air on the next call anyone makes, not only on the hourly job.
       // (air_date sweeps its own host's, so it can report the airing it did.)
       if (name !== "air_date") await airDueDates(db, null, 5).catch(() => []);
@@ -10307,7 +10318,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const startedAt = Date.now();
       let ran = await runTool(name as ToolName, args, session, db, ctx.base, ctx);
       // #1870 (the 2026-11-19-2052 run: "my_status took 15 s once"): a slow call says which tool it was, waits aside.
-      logSlowCall(name, Date.now() - startedAt, args);
+      logSlowCall(name, Date.now() - callAt, args, startedAt - callAt);
       // 2.6.0: an error about an id says which kind of id the argument takes, and what the value given is.
       if ("error" in ran) {
         const failed = ran;
