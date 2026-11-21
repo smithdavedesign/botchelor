@@ -61,6 +61,9 @@ export type NameStats = {
   kin: number;
   kinOwn: number;
   kinOther: number;
+  /** Close family (lib/social/person-names.ts sharesSurnameWords) with a surname, and how many have the character's. */
+  close: number;
+  closeOwn: number;
   bestFriends: number;
 };
 export type TieIndex = { tied: Map<string, Set<string>>; add(a: string, b: string): void; count(id: string): number; has(a: string, b: string): boolean };

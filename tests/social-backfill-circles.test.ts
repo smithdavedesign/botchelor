@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nameIdeas } from "@/lib/oc-name-pools";
 import { TIE_KINDS } from "@/lib/social/kinds";
-import { FIRST_NAME_MAX, isFamilyWords, nameStyleOf } from "@/lib/social/person-names";
+import { familySurnameOf, FIRST_NAME_MAX, isFamilyWords, nameStyleOf, SHARES_SURNAME_KINDS, sharesSurnameWords } from "@/lib/social/person-names";
 import { kindFromWords } from "@/lib/social/relations";
 import {
   brokenHolders,
@@ -290,12 +290,17 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
     const names = { first: ["Imani", "Theo", "Rowan"], last: ["Okafor", "Varga"] };
     const [, user] = circleMessages(char("me", { name: "Caspar Yeoland" }), { world, candidates: [], byId: new Map(), workplaces: [], names });
     expect(user.content).toContain("First names to pick from for them (or others like these): Imani, Theo, Rowan.");
-    expect(user.content).toContain("Their family mostly shares their surname, Yeoland. Nobody else has it, nor the surname of anyone on the show: others have surnames like Okafor, Varga.");
+    expect(user.content).toContain(
+      "Their parents, brothers, sisters and children share their surname, Yeoland; other family may have their own. Nobody else has it, nor the surname of anyone on the show: others have surnames like Okafor, Varga.",
+    );
     expect(user.content).toContain("A best friend only if they really have one: most people here don't.");
     expect(user.content).toContain("mentor, roommate or best friend");
-    // A one-word name has no surname to share.
-    const [, solo] = circleMessages(char("me", { name: "Zephyr" }), { world, candidates: [], byId: new Map(), workplaces: [], names });
-    expect(solo.content).toContain("Nobody has the surname of anyone on the show: use surnames like Okafor, Varga.");
+    // A one-word name, or an epithet, has no surname to share.
+    for (const name of ["Zephyr", "Papiros The Inevitable", "Duke of Brine"]) {
+      const [, solo] = circleMessages(char("me", { name }), { world, candidates: [], byId: new Map(), workplaces: [], names });
+      expect(solo.content).toContain("Nobody has the surname of anyone on the show: use surnames like Okafor, Varga.");
+    }
+    expect([familySurnameOf("Caspar Yeoland"), familySurnameOf("Clemency Duarte-Holt"), familySurnameOf("Leah O’Connor"), familySurnameOf("bo lark")]).toEqual(["Yeoland", "Duarte-Holt", "O’Connor", null]);
   });
 
   it("knows family words as the site does (kindFromWords puts them in the kin layer)", () => {
@@ -307,6 +312,11 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
     for (const w of words) {
       const kind = kindFromWords(w);
       expect([w, isFamilyWords(w)]).toEqual([w, kind ? TIE_KINDS[kind].layer === "kin" : false]);
+    }
+    // Close family, who share the character's surname: the kinds SHARES_SURNAME_KINDS names.
+    for (const w of [...words, "younger brother", "twin sister", "half-brother", "stepsister", "grandson", "granddaughter", "grandfather", "mother-in-law"]) {
+      const kind = kindFromWords(w);
+      expect([w, sharesSurnameWords(w)]).toEqual([w, kind ? SHARES_SURNAME_KINDS.includes(kind) : false]);
     }
   });
 
@@ -322,10 +332,11 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
         { name: "Lydia Yeoland", relation: "grandmother" },
         { name: "Sam Yeoland", relation: "coworker" },
         { name: "Ines Marr", relation: "neighbour" },
+        { name: "Callum Iversen", relation: "younger brother" },
       ]),
       book,
     );
-    const [mum, milo, gran, sam, ines] = out.circle.people;
+    const [mum, milo, gran, sam, ines, callum] = out.circle.people;
     // Family takes his surname over Barnaby's, and a fourth Eleanor is a new (feminine) first name; her note follows.
     expect(mum.name).toMatch(/^\S+ Yeoland$/);
     expect(mum.name.startsWith("Eleanor")).toBe(false);
@@ -335,17 +346,19 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
     expect(milo.name.endsWith("Thorne")).toBe(false);
     expect(sam.name.startsWith("Sam ")).toBe(true);
     expect(sam.name.endsWith("Yeoland")).toBe(false);
-    // Already by the rules: untouched.
+    // His brother shares his surname; his grandmother may keep her own (she has it anyway), as may his neighbour.
+    expect(callum.name).toBe("Callum Yeoland");
     expect([gran.name, ines.name]).toEqual(["Lydia Yeoland", "Ines Marr"]);
     expect(out.renamed.map((r) => [r.from, r.why])).toEqual([
       ["Eleanor Thorne", "family: their surname, not another character's; 3 called Eleanor already"],
       ["Milo Thorne", "not family: not a character's surname"],
       ["Sam Yeoland", "not family: not their surname"],
+      ["Callum Iversen", "close family: their surname"],
     ]);
     // What was kept is in the book: a second Ines Marr would be renamed.
     expect(book.hasFull("Ines Marr")).toBe(true);
     expect(book.firstCount("eleanor")).toBe(FIRST_NAME_MAX);
-    const next = nameCircle(holder("other", "Odile Park"), peopleCircle("other", [{ name: "Ines Marr", relation: "rival" }, { name: "Ines Marr", relation: "sister" }]), book);
+    const next = nameCircle(holder("other", "Odile Park"), peopleCircle("other", [{ name: "Ines Marr", relation: "rival" }, { name: "Ines Marr", relation: "cousin" }]), book);
     expect(next.circle.people[0].name).toMatch(/^Ines (?!Marr$)/);
     expect(next.circle.people[1].name).toMatch(/^\S+ Marr$/);
     expect(next.circle.people[1].name.startsWith("Ines")).toBe(false);
@@ -364,7 +377,7 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
     ];
     const broken = brokenHolders(everyone);
     expect([...broken.keys()].sort()).toEqual(["a4", "a5", "a6", "a7"]);
-    expect(broken.get("a4")).toEqual(["Eleanor Rook: 3 called Eleanor already"]);
+    expect(broken.get("a4")).toEqual(["Eleanor Rook: 3 called Eleanor already", "Eleanor Rook: close family without their surname"]);
     expect(broken.get("a5")).toEqual(["Maeve Fenn: a name someone has"]);
     expect(broken.get("a6")).toEqual(["Gus One: a character's surname"]);
     // His father may have his surname; his aunt may not have Bea Two's.
@@ -383,9 +396,10 @@ describe("names (the first run's repeats: 24 Eleanors, Thornes outside Barnaby T
       holder("a3", "Cy Lone"),
     ];
     const s = nameStats(everyone);
-    expect(s).toMatchObject({ holders: 2, people: 6, distinctFirst: 3, overCap: 1, fullTwice: 1, outsideTaken: 1, kin: 2, kinOwn: 1, kinOther: 1, bestFriends: 1 });
+    expect(s).toMatchObject({ holders: 2, people: 6, distinctFirst: 3, overCap: 1, fullTwice: 1, outsideTaken: 1, kin: 2, kinOwn: 1, kinOther: 1, close: 2, closeOwn: 1, bestFriends: 1 });
     expect(s.top).toEqual([["eleanor", 4], ["rob", 1], ["tom", 1]]);
     expect(statsLine(s)).toContain("6 people for 2 characters: 3 first names (most used eleanor 4, rob 1, tom 1; 1 past 3)");
+    expect(statsLine(s)).toContain("1 of 2 family with the character's own (close family 1 of 2)");
   });
 
   it("remembers a circle written again from nobody, under the names the site gave", () => {

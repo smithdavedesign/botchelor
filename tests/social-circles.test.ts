@@ -275,20 +275,22 @@ describe("writing a circle", () => {
         { name: "Bo Marsh", relation: "neighbour" },
         { name: "Rosa Venn", relation: "sister" },
         { name: "Wen Chen", relation: "friend" },
+        { name: "Callum Iversen", relation: "younger brother" },
       ],
     };
     const renames = (r: { renamed?: { from: string; to: string; why: string }[] }) => new Map((r.renamed ?? []).map((x) => [x.from, x]));
     // A dry run says the same renames, and writes nothing.
     const dry = await writeCircle(t.db, input, opts({ dryRun: true }));
-    expect([...renames(dry).keys()]).toEqual(["Maeve Caro", "Lydia Dacre", "Sam Venn", "Eleanor Moreau", "Bo Marsh"]);
+    expect([...renames(dry).keys()]).toEqual(["Maeve Caro", "Lydia Dacre", "Sam Venn", "Eleanor Moreau", "Bo Marsh", "Callum Iversen"]);
     expect(await peopleOf(t.db, AG1)).toEqual([]);
 
     const r = await writeCircle(t.db, input, opts());
-    expect(r).toMatchObject({ status: "written", people: 7, refused: [] });
+    expect(r).toMatchObject({ status: "written", people: 8, refused: [] });
     const by = renames(r);
     expect([...by.keys()]).toEqual([...renames(dry).keys()]);
-    // Family with another character's surname takes the holder's.
+    // Family with another character's surname takes the holder's, and so does close family with one of its own.
     expect(by.get("Lydia Dacre")).toEqual({ from: "Lydia Dacre", to: "Lydia Venn", why: "family: their surname, not another character's" });
+    expect(by.get("Callum Iversen")).toEqual({ from: "Callum Iversen", to: "Callum Venn", why: "close family: their surname" });
     // Anyone else keeps their first name and gets a surname no show character has, the holder's own included.
     expect(by.get("Maeve Caro")!.why).toBe("not family: not a character's surname");
     expect(by.get("Sam Venn")!.why).toBe("not family: not their surname");
@@ -299,7 +301,7 @@ describe("writing a circle", () => {
       // (Vesper Lark and Quist are the house's.)
       expect(["Venn", "Caro", "Dacre", "Marsh", "Lark", "Quist"]).not.toContain(last);
     }
-    // A fourth Eleanor gets another first name, and the note follows, word by word.
+    // A fourth Eleanor gets another first name, and the note follows, word by word; an aunt keeps a surname of her own.
     const aunt = by.get("Eleanor Moreau")!;
     expect(aunt.why).toBe("3 called Eleanor already");
     const [auntFirst, auntLast] = aunt.to.split(" ");

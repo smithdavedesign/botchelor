@@ -10,9 +10,10 @@
  *
  * - A first name is used at most FIRST_NAME_MAX times across the show's people, and a full name once (never a
  *   character's).
- * - Family has the character's own surname or one of its own, never another show character's. Anyone else never has a
- *   show character's surname, the character's own included. (The site's other characters' surnames are anyone's: a
- *   common surname on someone's character doesn't make every Chen on the show its family.)
+ * - Close family (parents, full siblings, children, grandchildren) has the character's own surname; the rest of the
+ *   family has it or one of its own, never another show character's. Anyone else never has a show character's surname,
+ *   the character's own included. (The site's other characters' surnames are anyone's: a common surname on someone's
+ *   character doesn't make every Chen on the show its family.)
  * - A person who breaks a rule is renamed from the OC name generator's lists in the character's style
  *   (lib/oc-name-pools.ts), and a note that says their old first name says the new one.
  *
@@ -69,6 +70,29 @@ const FAMILY =
 /** Whether a relation is family (lib/social/relations.ts kindFromWords puts it in the kin layer); a "family friend" isn't. */
 export const isFamilyWords = (relation: string | null | undefined): boolean => !/friend/i.test(relation ?? "") && FAMILY.test(relation ?? "");
 
+/** The kinds whose people share the character's surname (lib/social/kinds.ts): its parents, full siblings, children and grandchildren. */
+export const SHARES_SURNAME_KINDS: readonly string[] = ["parent", "sibling", "child", "grandchild"];
+const CLOSE_FAMILY = /\b(parents?|mother|mum|mom|mama|father|dad|papa|siblings?|sisters?|brothers?|twins?|sons?|daughters?|child(?:ren)?|grand(?:son|daughter|child)s?|grandchildren)\b/i;
+/**
+ * Whether a relation is close family who share the character's surname ("their mother", "younger brother", "twin"), as
+ * kindFromWords reads it into SHARES_SURNAME_KINDS: never a step-, half- or in-law, a godparent or a grandparent.
+ */
+export const sharesSurnameWords = (relation: string | null | undefined): boolean => {
+  const r = relation ?? "";
+  return isFamilyWords(r) && CLOSE_FAMILY.test(r) && !/\b(step|half|in-?laws?|god)/i.test(r);
+};
+
+/**
+ * The surname a character's close family shares: its name's last word, unless the name reads as a title or epithet
+ * ("Papiros The Inevitable", "Duke of Brine") or the word isn't a name.
+ */
+export function familySurnameOf(name: string | null | undefined): string | null {
+  const w = wordsOf(name);
+  if (w.length < 2 || w.some((x) => /^(the|of)$/i.test(x))) return null;
+  const last = w[w.length - 1];
+  return /^\p{Lu}[\p{L}'’-]*$/u.test(last) ? last : null;
+}
+
 const FEMININE = /\b(mother|mum|mom|mama|mommy|mummy|stepmother|stepmum|stepmom|grandmother|grandma|gran|granny|nan|nana|nanna|sisters?|stepsister|daughters?|stepdaughter|granddaughter|aunts?|auntie|aunty|nieces?|godmother|wife|girlfriend)\b/i;
 const MASCULINE = /\b(father|dad|daddy|papa|stepfather|stepdad|grandfather|grandpa|gramps|brothers?|stepbrother|sons?|stepson|grandson|uncles?|nephews?|godfather|husband|boyfriend)\b/i;
 /** The kind of first name a person's relation or pronouns call for ("their mother": feminine), or null when neither says. */
@@ -94,15 +118,17 @@ export type PersonName = { ok: true; name: string; note: string | null; why: str
 
 /**
  * One person's name by the rules, against what `book` says is used (the caller adds the name to it once kept): the
- * same name, or a new one with why, or why none would do. `kin`: the tie is family; `holderLast`: the character's own
- * surname.
+ * same name, or a new one with why, or why none would do. `kin`: the tie is family; `shares`: close family, who share
+ * the character's surname; `holderLast`: the character's own surname (its name's last word); `familyLast`: the surname
+ * its family shares (familySurnameOf: none for a title or an epithet).
  */
 export function personName(
   p: { name: string; relation?: string | null; pronouns?: string | null; note?: string | null },
-  o: { kin: boolean; holderLast: string | null; book: NameBook; draws: NameDraws },
+  o: { kin: boolean; shares?: boolean; holderLast: string | null; familyLast?: string | null; book: NameBook; draws: NameDraws },
 ): PersonName {
   const { kin, book, draws } = o;
   const own = o.holderLast?.toLowerCase() ?? null;
+  const familyLast = o.familyLast === undefined ? o.holderLast : o.familyLast;
   const before = wordsOf(p.name).join(" ");
   let name = before;
   const why: string[] = [];
@@ -110,13 +136,17 @@ export function personName(
   const freeSurname = (n: string) => (x: string) => x.toLowerCase() !== own && !book.surnameTaken(x) && !book.hasFull(withLast(n, x));
   const freeFirst = (n: string) => (x: string) => book.firstCount(x) < FIRST_NAME_MAX && !book.hasFull(withFirst(n, x));
 
-  // Surnames: family never has another character's; anyone else never has a character's at all.
+  // Surnames: close family has the character's; family never has another character's; anyone else never has a
+  // character's at all. (A one-word name has no surname to change.)
   const last = surnameOf(name)?.toLowerCase() ?? null;
   if (last && kin && last !== own && book.surnameTaken(last)) {
-    const to = o.holderLast ?? draws.last(freeSurname(name));
+    const to = familyLast ?? draws.last(freeSurname(name));
     if (!to) return { ok: false, reason: "another character's surname, and none free" };
     name = withLast(name, to);
-    why.push(o.holderLast ? "family: their surname, not another character's" : "family: not another character's surname");
+    why.push(familyLast ? "family: their surname, not another character's" : "family: not another character's surname");
+  } else if (last && kin && o.shares && familyLast && last !== familyLast.toLowerCase()) {
+    name = withLast(name, familyLast);
+    why.push("close family: their surname");
   } else if (last && !kin && (last === own || book.surnameTaken(last))) {
     const to = draws.last(freeSurname(name));
     if (!to) return { ok: false, reason: "a character's surname, and none free" };
