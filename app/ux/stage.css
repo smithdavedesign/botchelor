@@ -368,3 +368,221 @@ body:has(.set-hero) {
     mask-image: none;
   }
 }
+
+/* ---------------- The contestant card (app/characters/[id]/page.tsx): a character page's top as a title card ----------
+   The visual pop audit, 2026-11-20: the face large (their hello playing where they have one, app/characters/[id]/
+   IntroClip.tsx, else the portrait with a slow push-in), the name in Fraunces, the counts as chips, and the place of their
+   last date blurred behind (the stage when there's none). Dark in both themes. Inside it the site's own tokens take the
+   dark theme's values (the dark block in globals.css), as After Dark's frame remaps them to the night's, so the header's
+   own controls (Text, Follow, ⋯, the rating chips, the ⓘ, the badges) turn dark without knowing. */
+.contestant-card {
+  --ink: #f5e9f0;
+  --muted: #c4b0cd;
+  --paper: #130a16;
+  --paper-2: #1d1024;
+  --card: #1e1324;
+  --accent: #ff5e8c;
+  --accent-text: #ff7ea3;
+  --accent-btn: #ff5e8c;
+  --accent-2: #b9a0ff;
+  --accent-ink: #130a16;
+  --line: #3d2849;
+  --field: #8d71a6;
+  --focus: #ff5e8c;
+  --soft: #2a1730;
+  --ok-text: #3ddc84;
+  --contestant-scrim: var(--card-dark);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: clamp(8rem, 5.5rem + 9vw, 12rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3) var(--space-5);
+  margin: var(--space-2) 0 var(--space-5);
+  padding: clamp(1rem, 0.6rem + 1.6vw, 1.75rem);
+  border-radius: var(--radius-lg);
+  background: var(--card-dark);
+  color: var(--ink);
+  color-scheme: dark;
+  box-shadow: 0 18px 40px -22px color-mix(in srgb, black 80%, transparent);
+}
+/* The place behind, blurred and graded toward the words; clipped here, not on the card, so the header's menus and the
+   ⓘ can still open past its edge. */
+.contestant-card-stage {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.contestant-card-stage img {
+  position: absolute;
+  inset: -8%;
+  width: 116%;
+  height: 116%;
+  object-fit: cover;
+  filter: blur(6px) saturate(1.15);
+  animation: set-push-in 32s ease-in-out infinite alternate;
+}
+.contestant-card-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--contestant-scrim) 90%, transparent) 0%, color-mix(in srgb, var(--contestant-scrim) 72%, transparent) 55%, color-mix(in srgb, var(--contestant-scrim) 50%, transparent) 100%),
+    linear-gradient(0deg, color-mix(in srgb, var(--contestant-scrim) 70%, transparent) 0%, transparent 60%);
+}
+.contestant-card-face {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 4;
+  border: 2px solid color-mix(in srgb, var(--on-photo) 35%, transparent);
+  border-radius: var(--radius);
+  background: var(--photo-bg);
+  box-shadow: 0 14px 32px -12px color-mix(in srgb, black 80%, transparent);
+}
+.contestant-card-face > .avatar,
+.contestant-card .contestant-card-face > .avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  object-fit: cover;
+  object-position: 50% 22%;
+  animation: set-push-in 18s ease-in-out infinite alternate;
+}
+.contestant-card .meta {
+  min-width: 0;
+}
+.contestant-card .meta > .kicker {
+  margin: 0 0 var(--space-1);
+}
+.contestant-card .meta h1 {
+  margin: 0 0 var(--space-1);
+  color: var(--on-photo);
+  font-family: "Fraunces", Georgia, serif;
+  text-shadow: 0 2px 20px color-mix(in srgb, black 50%, transparent);
+}
+.contestant-card .contestant-job {
+  color: var(--accent-2);
+}
+/* The counts, as chips. */
+.contestant-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.contestant-stats li {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--on-photo) 22%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--on-photo) 10%, transparent);
+  color: var(--ink);
+  font-size: var(--text-xs);
+}
+.contestant-stats strong {
+  margin-right: var(--space-1);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-md);
+  color: var(--on-photo);
+}
+
+/* Their hello as the face (app/characters/[id]/IntroClip.tsx): the portrait is the poster. */
+.intro-clip,
+.intro-clip video {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.intro-clip {
+  position: relative;
+}
+.intro-clip video {
+  object-fit: cover;
+  background: var(--media-bg);
+}
+.intro-clip-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--photo-bg) 30%, transparent);
+  box-shadow: none;
+  color: var(--accent-ink);
+}
+.intro-clip-play .icon {
+  width: 3rem;
+  height: 3rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--grad);
+}
+.intro-clip-controls {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+}
+.intro-clip-controls button {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--on-photo) 30%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--card-dark) 70%, transparent);
+  box-shadow: none;
+  color: var(--on-photo);
+  font-size: var(--text-sm);
+}
+.intro-clip-controls button[aria-pressed="true"] {
+  background: var(--grad);
+  color: var(--accent-ink);
+}
+
+@media (max-width: 560px) {
+  /* On a phone: the face beside the name and its lines, then the chips, the actions and the ratings across the card. */
+  .contestant-card {
+    grid-template-columns: 6.75rem minmax(0, 1fr);
+    gap: var(--space-2) var(--space-3);
+  }
+  .contestant-card .meta {
+    display: contents;
+  }
+  .contestant-card-face {
+    grid-column: 1;
+    grid-row: 1 / span 4;
+    align-self: start;
+  }
+  .contestant-card .meta > * {
+    grid-column: 2;
+  }
+  .contestant-card .meta > :is(.contestant-stats, .contestant-actions, .hero-ratings) {
+    grid-column: 1 / -1;
+  }
+  .contestant-card .meta h1 {
+    font-size: var(--text-2xl);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contestant-card-stage img,
+  .contestant-card-face > .avatar,
+  .contestant-card .contestant-card-face > .avatar {
+    animation: none;
+  }
+}

@@ -420,7 +420,8 @@ describe("finding a character on /characters (lib/directory.ts searchDirectory)"
     setSeasonCastForTests(["house-juniper"]);
     const html = await render({ tab: "cast" });
     const card = html.slice(html.indexOf('<li class="card tap-card dir-card">'), html.indexOf("</li>", html.indexOf('<li class="card tap-card dir-card">')));
-    expect(card).toMatch(/^<li class="card tap-card dir-card"><div class="dir-portrait"><(img|svg)[^>]*class="avatar[^"]* avatar-fill"/);
+    // The show's cast with a face loop (lib/face-loops.ts, Juniper among them) have it around the portrait.
+    expect(card).toMatch(/^<li class="card tap-card dir-card"><div class="dir-portrait">(<span[^>]*>)?<(img|svg)[^>]*class="avatar[^"]* avatar-fill"/);
     expect(card).toMatch(/width="320" height="320"/);
     expect(card).toMatch(/<a class="char-name stretch dir-name char-name-link" href="\/characters\/house-juniper">/);
     expect(card.indexOf("dir-portrait")).toBeLessThan(card.indexOf("dir-name"));

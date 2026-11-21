@@ -8,6 +8,7 @@ import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { pageOf } from "@/lib/paging";
 import type { GraphEdge, GraphNode, PairTimeline } from "@/lib/graph";
 import { ORIGIN_LABEL } from "@/lib/origin";
+import { shortName } from "@/lib/names";
 import { endingLabel } from "@/lib/rules";
 import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
@@ -20,9 +21,11 @@ type Props = {
   onClose: () => void;
   /** Jump the canvas to a node (the panel's partner links double as navigation). */
   onFocus: (id: string) => void;
-  /** Whose world the sky is cut to ("Just them and their world"), or null; onWorld sets or clears it. */
+  /** Whose corner of the sky it's cut to ("Just their corner of the sky", ?world=), or null; onWorld sets or clears it. */
   world?: string | null;
   onWorld?: (id: string | null) => void;
+  /** SOCIAL_LENSES: every character has a world page (/graph/world/[id]), and their panel links it. */
+  worlds?: boolean;
   /** What the stars' colours mean right now: under "Cluster", a star's panel names its cluster. */
   colorBy: ColorBy;
   /** "Show what happened": endings, who turned whom down, who left first. Off by default (the episode page's rule). */
@@ -163,8 +166,20 @@ function Partners({ node, mine, byId, onFocus }: { node: GraphNode; mine: GraphE
   );
 }
 
+/**
+ * A character's world page (/graph/world/[id]: everyone they're tied to, drawn round them), linked from their panel in
+ * any view. On a phone it's the panel's first action, filled (app/globals.css .constellation-world-link).
+ */
+export function WorldLink({ id, name }: { id: string; name: string }) {
+  return (
+    <Link className="button-ghost small constellation-world-link" href={`/graph/world/${encodeURIComponent(id)}`} data-track="graph-world-page">
+      See {shortName(name)}&apos;s world →
+    </Link>
+  );
+}
+
 /** What a tap opens: a character's public story, or a pair's. Spoilers wait behind "Show what happened". */
-export default function SidePanel({ selection, nodes, edges, onClose, onFocus, world = null, onWorld, colorBy, showOutcomes, onShowOutcomes }: Props) {
+export default function SidePanel({ selection, nodes, edges, onClose, onFocus, world = null, onWorld, worlds = false, colorBy, showOutcomes, onShowOutcomes }: Props) {
   if (!selection) return null;
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
@@ -202,6 +217,8 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, w
         {!node.private && mine.length > 0 && <Partners key={node.id} node={node} mine={mine} byId={byId} onFocus={onFocus} />}
         {!node.private && (
           <p className="constellation-panel-links">
+            {/* Their world page: everyone they're tied to, every kind of tie (on a phone, the panel's first action). */}
+            {worlds && <WorldLink id={node.id} name={node.name} />}
             {/* The sky cut to them, who they dated and who those dated (./filter.ts worldOf). */}
             {onWorld && mine.length > 0 && (
               <>
@@ -212,7 +229,7 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, w
                   title={world === node.id ? "Back to the whole sky" : "Them, who they dated, and who those dated"}
                   data-track={world === node.id ? "graph-world-off" : "graph-world"}
                 >
-                  {world === node.id ? "Show everyone" : "Just them and their world"}
+                  {world === node.id ? "Show everyone" : "Just their corner of the sky"}
                 </button>{" "}
               </>
             )}

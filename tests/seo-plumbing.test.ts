@@ -17,8 +17,22 @@ const page = (path: string) => middleware(new NextRequest(`https://botchelor.com
 
 describe("the PG tool pages open to a search visitor", () => {
   it("lets /tools, /ship and /alternatives through without the 18+ cookie, and since 2026-11-14 the PG show too; dating and money still meet the gate", () => {
-    expect([...UNGATED_PREFIXES]).toEqual(["/tools/", "/ship/", "/alternatives/", "/episodes/", "/seasons/", "/couples/", "/characters/", "/creators/", "/agents/", "/casting/invite/", "/showcase/", "/shows/"]);
-    for (const p of ["/tools/ship-name-generator", "/tools/oc-chemistry-test", "/ship/juniper/dex", "/alternatives/character-ai", "/tools", "/create", "/episodes/abc", "/characters/abc", "/watch"]) {
+    expect([...UNGATED_PREFIXES]).toEqual([
+      "/tools/",
+      "/ship/",
+      "/alternatives/",
+      "/episodes/",
+      "/seasons/",
+      "/couples/",
+      "/characters/",
+      "/creators/",
+      "/agents/",
+      "/casting/invite/",
+      "/showcase/",
+      "/shows/",
+      "/graph/world/",
+    ]);
+    for (const p of ["/tools/ship-name-generator", "/tools/oc-chemistry-test", "/ship/juniper/dex", "/alternatives/character-ai", "/tools", "/create", "/episodes/abc", "/characters/abc", "/watch", "/graph", "/graph/world/abc"]) {
       expect(page(p).headers.get("location"), p).toBeNull();
     }
     for (const p of ["/swipe", "/matches", "/shop", "/after-dark"]) {

@@ -282,7 +282,7 @@ describe("when they dated (app/graph/filter.ts)", () => {
   });
 });
 
-describe("just them and their world (app/graph/filter.ts worldOf)", () => {
+describe("just their corner of the sky (app/graph/filter.ts worldOf)", () => {
   it("walks two lines out: them, who they dated, and who those dated", () => {
     const chain = [
       { a_id: "a", b_id: "b" },

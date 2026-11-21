@@ -44,7 +44,7 @@ export type SkyFilter = {
   /** Still seeing each other (stillSeeing): it replaced "2+ dates", whose pairs the First date chip now covers. */
   still: boolean;
   /**
-   * "Just them and their world" (worldOf): one character's id, and only they and everyone within WORLD_STEPS of them
+   * "Just their corner of the sky" (worldOf): one character's id, and only they and everyone within WORLD_STEPS of them
    * stay on the sky; null for everyone.
    */
   world: string | null;
@@ -73,7 +73,7 @@ export function parseWorld(v: unknown): string | null {
   return id && id.length <= 200 ? id : null;
 }
 
-/** How far "Just them and their world" reaches: them, who they dated, and who those dated. */
+/** How far "Just their corner of the sky" reaches: them, who they dated, and who those dated. */
 export const WORLD_STEPS = 2;
 
 /**
@@ -137,7 +137,7 @@ export const stagesNarrowed = (stages: StageChoice): boolean => stages !== null 
 export const linesNarrowed = (f: SkyFilter): boolean => stagesNarrowed(f.stages) || f.when !== "all" || f.still;
 
 /**
- * How many of the filters behind the phone's Filters button are set (the stage chips sit on the sky, and "their world"
+ * How many of the filters behind the phone's Filters button are set (the stage chips sit on the sky, and their corner
  * has its own line over it, so not those).
  */
 export function activeFilters(f: SkyFilter): number {

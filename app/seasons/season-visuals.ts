@@ -6,6 +6,7 @@
  * venue's id, and the stored shape is frozen (RECAP_VERSION). The phrase is a pure function of the id (placeOf), so the
  * id is found again by computing every venue's phrase once; a place of their own ("Chud's place") has no set and no photo.
  */
+import type { NextPremiere } from "@/lib/premiere-clock";
 import { seasonArc, type SeasonFormatDef } from "@/lib/season-format";
 import { placeOf, type RecapEpisode, type SeasonRecapData } from "@/lib/season-recap";
 import { DATE_VENUES, EXTRA_VENUES, venueIdFor } from "@/lib/venues";
@@ -56,4 +57,14 @@ export function daysLeftLabel(now: Date, def: SeasonFormatDef | null = null): st
   const { left, to } = seasonArc(now, def);
   if (to === "end") return left === 0 ? "Last night of the season" : `${days(left)} left in the season`;
   return left === 0 ? "The finale is tonight" : `${days(left)} to the finale`;
+}
+
+/**
+ * The next Sunday premiere's name, as its clock on a season's hero shows it (app/seasons/PremiereCountdown.tsx): "The
+ * pilot, Meet the lead", "Sunday's premiere" or "The finale's premiere", with who the lead dates once it's built.
+ */
+export function premiereLabel(p: Pick<NextPremiere, "kind" | "finale" | "lead" | "suitor">): string {
+  const name = p.kind === "pilot" ? "The pilot, Meet the lead" : p.finale ? "The finale's premiere" : "Sunday's premiere";
+  const first = (n: string) => n.split(" ")[0];
+  return p.suitor ? `${name}: ${first(p.lead.name)} and ${first(p.suitor.name)}` : name;
 }
