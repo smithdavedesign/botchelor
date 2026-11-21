@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "@/app/Avatar";
+import FaceLoop from "@/app/FaceLoop";
 import Icon from "@/app/Icon";
 import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
@@ -123,12 +124,18 @@ function ThreadRow({ c }: { c: CompanionListItem }) {
   );
 }
 
+/** A tile's face, in px. */
+export const TILE_FACE = 96;
+
 /** Someone you could talk with: a face, who they are, a few traits, and the button. */
 function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
   return (
     <li className="companion-tile">
       <div className="companion-tile-head">
-        <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={64} />
+        {/* A face you can read at a glance (the visual pop audit: past 64 px), moving for the cast with a loop. */}
+        <FaceLoop id={c.id} radius={TILE_FACE * 0.28}>
+          <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={TILE_FACE} />
+        </FaceLoop>
         <div className="companion-tile-who">
           <strong>{c.name}</strong>
           <span className="muted small">{[c.age, c.pronouns].filter(Boolean).join(" · ")}</span>

@@ -798,6 +798,96 @@ body:has(.companion-fullscreen) .site-footer {
   justify-content: center;
 }
 
+/* The phone (app/companion/CompanionPhone.tsx; the visual pop audit's leftovers): one of the house cast typing the
+   first message a conversation opens with, beside the header on a wide screen and under it on a phone. */
+.companion-hero {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.companion-phone {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+.companion-phone figcaption {
+  max-width: 20rem;
+  text-align: center;
+}
+.companion-phone-screen {
+  position: relative;
+  width: min(100%, 20rem);
+  padding: var(--space-5) var(--space-3) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+/* The speaker slot at the top, so it reads as a phone. */
+.companion-phone-screen::before {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  left: 50%;
+  width: 3.5rem;
+  height: 0.3rem;
+  translate: -50% 0;
+  border-radius: var(--radius-pill);
+  background: var(--line);
+}
+/* Who it is, as a contact sits at the top of a thread. */
+.companion-phone-who {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+.companion-phone-who strong {
+  margin-top: var(--space-1);
+}
+.companion-phone-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+/* A row holds its bubble's place while the dots stand in for it, so nothing moves as the lines land. */
+.companion-phone-msg {
+  display: grid;
+  max-width: 88%;
+}
+.companion-phone-msg > * {
+  grid-area: 1 / 1;
+}
+.companion-phone-msg .chat-typing {
+  justify-self: start;
+  align-self: start;
+}
+.companion-phone-msg:is(.is-typing, .is-waiting) .phone-bubble:not(.chat-typing),
+.companion-phone-watch.is-waiting {
+  visibility: hidden;
+}
+.companion-phone-watch {
+  margin: var(--space-2) 0 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .companion-phone-msg.is-said .phone-bubble {
+    animation: chat-in 0.22s ease;
+  }
+}
+@media (min-width: 60rem) {
+  .companion-hero {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: center;
+  }
+}
+
 /* A scene's roleplay (app/RoleplayPicker.tsx as the step after the place), and the line under the stage while it plays. */
 .companion-roleplay-step .rp-picker {
   margin-top: var(--space-3);
