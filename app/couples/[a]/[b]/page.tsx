@@ -37,7 +37,7 @@ import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import OriginBadge from "@/app/OriginBadge";
-import { originOf, originsOf } from "@/lib/origin";
+import { originOf, originsOf, type Origin } from "@/lib/origin";
 import PairTiesCard from "@/app/graph/PairTiesCard";
 import { closedSeasons } from "@/lib/season-ref";
 import { cachedPairTies } from "@/lib/social/cache";
@@ -49,6 +49,17 @@ type Props = { params: Promise<{ a: string; b: string }>; searchParams?: Promise
 
 /** "Their dates": this many a page (?dates=N). */
 const TIMELINE_PAGE = 10;
+
+/**
+ * A part the page can do without: when its read fails (the database pool busy, #1948), the page shows the rest and the
+ * log says what was left out, rather than the whole page failing.
+ */
+function orElse<T, F>(what: string, read: Promise<T>, fallback: F): Promise<T | F> {
+  return read.catch((err: unknown) => {
+    console.error(`[couple page] ${what} didn't load: ${err instanceof Error ? err.message : "unknown"}`);
+    return fallback;
+  });
+}
 
 /** The pair and what the viewer may see of it: the public layer, or an owner's (their own dates and plans). */
 async function load(a: string, b: string) {
@@ -72,7 +83,8 @@ async function load(a: string, b: string) {
   // Owners: the couple's whole text chain (lib/text-chain.ts), the newest page first. Nobody owns a house couple's
   // characters, so nobody texts there; anywhere else a spectator learns the texts are the owners'.
   // With the things they send each other besides texts: each date's photo and the small gifts (lib/text-chain.ts).
-  const chainP = owner ? loadChain(db, a, b, { userId: viewerId, owner: true }, { keepsakes: true }) : Promise.resolve(null);
+  // Every read below is one the page can do without (orElse): only the two characters and their record are essential.
+  const chainP = owner ? orElse("their texts", loadChain(db, a, b, { userId: viewerId, owner: true }, { keepsakes: true }), null) : Promise.resolve(null);
   // Anyone else: the dates that aired publicly, with those photos and gifts and never a text (publicKeepsakes), when
   // both characters are public. Beside the page's other reads, like the owner's chain: no round trip of its own.
   // A house couple (nobody owns either) also shows each aired date's morning-after texts: the show wrote both sides.
@@ -80,26 +92,31 @@ async function load(a: string, b: string) {
   const sentP: Promise<ChainItem[]> = !owner && listed && !ca.private && !cb.private ? loadChain(db, a, b, PUBLIC_VIEWER, { keepsakes: true }).then(openTexts ? publicHouseThread : publicKeepsakes, () => []) : Promise.resolve([]);
   // Owners: what they can do next for this couple (lib/date-proposals.ts), with the plan they agreed to by text since
   // their last date, which is where the next date will happen (lib/plans.ts), or else the plan from their latest date.
-  const nextP = chainP.then(async (fullChain) => {
-    const agreed = fullChain ? await planFromChain(db, fullChain, lo, a === lo ? { lo: ca.name, hi: cb.name } : { lo: cb.name, hi: ca.name }).catch(() => null) : null;
-    const plan = agreed
-      ? agreed.texts.map((t) => t.text)
-      : owner && last
-        ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text)
-        : [];
-    return owner ? nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan, agreed ? venueName(agreed.place) : null) : null;
-  });
+  const nextP = orElse(
+    "the next date",
+    chainP.then(async (fullChain) => {
+      const agreed = fullChain ? await planFromChain(db, fullChain, lo, a === lo ? { lo: ca.name, hi: cb.name } : { lo: cb.name, hi: ca.name }).catch(() => null) : null;
+      const plan = agreed
+        ? agreed.texts.map((t) => t.text)
+        : owner && last
+          ? (view.plans ?? []).filter((p) => p.episode_id === last.episode_id).map((p) => p.text)
+          : [];
+      return owner ? nextDate(db, viewerId, a, b, last?.episode_id ?? null, plan, agreed ? venueName(agreed.place) : null) : null;
+    }),
+    null,
+  );
   const [[seeingA, seeingB], fullChain, sent, nudges, [follow, arc], next, roleplay] = await Promise.all([
     // Between dates (lib/between-dates.ts): who else each is seeing (public), and for owners their texts and nudges.
-    Promise.all([alsoSeeing(db, a, b), alsoSeeing(db, b, a)]),
+    orElse("who else they're seeing", Promise.all([alsoSeeing(db, a, b), alsoSeeing(db, b, a)]), [[], []] as [string[], string[]]),
     chainP,
     sentP,
-    owner ? Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))) : [],
-    listed ? Promise.all([followState(db, viewerId, a, b), arcQuestion(db, viewerId, a, b)]) : [null, null],
+    // A nudge that didn't load is left out, not shown as "No note", so its form can't save over the real one unseen.
+    owner ? orElse("their nudges", Promise.all(mine.map(async (id) => ({ id, note: await activeNudge(db, id, id === a ? b : a) }))), []) : [],
+    listed ? orElse("their followers and arc", Promise.all([followState(db, viewerId, a, b), arcQuestion(db, viewerId, a, b)]), [null, null] as const) : [null, null],
     nextP,
     // Owners: a roleplay for their next date (lib/date-roleplays.ts), unless they can't have one (taken, a block); one
     // already proposed or agreed always shows, so it can be answered or called off.
-    owner ? roleplayCard(db, viewerId!, owners, nextP.then((n) => n?.option.kind === "unavailable")) : null,
+    owner ? orElse("their roleplay", roleplayCard(db, viewerId!, owners, nextP.then((n) => n?.option.kind === "unavailable")), null) : null,
   ]);
   const chain = fullChain ? chainPage(fullChain) : null;
   // Each date's place, for its photo in Their dates (the view carries the venue's name only).
@@ -144,10 +161,12 @@ const refOf = (c: PublicCharacter): CharacterRef => ({
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { a, b } = await params;
-  const db = await getDb();
-  const [ca, cb] = await Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b)]);
-  if (!ca || !cb) return { title: "Couple not found · Botchelor", robots: { index: false, follow: false } };
   const [lo, hi] = pairKey(a, b);
+  // A failed read (the pool busy: on 2026-11-21 this one broke the page, #1948) titles the page without their names.
+  const pair = await orElse("the title's names", getDb().then((db) => Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b)])), null);
+  if (!pair) return { title: "Their blind dates and how it's going · Botchelor", alternates: { canonical: `/couples/${lo}/${hi}` } };
+  const [ca, cb] = pair;
+  if (!ca || !cb) return { title: "Couple not found · Botchelor", robots: { index: false, follow: false } };
   // #SEO: couple pages are high-intent long-tail content (two names + the relationship stage). Keep the title
   // descriptive, the description honest about what's on the page, and the canonical pointing at the sorted pair.
   return {
@@ -165,12 +184,12 @@ export default async function CouplePage({ params, searchParams }: Props) {
   const sp = (await searchParams) ?? {};
   const [lo, hi] = pairKey(a, b);
   if (a !== lo) permanentRedirect(`/couples/${lo}/${hi}`);
-  // Who made them (lib/origin.ts) is read beside the rest, not after it.
-  const originsP = getDb().then((db) => originsOf(db, [lo, hi]));
-  originsP.catch(() => {}); // awaited below; unused (and so unhandled) when this is a match or a 404
+  // Who made them (lib/origin.ts) is read beside the rest, not after it. Without it, each badge comes from the character.
+  // orElse never rejects, so it's safe unawaited too (a match or a 404).
+  const originsP = orElse("who made them", getDb().then((db) => originsOf(db, [lo, hi])), new Map<string, Origin>());
   // Everything else between them (friends, coworkers, rivals: lib/social/read.ts pairTies), read beside the rest too.
-  // Null when the views are off, nothing's there, or one of them is private to this viewer.
-  const tiesP = socialLensesOn() ? cookies().then((jar) => cachedPairTies(lo, hi, userIdFromCookieStore(jar))).catch(() => null) : Promise.resolve(null);
+  // Null when the views are off, nothing's there, or one of them is private to this viewer; "failed" when the read failed.
+  const tiesP = socialLensesOn() ? orElse("everything between them", cookies().then((jar) => cachedPairTies(lo, hi, userIdFromCookieStore(jar))), "failed" as const) : Promise.resolve(null);
   const data = await load(lo, hi);
   if (!data) {
     const match = await loadMatch(lo, hi);
@@ -304,7 +323,17 @@ export default async function CouplePage({ params, searchParams }: Props) {
           </section>
           {/* Every other tie between them, over or not, with what made it and their history (docs/PRDs/social-network.md
               section 9's pair panel); their dates are above, so the "dated on the show" tie isn't repeated. */}
-          {between && <PairTiesCard pair={between} closedSeasons={new Set(closedSeasons().map((x) => x.id))} skipDated level={2} className="card couple-ties" />}
+          {between === "failed" ? (
+            // Its read failed (#1948): the section says so, rather than vanishing or taking the page with it.
+            <section className="pair-ties card couple-ties" aria-labelledby="between-unavailable">
+              <h2 className="pair-ties-title" id="between-unavailable">
+                Everything between them
+              </h2>
+              <p className="muted small">This didn&apos;t load just now. Reload the page to try again.</p>
+            </section>
+          ) : (
+            between && <PairTiesCard pair={between} closedSeasons={new Set(closedSeasons().map((x) => x.id))} skipDated level={2} className="card couple-ties" />
+          )}
         </div>
         <aside className="couple-rail" aria-label="The two of them">
 

@@ -12,7 +12,9 @@ vi.mock("next/navigation", async (original) => ({
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
 }));
 import { prerender } from "react-dom/static";
+import { setDbForTests, type Db } from "@/lib/db";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { pairKey } from "@/lib/relationships";
 import { venueBackdrop } from "@/lib/portraits";
 import { upsertTie } from "@/lib/social/ties";
 import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
@@ -81,5 +83,33 @@ describe("a couple's dates", () => {
     expect(html).toContain("coworkers");
     expect(html).toContain(`href="/episodes/${episode}">the date</a>`);
     expect(html).not.toContain("dated on the show");
+  });
+
+  it("leave out a part whose read fails, and the title goes without their names, rather than the page failing (#1948)", async () => {
+    jar.cookies.clear();
+    const { default: CouplePage, generateMetadata } = await import("@/app/couples/[a]/[b]/page");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const busy = () => Promise.reject(new Error("timeout exceeded when trying to connect"));
+    try {
+      // The pool too busy for everything between them: the rest of the page draws, and that section says it didn't load.
+      setDbForTests({ query: (sql: string, params?: unknown[]) => (/social_ties/.test(sql) ? busy() : t.db.query(sql, params)), exec: (sql: string) => t.db.exec(sql) } as Db);
+      const { prelude } = await prerender(await CouplePage({ params: Promise.resolve({ a: character, b: partner }), searchParams: Promise.resolve({}) }));
+      const html = (await new Response(prelude).text()).replace(/<!-- -->/g, "");
+      expect(html).toContain('<ol class="couple-dates"');
+      expect(html).toContain("Everything between them");
+      expect(html).toContain("This didn&#x27;t load just now. Reload the page to try again.");
+      expect(logged).toHaveBeenCalledWith(expect.stringContaining("[couple page] everything between them didn't load: timeout exceeded"));
+
+      // Too busy for the title's names: the page is titled without them, never an error.
+      setDbForTests({ query: busy, exec: async () => {} } as Db);
+      const [lo, hi] = pairKey(character, partner);
+      expect(await generateMetadata({ params: Promise.resolve({ a: character, b: partner }) })).toEqual({
+        title: "Their blind dates and how it's going · Botchelor",
+        alternates: { canonical: `/couples/${lo}/${hi}` },
+      });
+    } finally {
+      setDbForTests(t.db);
+      logged.mockRestore();
+    }
   });
 });
