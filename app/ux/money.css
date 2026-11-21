@@ -406,7 +406,10 @@
   flex: 1 1 0;
   min-width: 0;
 }
+/* The ribbon's track is thousands of pixels long: it must never be what sizes its card (on a phone /pricing's one
+   column is 1fr, whose floor is the card's widest content), so its own width doesn't count. */
 .pack-venues.is-ribbon {
+  contain: inline-size;
   -webkit-mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
   mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent);
   background: none;

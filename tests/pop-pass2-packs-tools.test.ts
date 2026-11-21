@@ -81,3 +81,11 @@ describe("each free tool previews what it makes (app/tools/ToolPreview.tsx)", ()
     expect(chem).toContain(`width:${score}%`);
   });
 });
+
+describe("the 15-pack's ribbon never widens the page (live phone check, 2026-11-21: /pricing was 2,845px too wide)", () => {
+  it("doesn't count its own width, and /pricing's phone column can shrink below its content", () => {
+    const money = src("app/ux/money.css");
+    expect(money).toMatch(/\.pack-venues\.is-ribbon \{\s*contain: inline-size;/);
+    expect(src("app/ux/company.css")).toMatch(/@media \(max-width: 640px\) \{\s*\.pricing-grid \{\s*grid-template-columns: minmax\(0, 1fr\);/);
+  });
+});
