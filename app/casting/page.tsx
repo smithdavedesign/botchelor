@@ -6,12 +6,11 @@ import LeadFace from "./LeadFace";
 import Avatar from "@/app/Avatar";
 import FaceLoop from "@/app/FaceLoop";
 import Icon from "@/app/Icon";
-import { AUDITION_MIN_DATES, castingBoard } from "@/lib/auditions";
+import { AUDITION_MIN_DATES, auditionPicks, castingBoard, type AuditionPick } from "@/lib/auditions";
 import { auditionWords } from "@/lib/audition-words";
 import { isInsider } from "@/lib/crowd-threshold";
 import { getDb, type Db } from "@/lib/db";
-import { listMyCharacters } from "@/lib/game";
-import { userIdFromCookieStore } from "@/lib/http";
+import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { portraitPathSql } from "@/lib/portrait-sql";
 import { HOUSE_MIN, SURVIVORS, leadOverride, seasonCastCards, seasonCastSize, seasonMonth, type CastCard } from "@/lib/season-cast";
 import { seasonFormat, type SeasonFormatDef } from "@/lib/season-format";
@@ -20,6 +19,7 @@ import { seasonPageLiveOn } from "@/lib/season-page";
 import { seasonPath } from "@/lib/season-ref";
 import { pageMetadata } from "@/lib/seo";
 import CastingBoard from "./CastingBoard";
+import OpenSlots from "./OpenSlots";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,8 @@ async function leadCard(db: Db, id: string): Promise<SlotCard | null> {
  * picked, has a slot of their own marked as the lead, then the suitors' places; nobody from this month's cast sits in
  * one (visual audit 2026-11-20: Nell, December's lead, filled a slot under "No suitors yet", as if applying to date herself).
  */
-function CastingSlots({ label, month, cast, lead, size, open, hasOwn, def }: { label: string; month: string; cast: SlotCard[]; lead: SlotCard | null; size: number; open: number; hasOwn: boolean; def: SeasonFormatDef }) {
+function CastingSlots({ label, month, cast, lead, size, open, picks, def }: { label: string; month: string; cast: SlotCard[]; lead: SlotCard | null; size: number; open: number; picks: AuditionPick[] | null; def: SeasonFormatDef }) {
+  const hasOwn = (picks?.length ?? 0) > 0;
   const words = auditionWords(def.lead);
   const taken = def.lead ? [] : cast.slice(0, size);
   return (
@@ -60,12 +61,12 @@ function CastingSlots({ label, month, cast, lead, size, open, hasOwn, def }: { l
       <p className="muted">
         {def.lead ? (
           <>
-            Be the first: open one of your characters and press <em>{words.verb}</em>. {label} is {def.title}: one lead from the house, and{" "}
+            Be the first: press an open place and pick one of your characters. {label} is {def.title}: one lead from the house, and{" "}
             {open} {open === 1 ? "place" : "places"} for people&apos;s characters as the suitors, with a rose ceremony every Sunday.
           </>
         ) : (
           <>
-            Be the first: open one of your characters and press <em>Audition</em>. Next month has {size} places; the {SURVIVORS} most loved of this
+            Be the first: press an open place and pick one of your characters. Next month has {size} places; the {SURVIVORS} most loved of this
             month&apos;s cast stay on, and {open} {open === 1 ? "place is" : "places are"} open to people&apos;s characters.
           </>
         )}
@@ -97,17 +98,8 @@ function CastingSlots({ label, month, cast, lead, size, open, hasOwn, def }: { l
             </span>
           </li>
         ))}
-        {Array.from({ length: open }, (_, i) => (
-          <li key={`open-${i}`} className="casting-slot is-open">
-            <span className="casting-slot-face" aria-hidden="true">
-              <Icon name="plus" />
-            </span>
-            <span className="casting-slot-text">
-              <strong>Open</strong>
-              <span className="muted small">{def.lead ? `a ${words.noun}: your character?` : "your character?"}</span>
-            </span>
-          </li>
-        ))}
+        {/* The open places are buttons: a press picks one of your characters and puts it up (app/casting/OpenSlots.tsx). */}
+        <OpenSlots count={open} picks={picks} noun={def.lead ? words.noun : null} label={label} />
       </ul>
       <p className="cta-row">
         {hasOwn ? (
@@ -129,7 +121,9 @@ function CastingSlots({ label, month, cast, lead, size, open, hasOwn, def }: { l
  * shortlisted ones with the most votes take the open places on the cast when the month starts.
  */
 export default async function CastingPage() {
-  const viewer = userIdFromCookieStore(await cookies());
+  const store = await cookies();
+  const viewer = userIdFromCookieStore(store);
+  const auth = authFromCookieStore(store);
   const db = await getDb();
   const [board, insider] = await Promise.all([castingBoard(db, viewer), isInsider(db, viewer)]);
   // Next season's format (lib/season-format.ts): on The Botchelor the open places are the lead's suitors (lib/ceremony.ts).
@@ -142,7 +136,8 @@ export default async function CastingPage() {
     ? [[], [], null]
     : await Promise.all([
         seasonCastCards(db).catch(() => [] as CastCard[]),
-        viewer ? listMyCharacters(db, viewer, 1).catch(() => []) : Promise.resolve([]),
+        // Their own characters, each with what stands between it and an audition, for the open places' picker.
+        viewer ? auditionPicks(db, { userId: viewer, authenticated: auth?.authenticated === true }).catch(() => []) : Promise.resolve(null),
         // A lead format's lead, once picked on /admin/season (lib/season-cast.ts leadOverride; else it's known on the 1st).
         def.lead ? leadOverride(db, board.season_id).catch(() => null) : Promise.resolve(null),
       ]);
@@ -175,7 +170,7 @@ export default async function CastingPage() {
       </SetHero>
       <div className="casting-layout">
         <div className="casting-main">
-          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} insider={insider} /> : <CastingSlots label={board.label} month={seasonMonth(board.season_id)} cast={cast} lead={lead} size={size} open={open} hasOwn={own.length > 0} def={def} />}
+          {board.auditions.length ? <CastingBoard board={board} viewer={viewer} insider={insider} /> : <CastingSlots label={board.label} month={seasonMonth(board.season_id)} cast={cast} lead={lead} size={size} open={open} picks={own} def={def} />}
         </div>
         <aside className="casting-rail" aria-label="How casting works">
           <section className="card casting-rules">

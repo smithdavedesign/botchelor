@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET as castingGet, POST as castingPost } from "@/app/api/casting/route";
 import { DELETE as auditionDelete, GET as auditionGet, POST as auditionPost } from "@/app/api/characters/[id]/audition/route";
 import { PATCH as editCharacter } from "@/app/api/characters/[id]/route";
-import { auditionBlocks, auditionSeasonId, reviewAudition, voteAudition } from "@/lib/auditions";
+import { audition, auditionBlocks, auditionPicks, auditionSeasonId, reviewAudition, voteAudition } from "@/lib/auditions";
 import { setDbForTests } from "@/lib/db";
 import { ctaMine } from "@/lib/date-cta";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -121,6 +121,35 @@ describe("who can audition", () => {
     expect(back).toMatchObject({ status: "withdrawn", blocks: [] });
     expect(await auditionBlocks(t.db, { userId: a.owner, authenticated: true }, "fan-two")).not.toContain("one_each");
     expect((await call(auditionGet, a.id, a.cookie, "GET")).status).toBe(200);
+  });
+});
+
+describe("/casting's open places: your characters to pick from", () => {
+  it("lists a person's own site-made characters, newest first, each with the same blocks auditionBlocks gives", async () => {
+    vi.useFakeTimers({ now: OCT, toFake: ["Date"] });
+    const ready = await person("Mara Quill");
+    // A second, newer character of theirs, with no dates yet; and one an agent made, which can never audition.
+    await t.db.query(
+      `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, visibility, open_to_dates, created_via, created_at)
+       values ('fan-new', $1, false, 'Wren Hale', 31, 'Restores carousel horses.', '["shy","kind","odd"]'::jsonb, 'love', 'rudeness', 'public', true, 'web', now() + interval '1 hour'),
+              ('fan-bot', $1, false, 'Bot Made', 31, 'Made over MCP.', '["shy","kind","odd"]'::jsonb, 'love', 'rudeness', 'public', true, 'mcp', now())`,
+      [ready.owner],
+    );
+    const auth = { userId: ready.owner, authenticated: true };
+    const picks = await auditionPicks(t.db, auth);
+    expect(picks.map((p) => [p.name, p.blocks])).toEqual([
+      ["Wren Hale", ["portrait", "dates"]],
+      ["Mara Quill", []],
+    ]);
+    for (const p of picks) expect(p.blocks, p.name).toEqual(await auditionBlocks(t.db, auth, p.id));
+    expect(picks[1].portrait).toMatch(/^\/api\/assets\//);
+
+    // Once one is up, the other says one each; signed out, both say sign in first.
+    expect((await audition(t.db, auth, ready.id)).ok).toBe(true);
+    expect((await auditionPicks(t.db, auth)).map((p) => p.blocks)).toEqual([["portrait", "dates", "one_each"], []]);
+    expect((await auditionPicks(t.db, { ...auth, authenticated: false })).map((p) => p.blocks[0])).toEqual(["sign_in", "sign_in"]);
+    // Somebody else's characters never show.
+    expect(await auditionPicks(t.db, { userId: "someone-else", authenticated: true })).toEqual([]);
   });
 });
 

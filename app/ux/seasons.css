@@ -789,6 +789,76 @@
 .casting-slot.is-open strong {
   color: var(--accent-text);
 }
+/* An open place you can press (app/casting/OpenSlots.tsx): the whole slot is the control, not a pill button inside
+   it, so it drops the base button's gradient, shadow and lift; it answers a hover or focus by firming its dashed edge. */
+.casting-slot.is-pickable {
+  padding: 0;
+}
+.casting-slots .casting-slot-pick:is(button, a) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 5rem;
+  margin: 0;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: left;
+}
+.casting-slots .casting-slot-pick:is(button, a):hover {
+  transform: none;
+  box-shadow: none;
+}
+.casting-slot.is-pickable:is(:hover, :focus-within) {
+  border-style: solid;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, var(--card));
+}
+.casting-slots .casting-slot-pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .casting-slot.is-pickable .casting-slot-face {
+    transition: scale 0.2s var(--ease-out);
+  }
+  .casting-slot.is-pickable:is(:hover, :focus-within) .casting-slot-face {
+    scale: 1.08;
+  }
+}
+/* The sheet of your characters: a face, a name with what stands in its way, and Apply or the way to fix it. */
+.casting-pick-list {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+.casting-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+.casting-pick:first-child {
+  border-top: 0;
+}
+.casting-pick-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.casting-pick > :is(button, a) {
+  flex: none;
+  margin: 0;
+}
 /* A lead format's lead: their own slot, marked, never one of the suitors' places. */
 .casting-slot.is-lead {
   border-color: var(--accent);
@@ -818,6 +888,14 @@
     align-items: flex-start;
     gap: var(--space-2);
     padding: var(--space-3);
+  }
+  .casting-slots .casting-slot-pick:is(button, a) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+  .casting-slot.is-pickable {
+    padding: 0;
   }
 }
 
