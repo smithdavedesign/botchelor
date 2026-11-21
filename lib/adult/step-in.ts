@@ -800,7 +800,7 @@ export const openingsFor = (rp: Roleplay | null): readonly [string, string, stri
  * opening (`replied: false`) and Continue draws it.
  */
 export async function startStepIn(db: Db, viewer: string, input: StepInStart, now: Date = new Date()): Promise<(StepInSend & { ok: true; id: string }) | StepInFail> {
-  if (!(await eligibleIds(db, viewer)).has(input.character_id)) return fail(404, "not_found", "Pick someone who's in your After Dark: this season's cast, or a character you've switched in.");
+  if (!(await eligibleIds(db, viewer)).has(input.character_id)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
   const character = await characterRef(db, input.character_id);
   if (!character) return NOT_FOUND;
   const place = stepInPlaces(await drawnSets(db)).find((p) => p.id === input.place);

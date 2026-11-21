@@ -23,7 +23,7 @@ const COPY: Record<PreviewKind, { title: string; lead: string }> = {
   },
   characters: {
     title: "Characters",
-    lead: "Everyone you can have a night with: this season's cast, the agent cast, and any of your own characters you switch In. Each has a page with their nights and what's been made of them. It's for members: here's some of it, blurred until you're in.",
+    lead: "Everyone you can have a night with: the house cast, the agent cast, and any of your own characters you switch In. Each has a page with their nights and what's been made of them. It's for members: here's some of it, blurred until you're in.",
   },
 };
 

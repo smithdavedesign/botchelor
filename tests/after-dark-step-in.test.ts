@@ -312,7 +312,8 @@ describe("closed by default", () => {
 describe("setting it up", () => {
   it("offers who a pair could be, the catalog's places (no double date, no typed-in sets), and marks the public ones", async () => {
     const a = await admin();
-    expect((await stepInCast(t.db, a.id)).map((c) => c.id).sort()).toEqual([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id].sort());
+    // Every house character, not only this season's two (2026-11-21).
+    expect((await stepInCast(t.db, a.id)).map((c) => c.id).sort()).toEqual(HOUSE_CHARACTERS.map((c) => c.id).sort());
     const places = stepInPlaces(["somewhere someone typed in"]);
     expect(places.find((p) => p.id === "venue:double_date")).toBeUndefined();
     expect(places.some((p) => p.id.startsWith("set:"))).toBe(false);
@@ -1190,11 +1191,19 @@ describe("a character who is no longer in the viewer's After Dark", () => {
   it("can't be written with any more: the scene stays to read, end or delete", async () => {
     const seen = scripted();
     const a = await admin();
-    const made = await start(a.id);
+    // A season newcomer outside the house roster (as Barnaby is): the only house character who can leave After Dark
+    // since every roster one stays in (2026-11-21).
+    const NEWT = "house-newt";
+    await t.db.query(`create temp table newcomer as select * from characters where id = $1`, [WHO]);
+    await t.db.query(`update newcomer set id = $1, name = 'Newt Okafor'`, [NEWT]);
+    await t.db.query(`insert into characters select * from newcomer`);
+    await t.db.query(`drop table newcomer`);
+    setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id, NEWT]);
+    const made = await start(a.id, { character_id: NEWT });
     await sendStepInLine(t.db, a.id, made.id, "I sit down across from you.");
     const before = seen.prompts.length;
     // They leave the season's cast (the same eligibility a pair asks, asked again before every reply).
-    setSeasonCastForTests([HOUSE_CHARACTERS[1].id]);
+    setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
     for (const r of [
       await sendStepInLine(t.db, a.id, made.id, "Still here?"),
       await continueStepIn(t.db, a.id, made.id),
@@ -1204,7 +1213,7 @@ describe("a character who is no longer in the viewer's After Dark", () => {
     ]) {
       expect(r).toMatchObject({ ok: false, status: 409, error: "character_out" });
     }
-    expect(await startStepIn(t.db, a.id, { character_id: WHO, place: HOME })).toMatchObject({ ok: false, status: 404 });
+    expect(await startStepIn(t.db, a.id, { character_id: NEWT, place: HOME })).toMatchObject({ ok: false, status: 404 });
     expect(seen.prompts).toHaveLength(before);
     const view = await viewOf(a.id, made.id);
     expect(view).toMatchObject({ character_out: true, can: { regenerate: false, carry_on: false, take_back: false } });

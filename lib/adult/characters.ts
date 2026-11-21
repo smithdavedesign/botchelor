@@ -1,5 +1,6 @@
 /**
- * Who can be in a person's after-dark scenes (David, 2026-10-18): this season's house cast always, the show's own agent
+ * Who can be in a person's after-dark scenes (David, 2026-10-18): the house cast always (every house character since
+ * 2026-11-21, David: "add the other 14 house characters to After Dark"; before, this season's only), the show's own agent
  * cast that passed its checks (lib/adult/agent-cast.ts, characters.after_dark_open; 2026-11-04), plus the characters
  * that person has switched on. Each person switches only their own characters and the house characters they bring
  * along; never another person's character, which would put it in explicit scenes without its owner. One person's
@@ -13,10 +14,23 @@ import { artStyleFrom, artStyleSql, DRAWN_IN, isDrawnStyle, notDrawnSql, type Dr
 import type { Db } from "../db";
 import { sheetRefusal } from "../franchises";
 import { portraitPathSql } from "../portrait-sql";
+import { HOUSE_CHARACTERS } from "../house";
 import { lastSeasonOn, seasonCastIds, seasonMonth } from "../season-cast";
 
-/** `drawn`: the style they're drawn in when it isn't a photograph, which keeps them out (null: photographed). */
-export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; season: boolean; drawn: DrawnStyle | null };
+/**
+ * `always`: a house character, always in (no switch). `drawn`: the style they're drawn in when it isn't a photograph,
+ * which keeps them out (null: photographed).
+ */
+export type Switchable = { id: string; name: string; house: boolean; portrait: string | null; on: boolean; always: boolean; drawn: DrawnStyle | null };
+
+/**
+ * The house characters After Dark always has: every house character (lib/house.ts), plus this season's cast for a
+ * newcomer who isn't in that roster (Barnaby, whose house look comes through the ledger). Until 2026-11-21 it was this
+ * season's cast only, so a house character left After Dark with their season; David asked for all of them.
+ */
+export function afterDarkHouseIds(now: Date = new Date()): string[] {
+  return [...new Set([...seasonCastIds(now), ...HOUSE_CHARACTERS.map((c) => c.id)])];
+}
 
 /** Why a drawn character's switch stays off, said wherever someone tries it. */
 export const drawnOutMessage = (style: DrawnStyle): string =>
@@ -37,14 +51,14 @@ export async function isShowsOwn(db: Db, characterId: string): Promise<boolean> 
   return (await db.query(`select 1 from characters c where c.id = $1 and ${showsOwnSql("c")}`, [characterId])).rows.length > 0;
 }
 
-/** Everyone who can be in this person's scenes: the season's cast, the agent cast that's open, and the characters they've switched on. */
+/** Everyone who can be in this person's scenes: the house cast, the agent cast that's open, and the characters they've switched on. */
 export async function eligibleIds(db: Db, ownerId: string): Promise<Set<string>> {
   const { rows } = await db.query<{ id: string }>(
     `select a.character_id as id from adult_switches a join characters c on c.id = a.character_id where a.owner_id = $1 and ${notDrawnSql("c")}
      union select c.id from characters c where c.after_dark_open and c.visibility <> 'private' and ${notDrawnSql("c")}`,
     [ownerId],
   );
-  return new Set([...seasonCastIds(), ...rows.map((r) => r.id)]);
+  return new Set([...afterDarkHouseIds(), ...rows.map((r) => r.id)]);
 }
 
 /**
@@ -165,7 +179,7 @@ export async function setAdultSwitch(db: Db, ownerId: string, characterId: strin
 
 /** The person's own characters and the house characters they've dated, with each switch. */
 export async function listSwitchable(db: Db, ownerId: string): Promise<Switchable[]> {
-  const season = new Set(seasonCastIds());
+  const always = new Set(afterDarkHouseIds());
   const { rows } = await db.query<{ id: string; name: string; is_house: boolean; portrait: string | null; on: boolean; style: string }>(
     `with mine as (select id from characters where owner_id = $1),
           dated as (
@@ -183,6 +197,6 @@ export async function listSwitchable(db: Db, ownerId: string): Promise<Switchabl
   return rows.map((r) => {
     const style = artStyleFrom(r.style);
     const drawn = isDrawnStyle(style) ? style : null;
-    return { id: r.id, name: r.name, house: r.is_house, portrait: r.portrait, on: !drawn && (r.on || season.has(r.id)), season: season.has(r.id), drawn };
+    return { id: r.id, name: r.name, house: r.is_house, portrait: r.portrait, on: !drawn && (r.on || always.has(r.id)), always: always.has(r.id), drawn };
   });
 }

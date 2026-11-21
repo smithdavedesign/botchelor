@@ -51,7 +51,7 @@ const refOf = (id: string, name: string, c: PublicCharacter | null): CharacterRe
 });
 
 /**
- * Two of this season's cast, after dark, or a pair kept from an earlier one (#1132). Not found for anyone After Dark isn't
+ * Two of After Dark's cast, or a pair kept from an earlier one (#1132). Not found for anyone After Dark isn't
  * open to; a pair they can't have says why (pairAbsence) when it's theirs to know.
  */
 export default async function AfterDarkScenePage({ params, searchParams }: Props) {

@@ -382,7 +382,7 @@ carries one button: **"Continue the night in After Dark"** (`lib/adult/overnight
   Dark is allowed where they are (never a blocked or unknown place; a text-only place counts, the night is words);
   they're entitled today under the rules above, unchanged (`canAfterDark`: an admin, a subscription, a reviewer or beta
   pass, a taste; age-checked); the device isn't PIN-locked; they own one of the two characters; and **both characters
-  are already in their After Dark** (`eligibleIds`: their own character switched in, this season's house cast, the
+  are already in their After Dark** (`eligibleIds`: their own character switched in, the house cast, the
   agent cast that passed its checks). Not a crawler or an agent. Anyone else sees nothing new: where it applies they
   still get the bridge's invite line above, and that is all.
 - **No loophole for someone else's character.** There is no consent mechanism for another person's character to
@@ -467,7 +467,7 @@ there; everyone else is one tap from the way in. The show's half (who is sent it
   account seen `open` within 30 days. For someone After Dark is already open to, After Dark's own rule for work without
   a request also has to say yes (`mediaAllowedFor`), and both characters have to be in THEIR After Dark: an owner whose
   character isn't switched in is not sent it (that yes is theirs, and this never asks for it). For everyone, the pair's
-  night has to be able to open at all: each of the two is in After Dark for everyone (this season's cast, the open agent
+  night has to be able to open at all: each of the two is in After Dark for everyone (the house cast, the open agent
   cast) or is that person's own, and neither is drawn in anime. A text about a night with another person's character is
   never sent: there is no consent for that character to be in someone else's After Dark.
 - **Counting, without content.** Sent: the server's `locked_picture_sent` (what set it off, which tile, whether it is
@@ -759,7 +759,7 @@ curl -s -X POST https://botchelor.com/api/jobs/eval-after-dark -H "authorization
   chapters: production has no facts until a chapter closes); `model`: the current setting or one of
   `nousresearch/hermes-3-llama-3.1-70b`, `sao10k/l3.1-euryale-70b`, `deepseek/deepseek-chat-v3.1`,
   `mistralai/mistral-large-2512`, `nousresearch/hermes-4-405b`; `temperature`: 0–2 (else the setting); `direction`: a
-  steer per step. The pair must be in the first admin's After Dark (this season's cast or switched on).
+  steer per step. The pair must be in the first admin's After Dark (the house cast or switched on).
 - Returns `lines` (`step, who, name, text, action, why, memory, stage, cites`), `facts` (`id, label, of, kind, fact,
   quote, uses, cited`), `metrics` (`lib/adult/quality.ts`), `steps`, `dropped`, `refusals`, `usage` (`calls`,
   `input_tokens`, `output_tokens`, `cost_usd` from OpenRouter's own figure, else the list price; `cost_source`),
@@ -3337,8 +3337,11 @@ nights with them: the pair dropped off the hub and `/after-dark/<a>/<b>` was a b
   night already under way with them stays with whoever had it; a new one is with this season's cast", with a link to
   pick from this season's cast; or, for one of their own switched out, where to switch them in. Another person's
   character, or an id that isn't a character, is still not found.
-- **Not changed:** the Studio (`studioAccess`, and a pair shoot's partners) and publishing a Short still need both on
-  this season's cast. A warning before the rollover (the issue's third point) isn't built.
+- **Every house character since 2026-11-21** (David: "add the other 14 house characters to After Dark";
+  `afterDarkHouseIds`, lib/adult/characters.ts): the house roster plus this season's cast are always in, so a house
+  character no longer leaves After Dark with their season. Only a season newcomer outside the roster (Barnaby) can still
+  leave, and everything above applies to them.
+- **Not changed:** publishing a Short still needs both on this season's cast. A warning before the rollover (the issue's third point) isn't built.
 
 **Proof:** tests/after-dark-old-cast.test.ts.
 
@@ -3558,7 +3561,7 @@ the crisis list, the model client, the text checks.
 where it's open to the viewer.
 
 **Set-up** (`/after-dark/step-in`, one page, four small steps; `startStepIn`):
-1. **Who:** anyone the viewer may have in a pair (`eligibleIds`: the season's cast, the agent cast that passed After
+1. **Who:** anyone the viewer may have in a pair (`eligibleIds`: the house cast, the agent cast that passed After
    Dark's check, their own switched-in characters). Never anyone else's.
 2. **Where:** a place from the scene catalog (`stepInPlaces`: the library's venues, the scenario packs' places, the
    roleplay places; not the double date, and not a set someone typed in), with its backdrop.

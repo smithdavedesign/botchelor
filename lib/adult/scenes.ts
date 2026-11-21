@@ -452,7 +452,7 @@ async function latestDate(db: Db, a: string, b: string): Promise<LatestDate | nu
   return rows[0] ?? null;
 }
 
-/** The admin's scene for a pair of this season's cast, made on first open, as the page gets it (no private notes). */
+/** The admin's scene for a pair of After Dark's cast, made on first open, as the page gets it (no private notes). */
 export async function openScene(db: Db, adminId: string, x: string, y: string): Promise<AdultScene | null> {
   const scene = await loadScene(db, adminId, x, y);
   return scene && publicScene(scene);
@@ -2764,7 +2764,7 @@ export async function continueScene(db: Db, adminId: string, x: string, y: strin
 
 async function writeScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge", opts: StepOptions = {}): Promise<ContinueResult> {
   const scene = await loadScene(db, adminId, x, y);
-  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: this season's cast, or ones you've switched on." };
+  if (!scene) return { ok: false, status: 404, message: "Pick two characters who are in after dark: the house cast, or ones you've switched on." };
   // Unsaved hard nos sent with this step hold for it like saved ones (nothing writes a scene's hard_nos but saveLimits).
   if (opts.sessionHardNos && hasHardNos(opts.sessionHardNos)) {
     scene.hard_nos = storedHardNos({ chips: [...scene.hard_nos.chips, ...opts.sessionHardNos.chips], own: [...scene.hard_nos.own, ...opts.sessionHardNos.own] });

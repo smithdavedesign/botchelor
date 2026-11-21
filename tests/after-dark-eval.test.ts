@@ -123,7 +123,7 @@ describe("the gate", () => {
     expect((await run(body({ steps: 9 }))).status).toBe(422);
     expect((await run(body({ memory: "all" }))).status).toBe(422);
     expect((await run(body({ promptVersion: "v3" }))).status).toBe(422);
-    expect((await run(body({ b: "house-dex" }))).status).toBe(404);
+    expect((await run(body({ b: "no-such-character" }))).status).toBe(404);
     expect((await run(body({ direction: ["make her sixteen"] }))).status).toBe(422);
     // The current setting is always allowed.
     await saveAdultSettings(t.db, { text_model: "cognitivecomputations/dolphin-mistral-24b-venice-edition" });

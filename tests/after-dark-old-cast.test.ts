@@ -2,7 +2,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 // #1132 (David, 2026-11-01: "keep them playable"): when the season changes, whoever already has nights with a house
 // character who left the cast keeps that pair, marked with the month's cast, and plays it as before; new pairs come from
-// the current cast only, and a pair someone can't have says why instead of a bare 404.
+// the current cast only, and a pair someone can't have says why instead of a bare 404. Since 2026-11-21 every house
+// character in the roster stays in After Dark whatever the season, so only a season newcomer outside the roster (as
+// Barnaby is) can leave: H2 here is one.
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
@@ -44,6 +46,11 @@ beforeEach(async () => {
   vi.stubEnv("ADULT_MODE", "1");
   vi.stubEnv("VERCEL", "");
   vi.stubEnv("VERCEL_ENV", "");
+  // H2, a season newcomer: a house character in the database who isn't in the fixed roster (lib/house.ts).
+  await t.db.query(`create temp table newcomer as select * from characters where id = $1`, [H3]);
+  await t.db.query(`update newcomer set id = $1, name = $2`, [H2, NEWCOMER]);
+  await t.db.query(`insert into characters select * from newcomer`);
+  await t.db.query(`drop table newcomer`);
   setSeasonCastForTests(OCTOBER);
 });
 afterEach(() => {
@@ -53,9 +60,11 @@ afterEach(() => {
   setSeasonCastForTests(null);
 });
 
-// October's cast had H2 on it; November's doesn't. Lower ids first, as adult_scenes keeps a pair.
-const [H0, H1, H2, H3] = HOUSE_CHARACTERS.slice(0, 4).map((c) => c.id);
-const nameOf = (id: string) => HOUSE_CHARACTERS.find((c) => c.id === id)!.name;
+// October's cast had H2 (a newcomer) on it; November's doesn't. Lower ids first, as adult_scenes keeps a pair.
+const [H0, H1, H3] = HOUSE_CHARACTERS.slice(0, 3).map((c) => c.id);
+const H2 = "house-newt";
+const NEWCOMER = "Newt Okafor";
+const nameOf = (id: string) => (id === H2 ? NEWCOMER : HOUSE_CHARACTERS.find((c) => c.id === id)!.name);
 const OCTOBER = [H0, H1, H2];
 const NOVEMBER = [H0, H1, H3];
 const key = (x: string, y: string): [string, string] => (x < y ? [x, y] : [y, x]);
@@ -92,9 +101,11 @@ describe("#1132: a pair with someone who left the cast", () => {
     const pairs = await listCastPairs(t.db, me.id);
     const kept = pairs.find((p) => p.earlier);
     expect(kept).toMatchObject({ path: `/after-dark/${key(H0, H2).join("/")}`, lines: 2, earlier: "From October's cast", chapter: 1 });
-    // No new pair with them: H2 shows up once, in the kept pair, and every other pair is November's cast.
+    // No new pair with them: H2 shows up once, in the kept pair, and every other pair is the house cast (the roster
+    // and November's cast).
     expect(pairs.filter((p) => [p.a.id, p.b.id].includes(H2))).toHaveLength(1);
-    expect(pairs.filter((p) => !p.earlier).every((p) => NOVEMBER.includes(p.a.id) && NOVEMBER.includes(p.b.id))).toBe(true);
+    const houseCast = new Set([...HOUSE_CHARACTERS.map((c) => c.id), ...NOVEMBER]);
+    expect(pairs.filter((p) => !p.earlier).every((p) => houseCast.has(p.a.id) && houseCast.has(p.b.id))).toBe(true);
     expect(await eligiblePair(t.db, me.id, H2, H0)).toEqual(key(H0, H2));
     expect(await eligiblePair(t.db, me.id, H1, H2)).toBeNull();
     expect(await eligiblePair(t.db, me.id, H2, H3)).toBeNull();
