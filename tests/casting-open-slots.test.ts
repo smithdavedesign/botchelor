@@ -41,6 +41,10 @@ describe("the open places", () => {
     expect(src).toContain("requestJson(`/api/characters/${p.id}/audition`, { consent: true })");
     expect(src).toContain('import type { AuditionPick } from "@/lib/auditions";');
     expect(src).not.toMatch(/import \{[^}]*\} from "@\/lib\/auditions"/);
+    // The board redraws when they close the sheet, not as they apply: a refresh then would unmount the open places and
+    // the sheet with them, and "Mara is in" would vanish before it could be read (found by npm run e2e:casting).
+    expect(src).toMatch(/setApplied\(p\.name\);\n  \}/);
+    expect(src).toMatch(/function close\(\) \{\s*setOpen\(false\);\s*if \(applied\) router\.refresh\(\);/);
     const page = read("app", "casting", "page.tsx");
     expect(page).toContain("<OpenSlots count={open} picks={picks} noun={def.lead ? words.noun : null} label={label} />");
     expect(page).toContain("auditionPicks(db, { userId: viewer, authenticated: auth?.authenticated === true })");
