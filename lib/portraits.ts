@@ -59,6 +59,33 @@ export function afterDarkPortrait(characterId: string | null | undefined): strin
 }
 
 /**
+ * The house-look portraits that have a stage picture: the same person taken down to three-quarter length, already cut
+ * out of the background, for a figure that stands beside a scene (app/stage/CharacterFigure.tsx, Step in). The
+ * portraits are head and shoulders, so cut out they ended at the shoulders, at the frame's edges. Each was made on
+ * 2026-11-20: FLUX Fill Pro (Replicate, ~$0.05 each) kept the portrait pixel for pixel at the top of a 2:3 canvas and
+ * painted the body, arms and hips below and beside it in the same style and outfit; BiRefNet (the model behind the
+ * zone's segment=foreground) took the background out; each was reviewed (dressed, PG, hands whole) before it was
+ * committed as `public/cast/house-<name>-v5-stage.webp`, a transparent WebP. One that failed review isn't listed, and
+ * its figure stays the portrait. Keyed by the portrait's file, not the character, because a season newcomer's house
+ * look (Barnaby's) comes through the ledger.
+ */
+export const HOUSE_STAGE_PICTURES: ReadonlySet<string> = new Set([
+  "house-barnaby", "house-boaz", "house-dex", "house-imogen", "house-ines", "house-juniper", "house-kaz", "house-lior",
+  "house-marisol", "house-nell", "house-odalys", "house-orin", "house-perpetua", "house-rafe", "house-sable",
+  "house-vesper",
+  // Not listed, so their figure is the portrait: Teo (twice: little heads, then photos of himself, printed on his
+  // sleeves) and Wally (twice: drawings on his forearms; he has no tattoos). Seven failed the first review (2026-11-20);
+  // a redraw that named what was wrong (trousers, a plain top, no one else in the picture) passed for five. Juniper's
+  // also needed the fake signature FLUX wrote across her trouser leg painted out.
+]);
+
+/** The stage picture for a portrait's file (`/cast/house-<name>-v5.webp`), or null for any other picture. */
+export function stagePicture(path: string | null | undefined): string | null {
+  const m = /^\/cast\/(house-[a-z]+)-v5\.webp$/.exec((path ?? "").split("?")[0]);
+  return m && HOUSE_STAGE_PICTURES.has(m[1]) ? `/cast/${m[1]}-v5-stage.webp` : null;
+}
+
+/**
  * The venues with a reviewed backdrop photo: the first eight on 2026-10-13, the twenty-five added on 2026-10-18, and
  * then the "phase two" places a move or a plan goes to (2026-10-18): eight more dealt venues plus the two EXTRA_VENUES,
  * `home` (one of their places) and `elsewhere` (the generic placeholder). Listed explicitly, like the portraits, so a

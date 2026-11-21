@@ -3589,7 +3589,11 @@ cut to the scene's edges, so neither they nor the place spill onto the footer. T
 (2026-11-20, same-zone images only: a picture from any other site gets a 403). The cutout comes back as a PNG whatever
 `format=` asks. If the server's check ever says no (transformations switched off, the month's 5,000 used up), the
 portrait shows as it is, faded at its edges, and cutouts come back within ten minutes of the zone answering again,
-no deploy. The ⋯ menu hides the picture
+no deploy. The house cast stand as their **stage pictures** instead (`lib/portraits.ts` HOUSE_STAGE_PICTURES,
+`lib/cutout.ts` stageCutout): their house-look portrait taken down to three-quarter length by FLUX Fill Pro (the face
+kept pixel for pixel, the body painted below it) and cut out ahead of time, committed as
+`public/cast/house-<name>-v5-stage.webp`, so they need nothing from the zone. Their portraits are head and shoulders,
+which cut out ended at the frame's edges. The ⋯ menu hides the picture
 (kept in the browser). Discreet mode leaves it alone, as it does every show portrait.
 
 **The character is a person, not a tool** (in every prompt; `tests/after-dark-step-in.test.ts` pins each):
