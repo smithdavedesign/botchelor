@@ -19,7 +19,8 @@ const first = (name: string) => name.split(/\s+/)[0];
  * the characters to submit for audition"): a press opens a sheet of the person's own characters. One that can audition
  * applies right there, with the same consent the character page asks for (the button carries it, as AuditionPanel's
  * does); one that can't says what stands in its way and links to its page to fix it. Signed out, the place says to
- * sign in; with no characters yet, the sheet sends them to make one.
+ * sign in; with no characters yet, the sheet sends them to make one. After applying, the page becomes the voting board
+ * once they close the sheet.
  */
 export default function OpenSlots({ count, picks, noun, label }: { count: number; picks: AuditionPick[] | null; noun: string | null; label: string }) {
   const router = useRouter();
@@ -36,8 +37,14 @@ export default function OpenSlots({ count, picks, noun, label }: { count: number
     const r = await requestJson(`/api/characters/${p.id}/audition`, { consent: true }).catch(() => null);
     setBusy(null);
     if (!r?.ok) return setError(r?.message || "That didn't go through. Try again.");
+    // The board redraws only once they close this: refreshing now would turn the page into the voting board, which
+    // has no open places, and take this sheet (and the word that it worked) away with them.
     setApplied(p.name);
-    router.refresh();
+  }
+
+  function close() {
+    setOpen(false);
+    if (applied) router.refresh();
   }
 
   const slot = (i: number) => (
@@ -61,14 +68,14 @@ export default function OpenSlots({ count, picks, noun, label }: { count: number
   return (
     <>
       {Array.from({ length: count }, (_, i) => slot(i))}
-      <Sheet open={open} onClose={() => setOpen(false)} title={applied ? `${first(applied)} is in` : `Put up ${role} for ${label}`}>
+      <Sheet open={open} onClose={close} title={applied ? `${first(applied)} is in` : `Put up ${role} for ${label}`}>
         {applied ? (
           <>
             <p>
               {applied} is up for {label}. The producers look at every one, and the votes decide who takes the places. You can withdraw it from its page any time.
             </p>
             <p className="cta-row">
-              <button type="button" className="primary" onClick={() => setOpen(false)}>
+              <button type="button" className="primary" onClick={close}>
                 See the board
               </button>
             </p>
