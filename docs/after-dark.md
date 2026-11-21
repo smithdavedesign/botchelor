@@ -3593,8 +3593,7 @@ no deploy. The house cast stand as their **stage pictures** instead (`lib/portra
 `lib/cutout.ts` stageCutout): their house-look portrait taken down to three-quarter length by FLUX Fill Pro (the face
 kept pixel for pixel, the body painted below it) and cut out ahead of time, committed as
 `public/cast/house-<name>-v5-stage.webp`, so they need nothing from the zone. Their portraits are head and shoulders,
-which cut out ended at the frame's edges. All but Teo, whose three draws each painted something on his sleeves: his
-figure is his portrait, cut out by the zone. The ⋯ menu hides the picture
+which cut out ended at the frame's edges. All 18 have one (Teo's took four draws). The ⋯ menu hides the picture
 (kept in the browser). Discreet mode leaves it alone, as it does every show portrait.
 
 **The character is a person, not a tool** (in every prompt; `tests/after-dark-step-in.test.ts` pins each):
