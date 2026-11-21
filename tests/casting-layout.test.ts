@@ -73,7 +73,7 @@ describe("/casting", () => {
     const { main } = columns(renderToStaticMarkup(await CastingPage()));
     expect(main).toContain('class="casting-slots"');
     expect(count(main, 'class="casting-slot is-taken tap-card"')).toBe(Math.min(cast.length, size));
-    expect(count(main, 'class="casting-slot is-open"')).toBe(open);
+    expect(count(main, 'class="casting-slot is-open is-pickable"')).toBe(open);
     for (const c of cast.slice(0, size)) {
       expect(main).toContain(`class="stretch" href="/characters/${c.id}"`);
       expect(main).toContain(`<strong>${c.name}</strong>`);
@@ -86,7 +86,7 @@ describe("/casting", () => {
     expect(main).toContain("Make a character to audition");
     expect(main).not.toContain('data-track="casting-empty-yours"');
     expect(main).toContain("No auditions yet for");
-    expect(main).toContain("<em>Audition</em>");
+    expect(main).toContain("Be the first: press an open place and pick one of your characters.");
   });
 
   // Visual audit 2026-11-20: on The Botchelor the empty board put this month's cast in the slots, so December's lead sat
@@ -108,7 +108,7 @@ describe("/casting", () => {
     expect(main).toContain("No suitors yet for");
     expect(count(main, 'class="casting-slot is-taken is-lead tap-card"')).toBe(1);
     expect(count(main, 'class="casting-slot is-taken tap-card"')).toBe(0);
-    expect(count(main, 'class="casting-slot is-open"')).toBe(places - 1);
+    expect(count(main, 'class="casting-slot is-open is-pickable"')).toBe(places - 1);
     expect(main).toContain(`<strong>${lead.name}</strong>`);
     expect(main).toContain(`${seasonMonth(season_id)}&#x27;s lead`);
     expect(main).toContain("a suitor: your character?");
@@ -119,7 +119,7 @@ describe("/casting", () => {
     expect(unpickedHtml).not.toContain('class="set-hero-media"');
     const unpicked = columns(unpickedHtml).main;
     expect(count(unpicked, "is-lead")).toBe(0);
-    expect(count(unpicked, 'class="casting-slot is-open"')).toBe(places - 1);
+    expect(count(unpicked, 'class="casting-slot is-open is-pickable"')).toBe(places - 1);
   });
 
   it("a viewer who has a character is sent to their own characters instead", async () => {
@@ -131,7 +131,7 @@ describe("/casting", () => {
     expect(main).toContain('data-track="casting-empty-yours" href="/account"');
     expect(main).toContain(">Your characters</a>");
     expect(main).not.toContain('data-track="casting-empty-create"');
-    expect(count(main, 'class="casting-slot is-open"')).toBe(Math.max(0, seasonCastSize() - HOUSE_MIN));
+    expect(count(main, 'class="casting-slot is-open is-pickable"')).toBe(Math.max(0, seasonCastSize() - HOUSE_MIN));
     expect(rail).toContain('class="button secondary small" href="/account">Your characters');
   });
 });

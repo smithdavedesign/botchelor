@@ -53,16 +53,42 @@ const AIRED_SQL = (alias: string) =>
      where (e.character_a = ${alias}.id or e.character_b = ${alias}.id)
        and e.status = 'ready' and e.revealed_at is not null and e.visibility = 'public')`;
 
-async function load(db: Db, characterId: string): Promise<Row | null> {
-  const { rows } = await db.query<Row>(
-    `select c.id, c.owner_id, c.is_house, c.created_via, c.visibility, c.open_to_dates, c.bio, c.want, c.dealbreaker,
+const SELECT_ROW = `select c.id, c.owner_id, c.is_house, c.created_via, c.visibility, c.open_to_dates, c.bio, c.want, c.dealbreaker,
             c.appearance, c.voice, c.traits, c.extras,
             ${portraitPathSql("c")} as portrait,
             ${AIRED_SQL("c")} as aired
-       from characters c where c.id = $1`,
-    [characterId],
-  );
+       from characters c`;
+
+async function load(db: Db, characterId: string): Promise<Row | null> {
+  const { rows } = await db.query<Row>(`${SELECT_ROW} where c.id = $1`, [characterId]);
   return rows[0] ?? null;
+}
+
+/** This person's auditions this season (withdrawn ones aside). */
+async function theirAuditions(db: Db, userId: string, season: string): Promise<{ character_id: string; status: AuditionStatus }[]> {
+  return (
+    await db.query<{ character_id: string; status: AuditionStatus }>(
+      `select character_id, status from cast_auditions where season_id = $1 and owner_id = $2 and status <> 'withdrawn'`,
+      [season, userId],
+    )
+  ).rows;
+}
+
+/** The rules themselves (pure): what stands between one loaded character and an audition, for this person. */
+function blocksOf(c: Row | null, userId: string, signedIn: boolean, theirs: readonly { character_id: string; status: AuditionStatus }[]): AuditionBlock[] {
+  if (!c || c.owner_id !== userId || c.owner_id === DELETED_OWNER) return ["not_yours"];
+  if (c.is_house) return ["house"];
+  if (c.created_via !== "web") return ["agent_made"];
+  const out: AuditionBlock[] = [];
+  if (!signedIn) out.push("sign_in");
+  if (c.visibility !== "public") out.push("private");
+  if (!c.open_to_dates) out.push("not_open");
+  if (pgFlags(c).length) out.push("pg");
+  if (!c.portrait) out.push("portrait");
+  if (c.aired < AUDITION_MIN_DATES) out.push("dates");
+  if (theirs.some((a) => a.character_id === c.id && a.status === "rejected")) out.push("rejected");
+  else if (theirs.some((a) => a.character_id !== c.id)) out.push("one_each");
+  return out;
 }
 
 /** Everything standing between this character and an audition this season, for this person (empty: it can). */
@@ -73,26 +99,30 @@ export async function auditionBlocks(
   now: Date = new Date(),
 ): Promise<AuditionBlock[]> {
   const c = await load(db, characterId);
-  if (!c || c.owner_id !== auth.userId || c.owner_id === DELETED_OWNER) return ["not_yours"];
-  if (c.is_house) return ["house"];
-  if (c.created_via !== "web") return ["agent_made"];
-  const out: AuditionBlock[] = [];
-  if (!auth.authenticated || !(await hasAccount(db, auth.userId))) out.push("sign_in");
-  if (c.visibility !== "public") out.push("private");
-  if (!c.open_to_dates) out.push("not_open");
-  if (pgFlags(c).length) out.push("pg");
-  if (!c.portrait) out.push("portrait");
-  if (c.aired < AUDITION_MIN_DATES) out.push("dates");
-  const season = auditionSeasonId(now);
-  const theirs = (
-    await db.query<{ character_id: string; status: AuditionStatus }>(
-      `select character_id, status from cast_auditions where season_id = $1 and owner_id = $2 and status <> 'withdrawn'`,
-      [season, auth.userId],
-    )
-  ).rows;
-  if (theirs.some((a) => a.character_id === characterId && a.status === "rejected")) out.push("rejected");
-  else if (theirs.some((a) => a.character_id !== characterId)) out.push("one_each");
-  return out;
+  if (!c || c.owner_id !== auth.userId || c.owner_id === DELETED_OWNER || c.is_house || c.created_via !== "web") return blocksOf(c, auth.userId, false, []);
+  const signedIn = auth.authenticated && (await hasAccount(db, auth.userId));
+  return blocksOf(c, auth.userId, signedIn, await theirAuditions(db, auth.userId, auditionSeasonId(now)));
+}
+
+/** One of a person's characters as /casting's slot picker shows it: who, and what stands in its way (none: it can apply). */
+export type AuditionPick = { id: string; name: string; hue: number | null; portrait: string | null; blocks: AuditionBlock[] };
+
+/**
+ * A person's own characters for /casting's open slots, each with what stands between it and an audition this season:
+ * the same rules as auditionBlocks, read in three queries for all of them rather than three a character. Their
+ * newest first; house and agent-made characters are left out (they can never audition).
+ */
+export async function auditionPicks(db: Db, auth: { userId: string; authenticated: boolean }, limit = 24, now: Date = new Date()): Promise<AuditionPick[]> {
+  const [{ rows }, signedIn, theirs] = await Promise.all([
+    db.query<Row & { name: string; avatar_hue: number | null }>(
+      `${SELECT_ROW.replace("select c.id,", "select c.id, c.name, c.avatar_hue,")} where c.owner_id = $1 and not c.is_house and c.created_via = 'web'
+        order by c.created_at desc, c.id limit $2`,
+      [auth.userId, limit],
+    ),
+    auth.authenticated ? hasAccount(db, auth.userId) : Promise.resolve(false),
+    theirAuditions(db, auth.userId, auditionSeasonId(now)),
+  ]);
+  return rows.map((c) => ({ id: c.id, name: c.name, hue: c.avatar_hue, portrait: c.portrait, blocks: blocksOf(c, auth.userId, signedIn, theirs) }));
 }
 
 export type AuditionResult = { ok: true; season_id: string } | { ok: false; status: number; error: string; message: string; blocks?: AuditionBlock[] };
