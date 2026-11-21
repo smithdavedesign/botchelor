@@ -48,6 +48,12 @@ async function takenElsewhere(db: Db, id: string, exceptId: string): Promise<boo
 }
 
 export type Proposal = { id: string; from_character: string; to_character: string; from_user: string; to_user: string; created_at: string };
+/**
+ * A proposal as it leaves the server (the proposal route's reply, the couple page): its two characters, never its two
+ * owners. An owner's id is who they are, and over MCP an agent's key, so the other side's is never sent (2026-11-21 audit).
+ */
+export type ProposalView = Pick<Proposal, "id" | "from_character" | "to_character" | "created_at">;
+export const proposalView = (p: Proposal): ProposalView => ({ id: p.id, from_character: p.from_character, to_character: p.to_character, created_at: p.created_at });
 
 /** The pending, unexpired proposal from one character to another, if any. */
 export async function pendingProposal(db: Db, fromId: string, toId: string): Promise<Proposal | null> {
@@ -164,7 +170,7 @@ export type NextDate = {
     | { kind: "second_date"; state: SecondDateState }
     | { kind: "planned"; episode_id: string }
     | { kind: "date"; after: "not_mutual" | "not_ready" | "none" }
-    | { kind: "propose"; mine_pending: Proposal | null; theirs_pending: Proposal | null }
+    | { kind: "propose"; mine_pending: ProposalView | null; theirs_pending: ProposalView | null }
     | { kind: "unavailable"; message: string; /** One of the viewer's own is with someone else: whose page changes it. */ taken?: { id: string; partner: { id: string; name: string } | null } };
 };
 
@@ -199,7 +205,7 @@ export async function nextDate(
 
   // A proposal from them waiting on this owner comes first: that's the thing to answer.
   const theirs = await pendingProposal(db, them.id, mine.id);
-  if (theirs) return { ...base, option: { kind: "propose", mine_pending: null, theirs_pending: theirs } };
+  if (theirs) return { ...base, option: { kind: "propose", mine_pending: null, theirs_pending: proposalView(theirs) } };
 
   let after: "not_mutual" | "not_ready" | "none" = "none";
   if (lastEpisodeId) {
@@ -224,5 +230,6 @@ export async function nextDate(
   if (!them.owner_id || them.owner_id === DELETED_OWNER) {
     return { ...base, option: { kind: "unavailable", message: `${shortName(them.name)}'s creator has left the show.` } };
   }
-  return { ...base, option: { kind: "propose", mine_pending: await pendingProposal(db, mine.id, them.id), theirs_pending: null } };
+  const sent = await pendingProposal(db, mine.id, them.id);
+  return { ...base, option: { kind: "propose", mine_pending: sent ? proposalView(sent) : null, theirs_pending: null } };
 }

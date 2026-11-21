@@ -57,7 +57,11 @@ describe("#1173: After Dark's tokens page", () => {
     expect(html).toMatch(/A chapter of a night[^<]*<\/td><td><strong>included/);
     expect(html).toMatch(/The video of the night<\/td><td><strong>10 tokens/);
     expect(html).toMatch(/Taking them somewhere else mid-night<\/td><td><strong>1 token</);
-    expect(html).toMatch(/sold on the show&#x27;s shop as packs of <strong>dates<\/strong>: one date bought there is one token here/);
+    // 2026-11-21 audit: with no adult processor selling packs, the page says packs aren't on sale yet, and never sends a
+    // member to the show's shop (Stripe, whose rules bar paying for adult content).
+    expect(html).toMatch(/Token packs for After Dark aren&#x27;t on sale yet/);
+    expect(html).not.toMatch(/href="\/shop"/);
+    expect(html).not.toMatch(/Top up on the shop/);
   });
 
   it("once After Dark sells its own packs: its own balance, the packs and their prices, and the word after paying", async () => {

@@ -540,7 +540,7 @@ which both delivers the benefit and confirms the storage write.
 Mine from this audit, all yours to delete when ready (all metric-neutral or dormant):
 
 - accounts `nightaudit` (admin), `nightaudit2`, and a dormant `nightaudsub` (user_id
-  `78fc9a6d-45e3-430d-a935-2a46f9a980ea`, no entitlement, no content — I lost its throwaway password before I could
+  `78fc9a6d-…`, no entitlement, no content — I lost its throwaway password before I could
   self-delete it, so it needs a database delete by user_id);
 - the two test characters Vesper and Teo and their nights, pictures and the movie (you may want to look at these first —
   they were the audit's test cases);

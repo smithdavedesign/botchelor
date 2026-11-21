@@ -33,7 +33,7 @@ import type { Db } from "./db";
 import type { SideOutcome } from "./engine";
 import { firstDateFormat, pickFirstPartner } from "./first-date";
 import { PREMIUM_HOUSE_CHARACTERS, type HouseCharacter } from "./house";
-import { MCP_CALL_URL, USER_COOKIE } from "./http";
+import { internalRequest } from "./http";
 import { paidDatesPerDay, paidDatesToday } from "./limits";
 import { notify } from "./notifications";
 import { loadOurIds } from "./our-traffic";
@@ -197,11 +197,7 @@ export async function weeklyLifeDates(db: Db, now = new Date(), limit = LIFE_RUN
  */
 async function bookLifeDate(db: Db, c: Candidate, partnerId: string, env: Record<string, string | undefined>): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const req = markShowPaidRequest(
-    new Request(MCP_CALL_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie: `${USER_COOKIE}=${c.owner_id}` },
-      body: JSON.stringify({ character_id: c.id, partner_id: partnerId, format: firstDateFormat(env), visibility: c.visibility === "public" ? "public" : "unlisted" }),
-    }),
+    internalRequest(c.owner_id, { body: { character_id: c.id, partner_id: partnerId, format: firstDateFormat(env), visibility: c.visibility === "public" ? "public" : "unlisted" } }),
   );
   const res = await postEpisode(req);
   const body = (await res.json().catch(() => ({}))) as { id?: string; error?: string };

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { closeProposal, proposeDate } from "@/lib/date-proposals";
+import { closeProposal, proposalView, proposeDate } from "@/lib/date-proposals";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 
@@ -18,7 +18,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (character_id !== a && character_id !== b) return json({ error: "not_in_couple", message: "That character isn't one of this couple." }, 422, sess);
   const r = await proposeDate(await getDb(), sess.userId, character_id, character_id === a ? b : a);
   if (!r.ok) return json({ error: r.error, message: r.message }, r.status, sess);
-  return json({ proposal: r.proposal }, 201, sess);
+  return json({ proposal: proposalView(r.proposal) }, 201, sess);
 });
 
 const Close = z.object({ proposal_id: z.string().min(1).max(64) });

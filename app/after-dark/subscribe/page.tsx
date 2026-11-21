@@ -149,7 +149,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
                     </>
                   ) : (
                     <>
-                      Tokens come in packs from the <Link href="/shop">shop</Link>, where they&apos;re sold as dates: one date there is one token here.
+                      Token packs for those extras go on sale when After Dark&apos;s own billing opens.
                     </>
                   )}
                 </li>

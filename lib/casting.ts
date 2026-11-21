@@ -30,7 +30,7 @@ import type { StoredOffers } from "./companion-offers";
 import { crowdLine, isInsider } from "./crowd-threshold";
 import type { Db } from "./db";
 import { firstDateFormat } from "./first-date";
-import { MCP_CALL_URL, USER_COOKIE } from "./http";
+import { internalRequest } from "./http";
 import { shortName } from "./names";
 import { notify } from "./notifications";
 import { loadOurIds } from "./our-traffic";
@@ -242,11 +242,7 @@ async function bookRoseDate(db: Db, d: Pick<Due, "character_id" | "owner_id" | "
   const { POST: postEpisode } = await import("@/app/api/episodes/route");
   const book = async (body: Record<string, unknown>): Promise<string | null> => {
     const req = markShowPaidRequest(
-      new Request(MCP_CALL_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json", cookie: `${USER_COOKIE}=${d.owner_id}` },
-        body: JSON.stringify({ character_id: d.character_id, partner_id: d.lead_id, format: firstDateFormat(env), visibility, ...body }),
-      }),
+      internalRequest(d.owner_id, { body: { character_id: d.character_id, partner_id: d.lead_id, format: firstDateFormat(env), visibility, ...body } }),
     );
     roseRequests.add(req);
     const res = await postEpisode(req);

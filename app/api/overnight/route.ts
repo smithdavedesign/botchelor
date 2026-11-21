@@ -2,7 +2,7 @@ import { z } from "zod";
 import { POST as createEpisode } from "@/app/api/episodes/route";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { handle, json, parseBody, passOn, readJson, session } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import { notify, ownersOf } from "@/lib/notifications";
 import { markOvernight, overnightOffer, sayYesToOvernight } from "@/lib/overnight";
@@ -68,12 +68,15 @@ export const POST = handle(async (req: Request) => {
   headers.set("content-type", "application/json");
   headers.delete("content-length");
   const res = await createEpisode(
-    new Request(new URL("/api/episodes", req.url), {
-      method: "POST",
-      headers,
-      // The evening place by its venue id (lib/venues.ts venueIdFor reads an id as that venue).
-      body: JSON.stringify({ character_id: offer.mine.id, partner_id: offer.them.id, second_date_of: offer.after_episode_id, visibility: "public", place: offer.venue }),
-    }),
+    passOn(
+      req,
+      new Request(new URL("/api/episodes", req.url), {
+        method: "POST",
+        headers,
+        // The evening place by its venue id (lib/venues.ts venueIdFor reads an id as that venue).
+        body: JSON.stringify({ character_id: offer.mine.id, partner_id: offer.them.id, second_date_of: offer.after_episode_id, visibility: "public", place: offer.venue }),
+      }),
+    ),
   );
   const data = ((await res.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
   if (res.ok && typeof data.id === "string") {

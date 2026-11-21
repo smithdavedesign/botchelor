@@ -50,7 +50,8 @@ export default function InviteForm({ days, clipTokens, reelTokens, source = null
       <h2>Ask for an invite</h2>
       <p>
         After Dark is in an invite-only beta. If you&apos;re invited, it&apos;s free for {days} days: every chapter and the pictures are on us. Video
-        isn&apos;t included: a clip is {clipTokens} token{clipTokens === 1 ? "" : "s"} and the video of the night {reelTokens} tokens, from the shop.
+        isn&apos;t included: a clip is {clipTokens} token{clipTokens === 1 ? "" : "s"} and the video of the night {reelTokens} tokens, and token
+        packs go on sale when After Dark&apos;s own billing opens.
       </p>
       <label>
         <span>Anything you&apos;d like us to know (optional)</span>
