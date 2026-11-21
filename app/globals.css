@@ -12647,7 +12647,12 @@ html.constellation-locked body {
 .world-figure {
   margin: 0 0 var(--space-4);
 }
+/* The picture's own type, in picture units (its 640-unit viewBox, lib/social/world-picture.ts), not the page's type
+   scale: the picture is scaled to fit, about 1.1 on a desktop and 0.56 on a phone, so these are picked for the size
+   they come out at, 12px or more. The phone's place labels are what world-picture.ts LABEL_TYPE lays the edge out for. */
 .world-sky {
+  --world-type-name: 12px;
+  --world-type-place: 13px;
   display: block;
   width: 100%;
   max-width: 44rem;
@@ -12694,10 +12699,10 @@ html.constellation-locked body {
 .world-person text,
 .world-place {
   fill: var(--constellation-label);
-  font-size: 12px;
+  font-size: var(--world-type-name);
 }
 .world-place {
-  font-size: 13px;
+  font-size: var(--world-type-place);
   letter-spacing: 0.02em;
 }
 .world-person circle,
@@ -12753,16 +12758,16 @@ html.constellation-locked body {
    circle keeps its names (the list below names everyone), and the places' labels are laid out for this size
    (lib/social/world-picture.ts LABEL_TYPE). */
 @media (max-width: 640px) {
+  .world-sky {
+    --world-type-name: 22px;
+    --world-type-place: 22px;
+  }
   .world-sky .world-name,
   .world-sky .world-person text {
     display: none;
   }
   .world-sky .world-name.is-inner {
     display: inline;
-    font-size: 20px;
-  }
-  .world-place {
-    font-size: 19px;
   }
 }
 

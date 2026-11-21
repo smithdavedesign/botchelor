@@ -130,10 +130,10 @@ function meanAngle(angles: readonly number[]): number | null {
 }
 
 /**
- * The places' type in picture units at its biggest: a phone's (app/globals.css .world-place), where the picture is
- * drawn at about half size. A desktop's is smaller, so a label laid out for a phone fits there too.
+ * The places' type in picture units at its biggest: a phone's (app/globals.css --world-type-place), where the picture
+ * is drawn at about 0.56, so 22 comes out at 12px. A desktop's is smaller, so a label laid out for a phone fits there too.
  */
-export const LABEL_TYPE = 19;
+export const LABEL_TYPE = 22;
 /** About how many degrees a label takes round the edge: about half an em a character, and a little either side. */
 export const labelSpan = (text: string): number => ((text.length * LABEL_TYPE * 0.53 + 12) / EDGE_RADIUS) * (180 / Math.PI);
 
