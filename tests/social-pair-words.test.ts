@@ -115,7 +115,7 @@ describe("the pair panel's words", () => {
     expect(html).toContain('href="/house?scene=sc-9#scene-sc-9"');
     expect(html).toContain("dated on the show");
     expect(html).toContain("Regulars at the dive bar");
-    expect(html).toMatch(/<details class="pair-ties-history"><summary class="small">Their history <span class="muted">\(1\)<\/span><\/summary>/);
+    expect(html).toMatch(/<details class="ux-fold pair-ties-history"><summary class="small">Their history <span class="muted">\(1\)<\/span><\/summary>/);
     // Where the dates are told already (Love's panel, the couple page): the dating isn't said again.
     const skipped = renderToStaticMarkup(createElement(PairTiesCard, { pair: p, closedSeasons: new Set<string>(), skipDated: true, level: 2 }));
     expect(skipped).toContain("Everything between them</h2>");

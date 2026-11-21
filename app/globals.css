@@ -12098,7 +12098,11 @@ html.constellation-locked body {
     white-space: nowrap;
   }
 }
+/* Positioned (2026-11-20): each chip's count has a screen-reader word (.sr-only, absolutely positioned), whose box was
+   placed against the stage outside this scrolling row, so the row's clip missed it and a phone's page scrolled
+   sideways by up to 382px. Positioned, the row holds it and clips it. */
 .constellation-stage-chips {
+  position: relative;
   display: flex;
   flex: 0 1 auto;
   gap: var(--space-2);
@@ -12816,6 +12820,17 @@ html.constellation-locked body {
 }
 .pair-tie.is-over .pair-tie-words {
   color: var(--muted);
+}
+.pair-ties-list > li + li {
+  margin-top: var(--space-1);
+}
+/* An evidence link keeps its 44px target on a touch screen (.tap-link) without opening a gap in its row: the extra goes
+   back to the line, as a name link's does. */
+@media (pointer: coarse), (max-width: 720px) {
+  .pair-ties-links a.tap-link,
+  .tense-side-body a.tap-link {
+    margin-block: -0.625rem;
+  }
 }
 .pair-ties-links {
   display: inline-flex;

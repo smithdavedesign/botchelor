@@ -28,6 +28,13 @@ describe(".scroll-row", () => {
     expect(read("app/globals.css")).not.toMatch(/\.ad-studio-tabs \{\s*flex-wrap: wrap;/);
   });
 
+  it("holds what's absolutely positioned inside it: the graph's chips, whose counts carry a screen-reader word", () => {
+    // An .sr-only span is placed against its nearest positioned ancestor. With none inside the row, that was the stage
+    // around it, the row's clip missed the span, and /graph scrolled sideways on a phone (2026-11-20, by up to 382px).
+    expect(read("app/graph/ConstellationApp.tsx")).toMatch(/<ul className="constellation-stage-chips scroll-row">[\s\S]*?<span className="sr-only">/);
+    expect(read("app/globals.css")).toMatch(/\.constellation-stage-chips \{\s*position: relative;/);
+  });
+
   it("puts every wide admin table in the faded scroller (C20)", () => {
     const graph = read("app/admin/after-dark/graph/page.tsx");
     expect(graph.match(/<div className="table-scroll">\s*<table className="ad-pairs/g)?.length).toBe(2);
