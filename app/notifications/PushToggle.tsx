@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { queueEvent } from "@/app/engagement";
 import { installSteps, platformOf } from "@/lib/pwa";
+import Icon from "@/app/Icon";
 
 /** The VAPID public key (base64url) as the bytes a browser's PushManager wants. */
 function keyBytes(base64url: string): Uint8Array<ArrayBuffer> {
@@ -119,7 +120,7 @@ export default function PushToggle({
     return (
       <section className="card invite-row push-prompt" aria-label="Browser notifications">
         <span className="invite-row-icon" aria-hidden="true">
-          🔔
+          <Icon name="bell" />
         </span>
         <div className="invite-row-text">
           <strong>{title}</strong>

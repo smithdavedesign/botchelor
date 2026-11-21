@@ -11,6 +11,7 @@ import { NO_AD_DOORS, studioDoorLabel, type AdDoors } from "@/lib/adult/door-lin
 import { AD_SHOWCASE } from "@/lib/showcase-paths";
 import type { PickerCharacter } from "@/lib/my-characters";
 import { openFeedback } from "@/lib/user-feedback-shared";
+import { okJson } from "@/lib/ok-json";
 
 /**
  * The primary nav links (the token meter and the logo sit outside these lists). Three doors and the account, the same
@@ -170,7 +171,7 @@ export default function Nav({
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
       fetch("/api/me", { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
+        .then(okJson)
         .then((me) => {
           const n = me?.[meter === "tokens" ? "tokens_left" : "dates_left"];
           if (typeof n === "number") setTokens(n);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import ThreadMenu from "@/app/couples/[a]/[b]/ThreadMenu";
 import { requestJson } from "@/app/request";
+import Icon from "@/app/Icon";
 
 type Note = { kind: "ok" | "error"; text: string };
 
@@ -48,7 +49,15 @@ export function FollowToggle({ characterId, name, following: initial, texts }: {
         data-track="character-follow"
         data-track-to={following ? "off" : "on"}
       >
-        {following ? "Following ✓" : "🔔 Follow"}
+        {following ? (
+          <>
+            <Icon name="check" /> Following
+          </>
+        ) : (
+          <>
+            <Icon name="bell" /> Follow
+          </>
+        )}
       </button>
       {note && (
         <p className={note.kind === "error" ? "error small" : "muted small"} role={note.kind === "error" ? "alert" : "status"}>

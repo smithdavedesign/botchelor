@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { DrawAhead } from "@/lib/adult/draw-ahead";
+import { okJson } from "@/lib/ok-json";
 
 /**
  * Draw ahead for the pair (lib/adult/draw-ahead.ts): whether it's offered and on, and its price, asked again when the
@@ -14,7 +15,7 @@ export function useDrawAhead(a: string, b: string, key: string, enabled = true) 
     if (!enabled) return;
     let live = true;
     fetch(`/api/admin/after-dark/draw-ahead?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { draw_ahead?: DrawAhead } | null) => {
         if (live && d?.draw_ahead) setView(d.draw_ahead);
       })

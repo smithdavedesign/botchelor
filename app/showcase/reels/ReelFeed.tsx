@@ -11,6 +11,7 @@ import MadeWith from "../MadeWith";
 import { playClip, useSound } from "../sound";
 import { feedOf, loads, motionOf, type ReelCard } from "./reel-shared";
 import styles from "./reels.module.css";
+import { okJson } from "@/lib/ok-json";
 
 type Props = {
   initial: Post[];
@@ -122,7 +123,7 @@ export default function ReelFeed(props: Props) {
     if (!more || loading || active < feed.length - 3) return;
     setLoading(true);
     fetch(`/api/showcase/reels?${props.query}${props.query ? "&" : ""}page=${page + 1}&as_of=${encodeURIComponent(props.asOf)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { posts: Post[]; more: boolean; locked: Record<string, number> } | null) => {
         if (!d) return setMore(false);
         setPosts((now) => {

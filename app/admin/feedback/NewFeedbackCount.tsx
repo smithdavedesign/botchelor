@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { okJson } from "@/lib/ok-json";
 
 /**
  * How many of people's notes nobody has looked at yet (lib/user-feedback.ts newUserFeedbackCount), beside the link on
@@ -17,7 +18,7 @@ export default function NewFeedbackCount() {
       /* private mode: an admin account still works */
     }
     fetch("/api/admin/feedback/people?count=1", { headers: key ? { "x-frontier-key": key } : {} })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((body: { new_count?: number } | null) => setCount(typeof body?.new_count === "number" ? body.new_count : null))
       .catch(() => {});
   }, []);

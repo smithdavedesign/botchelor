@@ -16,6 +16,7 @@ import {
   type LibraryMode,
 } from "@/lib/studio/library";
 import { PLACE_IDEAS, PROMPT_IDEAS, ROLEPLAY_IDEAS } from "@/lib/studio/library-ideas";
+import { okJson } from "@/lib/ok-json";
 
 const CATEGORY_LABEL = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, `${c.icon} ${c.label}`])) as Record<string, string>;
 
@@ -43,7 +44,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
   useEffect(() => {
     let live = true;
     fetch("/api/library")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d) => {
         if (!live || !d) return;
         setLib(d.library as Library);
@@ -66,7 +67,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
     if (!res) return setNote({ text: "That didn't reach the server. Try again.", error: true });
     if (!res.ok) return setNote({ text: res.message, error: true });
     reset();
-    const fresh = await fetch("/api/library").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const fresh = await fetch("/api/library").then(okJson).catch(() => null);
     if (fresh) setLib(fresh.library as Library);
     setNote({ text: done });
   }

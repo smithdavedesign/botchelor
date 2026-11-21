@@ -13,6 +13,7 @@ import type { Reel } from "@/lib/adult/reels";
 import type { AdultScene } from "@/lib/adult/scenes";
 import { includedClipsWords, priceWords } from "@/lib/adult/price-words";
 import TokenPrice from "../../TokenPrice";
+import { okJson } from "@/lib/ok-json";
 
 /** A clip made in the theater (ClipHere) is announced on the window, so the page's videos list picks it up. */
 export const REEL_EVENT = "after-dark:reel";
@@ -101,7 +102,7 @@ export default function MediaMenu({
     let gone = false;
     const q = `a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}`;
     const signal = AbortSignal.timeout(15_000);
-    const read = (path: string) => fetch(`/api/admin/after-dark/${path}?${q}`, { signal }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const read = (path: string) => fetch(`/api/admin/after-dark/${path}?${q}`, { signal }).then(okJson).catch(() => null);
     setMenuError(false);
     void Promise.all([read("clips"), read("pictures")]).then(([c, p]) => {
       if (gone) return;
@@ -338,7 +339,7 @@ export function ClipHere({ a, b, at, nightId, paused = null }: { a: string; b: s
   useEffect(() => {
     let gone = false;
     fetch(`/api/admin/after-dark/clips?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((o: ClipOffer | null) => !gone && o && setOffer(o))
       .catch(() => {});
     return () => {

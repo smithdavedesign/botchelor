@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import { postHref } from "@/lib/showcase-paths";
+import { okJson } from "@/lib/ok-json";
 
 type PostState = { id: string; status: string } | null;
 type Profile = { handle: string; display_name: string; bio: string | null };
@@ -38,7 +39,7 @@ export default function PublishButton({
     setOpen(true);
     setNote(null);
     if (profile !== undefined) return;
-    const res = (await fetch("/api/creator-profile").then((r) => (r.ok ? r.json() : null)).catch(() => null)) as { profile?: Profile | null } | null;
+    const res = (await fetch("/api/creator-profile").then(okJson).catch(() => null)) as { profile?: Profile | null } | null;
     setProfile(res?.profile ?? null);
   }
   useEffect(() => {

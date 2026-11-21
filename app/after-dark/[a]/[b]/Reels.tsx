@@ -19,6 +19,7 @@ import ChainPublish from "../../ChainPublish";
 import MomentTools, { keepGoingFromMoment, NextWords, SharedNextWords } from "../../MomentTools";
 import type { Media } from "@/lib/adult/media";
 import { trimStep } from "../../trimPlayback";
+import { okJson } from "@/lib/ok-json";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
@@ -245,7 +246,7 @@ function useClipPrice(pair: Reel | undefined, clipCount: number): ReactNode {
     if (!pair?.a || !pair.b) return;
     let gone = false;
     fetch(`/api/admin/after-dark/clips?a=${encodeURIComponent(pair.a)}&b=${encodeURIComponent(pair.b)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((offer: Partial<ClipOffer> | null) => {
         if (gone || typeof offer?.price !== "number") return;
         const left = includedClipsWords(offer.included_left, offer.included_of ?? 0);
@@ -596,7 +597,7 @@ export function SeamlessPlayer({
     const ids = [...new Set(shots.map((s) => s.media_id).filter(Boolean))].join(",");
     if (!ids) return;
     fetch(`/api/admin/after-dark/media/trims?ids=${encodeURIComponent(ids)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { trims?: Record<string, Trim> } | null) => live && d?.trims && setTrims(d.trims))
       .catch(() => {});
     return () => {

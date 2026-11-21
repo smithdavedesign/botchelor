@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
 import type { PictureChoices } from "@/lib/studio/picture-choice";
+import { okJson } from "@/lib/ok-json";
 
 const src = (source: "studio" | "portrait", id: string) => (source === "studio" ? `/api/studio/pictures/${id}` : `/api/assets/${id}?w=256`);
 
@@ -19,7 +20,7 @@ export default function ChoosePicture({ id, name, onPortrait }: { id: string; na
   const first = name.split(/\s+/)[0];
   const load = () =>
     fetch(`/api/characters/${id}/pictures`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d) => d && setChoices(d as PictureChoices))
       .catch(() => {});
   useEffect(() => {

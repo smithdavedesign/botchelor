@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { HARD_NOS, INTENSITIES, INTENSITY, OWN_LEN, OWN_MAX, type HardNos, type Intensity } from "@/lib/adult/limits";
 import { PROFILE_CONSENT_TEXT } from "@/lib/adult/profile";
+import { okJson } from "@/lib/ok-json";
 
 /**
  * The viewer's limits for this pair (lib/adult/limits.ts): how far and how frank it goes (the intensity dial), and the
@@ -34,7 +35,7 @@ export default function Limits({
   const [ticked, setTicked] = useState(false);
   const [needsTick, setNeedsTick] = useState(false);
   async function loadConsent() {
-    const r = await fetch("/api/admin/after-dark?consent=1").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    const r = await fetch("/api/admin/after-dark?consent=1").then(okJson).catch(() => null);
     setConsented(Boolean(r?.consent?.given));
   }
   const count = hardNos.chips.length + hardNos.own.length;

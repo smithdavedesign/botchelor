@@ -7,6 +7,7 @@ import { CAP_MAX_USD, DEFAULT_ON_CAP, type CapSettings, type Feel, type Job, typ
 import FeelPicker, { feelValue, type FeelValue } from "./FeelPicker";
 import ModelPicker from "./ModelPicker";
 import ProviderMark from "./ProviderMark";
+import { okJson } from "@/lib/ok-json";
 
 /** A provider the flow offers for this job, with the key already stored for it (its last four), if any. */
 export type FlowProvider = {
@@ -112,7 +113,7 @@ export default function KeyForm({
     let gone = false;
     setOptions((o) => ({ ...o, loading: true }));
     fetch(`/api/me/connections/models?provider=${encodeURIComponent(storedPick)}&job=${encodeURIComponent(job)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { models?: ModelOption[]; source?: "provider" | "curated" } | null) => {
         if (gone) return;
         if (d?.models?.length) setOptions({ provider: storedPick, models: d.models, source: d.source ?? "provider", loading: false });

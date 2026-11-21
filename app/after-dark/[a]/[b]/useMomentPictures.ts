@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { PublicBeat } from "@/lib/adult/beats";
 import type { MomentPicture } from "@/lib/adult/scene-match";
+import { okJson } from "@/lib/ok-json";
 
 /** While a moment's picture is being drawn, asked again this often (it lands in 20 to 60 s), for at most this long. */
 const POLL_MS = 6_000;
@@ -22,7 +23,7 @@ export function useMomentPictures(a: string, b: string, beats: readonly PublicBe
     if (!enabled) return;
     let live = true;
     fetch(`/api/admin/after-dark/moment-pictures?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { moments?: MomentPicture[] } | null) => live && d && setMoments(d.moments ?? []))
       .catch(() => {});
     return () => {
