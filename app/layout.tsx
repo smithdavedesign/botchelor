@@ -153,14 +153,24 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const socials = socialLinks(process.env, adHost);
   const support = contactEmail();
   const navChat = navChatOn();
-  const [, door, dates, unread, texts, mine, adTokens, seasonDef, adDoors, nextDef] = await Promise.all([
+  const [, door, count, unread, texts, mine, adTokens, seasonDef, adDoors, nextDef] = await Promise.all([
     // They're here (lib/activity.ts): their characters' likes wait for them rather than answering themselves. Throttled.
     db && viewerId ? touchOwner(db, viewerId).catch(() => {}) : null,
     // After Dark's link shows to someone it's open to (lib/adult/entitlement.ts), only where it's offered
     // (lib/jurisdiction.ts); once its public door is opened (lib/adult/door.ts, admins only until payments), to every
     // adult where it isn't blocked.
     afterDarkDoor(db, viewer, await headers()).catch(() => ({ door: false, threshold: false })),
-    db && viewerId ? episodeAllowance(db, viewerId) : freshAllowance(),
+    // The meter's count. When its read fails (the pool busy, #1948) the meter is left out for this page, rather than the
+    // whole frame failing or the meter showing a count that isn't theirs.
+    db && viewerId
+      ? episodeAllowance(db, viewerId).then(
+          (allowance) => ({ allowance, failed: false }),
+          (err: unknown) => {
+            console.error(`[layout] the meter's count didn't load: ${err instanceof Error ? err.message : "unknown"}`);
+            return { allowance: freshAllowance(), failed: true };
+          },
+        )
+      : { allowance: freshAllowance(), failed: false },
     // The bell's unread count (lib/notifications.ts): what happened between dates.
     db && viewerId ? unreadCount(db, viewerId).catch(() => 0) : 0,
     // Chat's count (lib/nav-chat.ts): unread texts of both kinds, a character's to them and their characters' own
@@ -177,6 +187,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // Next month's format, for the arc's "December: The Botchelor" beside this month's (app/SeasonBanner.tsx `next`).
     adHost ? null : shared("watch:season-format-next", async () => seasonFormatNow(await getDb(), nextSeasonStart(new Date()))).catch(() => null),
   ]);
+  const dates = count.allowance;
   const hasCharacter = mine.length > 0;
   const afterDark = door.door;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
@@ -222,7 +233,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={count.failed ? "none" : adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board).
             A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}
