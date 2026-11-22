@@ -5,8 +5,8 @@ export const SITE_CARD_SIZE = { width: 1200, height: 630 };
 
 /**
  * The site's share card (lib/seo.ts SHARE_IMAGE), drawn here once for both addresses it's served at: /share-card.png,
- * the one every page names (app/share-card.png/route.tsx), and /opengraph-image, the root's own card for a page that names
- * none (app/opengraph-image.tsx).
+ * the one every page names (app/share-card.png/route.tsx, the root layout included), and /opengraph-image, kept for
+ * links shared before 2026-11-22 (app/opengraph-image.tsx).
  */
 export function siteCard(init?: ResponseInit): ImageResponse {
   return new ImageResponse(
