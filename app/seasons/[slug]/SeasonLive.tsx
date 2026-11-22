@@ -110,6 +110,15 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
             href={premiere.room_path}
           />
         )}
+        {/* Before the month, the page's one thing to do is apply or vote: a button in the hero, on a phone's first screen
+            too (the 2026-11-22 audit: it was a text link three screens down). */}
+        {casting && (
+          <p className="cta-row">
+            <Link className="button" href="/casting" data-track="season-hero-casting">
+              {casting.total > 0 ? "Apply or vote" : "Apply as a suitor"}
+            </Link>
+          </p>
+        )}
       </SetHero>
 
       {starters.length > 0 && (
@@ -235,7 +244,7 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
       )}
 
       <p className="muted small season-live-more">
-        <Link href="/watch">Watch what&apos;s on →</Link> · <Link href="/reunion">The Reunion →</Link> · <Link href="/seasons">Every season →</Link>
+        <Link href="/watch">Watch what&apos;s on →</Link> · <Link href="/reunion">This season so far →</Link> · <Link href="/seasons">Every season →</Link>
       </p>
     </article>
   );

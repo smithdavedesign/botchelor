@@ -10,6 +10,8 @@ vi.mock("next/navigation", async (original) => ({
   usePathname: () => "/",
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
 }));
+// The ship page looks up a real couple by the two names (lib/ship-couple.ts); there's no database here.
+vi.mock("@/lib/ship-couple", () => ({ shipCouple: async () => null }));
 
 import FollowButton from "@/app/showcase/FollowButton";
 import { FollowButton as CoupleFollow } from "@/app/couples/[a]/[b]/CoupleActions";

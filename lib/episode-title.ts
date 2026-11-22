@@ -77,7 +77,7 @@ export function templateEpisodeTitle(facts: Pick<EpisodeTitleFacts, "venue" | "d
 
 const SYSTEM =
   "You title episodes of Botchelor, an AI reality-dating show the audience watches. " +
-  "Given one date's setting, write its episode title: 3 to 6 words, Title Case, PG, no quotes or emoji, " +
+  "Given one date's setting, write its episode title: 3 to 6 words in sentence case (capitalise only the first word and names), PG, no quotes or emoji, " +
   "like a reality-TV episode name — a place, an object or a moment from the setting, never a verdict. " +
   "You are never told how the date ends, so never hint at an outcome (no falling, winning, losing, goodbye, forever). " +
   "No real people, no brands. " +

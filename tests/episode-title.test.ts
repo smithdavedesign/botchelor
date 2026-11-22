@@ -72,11 +72,12 @@ describe("titling at air time", () => {
     await api.reveal(episode.id, creator);
     expect(await titleEpisodeOnAir(t.db, episode.id, { model: model(['{"title":"The Quiz Pro Quo Affair"}']) })).toBe("The Quiz Pro Quo Affair");
     const view = await getEpisodeView(t.db, episode.id, null);
-    expect(view?.title).toBe("The Quiz Pro Quo Affair");
+    // Stored as the model wrote it; shown in sentence case, as every title on the site reads (lib/sentence-case.ts).
+    expect(view?.title).toBe("The quiz pro quo affair");
     expect(view?.aired_at).toBeTruthy();
     // A second air (a replayed job, a race) finds the title already there and leaves it alone.
     expect(await titleEpisodeOnAir(t.db, episode.id, { model: model(['{"title":"Another Title"}']) })).toBeNull();
-    expect((await getEpisodeView(t.db, episode.id, null))?.title).toBe("The Quiz Pro Quo Affair");
+    expect((await getEpisodeView(t.db, episode.id, null))?.title).toBe("The quiz pro quo affair");
   });
 
   it("falls back to the template when the model fails, and stays inert without a model under the harness", async () => {

@@ -17,6 +17,7 @@ import { portraitPathSql } from "./portrait-sql";
 import { premiereAt, sundayPremiereOn, type NextPremiere } from "./premiere-clock";
 import { DELETED_OWNER, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { seasonMonth } from "./season-cast";
+import { sentenceCase } from "./sentence-case";
 import { ceremonySundays, formatContrast, seasonArc, seasonFormat, suitorPlaces, type SeasonArc, type SeasonFormatDef } from "./season-format";
 import { seasonFormatSlug } from "./season-format-store";
 import { isMonthlySeason, seasonRef, type SeasonRef } from "./season-ref";
@@ -186,7 +187,7 @@ export async function starterPool(db: Db, seasonId: string, opts: { ids?: readon
   const faceOf = (r: StarterRow, x: "a" | "b"): StarterFace => ({ id: r[`${x}_id`], name: r[`${x}_name`], hue: r[`${x}_hue`], portrait: r[`${x}_portrait`] ?? null, house: Boolean(r[`${x}_house`]) });
   return rows.map((r) => ({
     id: r.id,
-    title: r.title?.trim() || null,
+    title: sentenceCase(r.title?.trim() || null, [r.a_name, r.b_name], r.setting),
     line: r.setting,
     venue: r.venue ?? null,
     a: faceOf(r, "a"),

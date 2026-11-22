@@ -224,7 +224,7 @@ describe("the preview's layout (app/graph/teaser.ts)", () => {
 describe("the preview card (app/graph/GraphTeaser.tsx)", () => {
   it("keeps the numbers off while there are few pairs (the empty-room rule)", () => {
     expect(teaserStats({ pairs: 3, dates: 4, triangles: 0 })).toBe("");
-    expect(teaserStats({ pairs: 12, dates: 30, triangles: 1 })).toBe("12 pairs · 30 public dates · 1 love triangle");
+    expect(teaserStats({ pairs: 12, dates: 30, triangles: 1 })).toBe("12 pairs · 30 public dates · 1 love triangle among them");
     expect(teaserStats({ pairs: 165, dates: 251, triangles: 0 })).toBe("165 pairs · 251 public dates");
     // Your own characters' numbers are yours, however few.
     expect(teaserStats({ pairs: 1, dates: 1, triangles: 0 }, "yours")).toBe("1 pair · 1 public date");

@@ -5,7 +5,7 @@ import VenuePhoto from "@/app/VenuePhoto";
 import { formatLabel } from "@/lib/formats";
 import type { EpisodeView, FeedItem } from "@/lib/game";
 import { nightFaces, nightPairs } from "@/lib/feed-items";
-import { dateLabel, dateNumberOf, endingLabel, endingWithDetail } from "@/lib/rules";
+import { dateBadge, dateNumberOf, endingLabel, endingWithDetail } from "@/lib/rules";
 import { templateEpisodeTitle } from "@/lib/episode-title";
 import { venuePhrase } from "@/lib/venues";
 
@@ -37,7 +37,7 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
   const mixer = episode.double && episode.group_kind === "mixer";
   // A mixer's tables are all speed dates: the format badge said what the group badge already does (UI audit, item 2).
   const format = episode.format && !(mixer && episode.format === "speed_date") ? episode.format : null;
-  const later = (dateNo && dateNo > 1) || episode.followup_of ? dateLabel(dateNo ?? episode.date_number ?? 2) : null;
+  const later = (dateNo && dateNo > 1) || episode.followup_of ? dateBadge(dateNo ?? episode.date_number ?? 2) : null;
   return (
     <li className="card episode-item tap-card">
       <VenuePhoto venue={episode.venue} className="episode-item-photo">
@@ -102,17 +102,17 @@ export function MixerNightItem({ item }: { item: Extract<FeedItem, { kind: "mixe
           {faces.length > NIGHT_FACES && <span className="night-faces-more">+{faces.length - NIGHT_FACES}</span>}
         </span>
         <span className="photo-chip">
-          <Icon name="glass" /> {tables} tables
+          <Icon name="glass" /> {tables} {tables === 1 ? "date" : "dates"}
         </span>
       </VenuePhoto>
       <div className="episode-item-body">
         <Link className="stretch episode-item-names" href={`/mixers/${item.night_id}`}>
-          <strong>Speed-dating night</strong>
+          <strong>Speed-dating mixer</strong>
         </Link>
         <span className="episode-item-title">{item.venue ? `At ${venuePhrase(item.venue)}` : "Everyone in one room"}</span>
         <span className="episode-item-meta">
           <span className="episode-item-status">
-            {faces.length} singles · {tables} tables aired
+            {faces.length} singles · {tables} {tables === 1 ? "date" : "dates"} aired
           </span>
         </span>
         <p className="muted episode-item-setting">

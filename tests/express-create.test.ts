@@ -349,7 +349,7 @@ describe("the builder's first screen", () => {
     return renderToStaticMarkup(createElement(CreateWizard, props));
   };
 
-  it("is one box for a first character: a sentence, three examples, an optional name, Meet them", async () => {
+  it("is one box for a first character: a sentence, three examples, an optional name, Make them", async () => {
     const html = await render({ express: true });
     expect(html).toContain("Describe them in a sentence or two");
     expect(html).toContain(`maxLength="${EXPRESS_TEXT_MAX}"`);
@@ -360,8 +360,8 @@ describe("the builder's first screen", () => {
       expect(screenExpressText(ex.text, "")).toEqual({ ok: true });
     }
     expect(html).toContain('name="express_name"');
-    // Grey and saying why until there's a sentence; "Meet them" once there is (the next test).
-    expect(html).toMatch(/<button type="submit"[^>]*>Type a sentence to meet them<\/button>/);
+    // Grey and saying why until there's a sentence; "Make them" once there is (the next test).
+    expect(html).toMatch(/<button type="submit"[^>]*>Type a sentence to make them<\/button>/);
     // The ways out are one tap away, and the same three steps are on the rail.
     expect(html).toContain("Fill it in myself");
     expect(html).toContain("Use a sample character");
@@ -371,14 +371,14 @@ describe("the builder's first screen", () => {
     expect(html).not.toContain('name="trait1"');
   });
 
-  it("says why Meet them is grey, in the button, and that it's free, in the intro, in a visitor's words (2026-11-22 audit)", async () => {
+  it("says why Make them is grey, in the button, and that it's free, in the intro, in a visitor's words (2026-11-22 audit)", async () => {
     const html = await render({ express: true });
-    const button = /<button type="submit"[^>]*>Type a sentence to meet them<\/button>/.exec(html)?.[0] ?? "";
+    const button = /<button type="submit"[^>]*>Type a sentence to make them<\/button>/.exec(html)?.[0] ?? "";
     expect(button).toContain('disabled=""');
     expect(button).toContain('data-track="express-meet"');
-    // Once there's a sentence the same button is "Meet them", and drafting, "Drafting them…".
+    // Once there's a sentence the same button is "Make them", and drafting, "Drafting them…".
     const wizard = readFileSync(join(__dirname, "..", "app/create/CreateWizard.tsx"), "utf8");
-    expect(wizard).toContain('{expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to meet them" : "Meet them"}');
+    expect(wizard).toContain('{expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to make them" : "Make them"}');
     // No line under it: on a phone the bar is stuck to the bottom of the screen, and taller it covers the examples.
     expect(html).not.toContain("express-note");
     expect(html).toContain('<p class="muted wizard-intro">An original fictional adult, from a sentence. It&#x27;s free, and you can change anything after.</p>');

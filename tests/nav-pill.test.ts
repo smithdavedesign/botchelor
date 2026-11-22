@@ -126,8 +126,8 @@ describe("the show's tabs: Watch · House · Season", () => {
 
   it("Reels left both strips for the Studio door (2026-11-16): the Gallery and My studio, one place to show and make", () => {
     const gallery = renderToStaticMarkup(createElement(StudioTabs, { current: "gallery" }));
-    expect(tabs(gallery)).toEqual(["Gallery /showcase", "My studio /studio"]);
-    expect(current(gallery)).toBe("Gallery");
+    expect(tabs(gallery)).toEqual(["Showcase /showcase", "My studio /studio"]);
+    expect(current(gallery)).toBe("Showcase");
     expect(current(renderToStaticMarkup(createElement(StudioTabs, { current: "studio" })))).toBe("My studio");
     const page = readFileSync("app/showcase/page.tsx", "utf8");
     expect(page).toContain('<StudioTabs current="gallery" />');

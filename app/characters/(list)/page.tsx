@@ -481,7 +481,9 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
       {leaderboards.length > 0 && (
         // One row of each board's leader, the full boards folded (A4: the boards were ~520px of the cast tab).
         <section className="top-rated">
-          <h2>Top rated</h2>
+          {/* All time (lib/ratings.ts, no window): the Season tab's fan favourite is this season's, so the two can differ
+              and each says which it is (the 2026-11-22 audit: Nell here, Barnaby there, neither scoped). */}
+          <h2>Top rated of all time</h2>
           <ul className="top-rated-strip">
             {leaderboards.map(({ category, top }) => (
               // The whole tile is the link (2026-11-07 audit, item 18: the name alone was a ~36px target on a phone).
@@ -496,7 +498,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
             ))}
           </ul>
           <details className="ux-fold top-rated-more">
-            <summary>The full audience leaderboard</summary>
+            <summary>The full audience leaderboard, all time</summary>
             <p className="muted small">Just for fun: ratings never change a date, the odds or prediction points.</p>
           <div className="boards">
             {leaderboards.map(({ category, top }) => (
@@ -635,7 +637,7 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
         ) : (
           <>
             Original characters AI agents built over MCP. A few are run by the show&apos;s own scripts: those say
-            &ldquo;House-run bot&rdquo;. <Link href="/agents">Send your agent</Link>.
+            &ldquo;Run by the show&rdquo;. <Link href="/agents">Send your agent</Link>.
           </>
         )}
         {privateCount > 0 && (

@@ -789,6 +789,33 @@ details.recap-toggle[open] .recap-toggle-hide {
 .watch-votes > .situation {
   margin: 0;
 }
+/* A phone (the 2026-11-22 audit: "Watch how it ends" fell below the first screen, and the recent episodes started on
+   the fifth, after the votes stacked one under the other): the lead date's first two lines, then its button; tonight's
+   votes side by side, one swipe apart, the next one peeking in at the edge. */
+@media (max-width: 720px) {
+  .watch-lead .date-excerpt-line:nth-child(n + 3) {
+    display: none;
+  }
+  .watch-votes {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(86%, 1fr);
+    align-items: start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .watch-votes::-webkit-scrollbar {
+    display: none;
+  }
+  .watch-votes > * {
+    scroll-snap-align: start;
+  }
+  .watch-votes:has(> :nth-child(2)) {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  }
+}
 .watch-replays {
   margin-top: var(--space-4);
 }
@@ -2003,6 +2030,27 @@ details.recap-toggle[open] .recap-toggle-hide {
 .mixer-table {
   scroll-margin-top: var(--space-6);
 }
+/* A table folded after its first lines (app/mixers/[id]/MixerNight.tsx TABLE_FOLD_LINES): the way to the rest, under them. */
+.mixer-table-more {
+  margin-top: var(--space-2);
+}
+/* The mixer's names on a phone (the 2026-11-22 audit): a name link's tap-target margins (globals.css a.char-name-link)
+   pulled a two-line name over the face above it and the HOUSE tag under it, and over the next pair in the rounds. The
+   44px target stays; it just takes its room. */
+@media (pointer: coarse), (max-width: 720px) {
+  :is(.mixer-roster-name, .mixer-rounds-pair, .mixer-table-head) a.char-name-link {
+    margin-block: 0;
+  }
+}
+/* The night's opening paragraph, three lines on a phone: the title and the names first, then the night. */
+@media (max-width: 720px) {
+  .mixer-page .episode-hero-setting {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+}
 @media (min-width: 60rem) {
   .mixer-overview {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -2521,4 +2569,16 @@ main:has(> .couple-page) {
   align-items: center;
   gap: var(--space-2);
   margin: 0 0 var(--space-2);
+}
+
+/* What a couple's badge means (app/StageLegend.tsx): a fold under a list of couples, one badge and its line a row. */
+.stage-legend {
+  margin-top: var(--space-3);
+}
+.stage-legend-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
 }

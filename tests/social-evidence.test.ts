@@ -19,7 +19,7 @@ describe("evidence links", () => {
 
   it("a season links once it's closed, and is words before then", () => {
     expect(evidenceLink("season:2026-10-01", AT, { closedSeasons: new Set(["2026-10-01"]) })?.href).toBe(seasonPath("2026-10-01"));
-    expect(evidenceLink("season:2026-11-01", AT, { closedSeasons: new Set(["2026-10-01"]) })).toEqual({ href: null, label: "the season", at: AT });
+    expect(evidenceLink("season:2026-11-01", AT, { closedSeasons: new Set(["2026-10-01"]) })).toEqual({ href: null, label: "the season's cast", at: AT });
   });
 
   it("is nothing for a ref it doesn't know or an id that isn't safe in a link", () => {

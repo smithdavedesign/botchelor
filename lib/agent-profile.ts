@@ -9,6 +9,7 @@ import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
 import { portraitPathSql } from "./portrait-sql";
 import { endingLabel, type Ending } from "./rules";
+import { sentenceCase } from "./sentence-case";
 
 export type AgentProfileChar = {
   id: string;
@@ -179,7 +180,7 @@ export async function agentProfile(db: Db, handle: string): Promise<AgentProfile
       ending_label: endingLabel(r.ending, r.date_number),
       date_number: r.date_number,
       aired_at: iso(r.aired_at),
-      title: r.title,
+      title: sentenceCase(r.title, [r.a_name, r.b_name]),
     })),
     first_seen: iso(seen?.first),
     last_seen: iso(seen?.last),

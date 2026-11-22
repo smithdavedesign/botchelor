@@ -34,7 +34,7 @@ export const backingLocked = (now: Date): boolean => now.getTime() >= backingLoc
 export type BackResult = { ok: true; character_id: string } | { ok: false; status: number; error: string; message: string };
 
 /** The producer's line for a latecomer once the book has closed. */
-export const PICKS_CLOSED_MESSAGE = "The producers closed the book at mid-month. Picks open again next month.";
+export const PICKS_CLOSED_MESSAGE = "Picks closed at mid-month. Picks open again next month.";
 
 /** One viewer's pick for the season. After mid-month nothing changes: no new picks, no take-backs. */
 export async function backCastMember(db: Db, userId: string, characterId: string, now: Date = new Date()): Promise<BackResult> {

@@ -10,7 +10,7 @@ import type { GraphEdge, GraphNode, PairTimeline } from "@/lib/graph";
 import { ORIGIN_LABEL } from "@/lib/origin";
 import { shortName } from "@/lib/names";
 import { clusterLine, type ClusterName } from "@/lib/social/cluster-names";
-import { endingLabel } from "@/lib/rules";
+import { datesCount, endingLabel, yesesTail } from "@/lib/rules";
 import { communityColor, type ColorBy } from "./colors";
 import type { Selection } from "./ConstellationCanvas";
 import CharacterName from "@/app/CharacterName";
@@ -277,8 +277,8 @@ export default function SidePanel({ selection, nodes, edges, onClose, onFocus, w
           ) : (
             <p className="muted small">
               {edge.stage && <span className="badge">{edge.stage}</span>}{" "}
-              {edge.dates} {edge.dates === 1 ? "date" : "dates"}
-              {edge.second_dates > 0 && `, ${edge.second_dates} second`}
+              {datesCount(edge.dates)}
+              {yesesTail(edge.dates, edge.second_dates)}
               {edge.last_at && ` · last ${timeAgo(edge.last_at)}`}
             </p>
           )}

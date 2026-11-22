@@ -22,15 +22,15 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const read = readChemistry(await searchParams);
   // Refused or incomplete: the tool's title, nothing of what was typed, and kept out of search.
-  if (!read.ok) return { title: "OC Chemistry Test · Botchelor", robots: { index: false, follow: false } };
+  if (!read.ok) return { title: "OC chemistry test · Botchelor", robots: { index: false, follow: false } };
   const { a, b } = read;
   const { score, ending, reasons } = chemistryTest(a, b);
   const title = `${a.name} × ${b.name}: ${score}/100 chemistry, ${ENDING_LABELS[ending].toLowerCase()}`;
-  const description = `${reasons.join(" ")} From Botchelor's free OC Chemistry Test.`;
+  const description = `${reasons.join(" ")} From Botchelor's free OC chemistry test.`;
   const href = chemistryResultHref(a, b);
-  const card = { url: `/api/og/chemistry?${chemistryQuery(a, b)}`, width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${score}/100 on Botchelor's OC Chemistry Test` };
+  const card = { url: `/api/og/chemistry?${chemistryQuery(a, b)}`, width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${score}/100 on Botchelor's OC chemistry test` };
   return {
-    title: `${title} · OC Chemistry Test · Botchelor`,
+    title: `${title} · OC chemistry test · Botchelor`,
     description,
     alternates: { canonical: href },
     // A result is a link to share; what people typed stays out of search (the tool is the page to find).
@@ -53,7 +53,7 @@ export default async function ChemistryResultPage({ searchParams }: Props) {
     return (
       <section className="card chem-tool">
         <p className="kicker">
-          <Link href={CHEMISTRY_TEST_PATH}>OC Chemistry Test</Link>
+          <Link href={CHEMISTRY_TEST_PATH}>OC chemistry test</Link>
         </p>
         <h1>Check those two characters</h1>
         <p className="error" role="alert">
@@ -72,7 +72,7 @@ export default async function ChemistryResultPage({ searchParams }: Props) {
     <>
       <section className="card chem-tool chem-result">
         <p className="kicker">
-          <Link href={CHEMISTRY_TEST_PATH}>OC Chemistry Test</Link>
+          <Link href={CHEMISTRY_TEST_PATH}>OC chemistry test</Link>
         </p>
         <h1>{`${a.name} × ${b.name}`}</h1>
         <div className={`chem-score chem-${ending}`} data-score={score} data-ending={ending}>

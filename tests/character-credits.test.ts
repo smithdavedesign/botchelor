@@ -196,7 +196,7 @@ describe("where it shows", () => {
     expect(html).toContain('href="/seasons/november-2026"');
     expect(html).toContain("Season 2 · November 2026");
     expect(html).toContain("<strong>On the cast</strong>");
-    expect(html).toContain("14 dates, 6 ended in a second date · 🏆 The golden couple");
+    expect(html).toContain("14 dates, 6 ending in a yes to another · 🏆 The golden couple");
     expect(html).toContain('<span class="chip">On now</span>');
     expect(html).toContain("<strong>Dated on the show</strong>");
     expect(html).toContain("1 date");

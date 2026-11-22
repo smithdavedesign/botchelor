@@ -114,7 +114,7 @@ export default function DemoDeck({ cards, makeHref }: { cards: DeckCard[]; makeH
                 Like
               </span>
               <span className="swipe-stamp swipe-stamp-nope" style={{ opacity: Math.max(0, -lean) }} aria-hidden="true">
-                Nope
+                Pass
               </span>
             </Card>
           </div>

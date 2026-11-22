@@ -43,7 +43,7 @@ import { getProfileName } from "@/lib/people";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
-import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
+import { dateBadge, dateNumberOf, endingLabel } from "@/lib/rules";
 import StripPager from "./StripPager";
 import Pager from "@/app/Pager";
 import ShowTabs from "@/app/ShowTabs";
@@ -100,7 +100,8 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
         </strong>
         <span className="muted">
           {room.kind === "template" ? "Open room" : "Premiere"} · {room.phase_label}
-          {room.date_number && <span className="badge watch-lobby-second">{dateLabel(room.date_number)}</span>}
+          {/* "Date 7", as every badge numbers a date (lib/rules.ts dateBadge): "SEVENTH DATE" was cut off on a phone. */}
+          {room.date_number && <span className="badge watch-lobby-second">{dateBadge(room.date_number)}</span>}
         </span>
       </div>
       {/* A room to start or replay: its action looks like the button it is (the whole card is the link). */}
@@ -179,7 +180,9 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
   const feed = feedEpisodes(latest.items);
   const now = Date.now();
   const live = rooms.filter((r) => r.status === "live");
-  const ready = rooms.filter((r) => r.status === "ready");
+  // One room a pair to start, whichever way round (the 2026-11-22 audit: Sable × Nell sat beside Nell × Sable).
+  const pairKey = (r: LobbyEntry) => r.characters.map((c) => c.id).sort().join(" ");
+  const ready = rooms.filter((r, i, all) => r.status === "ready" && all.findIndex((o) => o.status === "ready" && pairKey(o) === pairKey(r)) === i);
   const upcoming = rooms.filter((r) => r.status === "upcoming");
   const replays = rooms.filter((r) => r.status === "replay");
   // The date first (2026-11-07 audit, item 3): what's live, else the newest aired date playing its opening lines. It
@@ -224,15 +227,19 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         </section>
       )}
 
-      {/* 1. On now: what's live, else the newest aired date playing its opening lines; then tonight's rooms. */}
+      {/* 1. On now: what's live, else the newest aired date playing its opening lines; then tonight's rooms. The heading
+          says which (the 2026-11-22 audit: the old On now heading sat over "Just aired" and "Off air · Nothing live
+          right now"). */}
       <section className="watch-block" aria-labelledby="on-now">
         <h2 id="on-now" className="watch-block-head">
           {live.length > 0 ? (
             <>
               <span className="watch-dot" aria-hidden /> Live now
             </>
+          ) : featured ? (
+            "Just aired"
           ) : (
-            "On now"
+            "Tonight"
           )}
         </h2>
         {live.length > 0 ? (
@@ -246,9 +253,6 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         ) : (
           featured && (
             <div className="watch-lead">
-              <p className="watch-lead-kicker" id="watch-lead-head">
-                Just aired
-              </p>
               <DateExcerpt date={featured} wide />
             </div>
           )
@@ -325,6 +329,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           {/* A Botchelor season (lib/ceremony.ts): the house and Sunday's rose ceremony, where the Recoupling would sit. */}
           {ceremony && <BotchelorCard board={ceremony} now={now} premiere={premiere} insider={insider} />}
           {lead && <WeeklyReveal board={reveal} now={now} insider={insider} />}
+          {/* Side by side on a phone, one swipe apart (app/ux/show.css), so the recent episodes aren't four screens down. */}
           <div className="watch-votes">
             {situation && <SituationVote board={situation} now={now} insider={insider} />}
             {dares && <DareVote board={dares} insider={insider} />}
@@ -390,9 +395,10 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {/* The season's games, each on its own page now. The ids keep old links (emails, Discord posts) landing here. */}
       <nav className="watch-elsewhere" aria-label="More from the show">
         <span className="watch-elsewhere-head">More from the show</span>
-        <Link href="/reunion">The Reunion</Link>
+        {/* The words of docs/glossary.md: /reunion is "This season so far" (the Season tab), the points are a scoreboard. */}
+        <Link href="/reunion">This season so far</Link>
         <Link id="season-pool" href="/reunion#season-pool">
-          Season pool and backing
+          Season scoreboard and backing
         </Link>
         <Link id="cast-chat" href="/reunion#cast-chat">
           The cast chat

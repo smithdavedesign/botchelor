@@ -72,9 +72,10 @@ afterEach(() => {
 });
 
 describe("1. the tool page: /tools/ship-name-generator", () => {
-  it("renders an h1 with 'Ship Name Generator' and a form with exactly two name inputs that submits to /ship", () => {
+  it("renders an h1 naming the ship name generator and a form with exactly two name inputs that submits to /ship", () => {
     const html = renderTool();
-    expect(html).toMatch(/<h1[^>]*>[^<]*Ship Name Generator[^<]*<\/h1>/);
+    // In sentence case, as the footer names the tools (the 2026-11-22 audit).
+    expect(html).toMatch(/<h1[^>]*>[^<]*ship name generator[^<]*<\/h1>/i);
     const inputs = [...html.matchAll(/<input[^>]*>/g)].map((m) => m[0]);
     expect(inputs).toHaveLength(2);
     expect(inputs[0]).toContain('name="a"');
@@ -91,8 +92,8 @@ describe("1. the tool page: /tools/ship-name-generator", () => {
     expect(html).toMatch(/<label[^>]*>Second name/);
   });
 
-  it("has a <title> with 'Ship Name Generator', a description, and a canonical link to itself", () => {
-    expect(String(toolMetadata.title)).toContain("Ship Name Generator");
+  it("has a <title> naming the ship name generator, a description, and a canonical link to itself", () => {
+    expect(String(toolMetadata.title)).toMatch(/ship name generator/i);
     expect(toolMetadata.description).toBeTruthy();
     expect(toolMetadata.alternates?.canonical).toBe(TOOL);
     expect(toolMetadata.openGraph?.title).toBeTruthy();
@@ -234,6 +235,30 @@ describe("3. the result page leads to /create with the first name filled in, and
     for (const res of [await ShipOg(params("juniper", "dex")), await ShipOg(params("elon-musk", "dex")), await ToolOg()]) {
       const buf = Buffer.from(await res.arrayBuffer());
       expect(buf.subarray(0, 8)).toEqual(PNG);
+    }
+  });
+});
+
+describe("3b. a pair that's a real couple on the show leads with them (the 2026-11-22 audit)", () => {
+  it("names the couple, their badge and aired dates, links their couple page, and makes that the filled button", async () => {
+    // Juniper Vale and Sable Quist (lib/house.ts), four aired dates, going steady: the stored pair, lower id first.
+    await t.db.query(
+      `insert into relationships (character_a, character_b, dates, public_dates, stage, public_stage) values ('house-juniper', 'house-sable', 4, 4, 'going_steady', 'going_steady')`,
+    );
+    try {
+      for (const html of [await renderShip("juniper", "sable"), await renderShip("sable", "juniper")]) {
+        expect(html).toContain('href="/couples/house-juniper/house-sable"');
+        expect(html).toContain("Going steady");
+        expect(html).toContain("4 dates aired.");
+        expect(html).toMatch(/<a class="button" data-track="ship-couple-cta" href="\/couples\/house-juniper\/house-sable">See their dates<\/a>/);
+        expect(html).not.toContain("Send them on a blind date");
+      }
+      // The page's own order: the first name in the address comes first.
+      expect(await renderShip("sable", "juniper")).toContain("Sable Quist × Juniper Vale");
+      // A pair that never dated keeps the blind-date offer.
+      expect(await renderShip("juniper", "dex")).toContain("Send them on a blind date");
+    } finally {
+      await t.db.query(`delete from relationships where character_a = 'house-juniper' and character_b = 'house-sable'`);
     }
   });
 });

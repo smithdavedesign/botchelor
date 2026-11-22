@@ -4,7 +4,11 @@ import { episodeJson, scriptedModel, scriptOutcome, startTestDb, validCharacter 
 import { runDueMixers } from "@/lib/group-dates-run";
 import { airEpisode } from "@/lib/air";
 import { backgroundBeats, duoNamesOf, keepApart, leftTogether, playOrder, roomClosing, roomLine, roomOpening, roundCount, roundOf, rotationRound, type Duo, type RoomRotation } from "@/lib/mixer-room";
-import { mixerNightOf, mixerNightView } from "@/lib/mixer-night";
+import { mixerNightOf, mixerNightView, type MixerTable } from "@/lib/mixer-night";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import MixerNight, { TABLE_FOLD_LINES } from "@/app/mixers/[id]/MixerNight";
+import { venuePhrase } from "@/lib/venues";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
@@ -212,5 +216,31 @@ describe("a mixer night is one room (booking + the night page's view)", () => {
     // The wrap points at the whole night.
     const wrap = (await t.db.query<Any>(`select link from notifications where user_id = $1 and kind = 'mixer'`, [singles[0].agentId])).rows;
     expect(wrap[0].link).toBe(`/mixers/${night.id}`);
+  });
+});
+
+// The 2026-11-22 audit: every table in full (11,000–14,000px on a phone), each ending on its ending under the warning
+// that the endings were behind a tap, the closing in the open at the foot, and "The mixer at A sticky dive bar".
+describe("the mixer night's record", () => {
+  const who = (id: string, name: string) => ({ id, name, house: true, hue: 200, portrait: null });
+  const turns = Array.from({ length: 8 }, (_, i) => ({ side: (i % 2 ? "b" : "a") as "a" | "b", act: i < 6 ? 0 : 2, dialogue: `Line ${i + 1}.`, action: "", emotion: "", interest: 0.5 }));
+  const table: MixerTable = { index: 0, round: 0, episode_id: null, characters: [who("a1", "Brig Ransom"), who("b1", "Cymbal Baylor")], state: "ready", turns, ending_label: "Just friends", beats: [] };
+
+  it("shows each table's first lines and folds the rest, with its ending, behind a button", () => {
+    const html = renderToStaticMarkup(createElement(MixerNight, { tables: [table], rounds: 1, closing: "Brig and Cymbal leave together." }));
+    expect(TABLE_FOLD_LINES).toBe(4);
+    expect(html.match(/class="chat-bubble"/g)).toHaveLength(4);
+    expect(html).toContain("Line 4.");
+    expect(html).not.toContain("Line 5.");
+    expect(html).toContain("Read the rest of their table (4 more lines, and how it ended)");
+    expect(html).not.toContain("Just friends");
+    // Who left with whom: behind the tap at the top only.
+    expect(html.split("Brig and Cymbal leave together.").length - 1).toBe(1);
+    expect(html).toMatch(/<details class="card mixer-left"><summary>[\s\S]*<\/summary><p>Brig and Cymbal leave together\.<\/p><\/details>/);
+  });
+
+  it("names a place of their own mid-sentence without its capital article", () => {
+    expect(venuePhrase("dive_bar@A sticky dive bar")).toBe("a sticky dive bar");
+    expect(venuePhrase("home@Chud's place")).toBe("Chud's place");
   });
 });

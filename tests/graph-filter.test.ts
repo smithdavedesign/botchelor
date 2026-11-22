@@ -398,3 +398,16 @@ describe("the sky's line colours (app/globals.css)", () => {
     expect(stagesLib).not.toMatch(/^import (?!type )/m);
   });
 });
+
+describe("the sky on a phone (the 2026-11-22 audit)", () => {
+  it("comes first: straight under the search row and the views, the chips and 'Showing the strongest pairs' under it", () => {
+    const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
+    const phone = css.slice(css.indexOf("The map first (the 2026-11-22 audit"));
+    expect(phone).toMatch(/\.constellation-stage:not\(\.is-full\) \{\s*display: flex;\s*flex-direction: column;/);
+    expect(phone).toMatch(/> \.constellation-sky \{\s*order: 1;/);
+    expect(phone).toMatch(/\.constellation-stage-chips \{\s*order: 2;/);
+    expect(phone).toMatch(/> \.constellation-more:not\(\.constellation-world\) \{\s*order: 3;/);
+    // Full screen keeps every control on top of the sky.
+    expect(phone.slice(0, phone.indexOf("@media (prefers-reduced-motion"))).not.toMatch(/\.is-full[^)]/);
+  });
+});

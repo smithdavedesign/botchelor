@@ -11,6 +11,7 @@ import { publicExtras, type CharacterExtras } from "./extras";
 import { isHouseBotSql } from "./house-bots";
 import { matchmakerHitSql } from "./mechanics";
 import { dateNumberSql } from "./date-number";
+import { sentenceCase } from "./sentence-case";
 import {
   agendaLabel,
   dateNumberOf,
@@ -714,7 +715,8 @@ function toView(row: EpisodeRow): EpisodeView {
     {
       id: row.id,
       characters,
-      title: row.title,
+      // Sentence case for titles written in Title Case before 2026-11-22 (lib/sentence-case.ts, docs/glossary.md).
+      title: sentenceCase(row.title, [row.a_name, row.b_name], row.setting),
       aired_at: row.aired_at,
       setting: row.setting,
       goals: row.goals,

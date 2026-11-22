@@ -18,3 +18,17 @@ export const VERDICT_WORDS: Record<DareVerdict, string> = {
   sort_of: "they sort of did it. Half credit, generously.",
   chickened_out: "they chickened out.",
 };
+
+/**
+ * The verdict as a sentence of its own, in the dared one's pronouns: "She chickened out." (the 2026-11-22 audit: "…
+ * dared Sable Quist to … — they chickened out."). The words are all past tense, so only the subject changes.
+ */
+export function verdictSentence(v: DareVerdict, pronouns: string | null | undefined): string {
+  return `${dareSubject(pronouns)}${VERDICT_WORDS[v].slice("they".length)}`;
+}
+
+/** "He", "She" or "They", from a character's pronouns ("she/her"); they when none are given. */
+export function dareSubject(pronouns: string | null | undefined): "He" | "She" | "They" {
+  const p = (pronouns ?? "").trim().toLowerCase();
+  return /^he\b/.test(p) ? "He" : /^she\b/.test(p) ? "She" : "They";
+}

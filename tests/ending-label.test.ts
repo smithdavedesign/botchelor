@@ -140,7 +140,7 @@ describe("a couple's third date that wants more reads 'A fourth date'; their fir
 
     const item = (view: typeof third) => renderToStaticMarkup(createElement(EpisodeItem, { episode: view! }));
     expect(item(third)).toContain("Aired: A fourth date");
-    expect(item(third)).toContain("Third date");
+    expect(item(third)).toContain("Date 3");
     expect(item(first)).toContain("Aired: A second date");
 
     const picks = (dateNumber: number | null) =>

@@ -20,7 +20,7 @@ import { OVERNIGHT_COPY, overnightClose, overnightDatesOn, overnightEndingLabel 
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { ADULT_COOKIE } from "@/lib/age";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { dareReveal, VERDICT_WORDS } from "@/lib/dares";
+import { dareReveal, dareSubject, verdictSentence } from "@/lib/dares";
 import { callRecord, NO_CALLS } from "@/lib/streaks";
 import ShareRecord from "@/app/ShareRecord";
 import { shareOf } from "@/app/YourCalls";
@@ -42,7 +42,7 @@ import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { seasonRef } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
-import { CONVERSATION_TURNS, DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { CONVERSATION_TURNS, DATE_ACTS, dateBadge, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { DEFAULT_FORMAT, format as showFormat, formatLabel } from "@/lib/formats";
 import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
 import { episodeCode, templateEpisodeTitle } from "@/lib/episode-title";
@@ -599,14 +599,14 @@ export default async function EpisodePage({
         title={displayTitle}
         chips={[
           "AI-generated",
-          episode.followup_of ? dateLabel(episode.date_number ?? 2) : null,
+          episode.followup_of ? dateBadge(episode.date_number ?? 2) : null,
           overnight ? OVERNIGHT_COPY.chip : null,
           episode.format ? formatLabel(episode.format) : null,
           episode.roleplay ? `${episode.roleplay.icon} Roleplay: ${episode.roleplay.title}` : null,
-          a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
+          a.house && b.house ? "Two house characters" : a.house || b.house ? "With a house character" : null,
           a.agent || b.agent ? "🤖 Made by an AI agent" : null,
           sibling ? "💞💞 A double date" : null,
-          mixer ? `🍸 Speed-dating night · date ${mixer.round} of ${mixer.rounds}` : null,
+          mixer ? `🍸 Speed-dating mixer · date ${mixer.round} of ${mixer.rounds}` : null,
           selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
           steppedIn ? "🎬 A viewer stepped in" : null,
         ]}
@@ -879,14 +879,13 @@ export default async function EpisodePage({
           <section className="card dare-reveal">
             <h2>The producers dared {nameOf(dare.character_id) ?? dare.name}</h2>
             <p>
-              The audience voted, and {who(dare.character_id) ?? <strong>{dare.name}</strong>} walked in with it in the pocket: <em>“{dare.text}”</em> Their
-              date never knew.
+              {/* In the dared one's own pronouns (the 2026-11-22 audit: "they" for Sable). */}
+              The audience voted, and {who(dare.character_id) ?? <strong>{dare.name}</strong>} walked in with it in the pocket: <em>“{dare.text}”</em>{" "}
+              {{ He: "His", She: "Her", They: "Their" }[dareSubject(dare.pronouns)]} date never knew.
             </p>
             <p>
-              Did they go through with it?{" "}
-              <strong>
-                {dare.verdict ? VERDICT_WORDS[dare.verdict].charAt(0).toUpperCase() + VERDICT_WORDS[dare.verdict].slice(1) : "Watch the date and decide."}
-              </strong>
+              Did {dareSubject(dare.pronouns).toLowerCase()} go through with it?{" "}
+              <strong>{dare.verdict ? verdictSentence(dare.verdict, dare.pronouns) : "Watch the date and decide."}</strong>
             </p>
           </section>
         )}

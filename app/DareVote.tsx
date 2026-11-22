@@ -6,7 +6,7 @@ import { requestJson } from "./request";
 import { useAction } from "./useAction";
 import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { DareBoard } from "@/lib/dares";
-import { VERDICT_WORDS } from "@/lib/dare-words";
+import { dareSubject, verdictSentence } from "@/lib/dare-words";
 import { POINTS_PER_DARE } from "@/lib/rules";
 
 /**
@@ -71,16 +71,22 @@ export default function DareVote({ board, insider = false, part = false }: { boa
       {error && <p className="error small">{error}</p>}
       {board.last && (
         <p className="situation-last small">
-          <span aria-hidden="true">😈</span> Last dare: the producers dared <strong>{board.last.name}</strong> to {lowerFirst(board.last.text)}
+          {/* The dare as it was slipped to them, in quotes, as the episode's reveal shows it: in its own words it says
+              "you", which after "dared Sable to" read as the viewer (the 2026-11-22 audit). */}
+          <span aria-hidden="true">😈</span> Last dare, for <strong>{board.last.name}</strong>: <em>{`“${board.last.text}”`}</em>
           {board.last.my_pick ? (board.last.won ? " (your dare)" : " (not yours this time)") : ""}{" "}
           {board.last.aired ? (
             <>
-              — {board.last.verdict ? VERDICT_WORDS[board.last.verdict] : "did they go through with it? You decide."}
+              {board.last.verdict ? verdictSentence(board.last.verdict, board.last.pronouns) : `Did ${dareSubject(board.last.pronouns).toLowerCase()} go through with it? You decide.`}
               {board.last.won && board.last.verdict && POINTS_PER_DARE[board.last.verdict] > 0 ? ` Your vote: +${POINTS_PER_DARE[board.last.verdict]} points.` : ""}{" "}
               {board.last.episode_path && <Link href={board.last.episode_path}>See the date →</Link>}
             </>
           ) : (
-            board.last.episode_path && <Link href={board.last.episode_path}>Watch whether they go through with it →</Link>
+            board.last.episode_path && (
+              <Link href={board.last.episode_path}>
+                Watch whether {dareSubject(board.last.pronouns) === "They" ? "they go" : `${dareSubject(board.last.pronouns).toLowerCase()} goes`} through with it →
+              </Link>
+            )
           )}
         </p>
       )}
@@ -88,4 +94,3 @@ export default function DareVote({ board, insider = false, part = false }: { boa
   );
 }
 
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);

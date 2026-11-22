@@ -18,7 +18,7 @@ import ShowcaseFeature from "./ShowcaseFeature";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Gallery: reels, clips and pictures from Botchelor's creators",
+  title: "Showcase: reels, clips and pictures from Botchelor's creators",
   description: "Pictures, clips and date reels of original characters, published by the people who made them. Filter by character, creator, pose, place and more.",
   path: "/showcase",
 });
@@ -61,8 +61,8 @@ export default async function ShowcasePage({ searchParams }: Props) {
       {/* The Studio door's first room (app/studio/StudioTabs.tsx, 2026-11-16): what everyone made, beside where it's made. */}
       <StudioTabs current="gallery" />
       <div className="showcase-head">
-        {/* "Gallery" on the tab; /reels still comes here, and the full-screen view keeps that word. */}
-        <h1>Gallery</h1>
+        {/* "Showcase" on the tab too (docs/glossary.md); /reels still comes here, and the full-screen view keeps that word. */}
+        <h1>Showcase</h1>
         {/* The same posts and filters, one a screen (app/showcase/reels). Opened as it is, they start on "Now showing", as
             its own button does (2026-11-22: they opened on whatever was liked most, the same picture as the newest tile). */}
         <Link href={`/showcase/reels${feature ? `?start=${encodeURIComponent(feature.id)}` : reelsQuery(sp)}`} className="button secondary small showcase-reels-link">

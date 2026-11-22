@@ -31,7 +31,7 @@ import { forViewer, shared } from "@/lib/shared-cache";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "The Reunion: this season's awards, couples and confessionals · Botchelor",
+  title: "The season so far: this season's awards, couples and confessionals · Botchelor",
   description: "The cast back under the lights: this season's awards, where every couple stands, and the confessionals their creators chose to share.",
   path: "/reunion",
 });
@@ -84,8 +84,8 @@ export default async function ReunionPage({ searchParams }: { searchParams?: Pro
       {empty ? (
         <section className="card">
           <p className="kicker">{season ?? "Season special"}</p>
-          <h1>The Reunion</h1>
-          <p className="muted">Nothing has aired yet this season. The Reunion fills in as dates air: awards, couples and the confessionals creators share.</p>
+          <h1>The season so far</h1>
+          <p className="muted">Nothing has aired yet this season. This page fills in as dates air: awards, couples and the confessionals creators share.</p>
           <p>
             <Link className="button" href="/watch">
               Watch a date

@@ -1,5 +1,11 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+// The dare card (app/DareVote.tsx) refreshes the page after a vote.
+vi.mock("next/navigation", async (original) => ({ ...((await original()) as object), useRouter: () => ({ push: () => {}, refresh: () => {} }) }));
 import { askDareVerdict, judgeDare, judgePendingDares, verdictPrompt, VERDICT_LINES } from "@/lib/dare-verdict";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import DareVote from "@/app/DareVote";
+import { dareSubject, verdictSentence } from "@/lib/dare-words";
 import { dareBoard, dareChoices, daredOf, dareReveal, voteDare } from "@/lib/dares";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import type { ChatMessage, Model } from "@/lib/model";
@@ -126,5 +132,42 @@ describe("the dare verdict, read from the date", () => {
     const reveal = (await dareReveal(t.db, night.episode_id))!;
     expect(reveal.verdict).toBe(night.verdict);
     expect(reveal.followed).toBe(night.verdict === "went_through");
+  });
+});
+
+// The 2026-11-22 audit: "the producers dared Sable Quist to claim you're a regular here… — they chickened out."
+describe("the last dare, as the dare card says it", () => {
+  it("is a sentence of its own in the dared one's pronouns", () => {
+    expect(verdictSentence("chickened_out", "she/her")).toBe("She chickened out.");
+    expect(verdictSentence("went_through", "he/him")).toBe("He went through with it.");
+    expect(verdictSentence("sort_of", null)).toBe("They sort of did it. Half credit, generously.");
+    expect(dareSubject("They/Them")).toBe("They");
+  });
+
+  it("quotes the dare as it was slipped to them, so its 'you' is theirs", () => {
+    const board = {
+      day: "2026-11-22",
+      closes_at: "2026-11-23T00:00:00.000Z",
+      target: { id: "house-sable", name: "Sable Quist", hue: null, portrait: null },
+      choices: [],
+      my_pick: null,
+      total: 0,
+      last: {
+        day: "2026-11-21",
+        name: "Sable Quist",
+        pronouns: "she/her",
+        text: "Claim you're a regular here, even when the staff clearly don't know you.",
+        episode_path: "/episodes/e1",
+        verdict: "chickened_out" as const,
+        followed: false,
+        aired: true,
+        my_pick: null,
+        won: false,
+      },
+    };
+    const html = renderToStaticMarkup(createElement(DareVote, { board }));
+    expect(html).toContain("Last dare, for <strong>Sable Quist</strong>: <em>“Claim you&#x27;re a regular here, even when the staff clearly don&#x27;t know you.”</em>");
+    expect(html).toContain("She chickened out.");
+    expect(html).not.toContain("dared <strong>");
   });
 });

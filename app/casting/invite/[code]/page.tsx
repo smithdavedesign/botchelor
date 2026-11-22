@@ -86,7 +86,7 @@ function Offer({ casting, def, label }: { casting: Casting | null; def: SeasonFo
         <Avatar seed={casting.lead.id} name={casting.lead.name} hue={casting.lead.hue} house portraitSrc={casting.lead.portrait} size={72} />
         <p>
           <strong>{casting.lead.name}</strong> is the lead
-          {casting.phase === "season" ? <> of {casting.month}&apos;s {def.title}, on now</> : null}: one lead from the house
+          {casting.phase === "season" ? <> of {def.title} in {casting.month}, on now</> : null}: one lead from the house
           {suitors ? <>, {suitors}</> : null}, a rose ceremony every Sunday, and the audience votes.
         </p>
       </div>
@@ -198,7 +198,7 @@ export default async function CastingInvitePage({ params }: Props) {
   const label = seasonLabel(season);
   const lead = casting ? shortName(casting.lead.name) : null;
   const path = invitePath(code);
-  const title = casting?.phase === "season" ? `You're invited to ${def.title}` : `You're invited to ${seasonMonth(casting?.season_id ?? season)}'s ${def.lead ? def.title : "Botchelor"}`;
+  const title = casting?.phase === "season" ? `You're invited to ${def.title}` : def.lead ? `You're invited to ${def.title} in ${seasonMonth(casting?.season_id ?? season)}` : `You're invited to ${seasonMonth(casting?.season_id ?? season)}'s Botchelor`;
   const makeOrBring = (
     <p className="cta-row">
       <Link className="button primary" href={`/create?next=${encodeURIComponent(path)}`} data-track="casting-invite-create">

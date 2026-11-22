@@ -17,7 +17,7 @@ import TonightBand from "@/app/TonightBand";
 import { Secrets } from "@/app/characters/[id]/Secrets";
 import { shareOf } from "@/app/YourCalls";
 import { castSecrets, hiddenCastSecrets, secretsForDate, SECRET_POOL } from "@/lib/cast-secrets";
-import { countdown } from "@/lib/countdown";
+import { countdown, lastNightOf } from "@/lib/countdown";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonStanding } from "@/lib/leagues";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -77,6 +77,10 @@ describe("Sunday's reveal: the clock", () => {
     expect(countdown("2026-11-15T10:40:00Z", at)).toBe("in 40m");
     expect(countdown("2026-11-17T10:00:00Z", at)).toBe("in 2 days");
     expect(countdown("2026-11-15T09:00:00Z", at)).toBe("any minute");
+    // A day or more away: whole show days (UTC), as the season's arc counts, not hours / 24 rounded up from the evening.
+    const late = Date.parse("2026-11-22T04:00:00Z");
+    expect(countdown("2026-11-30T19:20:00Z", late)).toBe("in 8 days");
+    expect(countdown(lastNightOf("2026-12-01T00:00:00.000Z"), late)).toBe("in 8 days");
   });
 
   it("slips the partner a note in the producers' voice that never says how they heard", () => {
@@ -318,7 +322,8 @@ describe("the season pool", () => {
     );
     expect(html).toContain("You: 20 points, 2nd of 3 so far.");
     expect(html).toContain("The leader has 35.");
-    expect(html).toContain("revealed when the season closes in 23 days");
+    // Counted in whole show days to the last night, as "22 days to the finale" is on Nov 8 (the 2026-11-22 audit: 23).
+    expect(html).toContain("revealed when the season closes in 22 days");
     const board: PoolBoard = {
       season_id: "2026-10-19",
       label: "October 2026",
@@ -337,7 +342,7 @@ describe("the season pool", () => {
     expect(list).toContain("A viewer");
     expect(list).toContain('href="/seasons/october-2026#pool"');
     const revealed = renderToStaticMarkup(createElement(SeasonPoolPanel, { standing: null, revealed: board, now }));
-    expect(revealed).toContain("The October 2026 pool is out.");
+    expect(revealed).toContain("The October 2026 scoreboard is out.");
   });
 });
 
@@ -390,6 +395,6 @@ describe("the share card for this week's calls (item 10)", () => {
     const html = renderToStaticMarkup(await CallsPage({ searchParams: Promise.resolve(q) }));
     expect(html).toContain("<h1>Someone&#x27;s calls this week</h1>");
     expect(html).toContain("4 of 5 this week · 3 in a row");
-    expect(html).toContain("season pool");
+    expect(html).toContain("season score");
   });
 });

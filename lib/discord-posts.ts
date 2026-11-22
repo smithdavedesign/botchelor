@@ -40,7 +40,7 @@ import { formatLabel, isDefaultFormat, type FormatId } from "./formats";
 import { airedPublicSql } from "./ml-consent";
 import { OUR_TEST_NAMES, TEST_NAME_SQL } from "./our-traffic";
 import { venueBackdrop } from "./portraits";
-import { dateLabel } from "./rules";
+import { dateBadge } from "./rules";
 import { seasonCastIds } from "./season-cast";
 import type { SeasonFormatDef } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
@@ -48,6 +48,7 @@ import { poolBoard, poolStanding, type PoolBoard, type PoolStanding } from "./se
 import { isMonthlySeason, seasonNumber } from "./season-ref";
 import { ballotResult } from "./season-vote";
 import { seasonIdOf, seasonLabel, seasonWindow } from "./season-window";
+import { sentenceCase } from "./sentence-case";
 import { siteUrl } from "./site";
 import { BOARD_DAYS, callersBoard, type CallersBoard } from "./streaks";
 import { venuePhrase } from "./venues";
@@ -172,7 +173,8 @@ export function groupDrops(rows: readonly DropRow[], castIds: ReadonlySet<string
     const date: DropDate = {
       id: r.id,
       aired_at: new Date(r.revealed_at).getTime(),
-      title: r.title,
+      // Shown as the site shows it: in sentence case, the daters' names and the setting's places kept (lib/sentence-case.ts).
+      title: sentenceCase(r.title, [r.a_name, r.b_name], r.setting),
       setting: r.setting,
       venue: r.venue,
       format: r.format,
@@ -249,7 +251,7 @@ export function writtenTitle(d: DropDate): string | null {
 function badges(dates: readonly DropDate[], group: string | null): string[] {
   const first = dates[0];
   const out: string[] = [];
-  if (first.date_number && first.date_number > 1) out.push(dateLabel(first.date_number));
+  if (first.date_number && first.date_number > 1) out.push(dateBadge(first.date_number));
   if (group) out.push(group);
   const format = first.format as FormatId | null;
   // A mixer's tables are all speed dates: the format would say what "Speed dating" already does.
@@ -296,9 +298,9 @@ function mixerEmbed(item: DropItem, base: string, lead: boolean): DiscordEmbed {
   const where = item.venue ? ` at ${venuePhrase(item.venue)}` : "";
   const photo = venueBackdrop(item.venue);
   return {
-    title: escapeDiscord(item.theme === "recoupling" ? `The Recoupling${where}` : `Speed-dating night${where}`),
+    title: escapeDiscord(item.theme === "recoupling" ? `The Recoupling${where}` : `Speed-dating mixer${where}`),
     url: discordLink(`/mixers/${encodeURIComponent(item.night_id ?? "")}`, "drops", "digest", base),
-    description: `${plural(singles, "single")} · ${plural(item.dates.length, "table")} aired\n${escapeDiscord(pairs.slice(0, 3).join(" · "))}${more}`,
+    description: `${plural(singles, "single")} · ${plural(item.dates.length, "date")} aired\n${escapeDiscord(pairs.slice(0, 3).join(" · "))}${more}`,
     timestamp: new Date(item.aired_at).toISOString(),
     ...(lead && photo ? { image: { url: `${base}${photo}` } } : {}),
   };
@@ -398,11 +400,11 @@ export function boardMessage(callers: CallersBoard, pool: PoolStanding | null, b
   ];
   if (pool && pool.players > 0) {
     embeds.push({
-      title: "The season pool",
+      title: "The season scoreboard",
       url: discordLink("/reunion#season-pool", "board", "pool", base),
       description:
         `${pool.players} ${pool.players === 1 ? "player has" : "players have"} points so far. Every right call, drama pick, dealbreaker guess, ` +
-        `arc, dare and backing this month adds up to one score. The board, with names, comes out when the season closes ${discordTime(pool.reveals_at, "R")}.`,
+        `arc, dare and backing this month adds up to one score. The scoreboard, with names, comes out when the season closes ${discordTime(pool.reveals_at, "R")}.`,
     });
   }
   return { content: "🏆 **This week's board.** Call an ending before it airs to get on it.", embeds };
@@ -412,10 +414,10 @@ export function boardMessage(callers: CallersBoard, pool: PoolStanding | null, b
 export function poolMessage(board: PoolBoard, base: string = siteUrl()): DiscordMessage {
   const lines = board.top.map((e) => `**${e.place}.** ${boardName(e.name, e.agent)}: ${e.points} pts`);
   return {
-    content: `🏆 **The ${board.label} pool is out.**`,
+    content: `🏆 **The ${board.label} scoreboard is out.**`,
     embeds: [
       {
-        title: `The ${board.label} pool`,
+        title: `The ${board.label} scoreboard`,
         url: discordLink(`${board.path}#pool`, "board", "pool_reveal", base),
         description: `${lines.join("\n")}\n\n${plural(board.players, "player")}. Names show only for people who put one up.`,
       },

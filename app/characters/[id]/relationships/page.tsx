@@ -21,6 +21,7 @@ import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import CharacterName from "@/app/CharacterName";
 import { DELETED_OWNER } from "@/lib/rules";
+import StageLegend from "@/app/StageLegend";
 import { knownCharacterOnce } from "@/app/known-once";
 import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
@@ -162,13 +163,18 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
           ? `${first} hasn't been on a date yet.`
           : owns(id)
             ? `Everyone ${first} has dated or matched, latest first, with their newest text. Open one to read their whole thread.`
-            : `Everyone ${first} has dated, and where they stand. Their texts are private to the characters' owners.`}
+            : c.house
+              ? // A house character's texts with another of the show's own are on their couple's page (lib/afterglow.ts
+                // houseRoomTextsOn); with anyone's own character, they're its owner's. It said "private" for all of them.
+                `Everyone ${first} has dated, and where they stand. Texts with another of the show's characters are on the couple's page; with anyone else's character, only its owner reads them.`
+              : `Everyone ${first} has dated, and where they stand. Their texts are private to the characters' owners.`}
       </p>
       {/* On a phone the board drops the drawn device (2026-10-31 UX audit, C11: a phone inside the phone). */}
       <div className="board-phone">
       <PhoneFrame>
         <div className="phone-inbox-head">
-          <h2 className="phone-title">Messages</h2>
+          {/* "Messages" only for an owner, who reads them here; anyone else sees who and where they stand. */}
+          <h2 className="phone-title">{owns(id) ? "Messages" : "Relationships"}</h2>
           <p className="phone-inbox-sub">
             <CharacterName character={selfRef} size={18} />
             &apos;s phone
@@ -204,6 +210,7 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
       </PhoneFrame>
       </div>
       <Pager page={shown.page} pages={shown.pages} label="Relationship board pages" href={(n) => pageHref(`/characters/${c.id}/relationships`, {}, "page", n)} prev="Newer" next="Older" />
+      {rows.length > 0 && <StageLegend />}
       {met.length > 0 && (
         <section className="met-at-nights" aria-labelledby="met-title">
           <h2 id="met-title">Met at a group night</h2>

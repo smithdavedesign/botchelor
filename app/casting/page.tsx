@@ -108,9 +108,13 @@ function CastingSlots({ label, month, cast, lead, size, open, picks, def }: { la
             Your characters
           </Link>
         ) : (
-          <Link href="/create" className="button" data-track="casting-empty-create">
-            Make a character to audition
-          </Link>
+          <>
+            <Link href="/create" className="button" data-track="casting-empty-create">
+              Make a character to audition
+            </Link>
+            {/* The rule the button can't say (the 2026-11-22 audit: it was only in the rail, below the fold on a phone). */}
+            <span className="muted small">It can audition after {AUDITION_MIN_DATES} public dates, so voters have something to judge.</span>
+          </>
         )}
       </p>
     </section>
@@ -154,10 +158,16 @@ export default async function CastingPage() {
         title={def.lead ? `Who dates the lead on ${def.title}?` : "Who's on next month's show?"}
         // The question's answer, once the lead is picked: their face, big and moving (app/casting/LeadFace.tsx).
         media={def.lead && lead ? <LeadFace lead={lead} month={seasonMonth(board.season_id)} /> : undefined}
+        // "Vote for the one you want to watch" only once there's someone to vote for, and the season's name as a name, not
+        // a possessive (the 2026-11-22 audit: "December 2026's The Botchelor" over an empty board).
         lede={
           def.lead
-            ? `These are characters people made, applying to be the suitors on ${board.label}'s ${def.title}: one lead from the house, and a rose ceremony every Sunday. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
-            : `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
+            ? board.auditions.length
+              ? `These are characters people made, applying to be the suitors on ${def.title} in ${board.label}: one lead from the house, and a rose ceremony every Sunday. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
+              : `Characters people made apply here to be the suitors on ${def.title} in ${board.label}: one lead from the house, and a rose ceremony every Sunday. Once they do, you vote for the one you want to watch.`
+            : board.auditions.length
+              ? `These are characters people made, auditioning for the ${board.label} cast. Vote for the one you want to watch: one vote a viewer, and voting again moves it.`
+              : `Characters people made audition here for the ${board.label} cast. Once they do, you vote for the one you want to watch.`
         }
       >
         {/* The lead season's own page (docs/season-page.md): one quiet line, for whoever came to vote not knowing the show. */}

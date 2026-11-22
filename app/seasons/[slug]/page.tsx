@@ -114,7 +114,7 @@ export default async function SeasonPage({ params, searchParams }: Props) {
   return (
     <article className="season-page page-wide">
       <p className="muted season-back">
-        <Link href="/reunion">← The Reunion</Link>
+        <Link href="/reunion">← This season</Link>
       </p>
 
       {/* The title card: the golden couple large over the place of their best date; a season with no golden couple opens
@@ -343,7 +343,7 @@ export default async function SeasonPage({ params, searchParams }: Props) {
       {pool && (
         <section aria-labelledby="pool" className="season-pool">
           <h2 id="pool" className="section">
-            🏆 The season pool
+            🏆 Season scoreboard
           </h2>
           <p className="muted small">
             One score for the whole season: every right call and drama pick, dealbreaker guess, arc, dare, and the cast member each player

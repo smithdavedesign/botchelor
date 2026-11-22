@@ -55,7 +55,7 @@ describe("/calls", () => {
     // Nothing to call: the button doesn't ask for a call above "Nothing is on the air" (2026-11-22 audit), it goes to the schedule.
     expect(html).toContain('data-track="share-record-cta" href="/watch">See tonight&#x27;s schedule</a>');
     expect(html).not.toContain("Call tonight&#x27;s endings");
-    expect(html).toContain("season pool");
+    expect(html).toContain("season score");
   });
 
   it("with nothing airing but a room live: that room stands in, its count only for a crowd or an insider", async () => {
@@ -105,7 +105,7 @@ describe("/calls", () => {
     expect(html).toContain("That would be telling.");
     expect(html.indexOf('class="calls-share-grid"')).toBeLessThan(html.indexOf('<h2 id="open-calls">'));
     expect(count(html, 'class="card tap-card open-call"')).toBe(1);
-    expect(html).toContain("season pool");
+    expect(html).toContain("season score");
   });
 
   it("a viewer who has called a date that aired sees their record as a chip; a newcomer sees none", async () => {
