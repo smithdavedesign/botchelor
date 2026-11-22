@@ -12,3 +12,12 @@ export const isProductionDeploy = (env: Env = process.env): boolean => deployEnv
 
 /** Any deployment (production or preview, on any host), never a developer's machine. */
 export const isDeployed = (env: Env = process.env): boolean => Boolean(env.VERCEL || env.VERCEL_ENV || env.DEPLOY_ENV);
+
+/**
+ * The commit this server was built from, or null when nothing says. On DigitalOcean each app binds COMMIT_SHA to
+ * `${_self.COMMIT_HASH}` (.do/*.yaml); Vercel set VERCEL_GIT_COMMIT_SHA itself. Only a hex hash passes.
+ */
+export const commitSha = (env: Env = process.env): string | null => {
+  const sha = (env.COMMIT_SHA || env.VERCEL_GIT_COMMIT_SHA || "").trim().toLowerCase();
+  return /^[0-9a-f]{7,40}$/.test(sha) ? sha : null;
+};

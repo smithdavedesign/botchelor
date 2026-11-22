@@ -1579,6 +1579,19 @@ create table if not exists job_runs (
 );
 create index if not exists job_runs_job_at_idx on job_runs (job, at desc);
 
+-- The servers' own log (lib/ops-log.ts; 2026-11-22 audit): what used to live only in the container's output, which every
+-- deploy wipes. A row when a server starts (its commit and memory limit), when a date failed or was written (the model,
+-- calls, time, tokens and cost) and when a part of the daily job failed or was cut off. Ids, counts and short reasons
+-- only, never a word of a date or who anyone is. /admin shows it; the daily job keeps 30 days.
+create table if not exists ops_log (
+  id bigserial primary key,
+  at timestamptz not null default now(),
+  host text not null,
+  event text not null,
+  props jsonb not null default '{}'::jsonb
+);
+create index if not exists ops_log_at_idx on ops_log (at);
+
 -- Places a date went that the library has no set for yet (lib/scenes.ts): a plan two characters agreed to by text, or a
 -- move on the date. The date shows a generic background with the place's name; this tells the owner which sets to make
 -- next. One row per date and place, logged when the date is finished.
@@ -5026,8 +5039,12 @@ type Connection = { db: Db; close: () => Promise<void> };
  * up to 15 s. Never throws: if the database still isn't ready the server starts anyway and the first request tries
  * again, as it always did; if the apply is still running, requests wait for it (openShared). Local runs without a
  * DATABASE_URL open their file database on first use, as before (a second PGlite on the same files would clash).
+ * `onReady` runs on the same connection once the schema is current (instrumentation.ts writes the server's start row,
+ * lib/ops-log.ts); its own failure is its own and never fails the start.
  */
-export async function prepareDb(options: { waitMs?: number; connect?: () => Promise<Connection> } = {}): Promise<void> {
+export async function prepareDb(
+  options: { waitMs?: number; connect?: () => Promise<Connection>; onReady?: (db: Db) => Promise<void> } = {},
+): Promise<void> {
   const url = process.env.DATABASE_URL;
   const connect =
     options.connect ??
@@ -5045,12 +5062,14 @@ export async function prepareDb(options: { waitMs?: number; connect?: () => Prom
     try {
       for (;;) {
         try {
-          return await ensureSchemaCurrent(db);
+          await ensureSchemaCurrent(db);
+          break;
         } catch (err) {
           if (!worthRetrying(err) || Date.now() + STARTUP_RETRY_MS >= deadline) throw err;
         }
         await new Promise((resolve) => setTimeout(resolve, STARTUP_RETRY_MS));
       }
+      await options.onReady?.(db).catch(() => undefined);
     } finally {
       await close().catch(() => undefined);
     }
