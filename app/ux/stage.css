@@ -458,8 +458,12 @@ body:has(.set-hero) {
 .contestant-card .meta > .kicker {
   margin: 0 0 var(--space-1);
 }
-.contestant-card .meta h1 {
+/* The name's row (the heading and its badges) keeps the space under it that the heading had. */
+.contestant-card .meta .contestant-name {
   margin: 0 0 var(--space-1);
+}
+.contestant-card .meta h1 {
+  margin: 0;
   color: var(--on-photo);
   font-family: "Fraunces", Georgia, serif;
   text-shadow: 0 2px 20px color-mix(in srgb, black 50%, transparent);

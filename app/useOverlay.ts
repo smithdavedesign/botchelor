@@ -14,6 +14,10 @@ import { useEffect, useRef, type RefObject } from "react";
  * - focus moves in when it opens and goes back where it was when it closes.
  * `root` is what stays live: the overlay itself, and for a menu its button too, so the button still toggles it. With no
  * `onClose` nothing closes it from here (the 18+ gate: answering it is the way out).
+ *
+ * `modal: false` is a small popover's way (Share): nothing goes inert and the page still scrolls, so a press outside
+ * closes it and still does what it pressed (2026-11-22 audit: an open Share swallowed the next click), and Tab may
+ * leave it. Escape, its ✕ and a press outside still close it.
  */
 export function useOverlay(
   open: boolean,
@@ -22,13 +26,17 @@ export function useOverlay(
     onClose,
     outside = true,
     focus,
-    lock = true,
+    modal = true,
+    lock = modal,
   }: {
     root: RefObject<HTMLElement | null>;
     onClose?: () => void;
     outside?: boolean;
     /** Where focus goes when it opens; by default the first control inside `root`, unless focus is in there already. */
     focus?: RefObject<HTMLElement | null>;
+    /** false: a popover, not a modal (above). */
+    modal?: boolean;
+    /** Whether the page behind stops scrolling; a modal's default, not a popover's. */
     lock?: boolean;
   },
 ) {
@@ -42,16 +50,18 @@ export function useOverlay(
     if (!open || !el) return;
     const token = Symbol("overlay");
     stack.push(token);
+    if (modal) traps.push(token);
     const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const release = inertOutside(el);
+    const release = modal ? inertOutside(el) : () => {};
     if (lock) lockScroll(1);
     if (!el.contains(document.activeElement)) (initial.current?.current ?? firstControl(el))?.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Tab" && stack.at(-1) === token) return wrapTab(e, el);
+      // Tab is the newest modal's to keep in, even with a popover open inside it.
+      if (e.key === "Tab" && traps.at(-1) === token) return wrapTab(e, el);
       if (e.key !== "Escape" || stack.at(-1) !== token || !close.current) return;
-      const modal = document.querySelector("dialog:modal");
-      if (modal && !el.contains(modal)) return;
+      const dialog = document.querySelector("dialog:modal");
+      if (dialog && !el.contains(dialog)) return;
       e.preventDefault();
       close.current();
     };
@@ -69,16 +79,19 @@ export function useOverlay(
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onDown);
       stack.splice(stack.indexOf(token), 1);
+      if (modal) traps.splice(traps.indexOf(token), 1);
       release();
       if (lock) lockScroll(-1);
       const now = document.activeElement;
       if (before?.isConnected && (!now || now === document.body || el.contains(now))) before.focus({ preventScroll: true });
     };
-  }, [open, root, outside, lock]);
+  }, [open, root, outside, lock, modal]);
 }
 
 /** Overlays open now, newest last: Escape and a press outside are the top one's. */
 const stack: symbol[] = [];
+/** The modal ones among them, newest last: Tab goes round inside the top one. */
+const traps: symbol[] = [];
 
 let locks = 0;
 function lockScroll(by: 1 | -1) {
