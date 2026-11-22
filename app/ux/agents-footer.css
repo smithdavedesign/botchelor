@@ -171,12 +171,14 @@
 /* "↑ Contents": at the end of the page in the markup, sticky to the foot of the screen while the page is read. It sat
    in the text column and hid a line (2026-11-22 audit), so it rides beside the text. On a wide screen it's the pill
    with its word in the left margin; from 800px a 44px circle fits that margin (the column starts 52px in), its word
-   clipped (not hidden, so a screen reader still hears it); with no margin, that circle at the column's right edge,
-   above the floating Feedback button where that shows and above the phone's tab bar where that does. */
+   clipped (not hidden, so a screen reader still hears it). Below 800px there's no margin, and the circle at the
+   column's right edge still covered the ends of two or three lines while the page scrolled, so it isn't shown there:
+   each section ends with "↑ Contents" in the text's own flow instead (.legal-back, app/legal/sections.tsx SectionEnd),
+   a 44px target. One width rule shows one or the other. */
 .legal-top {
   position: sticky;
   bottom: var(--space-4);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
@@ -201,9 +203,25 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
-@media (min-width: 721px) and (max-width: 799px) {
+.legal-back {
+  margin: 0;
+  text-align: end;
+}
+.legal-back a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+@media (min-width: 800px) {
   .legal-top {
-    bottom: calc(var(--space-4) + 2.75rem + var(--space-3));
+    display: flex;
+  }
+  .legal-back {
+    display: none;
   }
 }
 @media (min-width: 800px) and (max-width: 1023px) {
@@ -227,11 +245,6 @@
     height: auto;
     overflow: visible;
     clip: auto;
-  }
-}
-@media (max-width: 720px) {
-  body:has(.tabbar-nav) .legal-top {
-    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-3));
   }
 }
 /* The short version on top of /terms, /privacy and /legal (app/legal/sections.tsx TermsInShort, PrivacyInShort): a

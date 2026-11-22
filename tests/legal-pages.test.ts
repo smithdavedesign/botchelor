@@ -13,7 +13,7 @@ import { POST as postReport } from "@/app/api/content-reports/route";
 import CancelPage from "@/app/cancel/page";
 import ContentPolicyPage from "@/app/content-policy/page";
 import LegalPage from "@/app/legal/page";
-import { PRIVACY_HEADINGS, TERMS_HEADINGS } from "@/app/legal/sections";
+import { CONTACT_HEADING, PRIVACY_HEADINGS, TERMS_HEADINGS } from "@/app/legal/sections";
 import PrivacyPage from "@/app/privacy/page";
 import ReportPage from "@/app/report/page";
 import TermsPage from "@/app/terms/page";
@@ -188,14 +188,33 @@ describe("the privacy notice", () => {
     expect(privacy).toContain("only if you opt in, and even then only dates that aired publicly");
   });
 
-  it("keeps ↑ Contents beside the text: the left margin where there is one, a circle at the right edge below that", () => {
+  it("keeps ↑ Contents beside the text in the left margin from 800px, and in the text's flow below that", () => {
     const css = readFileSync("app/ux/agents-footer.css", "utf8");
-    expect(css).toMatch(/\.legal-top \{[^}]*position: sticky;[^}]*width: 2\.75rem;[^}]*margin: var\(--space-4\) 0 0 auto;/);
+    expect(css).toMatch(/\.legal-top \{[^}]*position: sticky;[^}]*display: none;[^}]*width: 2\.75rem;[^}]*margin: var\(--space-4\) 0 0 auto;/);
     expect(css).toMatch(/@media \(min-width: 1024px\) \{\s*\.legal-top \{[^}]*translate: calc\(-100% - var\(--space-4\)\) 0;/);
     expect(css).toMatch(/@media \(min-width: 800px\) and \(max-width: 1023px\) \{\s*\.legal-top \{\s*margin-left: 0;\s*translate: calc\(-100% - var\(--space-1\)\) 0;/);
-    expect(css).toMatch(/@media \(min-width: 721px\) and \(max-width: 799px\) \{\s*\.legal-top \{\s*bottom: calc\(var\(--space-4\) \+ 2\.75rem \+ var\(--space-3\)\);/);
+    // Below 800px the floating circle covered the ends of two or three lines: one width rule shows it or the links.
+    expect(css).toMatch(/@media \(min-width: 800px\) \{\s*\.legal-top \{\s*display: flex;\s*\}\s*\.legal-back \{\s*display: none;/);
+    expect(css).toMatch(/\.legal-back a \{[^}]*min-height: 2\.75rem;/);
+    expect(css).not.toMatch(/max-width: 799px\) \{\s*\.legal-top/);
     // /safety's helplines keep the card's edge on a phone: the legal lists' indent leaves them out.
     expect(css).toContain(".legal-page ul:not(.legal-toc ul, .safety-help-lines) {");
+  });
+
+  it("ends every section with ↑ Contents, for screens too narrow for the floating one", () => {
+    const end = '<p class="legal-back"><a href="#contents"><span aria-hidden="true">↑</span> Contents</a></p>';
+    for (const [name, Page, headings] of [
+      ["terms", TermsPage, [...TERMS_HEADINGS, CONTACT_HEADING]],
+      ["privacy", PrivacyPage, [...PRIVACY_HEADINGS, CONTACT_HEADING]],
+      ["legal", LegalPage, [...TERMS_HEADINGS, ...PRIVACY_HEADINGS, CONTACT_HEADING]],
+    ] as const) {
+      const html = render(Page);
+      expect(html.split(end).length - 1, name).toBe(headings.length);
+      // Each one closes a section: right before the next section's heading, and after the last, before the policy links.
+      headings.slice(1).forEach((h) => expect(html, `${name} ${h.id}`).toContain(`${end}<h2 id="${h.id}">`));
+      expect(html, name).toContain(`${end}<nav aria-label="Policies">`);
+      expect(html.indexOf(end), name).toBeGreaterThan(html.indexOf(`<h2 id="${headings[0].id}">`));
+    }
   });
 
   it("is dated 22 November 2026, with what changed (and the earlier changes kept under it)", () => {
