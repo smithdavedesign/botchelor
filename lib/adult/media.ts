@@ -21,7 +21,7 @@ import { HOUSE_LOOK_VERSION } from "../art-style";
 import { afterDarkPortrait } from "../portraits";
 import { siteUrl } from "../site";
 import { afterDarkBase } from "../after-dark-host";
-import { IMAGE_MIN_AGE, LOOK_STEPS, looksPictureWords, optionPrompt, optionsFor, type Gender } from "../looks";
+import { IMAGE_MIN_AGE, LOOK_STEPS, looksPictureWords, optionPrompt, optionsFor, withoutLooksNoun, type Gender } from "../looks";
 import { crossesTaboo } from "./acts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { dataColumn, keepBytes, objectStore, readBytes } from "../object-store";
@@ -227,7 +227,7 @@ export function physicalLook(c: Character, undressed = false): string {
   const house = ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look ?? c.look.physical;
   let look = (house || c.look.appearance || "").trim().replace(/[.\s]+$/, "");
   // "a man in his mid-thirties with…": the person() around it already says who; the age and colouring stay.
-  look = look.replace(/^an?\s+((?:[\w-]+\s+)?)(?:man|woman|person)\b\s*/i, "$1").replace(/^,\s*/, "");
+  look = withoutLooksNoun(look.replace(/^an?\s+((?:[\w-]+\s+)?)(?:man|woman|person)\b\s*/i, "$1").replace(/^,\s*/, ""));
   // Clothes are "in a…", "wearing…"; never "in his mid-thirties".
   if (undressed) look = look.replace(/,?\s*\b(?:in an?|wearing|dressed in)\s+[^,]*/gi, "");
   // "laughing", "always mid-laugh": a mood, not a look, and a picture's expression comes from the scene.

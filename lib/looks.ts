@@ -559,16 +559,35 @@ const pick = (step: LookStepId, gender: Gender, id: string | undefined, afterDar
 };
 
 /**
- * The look as an appearance line for the sheet (≤ 140 characters, like the field): "Latina, long voluminous curly
+ * The look as an appearance line for the sheet (≤ 140 characters, like the field): "Latina woman, long voluminous curly
  * copper-red hair, vivid green eyes, a curvy hourglass figure". Never After Dark's picks, never the outfit's skin.
  */
 export function looksAppearance(l: Looks | undefined): string {
+  return appearanceLine(l, true);
+}
+
+/**
+ * Whether `line` is the one these picks write, in today's words or in those before 2026-11-22 ("Latina, long…", with no
+ * "woman"), so a line the builder wrote, saved before then too, still follows the picks, and a typed one stays.
+ */
+export function isLooksLine(line: string | null | undefined, l: Looks | undefined): boolean {
+  const t = (line ?? "").trim();
+  return Boolean(t) && (t === appearanceLine(l, true) || t === appearanceLine(l, false));
+}
+
+/**
+ * The line as a picture prompt reads it, which names the person itself ("a 30-year-old woman, …"): the ethnicity alone,
+ * as before 2026-11-22 ("Black", not a second "Black woman").
+ */
+export const withoutLooksNoun = (line: string): string => line.replace(/(^|,\s*)(\p{Lu}[\p{L}-]*(?: \p{Lu}[\p{L}-]*)?) (?:man|woman|person)(?=\s*(?:,|$))/gu, "$1$2");
+
+function appearanceLine(l: Looks | undefined, noun: boolean): string {
   if (!l?.gender) return "";
   const g = l.gender;
   const parts = [
     STYLE_WORDS[artStyleFrom(l.style)].appearance,
     // "Black woman", not "Black" beside the hair words (2026-11-22 audit: "Black, long… copper-red hair" read as two hair colours).
-    l.ethnicity ? `${optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "")} ${g}` : "",
+    l.ethnicity ? `${optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "")}${noun ? ` ${g}` : ""}` : "",
     detailWords("skin_tone", l.skin_tone) ?? "",
     hairWords(g, l.hair_style, l.hair_color),
     pick("eyes", g, l.eyes)?.prompt ?? "",

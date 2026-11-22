@@ -27,7 +27,7 @@ import { deriveSoulSignals, type SoulSignals } from "@/lib/engine";
 import { sheetSignals } from "@/lib/temperament";
 import VoiceStep from "./VoiceStep";
 import LooksBuilder from "./LooksBuilder";
-import { looksAppearance } from "@/lib/looks";
+import { isLooksLine, looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import DeeperStep from "./DeeperStep";
 import DepthMeter from "./DepthMeter";
@@ -470,8 +470,9 @@ export default function CreateWizard({
   const setExtras = useCallback((update: (prev: CharacterExtras) => CharacterExtras) => setExtrasState(update), []);
   // The appearance line the looks builder last wrote: replaced as the picks change, unless it's been typed over.
   const autoAppearance = useRef<string | null>(init?.extras.looks ? looksAppearance(init.extras.looks) : null);
-  // Typed by hand (here, or saved before): the looks builder leaves it alone. A sample's line it replaces.
-  const appearanceTyped = useRef(Boolean(init?.appearance?.trim() && init.appearance !== autoAppearance.current));
+  // Typed by hand (here, or saved before): the looks builder leaves it alone. A sample's line it replaces, and its own line
+  // too, in today's words or the ones it was saved in (isLooksLine).
+  const appearanceTyped = useRef(Boolean(init?.appearance?.trim() && !isLooksLine(init.appearance, init.extras.looks)));
   function looksAppearanceChanged(line: string) {
     setAppearance((prev) => (appearanceTyped.current && prev.trim() && prev !== autoAppearance.current ? prev : line));
     autoAppearance.current = line;

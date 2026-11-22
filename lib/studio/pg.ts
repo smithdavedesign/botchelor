@@ -25,6 +25,7 @@ import { isAdmin } from "../admins";
 import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import { loadCharacter, type Character } from "../character";
 import { ALL_HOUSE_CHARACTERS } from "../house";
+import { withoutLooksNoun } from "../looks";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { characterPortrait, showStyleOf } from "../portraits";
@@ -69,7 +70,8 @@ const nounOf = (c: Pick<Character, "pronouns">): PgSubject["noun"] => (c.pronoun
 /** Who the picture shows: the house cast's own look line, else their sheet's appearance; dropped if it isn't PG words. */
 export function pgSubject(c: Character): PgSubject {
   const raw = (ALL_HOUSE_CHARACTERS.find((h) => h.id === c.id)?.look ?? c.look.physical ?? c.look.appearance ?? "").trim().replace(/[.\s]+$/, "");
-  const look = raw.replace(/^an?\s+((?:[\w-]+\s+)?)(?:man|woman|person)\b\s*/i, "$1").replace(/^,\s*/, "").slice(0, 300);
+  // "a 30-year-old woman, Black, …": the prompt names the person, so the looks line's "Black woman" loses its noun.
+  const look = withoutLooksNoun(raw.replace(/^an?\s+((?:[\w-]+\s+)?)(?:man|woman|person)\b\s*/i, "$1").replace(/^,\s*/, "")).slice(0, 300);
   return { noun: nounOf(c), age: c.age, look: look && checkPgPictureText({ look }).ok ? look : "", style: showStyleOf(c) };
 }
 

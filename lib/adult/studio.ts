@@ -35,7 +35,7 @@ import { isAdmin } from "../admins";
 import { adTokenBalance, moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
-import { LOOK_DETAILS, LOOK_STEPS, hairWords, tileId, looksAppearance, looksPictureWords, normaliseLooks, optionPrompt, optionsFor, type Gender, type Looks } from "../looks";
+import { LOOK_DETAILS, LOOK_STEPS, hairWords, isLooksLine, tileId, looksAppearance, looksPictureWords, normaliseLooks, optionPrompt, optionsFor, type Gender, type Looks } from "../looks";
 import { readyTiles } from "../looks-draw";
 import { dataColumn, keepBytes, readBytes } from "../object-store";
 import { pairKey } from "../relationships";
@@ -1027,9 +1027,9 @@ export async function saveRestyleLooks(db: Db, viewer: string, characterId: stri
   }
   if (Object.keys(ad).length) next.after_dark = ad;
   const looks = normaliseLooks(next);
-  const oldLine = looksAppearance(before);
   const newLine = looksAppearance(looks) || null;
-  const keepLine = c.look.appearance && c.look.appearance !== oldLine;
+  // Typed by hand, it stays; the builder's line (in today's words or those it was saved in) follows the new picks.
+  const keepLine = c.look.appearance && !isLooksLine(c.look.appearance, before);
   const set = `extras = jsonb_set(coalesce(extras, '{}'::jsonb), '{looks}', $2::jsonb, true)`;
   if (keepLine) await db.query(`update characters set ${set} where id = $1 and owner_id = $3`, [c.id, JSON.stringify(looks ?? {}), viewer]);
   else await db.query(`update characters set ${set}, appearance = $3 where id = $1 and owner_id = $4`, [c.id, JSON.stringify(looks ?? {}), newLine, viewer]);
