@@ -14,7 +14,7 @@ import { includedPlan } from "@/lib/adult/pricing";
 import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { getDb, type Db } from "@/lib/db";
-import { TASTE_HOURS, TASTE_WRITES, tasteRefusal } from "@/lib/adult/taste";
+import { TASTE_HOURS, TASTE_WRITES, tasteOpen, tasteRefusal } from "@/lib/adult/taste";
 import { authFromCookieStore } from "@/lib/http";
 import InviteForm from "./InviteForm";
 import TasteForm from "./TasteForm";
@@ -48,6 +48,8 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   // through the sign-in and sent with the invite request (lib/adult/bridge.ts).
   const source = inviteSource(params.source);
   const processors = configuredProcessors();
+  // The free taste shows only once it's opened in the settings (lib/adult/taste.ts tasteOpen): off until then.
+  const taste = tasteOpen((await getAdultSettings(db).catch(() => null))?.rollout);
   // Shorts to point at, only when there are some (the link to an empty page was the only taste there was).
   const shorts = Number((await db.query<{ n: number }>(`select count(*)::int as n from adult_shorts`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0]?.n ?? 0);
 
@@ -67,16 +69,20 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           </p>
           {auth?.authenticated ? (
             <>
-              <TasteStep db={db} userId={auth.userId} />
+              {taste && <TasteStep db={db} userId={auth.userId} />}
               <InviteStep db={db} userId={auth.userId} source={source} />
             </>
           ) : (
             <>
               <section className="card" data-invite-sign-in>
-                <p>
-                  Try a free taste ({TASTE_HOURS} hours of scenes, no card), or ask for an invite to the beta. Both belong to an account, so sign in
-                  first (or make one: it&apos;s free).
-                </p>
+                {taste ? (
+                  <p>
+                    Try a free taste ({TASTE_HOURS} hours of scenes, no card), or ask for an invite to the beta. Both belong to an account, so sign
+                    in first (or make one: it&apos;s free).
+                  </p>
+                ) : (
+                  <p>Ask for an invite to the beta. It belongs to an account, so sign in first (or make one: it&apos;s free).</p>
+                )}
                 <Link className="button" href={`/account?next=${encodeURIComponent(invitePath(source))}`}>
                   Sign in to start
                 </Link>
@@ -160,7 +166,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           </ul>
         </section>
         <WhatsInside shorts={shorts} price={null} />
-        {auth?.authenticated && <TasteStep db={db} userId={auth.userId} />}
+        {taste && auth?.authenticated && <TasteStep db={db} userId={auth.userId} />}
         {auth?.authenticated ? (
           <SubscribeForm
             price={price}

@@ -16,7 +16,13 @@ export const ROLLOUT_FEATURES = [
     key: "public_door",
     label: "The public door",
     note:
-      "The After Dark door in the header for every adult where After Dark isn't blocked, landing on the subscribe page (taste, invite request, waitlist) instead of not-found, and the arrival screen once a session. On admins only, admins see the arrival screen; the landing is previewed with ?preview=visitor. Needs payments before everyone.",
+      "The After Dark door in the header for every adult where After Dark isn't blocked, landing on the subscribe page (the invite request, the waitlist, and the free taste once that piece is opened) instead of not-found, and the arrival screen once a session. On admins only, admins see the arrival screen; the landing is previewed with ?preview=visitor. Needs payments before everyone.",
+  },
+  {
+    key: "taste",
+    label: "The free taste",
+    note:
+      "A signed-in adult starts 48 hours of scenes themselves, with no card (lib/adult/taste.ts), from the subscribe page. Off until it's opened here: with no billing live there is nothing to carry on to when it ends, and the card processors were told there is no trial, so tell them before opening it.",
   },
   {
     key: "make_more",
@@ -50,6 +56,7 @@ export type RolloutFeature = (typeof ROLLOUT_FEATURES)[number]["key"];
 const audience = z.enum(ROLLOUT_AUDIENCES);
 export const RolloutConfig = z.object({
   public_door: audience.default("admins"),
+  taste: audience.default("admins"),
   make_more: audience.default("admins"),
   phone_sheet: audience.default("admins"),
   reader: audience.default("admins"),

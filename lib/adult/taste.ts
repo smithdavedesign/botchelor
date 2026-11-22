@@ -13,6 +13,7 @@
  */
 import type { Db } from "../db";
 import { TASTE_PROVIDER } from "./entitlement";
+import { rolloutOn, type RolloutConfig } from "./rollout";
 
 /** How long a taste stays open. */
 export const TASTE_HOURS = 48;
@@ -20,6 +21,15 @@ export const TASTE_HOURS = 48;
 export const TASTE_WRITES = 40;
 /** The most tastes started across the site in one UTC day. */
 export const TASTE_PER_DAY = 40;
+
+/**
+ * Whether the taste is offered to people at all (lib/adult/rollout.ts "taste"; the 2026-11-21 audit). It was open to
+ * any signed-in adult from the day it was built, while the rest of After Dark waited on its switches: with no billing
+ * live a taste ends in "subscribe to carry on" that nobody can do, and the card processors' applications say there is
+ * no trial. So it waits on its own switch, off until it's opened in the settings. An admin already has After Dark, so
+ * there is no admin-only taste: the switch is read as a visitor would meet it.
+ */
+export const tasteOpen = (rollout: RolloutConfig | null | undefined): boolean => rolloutOn(rollout, "taste", false);
 
 export type TasteRefusal = "already_had" | "has_after_dark" | "sold_out_today";
 
