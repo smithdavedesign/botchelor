@@ -26,22 +26,13 @@ export default function StartersPanel() {
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const headers = (): Record<string, string> => {
-    try {
-      const key = localStorage.getItem("bz_frontier");
-      return key ? { "x-frontier-key": key } : {};
-    } catch {
-      return {};
-    }
-  };
-
   const show = (data: View) => {
     setView(data);
     setSlots(Array.from({ length: SLOTS }, (_, i) => data.pins[i]?.id ?? ""));
   };
 
   useEffect(() => {
-    fetch("/api/admin/season-starters", { headers: headers() })
+    fetch("/api/admin/season-starters")
       .then(async (res) => (res.ok ? show((await res.json()) as View) : null))
       .catch(() => {});
   }, []);
@@ -54,7 +45,7 @@ export default function StartersPanel() {
     try {
       const res = await fetch("/api/admin/season-starters", {
         method: "POST",
-        headers: { "content-type": "application/json", ...headers() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ season_id: view.season.id, episode_ids: ids.map((s) => s.trim()).filter(Boolean) }),
       });
       const data = (await res.json().catch(() => ({}))) as View & { note?: string; message?: string; failing?: string[] };

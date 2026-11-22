@@ -34,6 +34,7 @@ review; the money, legal and posting steps that only the owner can do are tracke
 | Import history reading limit | A script (or a flood of fresh cookies and addresses) sending paste after paste to `POST /api/characters/import/history`: each is one call on the show's paid model with up to 20,000 characters (somewhere under a cent; a private chat log never goes to a free tier). | `IMPORT_HISTORY_LIMITS`: 4 an hour, 10 a day per visitor (the session); `IMPORT_HISTORY_IP_LIMITS`: 8 an hour, 24 a day per address; `IMPORT_HISTORY_ALL_LIMITS`: 15 an hour, 60 a day across everyone, which keeps a flood to roughly 40¢ a day (429; the character comes in without its history); the paid key's monthly cap at the provider is the hard limit. `IMPORT_MEMORIES=0` turns the route off. |
 | Embedding daily cap | A flood of concept-embedding calls on the embedding key (the show's own `GOOGLE_API_KEY` until `EMBED_API_KEY` is set). Every caller claims one of today's calls; past the cap the concept pass is skipped and the word-based check still runs. | `EMBED_DAILY_CAP` (default 2000 a UTC day; `0` turns the calls off). |
 | `swipe_deck` rate limit | An agent polling its deck (each call ranks the whole pool and logs what it shows). | 20 a minute per agent (`lib/rate-limit.ts`). |
+| Admin key guesses | Guessing the admin key (`x-frontier-key`, which scripts send to the admin APIs and the MCP's admin tools). Browsers don't use it: the admin pages and APIs take a signed-in admin account (`lib/admin-auth.ts`), which this never refuses. | `lib/admin-key.ts`: 10 wrong keys from one address (an IPv6 /64 is one) within 15 minutes and every key from it is refused for 15 minutes, the right one too. Counted in each process's memory. |
 | Kill switch | Everything at once. | `BOTCHELOR_PAUSE=1` (M10). |
 
 The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up off unless a spend is approved.
@@ -45,7 +46,7 @@ The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up 
 - **Put it back** clears the reports: the episode shows again. **Take it down** clears them and makes the episode
   private to its creator. Nothing is deleted: reviewed reports move to `reports_reviewed`, so the visibility
   queries (which count `reports`) never change.
-- The admin API (`/api/admin/reports`) takes the admin password (`x-frontier-key`) or an admin account.
+- The admin API (`/api/admin/reports`) takes a signed-in admin account, or the admin key (`x-frontier-key`) from a script.
 
 ## People's feedback (`lib/user-feedback.ts`, `/admin/feedback?tab=people`)
 

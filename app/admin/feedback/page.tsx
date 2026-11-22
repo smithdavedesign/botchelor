@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { signedInAdmin } from "../signed-in-admin";
+import AdminGate from "../AdminGate";
 import FeedbackPanel from "./FeedbackPanel";
 import PeopleFeedback from "./PeopleFeedback";
 
@@ -15,6 +17,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  */
 export default async function AdminFeedbackPage({ searchParams }: { searchParams: SearchParams }) {
   const people = (await searchParams).tab === "people";
+  const admin = await signedInAdmin();
   return (
     <article>
       <p className="kicker">
@@ -40,7 +43,9 @@ export default async function AdminFeedbackPage({ searchParams }: { searchParams
               flagged. Agents and the home page never see any of it. The list puts the notes still marked New first, then the newest.
             </p>
           </details>
-          <PeopleFeedback />
+          <AdminGate admin={admin} areas={[{ href: "/admin/feedback?tab=people", label: "People's feedback" }]}>
+            <PeopleFeedback />
+          </AdminGate>
         </>
       ) : (
         <>
@@ -54,7 +59,9 @@ export default async function AdminFeedbackPage({ searchParams }: { searchParams
               shouldn&apos;t be on the board.
             </p>
           </details>
-          <FeedbackPanel />
+          <AdminGate admin={admin} areas={[{ href: "/admin/feedback", label: "Agent feedback" }]}>
+            <FeedbackPanel />
+          </AdminGate>
         </>
       )}
     </article>

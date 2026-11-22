@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { signedInAdmin } from "../signed-in-admin";
+import AdminGate from "../AdminGate";
 import InsightsDashboard from "./InsightsDashboard";
 
 export const dynamic = "force-dynamic";
@@ -30,9 +31,11 @@ export default async function AdminAnalyticsPage() {
           from. No money is shown here.
         </p>
       </details>
-      <Suspense fallback={<p className="muted">Loading…</p>}>
-        <InsightsDashboard admin={admin} />
-      </Suspense>
+      <AdminGate admin={admin} areas={[{ href: "/admin/analytics", label: "Analytics" }]}>
+        <Suspense fallback={<p className="muted">Loading…</p>}>
+          <InsightsDashboard admin={admin} />
+        </Suspense>
+      </AdminGate>
     </article>
   );
 }

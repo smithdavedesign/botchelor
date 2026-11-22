@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ENDING_LABELS, ENDINGS, type Ending } from "@/lib/rules";
 
-/** The frontier password lives only in this browser (localStorage) and is checked on the server. */
+/**
+ * A run spends on the paid frontier model, so it takes the admin password every time, even from an admin account
+ * (app/api/admin/frontier): typed here, sent with the run, and kept only while this page is open, never saved.
+ */
 export default function FrontierCompare({ configured }: { configured: boolean }) {
   const [key, setKey] = useState("");
   const [a, setA] = useState("Mira Quell");
@@ -13,24 +16,6 @@ export default function FrontierCompare({ configured }: { configured: boolean })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ free: string; frontier: string } | null>(null);
-
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem("bz_frontier");
-      if (v) setKey(v);
-    } catch {
-      /* private mode */
-    }
-  }, []);
-
-  function saveKey(v: string) {
-    setKey(v);
-    try {
-      localStorage.setItem("bz_frontier", v);
-    } catch {
-      /* private mode */
-    }
-  }
 
   async function run() {
     setBusy(true);
@@ -56,7 +41,7 @@ export default function FrontierCompare({ configured }: { configured: boolean })
       <section className="card">
         <label>
           Frontier password
-          <input type="password" value={key} onChange={(e) => saveKey(e.target.value)} placeholder="only you have this" />
+          <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="only you have this" autoComplete="off" />
         </label>
         <div className="traits">
           <label>
@@ -103,7 +88,7 @@ export default function FrontierCompare({ configured }: { configured: boolean })
       )}
 
       <p className="muted">
-        The password is checked on the server and never stored by the app; it stays in this browser only. Each run makes
+        The password is checked on the server and isn't saved anywhere: close the page and it's gone. Each run makes
         one free and one frontier call.
       </p>
     </>

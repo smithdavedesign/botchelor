@@ -6,6 +6,7 @@
  * setting LLM_BASE_URL, LLM_API_KEY and LLM_MODEL. With no key configured, every call fails closed.
  */
 
+import { adminKeyAllowed } from "./admin-key";
 import { safeEqual } from "./http";
 import { sseData } from "./sse";
 
@@ -507,12 +508,15 @@ export function frontierModelFromEnv(env: Record<string, string | undefined> = p
   return openAICompatibleModel({ baseUrl: env.FRONTIER_LLM_BASE_URL!, apiKey: env.FRONTIER_LLM_API_KEY!, model: env.FRONTIER_LLM_MODEL!, fetchImpl, extraBody });
 }
 
-/** True only when a frontier password is set and the request carries the matching x-frontier-key header. */
+/**
+ * True only when a frontier password is set and the request carries the matching x-frontier-key header, from an address
+ * that isn't locked out for sending wrong ones (lib/admin-key.ts).
+ */
 export function frontierAuthorized(req: Request, env: Record<string, string | undefined> = process.env): boolean {
   const pw = env.FRONTIER_PASSWORD;
   if (!pw) return false;
   const given = req.headers.get("x-frontier-key") ?? "";
-  return given.length > 0 && safeEqual(given, pw);
+  return given.length > 0 && adminKeyAllowed(req, safeEqual(given, pw));
 }
 
 let testFrontierModel: Model | null = null;

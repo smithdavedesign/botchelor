@@ -18,17 +18,8 @@ export default function ShowIdeasPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const headers = (): Record<string, string> => {
-    try {
-      const key = localStorage.getItem("bz_frontier");
-      return key ? { "x-frontier-key": key } : {};
-    } catch {
-      return {};
-    }
-  };
-
   async function load() {
-    const res = await fetch("/api/admin/show-ideas", { headers: headers() });
+    const res = await fetch("/api/admin/show-ideas");
     const data = await res.json().catch(() => ({}));
     if (res.ok) setView(data as View);
   }
@@ -41,7 +32,7 @@ export default function ShowIdeasPanel() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/show-ideas", { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify({ id, action }) });
+      const res = await fetch("/api/admin/show-ideas", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, action }) });
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       if (!res.ok) setError(data.message ?? "That didn't work.");
       else await load();

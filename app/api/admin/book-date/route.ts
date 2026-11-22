@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { POST as postEpisode } from "@/app/api/episodes/route";
+import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, sessionCookies } from "@/lib/http";
-import { frontierAuthorized } from "@/lib/model";
 
 const Input = z.object({
   character_id: z.string().min(1).max(64),
@@ -17,10 +17,10 @@ export const ADMIN_BOOKING = "admin:book-date";
  * The owner's test dates (David, 2026-10-18: "send Chud and Sable Quist on a date each run"): books a date for any
  * owned character, as its owner, through the ordinary booking route, so every rule and the engine apply exactly as
  * they would for them. It grants the owner the one date it uses first (recorded as an admin grant), so their own
- * balance is untouched. Admin password only (x-frontier-key).
+ * balance is untouched. A signed-in admin account, or the admin key (x-frontier-key) for scripts (lib/admin-auth.ts).
  */
 export const POST = handle(async (req: Request) => {
-  if (!frontierAuthorized(req)) return json({ error: "not_authorized", message: "Needs the admin password." }, 403);
+  if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);
   const input = parseBody(Input, await readJson(req), "invalid_request");
   const db = await getDb();
   const owner = (await db.query<{ owner_id: string | null }>(`select owner_id from characters where id = $1 and not is_house`, [input.character_id])).rows[0]?.owner_id;

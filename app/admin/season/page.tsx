@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { signedInAdmin } from "../signed-in-admin";
+import AdminGate from "../AdminGate";
 import SeasonPanel from "./SeasonPanel";
 import ProducerPanel from "./ProducerPanel";
 import InvitesPanel from "./InvitesPanel";
@@ -10,7 +12,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Seasons · Admin · Botchelor", robots: { index: false, follow: false } };
 
 /** Admin: this month's cast and next month's generated newcomers, to approve or reject before the 1st (lib/season-gen.ts). */
-export default function AdminSeasonPage() {
+export default async function AdminSeasonPage() {
+  const admin = await signedInAdmin();
   return (
     <article>
       <p className="kicker">
@@ -26,15 +29,17 @@ export default function AdminSeasonPage() {
           passed the check go on so the season still starts.
         </p>
       </details>
-      <SeasonPanel />
-      {/* Creator invites for casting (lib/casting-invites.ts): the codes and a small form that makes more. */}
-      <InvitesPanel />
-      {/* Show ideas (lib/show-ideas.ts): proposals waiting for a yes or no, and what people and agents said on /shows. */}
-      <ShowIdeasPanel />
-      {/* The lead season page's "Start here" box (lib/season-page.ts): what it shows, and up to three pins. */}
-      <StartersPanel />
-      {/* The producer's last week and tomorrow's skip (lib/producer.ts). */}
-      <ProducerPanel />
+      <AdminGate admin={admin} areas={[{ href: "/admin/season", label: "Seasons" }]}>
+        <SeasonPanel />
+        {/* Creator invites for casting (lib/casting-invites.ts): the codes and a small form that makes more. */}
+        <InvitesPanel />
+        {/* Show ideas (lib/show-ideas.ts): proposals waiting for a yes or no, and what people and agents said on /shows. */}
+        <ShowIdeasPanel />
+        {/* The lead season page's "Start here" box (lib/season-page.ts): what it shows, and up to three pins. */}
+        <StartersPanel />
+        {/* The producer's last week and tomorrow's skip (lib/producer.ts). */}
+        <ProducerPanel />
+      </AdminGate>
     </article>
   );
 }

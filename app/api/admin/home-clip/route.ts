@@ -1,9 +1,9 @@
+import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { airIfDue } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
 import { clipRefusal, CUT_MAX_BYTES, CUT_MAX_SECONDS, homeHeroClipOn, LOOP_MAX_BYTES, LOOP_MAX_SECONDS, looksLikeJpeg, looksLikeMp4, POSTER_MAX_BYTES, saveHomeClip } from "@/lib/home-clip";
 import { ApiError, handle, json, readForm } from "@/lib/http";
-import { frontierAuthorized } from "@/lib/model";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ const REFUSALS = {
 } as const;
 
 /**
- * Owner-only (the admin password, x-frontier-key): the day's clip for the home page (lib/home-clip.ts), sent by
+ * Owner-only (a signed-in admin account, or the admin key x-frontier-key: lib/admin-auth.ts): the day's clip for the home page (lib/home-clip.ts), sent by
  * scripts/clips/daily-clip.mjs once the clip is rendered. A multipart form: `episode` (the date's id), `loop` (a small
  * muted MP4), `poster` (a JPEG of its first frame), `width`, `height`, `seconds`, and optionally `day` (YYYY-MM-DD,
  * else today) and `cut` with `cut_seconds` (the whole clip with its voices, for the episode page's 60-second version;
@@ -26,7 +26,7 @@ const REFUSALS = {
  * refused, whatever the caller says. One clip per date: sending a date's clip again replaces it.
  */
 export const POST = handle(async (req: Request) => {
-  if (!frontierAuthorized(req)) return json({ error: "not_authorized", message: "Needs the admin password." }, 403);
+  if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);
   if (!homeHeroClipOn()) return json({ error: "off", message: "HOME_HERO_CLIP is off." }, 404);
   let form: FormData;
   try {
