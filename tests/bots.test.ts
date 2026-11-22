@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { detectBot } from "@/lib/bots";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -53,7 +53,7 @@ describe("?repohq-notrack=1 marks the owner's browser for RepoHQ's funnel", () =
   const notrack = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("repohq_notrack="));
 
   it("sets the cookie even on the gate's redirect, so it sticks before the gate is passed", () => {
-    // The swipe deck: the home page opened without the gate on 2026-11-14 (middleware.ts UNGATED_PAGES).
+    // The swipe deck: the home page opened without the gate on 2026-11-14 (proxy.ts UNGATED_PAGES).
     const res = middleware(request("/swipe?repohq-notrack=1", { "user-agent": UA.chromeMac }));
     expect(res.status).toBe(307);
     expect(notrack(res)).toMatch(/^repohq_notrack=1;.*Max-Age=34560000/i);

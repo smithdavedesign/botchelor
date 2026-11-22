@@ -3,7 +3,8 @@
  * voice's sign-off "Yours, for now, C." kept turning up in its dates). Only the text the show's model reads is checked,
  * and nothing is changed: the reply names each field and what it found, and the owner rewrites it. Pure.
  */
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+import { escapeRegExp } from "./text";
+
 const firstOf = (name: string) => name.trim().split(/\s+/)[0] ?? "";
 
 /** The text fields read, by the name the reply gives them; extras are read as their text values. */
@@ -27,11 +28,11 @@ export function renameLeftovers(oldName: string, newName: string, fields: Rename
   if (!was || was.toLowerCase() === newName.trim().toLowerCase()) return [];
   const oldFirst = firstOf(was);
   const newFirst = firstOf(newName);
-  const checks: { label: string; re: RegExp; signOff?: true }[] = [{ label: `'${was}'`, re: new RegExp(`\\b${escape(was)}\\b`, "i") }];
+  const checks: { label: string; re: RegExp; signOff?: true }[] = [{ label: `'${was}'`, re: new RegExp(`\\b${escapeRegExp(was)}\\b`, "i") }];
   if (oldFirst.length >= 3 && oldFirst.toLowerCase() !== newFirst.toLowerCase() && oldFirst.toLowerCase() !== was.toLowerCase())
-    checks.push({ label: `'${oldFirst}'`, re: new RegExp(`\\b${escape(oldFirst)}\\b`, "i") });
+    checks.push({ label: `'${oldFirst}'`, re: new RegExp(`\\b${escapeRegExp(oldFirst)}\\b`, "i") });
   const initial = oldFirst.charAt(0).toUpperCase();
-  if (initial && initial !== newFirst.charAt(0).toUpperCase()) checks.push({ label: `'${initial}.' (a sign-off)`, re: new RegExp(`(?:^|[\\s,—–-])${escape(initial)}\\.(?=\\s*(?:$|["”']))`, "m"), signOff: true });
+  if (initial && initial !== newFirst.charAt(0).toUpperCase()) checks.push({ label: `'${initial}.' (a sign-off)`, re: new RegExp(`(?:^|[\\s,—–-])${escapeRegExp(initial)}\\.(?=\\s*(?:$|["”']))`, "m"), signOff: true });
   const out: string[] = [];
   for (const [field, text] of Object.entries(fields)) {
     if (!text) continue;

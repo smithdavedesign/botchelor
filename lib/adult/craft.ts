@@ -17,6 +17,7 @@
 import { canonicalSet, type MoveLog } from "./continuity";
 import { givenName } from "./guards";
 import { stageShown } from "./stage-floor";
+import { escapeRegExp } from "../text";
 
 type Line = { who: "a" | "b"; text: string; stage?: number | null; doing?: string };
 
@@ -304,7 +305,6 @@ export function repairPlacePronouns(
   return { text, repaired };
 }
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * The label with a lost apostrophe put back on one of their names (Lexi × Dex on prod, 2026-10-22: the set was "Lexis
@@ -317,7 +317,7 @@ export function possessiveNames(label: string | null, names: { a: string; b: str
   let text = label;
   for (const n of given) {
     if (given.some((m) => m.toLowerCase() === `${n}s`.toLowerCase())) continue;
-    text = text.replace(new RegExp(`\\b(${escapeRe(n)})s\\b(?=\\s+[A-Za-z])`, "gi"), "$1's");
+    text = text.replace(new RegExp(`\\b(${escapeRegExp(n)})s\\b(?=\\s+[A-Za-z])`, "gi"), "$1's");
   }
   return text;
 }

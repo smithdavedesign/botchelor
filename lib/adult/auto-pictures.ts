@@ -28,6 +28,7 @@ import { getAdultSettings } from "./settings";
 import { claimChapterPicture, releaseChapterPicture } from "./chapter-pictures";
 import { picturesBlocked } from "./readiness";
 import { mediaAllowedFor } from "./place";
+import { soft } from "../soft";
 
 /** What an automatic picture needs from the scene: which one, its chapter, where they are, how far it's gone, the lines. */
 export type AutoPictureScene = {
@@ -123,7 +124,7 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
     // Never a picture of a character nobody has set up (lib/adult/readiness.ts): the scene says what's missing.
     const notReady = await picturesBlocked(db, ownerId, a.id, b.id);
     if (notReady) {
-      await db.query(`update adult_scenes set picture_note = $2 where id = $1 and picture_note is distinct from $2`, [scene.id, notReady]).catch(() => {});
+      await db.query(`update adult_scenes set picture_note = $2 where id = $1 and picture_note is distinct from $2`, [scene.id, notReady]).catch(soft("scene pictures: the not-ready note"));
       return false;
     }
     const key = autoPictureKey(scene.chapter, scene.set_place ?? scene.place);
@@ -157,12 +158,12 @@ export async function kickAutoPicture(db: Db, ownerId: string, scene: AutoPictur
             const note = /age check|minor/i.test(why)
               ? `${a.name} and ${b.name}'s picture read as under 18 to the age check, so it wasn't kept, and it won't be drawn again this chapter. An older age or a realistic look draws better.`
               : `${a.name} and ${b.name}'s picture didn't pass the check, so it wasn't kept, and it won't be drawn again this chapter.`;
-            await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]).catch(() => {});
+            await db.query(`update adult_scenes set picture_note = $2 where id = $1`, [scene.id, note]).catch(soft("scene pictures: the picture note"));
             return;
           }
           console.warn(`[after-dark] chapter ${snapshot.chapter}'s picture didn't come (asked again on a later step): ${why.slice(0, 160)}`);
           failedAt.set(`${scene.id}|${key}`, clock());
-          await releaseChapterPicture(db, scene.id, key).catch(() => {});
+          await releaseChapterPicture(db, scene.id, key).catch(soft("scene pictures: release the chapter's picture"));
         },
       );
       pending.add(work);

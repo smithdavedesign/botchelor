@@ -18,7 +18,7 @@ import {
   type EmailMessage,
 } from "@/lib/email";
 import { notify } from "@/lib/notifications";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
 
 // Built from parts so no literal secret sits in the repo (GitGuardian scans every commit).

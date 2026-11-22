@@ -25,9 +25,10 @@
  *    ending is still the audience's to predict, and an unlisted or private one is out of the public record.
  *  - A family's rates show from LEAGUE_MIN_DATES dates; below that the row says how many it has.
  */
-import type { Db } from "./db";
+import { getDb, type Db } from "./db";
 import { isModelFamily, LEAGUE_API_PATH, LEAGUE_PATH, MODEL_FAMILIES, MODEL_FAMILY_LABELS, modelLeagueOn, normalizeModel, type ModelFamily, type NormalizedModel } from "./model-family";
 import { loadOurIds } from "./our-traffic";
+import { sharedStale } from "./shared-cache";
 import { siteUrl } from "./site";
 
 /** A family's second-date and disaster rates (and its stars) show from this many aired public dates. */
@@ -243,6 +244,31 @@ export async function modelLeague(db: Db, opts: { ours?: string[]; now?: Date } 
 
 /** "62%": a rate as the page and the posts say it. */
 export const percent = (rate: number): string => `${Math.round(rate * 100)}%`;
+
+/** How old the table may get before it's recounted behind the page (three counts across the country each time). */
+export const LEAGUE_TTL_MS = 5 * 60_000;
+
+/** The table as the pages show it: a kept copy, recounted behind them (lib/shared-cache.ts sharedStale). */
+export function cachedModelLeague(): Promise<ModelLeague> {
+  return sharedStale("agents:league", async () => modelLeague(await getDb()), LEAGUE_TTL_MS);
+}
+
+/**
+ * Whether the league has anything to show: a family with its rates (LEAGUE_MIN_DATES dates). Until then the page stays
+ * up for the agents a reply sends there, but nothing links it, it's out of the sitemap and it isn't indexed: an empty
+ * table read as an abandoned page.
+ */
+export const leagueHasData = (league: ModelLeague | null): boolean => Boolean(league?.rows.some((r) => r.enough));
+
+/** leagueHasData of the kept copy, with the switch on; false when it can't be counted just now. */
+export async function leagueShown(): Promise<boolean> {
+  if (!modelLeagueOn()) return false;
+  try {
+    return leagueHasData(await cachedModelLeague());
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The league as JSON for agents (GET /api/league/models): the same rows as the page, with how the numbers were made

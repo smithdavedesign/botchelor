@@ -20,7 +20,7 @@ import { getDb, setDbForTests, type Db } from "@/lib/db";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { seenFilters, type ShowcaseViewer } from "@/lib/showcase";
 import { requestBase } from "@/lib/site";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 
 // Next's own test helper for next.config's redirects expects the AsyncLocalStorage that Next's server sets up.
 (globalThis as { AsyncLocalStorage?: unknown }).AsyncLocalStorage ??= AsyncLocalStorage;
@@ -55,7 +55,7 @@ const TODAY: [string, Record<string, string>, string][] = [
   ["https://botchelor.com/after-dark", { "user-agent": GOOGLEBOT }, "200 - next -"],
   ["https://botchelor.com/after-darkness", { cookie: "bz_adult=1" }, "200 - next -"],
   ["https://botchelor.com/watch", { cookie: "bz_adult=1" }, "200 - next -"],
-  ["https://botchelor.com/", {}, "200 - next -"], // the PG show opens without the gate since 2026-11-14 (middleware.ts)
+  ["https://botchelor.com/", {}, "200 - next -"], // the PG show opens without the gate since 2026-11-14 (proxy.ts)
   ["https://botchelor.com/shop", {}, "307 https://botchelor.com/gate?from=%2Fshop - -"],
   ["https://botchelor.com/gate?from=/after-dark", {}, "200 - next -"],
   ["https://botchelor.com/llms.txt", {}, "200 - next -"],

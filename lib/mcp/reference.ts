@@ -6,7 +6,7 @@
  * over every tool name, and tests/mcp-reference.test.ts holds it to the handlers.
  */
 import { AGENT_TOOL_GROUPS } from "../agents";
-import { CORE_TOOL_ORDER, MCP_TOOLS, PUBLIC_MCP_TOOLS } from "./dispatcher";
+import { CORE_TOOL_ORDER, MCP_TOOLS, PUBLIC_MCP_TOOLS, toolsListResult } from "./dispatcher";
 import { isHouseTool } from "./house";
 import { mcpHouseOn } from "./schemas";
 import type { ToolName } from "./tool-defs";
@@ -185,6 +185,14 @@ const slug = (title: string): string => title.toLowerCase().replace(/\(.*$/, "")
 
 /** What the last group is called: tools every list leaves out that still answer by name. */
 export const BY_NAME_GROUP = "By name only (never listed)";
+
+/**
+ * How many tools tools/list names at ?tools=all, for anyone (not an admin): read from the very list the server sends, so
+ * a page never states a count the server doesn't. The tools that answer by name only aren't in it.
+ */
+export function listedToolCount(): number {
+  return (toolsListResult({ all: true }).tools as unknown[]).length;
+}
 
 /**
  * Every tool, in the server's groups: AGENT_TOOL_GROUPS in order, then whatever the lists leave out but still answers by

@@ -240,7 +240,7 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 - **"Past the 18+ gate"** (2026-11-14, `entered`): visitors with a `page_view` on any page but `/gate`. A step may
   exclude a page (`ENGAGEMENT_FUNNEL` `not_path`, `funnelStepFilter`). The gate's loss was invisible before; the same
   day the PG show pages (home, Watch, episodes, seasons, couples, characters, creators, the builder, /import, /agents)
-  opened without the gate (`middleware.ts`), which now fronts the dating, chat and money pages only, and the builder's
+  opened without the gate (`proxy.ts`), which now fronts the dating, chat and money pages only, and the builder's
   18+ box sets the gate's cookie when a character is saved. So from that day `entered/visited` reads as the share who
   saw the site itself rather than only the interstitial; a visitor who lands on a gated link and leaves counts as
   visited, not entered.

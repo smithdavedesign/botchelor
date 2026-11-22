@@ -38,7 +38,7 @@ import { beaconRef, configureFunnel, sendFunnel, SIGNAL_URL } from "@/app/funnel
 import { detectBot } from "@/lib/bots";
 import { blueskyShareUrl, redditShareUrl, SHARE_DESCRIPTION_MAX, shareDescription, sharedEpisodePath } from "@/lib/episode-share";
 import { ENDING_LABELS, ENDINGS, type Ending } from "@/lib/rules";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { api, BASE_URL, named, newUserCookie, setupEpisode, setupPairedEpisode, startTestDb, userIdOf } from "./helpers";
 
 const SITE = "https://botchelor.com";

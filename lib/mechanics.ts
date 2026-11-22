@@ -13,8 +13,6 @@ import { seasonCastIds } from "./season-cast";
 import { shownStage } from "./relationship-stages";
 import { healRelationships, STAGE_LABELS, type Stage } from "./relationships";
 
-export const DEALBREAKER_OPTIONS = 4;
-
 /**
  * SQL (boolean): a matchmaker proposal `mp` has paid off if a date between its pair ended in a revealed
  * second date after the proposal was made. The proposer is filtered by the caller's own WHERE clause.

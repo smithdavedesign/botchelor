@@ -679,14 +679,3 @@ export function freeTextFallback(text: string): SourceFields {
   const looksLikeName = first.length <= NAME_MAX && first.split(/\s+/).length <= 4 && /^[\p{Lu}][\p{L}' .-]*$/u.test(first);
   return looksLikeName ? { name: first, description: lines.slice(1).join("\n") } : { description: lines.join("\n") };
 }
-
-/** Human names for the formats, for the page's "Read as …" line. Nominative only: no affiliation is implied. */
-export const FORMAT_LABELS: Record<ImportFormat, string> = {
-  chara_card_v2: "a character card (V2, as SillyTavern exports)",
-  chara_card_v3: "a character card (V3)",
-  tavern_v1: "a TavernAI character card",
-  pygmalion: "a Pygmalion character file",
-  json: "character JSON",
-  labelled: "labelled creator fields (name, greeting, definition…)",
-  free_text: "a description, read by the show's model",
-};
