@@ -89,7 +89,14 @@ describe("who may open it", () => {
     expect((await state(HOUSE_CHARACTERS[0].id, me.cookie)).status).toBe(404);
     await claimAdmin(t.db, other.uid);
     const house = await (await state(HOUSE_CHARACTERS[0].id, other.cookie)).json();
-    expect(house).toMatchObject({ character: { id: HOUSE_CHARACTERS[0].id, face: true }, free: true, admin: true });
+    expect(house).toMatchObject({ character: { id: HOUSE_CHARACTERS[0].id, face: true, private: false }, free: true, admin: true });
+  });
+
+  it("says when the character is private, so the page offers no Publish for its pictures", async () => {
+    const me = await owner();
+    expect((await (await state(me.id, me.cookie)).json()).character).toMatchObject({ id: me.id, private: false });
+    await t.db.query(`update characters set visibility = 'private' where id = $1`, [me.id]);
+    expect((await (await state(me.id, me.cookie)).json()).character).toMatchObject({ id: me.id, private: true });
   });
 });
 

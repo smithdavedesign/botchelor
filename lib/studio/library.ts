@@ -156,6 +156,21 @@ export async function savePrompt(db: Db, owner: string, input: { text: string; t
   if (!text) return { ok: false, status: 422, message: "Write the prompt first." };
   const wrong = checkFor(input.mode, { text, ...(title ? { title } : {}) }, "prompt");
   if (wrong) return { ok: false, status: 422, message: wrong };
+  // The same words again (in any case) are the prompt they already keep, not a second copy: it takes a new name if one
+  // is given, and one saved as safe (it passed the safe check) is usable everywhere from then on.
+  const same = (
+    await db.query<{ id: string; text: string; title: string | null; mode: LibraryMode; created_at: Date }>(
+      `select id, text, title, mode, created_at from creator_prompts where owner_id = $1 and lower(text) = lower($2) order by created_at limit 1`,
+      [owner, text],
+    )
+  ).rows[0];
+  if (same) {
+    const mode: LibraryMode = same.mode === "safe" || input.mode === "safe" ? "safe" : same.mode;
+    // Its name: the new one, else the one it had, but never a name the safe check refuses on a safe one.
+    const kept = [title, same.title].find((n): n is string => Boolean(n) && (mode !== "safe" || checkFor("safe", { title: n! }, "prompt") === null)) ?? null;
+    if (mode !== same.mode || kept !== same.title) await db.query(`update creator_prompts set title = $2, mode = $3 where id = $1`, [same.id, kept, mode]);
+    return { ok: true, item: { id: same.id, text: same.text, title: kept, mode, created_at: iso(same.created_at) } };
+  }
   if (full(await count(db, "creator_prompts", owner))) return { ok: false, status: 429, message: `That's ${LIBRARY_MAX} prompts: delete one to save another.` };
   const id = crypto.randomUUID();
   const r = (
