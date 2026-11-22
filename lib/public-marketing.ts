@@ -1,13 +1,11 @@
 import type { Db } from "./db";
-import { loadOurIds } from "./our-traffic";
 
 /**
  * Marketing, in the open (/marketing; docs/marketing.md; David 2026-11-15: "full transparency to a visitor or investor").
  * The marketing loop (idea-factory: bin/idea-market.js, lib/market-sync.js) sends what it knows after every run: the
  * channels, every post with its link and how it did there, and the money planned or spent on marketing. It lands here
- * as one row (`marketing_feed`), checked field by field. What each post brought to the site is read live from
- * web_events: visitors whose first visit came through that channel's link, credited to the newest post on that
- * channel before they arrived, and what those visitors went on to do.
+ * as one row (`marketing_feed`), checked field by field, and the page reads that row alone. What the posts brought to
+ * the site (visitors by source and tagged link) is in admin analytics, no longer on the public page (2026-11-22 audit).
  */
 
 export type ChannelStatus = "active" | "waiting" | "off" | "skipped";
@@ -147,129 +145,4 @@ export async function saveFeed(db: Db, feed: MarketingFeed): Promise<void> {
 export async function loadFeed(db: Db): Promise<MarketingFeed | null> {
   const { rows } = await db.query<{ data: MarketingFeed }>(`select data from marketing_feed where id = 'current'`);
   return rows[0]?.data ?? null;
-}
-
-/** One visitor who arrived from somewhere: where, when they first came, and what they went on to do. */
-export type Arrival = { source: string; content: string | null; first_at: string; created: boolean; started: boolean; watched: boolean; signed_up: boolean };
-export type Leads = { visitors: number; created: number; started: number; watched: number; signed_up: number };
-const NO_LEADS: Leads = { visitors: 0, created: 0, started: 0, watched: 0, signed_up: 0 };
-
-/** How long after a post a first visit still counts as its doing. */
-export const CREDIT_DAYS = 30;
-
-/**
- * Each arrival credited to one post (pure): among the posts with the arrival's source (and its utm_content, when the
- * post's link carried one), the newest made before the visitor first came, at most CREDIT_DAYS earlier. An arrival
- * no post explains still counts for its source in `bySource`.
- */
-export function creditPosts(posts: MarketingPost[], arrivals: Arrival[]): { byPost: Map<string, Leads>; bySource: Map<string, Leads> } {
-  const byPost = new Map<string, Leads>();
-  const bySource = new Map<string, Leads>();
-  const add = (m: Map<string, Leads>, k: string, a: Arrival) => {
-    const l = { ...(m.get(k) ?? NO_LEADS) };
-    l.visitors++;
-    if (a.created) l.created++;
-    if (a.started) l.started++;
-    if (a.watched) l.watched++;
-    if (a.signed_up) l.signed_up++;
-    m.set(k, l);
-  };
-  const oldest = (CREDIT_DAYS * 86_400_000) as number;
-  const live = posts.filter((p) => p.source && p.status !== "scheduled");
-  for (const a of arrivals) {
-    add(bySource, a.source, a);
-    const t = Date.parse(a.first_at);
-    let best: MarketingPost | null = null;
-    for (const p of live) {
-      if (p.source !== a.source) continue;
-      if (p.content && p.content !== a.content) continue;
-      const pt = Date.parse(p.at);
-      if (pt > t || t - pt > oldest) continue;
-      if (!best || pt > Date.parse(best.at)) best = p;
-    }
-    if (best) add(byPost, best.id, a);
-  }
-  return { byPost, bySource };
-}
-
-/** Every outside visitor's arrival (their first visit's source), with what they did after. Our own browsers left out. */
-export async function loadArrivals(db: Db): Promise<Arrival[]> {
-  const ours = await loadOurIds(db);
-  const { rows } = await db.query<{ source: string; content: string | null; first_at: Date | string; created: boolean; started: boolean; watched: boolean; signed_up: boolean }>(
-    `with mine as (
-       select * from web_events
-       where not (coalesce(user_id, '') = any($1::text[]) or visitor in (select visitor from web_events where user_id = any($1::text[])))
-     ), firsts as (
-       select distinct on (visitor) visitor, coalesce(source, 'direct') as source, lower(utm_content) as content, at as first_at
-       from mine order by visitor, at
-     )
-     select f.source, f.content, f.first_at,
-            bool_or(m.event = 'character_created') as created, bool_or(m.event = 'date_started') as started,
-            bool_or(m.event = 'date_watched') as watched, bool_or(m.event = 'sign_up') as signed_up
-     from firsts f join mine m on m.visitor = f.visitor
-     group by f.visitor, f.source, f.content, f.first_at`,
-    [ours],
-  );
-  return rows.map((r) => ({
-    source: r.source,
-    content: r.content,
-    first_at: new Date(r.first_at).toISOString(),
-    created: !!r.created,
-    started: !!r.started,
-    watched: !!r.watched,
-    signed_up: !!r.signed_up,
-  }));
-}
-
-export type PublicMarketing = {
-  feed: MarketingFeed | null;
-  byPost: Record<string, Leads>;
-  bySource: { source: string; leads: Leads }[];
-  totals: Leads & { posts: number; channels: number; spent: number; planned: number };
-  since: string | null;
-};
-
-/**
- * Every visit's first row is the costly read, so the arrivals are kept for ten minutes. The log itself (one row) is read
- * every time: a new log shows at once on every server, not only on the one that took it.
- */
-const CACHE_MS = 10 * 60_000;
-let cached: { at: number; arrivals: Arrival[] } | null = null;
-export function clearMarketingCache(): void {
-  cached = null;
-}
-async function arrivalsCached(db: Db, now: number): Promise<Arrival[]> {
-  if (cached && now - cached.at < CACHE_MS) return cached.arrivals;
-  const arrivals = await loadArrivals(db);
-  cached = { at: now, arrivals };
-  return arrivals;
-}
-
-/** Everything the page shows. Never throws for a missing feed: the page says the log hasn't arrived yet. */
-export async function publicMarketing(db: Db, now = Date.now()): Promise<PublicMarketing> {
-  const [feed, arrivals] = await Promise.all([loadFeed(db), arrivalsCached(db, now)]);
-  return buildPublicMarketing(feed, arrivals);
-}
-
-function buildPublicMarketing(feed: MarketingFeed | null, arrivals: Arrival[]): PublicMarketing {
-  const posts = feed?.posts ?? [];
-  const { byPost, bySource } = creditPosts(posts, arrivals);
-  const credited = [...byPost.values()].reduce<Leads>(
-    (s, l) => ({ visitors: s.visitors + l.visitors, created: s.created + l.created, started: s.started + l.started, watched: s.watched + l.watched, signed_up: s.signed_up + l.signed_up }),
-    { ...NO_LEADS },
-  );
-  const spend = feed?.spend ?? [];
-  return {
-    feed,
-    byPost: Object.fromEntries(byPost),
-    bySource: [...bySource.entries()].map(([source, leads]) => ({ source, leads })).sort((a, b) => b.leads.visitors - a.leads.visitors),
-    totals: {
-      ...credited,
-      posts: posts.filter((p) => p.status !== "scheduled").length,
-      channels: (feed?.channels ?? []).filter((c) => c.status === "active").length,
-      spent: spend.filter((s) => s.status === "paid").reduce((s, x) => s + x.usd, 0),
-      planned: spend.filter((s) => s.status === "planned").reduce((s, x) => s + x.usd, 0),
-    },
-    since: arrivals.reduce<string | null>((m, a) => (!m || a.first_at < m ? a.first_at : m), null),
-  };
 }

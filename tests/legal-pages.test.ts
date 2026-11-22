@@ -147,20 +147,60 @@ describe("the privacy notice", () => {
   });
 
   it("opens on the date and the contents: what changed is folded, and ↑ Contents rides along (2026-11-20 mobile audit, A6)", () => {
+    const back = '<a class="legal-top" href="#contents"><span aria-hidden="true">↑</span> <span class="legal-top-word">Contents</span></a>';
     for (const [name, Page] of [["privacy", PrivacyPage], ["legal", LegalPage]] as const) {
       const html = render(Page);
       const fold = html.indexOf('<details class="ux-fold legal-changes"><summary>What changed</summary>');
       expect(fold, name).toBeGreaterThan(-1);
-      expect(html.indexOf("Changed (19 November)"), name).toBeGreaterThan(fold);
+      expect(html.indexOf("Changed (22 November)"), name).toBeGreaterThan(fold);
       expect(html.indexOf('id="contents"'), name).toBeGreaterThan(fold);
-      expect(html, name).toContain('<a class="legal-top" href="#contents">↑ Contents</a>');
+      expect(html, name).toContain(back);
     }
-    expect(render(TermsPage)).toContain('<a class="legal-top" href="#contents">');
+    expect(render(TermsPage)).toContain(back);
   });
 
-  it("is dated 19 November 2026, with what changed (and the earlier changes kept under it)", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 19 November 2026\./);
-    expect(render(PrivacyPage)).toMatch(/Changed \(19 November\): Botchelor is now run by Botchelor LLC/);
+  // The 2026-11-22 audit: /legal ran about 32,000px on a phone and /privacy 19,000px, with nothing short first.
+  it("puts a short version above the contents: five lines each, every one said in full below", () => {
+    const shortOf = (html: string, id: string) => {
+      const at = html.indexOf(`<section class="legal-short" aria-labelledby="${id}">`);
+      return { at, items: html.slice(at, html.indexOf("</section>", at)).match(/<li>/g)?.length ?? 0 };
+    };
+    for (const [name, Page, ids] of [
+      ["terms", TermsPage, ["terms-in-short"]],
+      ["privacy", PrivacyPage, ["privacy-in-short"]],
+      ["legal", LegalPage, ["terms-in-short", "privacy-in-short"]],
+    ] as const) {
+      const html = render(Page);
+      for (const id of ids) {
+        const s = shortOf(html, id);
+        expect(s.at, `${name} ${id}`).toBeGreaterThan(-1);
+        expect(s.at, `${name} ${id}`).toBeLessThan(html.indexOf('id="contents"'));
+        expect(s.items, `${name} ${id}`).toBe(5);
+      }
+    }
+    const terms = strip(render(TermsPage)).replace(/<[^>]+>/g, "");
+    expect(terms).toContain("Every creator gets 3 free dates a week.");
+    expect(terms).toContain("(5 for $4, 15 for $10)");
+    expect(terms).toContain("refunded in full if you ask within 14 days");
+    expect(terms).toContain("within 30 days of first agreeing to the terms");
+    const privacy = strip(render(PrivacyPage)).replace(/<[^>]+>/g, "");
+    expect(privacy).toContain("Botchelor LLC is responsible for your data. We don't sell it or share it for targeted advertising");
+    expect(privacy).toContain("only if you opt in, and even then only dates that aired publicly");
+  });
+
+  it("keeps ↑ Contents beside the text: the left margin on a wide screen, a circle at the right edge below that", () => {
+    const css = readFileSync("app/ux/agents-footer.css", "utf8");
+    expect(css).toMatch(/\.legal-top \{[^}]*position: sticky;[^}]*width: 2\.75rem;[^}]*margin: var\(--space-4\) 0 0 auto;/);
+    expect(css).toMatch(/@media \(min-width: 1024px\) \{\s*\.legal-top \{[^}]*translate: calc\(-100% - var\(--space-4\)\) 0;/);
+    expect(css).toMatch(/@media \(min-width: 721px\) and \(max-width: 1023px\) \{\s*\.legal-top \{\s*bottom: calc\(var\(--space-4\) \+ 2\.75rem \+ var\(--space-3\)\);/);
+    // /safety's helplines keep the card's edge on a phone: the legal lists' indent leaves them out.
+    expect(css).toContain(".legal-page ul:not(.legal-toc ul, .safety-help-lines) {");
+  });
+
+  it("is dated 22 November 2026, with what changed (and the earlier changes kept under it)", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 22 November 2026\./);
+    expect(strip(render(PrivacyPage))).toMatch(/Changed \(22 November\): a short version now opens the terms and the privacy notice, and the notice says that the home page's LaunchNest badge is loaded from LaunchNest's own site/);
+    expect(render(PrivacyPage)).toMatch(/Before that \(19 November\): Botchelor is now run by Botchelor LLC/);
     expect(render(PrivacyPage)).toMatch(/Before that \(18 November\): the terms say Botchelor owns the characters it makes for the show/);
     expect(render(PrivacyPage)).toMatch(/Before that \(17 November\): the privacy notice says what we keep if you save who you are in scenes/);
     // Who you are in scenes (lib/persona.ts): what's kept, where it goes, and until when.
@@ -179,7 +219,10 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
     expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
-    expect(render(TermsPage)).toMatch(/Last updated 19 November 2026\./);
+    expect(render(TermsPage)).toMatch(/Last updated 22 November 2026\./);
+    // The home page's third-party badge, named where the other measuring is (2026-11-22 audit).
+    expect(strip(render(PrivacyPage))).toMatch(/a picture loaded from LaunchNest's own site\s+\(launchnest\.io\) when you scroll down to it/);
+    expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<img src="https:\/\/launchnest\.io\/badge\/botchelor\.svg\?variant=featured"[^>]*loading="lazy" \/>/);
     // Our own cast (2026-11-18): ownership, adults only, no bulk download or AI training.
     expect(strip(render(TermsPage))).toMatch(/<h2 id="our-cast">Our own characters<\/h2>/);
     expect(strip(render(TermsPage))).toMatch(/every one of our characters is a fictional adult/);

@@ -1,10 +1,19 @@
 # Marketing
 
 How Botchelor is marketed, where every post goes, and how the public page at
-[botchelor.com/marketing](https://botchelor.com/marketing) is kept up to date. The page is the record: every channel,
-every post with its link, how it did where it was posted, what it brought to the site, and the money spent or planned.
-It shows everything, including removed posts and posts that got no response (decided 2026-11-15: "full transparency to a
-visitor or investor").
+[botchelor.com/marketing](https://botchelor.com/marketing) is kept up to date. It began (2026-11-15, "full transparency to
+a visitor or investor") as the whole record: every post with its score, what each brought to the site, removed posts
+included. The 2026-11-22 audit cut it to a short page: three numbers (posts, channels, money spent), the ten newest of
+our own posts with their links, the channels by status, and the money. What it left out, and why:
+
+- **Visitor, character and date counts**, small this early, told a newcomer nobody was here. They're in admin analytics
+  (Engagement: Sources, Tagged links).
+- **Replies in other people's threads, removed posts and the names of the Reddit communities we post in**, next to "an
+  automated loop drafts the posts", could read as astroturfing to those communities, which send most of the visitors.
+  Reddit is one line per status on the page ("Reddit · 13 communities, each at the pace its own rules allow").
+
+The full log is still sent and stored, so the page can show more of it again. The code that credited visitors to posts
+(`publicMarketing` in lib/public-marketing.ts) went with the counts; it's in git history.
 
 ## Who posts, and the rules
 
@@ -24,7 +33,7 @@ Every post follows the same rules:
 
 ## Channels
 
-The live list, with status, how often we post, what each one brought and notes, is on the page. In short:
+The live list, with status, how often we post and notes, is on the page (Reddit as one line per status). In short:
 
 | Group | Channels | How often |
 |---|---|---|
@@ -63,14 +72,8 @@ The site's running costs are on [/costs](https://botchelor.com/costs) (lib/publi
 2. **The site checks it and stores it.** `app/api/admin/marketing/route.ts` takes the admin password (`x-frontier-key`)
    or an admin account. `lib/public-marketing.ts` `cleanFeed` keeps only the known fields, accepts only https links,
    and removes email addresses. The log is stored as one row in `marketing_feed`.
-3. **The page adds what the site saw.** `publicMarketing` reads `web_events` and credits each outside visitor to a post:
-   - Each visitor is placed by their first visit's source (lib/engagement.ts `sourceOf`) and, when the link was tagged,
-     its `utm_content`.
-   - They're credited to the newest post on that channel made before they arrived, if it was at most 30 days earlier.
-   - For each post, the page counts the visitors credited to it and which of them went on to make a character or
-     start a date.
-
-   The visit log started 2026-10-31, so earlier posts show no visitors.
+3. **The page reads that row, and nothing else.** No visit counts (they were most of the page's 2.5 s), so it answers
+   quickly. Visitors by source and by tagged link are in admin analytics (lib/engagement.ts), tagged as below.
 
 ### What is never shown
 

@@ -37,8 +37,9 @@ describe("the random OC generator is a wide page", () => {
   });
 });
 
-describe("the marketing page's six numbers", () => {
-  it("balance as three and three (lib/grid-balance.ts)", () => {
+describe("the marketing page's numbers", () => {
+  // Six until the 2026-11-22 audit cut the page to three: still balanced, now one row of three.
+  it("balance across their rows (lib/grid-balance.ts)", () => {
     expect(css("app/marketing/page.tsx")).toMatch(/className="marketing-summary grid-balanced" style=\{\{ "--cols": balancedColumns\(items\.length, 4\) \}/);
   });
 });

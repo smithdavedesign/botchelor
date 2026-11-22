@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as marketingPost } from "@/app/api/admin/marketing/route";
 import MarketingPage from "@/app/marketing/page";
-import { clearMarketingCache, cleanFeed, creditPosts, loadFeed, publicMarketing, type Arrival, type MarketingPost } from "@/lib/public-marketing";
+import { cleanFeed, loadFeed } from "@/lib/public-marketing";
 import { PUBLIC_PATHS } from "@/lib/site";
 import { BASE_URL, startTestDb } from "./helpers";
 
@@ -15,18 +15,9 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
-  clearMarketingCache();
 });
 afterEach(() => {
   vi.unstubAllEnvs();
-});
-
-const post = (over: Partial<MarketingPost>): MarketingPost => ({
-  id: "p1", at: "2026-11-10T12:00:00.000Z", channel: "mcp", channel_name: "r/mcp", type: "post", title: "A post", url: null, status: "live",
-  score: null, comments: null, source: "reddit", content: "mcp", note: null, ...over,
-});
-const arrival = (over: Partial<Arrival>): Arrival => ({
-  source: "reddit", content: "mcp", first_at: "2026-11-11T12:00:00.000Z", created: false, started: false, watched: false, signed_up: false, ...over,
 });
 
 const FEED = {
@@ -58,23 +49,7 @@ describe("the marketing log (lib/public-marketing.ts)", () => {
     expect(cleanFeed({ posts: [] })).toBeNull();
   });
 
-  it("credits a visitor to the newest earlier post on the channel, within 30 days, matching the link's tag", () => {
-    const posts = [post({ id: "old", at: "2026-11-01T00:00:00Z" }), post({ id: "new", at: "2026-11-10T00:00:00Z" }), post({ id: "x", source: "bluesky", content: "bluesky" })];
-    const { byPost, bySource } = creditPosts(posts, [
-      arrival({ first_at: "2026-11-05T00:00:00Z", created: true }),
-      arrival({ first_at: "2026-11-11T00:00:00Z", started: true }),
-      arrival({ first_at: "2026-11-11T00:00:00Z", content: "other_sub" }),
-      arrival({ first_at: "2026-12-30T00:00:00Z" }),
-      arrival({ source: "google", content: null }),
-    ]);
-    expect(byPost.get("old")).toMatchObject({ visitors: 1, created: 1 });
-    expect(byPost.get("new")).toMatchObject({ visitors: 1, started: 1 });
-    expect(byPost.has("x")).toBe(false);
-    expect(bySource.get("reddit")?.visitors).toBe(4);
-    expect(bySource.get("google")?.visitors).toBe(1);
-  });
-
-  it("stores what the loop sends (admin only) and reads visits from the site's own log", async () => {
+  it("stores what the loop sends (admin only)", async () => {
     const send = (headers: Record<string, string>) =>
       marketingPost(new Request(`${BASE_URL}/api/admin/marketing`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(FEED) }));
     expect((await send({})).status).toBe(403);
@@ -82,37 +57,72 @@ describe("the marketing log (lib/public-marketing.ts)", () => {
     const r = await send({ "x-frontier-key": "pw-marketing" });
     expect(await r.json()).toMatchObject({ ok: true, channels: 2, posts: 2, spend: 1 });
     expect((await loadFeed(t.db))?.posts).toHaveLength(2);
-
-    const ev = (visitor: string, at: string, event: string, source: string, content: string | null) =>
-      t.db.query(`insert into web_events (at, visitor, session, event, path, source, utm_content) values ($1, $2, $2, $3, '/', $4, $5)`, [at, visitor, event, source, content]);
-    await ev("v1", "2026-11-11T00:00:00Z", "page_view", "reddit", "mcp");
-    await ev("v1", "2026-11-11T00:05:00Z", "character_created", "direct", null);
-    await ev("v2", "2026-11-11T01:00:00Z", "page_view", "google", null);
-    await ev("v2", "2026-11-11T01:01:00Z", "page_leave", "google", null);
-    const m = await publicMarketing(t.db);
-    expect(m.byPost["q-4"]).toMatchObject({ visitors: 1, created: 1 });
-    expect(m.totals).toMatchObject({ posts: 1, channels: 1, visitors: 1, created: 1, spent: 0, planned: 19.99 });
-    expect(m.bySource.map((s) => s.source).sort()).toEqual(["google", "reddit"]);
   });
 });
 
+// The page as cut down by the 2026-11-22 audit: three numbers, the ten newest of our own posts, the channels by status
+// with Reddit's communities as one line, and the money. No visitor numbers, replies, removed posts or community names.
+const PAGE_FEED = {
+  channels: [
+    ...FEED.channels,
+    { id: "x", name: "X", kind: "x", status: "active", url: "https://x.com/botchelorcom", cadence: "daily", note: null },
+    { id: "chatbotrefugees", name: "r/ChatbotRefugees", kind: "reddit", status: "active", cadence: "every 6 days" },
+    { id: "ai-agents", name: "r/AI_Agents", kind: "reddit-thread", status: "active", cadence: "weekly" },
+    { id: "webgames", name: "r/WebGames", kind: "reddit", status: "skipped", note: "For games you play." },
+    { id: "alternativeto", name: "AlternativeTo", kind: "listing", status: "skipped", note: "It declines AI companion apps." },
+  ],
+  posts: [
+    ...FEED.posts,
+    { id: "x-1", at: "2026-11-11T12:00:00Z", channel: "x", channel_name: "X", type: "video", title: "Two AI characters, one blind date", url: "https://x.com/botchelorcom/status/1", status: "live" },
+    { id: "x-2", at: "2026-11-09T12:00:00Z", channel: "x", channel_name: "X", type: "post", title: "A post that was taken down", url: "https://x.com/botchelorcom/status/2", status: "removed" },
+    { id: "r-1", at: "2026-11-11T13:00:00Z", channel: "chatbotrefugees", channel_name: "r/ChatbotRefugees", type: "post", title: "I'm the dev", url: "https://www.reddit.com/r/ChatbotRefugees/comments/2/x/", status: "live" },
+    { id: "a-1", at: "2026-11-11T14:00:00Z", channel: "mcp", channel_name: "r/mcp", type: "answer", title: "I'd check your tool descriptions first", status: "live" },
+    { id: "c-1", at: "2026-11-11T15:00:00Z", channel: "x", channel_name: "X", type: "comment", title: "Thanks!", status: "live" },
+  ],
+  spend: FEED.spend,
+};
+
 describe("the /marketing page", () => {
-  it("is public and shows every post, channel, source and the planned spend", async () => {
-    expect(PUBLIC_PATHS).toContain("/marketing");
+  const send = (feed: unknown) => {
     vi.stubEnv("FRONTIER_PASSWORD", "pw-marketing");
-    await marketingPost(new Request(`${BASE_URL}/api/admin/marketing`, { method: "POST", headers: { "content-type": "application/json", "x-frontier-key": "pw-marketing" }, body: JSON.stringify(FEED) }));
+    return marketingPost(new Request(`${BASE_URL}/api/admin/marketing`, { method: "POST", headers: { "content-type": "application/json", "x-frontier-key": "pw-marketing" }, body: JSON.stringify(feed) }));
+  };
+  const text = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
+
+  it("is public and short: three numbers, our latest posts with their links, the channels and the planned spend", async () => {
+    expect(PUBLIC_PATHS).toContain("/marketing");
+    await send(PAGE_FEED);
     const html = renderToStaticMarkup(await MarketingPage());
     expect(html).toContain("Marketing, in the open");
-    expect(html).toContain("Built a show");
-    expect(html).toContain("https://www.reddit.com/r/mcp/comments/1/x/");
+    expect(html.match(/<dt class="muted small">/g)).toHaveLength(3);
+    // Posts so far: our own posts that went up (the X video, the removed X post, the Reddit posts), not replies or what's scheduled.
+    expect(text(html)).toMatch(/Posts so far4/);
+    expect(html).toContain("Two AI characters, one blind date");
+    expect(html).toContain("https://x.com/botchelorcom/status/1");
+    expect(html).toContain("Listing"); // the scheduled listing, marked as such
+    expect(text(html)).toContain("Uneed · Scheduled");
     expect(html).toContain("Uneed fast-track");
     expect(html).toContain("coming soon, not paid yet");
     expect(html).not.toContain("someone@example.com");
+    // Where we post: named channels with their notes, Reddit's communities counted on one line per group.
+    expect(text(html)).toContain("Reddit · 3 communities, each at the pace its own rules allow");
+    expect(text(html)).toContain("Reddit · 1 community, not a fit for the show, or their rules say no");
+    expect(html).toContain("It declines AI companion apps.");
+  });
+
+  it("leaves out what read as nobody-here or as astroturfing: visitor numbers, replies, removed posts and community names", async () => {
+    await send(PAGE_FEED);
+    const html = renderToStaticMarkup(await MarketingPage());
+    for (const gone of ["Visitors", "Dates they started", "Characters they made", "Removed there", "Answer", "Score there", "automated loop", "r/", "I'm the dev", "I'd check your tool", "Thanks!", "A post that was taken down", "Built a show"]) {
+      expect(text(html), gone).not.toContain(gone);
+    }
+    expect(html).not.toContain("table-scroll");
   });
 
   it("says so when no log has arrived yet", async () => {
     const html = renderToStaticMarkup(await MarketingPage());
     expect(html).toContain("No posts in the log yet.");
     expect(html).toContain("Nothing spent");
+    expect(html).toContain("hasn&#x27;t reached the site yet");
   });
 });

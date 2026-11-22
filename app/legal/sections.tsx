@@ -12,6 +12,7 @@ import {
   DMCA_AGENT,
   GOVERNING_STATE,
   LIABILITY_FLOOR_USD,
+  OPERATOR,
   OPERATOR_FULL,
   PROCESSORS,
   REPORT_RESPONSE,
@@ -31,10 +32,10 @@ import { ConsentChoice } from "../ConsentBanner";
 /** The other policy pages' date (content policy, 2257, cancelling). */
 export const LAST_UPDATED = "Last updated 19 November 2026.";
 /** The terms' and the privacy notice's date: they changed after the rest. */
-export const TERMS_PRIVACY_UPDATED = "Last updated 19 November 2026.";
+export const TERMS_PRIVACY_UPDATED = "Last updated 22 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
-  "Changed (19 November): Botchelor is now run by Botchelor LLC, a California limited liability company. It takes David Smith's place as the other party to the terms and as the one responsible for your data; nothing else about the terms or your data changes. Before that (18 November): the terms say Botchelor owns the characters it makes for the show (their sheets, portraits and the cast as a whole), that every one of them is an adult, and that you may not bulk-download the show or use it to train AI models. Before that (17 November): the privacy notice says what we keep if you save who you are in scenes (a name, a line on how you look and a line on who you are, written as make-believe for the scenes you play yourself), and that it's in your account export. Before that (16 November): the terms name both packs of dates on sale (5 for $4 and 15 for $10), and say that a character's sheet can be the writing of the person who made it, while every date, text and picture on the show is written or drawn by AI. Before that (15 November): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Also: when you open a character's texts signed in, having said you're 18 or older, we note with your account whether After Dark could be offered where you are (that alone, not the country), so a character never texts you about it where it isn't. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
+  "Changed (22 November): a short version now opens the terms and the privacy notice, and the notice says that the home page's LaunchNest badge is loaded from LaunchNest's own site, which then sees the visit; nothing else changes. Before that (19 November): Botchelor is now run by Botchelor LLC, a California limited liability company. It takes David Smith's place as the other party to the terms and as the one responsible for your data; nothing else about the terms or your data changes. Before that (18 November): the terms say Botchelor owns the characters it makes for the show (their sheets, portraits and the cast as a whole), that every one of them is an adult, and that you may not bulk-download the show or use it to train AI models. Before that (17 November): the privacy notice says what we keep if you save who you are in scenes (a name, a line on how you look and a line on who you are, written as make-believe for the scenes you play yourself), and that it's in your account export. Before that (16 November): the terms name both packs of dates on sale (5 for $4 and 15 for $10), and say that a character's sheet can be the writing of the person who made it, while every date, text and picture on the show is written or drawn by AI. Before that (15 November): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Also: when you open a character's texts signed in, having said you're 18 or older, we note with your account whether After Dark could be offered where you are (that alone, not the country), so a character never texts you about it where it isn't. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
 
 /** The "On this page" lists: each id matches an h2 below (keep the two in step when a heading changes). */
 export const TERMS_HEADINGS = [
@@ -147,12 +148,75 @@ export function LastChanged({ children }: { children?: ReactNode }) {
   );
 }
 
-/** Back to the contents from anywhere in a long policy: it rides at the foot of the screen while the page is read. */
+/**
+ * Back to the contents from anywhere in a long policy: it rides at the foot of the screen while the page is read. It
+ * sat in the text column and hid a line (2026-11-22 audit), so it now rides beside the text: in the left margin on a
+ * wide screen, and as a round button at the right edge where there's no margin, its word kept for screen readers
+ * (app/ux/agents-footer.css).
+ */
 export function BackToContents() {
   return (
     <a className="legal-top" href="#contents">
-      ↑ Contents
+      <span aria-hidden="true">↑</span> <span className="legal-top-word">Contents</span>
     </a>
+  );
+}
+
+/**
+ * The short version on top (2026-11-22 audit: /legal ran about 32,000px on a phone and /privacy 19,000px, with nothing
+ * short first). Five lines each, every one said in full in the sections below, which are what count.
+ */
+export function TermsInShort() {
+  return (
+    <section className="legal-short" aria-labelledby="terms-in-short">
+      <h2 id="terms-in-short">The terms in short</h2>
+      <ul>
+        <li>
+          Botchelor is for adults (18+). Every character is a fictional adult, and every date, text and picture is AI
+          fiction, not advice.
+        </li>
+        <li>
+          Every creator gets {FREE_EPISODES_PER_SEASON} free dates a week. Packs of more dates are paid once (
+          {PACK_5.episodes} for {formatPrice(PACK_5.price_cents)}, {PACK_15.episodes} for {formatPrice(PACK_15.price_cents)}),
+          and <a href="#refunds">refunded in full</a> if you ask within 14 days.
+        </li>
+        <li>
+          The Companion Plan renews every month until you cancel, which you can do online at any time. It stops at the end
+          of the month you paid for.
+        </li>
+        <li>Points are free: they can&apos;t be bought, sold or cashed out, and there are no prizes.</li>
+        <li>
+          Disputes go to <a href="#disputes">individual arbitration</a>, not to court or a class action. You can opt out by
+          emailing us within {ARBITRATION_OPT_OUT_DAYS} days of first agreeing to the terms.
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+export function PrivacyInShort() {
+  return (
+    <section className="legal-short" aria-labelledby="privacy-in-short">
+      <h2 id="privacy-in-short">Privacy in short</h2>
+      <ul>
+        <li>
+          {OPERATOR} is responsible for your data. We don&apos;t sell it or share it for targeted advertising, and there
+          are no ads.
+        </li>
+        <li>
+          An account is optional: without one, a random ID in a cookie keeps your characters and picks together. We never
+          see your card number.
+        </li>
+        <li>
+          <a href="#analytics">Google Analytics</a> measures the site. In the EEA, the UK and Switzerland it waits until you
+          allow it, and anywhere you can turn it off.
+        </li>
+        <li>Your data trains or tests our own models only if you opt in, and even then only dates that aired publicly.</li>
+        <li>
+          You can get a copy of your data, correct it or have it deleted: <a href="#rights">your rights</a> says how.
+        </li>
+      </ul>
+    </section>
   );
 }
 
@@ -1064,6 +1128,12 @@ export function PrivacySections() {
         <li>
           So one connection can&apos;t start dozens of dates, starting a date records a keyed hash of your IP address
           (never the address itself), kept for two days and then deleted.
+        </li>
+        <li>
+          The home page shows a &ldquo;Featured on LaunchNest&rdquo; badge, a picture loaded from LaunchNest&apos;s own site
+          (launchnest.io) when you scroll down to it. Like any site a page loads something from, LaunchNest then receives
+          your IP address, your browser&apos;s details and that the badge was shown on Botchelor, under its own privacy
+          policy. Nothing else is shared with it.
         </li>
       </ul>
 

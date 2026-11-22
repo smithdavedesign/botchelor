@@ -1953,13 +1953,22 @@ button.chosen {
   padding: 0;
   list-style: none;
 }
+/* Two lines each, so a card's corners rather than a pill's, which bulged around them (2026-11-22 audit); on a phone, one
+   full-width row each. */
 .safety-help-lines a {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.1rem;
   min-height: 44px;
+  border-radius: var(--radius-md);
   text-decoration: none;
+}
+@media (max-width: 520px) {
+  .safety-help-lines li,
+  .safety-help-lines a {
+    width: 100%;
+  }
 }
 .safety-help-lines a strong {
   color: var(--accent-text);
@@ -14658,19 +14667,20 @@ button.thread-menu-item:hover:not(:disabled) {
 .costs-table td { text-align: right; white-space: nowrap; }
 .costs-month { margin: var(--space-2) 0; }
 .costs-month summary { cursor: pointer; }
-/* Marketing in the open (app/marketing, 2026-11-15): six numbers, then wide tables that scroll inside their box on a phone. */
+/* Marketing in the open (app/marketing, 2026-11-15; a short page since the 2026-11-22 audit): three numbers, the latest
+   posts as a list, the channels by status, the money. No tables to scroll: it reads the same on a phone. */
 .marketing-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--space-2); margin: var(--space-3) 0 var(--space-2); }
 .marketing-summary div { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-md); }
 .marketing-summary dd { margin: 0; font-size: var(--text-xl); font-weight: 600; font-variant-numeric: tabular-nums; }
-.marketing-page .table-scroll { max-width: 100%; }
-/* The page is wide for its tables (.page-wide); its words stay at reading width. */
-.marketing-page > p, .marketing-page section > p, .marketing-page section > ul, .marketing-page .marketing-summary, .marketing-page .costs-table { max-width: 46rem; }
-.marketing-what { min-width: 14rem; }
-.marketing-date { white-space: nowrap; }
-.marketing-where { min-width: 8rem; }
-.marketing-where span { display: block; }
-.marketing-what span { display: block; }
-.marketing-note { min-width: 14rem; }
+/* Both of the page's classes, to outrank the legal pages' phone indent for lists (agents-footer.css): these are rows,
+   flush with the text. */
+.legal-page.marketing-page .marketing-latest,
+.legal-page.marketing-page .marketing-channels { margin: var(--space-2) 0 var(--space-3); padding: 0; list-style: none; }
+.marketing-latest li,
+.marketing-channels li { padding: var(--space-2) 0; border-bottom: 1px solid var(--line); }
+.marketing-latest li > * { display: block; }
+.marketing-channels li > .small { display: block; }
+.marketing-group h3 { margin: var(--space-3) 0 0; }
 
 /* ---------------- roleplays on dates (app/RoleplayPicker.tsx, the couple page's RoleplayCard) ---------------- */
 

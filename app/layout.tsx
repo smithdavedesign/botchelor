@@ -293,7 +293,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <li><Link prefetch={false} href="/accessibility">Accessibility</Link></li>
               </FooterGroup>
               {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). On After Dark's host the
-                  group stays open on a phone too: reporting and the 2257 statement are never a tap away there. */}
+                  group stays open on a phone too: reporting and the 2257 statement are never a tap away there. Terms and
+                  privacy are one entry each; the page with both (/legal) is on /everything (2026-11-22 audit: three
+                  entries for two documents). */}
               <FooterGroup title="Help and legal" keepOpen={adHost}>
                 <li><Link prefetch={false} href="/report">Report a problem</Link></li>
                 <li>
@@ -303,7 +305,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <li><Link prefetch={false} href="/safety">Safety</Link></li>
                 <li><Link prefetch={false} href="/terms">Terms and refunds</Link></li>
                 <li><Link prefetch={false} href="/privacy">Privacy</Link></li>
-                <li><Link prefetch={false} href="/legal">Terms and privacy, one page</Link></li>
                 <li><Link prefetch={false} href="/2257">2257 statement</Link></li>
                 <li><Link prefetch={false} href="/cancel">Cancel a subscription</Link></li>
               </FooterGroup>
