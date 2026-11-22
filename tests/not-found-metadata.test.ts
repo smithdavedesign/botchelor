@@ -97,10 +97,11 @@ describe("the layouts with an early check", () => {
   });
 
   it("turn a thread or a double invite away without a visitor, as their pages do", async () => {
-    for (const [route, generateMetadata, params] of [
+    const own: [string, Meta, Record<string, string>][] = [
       ["messages/[a]/[b]", thread.generateMetadata as Meta, { a: "a1", b: "b1" }],
       ["doubles/[id]", double.generateMetadata as Meta, { id: "d1" }],
-    ] as const) {
+    ];
+    for (const [route, generateMetadata, params] of own) {
       await expect(generateMetadata({ params: Promise.resolve(params) }), route).rejects.toThrow(NOT_FOUND);
     }
   });
