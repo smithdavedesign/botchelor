@@ -26,6 +26,7 @@ export const RETENTION_DAYS = {
   plus_interest: 400,
   social_suggestion_log: 400,
   social_metrics: 400,
+  mcp_sessions: 400,
 } as const;
 export type PrunedTable = keyof typeof RETENTION_DAYS;
 
@@ -48,6 +49,9 @@ const PRUNE_SQL: Record<PrunedTable, string> = {
   // The network's daily numbers per character: past 400 days only one day a week stays (Mondays), so the long view
   // keeps its shape at a seventh of the rows.
   social_metrics: `delete from social_metrics where day < $1::timestamptz::date and extract(isodow from day) <> 1`,
+  // An MCP session (one per initialize, 2026-11-22 audit: kept forever): one unused for 400 days goes, but each agent's
+  // last stays, since it's what says an identity is an agent's and when it was last on (lib/our-traffic.ts and others).
+  mcp_sessions: `delete from mcp_sessions s where s.last_seen < $1 and exists (select 1 from mcp_sessions n where n.agent_id = s.agent_id and n.last_seen > s.last_seen)`,
 };
 
 /** Deletes what's past its time, table by table (one failing never stops the rest). Returns how many rows each lost. */

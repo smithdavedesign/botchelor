@@ -121,15 +121,23 @@ describe("the servers' own log (lib/ops-log.ts)", () => {
     expect(commitSha({})).toBeNull();
   });
 
-  it("reads the container's memory limit from either cgroup version, and none on a developer's machine", () => {
+  it("reads the container's memory limit from either cgroup version, then Node's, and none on a developer's machine", () => {
     const files = (map: Record<string, string>) => (path: string) => {
       if (!(path in map)) throw new Error("ENOENT");
       return map[path];
     };
-    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "2147483648\n" }))).toBe(2048);
-    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "max\n", "/sys/fs/cgroup/memory/memory.limit_in_bytes": "1073741824" }))).toBe(1024);
-    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory/memory.limit_in_bytes": "9223372036854771712" }))).toBeNull();
-    expect(containerMemoryLimitMb(files({}))).toBeNull();
+    const none = () => 0;
+    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "2147483648\n" }), none)).toBe(2048);
+    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "max\n", "/sys/fs/cgroup/memory/memory.limit_in_bytes": "1073741824" }), none)).toBe(1024);
+    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory/memory.limit_in_bytes": "9223372036854771712" }), none)).toBeNull();
+    expect(containerMemoryLimitMb(files({}), none)).toBeNull();
+    // No cgroup file to read (DigitalOcean's containers, 2026-11-22): what Node says the process is held to, when it is
+    // below the machine's memory; equal to it is just the machine.
+    const fourGb = () => 4 * 1024 ** 3;
+    expect(containerMemoryLimitMb(files({}), () => 2 * 1024 ** 3, fourGb)).toBe(2048);
+    expect(containerMemoryLimitMb(files({}), fourGb, fourGb)).toBeNull();
+    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "max\n" }), () => undefined, fourGb)).toBeNull();
+    expect(containerMemoryLimitMb(files({}), () => 2 ** 62, fourGb)).toBeNull(); // "no limit" as a huge number
   });
 
   it("writes a start's row on the connection that brought the schema up to date", async () => {
@@ -154,7 +162,8 @@ describe("the servers' own log (lib/ops-log.ts)", () => {
   });
 
   it("bootFacts never carries more than the commit, limits, Node and the instance's name", () => {
-    expect(Object.keys(bootFacts({ COMMIT_SHA: SHA_A })).sort()).toEqual(["heap_limit_mb", "instance", "malloc_arena_max", "memory_limit_mb", "node", "sha"]);
+    expect(Object.keys(bootFacts({ COMMIT_SHA: SHA_A })).sort()).toEqual(["heap_limit_mb", "instance", "malloc_arena_max", "memory_limit_mb", "node", "sha", "total_memory_mb"]);
+    expect(bootFacts({}).total_memory_mb).toBeGreaterThan(0);
   });
 
   it("the summary says what each host runs, tells a restart from a deploy, and adds up the day's dates", async () => {

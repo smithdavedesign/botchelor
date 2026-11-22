@@ -108,6 +108,18 @@ describe("/import?from=cai", () => {
     expect(text(renderToStaticMarkup(await ImportPage(sp({ from: "https://x.example" }))))).not.toContain("import-cai-steps");
   });
 
+  // The 2026-11-22 audit: on a phone the band's clip and a 60-word lede put the paste box on the second screen.
+  it("puts the paste box right under a short heading band, with no clip in it", async () => {
+    for (const q of [sp(), sp({ from: CAI_SOURCE })]) {
+      const html = text(renderToStaticMarkup(await ImportPage(q)));
+      expect(html).toContain('<header class="set-hero set-hero--booth is-flush" data-set="booth">');
+      expect(html).not.toContain("home-clip");
+      expect(html.indexOf('id="import-text"')).toBeGreaterThan(html.indexOf("</header>"));
+    }
+    const lede = /<p class="lede">(.*?)<\/p>/.exec(text(renderToStaticMarkup(await ImportPage(sp()))))![1].replace(/<[^>]+>/g, "");
+    expect(lede.split(/\s+/).length).toBeLessThanOrEqual(30);
+  });
+
   it("has its own title, on the same canonical address", async () => {
     const meta = await generateMetadata(sp({ from: CAI_SOURCE }));
     expect(meta.title).toBe("Bring your Character.AI character to Botchelor");

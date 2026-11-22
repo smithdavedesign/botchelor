@@ -366,6 +366,7 @@ out of time never skips it. It logs `data_pruned` with the rows removed per tabl
 | `plus_interest` | 400 days. A tap on the "Botchelor Plus" intent tile (`lib/plus-interest.ts`): who (the cookie's id), where, whether an email was left; never the address, which goes on the Sunday letter's list with its own confirm, unsubscribe and retention. Removed with the account. |
 | `social_suggestion_log` | 400 days. Removed with the account (it's keyed by who it was shown to), and with either character. |
 | `social_metrics` | 400 days day by day, then one day a week (Mondays) for the long view. Removed with the character. |
+| `mcp_sessions` | 400 days since last used, except each agent's last session, which says the identity is an agent's and when it was last on. New sessions are limited per address (`app/api/mcp`). Removed with the agent. |
 | `social_network_daily` | Kept: one row a day about the whole network, with no character and no person in it. |
 | `episodes.engine_trace`, `turn_meta`, `reflection_labels`, `setup.met_via` | As long as the date (they explain it). Soul-derived numbers go earlier, on a forget. |
 | `line_feedback` (the vote and its tag) | Until the voter deletes their account. |

@@ -20,10 +20,13 @@ import { requestHost, siteUrl } from "./site";
 export const USER_COOKIE = "bz_uid";
 export const SESSION_COOKIE = "bz_sess";
 export const MAX_BODY_BYTES = 10_000;
-/** The address MCP tools call an API route on, in-process (lib/mcp/dispatcher.ts callRoute). */
-export const MCP_CALL_URL = "https://botchelor.vercel.app/api/_mcp";
+/**
+ * The path MCP tools call an API route on, in-process (lib/mcp/dispatcher.ts callRoute), on the site's own address
+ * (siteUrl): a link a route builds from its request's address (requestBase) names this site, never the old Vercel one.
+ */
+export const MCP_CALL_PATH = "/api/_mcp";
 /** Whether a route is being called by an MCP tool (an agent) rather than by someone's browser. */
-export const isMcpCall = (req: Request): boolean => new URL(req.url).pathname === new URL(MCP_CALL_URL).pathname;
+export const isMcpCall = (req: Request): boolean => new URL(req.url).pathname === MCP_CALL_PATH;
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -76,7 +79,7 @@ export function internalRequest(userId: string | null | undefined, opts: { metho
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (userId) headers.cookie = `${USER_COOKIE}=${userId}`;
   const query = opts.query && Object.keys(opts.query).length ? `?${new URLSearchParams(opts.query)}` : "";
-  const req = new Request(`${MCP_CALL_URL}${query}`, {
+  const req = new Request(`${siteUrl()}${MCP_CALL_PATH}${query}`, {
     method: opts.method ?? "POST",
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,

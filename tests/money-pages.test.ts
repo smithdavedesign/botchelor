@@ -59,7 +59,8 @@ describe("/shop: offer tiles under a meter card", () => {
     // The meter: a visitor with no account has this week's free dates and nothing topped up.
     expect(html).toContain('class="card money-meter token-balance"');
     expect(html).toContain(`<strong>${FREE_EPISODES_PER_SEASON}</strong><span>dates left</span>`);
-    expect(html).toContain(`${FREE_EPISODES_PER_SEASON} of ${FREE_EPISODES_PER_SEASON} free this week. Free dates come back Monday 00:00 UTC.`);
+    // As sent, in UTC; the browser puts it in the viewer's own clock (app/WeeklyTime.tsx; 2026-11-22 audit).
+    expect(html).toContain(`${FREE_EPISODES_PER_SEASON} of ${FREE_EPISODES_PER_SEASON} free this week. Free dates come back Monday at 00:00 UTC.`);
     expect(html.indexOf("money-meter")).toBeLessThan(html.indexOf("money-tile"));
     // One tile: the pack, led by its price. The Companion Plan and Plus's demand test (not for sale) come after the
     // tiles, a line and a small block, so neither reads as an offer beside the pack.

@@ -37,7 +37,8 @@ import { guardStory, hasWornPhrase, narrationGuard, parseStoryReply, speaksForTh
 import { getPersona, personaIssue, type ScenePersona } from "../persona";
 import { portraitPathSql } from "../portrait-sql";
 import { CHARACTER_REJECTION_MESSAGES, checkAdultText, type SafetyResult } from "../safety";
-import { adultCardTextIssue, CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS, openingOf } from "../scene-cards";
+import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS, openingOf } from "../scene-cards";
+import { adultCardTextIssue } from "../scene-card-check";
 import { lineInCrisis } from "../step-in";
 import { normalizeScene, setPath, venueName } from "../venues";
 import { eligibleIds } from "./characters";
