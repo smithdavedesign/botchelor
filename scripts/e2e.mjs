@@ -141,10 +141,12 @@ async function main() {
     await step("the conversion landing page loads: hero, CTA, features, cast, FAQ and the builder", async () => {
       await page.goto(base);
       await page.getByRole("heading", { level: 1 }).waitFor();
-      assert((await page.getByText("Send your OC on a blind date").count()) > 0, "hero headline missing");
+      // A first visit's one screen (app/HomeOpen.tsx): the promise, the one-sentence box and the day's clip.
+      assert((await page.getByRole("heading", { level: 1, name: "A blind-date show where nobody steers." }).count()) > 0, "hero headline missing");
       assert((await page.getByText(/Free, no sign-up/).count()) > 0, "free/no-sign-up value prop missing");
       assert((await page.getByRole("link", { name: "Make your character" }).count()) > 0, "primary CTA missing");
-      assert((await page.locator(".hero-art .avatar").count()) === 2, "hero product teaser missing");
+      assert((await page.getByLabel("Describe someone in a sentence").count()) === 1, "the one-sentence box is missing");
+      assert((await page.locator(".home-open-clip").count()) === 1, "hero product teaser missing");
       assert((await page.locator(".features .feature").count()) >= 3, "feature grid missing");
       assert((await page.locator(".faq details").count()) >= 3, "FAQ missing");
       // The builder lives at /create (the home's #start is "Since you were here", for creators with a character already).
@@ -154,8 +156,11 @@ async function main() {
     await step("builds a custom character in the /create wizard: identity, voice, look, details, a private soul", async () => {
       await page.goto(`${base}/create`);
       await page.getByRole("heading", { level: 1, name: "Build your character" }).waitFor();
+      // A first character opens on the one-sentence box (lib/express-create.ts); the full form is one tap away.
+      await page.getByRole("button", { name: "Fill it in myself" }).click();
+      // A first character's quick track is Identity, Look, Review (lib/first-date.ts FIRST_DATE_STEPS).
       // Next isn't greyed out: pressed too soon, it says what's missing and takes you to the first of it.
-      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.getByRole("button", { name: "Next: Look" }).click();
       await page.locator(".wizard-still").getByText(/To go on, add a name/).waitFor();
       assert(await page.locator('input[name="name"]').evaluate((el) => el === document.activeElement), "Next should take you to the name");
       await page.locator('input[name="name"]').fill(CHAR.name);
@@ -166,7 +171,11 @@ async function main() {
       await page.locator('input[name="dealbreaker"]').fill(CHAR.dealbreaker);
       // The live avatar preview should render.
       assert((await page.locator(".avatar").count()) > 0, "avatar preview missing");
-      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByText("Give them a look").waitFor();
+      await page.getByRole("button", { name: "Next: Review" }).click();
+      // The rest is optional on a first character: the review's "Add depth now" opens the full track at Voice.
+      await page.getByRole("button", { name: "Add depth now" }).click();
       await page.getByText("How do they talk?").waitFor();
       await page.getByRole("button", { name: "Dry & deadpan" }).click();
       await page.getByRole("button", { name: "Next: Look" }).click();
@@ -201,11 +210,16 @@ async function main() {
       await page.getByRole("button", { name: "Next: Review" }).click();
       await page.getByText("Review & create").waitFor();
       await page.locator('.wizard-attest input[type="checkbox"]').check();
-      await page.getByRole("button", { name: `Create ${CHAR.name}` }).click();
-      await page.getByText(`Who should ${CHAR.name} meet?`).waitFor();
+      // A first character's review has Create at the top as well as in the bar: either one creates them.
+      await page.getByRole("button", { name: `Create ${CHAR.name}` }).first().click();
+      // Their first date leads the next screen, one tap away (lib/first-date.ts offerFirstDate).
+      await page.getByRole("heading", { level: 1, name: `${CHAR.name.split(" ")[0]}'s first date` }).waitFor();
+      assert((await page.getByRole("button", { name: "▶ Start the date now" }).count()) === 1, "the first date's one button is missing");
     });
 
     await step("the builder's last step points to the swipe deck: a first date with someone else's character starts with a match", async () => {
+      // Under a first date, every other way to date is folded under "More ways to date".
+      await page.locator("details.send-more-ways > summary", { hasText: "More ways to date" }).click();
       await page.getByText("💘 Swipe to meet someone new").waitFor();
       const swipeLink = page.getByRole("link", { name: `Swipe for ${CHAR.name.split(" ")[0]}` });
       const swipeHref = (await swipeLink.getAttribute("href")) ?? "";
@@ -381,7 +395,8 @@ async function main() {
         await gpage.getByRole("heading", { name: "Watch a date" }).waitFor();
         assert((await gpage.locator(".watch-lobby-card").count()) > 0, "the lobby has no rooms");
         await gpage.locator(".watch-lobby-card").first().click();
-        await gpage.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
+        // A ready room's card starts it on arrival (app/watch/page.tsx: ?start=1).
+        await gpage.waitForURL(/\/watch\/[0-9a-f-]{36}(\?start=1)?$/);
         await standardView(gpage);
         await gpage.getByRole("heading", { level: 1 }).waitFor();
         assert((await gpage.locator(".watch-stage .card").count()) > 0, "the room stage did not render");
@@ -560,7 +575,8 @@ async function main() {
 
     await step("each contestant has a shareable card", async () => {
       await spage.goto(`${base}/cast`);
-      await spage.locator(".gallery .meta a").first().click();
+      // Each directory card's name is its link (app/characters/page.tsx Entry).
+      await spage.locator(".gallery a.dir-name").first().click();
       await spage.waitForURL(/\/characters\//);
       assert((await spage.locator(".contestant .avatar").count()) > 0, "contestant card avatar missing");
       // Share sits behind ⋯ in the header's row since 2026-11-16 (app/characters/[id]/HeaderActions.tsx).
@@ -575,10 +591,9 @@ async function main() {
 
     await step("an image trains the character's look and traits, entirely in the browser", async () => {
       await page.goto(`${base}/create`);
-      // Next only goes on once the first step is complete: a sample fills it, then the image sets the look.
+      // A sample fills every step and opens the review; the rail goes back to the look, then the image sets it.
       await page.getByRole("button", { name: "Use a sample character" }).click();
-      await page.getByRole("button", { name: "Next: Voice" }).click();
-      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByRole("button", { name: /^Step \d+: Look/ }).click();
       await page.getByText("Give them a look").waitFor();
       // The free-text look sits under the looks builder, folded.
       await page.locator(".looks-more").evaluate((d) => (d.open = true));
@@ -592,8 +607,7 @@ async function main() {
     await step("the looks builder picks a look tile by tile, and After Dark's tab stays locked", async () => {
       await page.goto(`${base}/create`);
       await page.getByRole("button", { name: "Use a sample character" }).click();
-      await page.getByRole("button", { name: "Next: Voice" }).click();
-      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByRole("button", { name: /^Step \d+: Look/ }).click();
       // B4: one card on the step; the picker opens in its own sheet.
       await page.getByRole("button", { name: "Pick their look" }).click();
       await page.getByRole("button", { name: "Woman", exact: true }).click();
@@ -610,6 +624,9 @@ async function main() {
     await step("a sample character fills the whole card for a fast start", async () => {
       await page.goto(`${base}/create`);
       await page.getByRole("button", { name: "Use a sample character" }).click();
+      // It lands on the review, ready to create; Identity shows what it filled.
+      await page.getByText("ready to go").waitFor();
+      await page.getByRole("button", { name: /^Step 1: Identity/ }).click();
       assert((await page.locator('input[name="name"]').inputValue()).length > 0, "sample did not fill the name");
       assert((await page.locator('input[name="dealbreaker"]').inputValue()).length > 0, "sample did not fill the dealbreaker");
     });
