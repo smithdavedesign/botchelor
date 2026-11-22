@@ -28,6 +28,7 @@ import { portraitPathSql } from "./assets";
 import { reserveEpisode, releaseEpisode, type Reservation } from "./allowance";
 import { CHOICE_ENGINE_VERSION } from "./choices";
 import { bestLine, buildTurnMessages, ConversationError, simulateConversation, type Turn } from "./conversation";
+import { leanedOn } from "./companion-prompt";
 import { countReferral, CRISIS_RESOURCES, crisisIntent, type CrisisResources, type CrisisSurface } from "./crisis";
 import { recordSlips, type SecretSlip } from "./cast-secrets";
 import type { Db } from "./db";
@@ -627,6 +628,21 @@ async function withScenePersona<T extends { scenePersona?: string }>(db: Db, row
 }
 
 /**
+ * The cast member's own images tonight (2026-11-21: Juniper's dryer came up in all three of her lines): a word in two of
+ * its earlier lines, unless the person used it too (lib/companion-prompt.ts leanedOn), joins the words it's told to rest
+ * (words_youve_leaned_on_lately), which the critic also holds its next line to.
+ */
+export function rested<T extends { overused?: string[] }>(characters: [T, T], transcript: readonly Turn[]): [T, T] {
+  const own = leanedOn(
+    transcript.filter((t) => t.side === "b").map((t) => [t.action, t.dialogue].filter(Boolean).join(" ")),
+    transcript.filter((t) => t.side === "a").map((t) => t.dialogue),
+  );
+  if (!own.length) return characters;
+  const cast = characters[1];
+  return [characters[0], { ...cast, overused: [...new Set([...own, ...(cast.overused ?? [])])] }];
+}
+
+/**
  * The cast member's next line, through the show's own loop (simulateConversation, one line): its critic, its inner life
  * and its secrets, exactly as on a date the show writes. False when the model wouldn't give one (advance tries again).
  */
@@ -638,7 +654,7 @@ async function castLine(db: Db, row: StepRow, attempt = 0): Promise<boolean> {
   const counting = countingModel(getModel());
   const lived = withInner(transcript, row.inner_life);
   const v5 = (built.setup.engine_version ?? 1) >= CHOICE_ENGINE_VERSION;
-  const characters = await withScenePersona(db, row, built.characters);
+  const characters = rested(await withScenePersona(db, row, built.characters), transcript);
   let lines: Turn[];
   try {
     lines = await simulateConversation(counting.model, built.input, decided, characters, built.setup.producer, built.setup.venue, formatId, showFormat(formatId).turns ?? CONVERSATION_TURNS, formatContextOf(built), undefined, undefined, undefined, {
