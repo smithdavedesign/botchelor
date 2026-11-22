@@ -261,6 +261,17 @@ describe("the swipe page without a character: a demo card", () => {
     expect(html).not.toContain("swipe-fullscreen");
   });
 
+  it("the profile that scrolls inside the card is reachable by keyboard, and the card peeking behind is never read or reached", async () => {
+    const html = await swipePage();
+    const top = html.slice(html.indexOf('class="swipe-card swipe-top'));
+    expect(top).toMatch(/class="swipe-body" role="region" aria-label="[^"]+ profile" tabindex="0"/);
+    const behind = html.match(/<article class="swipe-card swipe-next"[^>]*>/)?.[0];
+    if (behind) {
+      expect(behind).toContain('aria-hidden="true"');
+      expect(behind).toContain('inert=""');
+    }
+  });
+
   it("the demo deck never calls the API: no fetch, no /api path, and the prompt names who likes back", () => {
     const src = readFileSync(join(__dirname, "..", "app", "swipe", "DemoDeck.tsx"), "utf8");
     const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");

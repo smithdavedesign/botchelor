@@ -6,7 +6,8 @@
      appears. On a vote that's when the result shows, right after the click.
    - Fill on view (.fill-on-view): the same, tied to scrolling, for bars far down a page.
    - Rise (.rise-in): a card rises into place as it scrolls into view (CSS view timelines; the precedent is
-     app/ux/catalog.css). Browsers without them show it in place.
+     app/ux/catalog.css). Browsers without them show it in place. It moves but never fades: the timeline follows the
+     scroll, so a card someone stopped on half-way in stayed half-faded, its text below contrast (2026-11-22).
    - Sheen (.sheen-once): one gold pass across a title card the first time it comes into view.
    - Slide together (.slide-pair): two faces start a little apart and meet.
    - Tilt (app/motion/Tilt.tsx) and count-up (app/motion/CountUp.tsx) need a script; their CSS is here too. */
@@ -23,7 +24,6 @@
 }
 @keyframes rise-in {
   from {
-    opacity: 0.25;
     translate: 0 1.75rem;
   }
 }

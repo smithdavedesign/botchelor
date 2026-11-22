@@ -1,4 +1,5 @@
 import type { Db } from "@/lib/db";
+import { billingOn } from "@/lib/adult/billing";
 import { afterDarkCounts, listShowcase, parseFilters, seenFilters, sideOf, type ShowcaseViewer } from "@/lib/showcase";
 import { showcasePaths, type ShowcasePlace } from "@/lib/showcase-paths";
 import ReelFeed from "./ReelFeed";
@@ -48,6 +49,7 @@ export async function reelFeed(db: Db, viewer: ShowcaseViewer, sp: Search, place
       back={backQuery ? `${base}?${backQuery}` : base}
       place={place}
       nights={opts.nights}
+      inviteOnly={!billingOn()}
     />
   );
 }

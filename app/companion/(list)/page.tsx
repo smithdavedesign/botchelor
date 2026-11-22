@@ -18,6 +18,7 @@ import { sharedStale } from "@/lib/shared-cache";
 import type { Db } from "@/lib/db";
 import CompanionBrowser, { type CompanionFilters } from "@/app/companion/CompanionBrowser";
 import CompanionPhone from "@/app/companion/CompanionPhone";
+import TalkButton from "@/app/companion/TalkButton";
 
 export const metadata: Metadata = { title: "Companions · Botchelor", robots: { index: false, follow: false } };
 
@@ -83,6 +84,11 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
     ]);
     const cap = companionGuestReplies();
     const left = allowance?.left ?? cap;
+    // "Try it now" with the button that does it: the phone's character (what it types is their real opener), else the
+    // first of the cast, and the same button in thumb reach once it's scrolled away (2026-11-22: the first Talk was two
+    // screens down on a phone). Once there's a conversation, it heads the list instead.
+    const first = threads.length === 0 && left > 0 ? (preview ?? cast[0] ?? null) : null;
+    const talkFirst = first ? `Talk to ${first.name.split(/\s+/)[0]}` : "";
     return (
       <article className="companion-page page-wide">
         <CharactersTabs current="companions" companions />
@@ -106,10 +112,20 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
               <Link href="/account?next=%2Fcompanion">A free account</Link> keeps it going: {companionFreePerDay()} replies a day across every companion.
               {planLink("companion") && ` The Companion Plan has no daily limit, ${planPrice("companion")}.`}
             </p>
+            {first && (
+              <div id="companion-cta">
+                <TalkButton characterId={first.id} name={first.name} label={talkFirst} className="button" track="companion-hero" />
+              </div>
+            )}
           </header>
         </Hero>
         {/* The house cast in a ribbon for a visitor (the visual pop audit, 2026-11-20); a member's page stays their list. */}
         <FaceRibbon />
+        {first && (
+          <PhoneActionBar watch="companion-cta">
+            <TalkButton characterId={first.id} name={first.name} label={talkFirst} className="button" track="companion-hero" />
+          </PhoneActionBar>
+        )}
         <CompanionBrowser threads={threads} others={[...yours, ...cast]} signIn={left <= 0 || threads.length >= COMPANION_GUEST_THREADS} initial={initial} />
         <p className="muted small">
           PG, like the show. If you&apos;re having a hard time, <Link href="/safety">help is here</Link>.
