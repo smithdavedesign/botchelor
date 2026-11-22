@@ -61,7 +61,6 @@ describe("the companion chat as an app screen", () => {
     expect(html).not.toContain('width="28"');
     expect(html).toContain('class="button-ghost small companion-voice-note"');
     expect(html).toContain("▶ Voice note");
-    expect(html).toContain("🔊 Voice note");
     expect(html).toContain("Report");
     expect(html).toContain('id="companion-line"');
     expect(html).toContain("12 free replies left today");
@@ -72,5 +71,46 @@ describe("the companion chat as an app screen", () => {
     expect(bare).toContain('class="companion-side"');
     expect(bare).not.toContain("This week");
     expect(bare).not.toContain('class="companion-week"');
+  });
+});
+
+/**
+ * A reply's actions (2026-11-22: a 🔊 pill and a Report link under every reply, 28 pills on one thread): the newest reply
+ * shows its voice note and Report; an earlier one keeps a voice note it already has and opens the rest from its ⋯.
+ */
+describe("a reply's voice note and Report, without one under every reply", () => {
+  const msg = (id: string, role: "character" | "user", text: string, voice: string | null = null) => ({ id, role, text, at: "2026-11-13T00:00:00Z", action: null, marker: null, roleplay: null, voice, scene: false });
+  const long: CompanionThreadView = {
+    ...view,
+    messages: [
+      msg("m1", "character", "Hello. Sorry. I was in the middle of a chapter."),
+      msg("m2", "user", "Which book?"),
+      msg("m3", "character", "The one you'd pretend you've read.", "/api/companion/t1/voice/m3"),
+      msg("m4", "user", "Rude. Accurate, but rude."),
+      msg("m5", "character", "I only lie about books."),
+    ] as unknown as CompanionThreadView["messages"],
+  };
+  const html = renderToStaticMarkup(createElement(CompanionChat, { initial: long, initialCrisis: null, initialAllowance: allowance, initialExtras: extras, signedIn: true, about: null }));
+  const count = (needle: string) => html.split(needle).length - 1;
+
+  it("offers a new voice note and Report under the newest reply only", () => {
+    expect(count("🔊 Voice note")).toBe(1);
+    expect(count(">Report</button>")).toBe(1);
+    expect(html.lastIndexOf("🔊 Voice note")).toBeGreaterThan(html.indexOf("I only lie about books."));
+  });
+
+  it("keeps a voice note an earlier reply already has, playable where it is", () => {
+    expect(count("▶ Voice note")).toBe(1);
+  });
+
+  it("gives each earlier reply a ⋯ that says what it is and whether it's open", () => {
+    expect(count('class="linklike small muted companion-more"')).toBe(2);
+    expect(count('aria-label="More for Ambrose&#x27;s message"')).toBe(2);
+    expect(count('aria-expanded="false"')).toBeGreaterThanOrEqual(2);
+  });
+
+  it("names the page for screen readers: an h1 with who they're texting", () => {
+    expect(html).toContain('<h1 class="sr-only">Texting Ambrose Fenn</h1>');
+    expect(count("<h1")).toBe(1);
   });
 });
