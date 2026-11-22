@@ -7,7 +7,8 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import type { ChatMessage } from "@/lib/model";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { setSetsFetchForTests } from "@/lib/sets";
-import { checkFor, checkRoleplay } from "@/lib/studio/library";
+import { listedIn } from "@/app/studio/CreateLibrary";
+import { checkFor, checkRoleplay, savePrompt, type Library } from "@/lib/studio/library";
 import { PLACE_IDEAS, PROMPT_IDEAS, ROLEPLAY_IDEAS } from "@/lib/studio/library-ideas";
 import { planPgShoot, pgShootPrompt } from "@/lib/studio/pg-catalog";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
@@ -135,6 +136,55 @@ describe("the library's API", () => {
     // Without a mode it's After Dark's, as After Dark's Studio has always sent: still After Dark members only.
     expect((await lib({ action: "save_roleplay", title: "Rivals", premise: "{a} and {b} compete" }, me.cookie)).status).toBe(403);
     expect(await (await libGet(me.cookie)).json()).toMatchObject({ after_dark: false, library: { roleplays: [{ title: "Rival food trucks", mode: "safe" }] } });
+  });
+});
+
+describe("a prompt saved twice", () => {
+  it("is kept once (any case, any spacing): the second save hands back the first, with a new name if one came", async () => {
+    const me = person();
+    const first = await (await lib({ action: "save_prompt", text: "Golden hour on a rooftop", mode: "safe" }, me.cookie)).json();
+    const again = await lib({ action: "save_prompt", text: "  golden HOUR on   a rooftop ", title: "Rooftop", mode: "safe" }, me.cookie);
+    expect(again.status).toBe(200);
+    expect((await again.json()).item).toMatchObject({ id: first.item.id, text: "Golden hour on a rooftop", title: "Rooftop", mode: "safe" });
+    // Saved once more without a name: it keeps the one it has.
+    await lib({ action: "save_prompt", text: "Golden hour on a rooftop", mode: "safe" }, me.cookie);
+    const got = await (await libGet(me.cookie)).json();
+    expect(got.library.prompts).toEqual([expect.objectContaining({ id: first.item.id, title: "Rooftop" })]);
+  });
+
+  it("saved as safe, an After Dark one becomes usable everywhere, and never keeps a name the safe check refuses", async () => {
+    const owner = crypto.randomUUID();
+    const ad = await savePrompt(t.db, owner, { text: "golden hour on a rooftop, a denim jacket", title: "Lingerie mood", mode: "after_dark" });
+    expect(ad).toMatchObject({ ok: true, item: { mode: "after_dark", title: "Lingerie mood" } });
+    const safe = await savePrompt(t.db, owner, { text: "Golden hour on a rooftop, a denim jacket", mode: "safe" });
+    expect(safe).toMatchObject({ ok: true, item: { id: ad.ok ? ad.item.id : "", mode: "safe", title: null } });
+    // And a safe one stays safe when it's saved again for After Dark.
+    expect(await savePrompt(t.db, owner, { text: "golden hour on a rooftop, a denim jacket", mode: "after_dark" })).toMatchObject({ ok: true, item: { mode: "safe" } });
+    const rows = (await t.db.query<{ mode: string; title: string | null }>(`select mode, title from creator_prompts where owner_id = $1`, [owner])).rows;
+    expect(rows).toEqual([{ mode: "safe", title: null }]);
+  });
+});
+
+describe("the PG Studio's Create tab", () => {
+  it("lists only the safe venues, prompts and roleplays; After Dark's Studio lists them all", () => {
+    const at = "2026-11-22T00:00:00.000Z";
+    const lib: Library = {
+      places: [
+        { id: "p1", name: "The lighthouse", description: null, mode: "safe", created_at: at },
+        { id: "p2", name: "The velvet room", description: null, mode: "after_dark", created_at: at },
+      ],
+      prompts: [
+        { id: "q1", text: "golden hour", title: null, mode: "safe", created_at: at },
+        { id: "q2", text: "silk robe", title: null, mode: "after_dark", created_at: at },
+      ],
+      roleplays: [
+        { id: "r1", title: "Rival food trucks", premise: "{a} and {b} call a truce", roles: null, category: "romance", mode: "safe", created_at: at },
+        { id: "r2", title: "Silk", premise: "{a} and {b} by candlelight", roles: null, category: "romance", mode: "after_dark", created_at: at },
+      ],
+    };
+    const safe = listedIn("safe", lib);
+    expect([safe.places, safe.prompts, safe.roleplays].map((xs) => xs.map((x) => x.id))).toEqual([["p1"], ["q1"], ["r1"]]);
+    expect(listedIn("after_dark", lib)).toBe(lib);
   });
 });
 
