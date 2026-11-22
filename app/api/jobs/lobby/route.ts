@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, jsonWhenDone } from "@/lib/http";
 import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 import { refreshLobby } from "@/lib/watch";
 import { airDueDates } from "@/lib/air";
@@ -60,6 +60,13 @@ const LONG_RUN_MS = 150_000;
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
+  // Streamed (lib/http.ts jsonWhenDone): a long pass (the producer's night, a template date) outlasts the edge's 100 s
+  // cutoff, and the scheduled job reads the answer's ok: true to know the pass finished.
+  return jsonWhenDone(req, pass);
+}
+
+/** One hourly pass, everything above in order; its answer ends ok: true. */
+async function pass(): Promise<Record<string, unknown>> {
   const started = Date.now();
   const db = await getDb();
   // Agents' dates whose prediction window has closed (lib/air.ts) air here, if their host didn't come back for them.
@@ -214,7 +221,7 @@ async function run(req: Request): Promise<Response> {
   // The story check (lib/story-check.ts): aired dates whose lines and ending disagree are kept off the featured places,
   // a few short paid calls a pass (featured first), within its own time budget; not on a run that's already long.
   const storyCheck = Date.now() - started > LONG_RUN_MS ? null : await storyCheckSweep(db).catch(() => null);
-  return json({ ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, stale_edges_healed: staleHealed, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return { ok: true, ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, stale_edges_healed: staleHealed, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away };
 }
 
 export const GET = handle(run);
