@@ -19,10 +19,24 @@ export const UP_NEXT_AFTER_MS = 4_000;
 export const AUTOPLAY_SECONDS = 10;
 
 /**
+ * At most one episode opens on its own in a row. Most open on their cold open, which waits for Start, but one without
+ * a cold open plays as soon as it opens; so an episode the countdown opened counts down again only if the viewer has
+ * done something since (a tap or a key anywhere). Module state, so it lasts across the app's own page changes.
+ */
+let openedOnItsOwn = false;
+if (typeof window !== "undefined") {
+  const attended = () => {
+    openedOnItsOwn = false;
+  };
+  window.addEventListener("pointerdown", attended, { capture: true, passive: true });
+  window.addEventListener("keydown", attended, { capture: true, passive: true });
+}
+
+/**
  * "Up next" on the theater's ending (2026-11-22 audit: the end of a date led nowhere). A clear "Next episode" button,
  * and a countdown that opens it in the theater: shown on screen with Cancel beside it, paused while the tab is hidden,
  * and stopped for good by any tap, key or scroll in the theater (sharing, Watch again, reading back), so it only ever
- * carries on a viewer who's sitting back. The next page opens on its cold open, so it never plays on unattended.
+ * carries on a viewer who's sitting back. And only one episode at a time: see openedOnItsOwn.
  */
 export default function TheaterUpNext({ next }: { next: TheaterNext }) {
   const router = useRouter();
@@ -49,7 +63,11 @@ export default function TheaterUpNext({ next }: { next: TheaterNext }) {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setShown(true), UP_NEXT_AFTER_MS);
+    const t = setTimeout(() => {
+      // Opened by the last countdown and not touched since: the button, without a countdown.
+      if (openedOnItsOwn) setStopped(true);
+      setShown(true);
+    }, UP_NEXT_AFTER_MS);
     return () => clearTimeout(t);
   }, []);
 
@@ -67,6 +85,7 @@ export default function TheaterUpNext({ next }: { next: TheaterNext }) {
     if (!counting || left > 0 || went.current) return;
     went.current = true;
     queueEvent("up_next_autoplay", { where: "theater" });
+    openedOnItsOwn = true;
     router.push(next.href);
   }, [counting, left, next.href, router]);
 

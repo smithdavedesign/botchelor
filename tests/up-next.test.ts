@@ -148,7 +148,7 @@ describe("Up next on the theater's ending", () => {
     expect(Number(hold![1].replace(/_/g, ""))).toBeLessThan(UP_NEXT_AFTER_MS);
   });
 
-  it("is a clear Next episode button with a countdown that shows, cancels, pauses while hidden and stops on any input", () => {
+  it("is a clear Next episode button with a countdown that shows, cancels, pauses while hidden, stops on any input and never chains", () => {
     const theater = src("app/episodes/[id]/TheaterUpNext.tsx");
     expect(AUTOPLAY_SECONDS).toBeGreaterThanOrEqual(5);
     expect(theater).toContain("▶ Next episode");
@@ -156,7 +156,10 @@ describe("Up next on the theater's ending", () => {
     expect(theater).toContain('onClick={() => setStopped(true)}');
     expect(theater).toContain('const events = ["pointerdown", "keydown", "wheel"] as const;');
     expect(theater).toContain('if (document.visibilityState === "visible") setLeft((n) => Math.max(0, n - 1));');
-    expect(theater).toContain("router.push(next.href);");
+    expect(theater).toContain("openedOnItsOwn = true;\n    router.push(next.href);");
+    // One episode at a time: one the countdown opened counts down again only after a tap or a key.
+    expect(theater).toContain("if (openedOnItsOwn) setStopped(true);");
+    expect(theater).toMatch(/const attended = \(\) => \{\s*openedOnItsOwn = false;\s*\};\s*window\.addEventListener\("pointerdown", attended, \{ capture: true, passive: true \}\);\s*window\.addEventListener\("keydown", attended/);
     // Offered only on a viewer's ending, after the share and the report card; the creator's verdict card is unchanged.
     const ending = src("app/episodes/[id]/EpisodeTheater.tsx");
     expect(ending).toMatch(/📝 See its report card[\s\S]{0,200}\{upNext && <TheaterUpNext next=\{upNext\} \/>\}/);
