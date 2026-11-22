@@ -59,10 +59,16 @@ and reconnect. Then check `https://botchelor.com/api/health?db=1` and `https://a
 ## 4. If Neon itself is gone: the nightly dump
 
 Restore into an empty Postgres 18 database (a new Neon project, or a branch with nothing in it), with the Postgres 18
-tools (`/opt/homebrew/opt/libpq/bin`; the dump is from `pg_dump` 18):
+tools (`/opt/homebrew/opt/libpq/bin`; the dump is from `pg_dump` 18). Not in one `pg_restore`: Neon sets a column
+option of its own (`pg_attver`) on 79 tables, the dump keeps it, and a Postgres that doesn't know it refuses the whole
+table (`characters` and `episodes` among them). So the schema goes in as SQL without those lines, then the data, then
+the indexes and constraints. The option is a setting, not data; drop it for a Neon target too.
 
 ```sh
-/opt/homebrew/opt/libpq/bin/pg_restore --no-owner --no-privileges -d "$TARGET_URL" ~/backups/botchelor/botchelor-2026-11-22.dump
+B=/opt/homebrew/opt/libpq/bin; DUMP=~/backups/botchelor/botchelor-2026-11-22.dump
+$B/pg_restore --no-owner --no-privileges --section=pre-data -f - "$DUMP" | sed '/SET (pg_attver=[0-9]*);$/d' | $B/psql -q "$TARGET_URL"
+$B/pg_restore --no-owner --no-privileges --section=data -d "$TARGET_URL" "$DUMP"
+$B/pg_restore --no-owner --no-privileges --section=post-data -d "$TARGET_URL" "$DUMP"
 ```
 
 Put the target's address in a variable from the keychain or the Neon console, never on a command line you keep. Then:
@@ -73,7 +79,9 @@ lost.
 
 ## Rehearsed
 
-- **2026-11-22, the dump, locally:** see "Rehearsal" below for the result of restoring that morning's dump into a
-  throwaway local Postgres.
+- **2026-11-22, the dump, locally:** that morning's dump (1.2 GB) into a throwaway Postgres on the Mac with the three
+  commands above: all 283 tables and 523 indexes, 1.8 GB, in 51 seconds. The only error was a setting that Postgres 16
+  (the Mac's) doesn't know and 18 does (`transaction_timeout`). A single `pg_restore` of the same dump left out the 79
+  tables with `pg_attver`, which is why section 4 takes three steps.
 - **Not yet:** a point-in-time side branch and a snapshot restored to a side branch (a few cents of compute, nothing
   touched on `main`): do one the next time someone is at Neon's console, and note it here.
