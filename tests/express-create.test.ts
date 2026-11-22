@@ -81,7 +81,7 @@ describe("one-sentence create: the draft (lib/express-create.ts)", () => {
     expect(r.ready).toBe(true);
     expect(r.missing).toEqual([]);
     expect(r.draft.sheet).toEqual({
-      name: "Marisol Vane",
+      name: "Maren Vane",
       age: "34",
       bio: "A lighthouse keeper who repairs old radios and listens to ships talk at night.",
       want: "someone who stays up for the late shipping forecast",
