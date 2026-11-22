@@ -12,21 +12,24 @@ import { POINTS_PER_DARE } from "@/lib/rules";
 /**
  * Tonight's dare (lib/dares.ts): the ballot's second lane. Viewers back one of three producer dares; the winner is
  * slipped to one side of tomorrow's house date, and the other side never knows. The counts show once you've voted.
+ * /watch shows it as its own card; on home it is one `part` of the Tonight card (app/TonightVotes.tsx).
  */
-export default function DareVote({ board, insider = false }: { board: DareBoard; insider?: boolean }) {
+export default function DareVote({ board, insider = false, part = false }: { board: DareBoard; insider?: boolean; part?: boolean }) {
   const { busy, error, run } = useAction();
   const voted = board.my_pick !== null;
   const tally = voted && showCrowd(board.total, { insider });
   const vote = (pick: string) => run(() => requestJson("/api/dare", { pick }));
+  const Box = part ? "div" : "section";
+  const Head = part ? "h3" : "h2";
   return (
-    <section id="dare" className="card situation dare" aria-labelledby="dare-head">
+    <Box id="dare" className={part ? "situation dare tonight-part" : "card situation dare"} role={part ? "group" : undefined} aria-labelledby="dare-head">
       <div className="situation-head">
         <span className="situation-avatars" aria-hidden="true">
           <Avatar seed={board.target.id} name={board.target.name} hue={board.target.hue} house portraitSrc={board.target.portrait} size={40} decorative />
         </span>
         <div>
-          <p className="kicker">Tonight&apos;s dare · you pick</p>
-          <h2 id="dare-head">Dare {board.target.name} to…</h2>
+          <p className="kicker">{part ? "The dare" : "Tonight's dare · you pick"}</p>
+          <Head id="dare-head">Dare {board.target.name} to…</Head>
           <p className="muted small">
             The producers slip the winning dare to {board.target.name} — their date won&apos;t know.{" "}
             {voted ? tallyLine(board.total, { insider }) : "Vote to see how it's going."} If your dare wins, you
@@ -81,7 +84,7 @@ export default function DareVote({ board, insider = false }: { board: DareBoard;
           )}
         </p>
       )}
-    </section>
+    </Box>
   );
 }
 

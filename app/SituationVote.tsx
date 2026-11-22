@@ -16,25 +16,28 @@ function closesIn(iso: string, now: number): string {
 /**
  * Tonight's situation (lib/situations.ts): two of the house cast, three situations to vote between, and how the last
  * vote went with the room to watch it in. The counts show once you've voted, and only for a crowd or to an insider (the
- * empty-room rule, lib/crowd-threshold.ts: "won with 1 of 1" told a stranger nobody votes). Home and /watch both show it.
+ * empty-room rule, lib/crowd-threshold.ts: "won with 1 of 1" told a stranger nobody votes). /watch shows it as its own
+ * card; on home it is one `part` of the Tonight card (app/TonightVotes.tsx): no card of its own, its question a level down.
  */
-export default function SituationVote({ board, now, insider = false }: { board: SituationBoard; now: number; insider?: boolean }) {
+export default function SituationVote({ board, now, insider = false, part = false }: { board: SituationBoard; now: number; insider?: boolean; part?: boolean }) {
   const { busy, error, run } = useAction();
   const [a, b] = board.cast;
   const voted = board.my_pick !== null;
   const tally = voted && showCrowd(board.total, { insider });
   const vote = (pick: string) => run(() => requestJson("/api/situation", { pick }));
+  const Box = part ? "div" : "section";
+  const Head = part ? "h3" : "h2";
   return (
-    <section id="situation" className="card situation" aria-labelledby="situation-head">
+    <Box id="situation" className={part ? "situation tonight-part" : "card situation"} role={part ? "group" : undefined} aria-labelledby="situation-head">
       <div className="situation-head">
         <span className="situation-avatars" aria-hidden="true">
           <Avatar seed={a.id} name={a.name} hue={a.hue} house portraitSrc={a.portrait} size={40} decorative />
           <Avatar seed={b.id} name={b.name} hue={b.hue} house portraitSrc={b.portrait} size={40} decorative />
         </span>
         <div>
-          <p className="kicker">Tonight&apos;s situation · you pick</p>
+          <p className="kicker">{part ? "The situation" : "Tonight's situation · you pick"}</p>
           {/* A day the producer staged a beat (lib/producer.ts): the twists name their own people, so the line says what the vote decides. */}
-          <h2 id="situation-head">{board.headline ?? `${a.name} × ${b.name}: what happens on their date?`}</h2>
+          <Head id="situation-head">{board.headline ?? `${a.name} × ${b.name}: what happens on their date?`}</Head>
           <p className="muted small">
             Most votes wins; {board.headline ? "it happens" : "they play it"} after the vote closes in {closesIn(board.closes_at, now)}.{" "}
             {voted ? tallyLine(board.total, { insider }) : "Vote to see how it's going."}
@@ -81,6 +84,6 @@ export default function SituationVote({ board, now, insider = false }: { board: 
           <Link href={board.last.room_path}>Watch how it went →</Link>
         </p>
       )}
-    </section>
+    </Box>
   );
 }

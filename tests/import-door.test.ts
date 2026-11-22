@@ -51,10 +51,17 @@ const sp = (q: Record<string, string> = {}) => ({ searchParams: Promise.resolve(
 const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 
 describe("the home hero's rescue line", () => {
-  it("offers a visitor with no character the import door, on the hero and in the phone bar", async () => {
+  it("offers the import door on the page as it was (HOME_OPEN=0), on the hero and in the phone bar; a first visit's one screen keeps to one field", async () => {
     as(null);
     const Home = (await import("@/app/page")).default;
+    // The one screen (2026-11-21): seven first steps were too many, and this door had one click from home in a month.
+    // It stays on /everything, in the outreach posts' own links, and on the old page.
+    const first = text(renderToStaticMarkup(await Home(sp())));
+    expect(first).not.toContain("Leaving Character.AI?");
+    expect(first).not.toContain("hero-import");
+    vi.stubEnv("HOME_OPEN", "0");
     const html = text(renderToStaticMarkup(await Home(sp())));
+    vi.unstubAllEnvs();
     expect(IMPORT_CAI_PATH).toBe("/import?from=cai");
     expect(html).toContain("Leaving Character.AI?");
     // Both links carry the same name, so the funnel reads them as one door.

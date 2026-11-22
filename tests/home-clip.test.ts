@@ -416,12 +416,13 @@ describe("the home hero", () => {
     return { ...d, clip: id };
   };
 
-  it("plays the clip in a phone for a visitor with no character, poster first, and keeps the headline, the doors and the real date", async () => {
+  it("plays the clip in a phone on a visitor's one screen, poster first, with the box and the real date", async () => {
     const d = await withClip();
     as(null);
     const html = await home();
-    expect(html).toContain('class="hero-art has-clip"');
-    expect(html).toContain('<section class="hero has-clip">');
+    // Inside the first screen (app/HomeOpen.tsx, 2026-11-21), beside the box: no hero of its own any more.
+    expect(html).toContain('class="home-open-clip"');
+    expect(html).not.toContain('class="hero');
     // Muted, looping, inline, nothing loaded before it plays: the poster is the first paint.
     expect(html).toMatch(/<video[^>]*class="home-clip-video"[^>]*>/);
     const video = /<video[^>]*>/.exec(html)![0];
@@ -433,40 +434,65 @@ describe("the home hero", () => {
     expect(html).toContain(`Pell Ardent × ${HOUSE_CHARACTERS[0].name} · It ended: A second date`);
     expect(html).toContain(`href="/episodes/${d.id}?play=1"`);
     expect(html).toContain("Watch the whole date");
-    // What was there stays.
-    expect(html).toContain('<h2 class="hero-title">Give your character a love life.</h2>'); // under the first screen (lib/home-open.ts)
-    expect(html).toContain('href="/create">Make your character</a>');
-    // The clip's "Watch the whole date" is the way to watch; the hero doesn't ask twice (design review 2026-11-16, D-18).
+    // The screen's promise and its one field; the last "Make your character" is at the end of the page.
+    expect(html).toContain("A blind-date show where nobody steers.");
+    expect(html).toContain('<form class="home-express" action="/create" method="get">');
+    expect(html.match(/>Make your character<\/a>/g)?.length).toBe(1);
+    // The clip's "Watch the whole date" is the way to watch; nothing else on the screen asks (design review 2026-11-16, D-18).
     expect(html).not.toContain('href="/watch">Watch episodes</a>');
-    expect(html).toContain('href="/create?sample=1"');
-    expect(html).toContain("Bring your character");
+    // The sample and the import doors are the builder's now: seven first steps were too many (the growth plan).
+    expect(html).not.toContain('href="/create?sample=1"');
+    expect(html).not.toContain("Bring your character");
     expect(html).toContain("A real date from the show: nobody wrote it in advance.");
     expect(html).toContain('class="home-date"');
   });
 
-  it("is exactly today's hero with no clip, a stale one, or the switch off", async () => {
+  it("plays the show's own loop with no clip, a stale one, or the switch off, and the real date still follows", async () => {
     await date();
     as(null);
+    const LOOP = '<source src="/press/video/botchelor-ad-loop.mp4" type="video/mp4"/>';
     const plain = await home();
-    expect(plain).not.toContain("home-clip");
-    expect(plain).not.toContain("has-clip");
-    expect(plain).toContain('<section class="hero">');
-    expect(plain).toContain('class="hero-art has-date"');
-    expect(plain).not.toContain('class="home-date"');
+    expect(plain).toContain('class="home-open-clip"');
+    expect(plain).toContain(LOOP);
+    expect(plain).not.toContain("/api/home-clip/");
+    expect(plain).toContain("Watch episodes");
+    expect(plain).toContain('class="home-date"');
 
     const d = (await t.db.query<{ id: string }>("select id from episodes limit 1")).rows[0];
     await saveHomeClip(t.db, { episode_id: d.id, day: "2026-10-01", loop: MP4, poster: JPEG, width: 480, height: 854, seconds: 12 });
-    expect(await home()).toContain("has-clip");
+    const fresh = await home();
+    expect(fresh).toContain("/api/home-clip/");
+    expect(fresh).not.toContain(LOOP);
     await t.db.query(`update home_clips set created_at = now() - make_interval(days => $1::int)`, [CLIP_FRESH_DAYS + 1]);
     const stale = await home();
-    expect(stale).not.toContain("has-clip");
-    expect(stale).toContain('class="hero-art has-date"');
+    expect(stale).not.toContain("/api/home-clip/");
+    expect(stale).toContain(LOOP);
 
     await t.db.query(`update home_clips set created_at = now()`);
     vi.stubEnv("HOME_HERO_CLIP", "0");
     const off = await home();
-    expect(off).not.toContain("has-clip");
-    expect(off).toContain('class="hero-art has-date"');
+    expect(off).not.toContain("/api/home-clip/");
+    expect(off).toContain(LOOP);
+  });
+
+  it("the page as it was (HOME_OPEN=0) keeps its hero: the clip beside the pitch, or the real date with no clip", async () => {
+    vi.stubEnv("HOME_OPEN", "0");
+    await date();
+    as(null);
+    const plain = await home();
+    expect(plain).not.toContain("home-clip");
+    expect(plain).toContain('<section class="hero">');
+    expect(plain).toContain('class="hero-art has-date"');
+    expect(plain).not.toContain('class="home-date"');
+    const d = (await t.db.query<{ id: string }>("select id from episodes limit 1")).rows[0];
+    await saveHomeClip(t.db, { episode_id: d.id, day: "2026-10-01", loop: MP4, poster: JPEG, width: 480, height: 854, seconds: 12 });
+    const withIt = await home();
+    expect(withIt).toContain('<section class="hero has-clip">');
+    expect(withIt).toContain('class="hero-art has-clip"');
+    expect(withIt).toContain('<h1 class="hero-title">Give your character a love life.</h1>');
+    expect(withIt).toContain('href="/create?sample=1"');
+    expect(withIt).toContain("Bring your character");
+    expect(withIt).toContain('class="home-date"');
   });
 
   it("leaves an owner's home as it is: no clip, no box", async () => {
@@ -481,28 +507,27 @@ describe("the home hero", () => {
     expect(html).toContain('href="/create">Build a new character</a>');
   });
 
-  it("puts the sentence box under the headline for a visitor, and the old button back when express is off", async () => {
+  it("puts the sentence box under the headline for a visitor, and a plain button back when express is off", async () => {
     as(null);
     const html = await home();
     const box = html.indexOf('class="home-express"');
-    expect(box).toBeGreaterThan(html.indexOf("<h1>Give your character a love life.</h1>"));
-    expect(box).toBeLessThan(html.indexOf('class="small hero-doors"'));
+    expect(box).toBeGreaterThan(html.indexOf("A blind-date show where nobody steers."));
+    expect(box).toBeLessThan(html.indexOf('class="home-open-clip"'));
     expect(html).toContain('<form class="home-express" action="/create" method="get">');
     expect(html).toContain("Describe someone in a sentence");
     const input = /<input[^>]*name="say"[^>]*>/.exec(html)![0];
     for (const attr of ['required=""', `minLength="${EXPRESS_TEXT_MIN}"`, `maxLength="${EXPRESS_TEXT_MAX}"`]) expect(input, attr).toContain(attr);
     expect(html).toContain('data-track="home-express"');
-    // The box's button is the main one; the sample and the import stay. The first screen above carries "Make your
-    // character", so the hero doesn't repeat it (the 2026-11-20 mobile audit, A2).
+    // The box's button is the screen's one action: no second "Make your character" beside it, and no other doors.
     expect(html).not.toContain('<a class="button-ghost" href="/create">Make your character</a>');
-    expect(html).toContain('href="/create?sample=1"');
-    expect(html).toContain('data-track="hero-import"');
+    expect(html).not.toContain('href="/create?sample=1"');
+    expect(html).not.toContain('data-track="hero-import"');
 
     for (const [k, v] of [["EXPRESS_CREATE", "0"], ["HOME_EXPRESS_BOX", "0"]] as const) {
       vi.stubEnv(k, v);
       const off = await home();
       expect(off, k).not.toContain("home-express");
-      expect(off, k).toContain('<a class="button" href="/create">Make your character</a>');
+      expect(off, k).toContain('<a class="button" data-track="open-create" href="/create">Make your character</a>');
       vi.unstubAllEnvs();
       vi.stubEnv("FRONTIER_PASSWORD", KEY);
     }

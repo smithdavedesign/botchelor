@@ -696,11 +696,62 @@ body:has(.home-open--arc) .season-strip {
   font-size: var(--text-2xs);
   color: rgba(255, 255, 255, 0.72);
 }
-/* Under the first screen the hero is the way in to making one: its headline is a level down. */
-.hero-copy > h2.hero-title {
-  margin: 0.25rem 0 0.5rem;
-  font-size: var(--text-2xl);
-  line-height: 1.1;
+/* ── The one screen (app/HomeOpen.tsx, 2026-11-21): the promise, the sentence box and the day's clip ──
+   On a phone the pitch's rows and the clip are the body's own rows: the cast, the promise and the box, then the clip
+   right under the box (its top inside the first screen), then the small print. */
+.home-open-pitch {
+  display: contents;
+}
+.home-open-pitch > p {
+  margin: 0;
+  max-width: 40rem;
+}
+.home-open-pitch > .home-open-calls {
+  margin-top: 0.35rem;
+}
+.home-open-lede {
+  font-size: var(--text-md);
+  color: color-mix(in srgb, var(--on-photo) 90%, transparent);
+  text-wrap: balance;
+}
+.home-open--one .home-express {
+  width: 100%;
+  margin: var(--space-1) 0 0;
+  color: var(--ink);
+  text-align: left;
+}
+.home-open-clip {
+  order: 1;
+  width: 100%;
+  margin-top: var(--space-2);
+}
+.home-open-pitch > .home-open-fine {
+  order: 2;
+}
+/* The clip's caption and its way to watch, on the stage's dark. */
+.home-open .home-clip-kicker {
+  color: color-mix(in srgb, var(--on-photo) 82%, transparent);
+}
+.home-open .home-clip-who {
+  color: var(--on-photo);
+}
+.home-open .home-clip-watch {
+  border-color: color-mix(in srgb, var(--on-photo) 55%, transparent);
+  background: color-mix(in srgb, var(--card-dark) 40%, transparent);
+  color: var(--on-photo);
+}
+/* The body is far taller than the stage's band now, so on a phone the fade is measured from the band (56.25vw tall),
+   not from the screen's height: dark by the band's lower edge, where the cast stands. */
+.home-open--one .home-open-scrim {
+  inset: 24vw 0 0 0;
+  height: auto;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--card-dark) 0%, transparent) 0,
+    color-mix(in srgb, var(--card-dark) 72%, transparent) 14vw,
+    color-mix(in srgb, var(--card-dark) 96%, transparent) 26vw,
+    var(--card-dark) 32vw
+  );
 }
 @media (min-width: 861px) {
   /* On a wide screen the stage has room to be itself: it fills the screen behind the words. */
@@ -733,6 +784,45 @@ body:has(.home-open--arc) .season-strip {
   .home-open-lead {
     width: 5.5rem;
     height: 5.5rem;
+  }
+  /* The one screen: the words and the box on the left, the clip in its phone on the right, both over the stage. The
+     fade leans in from the left as well, under the words. */
+  .home-open--one .home-open-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--space-6);
+    text-align: left;
+  }
+  .home-open--one .home-open-pitch {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+  .home-open--one .home-open-cast,
+  .home-open--one .home-open-calls {
+    justify-content: flex-start;
+  }
+  .home-open--one .home-open-title {
+    max-width: 16ch;
+  }
+  .home-open--one .home-express {
+    max-width: 32rem;
+  }
+  .home-open--one .home-open-clip {
+    width: auto;
+    margin-top: 0;
+  }
+  .home-open--one .home-clip .phone {
+    width: 14rem;
+  }
+  .home-open--one .home-open-scrim {
+    inset: 0;
+    background:
+      linear-gradient(to right, color-mix(in srgb, var(--card-dark) 82%, transparent) 0%, color-mix(in srgb, var(--card-dark) 55%, transparent) 46%, color-mix(in srgb, var(--card-dark) 0%, transparent) 78%),
+      linear-gradient(to bottom, color-mix(in srgb, var(--card-dark) 55%, transparent) 0%, color-mix(in srgb, var(--card-dark) 12%, transparent) 18%, color-mix(in srgb, var(--card-dark) 30%, transparent) 40%, color-mix(in srgb, var(--card-dark) 84%, transparent) 68%, var(--card-dark) 100%);
   }
 }
 

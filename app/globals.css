@@ -12181,9 +12181,10 @@ details.episode-safety .safety > h2 {
   margin-left: calc(50% - 50vw);
   background: var(--constellation-bg);
 }
+/* The page opens on the sky (2026-11-21): the screen under the site header, the title line and the bar. */
 .constellation-sky {
   position: relative;
-  height: clamp(420px, 72vh, 820px);
+  height: clamp(420px, calc(100svh - 15rem), 860px);
   overflow: hidden;
   touch-action: none;
 }
@@ -12199,11 +12200,6 @@ details.episode-safety .safety > h2 {
   display: grid;
   place-items: center;
   color: var(--constellation-label);
-}
-/* Under the sky now (2026-10-25: the page opens on the graph): what it is and the numbers. */
-.constellation-header {
-  text-align: center;
-  margin: var(--space-5) 0 var(--space-4);
 }
 /* Full screen (ConstellationApp.tsx): the stage over everything, the sky taking what the toolbar leaves. */
 .constellation-page .constellation-stage.is-full {
@@ -12297,53 +12293,6 @@ html.constellation-locked body {
   display: grid;
   gap: var(--space-1);
 }
-/* The filters take the row's room and wrap inside it, so when there are more of them (a signed-in owner's "Yours") the
-   full-screen button stays at the end of the search row instead of dropping to a row of its own. */
-.constellation-filters {
-  flex: 1 1 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-  justify-content: flex-end;
-}
-.constellation-segmented {
-  margin: 0;
-  flex-wrap: nowrap;
-  gap: 2px;
-  padding: 3px;
-}
-/* The origin filter reuses the segmented-tab look on buttons (the tabs elsewhere are links). */
-.constellation-segmented .segmented-tab {
-  border: 0;
-  background: none;
-  cursor: pointer;
-  min-height: 32px;
-  white-space: nowrap;
-}
-.constellation-segmented button.segmented-tab {
-  padding: 0 0.7rem;
-}
-.constellation-colour {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.constellation-colour-label {
-  color: var(--constellation-label);
-  font-size: var(--text-sm);
-}
-/* The widest option ("🦊 Talking animal") would set the select's width; a fixed one keeps the phone's last row to one. */
-.constellation-kind select {
-  width: 9rem;
-  min-height: 36px;
-  padding-block: 0;
-}
-.constellation-segmented .segmented-tab[aria-current="page"],
-.constellation-segmented .segmented-tab[aria-pressed="true"] {
-  background: var(--accent-btn);
-  color: var(--accent-ink);
-}
 /* "Showing the 30 strongest pairs" and the button for the rest (2026-11-07 audit, item 17): it sits on the sky, so it
    takes the sky's label colour (the page's ink was dark on dark). */
 .constellation-more {
@@ -12359,16 +12308,6 @@ html.constellation-locked body {
 }
 .constellation-more button.button-ghost:hover:not(:disabled) {
   background: color-mix(in srgb, var(--constellation-ink) 16%, transparent);
-}
-.constellation-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--constellation-label);
-  font-size: var(--text-sm);
-  border-radius: 999px;
-  padding: 2px 4px;
-  white-space: nowrap;
 }
 /* The lines row (ConstellationApp.tsx): one chip per kind of pair, each drawn as its line is, so the row is the sky's
    legend and its filter. Under the toolbar and above the sky; one sideways row (.scroll-row) when it doesn't fit. */
@@ -12493,26 +12432,8 @@ html.constellation-locked body {
   box-shadow: none;
   background: color-mix(in srgb, var(--constellation-ink) 16%, transparent);
 }
-/* When they last dated and "Still seeing each other": the lines row's other end on a desktop (a phone has them in its
-   Filters sheet). The kinds of pair on the left, when on the right; it wraps under the chips only on a narrow window. */
-.constellation-when {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  margin-left: auto;
-}
-.constellation-when label,
-.constellation-when input,
-.constellation-when select {
-  margin: 0;
-}
-.constellation-when select {
-  width: auto;
-  min-height: 36px;
-  padding-block: 0;
-}
-/* The phone's Filters sheet (ConstellationApp.tsx): the same filters as the desktop's toolbar, on the page's card. */
+/* The Filters sheet (ConstellationApp.tsx): who's on the sky, its colouring and when they last dated; a centred card on
+   a desktop, a bottom sheet on a phone. */
 .constellation-sheet fieldset {
   margin: 0 0 var(--space-4);
   padding: 0;
@@ -12777,7 +12698,81 @@ html.constellation-locked body {
   color: var(--accent-text);
 }
 .constellation-hud button.constellation-filters-btn {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em; /* "Filters · 2": a flex item drops its own leading space */
+  min-height: 40px;
+  margin: 0;
+  padding: 0 0.9rem;
+  flex-shrink: 0;
+  border: 1px solid var(--constellation-line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--constellation-label);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: none;
+}
+.constellation-hud button.constellation-filters-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  transform: none;
+}
+/* Who the sky is narrowed to (ConstellationApp.tsx), on the bar: a pill in the sky's accent that clears it. */
+.constellation-hud button.constellation-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em; /* before the ✕: a flex item drops its own leading space */
+  min-height: 40px;
+  margin: 0;
+  padding: 0 0.9rem;
+  flex-shrink: 0;
+  border: 1px solid var(--constellation-accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--constellation-accent) 16%, transparent);
+  color: var(--constellation-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.constellation-hud button.constellation-scope:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--constellation-accent) 28%, transparent);
+  transform: none;
+}
+/* A desktop: the toolbar and the lines row are one bar (search, the views, the chips, the group it is narrowed to, then Filters and full screen at
+   the end), wrapping when it must, so the sky starts one row under the title instead of three. */
+@media (min-width: 641px) {
+  .constellation-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--constellation-line);
+  }
+  .constellation-bar > .constellation-hud,
+  .constellation-bar > .constellation-lines {
+    display: contents;
+  }
+  .constellation-bar .constellation-search {
+    order: 1;
+  }
+  .constellation-bar .constellation-lenses {
+    order: 2;
+  }
+  .constellation-bar .constellation-stage-chips {
+    order: 3;
+  }
+  .constellation-bar button.constellation-scope {
+    order: 4;
+  }
+  .constellation-bar button.constellation-filters-btn {
+    order: 5;
+    margin-left: auto;
+  }
+  .constellation-bar button.constellation-full-btn {
+    order: 6;
+  }
 }
 @media (max-width: 640px) {
   /* The sky fits the screen under the header, the toolbar's one row (D7) and the lines row, instead of a fixed share of it. */
@@ -12787,34 +12782,18 @@ html.constellation-locked body {
   .constellation-lines {
     padding: var(--space-2) var(--gutter);
   }
-  .constellation-hud button.constellation-filters-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3em; /* "Filters · 2": a flex item drops its own leading space */
-    min-height: 40px;
-    margin: 0;
-    padding: 0 0.9rem;
-    flex-shrink: 0;
-    border: 1px solid var(--constellation-line);
-    border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--constellation-label);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    box-shadow: none;
-  }
-  /* The filters live in the Filters sheet on a phone (the toolbar's own copies are a desktop's). */
-  .constellation-filters,
-  .constellation-when {
-    display: none;
-  }
   .constellation-hud {
     padding: var(--space-2) var(--gutter);
   }
   .constellation-search {
     flex: 1 1 0;
-    min-width: 0;
+    min-width: 8rem;
     max-width: none;
+  }
+  /* The group the sky is narrowed to: its own line under search, Filters and full screen (it squeezed the search to
+     nothing beside them). */
+  .constellation-hud button.constellation-scope {
+    order: 100;
   }
   .constellation-key {
     font-size: var(--text-xs);
@@ -15023,6 +15002,49 @@ button.thread-menu-item:hover:not(:disabled) {
 }
 .situation-last {
   margin: var(--space-3) 0 0;
+}
+/* Tonight's two votes as one card on home (app/TonightVotes.tsx): the situation and the dare under one heading and in
+   one frame, side by side on a wide screen and one after the other on a phone. Each part keeps its own question, its
+   choices (one under another here: a part is half the card's width) and its last result. */
+.tonight-votes-head .kicker {
+  margin: 0;
+  color: var(--accent-text);
+}
+.tonight-votes-head h2 {
+  margin: 0;
+}
+.tonight-votes-parts {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+.tonight-part {
+  min-width: 0;
+  margin-top: 0;
+}
+.tonight-part + .tonight-part {
+  padding-top: var(--space-4);
+  border-top: var(--control-border) solid var(--line);
+}
+.tonight-part .situation-head h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+.tonight-part .situation-choices {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  .tonight-votes-parts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-5);
+  }
+  .tonight-part + .tonight-part {
+    padding-top: 0;
+    padding-left: var(--space-5);
+    border-top: 0;
+    border-left: var(--control-border) solid var(--line);
+  }
 }
 
 /* Your calls (app/YourCalls.tsx, lib/streaks.ts): the record line on home and /watch, and this week's best callers. */
