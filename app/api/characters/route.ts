@@ -210,7 +210,7 @@ export const POST = handle(async (req) => {
     sess,
   );
   // The builder's "I'm 18 or older, and this is my own original character" box is the 18+ attestation for a creator
-  // (2026-11-14: the PG show pages open without the gate, middleware.ts): ticked, it sends `over_18`, and the save
+  // (2026-11-14: the PG show pages open without the gate, proxy.ts): ticked, it sends `over_18`, and the save
   // remembers that answer with the gate's own cookie, so /swipe and the chat open afterwards without asking again. Only
   // `over_18` does it, never `attest` alone (2026-11-22 audit: the box had stopped asking the person's age while every
   // save still set the cookie). A person's browser only; an agent's call carries no cookies.

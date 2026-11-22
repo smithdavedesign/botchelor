@@ -5,6 +5,7 @@ import Pager from "@/app/Pager";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { artistsNamed, parseArtists } from "@/lib/prompt-artists";
 import { getDb } from "@/lib/db";
+import { authFromCookieStore } from "@/lib/http";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import {
   ALL_PROMPTS,
@@ -23,6 +24,7 @@ import {
 import { SHARE_IMAGE } from "@/lib/seo";
 import CopyPrompt from "./CopyPrompt";
 import MyPrompts from "./MyPrompts";
+import { MyPromptsArticle } from "./MyPromptsContext";
 import PromptCard from "./PromptCard";
 import PromptExamples from "./PromptExamples";
 import { examplesFor } from "@/lib/prompt-examples";
@@ -36,6 +38,9 @@ export const metadata: Metadata = {
   title: `${TITLE}: portrait prompts for drawing your character · Botchelor`,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
+  // Behind the 18+ gate (its words are an open dataset's, kept for grown-ups), so a search result landed people on the
+  // gate: kept out of search and the sitemap, links still followed (2026-11-22 audit).
+  robots: { index: false, follow: true },
   // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
   openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", title: TITLE, description: DESCRIPTION, url: PATH, images: [SHARE_IMAGE] },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
@@ -60,9 +65,19 @@ async function showsNsfw(): Promise<boolean> {
   }
 }
 
+/** An account's session (lib/http.ts, as /api/library reads it): only then does the page ask for their own prompts. */
+async function hasAccount(): Promise<boolean> {
+  try {
+    return authFromCookieStore(await cookies())?.authenticated === true;
+  } catch {
+    return false;
+  }
+}
+
 export default async function PromptsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const showNsfw = await showsNsfw();
+  const signedIn = await hasAccount();
   const q = parseQuery(sp.q);
   const source = parseSource(sp.source);
   const tag = parseTag(sp.tag, showNsfw);
@@ -76,8 +91,9 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
   const tags = tagCounts(showNsfw);
   const groups = [...new Set(tags.map((t) => t.group))];
 
+  // The article holds the viewer's own prompts for Your prompts and every card's Save (app/prompts/MyPromptsContext.tsx).
   return (
-    <article className="page-wide prompts-page">
+    <MyPromptsArticle className="page-wide prompts-page" signedIn={signedIn}>
       <section className="card prompts-intro">
         <p className="kicker">A free library for drawing your character</p>
         <h1>{TITLE}</h1>
@@ -173,9 +189,9 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         <h2>Where these come from</h2>
         <p>
           Every prompt is from an openly licensed dataset and keeps its licence. We only cleaned them up: one line of plain
-          words, no model weights or flags, nothing under 40 or over 400 characters, no repeats. Anything about minors,
-          anything sexual or violent, anything naming a real person, and anything describing a picture that already exists
-          rather than one to make was left out.
+          words, no model weights or flags, plain misspellings fixed, nothing under 40 or over 400 characters, no repeats.
+          Anything about minors, anything sexual or violent, anything with a real person as its subject, and anything
+          describing a picture that already exists rather than one to make was left out.
         </p>
         <p>
           The tags are the Studio&apos;s own: its framing, angle, pose, wardrobe, accessories, place, light and expression
@@ -204,6 +220,6 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
           Make your character
         </Link>
       </section>
-    </article>
+    </MyPromptsArticle>
   );
 }

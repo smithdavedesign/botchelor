@@ -123,6 +123,7 @@ import { freshViews, identityPackOf, keepIdentityView, type IdentityPack } from 
 import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, pickView, type IdentityViewId } from "../studio/identity-views";
 import { askRatio, ratioOf, ratiosFor, type FormatId } from "../studio/formats";
 import { fitRatio } from "../media-tools/image";
+import { escapeRegExp } from "../text";
 
 /* ------------------------------------------------- who may ------------------------------------------------- */
 
@@ -770,7 +771,7 @@ export async function ownPlaces(db: Db, viewer: string, characterId: string): Pr
 export function cleanPlaceLabel(label: string, names: readonly string[]): string | null {
   const t = label.trim();
   if (!/\s/.test(t)) return null;
-  return names.reduce((out, n) => (n.length >= 2 ? out.replace(new RegExp(`^(${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})s\\b`, "i"), "$1's") : out), t);
+  return names.reduce((out, n) => (n.length >= 2 ? out.replace(new RegExp(`^(${escapeRegExp(n)})s\\b`, "i"), "$1's") : out), t);
 }
 
 export async function shoot(db: Db, viewer: string, characterId: string, input: ShootInput, baseUrl: string, opts: { redoOf?: string; free?: boolean } = {}): Promise<JobResult> {

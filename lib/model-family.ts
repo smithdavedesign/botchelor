@@ -29,7 +29,6 @@ export const MODEL_FAMILY_LABELS: Record<ModelFamily, string> = {
 export const MODEL_MAX = 80;
 
 export const isModelFamily = (v: unknown): v is ModelFamily => typeof v === "string" && (MODEL_FAMILIES as readonly string[]).includes(v);
-export const modelFamilyLabel = (family: ModelFamily): string => MODEL_FAMILY_LABELS[family];
 
 /**
  * What marks each family in a model string, tried against the lowercased string with runner names taken out. The

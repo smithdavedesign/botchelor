@@ -13,8 +13,11 @@ import { STUDIO_GROUPS } from "@/lib/adult/studio-catalog";
 import { FACET_RULES, IMAGE_REF, imageReference, SENSITIVE, STUDIO_TAG_RULES, tagPrompt, YOUNG } from "@/lib/prompt-library-rules";
 import { PUBLIC_PATHS } from "@/lib/site";
 import { checkAdultText, checkShowText } from "@/lib/safety";
+import { namesArtist } from "@/lib/prompt-artists";
+import LIBRARY from "@/lib/prompts-library.json";
 import {
   ALL_PROMPTS,
+  LEAD_PROMPTS,
   PROMPT_QUERY_MAX,
   PROMPT_SOURCES,
   PROMPTS_PER_PAGE,
@@ -125,6 +128,63 @@ describe("the 2026-10-25 hotfix: what the word lists let through is gone", () =>
   });
 });
 
+describe("the 2026-11-22 pass: a hand-picked first page and tidier words", () => {
+  it("opens on the hand-picked page, in its order, each prompt in the seed once and naming no artist", async () => {
+    expect(LEAD_PROMPTS).toHaveLength(PROMPTS_PER_PAGE);
+    for (const lead of LEAD_PROMPTS) {
+      expect(ALL_PROMPTS.filter((p) => p.prompt === lead), lead).toHaveLength(1);
+      expect(namesArtist(lead), lead).toBe(false);
+    }
+    expect(ALL_PROMPTS.slice(0, LEAD_PROMPTS.length).map((p) => p.prompt)).toEqual(LEAD_PROMPTS);
+    const html = await render();
+    const at = LEAD_PROMPTS.map((lead) => html.indexOf(lead.replace(/&/g, "&amp;").replace(/'/g, "&#x27;")));
+    expect(at.every((i) => i > -1)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    expect(html).not.toContain("onion man portrait");
+  });
+
+  it("leads any filter it matches, and keeps the seed's order for everything else", () => {
+    const men = findPrompts({ tag: "subject:man" });
+    const leads = LEAD_PROMPTS.filter((lead) => men.some((p) => p.prompt === lead));
+    expect(leads.length).toBeGreaterThan(5);
+    expect(men.slice(0, leads.length).map((p) => p.prompt)).toEqual(leads);
+    const rest = (LIBRARY as LibraryPrompt[]).map((p) => p.prompt).filter((p) => !LEAD_PROMPTS.includes(p));
+    expect(ALL_PROMPTS.slice(LEAD_PROMPTS.length).map((p) => p.prompt)).toEqual(rest);
+  });
+
+  it("carries no dash flags, spaced f-stops, stray weights, wrong articles or the misspellings the build fixes", () => {
+    for (const { prompt } of ALL_PROMPTS) {
+      expect(prompt, prompt).not.toMatch(/\s[—–][a-z]/i);
+      expect(prompt, prompt).not.toMatch(/\bf ?\/? ?\d+\. \d\b/i);
+      expect(prompt, prompt).not.toMatch(/\b[a-z]+:\s?\d*\.\d+\b/i);
+      expect(prompt, prompt).not.toMatch(/\b(?:an beautiful|an woman|a award|award wining|portrait panting|foccus|ilustration|beautifull|beutiful|mowhawk|potrait|portait)\b/i);
+      expect(prompt, prompt).not.toMatch(/^[“"]|[”"]$/);
+    }
+  });
+
+  it("no longer has the prompts reported on 2026-11-22", () => {
+    for (const gone of ["hasan-i sabbah", "final words:'fuck art.'"]) {
+      expect(ALL_PROMPTS.some((p) => p.prompt.toLowerCase().includes(gone)), gone).toBe(false);
+    }
+  });
+
+  it("says what was left out truthfully: no real person as a subject, while artists' styles are named and can be hidden", async () => {
+    const html = await render();
+    expect(html).toContain("anything with a real person as its subject");
+    expect(html).not.toContain("anything naming a real person");
+    expect(html).toContain("Leave out prompts that name a real artist");
+  });
+
+  it("tells a visitor without an account to sign in from the server, with no request for a library they don't have", async () => {
+    const html = await render();
+    expect(html).toContain('class="muted small my-prompts-signin"');
+    expect(html).toContain("to save prompts of your own");
+    // The library is asked only for a signed-in viewer (app/prompts/MyPromptsContext.tsx; tests/prompts-mine.test.ts).
+    const source = readFileSync(new URL("../app/prompts/MyPromptsContext.tsx", import.meta.url), "utf8");
+    expect(source).toContain("if (!signedIn) return;");
+  });
+});
+
 describe("search and filter (lib/prompts-library.ts)", () => {
   it("matches every word, in any order and any case", () => {
     const found = findPrompts({ query: "WOMAN portrait" });
@@ -179,10 +239,10 @@ describe("the page: /prompts", () => {
     expect(html).toMatch(/CC0 1\.0[\s\S]*Apache 2\.0[\s\S]*MIT/);
   });
 
-  it("is indexable and listed for search engines", () => {
+  it("stays out of search while it's behind the 18+ gate (a result there landed people on the gate), links followed", () => {
     expect(metadata.alternates?.canonical).toBe("/prompts");
-    expect(metadata.robots).toBeUndefined();
-    expect(PUBLIC_PATHS).toContain("/prompts");
+    expect(metadata.robots).toEqual({ index: false, follow: true });
+    expect(PUBLIC_PATHS).not.toContain("/prompts");
   });
 });
 

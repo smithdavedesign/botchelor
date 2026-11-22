@@ -11,6 +11,7 @@ import { isProductionDeploy } from "./deploy";
 import { sendAccountEmail } from "./email";
 import { siteUrl } from "./site";
 import { isTestModeLink, paymentLinkUrl, RENEWAL_GRACE_MS } from "./stripe";
+import { soft } from "./soft";
 
 type Env = Record<string, string | undefined>;
 
@@ -250,7 +251,7 @@ export async function sendPlanReminders(db: Db, now: Date = new Date(), env: Env
     if (r.renewal_reminded_at && new Date(r.renewal_reminded_at) >= anniversary) continue;
     // Marked first, so a failed send isn't retried every day into a capped mailbox.
     await db.query(`update plan_entitlements set renewal_reminded_at = $3 where user_id = $1 and plan = $2`, [r.user_id, r.plan, now.toISOString()]);
-    if (await sendPlanEmail(db, r.user_id, r.plan, "reminder", env).catch(() => false)) sent++;
+    if (await sendPlanEmail(db, r.user_id, r.plan, "reminder", env).catch(soft("plans: renewal reminder email", false))) sent++;
   }
   return sent;
 }

@@ -15,6 +15,7 @@ import { movePlace, placeFor } from "./places";
 import { agrees, saysNo } from "./plans";
 import { actForTurn, DATE_ACTS, MAX_MOVES, MOVE_SEGMENT_LINES } from "./rules";
 import { PLACE_LABEL_MAX, placeParts, venue, venuePhrase, type PlaceId } from "./venues";
+import { escapeRegExp } from "./text";
 
 const FINAL_ACT = DATE_ACTS.length - 1;
 
@@ -110,7 +111,7 @@ export function voiced(dialogue: string, say: string, to: PlaceId, names: { self
   if (placeFor(dialogue, names.self, names.other) === to) return true;
   const words = (say.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []).filter((w) => !FILLER.has(w));
   const head = words[words.length - 1];
-  return Boolean(head) && new RegExp(`(^|[^\\p{L}])${head.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "iu").test(dialogue);
+  return Boolean(head) && new RegExp(`(^|[^\\p{L}])${escapeRegExp(head)}`, "iu").test(dialogue);
 }
 
 /**

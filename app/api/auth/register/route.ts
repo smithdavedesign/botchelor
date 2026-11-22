@@ -7,6 +7,7 @@ import { overLimit, REGISTER_LIMITS, visitorKey } from "@/lib/limits";
 import { welcome } from "@/lib/notifications";
 import { assertSafeName } from "@/lib/people";
 import { freshSessionVersion } from "@/lib/session-versions";
+import { soft } from "@/lib/soft";
 
 const RegisterInput = z.object({
   handle: z.string().trim().min(3).max(20),
@@ -34,7 +35,7 @@ export const POST = handle(async (req) => {
   try {
     const account = await registerAccount(db, sess.userId, input.handle, input.password);
     // The account's first notice (lib/notifications.ts welcome): never in the way of the sign-up itself.
-    await welcome(db, account.user_id).catch(() => {});
+    await welcome(db, account.user_id).catch(soft("auth: welcome after a sign-up"));
     // Seed a display name from the handle if the user hasn't picked one (leagues/reveals need one).
     await db.query(
       `insert into profiles (user_id, name) values ($1, $2) on conflict (user_id) do nothing`,

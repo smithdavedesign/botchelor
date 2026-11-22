@@ -156,7 +156,8 @@ export type PgPicture = {
 };
 export type PgShoot = { id: string; status: string; asked: number; made: number; tokens: number; free: boolean; error: string | null; created_at: string };
 export type PgState = {
-  character: { id: string; name: string; house: boolean; face: boolean };
+  /** `private`: only its owner sees the character, so its pictures aren't offered for the showcase. */
+  character: { id: string; name: string; house: boolean; face: boolean; private: boolean };
   groups: typeof PG_GROUPS;
   pictures: PgPicture[];
   shoots: PgShoot[];
@@ -218,7 +219,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
   const access = await pgAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
-  const [pictures, shoots, allowance, used, free, face, library] = await Promise.all([
+  const [pictures, shoots, allowance, used, free, face, library, hidden] = await Promise.all([
     db.query<{ id: string; content_rating: "pg" | "suggestive"; created_at: Date; shoot_id: string | null; aspect: string | null; tags: PgTag[] | null }>(
       `select id, content_rating, created_at, shoot_id, aspect, tags from studio_pg_pictures where owner_id = $1 and character_id = $2 order by created_at desc limit 120`,
       [viewer, c.id],
@@ -232,6 +233,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
     firstShootFree(db, viewer!, c.id, config),
     faceReference(db, c, baseUrl),
     getLibrary(db, viewer!, { safeOnly: true }).catch(() => ({ places: [], prompts: [], roleplays: [] })),
+    db.query<{ private: boolean }>(`select visibility = 'private' as private from characters where id = $1`, [c.id]),
   ]);
   // Which are on the showcase (lib/showcase.ts), for each tile's 📣.
   const [posts, pinned, partners] = await Promise.all([
@@ -242,7 +244,7 @@ export async function pgState(db: Db, viewer: string | null, characterId: string
   return {
     ok: true,
     state: {
-      character: { id: c.id, name: c.name, house: c.house, face: Boolean(face) },
+      character: { id: c.id, name: c.name, house: c.house, face: Boolean(face), private: hidden.rows[0]?.private === true },
       groups: PG_GROUPS,
       pictures: pictures.rows.map((p) => ({ id: p.id, rating: p.content_rating, created_at: new Date(p.created_at).toISOString(), shoot_id: p.shoot_id, aspect: p.aspect, post: posts[p.id] ?? null, pinned: pinned.has(p.id), tags: (Array.isArray(p.tags) ? p.tags : []).filter((t) => t.kind === "made" || t.kind === "place") })),
       shoots: shoots.rows.map((s) => ({ ...s, created_at: new Date(s.created_at).toISOString() })),
