@@ -6,8 +6,15 @@ import { getDb } from "@/lib/db";
 import { inviteView } from "@/lib/group-dates";
 import { userIdFromCookieStore } from "@/lib/http";
 import AnswerDouble from "./AnswerDouble";
+import { knownDoubleOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
-export const metadata: Metadata = { title: "A double date invite · Botchelor", robots: { index: false } };
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownDoubleOnce(id));
+  return { title: "A double date invite · Botchelor", robots: { index: false } };
+}
 export const dynamic = "force-dynamic";
 
 /**
