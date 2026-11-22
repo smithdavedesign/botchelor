@@ -3,7 +3,7 @@ import { listSwitchable } from "@/lib/adult/characters";
 import { setMediaFetchForTests } from "@/lib/adult/media";
 import { setModerationFetchForTests } from "@/lib/adult/moderation";
 import { saveAdultSettings } from "@/lib/adult/settings";
-import { withPortraits } from "@/lib/assets";
+import { recordAsset, reviewAsset, withPortraits } from "@/lib/assets";
 import { ensurePortrait, setDefaultPortraitsForTests } from "@/lib/default-portraits";
 import { api, newUserCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
 
@@ -49,6 +49,27 @@ describe("a character's portrait in every list", () => {
     expect(a.portrait).toMatch(/^\/api\/assets\//);
     expect(b.portrait).toBeNull();
     expect((await withPortraits(t.db, [{ id: hidden }], { private: true }))[0].portrait).toMatch(/^\/api\/assets\//);
+  });
+
+  it("a portrait that is a reviewed file shipped with the app is that file's path, not a trip through the image route (2026-11-22 audit)", async () => {
+    const cookie = newUserCookie();
+    const id = await withFace(cookie, "Bram Tolley");
+    const newer = async (url: string) => {
+      const asset = await recordAsset(t.db, { content_rating: "pg", character_id: id, kind: "portrait", source_type: "generated", source_model: "test-1", url });
+      await reviewAsset(t.db, asset, "approved");
+      await t.db.query(`update character_assets set created_at = now() + (select count(*) from character_assets) * interval '1 minute' where id = $1`, [asset]);
+      return asset;
+    };
+    await newer("/cast/house-bram-v5.webp");
+    expect((await withPortraits(t.db, [{ id }]))[0].portrait).toBe("/cast/house-bram-v5.webp");
+    // Any other path stays on the route, which checks it (and turns away anything but a file in /cast).
+    for (const url of ["/cast/../secrets.png", "/cast/x.svg", "https://evil.example/x.png", "/cast/sub/x.webp"]) {
+      const asset = await newer(url);
+      expect((await withPortraits(t.db, [{ id }]))[0].portrait, url).toBe(`/api/assets/${asset}`);
+    }
+    // A generated picture, stored as a data URL, too.
+    const drawn = await newer("data:image/png;base64," + Buffer.from("not really a png").toString("base64"));
+    expect((await withPortraits(t.db, [{ id }]))[0].portrait).toBe(`/api/assets/${drawn}`);
   });
 
   it("After Dark's switches carry their own characters' portraits", async () => {

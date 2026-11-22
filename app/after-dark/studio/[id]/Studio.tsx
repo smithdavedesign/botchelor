@@ -398,12 +398,12 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
     const words = choices.extra?.[g.id]?.trim();
     const parts = [...ids.map((id) => all.find((o) => o.id === id)?.label ?? ""), words ? `“${words}”` : ""].filter(Boolean);
     if (parts.length) return parts.join(", ");
-    if (g.id === "filthy" && s.identity.intensity !== "filthy") return `locked at ${INTENSITY[s.identity.intensity].label}`;
+    if (g.id === "filthy" && s.identity.intensity !== "filthy") return `Intensity: ${INTENSITY[s.identity.intensity].label} (their limit)`;
     return g.multi > 1 ? `up to ${g.multi}` : "any";
   };
 
   /** "Use this face": the existing face route (lib/adult/steering.ts), with the others it was picked from. */
-  async function useFace(imageId: string, rivals: string[] = []) {
+  async function pickFace(imageId: string, rivals: string[] = []) {
     setBusy(`face:${imageId}`);
     const res = await requestJson("/api/admin/after-dark/face", { character_id: c.id, image_id: imageId, rivals }).catch(() => null);
     setBusy(null);
@@ -643,7 +643,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     <span className="muted small">Use it</span>
                     <div className="ad-tile-menu">
                       {solo && s.identity.face !== p.id && (
-                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(p.id, opts.rivals?.filter((r) => r !== p.id) ?? [])}>
+                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void pickFace(p.id, opts.rivals?.filter((r) => r !== p.id) ?? [])}>
                           Use this face
                         </button>
                       )}
@@ -711,9 +711,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                   ))}
                 </div>
                 {/* Guide the clip (David, 2026-10-24): what should happen, what they say, and the lines around the moment. */}
-                <textarea className="ad-studio-custom" rows={2} maxLength={CUSTOM_MAX} value={anim.guide ?? ""} placeholder="Guide it — what should actually happen (optional, leads the clip)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, guide: e.target.value || undefined })} />
-                <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={anim.dialog ?? ""} placeholder="Dialog — what they say (optional)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, dialog: e.target.value || undefined })} />
-                <textarea className="ad-studio-custom" rows={2} maxLength={TRANSCRIPT_MAX} value={anim.transcript ?? ""} placeholder="Transcript — the lines around this moment, for the mood (optional; a date already has one)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, transcript: e.target.value || undefined })} />
+                <textarea className="ad-studio-custom" aria-label="What should happen in the clip (optional)" rows={2} maxLength={CUSTOM_MAX} value={anim.guide ?? ""} placeholder="Guide it — what should actually happen (optional, leads the clip)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, guide: e.target.value || undefined })} />
+                <input className="ad-studio-own" type="text" aria-label="What they say in the clip (optional)" maxLength={DIALOG_MAX} value={anim.dialog ?? ""} placeholder="Dialog — what they say (optional)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, dialog: e.target.value || undefined })} />
+                <textarea className="ad-studio-custom" aria-label="The lines around this moment (optional)" rows={2} maxLength={TRANSCRIPT_MAX} value={anim.transcript ?? ""} placeholder="Transcript — the lines around this moment, for the mood (optional; a date already has one)" disabled={Boolean(busy)} onChange={(e) => setAnimating({ ...anim, transcript: e.target.value || undefined })} />
                 <button
                   type="button"
                   className="primary small"
@@ -804,6 +804,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       type="text"
       maxLength={EXTRA_MAX}
       value={pairPick.extra?.[k] ?? ""}
+      aria-label={`Your own ${PAIR_SECTIONS[k]}`}
       placeholder={`…or add your own ${PAIR_SECTIONS[k]}`}
       disabled={Boolean(busy)}
       onChange={(e) =>
@@ -981,6 +982,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             </legend>
             <textarea
               className="ad-studio-custom"
+              aria-label="Your own words for the picture"
               rows={2}
               maxLength={CUSTOM_MAX}
               value={choices.custom ?? ""}
@@ -998,7 +1000,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 ))}
               </p>
             )}
-            <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={choices.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setDialog(e.target.value)} />
+            <input className="ad-studio-own" type="text" aria-label="Dialog for a speech bubble (optional)" maxLength={DIALOG_MAX} value={choices.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setDialog(e.target.value)} />
           </fieldset>
           <div className="ad-studio-folds">
             {s.menu.map((g) => {
@@ -1019,9 +1021,9 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                       {g.id === "filthy" ? <p className="muted small">🔞 One act, in place of a pose.</p> : null}
                       {g.id === "filthy" && s.identity.intensity !== "filthy" && (
                         <p className="muted small">
-                          Locked at {INTENSITY[s.identity.intensity].label}.{" "}
+                          Shut by {first}&apos;s limit, {INTENSITY[s.identity.intensity].label}.{" "}
                           <button type="button" className="linklike" disabled={Boolean(busy)} onClick={() => void act("limits", { action: "limits", character_id: c.id, intensity: "filthy" })}>
-                            Set {first}&apos;s studio intensity to Filthy
+                            Raise {first}&apos;s limit to Filthy
                           </button>
                         </p>
                       )}
@@ -1055,6 +1057,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                         type="text"
                         maxLength={EXTRA_MAX}
                         value={choices.extra?.[g.id] ?? ""}
+                        aria-label={`Your own ${g.title.toLowerCase()}`}
                         placeholder={`…or add your own ${g.title.toLowerCase()}`}
                         disabled={Boolean(busy)}
                         onChange={(e) => setExtra(g.id, e.target.value)}
@@ -1068,7 +1071,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
           {/* The model, folded (the 2026-11-11 review): its name on the line; open when the one picked can't run. */}
           <details className="ad-studio-advanced" open={!picked || !usable(picked) || undefined}>
             <summary className="small">
-              Model: <strong>{picked?.label ?? "none ready"}</strong>
+              Advanced: the picture model (<strong>{picked?.label ?? "none ready"}</strong>)
             </summary>
             <div className="ad-studio-go">
               <label>Model {modelSelect(editModels, picked?.id ?? "", setEditModel, "Model", (m) => m.price)}</label>
@@ -1216,8 +1219,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 <legend>
                   Your own words <span className="muted small">— this leads the picture, so it does the exact scene</span>
                 </legend>
-                <textarea className="ad-studio-custom" rows={2} maxLength={CUSTOM_MAX} value={pairPick.custom ?? ""} placeholder="Describe exactly what the two of them are doing, in your words. It comes first in the prompt." disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, custom: e.target.value || undefined }))} />
-                <input className="ad-studio-own" type="text" maxLength={DIALOG_MAX} value={pairPick.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, dialog: e.target.value || undefined }))} />
+                <textarea className="ad-studio-custom" aria-label="Your own words for the picture of the two of them" rows={2} maxLength={CUSTOM_MAX} value={pairPick.custom ?? ""} placeholder="Describe exactly what the two of them are doing, in your words. It comes first in the prompt." disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, custom: e.target.value || undefined }))} />
+                <input className="ad-studio-own" type="text" aria-label="Dialog for a speech bubble (optional)" maxLength={DIALOG_MAX} value={pairPick.dialog ?? ""} placeholder="Dialog — a short line for a speech bubble (optional; how it reads depends on the model)" disabled={Boolean(busy)} onChange={(e) => setPairPick((x) => ({ ...x, dialog: e.target.value || undefined }))} />
               </fieldset>
               {pairPick.reference && (
                 // Shot like one of their pictures (From their dates, or a shoot together below): its pose, framing and place.
@@ -1334,7 +1337,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                       <span className="ad-ready-face">
                         {/* eslint-disable-next-line @next/next/no-img-element -- private, presigned media */}
                         <img className="ad-setup-thumb" src={`${media(s.identity.face)}?w=160`} alt={`${c.name}'s face, drawn already`} />
-                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(s.identity.face!)}>
+                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void pickFace(s.identity.face!)}>
                           Use this face
                         </button>{" "}
                         <span className="muted small">

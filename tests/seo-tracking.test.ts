@@ -4,6 +4,7 @@ import { breadcrumbJsonLd, characterJsonLd, itemListJsonLd } from "@/lib/seo";
 import { agentLink, trackingConfig } from "@/lib/tracking";
 
 const BASE = "https://botchelor.vercel.app";
+type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 describe("llms.txt — llmstxt.org shape, honest, measurable", () => {
   const body = llmsText(BASE);
@@ -79,7 +80,7 @@ describe("tracking config — every tag is opt-in by env", () => {
 
 describe("structured data — public fields only", () => {
   it("character profile is a ProfilePage about a fictional person, with no private fields", () => {
-    const ld = characterJsonLd({ id: "c1", name: "Ira Fenn", bio: "Reads endings first.", house: false }, BASE) as Record<string, any>;
+    const ld = characterJsonLd({ id: "c1", name: "Ira Fenn", bio: "Reads endings first.", house: false }, BASE) as Record<string, Any>;
     expect(ld["@type"]).toBe("ProfilePage");
     expect(ld.mainEntity.name).toBe("Ira Fenn");
     expect(ld.mainEntity.disambiguatingDescription).toMatch(/fictional/i);
@@ -88,9 +89,9 @@ describe("structured data — public fields only", () => {
   });
 
   it("breadcrumbs and item lists are numbered and absolute", () => {
-    const bc = breadcrumbJsonLd([{ name: "Botchelor", path: "/" }, { name: "The cast", path: "/cast" }], BASE) as Record<string, any>;
+    const bc = breadcrumbJsonLd([{ name: "Botchelor", path: "/" }, { name: "The cast", path: "/cast" }], BASE) as Record<string, Any>;
     expect(bc.itemListElement[1]).toEqual({ "@type": "ListItem", position: 2, name: "The cast", item: `${BASE}/cast` });
-    const list = itemListJsonLd("Cast", [{ name: "Ira", path: "/characters/c1" }], BASE) as Record<string, any>;
+    const list = itemListJsonLd("Cast", [{ name: "Ira", path: "/characters/c1" }], BASE) as Record<string, Any>;
     expect(list.numberOfItems).toBe(1);
     expect(list.itemListElement[0].url).toBe(`${BASE}/characters/c1`);
   });
@@ -119,7 +120,7 @@ describe("IndexNow — opt-in, production-only, never throws", () => {
   });
 
   it("submits host, key, keyLocation and the URLs to the IndexNow endpoint", async () => {
-    let sent: { url: string; body: any } | null = null;
+    let sent: { url: string; body: Any } | null = null;
     const f = (async (url: string, init: RequestInit) => { sent = { url, body: JSON.parse(String(init.body)) }; return new Response(null, { status: 202 }); }) as unknown as typeof fetch;
     const res = await submitIndexNow([`${BASE}/episodes/e1`], PROD, f);
     expect(res).toEqual({ submitted: 1, status: 202 });

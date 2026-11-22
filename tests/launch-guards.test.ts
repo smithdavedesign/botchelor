@@ -16,6 +16,7 @@ import {
   visitorKey,
 } from "@/lib/limits";
 import { getModel, ModelError, setFrontierModelForTests, setModelForTests } from "@/lib/model";
+import { decideContentReport, saveContentReport } from "@/lib/content-reports";
 import { listOpenReports, reviewReports } from "@/lib/moderation";
 import {
   api,
@@ -171,6 +172,40 @@ describe("report review", () => {
     expect(await reviewReports(t.db, id, "removed")).toBe(1);
     const { rows } = await t.db.query<{ visibility: string }>("select visibility from episodes where id = $1", [id]);
     expect(rows[0].visibility).toBe("private");
+  });
+
+  it("a date taken down stays down: its host can't make it public or unlisted until an admin puts it back", async () => {
+    const visibility = async (id: string) => (await t.db.query<{ visibility: string }>("select visibility from episodes where id = $1", [id])).rows[0].visibility;
+    const refused = async (id: string, cookie: string) => {
+      for (const v of ["public", "unlisted"]) {
+        const res = await api.setVisibility(id, v, cookie);
+        expect(res.status).toBe(409);
+        expect((await res.json()).error).toBe("taken_down");
+      }
+      expect(await visibility(id)).toBe("private");
+    };
+    // Reports reviewed and taken down.
+    const first = await setupEpisode("friends");
+    await api.report({ episode_id: first.episode.id, reason: "minor" }, newUserCookie());
+    expect(await reviewReports(t.db, first.episode.id, "removed")).toBe(1);
+    await refused(first.episode.id, first.creator);
+    expect((await api.setVisibility(first.episode.id, "private", first.creator)).status).toBe(200);
+    // Put back: in its host's hands again, still private until they choose.
+    expect(await reviewReports(t.db, first.episode.id, "cleared")).toBe(1);
+    expect(await visibility(first.episode.id)).toBe("private");
+    expect((await api.setVisibility(first.episode.id, "public", first.creator)).status).toBe(200);
+
+    // A takedown request decided 'hidden' (/report), then decided again.
+    const second = await setupEpisode("friends");
+    const saved = await saveContentReport(
+      t.db,
+      { category: "real_person", target: `/episodes/${second.episode.id}`, details: "Someone real.", email: null },
+      { userId: userIdOf(newUserCookie()), account: false, userAgent: null },
+    );
+    expect(await decideContentReport(t.db, saved.id, "hidden", "admin", null)).toMatchObject({ ok: true });
+    await refused(second.episode.id, second.creator);
+    expect(await decideContentReport(t.db, saved.id, "dismissed", "admin", "a mistake")).toMatchObject({ ok: true });
+    expect((await api.setVisibility(second.episode.id, "unlisted", second.creator)).status).toBe(200);
   });
 
   it("the admin API needs the admin password or an admin account", async () => {

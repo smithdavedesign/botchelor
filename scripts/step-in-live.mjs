@@ -16,7 +16,7 @@ const browser = await chromium.launch({ executablePath: CHROMIUM });
 const api = (page, method, path, body) =>
   page.evaluate(async ([m, p, b]) => {
     const res = await fetch(p, { method: m, headers: b === undefined ? {} : { "content-type": "application/json" }, body: b === undefined ? undefined : JSON.stringify(b), signal: AbortSignal.timeout(280000) });
-    let data = null; try { data = await res.json(); } catch {}
+    let data = null; try { data = await res.json(); } catch { /* not JSON: data stays null */ }
     return { status: res.status, data };
   }, [method, path, body]);
 const open = async (opts, anon = false) => {

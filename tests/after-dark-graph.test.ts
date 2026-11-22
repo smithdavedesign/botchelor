@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import AfterDarkGraphPage from "@/app/admin/after-dark/graph/page";
-import { afterDarkGraph, layout, pairContent, pairKey, splitPair } from "@/lib/adult/graph";
+import { afterDarkGraph, labelAt, nodeRadius, layout, pairContent, pairKey, splitPair } from "@/lib/adult/graph";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { startTestDb } from "./helpers";
 
@@ -82,6 +82,26 @@ describe("the After Dark graph", () => {
     const at = layout([1, 2, 3, 4].map((i) => ({ id: `c${i}`, name: `C${i}`, portrait: null, lines: 0, pairs: 0 })));
     for (const p of at.values()) for (const v of [p.x, p.y]) expect(v >= 0 && v <= 100).toBe(true);
     expect(at.get("c1")).toEqual({ x: 50, y: 12 });
+  });
+
+  it("keeps 37 names apart: smaller nodes that never touch, each name outside the ring along its own radius", () => {
+    const nodes = Array.from({ length: 37 }, (_, i) => ({ id: `c${i}`, name: `C${i}`, portrait: null, lines: 0, pairs: 0 }));
+    const at = layout(nodes);
+    const r = nodeRadius(nodes.length);
+    const [a, b] = [at.get("c0")!, at.get("c1")!];
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(2 * r); // neighbours' circles don't overlap
+    expect(nodeRadius(4)).toBe(4.6); // a small graph keeps full-size faces
+    for (const p of at.values()) {
+      const l = labelAt(p, r);
+      // Starts beyond its own circle, on the line from the middle through the node, and reads outward.
+      expect(Math.hypot(l.x - 50, l.y - 50)).toBeGreaterThan(Math.hypot(p.x - 50, p.y - 50) + r);
+      expect(Math.abs((l.x - 50) * (p.y - 50) - (l.y - 50) * (p.x - 50))).toBeLessThan(1e-6);
+      expect(l.anchor).toBe(p.x >= 50 - 1e-6 ? "start" : "end");
+      expect(Math.abs(l.rotate)).toBeLessThanOrEqual(90 + 1e-6); // never upside down
+    }
+    const lone = labelAt({ x: 50, y: 50 }, 4.6);
+    expect(lone).toMatchObject({ x: 50, rotate: 0, anchor: "middle" });
+    expect(lone.y).toBeCloseTo(57.6);
   });
 
   it("the page: the graph, the pairs table and the picked pair's content, for a signed-in admin only", async () => {
