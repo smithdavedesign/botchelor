@@ -200,6 +200,8 @@ async function playThrough(cookie: string, id: string) {
   let r = await act(cookie, id, { action: "advance" });
   let i = 0;
   while (r.body.view?.state === "your_line" && i < 30) r = await act(cookie, id, { action: "line", dialogue: `My line ${i++}: I collect old maps of cities that never existed.` });
+  // As the page does: the last line comes back on its own, then it asks for the write-up.
+  if (r.body.view?.state === "finishing") r = await act(cookie, id, { action: "advance" });
   return r;
 }
 
