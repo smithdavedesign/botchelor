@@ -359,6 +359,19 @@ function attributeKey(label: string): keyof SourceFields | null {
   return ATTRIBUTES.find(([re]) => re.test(l))?.[1] ?? null;
 }
 
+/**
+ * Whether a line reads as prose: a word of 3+ letters, later a space, and after it 2+ letters. The same test as the
+ * regex `/[a-z]{3,}.*\s.*[a-z]{2,}/i`, done in one pass: that regex backtracked in cubic time, so one 2,000-letter line
+ * with no space took 4 s (2026-11-22). The earliest 3-letter run and the first space after it leave the most room.
+ */
+export function proseLine(line: string): boolean {
+  const word = /[a-z]{3}/i.exec(line);
+  if (!word) return false;
+  const rest = line.slice(word.index + 3);
+  const gap = rest.search(/\s/);
+  return gap >= 0 && /[a-z]{2}/i.test(rest.slice(gap + 1));
+}
+
 /** Labelled lines and W++ attributes in a longer text, plus that text with them taken out (its prose). */
 export function readAttributes(text: string): { attrs: Partial<Record<keyof SourceFields, string>>; prose: string } {
   const attrs: Partial<Record<keyof SourceFields, string>> = {};
@@ -367,7 +380,10 @@ export function readAttributes(text: string): { attrs: Partial<Record<keyof Sour
     if (value && !attrs[k]) attrs[k] = value;
   };
   // W++ / Ali:Chat: Key("a" + "b") or Key: ("a" + "b"), usually inside [character("Name") { … }].
-  let body = text.replace(/([A-Za-z][A-Za-z ]{1,30})\s*[:=]?\s*\(\s*((?:"[^"]*"\s*\+?\s*)+)\)/g, (_all, key: string, vals: string) => {
+  // Each gap between values is "spaces, then maybe a + and more spaces": written so a run of spaces can be read only one
+  // way. The older `\s*\+?\s*` could split each gap two ways, so `Key("a" "a" … ` with no closing bracket took twice
+  // as long per value (40 values: hours) on the server (CodeQL js/redos, 2026-11-22). tests/import-character.test.ts.
+  let body = text.replace(/([A-Za-z][A-Za-z ]{1,30})\s*(?:[:=]\s*)?\(\s*((?:"[^"]*"\s*(?:\+\s*)?)+)\)/g, (_all, key: string, vals: string) => {
     const k = attributeKey(key);
     const list = [...vals.matchAll(/"([^"]*)"/g)].map((m) => m[1].trim()).filter(Boolean);
     if (k) put(k, list.join(", "));
@@ -386,7 +402,7 @@ export function readAttributes(text: string): { attrs: Partial<Record<keyof Sour
     .replace(/[{}]/g, " ")
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => l && /[a-z]{3,}.*\s.*[a-z]{2,}/i.test(l))
+    .filter((l) => l && proseLine(l))
     .join("\n");
   return { attrs, prose };
 }

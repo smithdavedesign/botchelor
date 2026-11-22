@@ -6,6 +6,7 @@ import {
   importCharacter,
   importFromFields,
   optionalMissing,
+  proseLine,
   readAttributes,
   readSource,
   readyToDate,
@@ -270,5 +271,43 @@ describe("import helpers", () => {
     const { attrs, prose } = readAttributes("Likes: tea\nShe repairs clocks for a living.\n- Hates: rain");
     expect(attrs).toEqual({ likes: "tea", dislikes: "rain" });
     expect(prose).toBe("She repairs clocks for a living.");
+  });
+});
+
+// 2026-11-22: two patterns in readAttributes backtracked on hostile pastes (CodeQL js/redos). Each case below took from
+// seconds to hours before; the bounds are loose on purpose, since the old times grew exponentially or cubically.
+describe("import: hostile text finishes quickly", () => {
+  const within = (ms: number, f: () => void) => {
+    const t = performance.now();
+    f();
+    expect(performance.now() - t).toBeLessThan(ms);
+  };
+
+  it("many W++ values with no closing bracket (was doubling per value)", () => {
+    within(500, () => readAttributes(`Key(${'"a" '.repeat(60)}`));
+    within(500, () => readAttributes(`Key(${'"a" + '.repeat(60)}`));
+    within(500, () => readAttributes(`Key("a"${" ".repeat(6000)}`));
+  });
+
+  it("a long line with no space (the prose test was cubic)", () => {
+    within(500, () => readAttributes("a".repeat(6000)));
+    within(500, () => readAttributes(`${"ab ".repeat(10)}${"a".repeat(6000)}`));
+  });
+
+  it("still reads W++ values joined by +, by spaces, or with : or = before the bracket", () => {
+    expect(readAttributes('Likes("tea" + "fog")').attrs.likes).toBe("tea, fog");
+    expect(readAttributes('Likes : ("tea"  "fog")').attrs.likes).toBe("tea, fog");
+    expect(readAttributes('Likes=("tea"+"fog" +)').attrs.likes).toBe("tea, fog");
+  });
+
+  it("proseLine says what the old regex said", () => {
+    const old = (l: string) => /[a-z]{3,}.*\s.*[a-z]{2,}/i.test(l);
+    const lines = ["She repairs clocks.", "abc de", "abc d", "ab cde", "abcde", " abc  xy ", "x abc yz", "abc\tyz", "ABC Yz",
+      "abc 1 2 yz", "12 abc", "abc ", "a bc def", "Ünïcode wörds here", "abc-def gh", "abc,de"];
+    let seed = 7;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31);
+    const alphabet = "abAB 1-\t.é";
+    for (let i = 0; i < 2000; i++) lines.push(Array.from({ length: 1 + Math.floor(rand() * 12) }, () => alphabet[Math.floor(rand() * alphabet.length)]).join(""));
+    for (const l of lines) expect(proseLine(l), JSON.stringify(l)).toBe(old(l));
   });
 });
