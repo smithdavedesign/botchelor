@@ -72,6 +72,14 @@ export default function TheaterUpNext({ next }: { next: TheaterNext }) {
   }, []);
 
   const counting = shown && !stopped;
+  // On a phone the ending is a short box that scrolls, under the thread, and Up next joins it at the foot: brought into
+  // view as it shows, so the countdown and its Cancel are never counting below the fold (2026-11-22 live check).
+  const broughtIntoView = useRef(false);
+  useEffect(() => {
+    if (!counting || broughtIntoView.current) return;
+    broughtIntoView.current = true;
+    box.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [counting]);
   useEffect(() => {
     if (!counting) return;
     const t = setInterval(() => {

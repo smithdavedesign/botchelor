@@ -159,6 +159,8 @@ describe("Up next on the theater's ending", () => {
     expect(theater).toContain("openedOnItsOwn = true;\n    router.push(next.href);");
     // One episode at a time: one the countdown opened counts down again only after a tap or a key.
     expect(theater).toContain("if (openedOnItsOwn) setStopped(true);");
+    // On a phone the ending is a short scrolling box: the countdown is brought into it as it starts.
+    expect(theater).toMatch(/if \(!counting \|\| broughtIntoView\.current\) return;\s*broughtIntoView\.current = true;\s*box\.current\?\.scrollIntoView\(\{ block: "nearest", behavior: "smooth" \}\);/);
     expect(theater).toMatch(/const attended = \(\) => \{\s*openedOnItsOwn = false;\s*\};\s*window\.addEventListener\("pointerdown", attended, \{ capture: true, passive: true \}\);\s*window\.addEventListener\("keydown", attended/);
     // Offered only on a viewer's ending, after the share and the report card; the creator's verdict card is unchanged.
     const ending = src("app/episodes/[id]/EpisodeTheater.tsx");
