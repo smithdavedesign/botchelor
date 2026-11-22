@@ -119,7 +119,15 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
     expect(await config.headers!()).toEqual([
       // The security headers on every response (lib/security-headers.ts), which don't depend on the switch.
       { source: "/:path*", headers: [...SECURITY_HEADERS] },
-      { source: "/cast/:file*", headers: [{ key: "x-ai-generated", value: "true" }, { key: "link", value: '</content-policy>; rel="describedby"' }] },
+      // The cast's files, kept a week (a redrawn face gets a new name).
+      {
+        source: "/cast/:file*",
+        headers: [
+          { key: "x-ai-generated", value: "true" },
+          { key: "link", value: '</content-policy>; rel="describedby"' },
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" },
+        ],
+      },
     ]);
     expect(afterDarkNextConfig({}, SHOW)).toEqual({});
     expect(afterDarkNextConfig({ AFTER_DARK_ONLY: "1" }, SHOW)).toEqual({}); // only with an origin
