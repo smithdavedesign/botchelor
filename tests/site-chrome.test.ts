@@ -42,12 +42,12 @@ describe("the footer", () => {
     // The prompts library stays on /everything (design review 2026-11-16, D-15), not in every page's footer.
     expect(groups).not.toContain('href="/prompts"');
     // After Dark's host: no Pricing or agents' door, and never the show's shop (Stripe's checkout; the 2026-11-22 audit).
-    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/shop">More dates</Link></li>}');
-    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}');
+    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={false} href="/shop">More dates</Link></li>}');
+    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={false} href="/pricing">Pricing</Link></li>}');
     expect(group("The show")).not.toContain("Tokens");
     // …and its Help and legal never folds there: Report and the 2257 statement stay in the open on a phone.
     expect(groups).toContain('<FooterGroup title="Help and legal" keepOpen={adHost}>');
-    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}');
+    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={false} href="/agents">For AI agents</Link></li>}');
     expect(layout).not.toContain("footer-row");
   });
 
@@ -89,7 +89,8 @@ describe("the footer", () => {
     expect(layout).toContain("<CrisisResources />");
     expect(layout).toMatch(/<div className="footer-main">[\s\S]*\{!adHost && \(\s*<div className="footer-side">\s*<NewsletterSignup \/>\s*<SocialLinks links=\{socials\} labels area="footer" \/>/);
     // On After Dark's host the show's line about points gives way to one about what's there (2026-11-22 audit).
-    expect(layout).toMatch(/className="footer-legal"[\s\S]*Adults \(18\+\) only · No real people · \{adHost \? "Every character is AI-generated fiction" : "Points are free and can't be bought"\} · ©[\s\S]*mailto:/);
+    // The support address last, never whole in the markup (app/SupportEmail.tsx: Cloudflare's email obfuscation).
+    expect(layout).toMatch(/className="footer-legal"[\s\S]*Adults \(18\+\) only · No real people · \{adHost \? "Every character is AI-generated fiction" : "Points are free and can't be bought"\} · ©[\s\S]*<SupportEmail address=\{support\} \/>/);
     // David 2026-11-17: the legal lines after the links. The groups, then the adults line, the help lines, the © line.
     const at = (s: string) => layout.indexOf(s);
     expect(at('<nav className="footer-groups"')).toBeGreaterThan(at('<div className="footer-side">'));

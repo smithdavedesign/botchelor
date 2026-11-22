@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/app/IntentLink";
 import { navChatOn } from "@/lib/nav-chat";
 import { showIdeasOn } from "@/lib/show-ideas-switch";
 
@@ -20,6 +20,8 @@ import { showIdeasOn } from "@/lib/show-ideas-switch";
  *
  * Shows is the fourth (2026-11-16, later the same day): the show on air and the ideas for what could come next
  * (lib/show-ideas.ts). It is there while SHOW_IDEAS is on; with it off the strip is the three rooms again.
+ *
+ * Prefetched on intent only (app/IntentLink.tsx): the strip is on every spectator page.
  */
 const TABS = [
   { href: "/watch", label: "Watch" },
@@ -46,9 +48,9 @@ export default function ShowTabs({ active }: { active: ShowTab }) {
   return (
     <nav className="tabs show-tabs" aria-label="The show">
       {tabs.map((t) => (
-        <Link key={t.href} href={t.href} aria-current={t.href === here ? "page" : undefined}>
+        <IntentLink key={t.href} href={t.href} aria-current={t.href === here ? "page" : undefined}>
           {t.label}
-        </Link>
+        </IntentLink>
       ))}
     </nav>
   );

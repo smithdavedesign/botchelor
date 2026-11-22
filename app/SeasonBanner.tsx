@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/app/IntentLink";
 import Icon from "@/app/Icon";
 import { seasonArc, type SeasonFormatDef } from "@/lib/season-format";
 import { isMonthlySeason, seasonBanner, seasonNumber } from "@/lib/season-ref";
@@ -18,6 +18,8 @@ const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
  * `next`: next month's format, when it is a different one (the layout passes it only for a lead format). Beside this
  * month's chip it reads "Open Season · December: The Botchelor", so a home page that bills Nell as December's
  * Botchelor under an "Open Season" strip says which is which (GPT review, 2026-11-16).
+ *
+ * In the chrome of every spectator page, so prefetched on intent only (app/IntentLink.tsx).
  */
 export default function SeasonBanner({
   now = new Date(),
@@ -35,13 +37,13 @@ export default function SeasonBanner({
   const closed = seasonBanner(now);
   if (closed) {
     return (
-      <Link href={closed.path} className="season-banner">
+      <IntentLink href={closed.path} className="season-banner">
         <Icon name="clapper" />
         <span className="season-banner-text">
           <strong>Season {closed.number} is over</strong> <span className="season-banner-sub">{closed.label}: how it all went</span>
         </span>
         <span className="season-banner-cta">Watch the recap →</span>
-      </Link>
+      </IntentLink>
     );
   }
   const id = seasonIdOf(now);
@@ -53,7 +55,7 @@ export default function SeasonBanner({
   const nextMonth = next && next !== format ? seasonLabel(seasonIdOf(nextSeasonStart(now))).split(" ")[0] : null;
   const label = `Season ${number}, ${seasonLabel(id)}, night ${night} of ${nights}, ${after ? `${days(left)} left in the season` : left === 0 ? "the finale is tonight" : `${days(left)} to the finale`}${nextMonth ? `; ${nextMonth} is ${next}` : ""}`;
   return (
-    <Link href={href} className="season-arc" aria-label={label} data-track="season-arc">
+    <IntentLink href={href} className="season-arc" aria-label={label} data-track="season-arc">
       <span className="season-arc-name">
         <span className="season-arc-long">Season {number}</span>
         <span className="season-arc-short">S{number}</span>
@@ -91,6 +93,6 @@ export default function SeasonBanner({
           {nextMonth}: {next}
         </span>
       )}
-    </Link>
+    </IntentLink>
   );
 }

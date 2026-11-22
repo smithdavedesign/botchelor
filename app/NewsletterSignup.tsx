@@ -8,6 +8,7 @@ import NotOnNewsletterPages from "./NotOnNewsletterPages";
  * and this is the show's own host (app/layout.tsx leaves it out on After Dark's), and not on the letter's own pages
  * (app/NotOnNewsletterPages.tsx). No database: it's on every page. Until the first letter can go out (it waits for
  * NEWSLETTER_POSTAL_ADDRESS, lib/newsletter.ts), it says so instead of promising a weekly email (2026-11-22 audit).
+ * Its link isn't prefetched, as none in the footer are (app/layout.tsx).
  */
 export default function NewsletterSignup() {
   if (!newsletterOpen()) return null;
@@ -27,7 +28,7 @@ export default function NewsletterSignup() {
               secret came out and the week&apos;s best dates.
             </>
           )}{" "}
-          <Link href="/newsletter">What&apos;s in it</Link>
+          <Link href="/newsletter" prefetch={false}>What&apos;s in it</Link>
         </p>
         <NewsletterForm place="footer" />
       </section>

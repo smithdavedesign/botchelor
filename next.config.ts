@@ -43,7 +43,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Next's own image optimizer (/_next/image) loads sharp's CommonJS build on its first request, and loading it resets
   // libvips's cache to the default: these put back the limits the server starts with (lib/sharp-limits.ts).
-  experimental: { imgOptConcurrency: 1, imgOptOperationCache: false },
+  // globalNotFound: an address no route matches gets app/global-not-found.tsx, a page built once, instead of the site's
+  // whole layout rendered for every scanner's guess (2026-11-22 load audit).
+  experimental: { imgOptConcurrency: 1, imgOptOperationCache: false, globalNotFound: true },
   // After Dark on a host of its own (lib/after-dark-host.ts): adds nothing unless AFTER_DARK_ORIGIN is set at build time.
   ...afterDark,
   // The show's words as addresses (lib/site-redirects.ts), before After Dark's own moves.
