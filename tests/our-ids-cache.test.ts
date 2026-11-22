@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Db } from "@/lib/db";
 import { loadOurIds, OUR_IDS_TTL_MS, setOurIdsCacheForTests } from "@/lib/our-traffic";
 
-// loadOurIds reads every MCP call and held a database connection 4–7 s; an admin page asked for it several times at once
-// (2026-11-22 audit). One load is shared by everyone asking, and kept OUR_IDS_TTL_MS.
+// loadOurIds held a database connection 4–7 s, and an admin page asked for it several times at once (2026-11-22 audit).
+// One load is shared by everyone asking, and kept OUR_IDS_TTL_MS.
 afterEach(() => setOurIdsCacheForTests(null));
 
 /** A database that answers the one query slowly and counts how often it was asked. */

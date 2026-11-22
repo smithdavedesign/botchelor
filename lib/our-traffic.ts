@@ -56,8 +56,8 @@ export function setPublicLaunchDayForTests(day: string | null): void {
  * the deleted owner, but its dates keep their creator, as David's "Wren Kestrel" runs did), people first active before
  * the public launch (PUBLIC_LAUNCH_DAY), the deleted owner (a deleted account's kept characters) and the show itself.
  *
- * Kept in this server's memory for OUR_IDS_TTL_MS, one load at a time for everyone asking (2026-11-22 audit: the query
- * reads every MCP call and held a database connection 4–7 s; an admin page asked 3–7 times at once, and two of them
+ * Kept in this server's memory for OUR_IDS_TTL_MS, one load at a time for everyone asking (2026-11-22 audit: the query,
+ * then reading every MCP call, held a database connection 4–7 s; an admin page asked 3–7 times at once, and two of them
  * held 9 of the pool's 10). A failed load isn't kept; each caller gets its own copy. Off outside production (tests and
  * scripts read it every time), unless a test turns it on.
  */
