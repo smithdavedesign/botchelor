@@ -204,6 +204,9 @@ describe("3. which models wrote each date", () => {
     expect(modelId("https://api.openai.com/v1", "gpt-4.1-mini")).toBe("openai/gpt-4.1-mini");
     expect(modelId("https://openrouter.ai/api/v1", "x/y")).toBe("openrouter/x/y");
     expect(modelId("not a url", "m")).toBe("custom/m");
+    // The provider is the whole domain: a host that only ends in the same letters is named for itself.
+    expect(modelId("https://notgoogleapis.com/v1", "m")).toBe("notgoogleapis.com/m");
+    expect(modelId("https://fakeopenrouter.ai/api/v1", "m")).toBe("fakeopenrouter.ai/m");
   });
 
   it("the model that actually answered reports, fallbacks included", async () => {

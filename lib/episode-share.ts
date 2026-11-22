@@ -38,7 +38,7 @@ export const endingCardAllowed = (e: { revealed: boolean; ending?: string | null
 
 /** The owner's headline: the happy ending, named. "a third date" after their second, and so on (dateNumberOf). */
 export const wentWellTitle = (names: [string, string], dateNumber?: number | null) =>
-  `${names[0]} and ${names[1]} both want ${endingLabel("second_date", dateNumber).toLowerCase().replace(/^a second date$/, "a second date")} 💘`;
+  `${names[0]} and ${names[1]} both want ${endingLabel("second_date", dateNumber).toLowerCase()} 💘`;
 
 /** The owner's post: the news, then where to watch how it happened. */
 export const wentWellText = (names: [string, string], url: string, dateNumber?: number | null) =>

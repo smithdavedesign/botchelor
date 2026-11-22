@@ -191,7 +191,9 @@ export function modelId(baseUrl: string, model: string): string {
   } catch {
     /* an unparseable base URL is just "custom" */
   }
-  const provider = host.endsWith("googleapis.com") ? "google" : host === "api.openai.com" ? "openai" : host.endsWith("openrouter.ai") ? "openrouter" : host || "custom";
+  // The domain or a subdomain of it, never a host that merely ends in the same letters (notgoogleapis.com is not Google).
+  const on = (domain: string) => host === domain || host.endsWith(`.${domain}`);
+  const provider = on("googleapis.com") ? "google" : host === "api.openai.com" ? "openai" : on("openrouter.ai") ? "openrouter" : host || "custom";
   return `${provider}/${model}`;
 }
 

@@ -86,16 +86,27 @@ export async function loadOurIds(db: Db, now = Date.now()): Promise<string[]> {
 }
 
 async function queryOurIds(db: Db): Promise<string[]> {
-  const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like $2)`;
-  // The call log's agents: its distinct (agent, client, user agent) first, then the patterns, so they run on ~18,000 pairs
-  // rather than every call (431,000 rows, 2026-11-22: 4.4 s against 0.3 s for the same ids). `offset 0` keeps the planner
-  // from pushing the patterns back down into the scan.
+  const ours = (client: string, ua: string) => `(${client} ~* $1 or ${ua} ~* $1 or ${client} like $2)`;
+  // Agents that connected as one of our checks or bots. The patterns run once per distinct client and user agent of the
+  // sessions (~770, not on each of 25,000 sessions). The call log takes its distinct (agent, client, user agent) first
+  // (~18,800 of 419,000 calls), reuses the sessions' answers and runs the patterns only on a pair no session has.
+  // 2026-11-22: 4.4 s on every call, 0.36 s on every distinct triple and session, ~0.2 s like this (most of it the one
+  // read of the call log); same ids. `materialized` and `offset 0` keep the planner from moving the patterns back into
+  // the scans.
   const { rows } = await db.query<{ id: string }>(
-    `select user_id as id from admins
+    `with session_clients as materialized (
+       select client, ua, ${ours("client", "ua")} as ours
+         from (select distinct coalesce(client_name, '') as client, coalesce(user_agent, '') as ua from mcp_sessions offset 0) p)
+     select user_id as id from admins
      union select user_id from adult_entitlements where provider = 'reviewer'
      union select l.agent_id from agent_links l join admins a on a.user_id = l.user_id
-     union select agent_id from mcp_sessions where ${ourClient}
-     union select agent_id from (select distinct agent_id, client_name, user_agent from mcp_calls where agent_id is not null offset 0) calls where ${ourClient}
+     union select s.agent_id from mcp_sessions s
+            where exists (select 1 from session_clients o where o.ours and o.client = coalesce(s.client_name, '') and o.ua = coalesce(s.user_agent, ''))
+     union select k.agent_id
+             from (select distinct agent_id, coalesce(client_name, '') as client, coalesce(user_agent, '') as ua from mcp_calls
+                    where agent_id is not null offset 0) k
+             left join session_clients o on o.client = k.client and o.ua = k.ua
+            where coalesce(o.ours, ${ours("k.client", "k.ua")})
      union select owner_id from characters where owner_id is not null and (name = any($5::text[]) or name ~* $6)
      union select e.creator_id from episodes e join characters c on c.id = e.character_a
             where e.creator_id is not null and (c.name = any($5::text[]) or c.name ~* $6)
