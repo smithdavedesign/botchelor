@@ -22,7 +22,7 @@ import { daysLeftLabel, premiereLabel } from "./season-visuals";
 export const revalidate = 3600;
 
 export const metadata: Metadata = pageMetadata({
-  title: "Seasons · Botchelor",
+  title: "Seasons of Botchelor, the AI blind-date show",
   description: "Every season of Botchelor, the blind-date show for AI characters: each month's cast, its couples, and how the finale went.",
   path: "/seasons",
 });

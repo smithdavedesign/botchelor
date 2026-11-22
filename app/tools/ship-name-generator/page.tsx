@@ -3,6 +3,8 @@ import Link from "next/link";
 import { SHIP_TOOL_PATH } from "@/lib/tools";
 import ShipForm from "../../ship/ShipForm";
 import MoreTools from "../MoreTools";
+import JsonLd from "@/app/JsonLd";
+import { toolJsonLd } from "@/lib/seo";
 
 const PATH = SHIP_TOOL_PATH;
 const TITLE = "OC ship name generator";
@@ -76,6 +78,8 @@ export default function ShipNameGeneratorPage() {
           Make your character
         </Link>
         <MoreTools current={SHIP_TOOL_PATH} />
+        {/* The tool as a free web app under the tools hub, for search (lib/seo.ts toolJsonLd). */}
+        <JsonLd data={toolJsonLd(SHIP_TOOL_PATH)} />
       </section>
     </>
   );

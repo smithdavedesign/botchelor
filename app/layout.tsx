@@ -22,7 +22,7 @@ import Threshold from "./Threshold";
 import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { placeFromEdge } from "@/lib/place";
-import { AFTER_DARK_DESCRIPTION, SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
+import { AFTER_DARK_DESCRIPTION, SITE_DESCRIPTION, SITE_FEEDS, SITE_TITLE, siteJsonLd } from "@/lib/seo";
 import { NONCE_HEADER } from "@/lib/security-headers";
 import { showHome, siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
@@ -45,6 +45,7 @@ import Nav from "./Nav";
 import NewsletterSignup from "./NewsletterSignup";
 import FooterGroup from "./FooterGroup";
 import SocialLinks from "./SocialLinks";
+import { FREE_TOOLS } from "@/lib/tools";
 import SupportEmail from "./SupportEmail";
 import { unreadChatTexts, unreadTexts } from "@/lib/inbox";
 import { rememberedCharacter } from "@/lib/current-character";
@@ -113,7 +114,9 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
   // Search Console / Bing Webmaster ownership meta tags, when their tokens are set (lib/tracking.ts).
   ...(TRACKING.verification ? { verification: TRACKING.verification } : {}),
-  alternates: { types: { "text/plain": "/llms.txt", "application/rss+xml": "/feed.xml" } },
+  // The feed and the agents' guide: on the show's pages they're links in the head below, since a page that sets its own
+  // canonical replaces this whole field (2026-11-22 audit: 0 of 147 pages carried them). After Dark's host keeps this.
+  ...(afterDarkOnly() ? { alternates: { types: SITE_FEEDS } } : {}),
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
 };
 
@@ -203,13 +206,17 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="en" data-theme={themeAttribute(theme)}>
-      {google && (
-        <head>
-          {/* Before the Google tags load: GA stays off on After Dark's pages, and in a tab after it (lib/ga-guard.ts). */}
-          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: gaGuardScript(TRACKING.gaId) }} />
-          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: consentDefaultScript(consent.granted) }} />
-        </head>
-      )}
+      <head>
+        {google && (
+          <>
+            {/* Before the Google tags load: GA stays off on After Dark's pages, and in a tab after it (lib/ga-guard.ts). */}
+            <script nonce={nonce} dangerouslySetInnerHTML={{ __html: gaGuardScript(TRACKING.gaId) }} />
+            <script nonce={nonce} dangerouslySetInnerHTML={{ __html: consentDefaultScript(consent.granted) }} />
+          </>
+        )}
+        {/* The RSS feed and llms.txt on every page of the show, whatever its own metadata says (SITE_FEEDS). */}
+        {!adHost && Object.entries(SITE_FEEDS).map(([type, href]) => <link key={href} rel="alternate" type={type} href={href} />)}
+      </head>
       {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} nonce={nonce} />}
       {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} nonce={nonce} />}
       {/* After Dark's own host is night from edge to edge (the design kit's After Dark frame): app/ux/after-dark.css body.ad-host. */}
@@ -278,10 +285,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <li><Link prefetch={false} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
               </FooterGroup>
               <FooterGroup title="Tools">
-                <li><Link prefetch={false} href="/tools/random-oc-generator">Random OC generator</Link></li>
-                <li><Link prefetch={false} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
-                <li><Link prefetch={false} href="/tools/ship-name-generator">Ship name generator</Link></li>
-                {/* Every free tool (app/tools/page.tsx): the two newer ones and the hub itself get a link from every page (SEO, 2026-11-19). */}
+                {/* Every free tool (lib/tools.ts) and the hub from every page (SEO, 2026-11-19; all five since the 2026-11-22
+                    audit, which found two linked from the tools' own pages only), and the way in from another app. */}
+                {FREE_TOOLS.map((t) => (
+                  <li key={t.path}><Link prefetch={false} href={t.path}>{t.name}</Link></li>
+                ))}
+                {!adHost && <li><Link prefetch={false} href="/import">Bring a character from another app</Link></li>}
                 <li><Link prefetch={false} href="/tools" className="footer-all">All free tools →</Link></li>
                 {/* For people building agents: the MCP server's front door (/agents: tools and changelog are a tap further). */}
                 {!adHost && <li><Link prefetch={false} href="/agents">For AI agents</Link></li>}

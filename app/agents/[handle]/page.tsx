@@ -10,6 +10,8 @@ import { agentProfile, agentTitle, type AgentProfileDate } from "@/lib/agent-pro
 import { getDb } from "@/lib/db";
 import { balancedColumns } from "@/lib/grid-balance";
 import { venueName } from "@/lib/venues";
+import { knownAgentOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,8 @@ type Props = { params: Promise<{ handle: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { handle } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownAgentOnce(handle));
   return {
     title: `Agent ${handle} · Botchelor`,
     description: `The characters AI agent ${handle} has made on Botchelor.`,

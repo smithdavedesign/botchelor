@@ -55,7 +55,7 @@ afterEach(() => {
 const SENTENCE = "A lighthouse keeper who repairs old radios and listens to ships talk at night.";
 /** What the stub model answers: the reader's labelled fields, as the prompt asks. */
 const READING = JSON.stringify({
-  name: "Marisol Vane",
+  name: "Maren Vane",
   age: 34,
   gender: "woman",
   description: "A lighthouse keeper who repairs old radios and listens to ships talk at night.",
@@ -81,7 +81,7 @@ describe("one-sentence create: the draft (lib/express-create.ts)", () => {
     expect(r.ready).toBe(true);
     expect(r.missing).toEqual([]);
     expect(r.draft.sheet).toEqual({
-      name: "Marisol Vane",
+      name: "Maren Vane",
       age: "34",
       bio: "A lighthouse keeper who repairs old radios and listens to ships talk at night.",
       want: "someone who stays up for the late shipping forecast",
@@ -184,7 +184,7 @@ describe("POST /api/characters/draft", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as Reply;
     expect(body.ready).toBe(true);
-    expect(body.draft.sheet.name).toBe("Marisol Vane");
+    expect(body.draft.sheet.name).toBe("Maren Vane");
     expect(Number(body.draft.sheet.age)).toBeGreaterThanOrEqual(18);
     expect(body.draft.extras.looks?.gender).toBe("woman");
     expect(calls).toHaveLength(1);
@@ -203,12 +203,12 @@ describe("POST /api/characters/draft", () => {
 
   it("invents a name nobody on the show has", async () => {
     const owner = newUserCookie();
-    expect((await createCharacter(jsonRequest("/api/characters", validCharacter({ name: "Marisol Vane" }), { cookie: owner }))).status).toBe(201);
+    expect((await createCharacter(jsonRequest("/api/characters", validCharacter({ name: "Maren Vane" }), { cookie: owner }))).status).toBe(201);
     scriptedModel([READING, JSON.stringify({ ...JSON.parse(READING), name: "" })]);
     const taken = (await (await draft({ text: SENTENCE })).json()) as Reply;
     expect(taken.ready).toBe(true);
     expect(taken.invented.name).toBe(true);
-    expect(taken.draft.sheet.name).not.toBe("Marisol Vane");
+    expect(taken.draft.sheet.name).not.toBe("Maren Vane");
     expect(taken.draft.sheet.name).toMatch(/ Vane$/);
     expect(await t.count("characters", `lower(name) = lower('${taken.draft.sheet.name}')`)).toBe(0);
     // The model gave no name at all: one of the show's spare first names, free.
@@ -216,6 +216,17 @@ describe("POST /api/characters/draft", () => {
     expect(none.ready).toBe(true);
     expect(none.draft.sheet.name.length).toBeGreaterThan(1);
     expect(none.invented.name).toBe(true);
+  });
+
+  it("never invents a house cast member's first name, and tidies the model's casing (2026-11-22 audit)", async () => {
+    // "Marisol" is the house cast's Marisol Pine: an invented "Marisol Quill" would sit beside her on the show.
+    scriptedModel([JSON.stringify({ ...JSON.parse(READING), name: "Marisol Quill" }), JSON.stringify({ ...JSON.parse(READING), name: "Storm vandenBosch" })]);
+    const house = (await (await draft({ text: SENTENCE })).json()) as Reply;
+    expect(house.draft.sheet.name.split(" ")[0]).not.toBe("Marisol");
+    expect(house.draft.sheet.name).toMatch(/ Quill$/);
+    expect(house.invented.name).toBe(true);
+    const glued = (await (await draft({ text: SENTENCE })).json()) as Reply;
+    expect(glued.draft.sheet.name).toBe("Storm van den Bosch");
   });
 
   it("keeps a typed name that's taken, says so, and leaves the choice to the form", async () => {

@@ -10,7 +10,7 @@ import PromoVideo from "../PromoVideo";
 import SocialLinks from "../SocialLinks";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Press kit · Botchelor",
+  title: "Press kit: Botchelor, the AI blind-date show",
   description:
     "Botchelor's press kit: the show in one line, a paragraph and a page, the key facts, the logo, screenshots and video to download, the brand colours, and who to contact for interviews or questions.",
   path: "/press",
@@ -24,7 +24,8 @@ type Asset = { href: string; title: string; note: string; logo?: boolean; width:
 const ASSETS: Asset[] = [
   { href: "/icon.svg", title: "Logo (SVG)", note: "The heart tile, any size.", logo: true, width: 32, height: 32 },
   { href: "/icons/icon-512.png", title: "Logo (PNG, 512×512)", note: "For places that won't take SVG.", logo: true, width: 512, height: 512 },
-  // Taken from the live site on 2026-11-20 (the visual audit: the old start page still had the pink hero).
+  // The start page taken from the live site on 2026-11-22, after its redesign of 2026-11-21 (the sentence box beside a
+  // real date) and the outlined header button; the 2026-11-20 pictures showed the page before both.
   { href: "/press/botchelor-home-desktop.png", title: "The start page", note: "1280×860, desktop.", width: 1280, height: 860 },
   { href: "/press/botchelor-theater-desktop.png", title: "A date in the theater", note: "1280×900, desktop: a first date at a night market of steam and lanterns.", width: 1280, height: 900 },
   { href: "/press/botchelor-watch-desktop.png", title: "Recent episodes", note: "1280×900, desktop.", width: 1280, height: 900 },

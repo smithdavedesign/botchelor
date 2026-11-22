@@ -18,7 +18,7 @@
 import { artStyleInWords } from "./art-style";
 import { NAME_MAX } from "./field-limits";
 import { importFromFields, readyToDate, statedAge, stillMissing, SOURCE_KEYS, type ImportedDraft, type SourceFields } from "./import-character";
-import { LOOK_STEPS, optionsFor, WORK_OUTFITS, type Gender, type Looks } from "./looks";
+import { DRAWN_MAX_AGE, hasWorkOutfit, LOOK_STEPS, optionsFor, type Gender, type Looks } from "./looks";
 import { CHARACTER_REJECTION_MESSAGES, checkSheetText, isPastPg, type RejectReason } from "./safety";
 import type { ExpressFailure } from "./express-text";
 
@@ -205,29 +205,34 @@ const OUTFIT: readonly [RegExp, string][] = [
   [/\bgym\b|\bathlete\b|\bpersonal trainer\b/, "sporty"],
 ];
 
+/** The age from which a suggested look's hair is silver when the words don't say a colour. */
+export const SILVER_FROM = 55;
+
 /**
- * A look for the Look step, already picked, so Next works at once and the free portrait is drawn from picks instead of a
- * colour tile: what the words say about hair, eyes, build and clothes where they say it, and a pick seeded by the words
+ * A look for the Look step, already picked, so Next works at once and the free portrait is drawn from picks instead of
+ * from the bio alone: what the words say about hair, eyes, build and clothes where they say it, and a pick seeded by the words
  * where they don't (so two characters don't get the same face). Dressed for their job when the builder has an outfit
  * for it (lib/looks.ts WORK_OUTFITS). Needs to know woman or man, the only two the picture tiles have; with neither
  * (they/them, or the words don't say) there is no suggestion and the step shows "Not picked yet", as before.
  * Ethnicity is never guessed from a sentence: unset, it stays theirs to pick. Every id is one LooksInput accepts.
+ * From SILVER_FROM their hair is silver unless the words give it a colour (2026-11-22 audit: a 64-year-old was given
+ * golden blonde hair).
  */
-export function suggestLooks(o: { pronouns: string; words: string; occupation?: string | null }): Looks | undefined {
+export function suggestLooks(o: { pronouns: string; words: string; occupation?: string | null; age?: number | null }): Looks | undefined {
   const gender: Gender | null = o.pronouns === "she/her" ? "woman" : o.pronouns === "he/him" ? "man" : null;
   if (!gender) return undefined;
   const words = ` ${o.words.toLowerCase().replace(/\s+/g, " ")} `;
   const seed = hashOf(words);
   const ids = (step: string) => optionsFor(LOOK_STEPS.find((s) => s.id === step)!, gender).map((opt) => opt.id);
   const valid = (step: string, id: string | undefined) => (id && ids(step).includes(id) ? id : undefined);
-  const job = (o.occupation ?? "").toLowerCase();
-  const worksIn = Boolean(job) && WORK_OUTFITS.some((w) => w.match.test(job));
+  const worksIn = hasWorkOutfit(o.occupation);
+  const greying = typeof o.age === "number" && o.age >= SILVER_FROM && o.age <= DRAWN_MAX_AGE;
 
   const looks: Looks = {
     gender,
     style: artStyleInWords(words),
     eyes: valid("eyes", read(words, EYES)) ?? pickBy(ids("eyes"), seed),
-    hair_color: valid("hair_color", read(words, HAIR_COLOR)) ?? pickBy(["brunette", "black", "blonde", "red"], seed >>> 3),
+    hair_color: valid("hair_color", read(words, HAIR_COLOR)) ?? (greying ? "silver" : pickBy(["brunette", "black", "blonde", "red"], seed >>> 3)),
     hair_style: valid("hair_style", read(words, HAIR_STYLE[gender])) ?? pickBy(gender === "man" ? ["short", "curly", "slicked", "long"] : ["straight", "curly", "short", "ponytail", "bangs"], seed >>> 6),
     body: valid("body", read(words, BODY[gender])) ?? "average",
     outfit: worksIn ? "work" : (valid("outfit", read(words, OUTFIT)) ?? pickBy(["casual", "smart", "cozy", "street"], seed >>> 9)),
@@ -255,6 +260,42 @@ export type ExpressDraft = {
 };
 export type ExpressRefusal = { ok: false; reason: ExpressFailure; message: string };
 
+/** Surname particles that stay lower case inside a name ("Anouk van der Berg"), longest first. */
+const NAME_PARTICLES = ["della", "van", "von", "der", "den", "del", "ter", "ten", "de", "di", "da", "du", "le", "la"];
+const GLUED_PARTICLES = new RegExp(`^((?:${NAME_PARTICLES.join("|")})+)(\\p{Lu}.*)$`, "u");
+
+/** "vanden" → ["van", "den"], or the run whole when it doesn't split into particles. */
+function splitParticles(run: string): string[] {
+  const out: string[] = [];
+  let rest = run;
+  while (rest) {
+    const p = NAME_PARTICLES.find((x) => rest.startsWith(x));
+    if (!p) return [run];
+    out.push(p);
+    rest = rest.slice(p.length);
+  }
+  return out;
+}
+
+/**
+ * The model's invented name in a name's own casing (2026-11-22 audit: "Storm vandenBosch"): particles glued to a surname
+ * come apart ("Storm van den Bosch"), particles after the first name stay lower case, and any other word starting in lower
+ * case gets its capital ("storm" → "Storm"). A name someone typed is theirs and never passes through here. Pure.
+ */
+export function tidyNameCase(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((w, i) => {
+      const glued = i > 0 ? GLUED_PARTICLES.exec(w) : null;
+      if (glued) return [...splitParticles(glued[1]), glued[2]];
+      if (i > 0 && NAME_PARTICLES.includes(w)) return [w];
+      return [/^\p{Ll}/u.test(w) ? w[0].toUpperCase() + w.slice(1) : w];
+    })
+    .join(" ");
+}
+
 /**
  * The model's reading and the person's own words, as a draft for the builder (pure). The name they typed wins over the
  * model's; the age follows adultAge; everything then goes through the import reader's mapping and screen
@@ -268,6 +309,7 @@ export function draftFromReading(reading: SourceFields, text: string, givenName 
   const age = adultAge(text, reading.age);
   const fields: SourceFields = { ...reading, age: age ? String(age.age) : undefined };
   if (typed) fields.name = typed;
+  else if (fields.name) fields.name = tidyNameCase(fields.name);
   if (!fields.description?.trim()) fields.description = text;
   const result = importFromFields("free_text", fields, `${text}\n${typed}`);
   if (!result.ok) {
@@ -276,7 +318,7 @@ export function draftFromReading(reading: SourceFields, text: string, givenName 
   }
   const draft = result.draft;
   if (!draft.sheet.bio) draft.sheet.bio = text.trim();
-  const looks = suggestLooks({ pronouns: draft.pronouns, words: `${text} ${draft.appearance}`, occupation: draft.extras.occupation });
+  const looks = suggestLooks({ pronouns: draft.pronouns, words: `${text} ${draft.appearance}`, occupation: draft.extras.occupation, age: draft.sheet.age ? Number(draft.sheet.age) : null });
   if (looks) draft.extras = { ...draft.extras, looks };
   return {
     ok: true,

@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
 import MoreTools from "../MoreTools";
+import JsonLd from "@/app/JsonLd";
+import { fitDescription, toolJsonLd } from "@/lib/seo";
 import { nextQuestion, OC_QUESTION_THEMES, OC_QUESTIONS, OC_QUESTIONS_PATH, ocQuestionHref, readQuestion } from "@/lib/oc-questions";
 
 const COUNT = OC_QUESTIONS.length;
 const TITLE = `${COUNT} questions to ask your OC`;
 const DESCRIPTION = `${COUNT} questions to ask your original character, by theme: the basics, their past, quirks, love life and dating, friends and rivals, the deep end, and quick fun ones. Or get one at random. Free, no sign-up.`;
+/** What a search result shows, in full (lib/seo.ts DESCRIPTION_MAX); the share cards keep DESCRIPTION. */
+const SEARCH_DESCRIPTION = fitDescription(`${COUNT} questions to ask your original character, by theme: their past, quirks, love life, friends and rivals, the deep end. Or one at random. No sign-up.`);
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -14,7 +18,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const asked = readQuestion((await searchParams).q);
   return {
     title: asked ? `"${asked.text}" · Questions to ask your OC · Botchelor` : `${TITLE}: OC questions by theme · Botchelor`,
-    description: asked ? `A question to ask your original character, from ${TITLE.toLowerCase()} on Botchelor.` : DESCRIPTION,
+    description: asked ? `A question to ask your original character, from ${TITLE.toLowerCase()} on Botchelor.` : SEARCH_DESCRIPTION,
     alternates: { canonical: OC_QUESTIONS_PATH },
     // One question picked out is the same page: shared, followed, not indexed.
     ...(asked ? { robots: { index: false, follow: true } } : {}),
@@ -93,6 +97,8 @@ export default async function OcQuestionsPage({ searchParams }: Props) {
           Make your character
         </Link>
         <MoreTools current={OC_QUESTIONS_PATH} />
+        {/* The tool as a free web app under the tools hub, for search (lib/seo.ts toolJsonLd). */}
+        <JsonLd data={toolJsonLd(OC_QUESTIONS_PATH)} />
       </section>
     </>
   );

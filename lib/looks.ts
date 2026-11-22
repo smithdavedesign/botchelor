@@ -44,47 +44,112 @@ export type LookStepId = (typeof LOOK_STEP_IDS)[number];
 export const LOOK_MIN_AGE = 18;
 export const LOOK_MAX_AGE = 60;
 export const IMAGE_MIN_AGE = 21;
+/**
+ * A portrait drawn from picks shows the character's own age (2026-11-22 audit: a 64-year-old was drawn 60); past a
+ * human lifetime (a 212-year-old vampire) it's the oldest look, LOOK_MAX_AGE, not 212.
+ */
+export const DRAWN_MAX_AGE = 99;
+export const drawnAge = (age: number): number => (age > DRAWN_MAX_AGE ? LOOK_MAX_AGE : age);
 
 /**
  * "Work clothes": dressed for their job. The occupation is typed, and nothing typed reaches the image model, so it only
  * picks one of these fixed outfits by keyword (first match wins, so "pirate captain" is a pirate, not a ship's captain).
- * No match, or no job yet: smart work clothes.
+ * Whole words only, and `unless` names the jobs a word belongs to that aren't this one (2026-11-22 audit: "Bonsai nursery
+ * owner" was drawn in hospital scrubs; "software engineer", "marine biologist" and "loan officer" were dressed in
+ * overalls, a dress uniform and a police uniform). No match, or no job yet: smart work clothes.
  */
 const WORK_FALLBACK = "smart, practical work clothes";
-export const WORK_OUTFITS: readonly { id: string; label: string; match: RegExp; prompt: string }[] = [
-  { id: "pirate", label: "Pirate coat", match: /\bpirate|buccaneer/, prompt: "a pirate captain's long coat, a loose white shirt and a tricorn hat" },
-  { id: "knight", label: "Knight's armour", match: /\bknight|paladin/, prompt: "polished knight's armour with a cloak" },
-  { id: "wizard", label: "Robes", match: /wizard|witch|mage\b|sorcer|warlock|druid/, prompt: "flowing embroidered robes" },
-  { id: "royal", label: "Royal attire", match: /\b(king|queen|prince|princess|duke|duchess|royal|monarch|emperor|empress)\b/, prompt: "regal royal attire with a fine sash" },
-  { id: "astronaut", label: "Spacesuit", match: /astronaut|cosmonaut|spaceship|starship/, prompt: "a white spacesuit, helmet off and tucked under one arm" },
-  { id: "pilot", label: "Pilot's uniform", match: /pilot|aviator|flight captain|airline/, prompt: "an airline pilot's uniform with epaulettes and a peaked cap" },
-  { id: "captain", label: "Captain's uniform", match: /captain|skipper|sailor|navy|naval|admiral|\bship\b|yacht|ferry/, prompt: "a ship captain's white uniform with gold buttons and a peaked cap" },
-  { id: "firefighter", label: "Firefighter's gear", match: /fire ?fighter|fireman|firewoman/, prompt: "a firefighter's turnout jacket and trousers" },
-  { id: "police", label: "Police uniform", match: /police|cop\b|officer|sheriff|deputy|constable/, prompt: "a police officer's dark uniform" },
-  { id: "detective", label: "Detective's coat", match: /detective|investigator|sleuth|\bspy\b/, prompt: "a belted trench coat over a suit" },
-  { id: "military", label: "Dress uniform", match: /soldier|army|military|marine|sergeant|lieutenant|colonel|general\b/, prompt: "a military dress uniform" },
-  { id: "scrubs", label: "Scrubs", match: /nurse|paramedic|surgeon|medic\b|\bemt\b|dentist|\bvet\b|veterinar/, prompt: "medical scrubs" },
-  { id: "doctor", label: "Doctor's coat", match: /doctor|physician|\bdr\b|pharmac/, prompt: "a white doctor's coat over smart clothes, a stethoscope around the neck" },
-  { id: "lab", label: "Lab coat", match: /scien|chemist|biolog|physicist|research|\blab\b|inventor/, prompt: "a white lab coat with safety goggles pushed up on the head" },
-  { id: "chef", label: "Chef's whites", match: /chef|cook\b|baker|pastry|patissier|butcher/, prompt: "a white chef's jacket and apron" },
-  { id: "barista", label: "Apron", match: /barista|bartender|waiter|waitress|server\b|sommelier|cafe|café|diner/, prompt: "a black shirt and a barista's apron" },
-  { id: "mechanic", label: "Overalls", match: /mechanic|engineer|plumber|electrician|welder|builder|construction|carpenter|repair|technician/, prompt: "work overalls with a tool belt" },
-  { id: "farmer", label: "Farm clothes", match: /farm|rancher|cowboy|cowgirl|shepherd|goat|horse/, prompt: "a flannel shirt, work jeans and boots" },
-  { id: "gardener", label: "Garden apron", match: /garden|florist|botan|landscap/, prompt: "a canvas gardening apron over a rolled-sleeve shirt" },
-  { id: "artist", label: "Painter's smock", match: /artist|painter|sculpt|potter|ceramic|illustrat/, prompt: "a paint-spattered smock over a t-shirt" },
-  { id: "musician", label: "Stage clothes", match: /musician|guitar|drummer|singer|\bband\b|rock ?star|\bdj\b|rapper|pianist/, prompt: "stage clothes: a leather jacket over a band t-shirt" },
-  { id: "dancer", label: "Dance clothes", match: /dancer|ballet|ballerina|choreograph/, prompt: "dance rehearsal clothes: a wrap top and soft trousers" },
-  { id: "athlete", label: "Team kit", match: /athlete|footballer|soccer|basketball|tennis|trainer|boxer|swimmer|runner/, prompt: "a sports team kit" },
-  { id: "lifeguard", label: "Lifeguard kit", match: /lifeguard|surf/, prompt: "a red lifeguard t-shirt and shorts" },
-  { id: "teacher", label: "Teacher's cardigan", match: /teacher|professor|lecturer|librarian|tutor|academic/, prompt: "a cardigan over a collared shirt and smart trousers" },
-  { id: "suit", label: "Business suit", match: /lawyer|attorney|banker|executive|\bceo\b|founder|consultant|accountant|manager|politician|broker|analyst/, prompt: "a sharp tailored business suit" },
+export const WORK_OUTFITS: readonly { id: string; label: string; match: RegExp; unless?: RegExp; prompt: string }[] = [
+  { id: "pirate", label: "Pirate coat", match: /\bpirates?\b|\bbuccaneers?\b/, unless: /\bpirate radio\b/, prompt: "a pirate captain's long coat, a loose white shirt and a tricorn hat" },
+  { id: "knight", label: "Knight's armour", match: /\bknights?\b|\bpaladins?\b/, prompt: "polished knight's armour with a cloak" },
+  { id: "wizard", label: "Robes", match: /\bwizards?\b|\bwitch(es)?\b|\bmages?\b|\bsorcer(er|ess)|\bwarlocks?\b|\bdruids?\b/, prompt: "flowing embroidered robes" },
+  {
+    id: "royal",
+    label: "Royal attire",
+    match: /\b(kings?|queens?|princes?|princess(es)?|dukes?|duchess(es)?|royals?|royalty|monarchs?|emperors?|empress(es)?)\b/,
+    unless: /\b(drag|prom|beauty|homecoming|burger|scrap|dairy|media|property|real estate) (kings?|queens?|princes?|princess(es)?)\b|\broyal (mail|navy|marines?|air force|ballet|opera|academy|society)\b/,
+    prompt: "regal royal attire with a fine sash",
+  },
+  { id: "astronaut", label: "Spacesuit", match: /\bastronauts?\b|\bcosmonauts?\b|\bspaceship|\bstarship/, prompt: "a white spacesuit, helmet off and tucked under one arm" },
+  { id: "pilot", label: "Pilot's uniform", match: /\b(co-?)?pilots?\b|\baviators?\b|\bflight captain|\bairline (pilot|captain)/, unless: /\b(tv|television) pilot/, prompt: "an airline pilot's uniform with epaulettes and a peaked cap" },
+  {
+    id: "captain",
+    label: "Captain's uniform",
+    match: /\bcaptains?\b|\bskippers?\b|\bsailors?\b|\bnavy\b|\bnaval\b|\badmirals?\b|\bship\b|\byacht|\bferry/,
+    unless: /\b(team|football|soccer|cricket|rugby|hockey|squad|club|debate|industry) captains?\b/,
+    prompt: "a ship captain's white uniform with gold buttons and a peaked cap",
+  },
+  { id: "firefighter", label: "Firefighter's gear", match: /\bfire ?fighters?\b|\bfire(man|men|woman|women)\b/, prompt: "a firefighter's turnout jacket and trousers" },
+  // Not every officer or deputy: "loan officer", "chief executive officer" and "deputy head" aren't police.
+  { id: "police", label: "Police uniform", match: /\bpolice|\bcops?\b|\bsheriffs?\b|\bconstables?\b|\btroopers?\b/, prompt: "a police officer's dark uniform" },
+  { id: "detective", label: "Detective's coat", match: /\bdetectives?\b|\binvestigators?\b|\bsleuths?\b|\bspy\b|\bspies\b/, prompt: "a belted trench coat over a suit" },
+  // "Marine" and "general" only on their own ("a retired marine", "the general"), not "marine biologist" or "general manager".
+  {
+    id: "military",
+    label: "Dress uniform",
+    match: /\bsoldiers?\b|\barmy\b|\bmilitary\b|\bsergeants?\b|\blieutenants?\b|\bcolonels?\b|\bmarines?\b(?!\s+[a-z])|\bmarine corps\b|\bgenerals?\b(?!\s+[a-z])|\b(army|brigadier|major) generals?\b/,
+    prompt: "a military dress uniform",
+  },
+  {
+    id: "scrubs",
+    label: "Scrubs",
+    match: /\bnurses?\b|\bparamedics?\b|\bsurgeons?\b|\bmedics?\b|\bemts?\b|\bdentists?\b|\bvets?\b|\bveterinar/,
+    unless: /\btree surgeons?\b|\b(war|army|navy|military|combat) vets?\b/,
+    prompt: "medical scrubs",
+  },
+  { id: "doctor", label: "Doctor's coat", match: /\bdoctors?\b|\bphysicians?\b|\bdr\b|\bpharmac|\bgp\b|\bgeneral practitioners?\b/, unless: /\bspin doctors?\b/, prompt: "a white doctor's coat over smart clothes, a stethoscope around the neck" },
+  { id: "lab", label: "Lab coat", match: /scien|chemist|biolog|physicist|\bresearch|\blab\b|\binventors?\b/, unless: /\b(market|user|ux) research/, prompt: "a white lab coat with safety goggles pushed up on the head" },
+  { id: "chef", label: "Chef's whites", match: /\bchefs?\b|\bcooks?\b|\bbakers?\b|\bbakery\b|\bpastry|\bpatissiers?\b|\bbutchers?\b/, prompt: "a white chef's jacket and apron" },
+  {
+    id: "barista",
+    label: "Apron",
+    match: /\bbaristas?\b|\bbartenders?\b|\bwait(er|ers|ress|resses|staff)\b|\bservers?\b(?!\s+[a-z])|\bsommeliers?\b|\bcaf[eé]|\bdiners?\b/,
+    prompt: "a black shirt and a barista's apron",
+  },
+  // Overalls for hands-on trades, not "software engineer", "app builder" or "nail technician".
+  {
+    id: "mechanic",
+    label: "Overalls",
+    match: /\bmechanics?\b|\bengineers?\b|\bplumbers?\b|\belectricians?\b|\bwelders?\b|\bbuilders?\b|\bconstruction\b|\bcarpenters?\b|\brepair|\btechnicians?\b/,
+    unless:
+      /\b(software|data|sound|audio|recording|prompt|ml|ai|devops|web|front-?end|back-?end|full-?stack|network|systems?|reliability|security|cloud|platform|qa|test|sales|solutions?|support|product|social|growth|marketing|search|app|website|brand|community|team|audience|body|nail|it|computer|ui|ux|game) (engineers?|builders?|technicians?)\b/,
+    prompt: "work overalls with a tool belt",
+  },
+  { id: "farmer", label: "Farm clothes", match: /\bfarm|\branchers?\b|\bcowboys?\b|\bcowgirls?\b|\bshepherd|\bgoat|\bhorse/, prompt: "a flannel shirt, work jeans and boots" },
+  { id: "gardener", label: "Garden apron", match: /\bgarden|\bflorists?\b|\bbotan|\blandscap|\bbonsai|\barborists?\b|\btree surgeons?\b|\bhorticultur|\bplant nurser/, prompt: "a canvas gardening apron over a rolled-sleeve shirt" },
+  {
+    id: "artist",
+    label: "Painter's smock",
+    match: /\bartists?\b|\bpainters?\b|\bsculpt|\bpotters?\b|\bpottery\b|\bceramic|\billustrat/,
+    unless: /\b(make-?up|tattoo|con|recording|martial|escape|trapeze|performance|voice) artists?\b/,
+    prompt: "a paint-spattered smock over a t-shirt",
+  },
+  { id: "musician", label: "Stage clothes", match: /\bmusicians?\b|\bguitar|\bdrummers?\b|\bsingers?\b|\bband\b|\brock ?stars?\b|\bdj\b|\brappers?\b|\bpianists?\b/, prompt: "stage clothes: a leather jacket over a band t-shirt" },
+  { id: "dancer", label: "Dance clothes", match: /\bdancers?\b|\bballet|\bballerinas?\b|\bchoreograph/, prompt: "dance rehearsal clothes: a wrap top and soft trousers" },
+  {
+    id: "athlete",
+    label: "Team kit",
+    match: /\bathletes?\b|\bfootballers?\b|\bsoccer|\bbasketball|\btennis|\btrainers?\b|\bboxers?\b|\bswimmers?\b|\brunners?\b|\bsprinters?\b/,
+    unless: /\b(dog|animal|corporate|sales|seal|bird|falcon) trainers?\b|\b(front|drug|rum|gun|film|blockade|errand)[ -]?runners?\b/,
+    prompt: "a sports team kit",
+  },
+  { id: "lifeguard", label: "Lifeguard kit", match: /\blifeguards?\b|\bsurf(er|ers|ing|board|boards)?\b/, prompt: "a red lifeguard t-shirt and shorts" },
+  { id: "teacher", label: "Teacher's cardigan", match: /\bteachers?\b|\bprofessors?\b|\blecturers?\b|\blibrarians?\b|\btutors?\b|\bacademic/, prompt: "a cardigan over a collared shirt and smart trousers" },
+  {
+    id: "suit",
+    label: "Business suit",
+    match: /\blawyers?\b|\battorneys?\b|\bbankers?\b|\bexecutives?\b|\bceo\b|\b(co-?)?founders?\b|\bconsultants?\b|\baccountants?\b|\bmanagers?\b|\bpoliticians?\b|brokers?\b|\banalysts?\b/,
+    prompt: "a sharp tailored business suit",
+  },
 ];
 /** Their job's outfit, from its words (lowercased), or the fallback. */
 export function workOutfit(occupation: string | null | undefined): { id: string; label: string; prompt: string } {
-  const t = (occupation ?? "").toLowerCase();
-  const hit = t.trim() ? WORK_OUTFITS.find((w) => w.match.test(t)) : undefined;
+  const t = (occupation ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  const hit = t ? WORK_OUTFITS.find((w) => w.match.test(t) && !w.unless?.test(t)) : undefined;
   return hit ?? { id: "work", label: "Work clothes", prompt: WORK_FALLBACK };
 }
+/** Whether their job has an outfit of its own (not the smart work clothes every other job gets). */
+export const hasWorkOutfit = (occupation: string | null | undefined): boolean => workOutfit(occupation).id !== "work";
 /** The outfit's words, with "Work clothes" dressed for their job. */
 const dressed = (o: LookOption, gender: Gender, occupation?: string | null): string => (o.id === "work" ? workOutfit(occupation).prompt : optionPrompt(o, gender));
 
@@ -493,15 +558,35 @@ const pick = (step: LookStepId, gender: Gender, id: string | undefined, afterDar
 };
 
 /**
- * The look as an appearance line for the sheet (≤ 140 characters, like the field): "Latina, long voluminous curly
+ * The look as an appearance line for the sheet (≤ 140 characters, like the field): "Latina woman, long voluminous curly
  * copper-red hair, vivid green eyes, a curvy hourglass figure". Never After Dark's picks, never the outfit's skin.
  */
 export function looksAppearance(l: Looks | undefined): string {
+  return appearanceLine(l, true);
+}
+
+/**
+ * Whether `line` is the one these picks write, in today's words or in those before 2026-11-22 ("Latina, long…", with no
+ * "woman"), so a line the builder wrote, saved before then too, still follows the picks, and a typed one stays.
+ */
+export function isLooksLine(line: string | null | undefined, l: Looks | undefined): boolean {
+  const t = (line ?? "").trim();
+  return Boolean(t) && (t === appearanceLine(l, true) || t === appearanceLine(l, false));
+}
+
+/**
+ * The line as a picture prompt reads it, which names the person itself ("a 30-year-old woman, …"): the ethnicity alone,
+ * as before 2026-11-22 ("Black", not a second "Black woman").
+ */
+export const withoutLooksNoun = (line: string): string => line.replace(/(^|,\s*)(\p{Lu}[\p{L}-]*(?: \p{Lu}[\p{L}-]*)?) (?:man|woman|person)(?=\s*(?:,|$))/gu, "$1$2");
+
+function appearanceLine(l: Looks | undefined, noun: boolean): string {
   if (!l?.gender) return "";
   const g = l.gender;
   const parts = [
     STYLE_WORDS[artStyleFrom(l.style)].appearance,
-    l.ethnicity ? optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "") : "",
+    // "Black woman", not "Black" beside the hair words (2026-11-22 audit: "Black, long… copper-red hair" read as two hair colours).
+    l.ethnicity ? `${optionLabel(pick("ethnicity", g, l.ethnicity)!, g).replace(" / Afro", "")}${noun ? ` ${g}` : ""}` : "",
     detailWords("skin_tone", l.skin_tone) ?? "",
     hairWords(g, l.hair_style, l.hair_color),
     pick("eyes", g, l.eyes)?.prompt ?? "",
@@ -723,13 +808,13 @@ const KIND_LOOK_WORDS: Partial<Record<KindId, string>> = {
 
 /**
  * A character's portrait from its picks (lib/looks-draw.ts drawLooksPortrait): head and shoulders, dressed, PG. The age
- * is the look's own pick, else the character's capped at the oldest look (a 212-year-old vampire is drawn 60 at most,
- * not 212), and its kind adds its own fixed words.
+ * is the look's own pick, else the character's own (drawnAge: a 64-year-old is drawn 64, a 212-year-old vampire 60, not
+ * 212), and its kind adds its own fixed words.
  */
 export function looksPortraitPrompt(l: Looks, age: number, kind?: KindId | null, occupation?: string | null): string | null {
   if (!l.gender) return null;
   const d = DEFAULTS[l.gender];
-  const looks = { ...d, ...l, breasts: undefined, after_dark: undefined, age: l.age ?? Math.min(age, LOOK_MAX_AGE) } as Looks & { age: number };
+  const looks = { ...d, ...l, breasts: undefined, after_dark: undefined, age: l.age ?? drawnAge(age) } as Looks & { age: number };
   return pgPrompt(
     { gender: l.gender, looks, outfit: outfitWords(l.gender, l.outfit ?? d.outfit, false, occupation) },
     "Head-and-shoulders portrait, facing the camera, warm natural smile",

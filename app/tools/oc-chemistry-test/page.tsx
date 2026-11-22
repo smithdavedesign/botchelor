@@ -3,15 +3,19 @@ import Link from "next/link";
 import { CHEMISTRY_EXAMPLE, CHEMISTRY_TEST_PATH, chemistryResultHref, SCORE_BANDS } from "@/lib/chemistry-test";
 import ChemistryForm from "./ChemistryForm";
 import MoreTools from "../MoreTools";
+import JsonLd from "@/app/JsonLd";
+import { toolJsonLd } from "@/lib/seo";
 
 const TITLE = "OC chemistry test";
 const DESCRIPTION =
   "A free chemistry test for two original characters: give each three traits, a want and a dealbreaker, and get a score out of 100, how their first date ends and why, on a link you can share. No sign-up.";
+/** What a search result shows, in full (lib/seo.ts DESCRIPTION_MAX); the share cards keep DESCRIPTION. */
+const SEARCH_DESCRIPTION = "A free chemistry test for two OCs: three traits, a want and a dealbreaker each, then a score out of 100 and how their first date ends. No sign-up.";
 const CARD = { url: "/api/og/chemistry", width: 1200, height: 630, alt: "Botchelor's free OC chemistry test: will these two make it?" };
 
 export const metadata: Metadata = {
   title: `${TITLE}: will these two characters make it? · Botchelor`,
-  description: DESCRIPTION,
+  description: SEARCH_DESCRIPTION,
   alternates: { canonical: CHEMISTRY_TEST_PATH },
   openGraph: { type: "website", siteName: "Botchelor", title: `${TITLE}: will these two make it?`, description: DESCRIPTION, url: CHEMISTRY_TEST_PATH, images: [CARD] },
   twitter: { card: "summary_large_image", title: `${TITLE}: will these two make it?`, description: DESCRIPTION, images: [CARD.url] },
@@ -90,6 +94,8 @@ export default function ChemistryTestPage() {
           Make your character
         </Link>
         <MoreTools current={CHEMISTRY_TEST_PATH} />
+        {/* The tool as a free web app under the tools hub, for search (lib/seo.ts toolJsonLd). */}
+        <JsonLd data={toolJsonLd(CHEMISTRY_TEST_PATH)} />
       </section>
     </>
   );

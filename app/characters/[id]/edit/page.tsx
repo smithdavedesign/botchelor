@@ -12,9 +12,16 @@ import { authFromCookieStore } from "@/lib/http";
 import { builderLooks } from "@/lib/looks-draw";
 import { loadSoul } from "@/lib/souls";
 import { ownSecrets } from "@/lib/cast-secrets";
+import { knownCharacterOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Edit character · Botchelor", robots: { index: false, follow: false } };
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownCharacterOnce(id));
+  return { title: "Edit character · Botchelor", robots: { index: false, follow: false } };
+}
 
 type Row = {
   name: string;

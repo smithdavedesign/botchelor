@@ -22,6 +22,8 @@ import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import CharacterName from "@/app/CharacterName";
 import { DELETED_OWNER } from "@/lib/rules";
 import StageLegend from "@/app/StageLegend";
+import { knownCharacterOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,8 @@ const BOARD_PAGE = 10;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownCharacterOnce(id));
   const c = await getPublicCharacter(await getDb(), id);
   if (!c) return { title: "Character not found · Botchelor", robots: { index: false, follow: false } };
   return {
