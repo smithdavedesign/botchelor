@@ -1,4 +1,5 @@
 import { characterSelfView, type Character, type PromptLessons } from "./character";
+import type { CharacterExtras } from "./extras";
 import { standingWords } from "./memory";
 import type { ChatMessage } from "./model";
 import type { ReplyLength } from "./companion-shared";
@@ -152,11 +153,17 @@ export const LEANED_REPLIES = 4;
 export const LEANED_IN = 2;
 export const LEANED_MAX = 6;
 
-/** A word and its plural or -ing form count as one ("clock" and "clocks", "tick" and "ticking"). */
-function stem(w: string): string {
-  if (w.length > 5 && w.endsWith("ing")) return w.slice(0, -3);
-  if (w.length > 4 && w.endsWith("ies")) return `${w.slice(0, -3)}y`;
-  if (w.length > 4 && w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1);
+/**
+ * A word and its other forms count as one ("clock" and "clocks", "tick" and "ticking", "watch" and "watches",
+ * "archive", "archives" and "archival"). Only ever compared with another stem from here.
+ */
+export function stem(w: string): string {
+  if (w.length > 5 && w.endsWith("ing")) w = w.slice(0, -3);
+  else if (w.length > 4 && w.endsWith("ies")) return `${w.slice(0, -3)}y`;
+  else if (w.length > 4 && /(?:ch|sh|x|ss|z)es$/.test(w)) w = w.slice(0, -2);
+  else if (w.length > 4 && w.endsWith("s") && !w.endsWith("ss")) w = w.slice(0, -1);
+  if (w.length > 6 && w.endsWith("al")) w = w.slice(0, -2);
+  if (w.length > 4 && w.endsWith("e")) w = w.slice(0, -1);
   return w;
 }
 
@@ -206,6 +213,72 @@ export function leanedOn(lines: readonly string[], theirs: readonly string[]): s
     .sort((x, y) => y.n - x.n || y.last - x.last)
     .slice(0, LEANED_MAX)
     .map((c) => c.shown);
+}
+
+/**
+ * Words that turned up in the worlds of many sheets (a sample of 348, 2026-11-22) and say nothing about any one of them:
+ * never a world word, even when a sheet repeats them.
+ */
+const NOT_A_WORLD: ReadonlySet<string> = new Set(
+  (
+    "single quiet find perfect perfectly moment sorry calm count tiny name table story stories read reading listen sound " +
+    "question please interest interesting secret talk retired former amateur freelance owner professional"
+  )
+    .split(" ")
+    .map(stem),
+);
+
+/**
+ * A character's own world in words (2026-11-22, live after the habits rule: a clockmaker still reached for clocks in 4
+ * of 4 replies, an heir hunter for archives in 5 of 5): what its sheet keeps coming back to. A word counts when it's in
+ * two of the sheet's pieces and one of them is its work, a hobby, its bio or its signature item, or when it's in three
+ * of its quirk, catchphrase, tells, sample lines and profile answers. Stems; never its own name, a contraction, a word
+ * many sheets share, or an everyday word ("time", "check") unless the sheet also has it in a form that isn't one
+ * ("watches"). On that sample, about six words a sheet.
+ */
+export function worldWords(c: Pick<Character, "name" | "bio" | "extras">): Set<string> {
+  const x: CharacterExtras = c.extras ?? {};
+  const anchors = [x.occupation, ...(x.hobbies ?? []), c.bio, x.signature_item];
+  const pieces = [x.quirk, x.catchphrase, x.hidden_talent, x.world, ...Object.values(x.tells ?? {}), ...Object.values(x.lines ?? {}), ...(x.prompts ?? []).map((p) => p.answer)];
+  const named = new Set(contentWords(c.name ?? "", 4).map(stem));
+  const found = new Map<string, { pieces: number; anchored: boolean; plain: boolean }>();
+  const read = (text: unknown, anchor: boolean) => {
+    if (typeof text !== "string") return;
+    const here = new Map<string, boolean>();
+    for (const w of contentWords(text, 4)) {
+      if (w.includes("'")) continue;
+      const s = stem(w);
+      here.set(s, (here.get(s) ?? false) || !EVERYDAY_WORDS.has(w));
+    }
+    for (const [s, notEveryday] of here) {
+      const f = found.get(s) ?? { pieces: 0, anchored: false, plain: false };
+      f.pieces++;
+      f.anchored ||= anchor;
+      f.plain ||= notEveryday;
+      found.set(s, f);
+    }
+  };
+  anchors.forEach((t) => read(t, true));
+  pieces.forEach((t) => read(t, false));
+  return new Set(
+    [...found]
+      .filter(([s, f]) => f.plain && !named.has(s) && !NOT_A_WORLD.has(s) && f.pieces >= (f.anchored ? 2 : 3))
+      .map(([s]) => s),
+  );
+}
+
+/**
+ * The words of its own world a reply reached for, unless the other side or the scene brought them up (then it's the
+ * topic): what the next reply leaves out.
+ */
+export function reachedFor(reply: string, world: ReadonlySet<string>, topic: readonly string[]): string[] {
+  const theirs = new Set(topic.flatMap((t) => contentWords(t, 4)).map(stem));
+  const out = new Map<string, string>();
+  for (const w of contentWords(reply, 4)) {
+    const s = stem(w);
+    if (world.has(s) && !theirs.has(s) && !out.has(s)) out.set(s, w);
+  }
+  return [...out.values()];
 }
 
 /** The character's replies in a thread's turns (its bubbles in a row are one reply, with what it did), and the person's words. */
@@ -346,6 +419,10 @@ export function companionMessages(args: {
   // The words it has leaned on in its latest replies here, unless they brought them up too: to rest this time.
   const lately = repliesOf(args.turns.slice(-(args.deep ? DEEP_TURNS : RECENT_TURNS)));
   const leaned = leanedOn(lately.replies, lately.theirs);
+  // Its last reply reached for its own world (its work, its hobby, its sayings): this one rests it, and its sample
+  // lines (all in that world, often) stay out of this call's sheet.
+  const reached = lately.replies.length ? reachedFor(lately.replies[lately.replies.length - 1], worldWords(c), [...lately.theirs, scene?.prompt ?? ""]) : [];
+  const sheet = reached.length ? { ...self, voice_examples: undefined } : self;
   const day = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
   const setting = scene
     ? `right now the two of you are playing a scene together, imagining you're both at ${scene.prompt}, face to face.`
@@ -421,7 +498,7 @@ export function companionMessages(args: {
     "",
     `Today is ${day}.`,
     "",
-    `Your sheet (JSON, private notes included): ${JSON.stringify(self)}`,
+    `Your sheet (JSON, private notes included): ${JSON.stringify(sheet)}`,
     ...(lastDate
       ? [
           "",
@@ -473,6 +550,12 @@ export function companionMessages(args: {
     ...(args.avoid.length ? ["", "Lines you've already sent (don't reuse them or how they open):", ...args.avoid.map((l) => `- ${l}`)] : []),
     ...(leaned.length
       ? ["", `Words you've leaned on in your last few replies: ${leaned.map((w) => `"${w}"`).join(", ")}. Leave them out of this one, and the images they come from: say it another way.`]
+      : []),
+    ...(reached.length
+      ? [
+          "",
+          `Your last reply reached for your own world (${reached.slice(0, LEANED_MAX).map((w) => `"${w}"`).join(", ")}). This one rests it: no images, comparisons or jokes from your work, your hobbies or your sayings. Answer what they said in plain words, still in your own voice; if they ask about your work or your week, just tell them.`,
+        ]
       : []),
     ...(args.passedOn?.length
       ? [
