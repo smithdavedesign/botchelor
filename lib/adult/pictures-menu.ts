@@ -15,7 +15,7 @@
  */
 import { picturesBlocked } from "./readiness";
 import { includedPrice } from "./pricing";
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
@@ -245,7 +245,7 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   const price = (await includedPrice(db, ownerId, settings.menu_picture_tokens)).tokens;
   const pays = price > 0;
   if (pays && price > 0 && !(await spendAdTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `A picture from the menu costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.` };
+    return { ok: false, status: 402, error: "needs_tokens", message: `A picture from the menu costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}` };
   }
   const giveBack = async () => {
     if (pays && price > 0) await refundAdTokens(db, ownerId, price);

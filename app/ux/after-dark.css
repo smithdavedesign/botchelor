@@ -4003,3 +4003,20 @@ fieldset.ad-si-step {
 .ad-char-page .showcase-grid {
   margin-top: 0;
 }
+/* The report link under an episode or a night (app/after-dark/ReportLink.tsx). */
+.after-dark .ad-report {
+  margin: var(--space-4) 0 0;
+}
+/* The visitor's waitlist, folded under one text link so the page has one button: Sign in (2026-11-22 audit). */
+.ad-waitlist {
+  margin: var(--space-3) 0;
+}
+.ad-waitlist > summary {
+  cursor: pointer;
+  color: var(--ad-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.ad-waitlist[open] > summary {
+  margin-bottom: var(--space-2);
+}

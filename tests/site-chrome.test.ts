@@ -26,12 +26,12 @@ afterEach(() => {
 describe("the footer", () => {
   const layout = source("app/layout.tsx");
   const groups = layout.slice(layout.indexOf('<nav className="footer-groups"'), layout.indexOf("</nav>", layout.indexOf('<nav className="footer-groups"')));
-  const group = (title: string) => groups.slice(groups.indexOf(`<FooterGroup title="${title}">`), groups.indexOf("</FooterGroup>", groups.indexOf(`<FooterGroup title="${title}">`)));
+  const group = (title: string) => groups.slice(groups.indexOf(`<FooterGroup title="${title}"`), groups.indexOf("</FooterGroup>", groups.indexOf(`<FooterGroup title="${title}"`)));
 
   // The design system's SiteFooter (David 2026-11-16, "our footer should match the designs"), back from the 2026-11-14
   // audit's one row: four groups, columns on a wide screen and rows that fold on a phone (app/FooterGroup.tsx).
   it("is the design system's four groups, in its order, with its links", () => {
-    expect([...groups.matchAll(/<FooterGroup title="([^"]+)">/g)].map((m) => m[1])).toEqual(["The show", "Tools", "Company", "Help and legal"]);
+    expect([...groups.matchAll(/<FooterGroup title="([^"]+)"[^>]*>/g)].map((m) => m[1])).toEqual(["The show", "Tools", "Company", "Help and legal"]);
     const hrefs = (g: string) => [...group(g).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
     expect(hrefs("The show")).toEqual(["/watch", "/graph", "/shop", "/pricing", "/everything"]);
     // Plus the free tools' hub (SEO, 2026-11-19): the newer tools and the hub get a link from every page (tests/seo-crawl.test.ts).
@@ -41,9 +41,12 @@ describe("the footer", () => {
     expect(group("Help and legal")).toContain("<FeedbackLink />");
     // The prompts library stays on /everything (design review 2026-11-16, D-15), not in every page's footer.
     expect(groups).not.toContain('href="/prompts"');
-    // After Dark's host: no Pricing or agents' door, and "Tokens" for the shop.
+    // After Dark's host: no Pricing or agents' door, and never the show's shop (Stripe's checkout; the 2026-11-22 audit).
+    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/shop">More dates</Link></li>}');
     expect(group("The show")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}');
-    expect(group("The show")).toContain('{adHost ? "Tokens" : "More dates"}');
+    expect(group("The show")).not.toContain("Tokens");
+    // …and its Help and legal never folds there: Report and the 2257 statement stay in the open on a phone.
+    expect(groups).toContain('<FooterGroup title="Help and legal" keepOpen={adHost}>');
     expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}');
     expect(layout).not.toContain("footer-row");
   });
@@ -51,7 +54,8 @@ describe("the footer", () => {
   it("folds each group on a phone and holds it open as a column on a wide screen", () => {
     const fg = source("app/FooterGroup.tsx");
     expect(fg).toContain('const PHONE = "(max-width: 640px)";');
-    expect(fg).toContain('<details ref={ref} className="footer-group" open>');
+    expect(fg).toContain('<details ref={ref} className={keepOpen ? "footer-group footer-group--open" : "footer-group"} open>');
+    expect(fg).toContain("const folds = phone.matches && !keepOpen;");
     expect(fg).toContain('<Icon name="chevronRight" className="footer-chev" />');
     const css = source("app/ux/chrome.css");
     expect(css).toMatch(/\.footer-groups \{\s*display: grid;\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
@@ -84,7 +88,8 @@ describe("the footer", () => {
     expect(layout).toContain("Every character is a fictional adult (18+), and every episode is written by an AI model.");
     expect(layout).toContain("<CrisisResources />");
     expect(layout).toMatch(/<div className="footer-main">[\s\S]*\{!adHost && \(\s*<div className="footer-side">\s*<NewsletterSignup \/>\s*<SocialLinks links=\{socials\} labels area="footer" \/>/);
-    expect(layout).toMatch(/className="footer-legal"[\s\S]*Adults \(18\+\) only · No real people · Points are free and can&apos;t be bought · ©[\s\S]*mailto:/);
+    // On After Dark's host the show's line about points gives way to one about what's there (2026-11-22 audit).
+    expect(layout).toMatch(/className="footer-legal"[\s\S]*Adults \(18\+\) only · No real people · \{adHost \? "Every character is AI-generated fiction" : "Points are free and can't be bought"\} · ©[\s\S]*mailto:/);
     // David 2026-11-17: the legal lines after the links. The groups, then the adults line, the help lines, the © line.
     const at = (s: string) => layout.indexOf(s);
     expect(at('<nav className="footer-groups"')).toBeGreaterThan(at('<div className="footer-side">'));

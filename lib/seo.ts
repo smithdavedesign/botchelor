@@ -18,6 +18,7 @@ import { FREE_EPISODES_PER_SEASON, REPORT_HIDE_THRESHOLD } from "./rules";
 import { seasonCastIds } from "./season-cast";
 import { liveSeasonPaths } from "./season-page";
 import { PUBLIC_PATHS, siteUrl } from "./site";
+import { listedCharacterSql, listedDateSql } from "./public-cast";
 import { LEAGUE_PATH, modelLeagueOn } from "./model-family";
 import { SHOW_ID } from "./show-id";
 import { showIdeasOn } from "./show-ideas-switch";
@@ -28,6 +29,9 @@ import { paymentLinkFromEnv } from "./stripe";
 export const SITE_TITLE = "Botchelor: a blind-date show for original characters";
 export const SITE_DESCRIPTION =
   "Give your original character a love life: AI-written blind dates nobody steers. They text you how it went and take your advice into the next one. Free, no sign-up.";
+/** After Dark's own host says what it is instead (the 2026-11-22 audit: it carried the show's "Free, no sign-up"). */
+export const AFTER_DARK_DESCRIPTION =
+  "Botchelor After Dark: the private, adults-only side of the season. AI-generated fiction between fictional adults, invite only while it's in beta.";
 
 /** The site's share card, drawn with code at build time (app/opengraph-image.tsx). */
 export const SHARE_IMAGE_ALT = "Botchelor: give your character a love life. Blind dates nobody steers; they text you how it went.";
@@ -96,11 +100,12 @@ export const SITEMAP_MIN_COUPLE_DATES = 2;
  * A character page worth a search engine's time (David, 2026-11-19, before the catalog cast adds up to 90 characters a
  * day): public, and either on this season's house cast or in a date that aired publicly. Until then the page is up,
  * linked and followed, but says noindex and stays out of the sitemap and IndexNow: a fresh profile is a name and a bio,
- * and Google reads many of those at once as scaled content (and judges a site's quality as a whole). `$cast` is the
- * placeholder holding seasonCastIds().
+ * and Google reads many of those at once as scaled content (and judges a site's quality as a whole). Never a deleted
+ * account's character (lib/public-cast.ts: kept only so aired dates keep both names). `$cast` is the placeholder
+ * holding seasonCastIds().
  */
 export const indexableCharacterSql = (alias: string, cast: string): string =>
-  `(${alias}.visibility = 'public' and ((${alias}.is_house and ${alias}.premium_sku is null and ${alias}.id = any(${cast}))
+  `(${alias}.visibility = 'public' and ${listedCharacterSql(alias)} and ((${alias}.is_house and ${alias}.premium_sku is null and ${alias}.id = any(${cast}))
      or exists (select 1 from episodes ie
                  where (ie.character_a = ${alias}.id or ie.character_b = ${alias}.id)
                    and ie.visibility = 'public' and ie.revealed_at is not null and ie.status = 'ready')))`;
@@ -111,13 +116,18 @@ export async function characterIndexable(db: Db, id: string): Promise<boolean> {
   return rows[0]?.ok === true;
 }
 
-/** The episodes and characters worth indexing. Bounded well under the 50,000-URL sitemap limit. */
+/**
+ * The episodes and characters worth indexing. Bounded well under the 50,000-URL sitemap limit. A date or couple with a
+ * deleted account's character isn't listed (lib/public-cast.ts), nor a couple with a private one: the page stays up for
+ * the other side, and says noindex.
+ */
 export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<MetadataRoute.Sitemap> {
   const episodes = await db.query<{ id: string; at: Date | string }>(
     `select e.id, coalesce(e.revealed_at, e.created_at) as at
        from episodes e
       where e.visibility = 'public' and e.revealed_at is not null and e.status = 'ready'
         and (select count(*) from reports r where r.episode_id = e.id) < $1
+        and ${listedDateSql("e")}
       order by e.revealed_at desc
       limit 20000`,
     [REPORT_HIDE_THRESHOLD],
@@ -136,7 +146,8 @@ export async function contentSitemap(db: Db, base: string = siteUrl()): Promise<
   const couples = await db.query<{ a: string; b: string; at: Date | string | null; name_a: string; name_b: string }>(
     `select r.character_a as a, r.character_b as b, r.public_last_at as at, ca.name as name_a, cb.name as name_b
        from relationships r join characters ca on ca.id = r.character_a join characters cb on cb.id = r.character_b
-      where r.public_dates >= $1 order by r.public_last_at desc nulls last limit 5000`,
+      where r.public_dates >= $1 and ca.visibility = 'public' and cb.visibility = 'public' and ${listedCharacterSql("ca")} and ${listedCharacterSql("cb")}
+      order by r.public_last_at desc nulls last limit 5000`,
     [SITEMAP_MIN_COUPLE_DATES],
   );
   // Creators with a handle (lib/showcase.ts) and at least one PG post: their page lists what they published.

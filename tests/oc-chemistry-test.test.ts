@@ -366,13 +366,18 @@ describe("3. the result: a shareable, server-rendered address", () => {
   });
 });
 
-describe("4. 'Watch the real date', and what the test refuses", () => {
-  it("links 'Watch the real date' to /create with both characters' fields", async () => {
+describe("4. 'Send them on a real date', and what the test refuses", () => {
+  it("links 'Send Juniper on a real date' to /create with both characters' fields, the small print before it", async () => {
     const html = await renderResult(chemistryQuery(JUNIPER, DEX));
-    const link = html.match(/<a[^>]*href="(\/create\?[^"]+)"[^>]*>Watch the real date<\/a>/);
-    expect(link, "a 'Watch the real date' link to /create").toBeTruthy();
+    const link = html.match(/<a[^>]*href="(\/create\?[^"]+)"[^>]*>Send Juniper on a real date<\/a>/);
+    expect(link, "a 'Send Juniper on a real date' link to /create").toBeTruthy();
     expect(link![1]).toBe(createPairHref(JUNIPER, DEX));
     expect(readChemistry(searchRecord(link![1].split("?")[1]))).toEqual({ ok: true, a: JUNIPER, b: DEX });
+    // 2026-11-22 audit: the button promised the one date the line under it ruled out. Now the line comes first, and the
+    // button promises a date, not that one.
+    expect(html).not.toContain("Watch the real date");
+    expect(html.indexOf("don't date each other")).toBeGreaterThan(-1);
+    expect(html.indexOf("don't date each other")).toBeLessThan(html.indexOf("Send Juniper on a real date"));
   });
 
   it("opens /create with the first character's fields in the builder and the second's alongside, one click from its own", async () => {
@@ -424,7 +429,7 @@ describe("4. 'Watch the real date', and what the test refuses", () => {
     expect(message).toBe(CHARACTER_REJECTION_MESSAGES[reason]);
     expect(html).toContain(message);
     expect(html).not.toContain("data-score");
-    expect(html).not.toContain("Watch the real date");
+    expect(html).not.toContain("on a real date");
     expect(hrefsTo(html, "/create?")).toEqual([]);
     // Nothing refused is echoed back, in the page or its tags, and the page stays out of search.
     expect(html.toLowerCase()).not.toContain(value.toLowerCase());

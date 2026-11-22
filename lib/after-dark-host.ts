@@ -77,7 +77,9 @@ export const AFTER_DARK_APIS = ["/api/admin/after-dark/", "/api/jobs/eval-after-
  * (or under /api/admin/after-dark/), or that host sends it to the show, where a browser's call to it fails (CORS);
  * tests/after-dark-host.test.ts reads the pages' calls and fails until it's here.
  */
-export const AFTER_DARK_HOST_PAGES = ["/gate"] as const;
+// The 18+ gate, and the pages an adult site keeps on its own address (2026-11-22 audit): the 2257 statement, the content
+// policy, and the report form its episodes and nights link to (app/after-dark/ReportLink.tsx).
+export const AFTER_DARK_HOST_PAGES = ["/gate", "/2257", "/content-policy", "/report"] as const;
 export const AFTER_DARK_HOST_APIS = [
   "/api/auth/carry", // the sign-in hop from the show (app/api/auth/carry)
   "/api/auth/logout", // signing out of this host
@@ -91,6 +93,7 @@ export const AFTER_DARK_HOST_APIS = [
   "/api/line-feedback", // the theater's 👍/👎 on a line (app/useLineVotes.ts)
   "/api/library", // the Create library in the Studio and the scene writer (app/studio/CreateLibrary.tsx)
   "/api/waitlist", // the subscribe page's waitlist
+  "/api/content-reports", // the report form, served here too (app/report/ReportForm.tsx)
   "/api/e", // the engagement beacon on every page (app/engagement.ts)
   "/api/mcp", // the admin's own agents, for After Dark's tools (lib/adult/mcp.ts)
   "/api/showcase/", // the Studio's 📣 Publish and Shoot like this, and After Dark's showcase and its reels (lib/showcase.ts)

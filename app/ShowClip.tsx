@@ -9,7 +9,8 @@ import { PROMO } from "@/lib/promo-videos";
  */
 export default function ShowClip({
   track,
-  kicker = "Tonight on the show",
+  // Not "Tonight": it's the same ad every day (2026-11-22 audit).
+  kicker = "From the show",
   watchHref = "/watch",
   watchLabel = "Watch episodes",
 }: {

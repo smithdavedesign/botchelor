@@ -85,8 +85,9 @@ function airsIn(iso: string, now: number): string {
 function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
   const [a, b] = room.characters;
   return (
-    // "Start it" starts it (lib/watch.ts syncRoom `start`); any other way into a waiting room asks first.
-    <Link href={room.status === "ready" ? `${room.room_path}?start=1` : room.room_path} className={`card watch-lobby-card is-${room.status}`}>
+    // "Start it" starts it (lib/watch.ts syncRoom `start`); any other way into a waiting room asks first. Not prefetched:
+    // every card on the lobby used to render its room in the background, whether anyone opened it or not.
+    <Link href={room.status === "ready" ? `${room.room_path}?start=1` : room.room_path} prefetch={false} className={`card watch-lobby-card is-${room.status}`}>
       {/* A room still to start shows where the date is, across its top (pass 2 of the visual pop audit). */}
       {(room.status === "ready" || room.status === "upcoming") && room.venue && <VenuePhoto venue={room.venue} className="watch-lobby-top" />}
       <div className="watch-lobby-avatars">

@@ -3,7 +3,7 @@ import { isAdmin } from "@/lib/admins";
 import { billingFlagged, startTokenCheckout } from "@/lib/adult/billing";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { accessForUser } from "@/lib/adult/place";
-import { adTokensOn } from "@/lib/adult/tokens";
+import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
 import { afterDarkBase } from "@/lib/after-dark-host";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
@@ -20,6 +20,18 @@ const BUY_LIMITS = { perHour: 10, perDay: 30 };
 const Input = z.object({
   tokens: z.number().int().positive(),
   processor: z.enum(["ccbill", "segpay", "verotel"]).optional(),
+});
+
+/**
+ * The header pill's count on After Dark's host (app/Nav.tsx refreshes it after a spend): this person's balance as After
+ * Dark may spend it (lib/adult/tokens.ts), never the show's whole balance. Not found for anyone After Dark isn't open to.
+ */
+export const GET = handle(async (req: Request) => {
+  const auth = authFromRequest(req);
+  if (!auth?.authenticated) return json({ error: "not_found" }, 404);
+  const db = await getDb();
+  if (!(await canAfterDark(db, auth)).ok) return json({ error: "not_found" }, 404);
+  return json({ tokens_left: await adTokenBalance(db, auth.userId) });
 });
 
 /**

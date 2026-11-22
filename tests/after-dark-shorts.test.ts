@@ -410,7 +410,10 @@ describe("the pages", () => {
       as(cookie);
       for (const html of [await list(), await one(short.id)]) {
         expect(html).toContain("The harbour, then his flat");
-        expect(html).toContain("Subscribe to unlock");
+        // No processor here, so the invite beta, never a subscription nobody can buy (2026-11-22 audit).
+        expect(html).toContain("Ask for an invite");
+        expect(html).not.toContain("Subscribe to unlock");
+        expect(html).not.toContain("included in the subscription");
         expect(html).toContain('href="/after-dark/subscribe"');
         expect(html).toContain("ad-blur");
         expect(html).toContain(`${CH1.length + CH2.length} lines`);
@@ -428,7 +431,11 @@ describe("the pages", () => {
     expect(html).toContain(`/api/admin/after-dark/shorts/${short.id}/media/cover-1`);
     expect(html).toContain("with its video");
     expect(html).not.toContain("Subscribe to unlock");
+    expect(html).not.toContain("Ask for an invite");
     const page = await one(short.id);
+    // The report control the content policy promises, on the episode (2026-11-22 audit).
+    expect(page).toContain(`href="/report?what=${encodeURIComponent(`/after-dark/shorts/${short.id}`)}"`);
+    expect(page).toContain("Report this episode");
     // The play is drawn (the 2026-11-11 audit, chrome emoji → icons); the word stays.
     expect(page).toMatch(/<svg class="icon"[^>]*>.*?<\/svg> Play<\/button>/s);
     expect(page).not.toContain("▶ Play");

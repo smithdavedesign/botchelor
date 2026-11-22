@@ -154,8 +154,9 @@ describe("the install hint", () => {
     expect(shouldShowInstallHint(phone({ ua: INSTAGRAM }))).toBe(false);
   });
 
-  it("never on After Dark (or its admin pages), the admin pages, the 18+ gate or an email link", () => {
-    for (const p of ["/after-dark", "/after-dark/a/b", "/after-dark/subscribe", "/admin/after-dark/graph", "/After-Dark", "/admin", "/admin/feedback", "/gate", "/email/unsubscribe"]) {
+  it("never on After Dark (or its admin pages), the admin pages, the 18+ gate, an email link, or the legal and report pages", () => {
+    const legal = ["/2257", "/content-policy", "/report"]; // 2026-11-22 audit: it covered the 2257 statement on a phone
+    for (const p of ["/after-dark", "/after-dark/a/b", "/after-dark/subscribe", "/admin/after-dark/graph", "/After-Dark", "/admin", "/admin/feedback", "/gate", "/email/unsubscribe", ...legal]) {
       expect(installHintPathBlocked(p), p).toBe(true);
       expect(shouldShowInstallHint(phone({ pathname: p })), p).toBe(false);
     }
