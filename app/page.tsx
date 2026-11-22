@@ -17,6 +17,7 @@ import { countNotifications } from "@/lib/notifications";
 import { sinceYouWereHere } from "@/lib/since";
 import { characterPhone } from "@/lib/character-phone";
 import { showIdeasOn } from "@/lib/show-ideas-switch";
+import { stepInOpen } from "@/lib/step-in-switch";
 import CharacterPhone from "./CharacterPhone";
 import RememberCharacter from "./RememberCharacter";
 import { rememberedCharacter } from "@/lib/current-character";
@@ -539,8 +540,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       )}
 
       {/* Below the fold of a first visit's one screen (which keeps its one job): the free tools, the way in from another
-          app and the seasons, the landings search hadn't fetched (2026-11-22 audit: the home page linked none of them for a
-          first visit). An owner's page has its own lines for these in the cast section above. */}
+          app, the seasons, Step in and the bots' reviews, the landings search hadn't fetched (2026-11-22 audit: the home
+          page linked none of them for a first visit). An owner's page has its own lines for these in the cast section above. */}
       {!creator && open && (
         <nav className="home-more-links" aria-label="More of Botchelor">
           <p className="muted small home-sky-line">
@@ -565,6 +566,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </p>
           <p className="muted small home-sky-line">
             The show: <Link href="/seasons">every season so far</Link> · <Link href="/casting">casting for next month</Link>
+            {stepInOpen() && (
+              <>
+                {" · "}
+                <Link href="/step-in">step into a date yourself</Link>
+              </>
+            )}
+            {" · "}
+            <Link href="/reviews">what the bots say about it</Link>
           </p>
         </nav>
       )}
