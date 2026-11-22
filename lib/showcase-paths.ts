@@ -5,7 +5,7 @@
  *  - After Dark's side (explicit) is After Dark's own, under its Gallery: /after-dark/showcase and
  *    /after-dark/showcase/reels, so they're served from After Dark's host, behind its 18+ gate.
  * The reels are the same page on both (app/showcase/reels/feed.tsx). An old `?side=after_dark` address on the show (a
- * shared reel, a bookmark, the reels' own side tabs) moves to After Dark's (middleware.ts, showcaseSideMove).
+ * shared reel, a bookmark, the reels' own side tabs) moves to After Dark's (proxy.ts, showcaseSideMove).
  *
  * Pure and dependency-free: the middleware, the grid (a client component) and 📣 Publish all read it.
  */

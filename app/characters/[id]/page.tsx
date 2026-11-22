@@ -106,6 +106,7 @@ import { afterDarkHref } from "@/lib/after-dark-host";
 import { pronounForms, verb as pronounVerb } from "@/lib/pronoun-forms";
 import { wholeSentences } from "@/lib/whole-sentences";
 import { APPEARANCE_MAX, BIO_MAX, WANT_MAX } from "@/lib/field-limits";
+import { soft } from "@/lib/soft";
 
 export const dynamic = "force-dynamic";
 
@@ -124,7 +125,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!c) return { title: "Character not found · Botchelor", robots: { index: false, follow: false } };
   if (c.private) return { title: `${c.name} · Botchelor`, robots: { index: false, follow: false } };
   // Indexed once they've aired a date or are on this season's cast (lib/seo.ts indexableCharacterSql); followed always.
-  const indexable = await characterIndexable(await getDb(), c.id).catch(() => true);
+  const indexable = await characterIndexable(await getDb(), c.id).catch(soft("character page: indexable", true));
   return {
     title: `${c.name}, ${c.age}: a contestant on Botchelor`,
     description: `${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`.slice(0, 200),

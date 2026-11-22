@@ -77,6 +77,7 @@ import { pushKeys } from "@/lib/push";
 import { withoutLeadName } from "./lead-name";
 import UpNext from "./UpNext";
 import { upNextFor, type UpNextEpisode } from "@/lib/up-next";
+import { escapeRegExp } from "@/lib/text";
 
 export const dynamic = "force-dynamic";
 
@@ -1046,6 +1047,6 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
  *  heading above it. Only that act's own label is taken off, never a first sentence. */
 function withoutActLabel(scene: string, label: string | undefined): string {
   if (!label) return scene;
-  const name = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const name = escapeRegExp(label);
   return scene.replace(new RegExp(`^\\s*act\\s*\\d+\\s*[:.\\-–—]\\s*${name}\\s*[.:\\-–—]\\s*`, "i"), "");
 }

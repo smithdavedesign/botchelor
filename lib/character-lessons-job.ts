@@ -19,6 +19,7 @@ import type { Model } from "./model";
 import { loadOurIds } from "./our-traffic";
 import { DELETED_OWNER } from "./rules";
 import { PERSONA_OWNER_PREFIX } from "./step-in-shared";
+import { soft } from "./soft";
 
 /* ------------------------------------------------ the weekly text ------------------------------------------------ */
 
@@ -46,7 +47,7 @@ export async function lessonText(db: Db, characterId: string, l: LessonSet & { w
   );
   const t = rows[0];
   if (!t) return false;
-  const posted = await postFromCharacter(db, { userId: t.user_id, characterId, lines: lessonTextLines(l), now, kind: "lessons", dedupeKey: `lessons:${l.week}` }).catch(() => null);
+  const posted = await postFromCharacter(db, { userId: t.user_id, characterId, lines: lessonTextLines(l), now, kind: "lessons", dedupeKey: `lessons:${l.week}` }).catch(soft("lessons job: post the lessons", null));
   return Boolean(posted);
 }
 
@@ -107,7 +108,7 @@ export async function runCharacterLessons(
       break;
     }
     if (i > 0 && opts.gapMs) await new Promise((ok) => setTimeout(ok, opts.gapMs));
-    const r = await ensureCharacterLessons(db, c.id, now, { models: isOurs(c) ? freeOnly : models }).catch(() => null);
+    const r = await ensureCharacterLessons(db, c.id, now, { models: isOurs(c) ? freeOnly : models }).catch(soft("lessons job: write the lessons", null));
     if (!r || "skipped" in r) continue;
     run.written++;
     if (r.source === "model") run.by_model++;
@@ -121,8 +122,8 @@ export async function runCharacterLessons(
       continue;
     }
     if (c.is_house || c.owner_id === null) continue;
-    const l = await loadLessons(db, c.id).catch(() => null);
-    if (l && l.week === r.week && (await lessonText(db, c.id, l, now).catch(() => false))) run.texts++;
+    const l = await loadLessons(db, c.id).catch(soft("lessons job: load the lessons", null));
+    if (l && l.week === r.week && (await lessonText(db, c.id, l, now).catch(soft("lessons job: text the owner", false)))) run.texts++;
   }
   run.cost_usd = priced ? Math.round((run.cost_usd ?? 0) * 1e6) / 1e6 : null;
   run.cost_per_character_usd = run.cost_usd !== null && run.written ? Math.round((run.cost_usd / run.written) * 1e6) / 1e6 : null;

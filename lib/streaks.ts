@@ -78,11 +78,16 @@ export async function callRecord(db: Db, userId: string | null, now: Date = new 
 export const BOARD_DAYS = 7;
 /** How many names the board shows. */
 export const BOARD_SIZE = 5;
+/**
+ * The /calls page lists the board only once this many of the week's callers have put a name up (the 2026-11-22 audit:
+ * four rows of "A viewer · 1 of 1" read as an empty room); below it, the invitation to get on it.
+ */
+export const BOARD_NAMED_MIN = 5;
 
 /** name: their display name, or null ("A viewer"). */
 export type BoardEntry = { name: string | null; right: number; called: number; mine: boolean };
-/** callers: everyone with a right call this week; my_rank: the viewer's place among them, or null. */
-export type CallersBoard = { top: BoardEntry[]; callers: number; my_rank: number | null };
+/** callers: everyone with a right call this week; named: those of them with a display name; my_rank: the viewer's place among them, or null. */
+export type CallersBoard = { top: BoardEntry[]; callers: number; named: number; my_rank: number | null };
 
 /**
  * This week's best callers: right ending calls on public dates that aired in the last BOARD_DAYS days, the most first,
@@ -106,6 +111,7 @@ export async function callersBoard(db: Db, viewerId: string | null, now: Date = 
   return {
     top: rows.slice(0, BOARD_SIZE).map((r) => ({ name: r.name, right: r.hits, called: r.called, mine: r.user_id === viewerId })),
     callers: rows.length,
+    named: rows.filter((r) => r.name?.trim()).length,
     my_rank: myIndex >= 0 ? myIndex + 1 : null,
   };
 }

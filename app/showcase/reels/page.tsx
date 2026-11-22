@@ -17,7 +17,7 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 
 /**
  * The showcase as reels (./feed.tsx, the same body as After Dark's /after-dark/showcase/reels). Its After Dark side
- * (`?side=after_dark`) is After Dark's page now: middleware.ts sends that address there before this runs.
+ * (`?side=after_dark`) is After Dark's page now: proxy.ts sends that address there before this runs.
  */
 export default async function ReelsPage({ searchParams }: Props) {
   const db = await getDb();

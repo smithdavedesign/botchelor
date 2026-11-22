@@ -9,7 +9,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
  * The link in the Sunday letter's confirmation email (lib/newsletter.ts). A button, not a confirmation on opening, so mail
- * scanners that open links can't sign anyone up. Not behind the 18+ gate (middleware.ts): the sign-up already asked.
+ * scanners that open links can't sign anyone up. Not behind the 18+ gate (proxy.ts): the sign-up already asked.
  */
 export default async function ConfirmNewsletterPage({ searchParams }: { searchParams: SearchParams }) {
   const p = await searchParams;

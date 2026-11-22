@@ -12,7 +12,7 @@ export default function PromptExamples({ tag, examples }: { tag: PromptTag; exam
     <section className="card prompt-examples" aria-labelledby="prompt-examples-title" data-prompt-examples={tag.id}>
       <p className="kicker">From the show&apos;s Studio</p>
       <h2 id="prompt-examples-title">Pictures made with &ldquo;{tag.label}&rdquo;</h2>
-      <p className="muted small">Real pictures people made in the Studio, whose own prompt carries this tag. Tap one to watch it in the showcase.</p>
+      <p className="muted small">Pictures people made in the Studio with this tag in their prompt. Tap one to see it in the showcase.</p>
       <ul className="prompt-examples-grid">
         {examples.map((e) => (
           <li key={e.post_id}>

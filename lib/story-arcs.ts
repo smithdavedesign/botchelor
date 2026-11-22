@@ -133,11 +133,6 @@ export async function listArcs(db: Db, limit = 20): Promise<StoryArc[]> {
   return rows.flatMap((r) => arcOf(r) ?? []);
 }
 
-export async function arcById(db: Db, id: string): Promise<StoryArc | null> {
-  const r = (await db.query<ArcRow>(`select ${ARC_COLS} from story_arcs where id = $1`, [id])).rows[0];
-  return r ? arcOf(r) : null;
-}
-
 /* ------------------------------------------------ opening and moving on ------------------------------------------------ */
 
 /** Opens an arc for every linked pair that is in the cast together and never had one. How many it opened. */

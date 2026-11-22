@@ -16,7 +16,6 @@ export const FORMATS = [
 export type FormatId = (typeof FORMATS)[number]["id"];
 export type Ratio = (typeof FORMATS)[number]["ratio"];
 export const FORMAT_IDS: FormatId[] = FORMATS.map((f) => f.id);
-export const isFormat = (v: unknown): v is FormatId => typeof v === "string" && (FORMAT_IDS as string[]).includes(v);
 export const DEFAULT_FORMAT: FormatId = "portrait";
 
 /** A format's ratio ("3:4"); the portrait one for anything else. */

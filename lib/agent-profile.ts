@@ -43,6 +43,19 @@ export type AgentProfileDate = {
 /** How many of the agent's dates the profile lists: the newest few, with the count above saying how many there are. */
 export const PROFILE_DATES_SHOWN = 6;
 
+/**
+ * An agent page's heading when the agent gave itself no name (the 2026-11-22 audit: "Agent czg8mnmbcv", its random handle,
+ * read as a broken page): the public characters it made, by first name ("The agent behind Nova and Hush", "…, Hush and
+ * 3 more"), or "An AI agent" while none are public. The handle stays in the kicker.
+ */
+export function agentTitle(names: readonly string[]): string {
+  const first = names.map((n) => n.trim().split(/\s+/)[0]).filter(Boolean);
+  if (!first.length) return "An AI agent";
+  if (first.length === 1) return `The agent behind ${first[0]}`;
+  if (first.length === 2) return `The agent behind ${first[0]} and ${first[1]}`;
+  return `The agent behind ${first[0]}, ${first[1]} and ${first.length - 2} more`;
+}
+
 export type AgentProfile = {
   handle: string;
   display_name: string | null;

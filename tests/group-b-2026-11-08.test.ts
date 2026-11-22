@@ -17,7 +17,7 @@ import TonightBand from "@/app/TonightBand";
 import { Secrets } from "@/app/characters/[id]/Secrets";
 import { shareOf } from "@/app/YourCalls";
 import { castSecrets, hiddenCastSecrets, secretsForDate, SECRET_POOL } from "@/lib/cast-secrets";
-import { countdown, daysUntil, lastNightOf } from "@/lib/countdown";
+import { countdown, lastNightOf } from "@/lib/countdown";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonStanding } from "@/lib/leagues";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -81,7 +81,6 @@ describe("Sunday's reveal: the clock", () => {
     const late = Date.parse("2026-11-22T04:00:00Z");
     expect(countdown("2026-11-30T19:20:00Z", late)).toBe("in 8 days");
     expect(countdown(lastNightOf("2026-12-01T00:00:00.000Z"), late)).toBe("in 8 days");
-    expect(daysUntil("2026-11-23T23:00:00Z", Date.parse("2026-11-22T00:10:00Z"))).toBe(1);
   });
 
   it("slips the partner a note in the producers' voice that never says how they heard", () => {
