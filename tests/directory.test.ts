@@ -409,7 +409,8 @@ describe("finding a character on /characters (lib/directory.ts searchDirectory)"
     expect(found).toContain('value="mira"');
     expect(found).toContain('<li class="card tap-card dir-card">');
     expect(found).toContain(`href="/characters/${mira.id}"`);
-    expect(found).not.toMatch(/class="segmented-tab" aria-current="page"/);
+    // No Characters tab is current during a search (the Cards | Map switch still says Cards).
+    expect(found.replace(/<nav class="segmented view-switch"[\s\S]*?<\/nav>/, "")).not.toMatch(/class="segmented-tab" aria-current="page"/);
     expect(found).not.toMatch(/This season: /);
     const none = await render({ q: "nobody-by-this-name" });
     expect(none).toContain("Nobody matches “nobody-by-this-name”");

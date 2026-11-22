@@ -458,8 +458,10 @@ describe("5. findable and measured: the sitemap, the links to both tools, the be
     return text(renderToStaticMarkup(await RootLayout({ children: page })));
   }
 
-  it("links both tools from the home page itself", async () => {
+  it("links both tools from the home page itself: an owner's, and the page as it was (a first visit's has them in the footer)", async () => {
+    vi.stubEnv("HOME_OPEN", "0");
     const home = text(renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) })));
+    vi.unstubAllEnvs();
     expect(hrefsTo(home, "/tools/")).toEqual(expect.arrayContaining([TOOL, "/tools/ship-name-generator"]));
   });
 

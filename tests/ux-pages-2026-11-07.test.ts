@@ -46,7 +46,7 @@ const as = (cookie: string | null) => {
 };
 
 describe("/notifications by type", () => {
-  it("filters to a type with counts and new marks, labels rows, offers mutes, and marks only that type read", async () => {
+  it("filters to a type, dots the other types with something new, labels rows, and marks only that type read", async () => {
     const cookie = newUserCookie();
     const u = userIdOf(cookie);
     await notify(t.db, u, { kind: "texted", title: "💬 Bo texted Cy", body: null, link: null });
@@ -55,10 +55,12 @@ describe("/notifications by type", () => {
     as(cookie);
     const NotificationsPage = (await import("@/app/notifications/page")).default;
     const html = renderToStaticMarkup(await NotificationsPage({ searchParams: Promise.resolve({ type: "dates" }) }));
-    expect(html).toContain('class="filter-pills"');
-    expect(html).toContain('<a aria-current="true" href="/notifications?type=dates">');
-    expect(html).toMatch(/Matches &amp; dates <span class="filter-n">2<\/span><span class="filter-new">2 new<\/span>/);
-    expect(html).toContain('href="/notifications?type=texts"');
+    expect(html).toContain('class="filter-pills notif-filter"');
+    // The chips are the words alone (the design system's Notifications screen, 2026-11-21); the chosen one carries no
+    // dot, a type with something new elsewhere does.
+    expect(html).toContain('<a aria-current="true" href="/notifications?type=dates">Matches &amp; dates</a>');
+    expect(html).toContain('<a href="/notifications?type=texts">Texts<span class="notif-filter-dot"><span class="sr-only">, new</span></span></a>');
+    expect(html).not.toContain("filter-n");
     expect(html.match(/class="notification /g)?.length).toBe(2);
     expect(html).not.toContain("Bo texted Cy");
     expect(html).toContain('<span class="notif-type">Matches &amp; dates</span>');

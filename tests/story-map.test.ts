@@ -377,22 +377,21 @@ describe("the read, the switch and the pages", () => {
     expect((await storyMap(t.db, now, { HOUSE_SCENES: "0" })).ties.map((x) => x.kind)).toEqual(["rivals", "together", "second_date"]);
   });
 
-  it("/house points at the week's map on /graph and carries a circle under today's scene, and neither with the switch off", async () => {
+  it("/house draws the week's map under today's scene, linking everyone on /graph, and not with the switch off", async () => {
     const { default: HousePage } = await import("@/app/house/page");
     const html = renderToStaticMarkup(await HousePage());
-    // One home for the drawing (design review 2026-11-16, D-11): /graph draws it, the house links there.
+    // One home for the drawing (D-11), the house since 2026-11-21: /graph opens on the all-time sky instead.
+    expect(html).toContain("story-map-svg");
+    expect(html).toContain("Who&#x27;s with whom this week");
+    expect(html).toContain('id="story-map"');
     expect(html).toContain('href="/graph"');
-    expect(html).toContain("This week in the house, drawn");
-    expect(html).not.toContain("story-map-svg");
-    expect(html).toContain('id="house-circle"');
-    expect(html.indexOf("house-scene-lead")).toBeLessThan(html.indexOf('id="story-map-link"'));
+    expect(html.indexOf("house-scene-lead")).toBeLessThan(html.indexOf('id="story-map"'));
     expect(html).not.toContain(SECRET);
     // Older pages of the house are scenes only.
-    expect(renderToStaticMarkup(await HousePage({ searchParams: Promise.resolve({ page: "2" }) }))).not.toContain('id="story-map-link"');
+    expect(renderToStaticMarkup(await HousePage({ searchParams: Promise.resolve({ page: "2" }) }))).not.toContain('id="story-map"');
     process.env.STORY_MAP = "0";
     const off = renderToStaticMarkup(await HousePage());
     expect(off).not.toContain("story-map");
-    expect(off).not.toContain("story-circle");
     expect(off).toContain("house-scene-lead");
   });
 
@@ -409,15 +408,18 @@ describe("the read, the switch and the pages", () => {
     expect(await page()).not.toContain("story-circle");
   });
 
-  it("/graph opens on this week, then all time, then the tables folded; with the switch off it is the old page", async () => {
+  it("/graph opens on the sky: the title line and the Cards | Map switch, the sky, then the tables folded; no story map, switch on or off", async () => {
     const { default: GraphPage } = await import("@/app/graph/page");
     const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({}) }));
-    expect(html).toContain("<h1>Who&#x27;s with whom this week</h1>");
-    const order = ['id="story-map"', 'id="all-time"', "<details", 'id="ledger"', "Who dates whom, by kind", "What the network doesn&#x27;t know yet"].map((s) => html.indexOf(s));
+    expect(html).toContain("<h1>The Constellation</h1>");
+    // The week's map is the house's now: a line to it, never the drawing.
+    expect(html).not.toContain("story-map-svg");
+    expect(html).not.toContain('id="story-map"');
+    expect(html).toContain('href="/house#story-map"');
+    const order = ["<h1>", 'aria-label="Show characters as"', 'id="all-time"', "<details", 'id="ledger"', "Who dates whom, by kind", "What the network doesn&#x27;t know yet"].map((s) => html.indexOf(s));
     expect(order.every((n) => n > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toMatch(/<details class="constellation-fold ux-fold" id="tables">/);
-    expect(html).toContain('href="#all-time"');
     expect(html).toContain("application/ld+json");
     // A ledger page's link lands in the fold, so the fold is open for it.
     const paged = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ ledger: "1" }) }));
@@ -426,8 +428,7 @@ describe("the read, the switch and the pages", () => {
     process.env.STORY_MAP = "0";
     const off = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({}) }));
     expect(off).toContain("<h1>The Constellation</h1>");
-    expect(off).not.toContain("story-map");
-    expect(off).not.toContain("constellation-fold");
-    expect(off.indexOf("<h1>")).toBeLessThan(off.indexOf('id="ledger"'));
+    expect(off).not.toContain('id="story-map"');
+    expect(off.indexOf("<h1>")).toBeLessThan(off.indexOf('id="all-time"'));
   });
 });

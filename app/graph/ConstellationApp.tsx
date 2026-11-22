@@ -61,6 +61,8 @@ const ORIGIN_FILTERS: { id: OriginFilter; label: string }[] = [
   { id: "person", label: "People's" },
   { id: "agent", label: "Agents'" },
 ];
+/** The group the sky is narrowed to, said on the bar (its filter lives in the Filters sheet): "Yours", "The cast"… */
+const SCOPE_LABEL: Record<Exclude<OriginFilter, "all">, string> = { yours: "Yours", cast: "The cast", person: "People's characters", agent: "Agents' characters" };
 /** A stable "none" (a fresh [] each render would re-filter the sky each render). */
 const NO_IDS: string[] = [];
 const COLOR_BY: { id: ColorBy; label: string }[] = [
@@ -71,9 +73,6 @@ const COLOR_BY: { id: ColorBy; label: string }[] = [
 const STILL_HINT = "More than one date, the last in the last 30 days, and not over";
 const ORBIT_HINT = "Characters still waiting for a first date, on the outer ring";
 const PARTNERS_HINT = "Everyone they've dated, from any group, not only dates among themselves";
-
-/** Where a control is drawn: the desktop's toolbar on the sky, or the phone's Filters sheet on the page's card. */
-type Place = "bar" | "sheet";
 
 /**
  * Keeps the address in step with the sky's shareable filters, without a reload or a history entry (Next's router follows
@@ -95,10 +94,11 @@ function useSkyAddress(params: Record<string, string | null>) {
 }
 
 /**
- * The interactive shell around the canvas: two rows above the sky (who's on it: search-to-focus, origin, kind, the
- * orbit, colouring; which lines: the view, the stage chips, when, still seeing each other), the sky itself, and the
- * detail panel, whose "Just their corner of the sky" cuts the sky to one character's corner. On a phone everything but
- * search, the views, the chips and full screen sits behind one Filters button, in a bottom sheet.
+ * The interactive shell around the canvas: one bar above the sky (search-to-focus, the views, the stage chips that are
+ * also its legend, Filters, full screen), the sky itself, and the detail panel, whose "Just their corner of the sky"
+ * cuts the sky to one character's corner. Who's on the sky (origin, kind, the orbit), how it's coloured and when they
+ * last dated sit behind the one Filters button, everywhere: a centred card on a desktop, a bottom sheet on a phone
+ * (2026-11-21: the desktop's three rows of controls pushed the sky down; the phone's one button already worked).
  *
  * The views (SOCIAL_LENSES, docs/PRDs/social-network.md section 9): Love is the Constellation, who dated whom; Friends
  * and family, Rivals, Gossip and Everything draw the social network's public ties on the same canvas (./lens.ts), each
@@ -404,48 +404,25 @@ export default function ConstellationApp({
   const coloured = clusters.filter((c) => communityColor(c) !== null);
   const smaller = clusters.length - coloured.length;
 
-  // The filters, drawn on the desktop's toolbar and again in the phone's sheet: the same state, each place's own look.
-  const check = (place: Place, checked: boolean, set: (v: boolean) => void, label: string, hint: string): ReactNode =>
-    place === "bar" ? (
-      <label className="constellation-filter" title={hint}>
-        <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} /> {label}
-      </label>
-    ) : (
-      <label className="check constellation-sheet-check">
-        <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
-        <span>
-          {label}
-          <span className="muted small">{hint}</span>
-        </span>
-      </label>
-    );
-  // One of a few: a segmented row on the toolbar; in the sheet, pills that wrap (a phone can't fit five in a row).
-  // `current`: the origin's tabs also say aria-current, as the Characters page's tabs they mirror do.
-  const choice = <T extends string>(place: Place, label: string, options: { id: T; label: string }[], value: T, set: (v: T) => void, current = false): ReactNode =>
-    place === "bar" ? (
-      <div className="segmented constellation-segmented" role="group" aria-label={label}>
-        {options.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            className="segmented-tab"
-            aria-pressed={value === o.id}
-            aria-current={current && value === o.id ? "page" : undefined}
-            onClick={() => set(o.id)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    ) : (
-      <div className="constellation-options" role="group" aria-label={label}>
-        {options.map((o) => (
-          <button key={o.id} type="button" aria-pressed={value === o.id} onClick={() => set(o.id)}>
-            {o.label}
-          </button>
-        ))}
-      </div>
-    );
+  // The filters, in the Filters sheet: a checkbox with its hint under the label, and one-of-a-few as pills that wrap.
+  const check = (checked: boolean, set: (v: boolean) => void, label: string, hint: string): ReactNode => (
+    <label className="check constellation-sheet-check">
+      <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
+      <span>
+        {label}
+        <span className="muted small">{hint}</span>
+      </span>
+    </label>
+  );
+  const choice = <T extends string>(label: string, options: { id: T; label: string }[], value: T, set: (v: T) => void): ReactNode => (
+    <div className="constellation-options" role="group" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.id} type="button" aria-pressed={value === o.id} onClick={() => set(o.id)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
   const whenOptions = WHENS.map((w) => ({ id: w, label: WHEN_LABEL[w] }));
   const kindSelect = (
     <select value={kind} onChange={(e) => setKind(e.target.value as KindFilter)} aria-label="What they are">
@@ -458,15 +435,17 @@ export default function ConstellationApp({
       <option value="unsaid">Hasn&apos;t said</option>
     </select>
   );
-  const originControl = (place: Place) => choice(place, "Who made them", originFilters, origin, setOrigin, true);
-  const colourControl = (place: Place) => choice(place, "Colour by", COLOR_BY, colorBy, setColorBy);
-  const partnersControl = (place: Place) => !social && origin !== "all" && check(place, partners, setPartners, "Who they dated", PARTNERS_HINT);
-  const orbitControl = (place: Place) => !social && check(place, showSingles, setShowSingles, "The orbit", ORBIT_HINT);
-  const stillControl = (place: Place) => check(place, still, setStill, "Still seeing each other", STILL_HINT);
+  const originControl = choice("Who made them", originFilters, origin, setOrigin);
+  const colourControl = choice("Colour by", COLOR_BY, colorBy, setColorBy);
+  const partnersControl = !social && origin !== "all" && check(partners, setPartners, "Who they dated", PARTNERS_HINT);
+  const orbitControl = !social && check(showSingles, setShowSingles, "The orbit", ORBIT_HINT);
+  const stillControl = check(still, setStill, "Still seeing each other", STILL_HINT);
 
   return (
     <div ref={stage} className={`constellation-stage${full ? " is-full" : ""}`}>
-      {/* Who's on the sky. */}
+      {/* One bar on a desktop (the two rows below laid out as one, app/globals.css .constellation-bar), two on a phone. */}
+      <div className="constellation-bar">
+      {/* Find someone, the filters, full screen. */}
       <div className="constellation-hud" role="toolbar" aria-label="Find and filter the constellation">
         {/* The whole screen for the sky (2026-10-25): the browser's full screen where it has one, a fixed overlay either way. */}
         <button
@@ -499,6 +478,15 @@ export default function ConstellationApp({
             </ul>
           )}
         </div>
+        {/* Who the sky is narrowed to, in sight (a Map link from a Characters tab opens on its group): one tap for everyone. */}
+        {origin !== "all" && (
+          <button type="button" className="constellation-scope" onClick={() => setOrigin("all")} title="Show everyone" data-track="graph-scope-clear">
+            {SCOPE_LABEL[origin]}
+            {!social && partners && " & who they dated"}
+            <span aria-hidden="true"> ✕</span>
+            <span className="sr-only">, show everyone</span>
+          </button>
+        )}
         <button type="button" className="constellation-filters-btn" aria-haspopup="dialog" onClick={() => setFiltersOpen(true)}>
           Filters
           {active > 0 && (
@@ -509,22 +497,10 @@ export default function ConstellationApp({
             </span>
           )}
         </button>
-        <div id="constellation-filters" className="constellation-filters">
-          {originControl("bar")}
-          {partnersControl("bar")}
-          <label className="constellation-filter constellation-kind">{kindSelect}</label>
-          {orbitControl("bar")}
-          <div className="constellation-colour" role="group" aria-label="Colour by">
-            <span className="constellation-colour-label" aria-hidden>
-              Colour
-            </span>
-            {colourControl("bar")}
-          </div>
-        </div>
       </div>
       {/* Which lines. The views first (Love · Friends and family · Rivals · Gossip · Everything): they pick which lines
           exist, and the chips after them filter within. The chips: one per kind of line, drawn as its line is, so the row
-          is the sky's legend and its filter; then, in Love, when they last dated. */}
+          is the sky's legend and its filter. */}
       <div className="constellation-lines" role="group" aria-label="Which pairs to draw">
         {lensesOn && (
           <nav className="segmented constellation-lenses scroll-row" aria-label="Views of the sky">
@@ -597,35 +573,21 @@ export default function ConstellationApp({
           ))}
         </ul>
         )}
-        {!social && (
-        <div className="constellation-when">
-          <label className="constellation-filter">
-            <span className="constellation-colour-label">When</span>
-            <select value={when} onChange={(e) => setWhen(e.target.value as When)} aria-label="When they last dated">
-              {whenOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {stillControl("bar")}
-        </div>
-        )}
+      </div>
       </div>
       <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
         <div className="constellation-sheet">
           {!social && (
             <fieldset>
               <legend>When they last dated</legend>
-              {choice("sheet", "When they last dated", whenOptions, when, setWhen)}
-              {stillControl("sheet")}
+              {choice("When they last dated", whenOptions, when, setWhen)}
+              {stillControl}
             </fieldset>
           )}
           <fieldset>
             <legend>Who made them</legend>
-            {originControl("sheet")}
-            {partnersControl("sheet")}
+            {originControl}
+            {partnersControl}
           </fieldset>
           <fieldset>
             <legend>What they are</legend>
@@ -634,12 +596,12 @@ export default function ConstellationApp({
           {!social && (
             <fieldset>
               <legend>Who&apos;s on the sky</legend>
-              {orbitControl("sheet")}
+              {orbitControl}
             </fieldset>
           )}
           <fieldset>
             <legend>Colour the stars by</legend>
-            {colourControl("sheet")}
+            {colourControl}
           </fieldset>
           <div className="sheet-actions sheet-actions-pinned">
             <button type="button" className="button-ghost" onClick={resetFilters} disabled={active === 0 && colorBy === "character"}>

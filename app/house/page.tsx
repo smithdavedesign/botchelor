@@ -9,8 +9,8 @@ import { HOUSE_PAGE_SIZE, houseScene, houseScenesOn, listHouseScenes } from "@/l
 import { pageCount, pageHref, parsePage } from "@/lib/paging";
 import { pageMetadata } from "@/lib/seo";
 import { shared } from "@/lib/shared-cache";
-import Circle from "@/app/Circle";
-import { cachedStoryMap, circleOf } from "@/lib/story-map";
+import StoryMap from "@/app/StoryMap";
+import { cachedStoryMap } from "@/lib/story-map";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +24,8 @@ export const metadata: Metadata = pageMetadata({
  * The house (/house; lib/house-scenes.ts): today's scene first, the earlier ones under it. A spectator page like the
  * Reunion: PG, no gate, only ever about dates that have aired. `?scene=<id>` (a notification's or a character's text's
  * link) puts that scene first when it isn't on this page of the list. A quiet day, or HOUSE_SCENES=0, says the house
- * is quiet and points at the show. Under today's scene on the first page: a line to this week's story map on /graph and
- * a circle (lib/story-map.ts, app/Circle.tsx; STORY_MAP=0 leaves them out).
+ * is quiet and points at the show. Under today's scene on the first page: this week's story map (lib/story-map.ts,
+ * app/StoryMap.tsx; STORY_MAP=0 leaves it out), linking to everyone, all time, on /graph.
  */
 export default async function HousePage({ searchParams }: { searchParams?: Promise<{ page?: string | string[]; scene?: string | string[] }> } = {}) {
   const params = (await searchParams) ?? {};
@@ -43,26 +43,11 @@ export default async function HousePage({ searchParams }: { searchParams?: Promi
   const linked = wanted && /^[A-Za-z0-9_.-]{1,64}$/.test(wanted) && !scenes.some((s) => s.id === wanted) ? await houseScene(db, wanted).catch(() => null) : null;
   const [lead, ...earlier] = linked ? [linked, ...scenes] : scenes;
   const today = new Date().toISOString().slice(0, 10);
-  // The story map block (builder 4's): the week's ties, then the circle of the lead (or of whoever the week is about).
-  const weekCircle = weekMap ? (circleOf(weekMap, weekMap.lead?.id ?? "") ?? circleOf(weekMap, weekMap.ties[0]?.a ?? "")) : null;
-  const week = weekMap && (
-    <>
-      {/* One home for the drawing (design review 2026-11-16, D-11): it used to be drawn here and again at the top of /graph,
-          the same map under two titles. The story map is /graph's; the house points at it and keeps its circle. */}
-      <p className="house-week-link" id="story-map-link">
-        <Link className="tap-link" href="/graph" data-track="house-story-map">
-          This week in the house, drawn: who is seeing whom, who are rivals and who had it out →
-        </Link>
-      </p>
-      {weekCircle && (
-        <Circle
-          circle={weekCircle}
-          title={weekCircle.center.lead && weekMap.lead ? `${weekCircle.center.name}, ${weekMap.lead.billing}: the circle this week` : undefined}
-          id="house-circle"
-        />
-      )}
-    </>
-  );
+  // This week's story map, drawn here (2026-11-21, David's call on the graph page): it's this season's cast over seven
+  // days, so it's the house's, and the Constellation (/graph) opens on its sky instead. Still one home for the drawing
+  // (design review 2026-11-16, D-11), now the house; under today's scene, so the day's scene still leads. Its foot links
+  // to everyone, all time. It replaced the line to /graph and the lead's circle, which was a corner of the same map.
+  const week = weekMap && <StoryMap map={weekMap} title="Who's with whom this week" allTimeHref="/graph" />;
   return (
     <article className="house-page page-wide">
       <ShowTabs active="/house" />

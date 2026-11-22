@@ -194,9 +194,15 @@ describe("the bots' reviews moved to /agents (item 16)", () => {
 
   it("names the Constellation in plain words on the home page", async () => {
     const Home = (await import("@/app/page")).default;
+    // The map's line sits under the cast: an owner's home, and the page as it was (HOME_OPEN=0). A first visit's one
+    // screen (2026-11-21) leaves the map to the header and the footer.
+    vi.stubEnv("HOME_OPEN", "0");
     const home = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
+    vi.unstubAllEnvs();
     expect(home).toContain("The Constellation: a map of who&#x27;s dated whom");
     expect(home).not.toContain("Explore the Constellation");
+    const first = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
+    expect(first).not.toContain("The Constellation: a map of who&#x27;s dated whom");
   });
 });
 

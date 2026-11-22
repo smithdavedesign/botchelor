@@ -24,7 +24,7 @@ import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { seasonCastCards } from "@/lib/season-cast";
 import { seasonFormatNow } from "@/lib/season-format-store";
 import { ceremonyBoard } from "@/lib/ceremony";
-import { castingHeroLine, castingLead } from "@/lib/casting";
+import { castingFirstDateLine, castingHeroLine, castingLead } from "@/lib/casting";
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
@@ -37,9 +37,9 @@ import { CallsLine } from "./YourCalls";
 import { airWindowMinutes } from "@/lib/air";
 import { callRecord } from "@/lib/streaks";
 import { sharerOf } from "@/lib/share-record-name";
-import DareVote from "./DareVote";
 import SituationVote from "./SituationVote";
 import TonightBand from "./TonightBand";
+import TonightVotes from "./TonightVotes";
 import { storyToday } from "@/lib/producer";
 import { latestHouseScene } from "@/lib/house-scenes";
 import EpisodeShelf from "./EpisodeShelf";
@@ -57,9 +57,7 @@ import HomeClip from "./HomeClip";
 import { PROMO } from "@/lib/promo-videos";
 import HomeExpressBox from "./HomeExpressBox";
 import HomeOpen from "./HomeOpen";
-import { homeOpenOn, nextSeasonLine, openKicker, openLine, openTonight, openWatch, type OpenTonight } from "@/lib/home-open";
-import type { SeasonFormatDef } from "@/lib/season-format";
-import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
+import { homeOpenOn, openKicker, openLine, openTonight, type OpenTonight } from "@/lib/home-open";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -94,9 +92,11 @@ const HOME_FAQ = [FAQ[0], FAQ[1], FAQ[FAQ.length - 1]];
 /**
  * The landing page, pitched at AI-friendly roleplayers, with two front doors (the 2026-11-07 outside reviews: too many
  * features compete for a first visit; one journey — create, watch, come back — should lead):
- *  - A first visit gets the pitch first: the hero, then the tonight band as proof the show is on, the latest aired
- *    dates, how it works, the cast, the reviews, questions. The audience cards (the situation vote, dares, your calls,
- *    the season banner) wait until they have a character; their boards aren't even fetched.
+ *  - A first visit gets one screen with one job (app/HomeOpen.tsx; the growth plan, 2026-11-19, and the product audit,
+ *    2026-11-21): the stage, the promise, the sentence box and the day's clip, whose button is the way to watch. Under
+ *    it: a real date to call the ending of, what just aired, how it works, three questions and the way in again. The
+ *    tonight band, the votes, the cast and the map wait until they have a character; their boards aren't even fetched.
+ *    (HOME_OPEN=0 brings back the page as it was: the hero, the band, the situation vote, the cast.)
  *  - Someone with a character gets the show first (docs/show-style.md: lead with tonight): the tonight band, the season
  *    banner, "Since you were here" (2026-11-01 audit, J4: lib/since.ts), then everything else as before.
  */
@@ -129,15 +129,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   );
   // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
   const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
-  // A stranger's first screen (lib/home-open.ts): tonight's story and next month's format, read only for someone with
-  // no character while HOME_OPEN is on; the same few seconds' shared copy for everyone.
-  const openP: Promise<[OpenTonight | null, SeasonFormatDef | null] | null> = myCharactersP.then((mine) =>
-    mine.length || !homeOpenOn()
-      ? null
-      : Promise.all([
-          shared("home:open-tonight", () => openTonight(conn)).catch(() => null),
-          shared("watch:season-format-next", () => seasonFormatNow(conn, nextSeasonStart(new Date()))).catch(() => null),
-        ]),
+  // A stranger's first screen (lib/home-open.ts): tonight's story (who steps forward on the stage), read only for someone
+  // with no character while HOME_OPEN is on; the same few seconds' shared copy for everyone.
+  const openP: Promise<{ story: OpenTonight | null } | null> = myCharactersP.then((mine) =>
+    mine.length || !homeOpenOn() ? null : shared("home:open-tonight", () => openTonight(conn)).then((story) => ({ story })).catch(() => ({ story: null })),
   );
   const [owned, tokens, myCharacters, [since, unread], phone, profileName, sharer, showNews, [aired, standout, sky, situation, dares, record, airing, rooms, onSeason, reveal, seasonDef, ceremony, house, story, clipRow, premiere], openRead] = await Promise.all([
     db && viewerId ? ownedSkus(db, viewerId) : Promise.resolve<string[]>([]),
@@ -160,9 +155,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       forViewer(viewerId, "home:standout", () => listStandoutDates(conn, viewerId)).catch(() => []),
       // Two counts for the Constellation link, not the whole sky (2026-11-19): a few seconds' shared copy.
       shared("home:sky-counts", () => skyCounts(conn)).catch(() => null),
-      // Tonight's situation is everyone's, as on /watch: the design system's visitor home asks a first visit to pick it
-      // too (all-screens board, 2026-11-11). The other audience boards stay a creator's, so a first visit doesn't pay for them.
-      forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null),
+      // Tonight's situation: an owner's Tonight card and band. A first visit's one screen has neither (the votes are on
+      // /watch), so it doesn't pay for the board; with HOME_OPEN=0 the old page shows it to everyone, as before.
+      myCharactersP.then((mine) => (mine.length || !homeOpenOn() ? forViewer(viewerId, "home:situation", () => situationBoard(conn, viewerId)).catch(() => null) : null)),
       myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:dares", () => dareBoard(conn, viewerId)).catch(() => null) : null)),
       // Your calls (lib/streaks.ts): your record and run, and how many dates you could still call.
       myCharactersP.then((mine) => (mine.length ? forViewer(viewerId, "home:calls", () => callRecord(conn, viewerId)).catch(() => null) : null)),
@@ -216,27 +211,19 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   const clip = creator ? null : clipRow;
   // The sentence box under the headline, for a visitor with no character, while one-sentence create is on.
   const expressBox = !creator && homeExpressBoxOn();
-  // The band is there for a first visit too, on a quiet night as well (the design system's visitor home, all-screens
-  // board, 2026-11-11): what just aired, what's open for predictions, and what's live, as proof the show is on.
-  // The first screen for someone with no character (lib/home-open.ts): the cast on the stage, tonight's story, one call.
+  // The one screen for someone with no character (app/HomeOpen.tsx): the cast on the stage with tonight's people stepped
+  // forward, what to do in a sentence, the box and the clip (whose own button is the way to watch first).
   const open = (() => {
     if (!openRead) return null;
-    const [openStory, nextDef] = openRead;
-    const now = new Date();
+    const { story: openStory } = openRead;
     const leads = openStory?.who ?? (featured ? [...featured.characters] : []);
-    const nextMonth = seasonLabel(seasonIdOf(nextSeasonStart(now))).split(" ")[0];
-    const first = (name: string) => name.split(" ")[0];
     return {
-      kicker: openKicker(now, seasonDef),
+      // The season strip under the header steps aside on this screen whenever it would say the season's arc.
+      arc: openKicker(new Date(), seasonDef) !== null,
       line: openLine(onSeason, leads),
-      tonight: openStory,
-      latest: featured ? { label: best ? "This week's best date" : "The latest date", names: `${first(featured.characters[0].name)} × ${first(featured.characters[1].name)}`, title: featured.title } : null,
-      watch: openWatch({ tonight: openStory, live: rooms.find((r) => r.status === "live") ?? null, featured, best: Boolean(best) }),
-      next: nextDef?.lead && nextDef.slug !== seasonDef?.slug ? nextSeasonLine(nextMonth, nextDef.title, casting ? { month: casting.month, name: casting.lead.name } : null) : null,
+      lede: `${expressBox ? "Describe a character in a sentence." : "Make a character in a minute."} ${casting ? castingFirstDateLine(casting) : "They go on a blind date an AI writes."} You watch it air. Free, no sign-up.`,
     };
   })();
-  // Under the first screen the hero is the way in to making one, so its headline steps down a level.
-  const HeroTitle = open ? "h2" : "h1";
   const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} premiere={premiere} />;
 
   return (
@@ -288,15 +275,40 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </p>
         </section>
       )}
-      {open && <HomeOpen {...open} />}
-      {/* The pitch is a visitor's (the 2026-11-20 mobile audit, B10): an owner already made a character, so after "Since
-          you were here" their home goes straight to the show, without the hero, How it works or the FAQ. */}
-      {!creator && (
+      {/* A first visit's one screen (app/HomeOpen.tsx): the promise, the sentence box, the day's clip (the show's own loop
+          on a day without one), and one quiet way to watch first. */}
+      {open && (
+        <HomeOpen
+          arc={open.arc}
+          line={open.line}
+          lede={open.lede}
+          box={expressBox ? <HomeExpressBox /> : null}
+          clip={
+            clip ? (
+              <HomeClip loopSrc={clip.loop_src} posterSrc={clip.poster_src} width={clip.width} height={clip.height} watchHref={clip.watch_href} caption={clipCaption(clip)} />
+            ) : (
+              <HomeClip
+                loopSrc={PROMO.homeLoop.src}
+                posterSrc={PROMO.homeLoop.poster}
+                width={PROMO.homeLoop.width}
+                height={PROMO.homeLoop.height}
+                watchHref="/watch"
+                caption="Juniper Vale × Nell Abiodun · How does it end?"
+                kicker="Tonight on the show"
+                watchLabel="Watch episodes"
+              />
+            )
+          }
+        />
+      )}
+      {/* The page as it was, with HOME_OPEN=0: the pitch in a hero of its own. The pitch is a visitor's (the 2026-11-20
+          mobile audit, B10): an owner already made a character, so their home goes straight to the show. */}
+      {!creator && !open && (
       <section className={clip ? "hero has-clip" : "hero"}>
         <div className="hero-copy">
           {/* The promise (docs/ideas.md "The core, 2026-11-14"): your character has a love life, and you're in their corner. */}
           <p className="kicker">Your character&apos;s love life</p>
-          <HeroTitle className="hero-title">Give your character a love life.</HeroTitle>
+          <h1 className="hero-title">Give your character a love life.</h1>
           <p className="lede">
             {casting
               ? `${castingHeroLine(casting)} `
@@ -304,9 +316,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             Make one in a minute — free, no sign-up.
           </p>
           {expressBox && <HomeExpressBox />}
-          {/* One "Make your character" door above the fold and one at the end (the 2026-11-20 mobile audit, A2): under the
-              first screen (lib/home-open.ts), which carries both its own doors, the hero doesn't ask again. */}
-          {!open && (
+          {/* One "Make your character" door above the fold and one at the end (the 2026-11-20 mobile audit, A2). */}
           <p className="cta-row" id="hero-cta">
             {/* With the box above, the box's own button is the main one and this is the long way in. */}
             <Link className={expressBox ? "button-ghost" : "button"} href="/create">
@@ -320,7 +330,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               </Link>
             )}
           </p>
-          )}
           {/* The sample and the Character.AI rescue door (2026-11-14) share one quiet line, for a visitor with no character yet. */}
           {myCharacters.length === 0 && (
             <p className="small hero-doors">
@@ -335,8 +344,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               .
             </p>
           )}
-          {/* The first screen carries this line when it's there. */}
-          {!open && <p className="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>}
+          <p className="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>
         </div>
         {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
             date (its best moment, 2026-11-11), typing in, and the way to watch how it ends. The old matchup only when
@@ -382,14 +390,15 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         )}
       </section>
       )}
-      {/* With the clip in the hero, the real date a first visit calls the ending of (app/FirstRunCall.tsx) follows it. */}
-      {clip && featured && (
+      {/* With the clip up top, the real date a first visit calls the ending of (app/FirstRunCall.tsx) follows it. */}
+      {(open ? featured : clip && featured) && featured && (
         <section className="home-date" aria-label="A date from the show">
           <DateExcerpt date={featured} call={!creator} wide />
         </section>
       )}
-      {/* Two doors in thumb reach, so both labels are short: measured one line each at 360px and up (2026-11-14). */}
-      {myCharacters.length === 0 && (
+      {/* Two doors in thumb reach, so both labels are short: measured one line each at 360px and up (2026-11-14). Only on
+          the old page: the one screen keeps its field in the first screen, and nothing floats over it. */}
+      {myCharacters.length === 0 && !open && (
         <PhoneActionBar watch="hero-cta">
           <Link className="button" href="/create" aria-label="Make your character">
             Make yours
@@ -399,12 +408,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </Link>
         </PhoneActionBar>
       )}
-      {/* The season's arc for a visitor too (the design system, 2026-11-11): the show has a month, and this is where in it we are. */}
-      {!creator && tonight}
+      {/* The old page showed a visitor the band too; the one screen leaves tonight's workings to /watch. */}
+      {!creator && !open && tonight}
       {!creator && showNews && <ShowSince card={showNews} />}
 
-      {situation && <SituationVote board={situation} now={Date.now()} insider={creator} />}
-      {dares && <DareVote board={dares} insider={creator} />}
+      {/* Tonight's two votes are one card for an owner (app/TonightVotes.tsx). A visitor sees the situation only on the
+          old page; on the one screen the board isn't read. */}
+      {creator ? <TonightVotes situation={situation} dares={dares} now={Date.now()} insider /> : situation && <SituationVote board={situation} now={Date.now()} />}
       {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} sharer={sharer} where="home" />}
 
       {aired && aired.items.length > 0 && (
@@ -420,7 +430,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       )}
 
       {/* The shows that could come next (lib/show-ideas.ts): one quiet line, the demand test's way in from the front door. */}
-      {showIdeasOn() && (
+      {showIdeasOn() && (creator || !open) && (
         <p className="house-link home-shows-link">
           <span aria-hidden="true">📺</span> One show is on air. More could come next: a mystery, a shared house, a quest.{" "}
           <Link href="/shows" data-track="shows" data-track-where="home">
@@ -448,6 +458,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
       )}
 
+      {/* The cast, the map and the tools are an owner's (and the old page's): a first visit's page ends on its questions. */}
+      {(creator || !open) && (
       <section>
         <h2>This season&apos;s cast</h2>
         <p className="muted">
@@ -491,6 +503,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <Link href="/tools/oc-questions">questions to ask your OC</Link>
         </p>
       </section>
+      )}
 
       {!creator && (
       <section className="faq">
