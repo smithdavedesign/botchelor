@@ -192,6 +192,9 @@ export async function agentFunnel(db: Db): Promise<{
   }
 }
 
+/** The host is one of these domains or a subdomain of one: www.x.com is x.com, dropbox.com and netflix.com aren't. */
+const onDomain = (host: string, ...domains: string[]) => domains.some((d) => host === d || host.endsWith(`.${d}`));
+
 /** Bucket a referrer header into one of the fixed marketing channels. */
 export function referrerBucket(
   referer: string | null | undefined,
@@ -202,11 +205,11 @@ export function referrerBucket(
   if (!referer) return "direct";
   try {
     const host = new URL(referer).hostname.toLowerCase();
-    if (host.endsWith("google.com") || host.endsWith("bing.com") || host.endsWith("duckduckgo.com")) return "google";
-    if (host.endsWith("bsky.app") || host.endsWith("bsky.social")) return "bluesky";
-    if (host.endsWith("discord.com") || host.endsWith("discord.gg")) return "discord";
-    if (host.endsWith("reddit.com") || host.endsWith("redd.it")) return "reddit";
-    if (host.endsWith("x.com") || host.endsWith("twitter.com") || host.endsWith("t.co")) return "twitter";
+    if (onDomain(host, "google.com", "bing.com", "duckduckgo.com")) return "google";
+    if (onDomain(host, "bsky.app", "bsky.social")) return "bluesky";
+    if (onDomain(host, "discord.com", "discord.gg")) return "discord";
+    if (onDomain(host, "reddit.com", "redd.it")) return "reddit";
+    if (onDomain(host, "x.com", "twitter.com", "t.co")) return "twitter";
     if (host.includes("modelcontextprotocol") || host.includes("smithery.ai") || host.includes("pulsemcp") || host.includes("glama.ai") || host === "mcp.so") return "mcp_registry";
     return "other";
   } catch {

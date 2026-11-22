@@ -54,4 +54,20 @@ describe("referrerBucket", () => {
     expect(referrerBucket("not-a-url")).toBe("other");
     expect(referrerBucket("")).toBe("direct");
   });
+
+  it("matches whole domains, never a host that only ends in the same letters", () => {
+    // A channel's own subdomains still count.
+    expect(referrerBucket("https://mobile.x.com/u")).toBe("twitter");
+    expect(referrerBucket("https://t.co/abc")).toBe("twitter");
+    expect(referrerBucket("https://news.google.com/")).toBe("google");
+    expect(referrerBucket("https://redd.it/abc")).toBe("reddit");
+    // Other sites whose names end in a channel's letters are not that channel.
+    expect(referrerBucket("https://www.dropbox.com/s/abc")).toBe("other");
+    expect(referrerBucket("https://www.netflix.com/")).toBe("other");
+    expect(referrerBucket("https://about.co/")).toBe("other");
+    expect(referrerBucket("https://notgoogle.com/")).toBe("other");
+    expect(referrerBucket("https://myreddit.com/")).toBe("other");
+    expect(referrerBucket("https://fakebsky.app/")).toBe("other");
+    expect(referrerBucket("https://google.com.example.net/")).toBe("other");
+  });
 });
