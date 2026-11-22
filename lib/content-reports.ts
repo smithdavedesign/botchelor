@@ -14,6 +14,7 @@
 import type { Db } from "./db";
 import { sendAccountEmail } from "./email";
 import { contactEmail } from "./legal-entity";
+import { overLimit } from "./limits";
 import { isOurs } from "./our-traffic";
 import { checkFields } from "./safety";
 import { siteUrl } from "./site";
@@ -31,6 +32,11 @@ import {
 
 /** One person (or one connection) sending this many in an hour or a day is a script, not a person with a problem. */
 export const CONTENT_REPORT_LIMITS = { perHour: 5, perDay: 20 };
+/**
+ * Report emails across the whole site (2026-11-22 audit: every report emailed every admin, whoever sent it). Past this
+ * a report is still kept, listed on /admin/reports and counted by the monitor (GET /api/health); it just isn't emailed.
+ */
+export const REPORT_EMAIL_LIMITS = { perHour: 20, perDay: 60 };
 /** More links than this in the details reads as spam: kept, flagged. */
 const SPAM_LINKS = 5;
 const USER_AGENT_MAX = 400;
@@ -74,8 +80,10 @@ export async function saveContentReport(db: Db, input: NewContentReport, ctx: Re
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [id, ctx.userId, ctx.account, input.category, input.target, episodeId, input.details, input.email, userAgent, flag !== null, flag],
   );
-  // Our own checks never email anyone.
-  if (!isOurs(null, userAgent)) await emailAdmins(db, { id, ...input, flag }).catch(() => {});
+  // Our own checks never email anyone, and past the site's email limit a report waits on the list.
+  if (!isOurs(null, userAgent) && !(await overLimit(db, "content_report_email", "all", REPORT_EMAIL_LIMITS).catch(() => false))) {
+    await emailAdmins(db, { id, ...input, flag }).catch(() => {});
+  }
   return { id, flagged: flag !== null, urgent: isUrgent(input.category), promise: responsePromise(input.category) };
 }
 

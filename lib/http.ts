@@ -357,8 +357,12 @@ export function withRenewedSession(req: Request, res: Response, now = Date.now()
  * identity minted: crossSiteBrowserRequest), and so is a body declared over `maxBodyBytes` (413; DEFAULT_MAX_BODY_BYTES
  * unless the route needs more, an admin upload). The handler gets the very request that came in (in-process bookings
  * are marked by the object itself, lib/cast-date-request.ts), and reads its body through the capped readers above.
- * A signed-in session in use is signed again once a day (withRenewedSession).
+ * A signed-in session in use is signed again once a day (withRenewedSession). A change from a banned or suspended
+ * account, agent or address is refused (403 "suspended": lib/bans.ts).
  */
+/** The methods that only read: a ban (lib/bans.ts) never stops them. */
+const READS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"]);
+
 export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Promise<Response>, opts: { maxBodyBytes?: number } = {}) {
   const maxBodyBytes = opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   return async (req: Request, ...ctx: C): Promise<Response> => {
@@ -366,6 +370,11 @@ export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Pro
     try {
       if (crossSiteBrowserRequest(req)) throw new ApiError(403, CROSS_SITE_REFUSED);
       if (declaredLength(req) > maxBodyBytes) throw tooLarge();
+      // A banned or suspended account, agent or address changes nothing (lib/bans.ts; read from memory, no database).
+      if (!READS.has(req.method)) {
+        const ban = (await import("./bans")).banOn(req);
+        if (ban) throw new ApiError(403, ban);
+      }
       return withRenewedSession(req, await withDbLabel(label, () => fn(req, ...ctx)));
     } catch (err) {
       if (err instanceof ApiError) return json(err.body, err.status);

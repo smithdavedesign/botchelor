@@ -1,3 +1,4 @@
+import { agentBan } from "@/lib/bans";
 import { ApiError, readBodyText } from "@/lib/http";
 import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
 import { attachStream, sseFrame } from "@/lib/mcp-stream";
@@ -54,6 +55,9 @@ export async function POST(req: Request): Promise<Response> {
     // The core tools by default; /api/mcp?tools=all lists every tool (lib/mcp.ts CORE_MCP_TOOLS).
     toolset: new URL(req.url).searchParams.get("tools") === "all" ? "all" : "core",
   };
+  // A banned or suspended address makes no calls; the agent a call acts as is checked with it (lib/bans.ts).
+  const banned = agentBan(null, ctx.visitor);
+  if (banned) return rpcError(-32000, banned.message, 403);
   const out = await handleMcpPost(body, ctx);
   const headers: Record<string, string> = { ...JSON_HEADERS };
   if (ctx.issuedSessionId) headers["mcp-session-id"] = ctx.issuedSessionId;

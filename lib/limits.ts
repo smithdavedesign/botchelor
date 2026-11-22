@@ -146,7 +146,12 @@ export function visitorAddress(ip: string): string {
 /** A stable, non-reversible key for the visitor behind a request (an HMAC of the address), or null without one. */
 export function visitorKey(headers: Headers, secret = process.env.SESSION_SECRET || "botchelor-visitor"): string | null {
   const ip = clientIp(headers);
-  return ip ? createHmac("sha256", secret).update(visitorAddress(ip)).digest("hex").slice(0, 32) : null;
+  return ip ? addressKey(ip, secret) : null;
+}
+
+/** visitorKey for an address given as text (an admin banning one: lib/bans.ts). */
+export function addressKey(ip: string, secret = process.env.SESSION_SECRET || "botchelor-visitor"): string {
+  return createHmac("sha256", secret).update(visitorAddress(ip)).digest("hex").slice(0, 32);
 }
 
 /**

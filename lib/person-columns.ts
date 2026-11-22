@@ -210,6 +210,7 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "house_scene_reports", column: "reporter_id", export: at("reports.house_scenes"), delete: ROWS, move: SAID_AS },
   { table: "content_reports", column: "reporter_id", export: at("content_reports"), delete: cleared("null"), move: SAID_AS },
   { table: "content_reports", column: "decided_by", export: ADMINS_ID, delete: kept("the admin who decided it: the record of what was done stays"), move: ADMIN_ACT },
+  { table: "bans", column: "banned_by", export: ADMINS_ID, delete: kept("the admin who banned: the moderation record stays"), move: ADMIN_ACT },
 
   // One a person: votes, calls, ratings. They stay where they were cast.
   { table: "predictions", column: "user_id", export: at("predictions"), delete: ROWS, move: POINTS },
