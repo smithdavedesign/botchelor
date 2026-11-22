@@ -120,6 +120,12 @@ describe("a wrong address", () => {
     const { globSync } = await import("node:fs");
     expect(globSync("app/**/not-found.tsx").sort()).toEqual(["app/not-found.tsx"]);
   });
+
+  it("says noindex and nothing else to search engines: the layout's index, follow (and Google's copy of it) is replaced", async () => {
+    const { metadata } = await import("@/app/not-found");
+    expect(metadata.title).toBe("Not found · Botchelor");
+    expect(metadata.robots).toEqual({ index: false, follow: true });
+  });
 });
 
 describe("the footer's support address", () => {
