@@ -22,7 +22,7 @@ async function creator(handle: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const c = await creator((await params).handle);
-  if (!c) return { title: "Creator not found" };
+  if (!c) return { title: "Creator not found · Botchelor", robots: { index: false, follow: false } };
   return { title: `${c.display_name} (@${c.handle}) on Botchelor`, description: c.bio ?? `Pictures and clips by @${c.handle}.`, alternates: { canonical: `/creators/${c.handle}` } };
 }
 

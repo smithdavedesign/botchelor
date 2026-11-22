@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { dateLinkPath, loadDateLink } from "@/lib/date-invites";
@@ -37,8 +38,10 @@ export default async function DateLinkPage({ params }: Props) {
   const { code } = await params;
   const db = await getDb();
   const invite = await loadDateLink(db, code);
-  const c = invite?.live ? await getPublicCharacter(db, invite.character_id) : null;
-  if (!invite || !c) {
+  // A code that was never made is a real 404 (2026-11-22 audit); one that's off still says so, below.
+  if (!invite) notFound();
+  const c = invite.live ? await getPublicCharacter(db, invite.character_id) : null;
+  if (!c) {
     return (
       <div className="page-narrow date-link">
         <h1>This date link isn&apos;t open any more</h1>

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 import Avatar from "@/app/Avatar";
 import ShareButton from "@/app/ShareButton";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
+import { userIdFromCookieStore } from "@/lib/http";
 import { shortName } from "@/lib/names";
 import {
   episodeFromReportCard,
@@ -24,11 +27,24 @@ import { siteUrl } from "@/lib/site";
 
 type Props = { params: Promise<{ id: string }> };
 
-async function load(id: string) {
+// Once per request: the metadata and the page both read it (2026-11-22 audit: a private date's card took 6.3 s).
+const load = cache(async (id: string) => {
   const db = await getDb();
   // What a logged-out spectator may see, whoever opens it: the card never says more than the aired page does.
   const episode = await getEpisodeView(db, id, null);
   return { episode, card: reportCardOf(episode) };
+});
+
+/**
+ * A private date this viewer may watch (its host or an owner of one of the two): its names, so its people read why it
+ * has no card rather than "doesn't exist, or hidden after reports" (2026-11-22 audit). Null for anyone else.
+ */
+async function ownPrivateDate(id: string): Promise<{ names: [string, string] } | null> {
+  const viewerId = userIdFromCookieStore(await cookies());
+  if (!viewerId) return null;
+  const mine = await getEpisodeView(await getDb(), id, viewerId).catch(() => null);
+  if (!mine || mine.hidden || mine.visibility !== "private" || !(mine.is_creator || mine.is_host)) return null;
+  return { names: [mine.characters[0].name, mine.characters[1].name] };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -57,7 +73,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ReportCardPage({ params }: Props) {
   const { id } = await params;
   const { episode, card } = await load(id);
-  if (!episode || episode.hidden || episode.visibility === "private") notFound();
+  if (!episode || episode.hidden || episode.visibility === "private") {
+    const own = await ownPrivateDate(id);
+    if (!own) notFound();
+    return (
+      <article className="card report-card report-card-private" data-report-card="private">
+        <p className="kicker">Botchelor · date report card</p>
+        <h1>Private dates have no report card</h1>
+        <p>
+          {`${own.names[0]} × ${own.names[1]} is private: only you can watch it, so it isn't graded against the dates on the air.`} Put it on
+          the air from the date&apos;s page and it gets one once it has aired.
+        </p>
+        <p>
+          <Link className="button" href={`/episodes/${encodeURIComponent(id)}`}>
+            Back to the date
+          </Link>
+        </p>
+      </article>
+    );
+  }
   if (!card) redirect(`/episodes/${encodeURIComponent(id)}`);
   const [a, b] = episode.characters;
   const shareUrl = `${siteUrl()}${sharedReportCardPath(id)}`;
@@ -84,7 +118,9 @@ export default async function ReportCardPage({ params }: Props) {
         </header>
 
         <table className="report-subjects">
-          <caption className="sr-only">Grades by subject</caption>
+          {/* Said over the grades (2026-11-22 audit: "Rose a little · D" beside "Rose a little · A" read as a contradiction):
+              the words are this night, the letter is where it stands among every aired date. */}
+          <caption className="report-subjects-note muted small">Each grade compares this date with every date on the air; the words say how it went on the night.</caption>
           <tbody>
             {card.subjects.map((s) => (
               <tr key={s.variable} data-subject={s.variable}>
