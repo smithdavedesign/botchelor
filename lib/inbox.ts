@@ -218,6 +218,28 @@ export async function newsByCharacter(
   return news;
 }
 
+/**
+ * Which of `ids` (one owner's characters) have someone on Matches: a match, a date partner or a thread, as listThreads
+ * counts them (the unmatched left out), in one read. An empty Matches page names the others that do (UX audit
+ * 2026-11-22: "No matches yet for Orrin" while two of the owner's other characters had live matches).
+ */
+export async function charactersWithThreads(db: Db, ids: readonly string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const { rows } = await db.query<{ id: string }>(
+    `select distinct t.me as id from (
+       select character_lo as me, character_hi as other from matches where character_lo = any($1)
+       union all select character_hi, character_lo from matches where character_hi = any($1)
+       union all select character_a, character_b from episodes where status = 'ready' and varies_episode_id is null and character_a = any($1)
+       union all select character_b, character_a from episodes where status = 'ready' and varies_episode_id is null and character_b = any($1)
+       union all select character_lo, character_hi from couple_texts where character_lo = any($1)
+       union all select character_hi, character_lo from couple_texts where character_hi = any($1)
+     ) t join characters c on c.id = t.other
+     where t.me <> t.other and not ${unmatchedSql("t.other", "t.me")}`,
+    [[...ids]],
+  );
+  return new Set(rows.map((r) => r.id));
+}
+
 /** Null when the character isn't the viewer's. */
 export async function listThreads(db: Db, userId: string, characterId: string): Promise<Inbox | null> {
   const own = (await db.query(`select 1 from characters where id = $1 and owner_id = $2`, [characterId, userId])).rows.length > 0;

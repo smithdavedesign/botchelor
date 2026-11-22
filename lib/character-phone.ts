@@ -147,11 +147,20 @@ const iso = (d: Date | string | null | undefined): string | null => (d ? new Dat
 const weeklyDatesOn = (env: Record<string, string | undefined>): boolean => !generationPaused(env) && env.LIFE_DATES_PER_DAY?.trim() !== "0";
 
 /**
- * The phone for the person's characters (one read): the lead is the character with an unread text,
- * else the one something happened to most recently (a text or a date), else the newest; the rest are the row under it.
- * Null when they have no character, companions aren't open to them, or the switch is off.
+ * The phone for the person's characters (one read): the lead is the character they're working with (`picked`: the
+ * header's, lib/current-character.ts), else the one with an unread text, else the one something happened to most
+ * recently (a text or a date), else the newest; the rest are the row under it. UX audit 2026-11-22: with only the second
+ * rule, home said "Your character Vesper" under the header's "Orrin". Null when they have no character, companions aren't
+ * open to them, or the switch is off.
  */
-export async function characterPhone(db: Db, userId: string, mine: readonly CharacterRef[], now = new Date(), env: Record<string, string | undefined> = process.env): Promise<CharacterPhoneView | null> {
+export async function characterPhone(
+  db: Db,
+  userId: string,
+  mine: readonly CharacterRef[],
+  now = new Date(),
+  env: Record<string, string | undefined> = process.env,
+  picked: string | null = null,
+): Promise<CharacterPhoneView | null> {
   if (!mine.length || !homePhoneOn(env) || !companionOpen(env)) return null;
   const ids = mine.map((c) => c.id);
   const { rows } = await phoneRows(db, userId, ids, now);
@@ -165,7 +174,7 @@ export async function characterPhone(db: Db, userId: string, mine: readonly Char
   };
   const ranked = mine
     .map((character, i) => ({ character, i, unread: threadOf.get(character.id)?.unread === true, at: activity(character.id) }))
-    .sort((x, y) => Number(y.unread) - Number(x.unread) || y.at.localeCompare(x.at) || x.i - y.i);
+    .sort((x, y) => Number(y.character.id === picked) - Number(x.character.id === picked) || Number(y.unread) - Number(x.unread) || y.at.localeCompare(x.at) || x.i - y.i);
   const lead = ranked[0].character;
   const view = phoneOf(lead, threadOf.get(lead.id) ?? null, dateOf.get(lead.id) ?? null, now, env);
   return {

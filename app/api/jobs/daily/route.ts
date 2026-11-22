@@ -40,6 +40,7 @@ import { backfillEmbeddings } from "@/lib/originality-concept";
 import { DYNAMICS_BUDGET_MS, runSocialDynamics } from "@/lib/social/dynamics";
 import { computeSocialMetrics, METRICS_BUDGET_MS } from "@/lib/social/metrics-job";
 import { settleSuggestions } from "@/lib/social/suggest";
+import { alertLowBalances } from "@/lib/spend";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
 export const maxDuration = 300;
@@ -87,7 +88,10 @@ async function upkeep({ db, step }: Ctx): Promise<PartResult> {
   await step("voices", () => forgetUnusedVoices(db));
   await step("plan_checkouts", () => prunePlanCheckouts(db).catch(() => {}));
   await step("server_errors", () => pruneServerErrors(db).catch(() => {}));
-  return { body: { own_dates_cleared: ownDatesCleared }, counts: { own_dates_cleared: ownDatesCleared } };
+  // The providers' balances read once a day (lib/spend.ts), and the admins emailed when one that doesn't top itself up
+  // has under a week left at its recent pace. Billing APIs only: nothing spends.
+  const lowBalances = await step("low_balances", () => alertLowBalances(db).catch(() => 0));
+  return { body: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances }, counts: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances } };
 }
 
 async function show({ db, step, backfillLimit }: Ctx): Promise<PartResult> {

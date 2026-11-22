@@ -223,6 +223,23 @@ describe("the swipe page: whose deck, as faces", () => {
     const asked = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: lexi }) }));
     expect(asked).toMatch(/class="heading-switch"[^>]*>Lexi</);
   });
+
+  // UX audit 2026-11-22: "No matches yet for Orrin" while two of the owner's other characters had live matches.
+  it("/matches with nobody for this one leads to the owner's others that have someone", async () => {
+    const owner = newUserCookie();
+    const wren = await make("Wren Kestrel", owner);
+    const lexi = await make("Lexi Moreau", owner);
+    const bo = await make("Bo Quill", newUserCookie());
+    const [lo, hi] = [wren, bo].sort();
+    await t.db.query(`insert into matches (character_lo, character_hi, yes_lo, yes_hi, matched_at) values ($1, $2, true, true, now() - interval '3 hours')`, [lo, hi]);
+    jar.cookies.set(owner.split("=")[0], owner.split("=")[1]);
+    const html = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: lexi }) }));
+    expect(html).toContain("No matches yet for Lexi");
+    expect(html).toContain(`Your other character has matches: <a href="/matches?character=${wren}">Wren</a>.`);
+    // One who has someone points nowhere else.
+    const own = renderToStaticMarkup(await MatchesPage({ searchParams: Promise.resolve({ character: wren }) }));
+    expect(own).not.toContain("matches-elsewhere");
+  });
 });
 
 // 2026-11-14 design audit: without a character, /swipe was a sentence, a button and four small faces. Now a real deck
