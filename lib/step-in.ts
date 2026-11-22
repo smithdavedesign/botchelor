@@ -44,7 +44,7 @@ import { getDirectorModel, getModel, type Model } from "./model";
 import { summarizeUsage, type DateUsage } from "./pricing";
 import type { Usage } from "./model";
 import { shortName } from "./names";
-import { isStepIn, loadOwnDate, nextTurnMeta, ownDateInProgress, ownDateShape, rebuildOwnDate, settleOwnDateNotices, submitOwnDateStep, type OwnDateRow } from "./own-date";
+import { isStepIn, loadOwnDate, nextTurnMeta, ownDateInProgress, ownDateShape, rebuildOwnDate, settleOwnDateNotices, shareRebuilds, submitOwnDateStep, type OwnDateRow } from "./own-date";
 import { transcriptQuality } from "./quality";
 import { refreshEpisodePair } from "./relationships";
 import { CONVERSATION_TURNS, DATE_ACTS, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, ENDING_DETAIL_LABELS, endingDetailOf, endingLabel, TURN_DIALOGUE_MAX } from "./rules";
@@ -758,14 +758,22 @@ async function judge(db: Db, row: StepRow): Promise<boolean> {
 const loadPlay = async (db: Db, id: string): Promise<StepInPlay | null> =>
   (await db.query<{ play: StepInPlay | null }>(`select setup #> '{step_in,play}' as play from episodes where id = $1`, [id])).rows[0]?.play ?? null;
 
-/** Plays whatever the show owes: the cast member's line, the verdict, then the recap once the lines are in. Nothing while paused. */
-async function catchUp(db: Db, userId: string, episodeId: string): Promise<StepRow | null> {
+/**
+ * Plays whatever the show owes: the cast member's line, the verdict, then the recap once the lines are in. Nothing while
+ * paused. A line said in this request (theirs, `afterLine`, or the cast's) goes back on its own when it's the date's
+ * last: the verdict and the recap (two more calls, ~15 s, 2026-11-22: the last line took 25 s) come on the page's next
+ * ask, while the line that ended it is on screen ("finishing").
+ */
+async function catchUp(db: Db, userId: string, episodeId: string, afterLine = false): Promise<StepRow | null> {
   let row = await loadStep(db, userId, episodeId);
+  let said = afterLine;
   for (let guard = 0; row && row.status === "generating" && !row.setup?.step_in?.paused && guard < 4; guard++) {
     const { built, decided, formatId } = await rebuildOwnDate(db, row);
     const next = nextSide(built, decided, formatId, row.transcript ?? []);
     if (next?.side === "a") break;
+    if (!next && said) break;
     const moved = next ? await castLine(db, row) : row.setup?.step_in?.play ? await finish(db, row) : await judge(db, row);
+    said ||= next !== null;
     row = await loadStep(db, userId, episodeId);
     if (!moved) break;
   }
@@ -778,6 +786,10 @@ async function catchUp(db: Db, userId: string, episodeId: string): Promise<StepR
  * `counted`: it follows a line that already was.
  */
 export async function advanceStepIn(db: Db, userId: string, episodeId: string, counted = false): Promise<StepInResult> {
+  return shareRebuilds(() => advance(db, userId, episodeId, counted, false));
+}
+/** `afterLine`: the person's line was just saved in this request (catchUp sends a last line back on its own). */
+async function advance(db: Db, userId: string, episodeId: string, counted: boolean, afterLine: boolean): Promise<StepInResult> {
   if (!counted) {
     const before = await loadStep(db, userId, episodeId);
     if (!before) return fail(404, "not_found", "No date of yours here.");
@@ -785,7 +797,7 @@ export async function advanceStepIn(db: Db, userId: string, episodeId: string, c
       return { ok: true, view: await viewOf(db, before), refused: TOO_MANY_TRIES };
     }
   }
-  const row = await catchUp(db, userId, episodeId);
+  const row = await catchUp(db, userId, episodeId, afterLine);
   if (!row) return fail(404, "not_found", "No date of yours here.");
   return withPause({ ok: true, view: await viewOf(db, row) });
 }
@@ -797,9 +809,13 @@ export type StepInSay = { dialogue: string; action?: string; see_again?: boolean
 /**
  * The person says their line. In order: the self-harm check (a hit pauses the date, shows the resources and the line is
  * never answered in character), the PG filter (a soft redirect, the line not used), then every check an agent's line
- * gets (submitOwnDateStep). Then the cast member answers, and on the last line the show writes the recap.
+ * gets (submitOwnDateStep). Then the cast member answers; once the last line is in, the page's next ask has the show
+ * write it up (the verdict and the recap).
  */
 export async function sayStepIn(db: Db, userId: string, episodeId: string, input: StepInSay, who: StepInWho = {}): Promise<StepInResult> {
+  return shareRebuilds(() => sayLine(db, userId, episodeId, input, who));
+}
+async function sayLine(db: Db, userId: string, episodeId: string, input: StepInSay, who: StepInWho): Promise<StepInResult> {
   const row = await loadStep(db, userId, episodeId);
   if (!row) return fail(404, "not_found", "No date of yours here.");
   const view = () => loadStep(db, userId, episodeId).then(async (r) => viewOf(db, r ?? row));
@@ -843,7 +859,7 @@ export async function sayStepIn(db: Db, userId: string, episodeId: string, input
 
   const { built, decided, formatId } = await rebuildOwnDate(db, row);
   const next = nextSide(built, decided, formatId, row.transcript ?? []);
-  if (next?.side !== "a") return advanceStepIn(db, userId, episodeId, true);
+  if (next?.side !== "a") return advance(db, userId, episodeId, true, false);
   const out = await submitOwnDateStep(db, userId, episodeId, {
     dialogue,
     action,
@@ -854,7 +870,7 @@ export async function sayStepIn(db: Db, userId: string, episodeId: string, input
   if (out.rejected && out.rejected !== "raced") {
     return { ok: true, view: await view(), refused: "The show couldn't use that line. Try saying it another way." };
   }
-  return advanceStepIn(db, userId, episodeId, true);
+  return advance(db, userId, episodeId, true, true);
 }
 
 /** After a pause (the crisis notice), they choose to carry on: the date picks up where it was. */
