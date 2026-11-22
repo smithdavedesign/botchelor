@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, jsonWithSession, parseBody, readJson, session } from "@/lib/http";
 import { welcome } from "@/lib/notifications";
 import { assertSafeName } from "@/lib/people";
+import { freshSessionVersion } from "@/lib/session-versions";
 
 const RegisterInput = z.object({
   handle: z.string().trim().min(3).max(20),
@@ -33,6 +34,7 @@ export const POST = handle(async (req) => {
       `insert into profiles (user_id, name) values ($1, $2) on conflict (user_id) do nothing`,
       [account.user_id, account.handle_display ?? input.handle],
     );
+    await freshSessionVersion(db, account.user_id); // lib/session-versions.ts
     // Signing up adopts this browser's id, so nothing is left behind: an older offer (lib/account-claim.ts) is dropped.
     return jsonWithSession({ authenticated: true, handle: account.handle_display }, { userId: account.user_id, authenticated: true }, 201, [claimCookie(null)]);
   } catch (err) {

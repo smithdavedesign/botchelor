@@ -4,6 +4,7 @@ import { exchangeGoogleCode, googleAccountExists, googleConfigured, loginWithGoo
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, sessionCookies } from "@/lib/http";
 import { welcome } from "@/lib/notifications";
+import { freshSessionVersion } from "@/lib/session-versions";
 
 function redirect(path: string, cookies: string[] = []): Response {
   const headers = new Headers({ location: path });
@@ -58,6 +59,8 @@ export const GET = handle(async (req) => {
     // Signing in to an account that already exists leaves what this browser made behind: offer to bring it in
     // (lib/account-claim.ts). A new or newly linked account adopted this browser's id, so there is nothing to offer.
     const claim = isNew ? claimCookie(null) : await offerAtSignIn(db, req, userId);
+    // Signed with the account's session version as it is now (lib/session-versions.ts), not this process's copy.
+    await freshSessionVersion(db, userId);
     return redirect(next ?? "/account?signed_in=1", [...sessionCookies({ userId, authenticated: true }), ...signup, claim]);
   } catch {
     return failed("google_failed");

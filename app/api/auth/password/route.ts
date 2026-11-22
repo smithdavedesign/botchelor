@@ -2,7 +2,7 @@ import { z } from "zod";
 import { changePassword } from "@/lib/account-recovery";
 import { PASSWORD_MAX, PASSWORD_MIN } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
+import { authFromRequest, handle, json, jsonWithSession, parseBody, readJson } from "@/lib/http";
 import { visitorKey } from "@/lib/limits";
 
 const ChangeInput = z.object({
@@ -12,12 +12,13 @@ const ChangeInput = z.object({
 
 /**
  * Change the signed-in account's password (lib/account-recovery.ts): the current one first, and wrong tries count as
- * failed sign-ins. Reset links sent before it stop working, and the recovery email hears about the change.
+ * failed sign-ins. Reset links sent before it stop working, and the recovery email hears about the change. Every other
+ * session the account handed out ends (lib/session-versions.ts); this browser's is signed again, so it stays signed in.
  */
 export const POST = handle(async (req) => {
   const auth = authFromRequest(req);
   if (!auth?.authenticated) return json({ error: "sign_in_required", message: "Sign in to change your password." }, 401);
   const input = parseBody(ChangeInput, await readJson(req), "invalid_password");
   await changePassword(await getDb(), auth.userId, input.current, input.password, visitorKey(req.headers));
-  return json({ ok: true });
+  return jsonWithSession({ ok: true }, { userId: auth.userId, authenticated: true });
 });
