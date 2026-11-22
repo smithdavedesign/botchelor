@@ -101,6 +101,15 @@ export const introUrl = (id: string, version?: string): string => `/api/cast-int
 export const isIntroClipFile = (file: string): boolean => /^intro(-\d+)?\.mp4$/.test(file);
 export const introAudioUrl = (id: string): string => `/api/cast-intro/${encodeURIComponent(id)}/audio.wav`;
 
+/**
+ * Where a ready clip is kept (its store key; null when only Postgres has it) and its type, without reading it: the
+ * route sends a clip kept on Bunny's CDN straight there (lib/object-store.ts cdnLink), with byte ranges from the edge.
+ */
+export async function introKey(db: Db, id: string): Promise<{ key: string | null; mime: string } | null> {
+  const row = (await db.query<{ object_key: string | null; mime: string | null }>(`select object_key, mime from character_intros where id = $1 and status = 'ready'`, [id])).rows[0];
+  return row ? { key: row.object_key, mime: row.mime ?? "video/mp4" } : null;
+}
+
 /** The clip's bytes, when it's ready. */
 export async function introFile(db: Db, id: string): Promise<{ bytes: Buffer; mime: string } | null> {
   const row = (await db.query<IntroRow>(`select ${COLS} from character_intros where id = $1 and status = 'ready'`, [id])).rows[0];
@@ -176,7 +185,9 @@ export async function renderIntro(db: Db, characterId: string, baseUrl: string, 
         { characterId, portraitUrl, loopUrl: null, audio: { pcm, wav, rate: LIVE_AUDIO_RATE, seconds, url: new URL(introAudioUrl(id), baseUrl).toString() }, bundleKey: null, line },
         { apiKey, env, signal: stop.signal },
       );
-      const stored = await keepBytes("companion", `intro-${id}`, out.mp4, "video/mp4");
+      // intros/: on Bunny's CDN where the show has its settings, so the card's clip plays from the edge with byte ranges
+      // (lib/object-store.ts BUNNY_AREAS); one rendered before this is in companion/ until scripts/intros-to-bunny.mjs moves it.
+      const stored = await keepBytes("intros", id, out.mp4, "video/mp4");
       await set(`status = 'ready', mime = 'video/mp4', object_key = $2, data = $3, cost_usd = $4, error = null`, [stored.object_key, stored.data, out.cost_usd]);
       return { ok: true, id, status: "ready", seconds, cost_usd: out.cost_usd };
     } finally {

@@ -7,6 +7,7 @@ import { INTRO_MAX_CHARS, INTRO_RENDERER, introLineFor, introOf, introPortraitUr
 import { setDeepgramFetchForTests } from "@/lib/companion-live";
 import { LIVE_AUDIO_RATE } from "@/lib/companion-live-shared";
 import { FAL_QUEUE, setRendererFetchForTests } from "@/lib/live-face/renderers";
+import { setObjectStoreForTests } from "@/lib/object-store";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -34,6 +35,7 @@ afterEach(() => {
   setRendererFetchForTests(null);
   setDeepgramFetchForTests(null);
   setSeasonCastForTests(null);
+  setObjectStoreForTests(undefined);
 });
 
 const MP4 = Buffer.from("ftypisom-not-really-an-mp4");
@@ -161,6 +163,25 @@ describe("a cast intro", () => {
     const before = fal.length;
     expect(await renderIntro(t.db, id, BASE_URL)).toMatchObject({ ok: true, status: "ready" });
     expect(fal.length).toBe(before);
+  });
+
+  it("keeps the clip under intros/, the area Bunny's CDN serves straight to the browser (the voice stays in companion/)", async () => {
+    const files = new Map<string, Buffer>();
+    setObjectStoreForTests({
+      put: async (k, b) => void files.set(k, b),
+      get: async (k) => files.get(k) ?? null,
+      remove: async (k) => void files.delete(k),
+      presign: async (k) => ({ url: `https://store.example/${k}`, maxAge: 60 }),
+    });
+    const id = await withPortrait();
+    fakeAura();
+    fakeFal();
+    expect(await renderIntro(t.db, id, BASE_URL)).toMatchObject({ ok: true, status: "ready" });
+    const row = (await t.db.query<{ id: string; object_key: string; audio_key: string; data: Buffer | null }>(`select id, object_key, audio_key, data from character_intros where character_id = $1`, [id])).rows[0];
+    expect(row.object_key).toMatch(new RegExp(`^intros/${row.id}-[0-9a-f]{16}\\.mp4$`));
+    expect(row.audio_key).toMatch(/^companion\/intro-audio-/);
+    expect(row.data).toBeNull();
+    expect(files.has(row.object_key)).toBe(true);
   });
 
   it("says why it can't: no portrait, no house key, the renderer refusing; a failed one can be asked for again", async () => {
