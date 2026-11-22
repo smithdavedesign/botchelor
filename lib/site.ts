@@ -55,7 +55,11 @@ export function requestBase(req: Request, env: Record<string, string | undefined
   }
 }
 
-/** The pages worth listing for search engines: public, and the same for every visitor. */
+/**
+ * The pages worth listing for search engines: public, and the same for every visitor. Not a page behind the 18+ gate:
+ * crawlers pass it (middleware.ts), people don't, so a search result there landed on the gate (2026-11-22 audit: /shop,
+ * whose prices /pricing shows in the open, and the prompts library).
+ */
 export const PUBLIC_PATHS = [
   "/",
   "/create",
@@ -69,7 +73,6 @@ export const PUBLIC_PATHS = [
   "/characters?tab=agents",
   "/agents",
   "/reviews",
-  "/shop",
   "/terms",
   "/privacy",
   "/content-policy",
@@ -83,7 +86,6 @@ export const PUBLIC_PATHS = [
   "/tools/oc-chemistry-test",
   "/tools/oc-name-generator",
   "/tools/oc-questions",
-  "/prompts",
   "/about",
   "/costs",
   "/marketing",

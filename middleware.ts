@@ -388,9 +388,12 @@ function route(req: NextRequest): NextResponse {
 
 export const config = {
   // Run on pages only: skip /api, Next internals, files with an extension, and the metadata image routes.
-  // Plus the agent docs and crawler files, matched by exact path so they can be counted (never gated).
+  // Plus the agent docs and crawler files, matched by exact path so they can be counted (never gated). The prompt
+  // library's tag pages are named too: tag ids like "light.golden" have a dot, which the first rule takes for a file,
+  // so those pages skipped the 18+ gate and the bot count (2026-11-22 audit).
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\..*|.*opengraph-image|.*icon|apple-icon).*)",
+    "/prompts/tag/:path*",
     // An /api path with a %-escape in it, for the bad-encoding check only (badlyEncoded).
     "/api/(.*%.*)",
     "/llms.txt",
