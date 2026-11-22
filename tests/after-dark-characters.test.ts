@@ -208,6 +208,8 @@ describe("a card", () => {
     expect(card).toContain("Restores clocks in a shop that smells of oil.");
     expect(card).toContain("2 nights · 2 pictures");
     expect((card.match(/ad-char-tags">([^<]*)</) ?? [])[1]?.split(" · ")).toHaveLength(2);
+    // A type filter says what its count is: "(1 character)", never a bare number beside a tag (audit 2026-11-22).
+    expect(page).toContain('<span class="ad-pp-count">(1 character)</span>');
     expect(card).toContain("Yours");
     // Their After Dark face, a plain picture (so the discreet blur keeps the card's corners, not a portrait's circle).
     const img = card.match(/<img[^>]*>/)?.[0] ?? "";

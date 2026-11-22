@@ -21,6 +21,37 @@ export type PickerData = { cast: CastMember[]; nights: CastPair[]; firstScene: s
 export const fold = (s: string): string => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const first = (n: string) => n.split(/\s+/)[0];
 
+/**
+ * Those of `cast` whose name holds `query` (accents and case aside), a name with a word that starts with it first, then A
+ * to Z; everyone, A to Z, with nothing typed. For picking one face (Step in's set-up), where pickGroups picks two.
+ */
+export function byName<T extends { name: string }>(cast: readonly T[], query: string): T[] {
+  const q = fold(query.trim());
+  const starts = (c: T) => (q && fold(c.name).split(/\s+/).some((w) => w.startsWith(q)) ? 0 : 1);
+  return cast.filter((c) => !q || fold(c.name).includes(q)).sort((x, y) => starts(x) - starts(y) || x.name.localeCompare(y.name));
+}
+
+/**
+ * Step in's picker, one face: with nothing typed, the faces from their scenes (the latest first), then the house cast, then
+ * everyone else, A to Z; with something typed, the matches (byName). Empty groups are left out.
+ */
+export function oneFaceGroups<T extends { id: string; name: string; house?: boolean }>(cast: readonly T[], recent: readonly string[], query: string): { label: string; faces: T[] }[] {
+  if (query.trim()) {
+    const found = byName(cast, query);
+    return found.length ? [{ label: `${found.length} ${found.length === 1 ? "match" : "matches"}`, faces: found }] : [];
+  }
+  const ids = [...new Set(recent)];
+  const theirs = ids.map((id) => cast.find((c) => c.id === id)).filter((c): c is T => Boolean(c));
+  const left = byName(cast, "").filter((c) => !ids.includes(c.id));
+  const house = left.filter((c) => c.house);
+  const rest = left.filter((c) => !c.house);
+  return [
+    { label: "From your scenes", faces: theirs },
+    { label: "House cast", faces: house },
+    { label: theirs.length || house.length ? "Everyone else" : `Everyone · ${rest.length}`, faces: rest },
+  ].filter((g) => g.faces.length);
+}
+
 /** Under way: lines, a chapter filed, or kept from an earlier cast. */
 export const underWay = (p: CastPair): boolean => Boolean(p.earlier) || p.lines > 0 || (p.chapter ?? 1) > 1;
 

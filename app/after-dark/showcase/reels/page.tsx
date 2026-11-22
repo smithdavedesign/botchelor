@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { eligibleIds } from "@/lib/adult/characters";
 import { afterDarkTitle, OWN_VEIL_ATTR } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { lockedForCookies } from "@/lib/adult/privacy";
@@ -35,6 +36,8 @@ export default async function AfterDarkShowcaseReelsPage({ searchParams }: Props
   const safe = `/showcase/reels${reelsQuery({ ...sp, side: undefined })}`;
   if (!(await canAfterDark(db, auth)).ok || !viewer.ratings.includes("nsfw")) redirect(safe);
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
-  const feed = await reelFeed(db, viewer, { ...sp, side: "after_dark" }, "after_dark");
+  // Who a night can start with (this viewer's After Dark cast): their button opens their After Dark page, never the show's.
+  const nights = [...(await eligibleIds(db, auth!.userId))];
+  const feed = await reelFeed(db, viewer, { ...sp, side: "after_dark" }, "after_dark", { nights });
   return <div {...{ [OWN_VEIL_ATTR]: "reels" }}>{feed}</div>;
 }

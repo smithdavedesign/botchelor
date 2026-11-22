@@ -28,6 +28,7 @@ import AfterDarkShowcaseReelsPage from "@/app/after-dark/showcase/reels/page";
 import type ReelFeed from "@/app/showcase/reels/ReelFeed";
 import { claimAdmin } from "@/lib/admins";
 import { ADULT_COOKIE } from "@/lib/age";
+import { afterDarkHouseIds } from "@/lib/adult/characters";
 import { OWN_VEIL_ATTR } from "@/lib/adult/discreet";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -158,6 +159,9 @@ describe("After Dark's showcase reels", () => {
     // The next pages ask for this side; the way back is After Dark's showcase, whose address says the side itself.
     expect(feed.props.query).toBe("medium=picture&side=after_dark");
     expect(feed.props.back).toBe("/after-dark/showcase?medium=picture");
+    // Its links stay on After Dark: the reels know they're After Dark's, and who a night can start with (this viewer's cast).
+    expect(feed.props.place).toBe("after_dark");
+    expect(feed.props.nights).toEqual(expect.arrayContaining(afterDarkHouseIds()));
     expect((await reels({})).props.children).toMatchObject({ props: { back: "/after-dark/showcase" } });
   });
 

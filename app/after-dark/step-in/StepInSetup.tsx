@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
+import { oneFaceGroups } from "@/lib/adult/pair-pick";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
@@ -17,6 +19,8 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 type Opening = 0 | 1 | 2 | "surprise" | "written";
 
+const NO_RECENT: string[] = [];
+
 /**
  * Step in's set-up (lib/adult/step-in.ts startStepIn), four small steps on one page: who, where, the roleplay and which
  * side of it you play, and how it opens. Everything shown about a roleplay is from the viewer's side (lib/scene-cards.ts
@@ -24,6 +28,7 @@ type Opening = 0 | 1 | 2 | "surprise" | "written";
  */
 export default function StepInSetup({
   cast,
+  recent = NO_RECENT,
   places,
   persona,
   personaLeftOut = false,
@@ -31,6 +36,8 @@ export default function StepInSetup({
   preselect,
 }: {
   cast: StepInCharacter[];
+  /** Who they've had scenes with, the latest first (shown first). */
+  recent?: string[];
   places: StepInPlace[];
   /** The name the viewer goes by in scenes (lib/persona.ts), when After Dark's lines let it through. */
   persona: { name: string } | null;
@@ -43,6 +50,7 @@ export default function StepInSetup({
 }) {
   const router = useRouter();
   const [who, setWho] = useState<string | null>(cast.some((c) => c.id === preselect) ? preselect! : null);
+  const [query, setQuery] = useState("");
   const [placeId, setPlaceId] = useState(places.find((p) => p.id === "venue:home")?.id ?? places[0]?.id ?? "");
   const [roleplayId, setRoleplayId] = useState("");
   const [you, setYou] = useState<0 | 1>(0);
@@ -53,6 +61,9 @@ export default function StepInSetup({
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
 
   const character = cast.find((c) => c.id === who) ?? null;
+  // Who to pick from: theirs, the house cast and everyone else, or what the search finds (lib/adult/pair-pick.ts, as on the hub's picker).
+  const groups = useMemo(() => oneFaceGroups(cast, recent, query), [cast, recent, query]);
+  const shown = groups.reduce((n, g) => n + g.faces.length, 0);
   const place = places.find((p) => p.id === placeId) ?? null;
   const rp = ROLEPLAYS.find((r) => r.id === roleplayId) ?? null;
   const name = character ? first(character.name) : "them";
@@ -103,13 +114,59 @@ export default function StepInSetup({
     <div className="ad-si-setup">
       <fieldset className="card ad-si-step">
         <legend>1 · Who</legend>
-        <div className="ad-cast-chips" role="group" aria-label="Who you're in the scene with">
-          {cast.map((c) => (
-            <button key={c.id} type="button" className={`ad-cast-chip${c.id === who ? " on" : ""}`} aria-pressed={c.id === who} title={c.name} onClick={() => setWho(c.id)}>
-              <CharacterName character={c} label={first(c.name)} link={false} size={26} />
+        {/* A face and a whole name each, with a search (first names alone made the cast's Alexes one chip each, and 150 chips
+            to scan): the hub's picker's look. Once someone is picked, just them, and a way back to the rest. */}
+        {character ? (
+          <div className="ad-si-who" data-step-in-who={character.id}>
+            <CharacterName character={character} link={false} size={44} strong />
+            <button type="button" className="link-button" onClick={() => setWho(null)}>
+              Pick someone else
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <>
+            <input
+              type="search"
+              className="ad-pp-search ad-si-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={`Search ${cast.length} ${cast.length === 1 ? "character" : "characters"} by name`}
+              aria-label="Search the cast by name"
+              autoComplete="off"
+              spellCheck={false}
+              data-step-in-search
+            />
+            <p className="sr-only" aria-live="polite">
+              {query.trim() ? `${shown} ${shown === 1 ? "match" : "matches"}` : ""}
+            </p>
+            <div className="ad-pp-panel ad-si-panel" role="group" aria-label="Who you're in the scene with">
+              {groups.length ? (
+                groups.map((g) => (
+                  <section key={g.label} className="ad-pp-group">
+                    <h4 className="ad-pp-group-label">{g.label}</h4>
+                    <ul className="ad-pp-grid">
+                      {g.faces.map((c) => (
+                        <li key={c.id}>
+                          <button type="button" className="ad-pp-face" title={c.name} onClick={() => setWho(c.id)} data-face={c.id}>
+                            <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house ?? false} portraitSrc={c.portrait} size={56} decorative round />
+                            <span className="ad-pp-name">{c.name}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))
+              ) : (
+                <p className="muted small ad-pp-none">
+                  Nobody called “{query.trim()}”.{" "}
+                  <button type="button" className="link-button" onClick={() => setQuery("")}>
+                    Show everyone
+                  </button>
+                </p>
+              )}
+            </div>
+          </>
+        )}
         <p className="muted small">
           {persona ? (
             <>

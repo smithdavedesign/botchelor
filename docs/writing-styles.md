@@ -97,7 +97,7 @@ Depth is sold with a plan, never by the line (David, 2026-11-17: "I trust your j
 | A longer memory in companion chats (40 turns kept word for word instead of 20) | Companion Plan members and admins | Included |
 | Making a story of a show date | One of the date's own people, plan members, admins | Included with the plan. Otherwise 1 bought date (`STORY_TOKENS`), given back if it doesn't come. |
 | Reading a story that exists | Everyone who can see the date's lines | Free |
-| Narrated After Dark nights and chapter stories | Admins now; everyone After Dark is open to once its **"narrated"** rollout switch is flipped (Settings → Not open yet) | Included with the subscription. One scene step each, like any other step. |
+| Narrated After Dark nights and chapter stories | Admins now; everyone After Dark is open to once its **"narrated"** rollout switch is flipped (Settings → Rollout) | Included with the subscription. One scene step each, like any other step. |
 
 The first version (admins only, the morning of 2026-11-17) charged a second token per narrated date and double weight per After Dark step. That was replaced the same day, before anyone but admins had it.
 
@@ -128,7 +128,7 @@ select created_at, flags->'narration' from adult_steps where flags ? 'narration'
 
 - **`WRITING_STYLES`** (env, both apps): unset or `members` is the plan's members and admins on the show; `admins` is admins only; `0` turns Narrated and new stories off everywhere (kept stories still read). See `docs/hosting.md`.
 - **`COMPANION_STORY_MODE`** (env, the show's app; on unless `0`): `0` puts every companion scene reply back to the script, whatever the person's style.
-- **After Dark's "narrated" rollout switch** (`lib/adult/rollout.ts`, Settings → Not open yet): `admins` until flipped to `everyone`.
+- **After Dark's "narrated" rollout switch** (`lib/adult/rollout.ts`, Settings → Rollout): `admins` until flipped to `everyone`.
 - `stylesOpen` in `lib/writing-style.ts` is the one gate the show's pickers, routes and jobs ask; `adultNarratedOpen` in `lib/adult/narrate-scene.ts` is After Dark's. The show never imports After Dark's code, so each side has its own style route (`/api/writing-style`, `/api/admin/after-dark/writing-style`).
 
 ## Files

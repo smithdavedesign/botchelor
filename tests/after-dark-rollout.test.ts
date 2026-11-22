@@ -90,20 +90,20 @@ describe("the switches", () => {
 
 describe("the public door", () => {
   it("on admins only: no door for a visitor or someone not in; admins get the arrival screen", async () => {
-    expect(await afterDarkDoor(null, null, new Headers())).toEqual({ door: false, threshold: false });
+    expect(await afterDarkDoor(null, null, new Headers())).toEqual({ door: false, threshold: false, admin: false });
     const someone = randomUUID();
-    expect(await afterDarkDoor(t.db, { userId: someone, authenticated: true }, new Headers())).toEqual({ door: false, threshold: false });
+    expect(await afterDarkDoor(t.db, { userId: someone, authenticated: true }, new Headers())).toEqual({ door: false, threshold: false, admin: false });
     const admin = randomUUID();
     await claimAdmin(t.db, admin);
-    expect(await afterDarkDoor(t.db, { userId: admin, authenticated: true }, new Headers())).toEqual({ door: true, threshold: true });
+    expect(await afterDarkDoor(t.db, { userId: admin, authenticated: true }, new Headers())).toEqual({ door: true, threshold: true, admin: true });
     expect(await publicDoorOpen()).toBe(false);
   });
 
   it("opened: every adult where it isn't blocked sees the door and the arrival screen; a blocked place still doesn't", async () => {
     await open("public_door");
     expect(await publicDoorOpen()).toBe(true);
-    expect(await afterDarkDoor(null, null, new Headers())).toEqual({ door: true, threshold: true });
-    expect(await afterDarkDoor(t.db, { userId: randomUUID(), authenticated: true }, new Headers())).toEqual({ door: true, threshold: true });
+    expect(await afterDarkDoor(null, null, new Headers())).toEqual({ door: true, threshold: true, admin: false });
+    expect(await afterDarkDoor(t.db, { userId: randomUUID(), authenticated: true }, new Headers())).toEqual({ door: true, threshold: true, admin: false });
     setPlaceForTests({ country: null, region: null });
     expect((await afterDarkDoor(null, null, new Headers())).door).toBe(false);
   });

@@ -27,15 +27,17 @@ export async function publicDoorOpen(): Promise<boolean> {
   return shared("after-dark:available", async () => adultAvailable(await getDb())).catch(() => false);
 }
 
-export type Door = { door: boolean; threshold: boolean };
+/** `admin`: an admin's spends are free, so After Dark's header shows them no token count (a red "0" read as broke). */
+export type Door = { door: boolean; threshold: boolean; admin: boolean };
 
 /** The header's door for this viewer here, and whether crossing it shows the arrival screen. */
 export async function afterDarkDoor(db: Db | null, auth: { userId: string; authenticated: boolean } | null, headers: Headers): Promise<Door> {
   const rollout = await adRollout();
   const here = db && auth ? await accessHere(db, auth, headers).catch(() => null) : null;
-  const threshold = rolloutOn(rollout, "public_door", Boolean(here?.admin));
-  if (here?.entitled.ok) return { door: here.mode !== "blocked", threshold };
-  if (!(await publicDoorOpen())) return { door: false, threshold: false };
+  const admin = Boolean(here?.admin);
+  const threshold = rolloutOn(rollout, "public_door", admin);
+  if (here?.entitled.ok) return { door: here.mode !== "blocked", threshold, admin };
+  if (!(await publicDoorOpen())) return { door: false, threshold: false, admin };
   const mode = here ? here.mode : accessFor(requestPlace(headers), false).mode;
-  return { door: mode !== "blocked", threshold };
+  return { door: mode !== "blocked", threshold, admin };
 }
