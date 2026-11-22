@@ -323,6 +323,7 @@ export const LOOK_ALIKES: readonly LookAlike[] = [
   { table: "web_events", column: "visitor", holds: "a random id the browser keeps for the click log (app/engagement.ts): never the person's id. Its rows go with the account's (deleteAccount)" },
   { table: "mcp_sessions", column: "visitor", holds: "a keyed hash of the caller's network address (lib/limits.ts visitorKey), for telling one client's sessions apart" },
   { table: "web_events", column: "host", holds: "which of our sites the event came in on (show or after dark)" },
+  { table: "ops_log", column: "host", holds: "which of our servers wrote the row (show, after-dark, or local for a developer's machine): lib/ops-log.ts" },
   { table: "date_roleplays", column: "proposed_by", holds: "the character the proposal is from (a character's id); the person is proposer_user" },
   { table: "swipe_impressions", column: "viewer", holds: "the character whose deck it was (a character's id)" },
   { table: "unmatches", column: "by_character", holds: "the character whose side ended the match (a character's id)" },

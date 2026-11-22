@@ -2946,6 +2946,12 @@ button.ad-pp-face:hover:not(:disabled) {
 .ad-pp-none .link-button {
   margin: 0;
 }
+/* A group cut short (lib/adult/pair-pick.ts FACES_SHOWN): the rest of it a tap away, under its faces. */
+.after-dark .ad-pp-more {
+  display: block;
+  margin: var(--space-1) 0 0;
+  min-height: 2.75rem;
+}
 /* Both picked: the pair large, and the way in. */
 .after-dark-mode .card.ad-pp-chosen {
   display: flex;
