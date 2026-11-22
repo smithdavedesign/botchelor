@@ -56,16 +56,31 @@ async function standardView(p) {
     await p.locator(".watch-grid").waitFor({ timeout: 10_000 });
   }
 }
-/** Opens a tab of the room's panel (Chat, The date, Vote), in the standard room or the theater. */
+/**
+ * Opens a tab of the room's panel (Chat, The date, Vote), in the standard room or the theater, as the viewer's own pick.
+ * A panel leaves the tab it opened on for Vote once the ending can be called, which can be a moment after the page loads
+ * (when the host's page starts the clock), but it never leaves a tab the viewer picked (WatchRoom.tsx RoomPanel). So a tab
+ * already showing is picked by way of another one, and every click is checked: one made before the page hydrates is lost.
+ */
 async function roomTab(p, name) {
+  const label = new RegExp(`^${name}`);
+  const tab = p.getByRole("tab", { name: label }).first();
   // Before the first line, with nothing said in the chat, the panel is folded into the stage's foot (WatchRoom.tsx
   // OpenRoom): its Chat or its call opens the panel as a sheet, on that tab.
-  if (!(await p.getByRole("tab", { name: new RegExp(`^${name}`) }).count())) {
-    const foot = p.locator(".watch-open-foot button", { hasText: name === "Vote" ? /Call the ending|Your call/ : new RegExp(name) });
-    if (await foot.count()) await foot.first().click();
+  const foot = p.locator(".watch-open-foot button", { hasText: name === "Vote" ? /Call the ending|Your call/ : new RegExp(name) }).first();
+  for (let i = 0; i < 20 && !(await tab.count()); i++) {
+    if (await foot.count()) await foot.click();
+    await tab.waitFor({ timeout: 500 }).catch(() => {});
   }
-  const tab = p.getByRole("tab", { name: new RegExp(`^${name}`) }).first();
-  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  const pick = async (t) => {
+    for (let i = 0; i < 20 && (await t.getAttribute("aria-selected")) !== "true"; i++) {
+      await t.click();
+      await p.waitForTimeout(100);
+    }
+    assert((await t.getAttribute("aria-selected")) === "true", `the room's tabs wouldn't open ${name}`);
+  };
+  if ((await tab.getAttribute("aria-selected")) === "true") await pick(tab.locator("xpath=..").getByRole("tab").filter({ hasNotText: label }).first());
+  await pick(tab);
 }
 async function step(name, fn) {
   try {
