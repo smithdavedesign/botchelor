@@ -34,8 +34,10 @@ describe("quotedPrivate (lib/private-leak.ts)", () => {
 
   it("lets a shorter echo through, and anything that's public already", () => {
     expect(quotedPrivate(["She is terrified that nobody will ever choose her."], [SECRET])).toBeNull();
+    // What the public sheet already says is no leak; the rest of the secret still is.
     const bio = "I am secretly terrified that nobody will ever choose me first, and I say so on every date.";
-    expect(quotedPrivate([SECRET], [SECRET], [bio])).toBeNull();
+    expect(quotedPrivate(["She admits it again: I am secretly terrified that nobody will ever choose me first."], [SECRET], [bio])).toBeNull();
+    expect(quotedPrivate([SECRET], [SECRET], [bio])).toBe("that nobody will ever choose me first not");
     expect(quotedPrivate([SECRET], [])).toBeNull();
   });
 });

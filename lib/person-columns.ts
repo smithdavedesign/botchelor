@@ -57,7 +57,7 @@ export const PERSON_ID_NAMES: readonly string[] = [
   "user_id", "owner_id", "agent_id", "reporter_id", "creator_id", "proposed_by", "voter_id", "visitor", "viewer_id", "used_by",
   "reviewer_id", "recipient_id", "rater_id", "proposer_id", "host_id", "holder", "follower_id", "by_user", "booker", "blocker_id",
   "blocked_id", "answerer_user", "from_user", "to_user", "proposer_user", "actor", "created_by", "taken_by", "granted_by",
-  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer",
+  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer", "banned_by",
 ];
 
 /**
