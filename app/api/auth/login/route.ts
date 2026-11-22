@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { handle, json, jsonWithSession, parseBody, readJson } from "@/lib/http";
 import { visitorKey } from "@/lib/limits";
 import { LOGIN_WINDOW_MINUTES, loginHeld, recordLoginFailure } from "@/lib/login-guard";
+import { freshSessionVersion } from "@/lib/session-versions";
 
 const LoginInput = z.object({ handle: z.string().trim().min(1).max(40), password: z.string().min(1).max(400) });
 
@@ -31,6 +32,8 @@ export const POST = handle(async (req) => {
   try {
     const userId = await loginWithPassword(db, input.handle, input.password);
     const account = await accountForUser(db, userId);
+    // Signed with the account's session version as it is now (lib/session-versions.ts), not this process's copy.
+    await freshSessionVersion(db, userId);
     // What this browser made before signing in can be brought in, if it asks (lib/account-claim.ts): the offer is this cookie.
     return jsonWithSession({ authenticated: true, handle: account?.handle_display ?? null }, { userId, authenticated: true }, 200, [await offerAtSignIn(db, req, userId)]);
   } catch (err) {

@@ -136,6 +136,14 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
     delete: ROWS,
     move: skip("an identity that has been claimed is never claimed again: this row's primary key is what refuses it"),
   },
+  // How many times an account's sessions were ended (lib/session-versions.ts): the id and a count.
+  {
+    table: "session_versions",
+    column: "user_id",
+    export: out("a count of sign-outs everywhere and password changes, kept only to refuse old sessions"),
+    delete: kept("it is what keeps a deleted account's old sessions refused, and holds only the id and a count"),
+    move: NEEDS_ACCOUNT,
+  },
 
   // What they made: characters, the dates they booked, and what hangs off those.
   { table: "characters", column: "owner_id", export: at("characters"), delete: ROWS, move: REASSIGN },

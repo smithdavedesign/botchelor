@@ -9,11 +9,13 @@ type Ctx = { params: Promise<{ id: string }> };
 /**
  * The blurred teaser of an After Dark picture (lib/teaser-image.ts), for the show's pages: its owner (or an admin)
  * sees that it's there without its bytes ever reaching the show. Signed in, never a bot, and only where After Dark is
- * offered; the picture must be one mediaRef would show them (theirs, ready, a keyframe only once its shot passed).
+ * offered; the picture must be one mediaRef would show them (theirs, ready, a keyframe only once its shot passed). Only
+ * a signed-in session is a viewer here: an account's id without its sign-in sees nothing (lib/auth needsSignIn).
  */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
-  const viewer = authFromRequest(req)?.userId ?? null;
+  const auth = authFromRequest(req);
+  const viewer = auth?.authenticated ? auth.userId : null;
   if (!viewer || !teaserAllowed(req)) return json({ error: "not_found" }, 404);
   const db = await getDb();
   if (!(await mediaRef(db, id, viewer))) return json({ error: "not_found" }, 404);

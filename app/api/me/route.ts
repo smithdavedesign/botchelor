@@ -5,7 +5,8 @@ import { PLANS, planPrice, portalLink, renewingPlans } from "@/lib/paid-plans";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { getPoints } from "@/lib/game";
 import { episodeAllowance } from "@/lib/allowance";
-import { authFromRequest, handle, json, readJson } from "@/lib/http";
+import { authFromRequest, clearSessionCookies, handle, json, readJson } from "@/lib/http";
+import { bumpSessionVersion } from "@/lib/session-versions";
 
 /**
  * Who the current session is and its points. Points are read-only (derived from revealed predictions). The
@@ -23,7 +24,8 @@ export const GET = handle(async (req) => {
     points: await getPoints(db, auth.userId),
     dates_left: allowance.left,
     tokens_left: allowance.pack_left,
-    authenticated: auth.authenticated,
+    // Signed in means a session signed in to an account that still exists, not just what the cookie says.
+    authenticated: account !== null,
     account: account
       ? { handle: account.handle_display, has_password: Boolean(account.password_hash), has_google: Boolean(account.google_sub) }
       : null,
@@ -36,7 +38,8 @@ export const GET = handle(async (req) => {
  * Delete this account and all its data (PRD §6.1). Requires { "confirm": true } so it can't be triggered
  * by accident. Removes the profile, characters, private souls, predictions, orders and side-game data;
  * characters already in shared episodes keep their fictional sheet but lose the soul and the owner link. An
- * account needs its sign-in (lib/auth needsSignIn).
+ * account needs its sign-in (lib/auth needsSignIn). Every session it handed out ends with it (lib/session-versions.ts),
+ * and this browser drops back to anonymous play.
  */
 export const DELETE = handle(async (req) => {
   const auth = authFromRequest(req);
@@ -67,5 +70,8 @@ export const DELETE = handle(async (req) => {
   }
   const result = await deleteAccount(db, auth.userId);
   invalidateGraph(); // their characters leave the Constellation now
-  return json({ deleted: true, ...result });
+  await bumpSessionVersion(db, auth.userId);
+  const res = json({ deleted: true, ...result });
+  for (const c of clearSessionCookies()) res.headers.append("set-cookie", c);
+  return res;
 });
