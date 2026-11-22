@@ -118,6 +118,12 @@ describe("the page", () => {
     // The links that open the builder or a result are not for crawlers.
     for (const a of html.match(/<a [^>]*href="\/(create\?say|tools\/oc-chemistry-test\/result)[^>]*>/g) ?? []) expect(a).toContain('rel="nofollow"');
     expect(html).toContain('href="/tools"');
+    // One filled button over the list (2026-11-22: there were eight on a screen): each character's own is outlined, and
+    // Six more is the filled one.
+    const make = html.match(/<a [^>]*data-track="random-oc-make"[^>]*>/g) ?? [];
+    expect(make).toHaveLength(RANDOM_OCS_SHOWN);
+    for (const a of make) expect(a).toContain('class="button secondary"');
+    expect(html).toMatch(/<a class="button"[^>]*data-track="random-oc-more"[^>]*href="[^"]*batch=2"/);
   });
 
   it("keeps the genre and kind in its links", async () => {

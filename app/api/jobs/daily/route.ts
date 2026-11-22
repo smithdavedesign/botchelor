@@ -26,8 +26,9 @@ import { recordJobRun, startJobMeter } from "@/lib/job-meter";
 import { pruneServerErrors } from "@/lib/errors";
 import { pruneOpsLog } from "@/lib/ops-log";
 import { pruneRateHits } from "@/lib/limits";
-import { pruneMcpCalls } from "@/lib/agent-analytics";
+import { pruneMcpCalls, pruneMcpSessions } from "@/lib/agent-analytics";
 import { markDay7Returns } from "@/lib/agent-funnel";
+import { DAILY_PARTS, isDailyPart, nextDailyPart, notePart, type DailyPart } from "@/lib/daily-parts";
 import { dailyMatchmakerPicks } from "@/lib/house-matchmaker";
 import { houseTextsSweep, houseWordUpkeep } from "@/lib/house-texts";
 import { pruneHouseBotLogs, pruneKeptData } from "@/lib/retention";
@@ -53,18 +54,17 @@ const DEFAULT_BACKFILL = 2;
 const MAX_BACKFILL = 6;
 
 /**
- * The daily job's parts, in the order they run. The scheduled job (.do/app.yaml) calls them one request at a time,
- * ?part=<name>, with a pause between: the whole job in one request held the show's only instance for minutes and
- * 504'd the site twice on 2026-11-11. A call without ?part runs all four in this order (manual triggers, tests).
+ * The daily job's parts (lib/daily-parts.ts DAILY_PARTS), in the order they run. The scheduled job (.do/app.yaml) calls
+ * them one request at a time, ?part=<name>, with a pause between: the whole job in one request held the show's only
+ * instance for minutes and 504'd the site twice on 2026-11-11. A call without ?part runs all four in this order (manual
+ * triggers, tests), and ?part=resume runs the first of today's that didn't finish (lib/daily-parts.ts).
  * - upkeep: retention and the other prunes (database deletes, a few bucket deletes).
  * - show: the lobby's fresh room, backfilled conversations, queued dates, arcs, backings, the weekly cast date.
  * - people: the couples' daily texts, then the digest (so today's texts are in it), reminders, nudges, matchmaker.
  * - growth: IndexNow, the social network's numbers, the characters' weekly lessons, next season's candidates, concept
  *   embeddings, the relationship metrics.
  */
-const PARTS = ["upkeep", "show", "people", "growth"] as const;
-type Part = (typeof PARTS)[number];
-const isPart = (s: string): s is Part => (PARTS as readonly string[]).includes(s);
+type Part = DailyPart;
 
 type Meter = ReturnType<typeof startJobMeter>;
 type Ctx = { db: Db; t0: number; backfillLimit: number; step: Meter["step"] };
@@ -85,6 +85,7 @@ async function upkeep({ db, step }: Ctx): Promise<PartResult> {
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
   await step("rate_hits", () => pruneRateHits(db).catch(() => {}));
   await step("mcp_calls", () => pruneMcpCalls(db).catch(() => {}));
+  await step("mcp_sessions", () => pruneMcpSessions(db).catch(() => {}));
   // Companion reply counts past last month, and Subscribe clicks past a week (lib/companion-plan.ts, lib/paid-plans.ts).
   await step("companion_usage", () => pruneCompanionUsage(db).catch(() => {}));
   // The plan's monthly voice notes past this month, and any voice file no reply points at (lib/companion-voice.ts).
@@ -322,22 +323,52 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
 const RUN: Record<Part, (ctx: Ctx) => Promise<PartResult>> = { upkeep, show, people, growth };
 
 /**
+ * One part, with its rows in the servers' own log (lib/daily-parts.ts): started before it runs, then done or failed. A
+ * part a deploy cuts off leaves its started row alone, which is how the resume pass knows to run it again.
+ */
+async function runPart(ctx: Ctx, part: Part, again: { resumed?: string; try?: number }): Promise<PartResult> {
+  const t = Date.now();
+  await notePart(ctx.db, part, "started", again);
+  try {
+    const r = await RUN[part](ctx);
+    await notePart(ctx.db, part, "done", { ...again, ms: Date.now() - t });
+    return r;
+  } catch (err) {
+    await notePart(ctx.db, part, "failed", { ...again, ms: Date.now() - t, reason: err instanceof Error ? err.message : String(err) });
+    throw err;
+  }
+}
+
+/**
  * The daily job (16:20 UTC, from the DigitalOcean scheduled job in .do/app.yaml): keep the watch lobby alive with a fresh house-vs-house room
  * that plays line by line, backfill the conversation for a few dates that lack one, and run the generation
  * backstop. All free model, $0. Same gate as the backstop route (404 unless authorized); a manual trigger
- * may pass ?backfill=N (capped) to catch up faster, and ?part=<name> to run one part (PARTS above).
+ * may pass ?backfill=N (capped) to catch up faster, and ?part=<name> to run one part (DAILY_PARTS).
+ * A finished run answers ok: true, which is what the scheduled job looks for; a failed one answers an error.
+ * ?part=resume (the hourly job from 17:20 UTC) runs the first of today's parts that didn't finish, or answers
+ * resumed: null when there's none to run (all done, one still running, or before 17:00).
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
   const t0 = Date.now();
   const params = new URL(req.url).searchParams;
   const partParam = params.get("part");
-  if (partParam !== null && !isPart(partParam)) return json({ error: "unknown_part", parts: PARTS }, 400);
-  const parts: readonly Part[] = partParam ? [partParam] : PARTS;
+  const resume = partParam === "resume";
+  if (partParam !== null && !resume && !isDailyPart(partParam)) return json({ error: "unknown_part", parts: [...DAILY_PARTS, "resume"] }, 400);
   const asked = Number(params.get("backfill") ?? DEFAULT_BACKFILL);
   const backfillLimit = Number.isFinite(asked) ? Math.max(0, Math.min(MAX_BACKFILL, Math.floor(asked))) : DEFAULT_BACKFILL;
 
   const db = await getDb();
+  let parts: readonly Part[] = partParam !== null && isDailyPart(partParam) ? [partParam] : DAILY_PARTS;
+  const again: { resumed?: string; try?: number } = {};
+  if (resume) {
+    const next = await nextDailyPart(db);
+    if (!next.part) return json({ ok: true, resumed: null, reason: next.reason, busy: next.busy, gave_up: next.gave_up });
+    parts = [next.part];
+    again.resumed = next.why;
+    again.try = next.tries + 1;
+  }
+  const label = resume ? parts[0] : (partParam ?? "all");
   // Streamed: a part can take longer than the edge's 100 s idle cutoff, and the scheduled job must wait for it to
   // finish before it starts the next one (a 504 at 100 s used to end the call while the work went on).
   return jsonWhenDone(req, async () => {
@@ -347,14 +378,15 @@ async function run(req: Request): Promise<Response> {
     const counts: Record<string, unknown> = {};
     try {
       for (const part of parts) {
-        const r = await RUN[part](ctx);
+        const r = await runPart(ctx, part, again);
         Object.assign(body, r.body);
         Object.assign(counts, r.counts);
       }
+      body.ok = true;
+      if (resume) Object.assign(body, { resumed: parts[0], why: again.resumed });
     } finally {
       // What the run cost the instance, kept even when a step throws: the next outage says which step it was.
       const report = meter.finish();
-      const label = partParam ?? "all";
       await recordJobRun(db, "daily", label, report);
       track("daily_job_load", {
         part: label,
@@ -367,7 +399,7 @@ async function run(req: Request): Promise<Response> {
       });
       body.load = report;
     }
-    track("daily_job", { part: partParam ?? "all", ...counts });
+    track("daily_job", { part: label, resumed: again.resumed, ...counts });
     return body;
   });
 }

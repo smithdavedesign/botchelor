@@ -236,12 +236,22 @@ export function bunnyStore(cfg: BunnyConfig): ObjectStore {
 }
 
 /**
+ * The areas whose files live on Bunny wherever Bunny is set (BUNNY_AREAS): After Dark's, and the show's public clips
+ * (intros/…: the cast's hellos, lib/cast-intros.ts), which a browser plays straight from Bunny's CDN with byte ranges.
+ * Through the app, a clip lost its Content-Length (Next 16.4 streams a route's body), so Cloudflare kept it whole and
+ * answered a range with all 3.5 MB (the 2026-11-22 audit).
+ */
+const BUNNY_AREAS = ["after-dark/", "intros/"] as const;
+export const onBunny = (key: string): boolean => BUNNY_AREAS.some((p) => key.startsWith(p));
+
+/**
  * The show's host with After Dark on its own and both stores set: After Dark's files (keys after-dark/…) go to Bunny,
- * which every link to them reads from After Dark's host, and the show's own (looks/…, studio-pg/…) stay in its bucket.
- * An After Dark file read here that Bunny lacks is tried in the bucket, where the ones made before this were kept.
+ * which every link to them reads from After Dark's host, and so do the show's public clips (intros/…); the show's own
+ * (looks/…, studio-pg/…) stay in its bucket. A file read here that Bunny lacks is tried in the bucket, where the ones
+ * made before this were kept.
  */
 export function byArea(bunny: ObjectStore, bucket: ObjectStore): ObjectStore {
-  const ad = (key: string) => key.startsWith("after-dark/");
+  const ad = onBunny;
   return {
     put: (key, bytes, mime) => (ad(key) ? bunny : bucket).put(key, bytes, mime),
     get: async (key) => (ad(key) ? ((await bunny.get(key)) ?? (await bucket.get(key))) : bucket.get(key)),
@@ -280,6 +290,22 @@ export function mediaStores(env: Record<string, string | undefined> = process.en
   return out;
 }
 
+/**
+ * A signed link straight to a file on Bunny's CDN, for a route to redirect to (it answers byte ranges, from the edge),
+ * or null: Bunny isn't set here, or the file is one Bunny doesn't hold (an area outside BUNNY_AREAS, kept in the bucket
+ * or Postgres), and the route sends the bytes itself, as before.
+ */
+export async function cdnLink(key: string, now = Date.now(), env: Record<string, string | undefined> = process.env): Promise<{ url: string; maxAge: number } | null> {
+  if (!onBunny(key)) return null;
+  let cfg: BunnyConfig | null;
+  try {
+    cfg = bunnyConfig(env);
+  } catch {
+    return null;
+  }
+  return cfg ? bunnyStore(cfg).presign(key, now) : null;
+}
+
 const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "video/mp4": "mp4" };
 
 /**
@@ -287,8 +313,12 @@ const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "
  * hash makes a key name exactly one file, so a redrawn tile can't be confused with an old copy anywhere. The copy
  * script builds the same key (scripts/media-to-object-store.mjs).
  */
-/** companion/: companions' voice notes and selfies (lib/companion-voice.ts), the show's own, in its bucket. clips/: the home page's daily clip (lib/home-clip.ts). */
-export type MediaArea = "after-dark" | "looks" | "studio-pg" | "companion" | "clips";
+/**
+ * companion/: companions' voice notes and selfies (lib/companion-voice.ts), the show's own, in its bucket. clips/: the
+ * home page's daily clip (lib/home-clip.ts). intros/: the cast's hellos (lib/cast-intros.ts), public, on Bunny's CDN
+ * where the show has its settings (BUNNY_AREAS), else in the bucket.
+ */
+export type MediaArea = "after-dark" | "looks" | "studio-pg" | "companion" | "clips" | "intros";
 export function mediaKey(area: MediaArea, id: string, bytes: Buffer, mime: string): string {
   return `${area}/${id}-${sha256(bytes).slice(0, 16)}.${EXT[mime] ?? "bin"}`;
 }

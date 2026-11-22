@@ -381,6 +381,7 @@ describe("GET /api/jobs/daily", () => {
       "own_dates",
       "rate_hits",
       "mcp_calls",
+      "mcp_sessions",
       "companion_usage",
       "extras_usage",
       "live_calls",

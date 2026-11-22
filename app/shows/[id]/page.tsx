@@ -23,7 +23,9 @@ const isSlug = (s: string | null): s is SeasonFormatSlug => s !== null && (SEASO
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const show = await getShow(await getDb(), id).catch(() => null);
-  if (!show) return { title: "Show not found" };
+  // No such show: the not-found page's title and robots (this said "Show not found", index, follow), as the page itself
+  // turns it away, a failed read included (app/not-found.tsx).
+  if (!show) notFound();
   return pageMetadata({
     title: `${show.title}: the show, its seasons and its cast`,
     description: `${show.title} is a blind-date show for original characters: every season it has run, the format of each, and who is on the cast now.`,

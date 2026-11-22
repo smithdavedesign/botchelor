@@ -24,7 +24,7 @@ import type { Db } from "./db";
 import { isNotEnglish } from "./language";
 import { SCENE_PERSONA_FIELDS, SCENE_PERSONA_MAX, scenePersonaOn, type ScenePersona, type ScenePersonaField } from "./persona-shared";
 import { checkFields } from "./safety";
-import { showCardTextIssue } from "./scene-cards";
+import { showCardTextIssue } from "./scene-card-check";
 
 export * from "./persona-shared";
 
