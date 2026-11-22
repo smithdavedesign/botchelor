@@ -11136,9 +11136,17 @@ html.ad-studio-locked {
   background: var(--grad);
 }
 @media (max-width: 520px) {
+  /* Above the card's words on a phone, across its width: beside them, in a 7rem column, the longer names and ship names
+     ran out of their boxes (2026-11-22). */
   .tool-preview {
-    width: 7rem;
-    margin-left: var(--space-3);
+    float: none;
+    width: auto;
+    margin: 0 0 var(--space-3);
+  }
+  .tool-names {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .tool-fan {
     height: 6rem;
@@ -11155,7 +11163,7 @@ html.ad-studio-locked {
     translate: 1rem 0.3rem;
   }
   .tool-names li:nth-child(2) {
-    margin-right: var(--space-2);
+    margin-right: 0;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -11352,6 +11360,17 @@ html.ad-studio-locked {
 /* Three to a row in half a card: less padding, so a word like "restless" still shows whole. */
 .chem-traits input {
   padding-inline: 0.6rem;
+}
+/* An example reads as one, not as an answer already given (2026-11-22, as /create's wizard): every field's starts "e.g."
+   in italics, and the traits' three share one line under their heading. */
+.chem-form ::placeholder,
+.ship-form ::placeholder {
+  font-style: italic;
+}
+.chem-eg {
+  grid-column: 1 / -1;
+  margin-top: calc(-1 * var(--space-1));
+  font-style: italic;
 }
 .chem-form button {
   grid-column: 1 / -1;
