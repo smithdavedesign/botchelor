@@ -527,6 +527,8 @@
   margin-top: var(--space-6);
   border-top: 1px solid var(--line);
   padding-top: var(--space-2);
+  /* A jump to it (#delete-account) lands its line below the sticky header, not under it. */
+  scroll-margin-top: 5rem;
 }
 .account-delete > summary {
   color: var(--muted);
