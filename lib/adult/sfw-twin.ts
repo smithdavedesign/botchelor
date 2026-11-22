@@ -10,7 +10,7 @@
  * just passed). `prices.sfw_twin` tokens, admins free, given back when nothing came through. The owner's own only.
  */
 import type { Db } from "../db";
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { fitRatio } from "../media-tools/image";
 import { keepBytes } from "../object-store";
 import { loadCharacter, type Character } from "../character";
@@ -89,7 +89,7 @@ export async function sfwTwin(db: Db, viewer: string, mediaId: string, baseUrl: 
   const settings = await getAdultSettings(db);
   const price = settings.studio.prices.sfw_twin;
   const pays = price > 0 && !(await isAdmin(db, viewer));
-  if (pays && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `An SFW twin is ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.`);
+  if (pays && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `An SFW twin is ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}`);
   const back = async (status: number, error: string, message: string) => {
     if (pays) await refundAdTokens(db, viewer, price);
     return fail(status, error, `${message}${pays ? " Your tokens are back." : ""}`);

@@ -9,7 +9,7 @@ import { requestJson } from "@/app/request";
  * how the beta works) and an optional note for whoever reviews it. `source` is where they came from (the page's
  * ?source=, lib/adult/bridge.ts): it goes with the request, so the owner sees which door people use.
  */
-export default function InviteForm({ days, clipTokens, reelTokens, source = null }: { days: number; clipTokens: number; reelTokens: number; source?: string | null }) {
+export default function InviteForm({ days, source = null }: { days: number; source?: string | null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -50,8 +50,7 @@ export default function InviteForm({ days, clipTokens, reelTokens, source = null
       <h2>Ask for an invite</h2>
       <p>
         After Dark is in an invite-only beta. If you&apos;re invited, it&apos;s free for {days} days: every chapter and the pictures are on us. Video
-        isn&apos;t included: a clip is {clipTokens} token{clipTokens === 1 ? "" : "s"} and the video of the night {reelTokens} tokens, and token
-        packs go on sale when After Dark&apos;s own billing opens.
+        isn&apos;t part of the beta: clips and the video of the night open when After Dark&apos;s own billing does.
       </p>
       <label>
         <span>Anything you&apos;d like us to know (optional)</span>
@@ -63,7 +62,7 @@ export default function InviteForm({ days, clipTokens, reelTokens, source = null
       </label>
       <label className="check">
         <input type="checkbox" name="terms" required />
-        <span>I understand it&apos;s a beta: free for {days} days, and video costs tokens.</span>
+        <span>I understand it&apos;s a beta: free for {days} days, without video.</span>
       </label>
       <button type="submit" disabled={busy}>
         {busy ? "Sending…" : "Ask for an invite"}

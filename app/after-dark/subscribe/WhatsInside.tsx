@@ -15,7 +15,7 @@ const PLAYS = ["vampire", "bodyguard", "hotel-mixup", "rivals", "strangers-bar",
  * anyone: the season's cast as the show draws them, the places' empty backdrops, the roleplays' titles, what you get and
  * the privacy it keeps. Never a line of anyone's scene, and never an After Dark picture.
  */
-export default function WhatsInside({ shorts, price }: { shorts: number; price: string | null }) {
+export default function WhatsInside({ shorts, price, betaDays }: { shorts: number; price: string | null; betaDays: number | null }) {
   const places = PLACES.map((id) => DATE_VENUES.find((v) => v.id === id)).filter((v) => v !== undefined);
   const plays = PLAYS.map((id) => ROLEPLAYS.find((r) => r.id === id)).filter((r) => r !== undefined);
   return (
@@ -50,9 +50,17 @@ export default function WhatsInside({ shorts, price }: { shorts: number; price: 
           <strong>Nights that remember.</strong> Pick two of them, set the place and a roleplay, and watch it play out line by line: steer it,
           whisper to one of them, or let it run. Chapters pick up where the last one stopped.
         </li>
-        <li>
-          <strong>Pictures, video and voices</strong> of the moments you choose, drawn from the faces you set up for them.
-        </li>
+        {/* The beta's passes don't include video (lib/adult/pricing.ts clipsIncluded): said, not sold (the 2026-11-22 audit). */}
+        {betaDays !== null ? (
+          <li data-inside-media="beta">
+            <strong>Pictures and voices</strong> of the moments you choose, drawn from the faces you set up for them. Video isn&apos;t part of
+            the beta.
+          </li>
+        ) : (
+          <li data-inside-media>
+            <strong>Pictures, video and voices</strong> of the moments you choose, drawn from the faces you set up for them.
+          </li>
+        )}
         <li>
           <strong>The Studio:</strong> private photo shoots of your own characters.
         </li>
@@ -65,9 +73,14 @@ export default function WhatsInside({ shorts, price }: { shorts: number; price: 
         </li>
       </ul>
       {price && <p className="ad-inside-price">{price} a month when it opens. Cancel any time.</p>}
+      {betaDays !== null && (
+        <p className="ad-inside-price" data-inside-beta>
+          Invite only while it&apos;s in beta: free for {betaDays} days if you&apos;re invited.
+        </p>
+      )}
       {shorts > 0 && (
         <p className="muted small">
-          A taste, blurred: <Link href="/after-dark/shorts">the episodes</Link>, the house cast&apos;s nights as episodes.
+          <Link href="/after-dark/shorts">Preview the episodes</Link> (blurred): the house cast&apos;s nights.
         </p>
       )}
     </section>

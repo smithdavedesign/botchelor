@@ -13,26 +13,30 @@ const PHONE = "(max-width: 640px)";
  *
  * Back on 2026-11-16 ("our footer should match the designs"): the 2026-11-14 audit had cut the footer to one row; the
  * folding rows keep a phone's footer about as short as that row was.
+ *
+ * `keepOpen`: never folds, on a phone either (After Dark's Help and legal, 2026-11-22 audit: reporting and the 2257
+ * statement stay in the open there).
  */
-export default function FooterGroup({ title, children }: { title: string; children: ReactNode }) {
+export default function FooterGroup({ title, children, keepOpen = false }: { title: string; children: ReactNode; keepOpen?: boolean }) {
   const ref = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const phone = window.matchMedia(PHONE);
     const fit = () => {
+      const folds = phone.matches && !keepOpen;
       const summary = ref.current?.querySelector("summary");
-      if (summary) summary.tabIndex = phone.matches ? 0 : -1;
-      if (!phone.matches) ref.current?.setAttribute("open", "");
+      if (summary) summary.tabIndex = folds ? 0 : -1;
+      if (!folds) ref.current?.setAttribute("open", "");
     };
-    if (phone.matches) ref.current?.removeAttribute("open");
+    if (phone.matches && !keepOpen) ref.current?.removeAttribute("open");
     fit();
     phone.addEventListener("change", fit);
     return () => phone.removeEventListener("change", fit);
-  }, []);
+  }, [keepOpen]);
   const holdOpen = (event: MouseEvent) => {
-    if (!window.matchMedia(PHONE).matches) event.preventDefault();
+    if (keepOpen || !window.matchMedia(PHONE).matches) event.preventDefault();
   };
   return (
-    <details ref={ref} className="footer-group" open>
+    <details ref={ref} className={keepOpen ? "footer-group footer-group--open" : "footer-group"} open>
       <summary onClick={holdOpen}>
         <span>{title}</span>
         <Icon name="chevronRight" className="footer-chev" />

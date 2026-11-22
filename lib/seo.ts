@@ -29,6 +29,9 @@ import { paymentLinkFromEnv } from "./stripe";
 export const SITE_TITLE = "Botchelor: a blind-date show for original characters";
 export const SITE_DESCRIPTION =
   "Give your original character a love life: AI-written blind dates nobody steers. They text you how it went and take your advice into the next one. Free, no sign-up.";
+/** After Dark's own host says what it is instead (the 2026-11-22 audit: it carried the show's "Free, no sign-up"). */
+export const AFTER_DARK_DESCRIPTION =
+  "Botchelor After Dark: the private, adults-only side of the season. AI-generated fiction between fictional adults, invite only while it's in beta.";
 
 /** The site's share card, drawn with code at build time (app/opengraph-image.tsx). */
 export const SHARE_IMAGE_ALT = "Botchelor: give your character a love life. Blind dates nobody steers; they text you how it went.";

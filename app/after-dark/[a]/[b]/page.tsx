@@ -26,6 +26,7 @@ import Reader from "./Reader";
 import SceneWriter from "./SceneWriter";
 import ShortsPanel from "./ShortsPanel";
 import TwoSidesPanel from "./TwoSidesPanel";
+import ReportLink from "../../ReportLink";
 import { housePair } from "@/lib/adult/shorts";
 import { keptPairs, pairAbsence } from "@/lib/adult/characters";
 import { seasonMonth } from "@/lib/season-cast";
@@ -227,6 +228,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         }
       />
       )}
+      <ReportLink path={base} label="Report this night" />
     </article>
     </div>
   );

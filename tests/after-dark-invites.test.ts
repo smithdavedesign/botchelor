@@ -124,8 +124,9 @@ describe("reviewing from the email", () => {
     expect(welcome.subject).toBe("Your Botchelor invite");
     // Replies go to the operator.
     expect(welcome.replyTo).toBe(OPERATOR);
-    expect(welcome.text).toContain("Video isn't included: that one's on you");
-    expect(welcome.text).toContain("Each clip costs 1 token and the video of the night 10 tokens");
+    // No processor sells tokens here, so no price for them (2026-11-22 audit): video just isn't part of the beta.
+    expect(welcome.text).toContain("Video isn't part of the beta");
+    expect(welcome.text).not.toMatch(/Each clip costs|Tokens come in packs/);
     expect(welcome.text).toContain("https://botchelor.com/after-dark");
     // Discreet: nothing explicit in the subject.
     expect(welcome.subject).not.toMatch(/after dark|adult|18/i);
@@ -176,10 +177,14 @@ describe("what a beta pass includes", () => {
     expect((await canAfterDark(t.db, { userId: id, authenticated: true }, later)).ok).toBe(false);
   });
 
-  it("the welcome names the end date and the tokens page", () => {
-    const m = welcomeEmail({ base: "https://botchelor.com/", until: new Date("2026-11-30T12:00:00Z"), clipTokens: 2, reelTokens: 7 });
+  it("the welcome names the end date and the tokens page, and token prices only once tokens are on sale", () => {
+    const m = welcomeEmail({ base: "https://botchelor.com/", until: new Date("2026-11-30T12:00:00Z"), clipTokens: 2, reelTokens: 7, tokensOnSale: true });
     expect(m.text).toContain("free until November 30, 2026");
     expect(m.text).toContain("Each clip costs 2 tokens");
     expect(m.text).toContain("Tokens: https://botchelor.com/after-dark/tokens");
+    const closed = welcomeEmail({ base: "https://botchelor.com/", until: new Date("2026-11-30T12:00:00Z"), clipTokens: 2, reelTokens: 7, tokensOnSale: false });
+    expect(closed.text).toContain("free until November 30, 2026");
+    expect(closed.text).toContain("Video isn't part of the beta: clips and the video of the night open when After Dark's own billing does.");
+    expect(closed.text).not.toMatch(/Each clip costs|Tokens come in packs/);
   });
 });
