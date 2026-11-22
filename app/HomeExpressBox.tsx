@@ -16,11 +16,11 @@ import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN }
  * strangers on home in two weeks used the box, while /create's box, which has them, is where most drafts start). A tap
  * fills the field and leaves the button to them, so an example is a start, not a send.
  *
- * The empty field shows an example, marked "e.g." and short enough to show whole on a phone, and Meet them on an empty
- * field sends that example (2026-11-22 audit: on a phone the example was cut off, read as already typed, and the button
- * then only asked for a sentence).
+ * The empty field shows an example, marked "e.g." and short enough to show whole on a phone 320px wide, and Meet them on
+ * an empty field sends that example (2026-11-22 audit: on a phone the example was cut off, read as already typed, and the
+ * button then only asked for a sentence).
  */
-const EXAMPLE = "a lighthouse keeper who fixes radios";
+const EXAMPLE = "a retired lighthouse keeper";
 
 export default function HomeExpressBox() {
   const field = useRef<HTMLInputElement>(null);

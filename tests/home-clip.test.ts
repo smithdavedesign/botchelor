@@ -520,7 +520,7 @@ describe("the home hero", () => {
     for (const attr of [`minLength="${EXPRESS_TEXT_MIN}"`, `maxLength="${EXPRESS_TEXT_MAX}"`]) expect(input, attr).toContain(attr);
     // An empty box sends the example it shows, marked as one (2026-11-22 audit), so it isn't required.
     expect(input).not.toContain("required");
-    expect(input).toContain('placeholder="e.g. a lighthouse keeper who fixes radios"');
+    expect(input).toContain('placeholder="e.g. a retired lighthouse keeper"');
     expect(html).toContain('data-track="home-express"');
     // The box's button is the screen's one action: no second "Make your character" beside it, and no other doors.
     expect(html).not.toContain('<a class="button-ghost" href="/create">Make your character</a>');
