@@ -148,11 +148,13 @@ export async function listApprovedAssets(
 /**
  * An approved asset's gate columns and where its file is, without the file itself: `url` is a base64 data URL for a
  * drawn portrait (megabytes of text), and a small copy (app/api/assets/[id] ?w=) is usually in the cache already.
+ * Which kind of url it is comes from its first 16 characters: Postgres reads only the start of a stored value for
+ * `left()`, but a `like` on the whole column unpacks all of it, every lookup (2026-11-22 audit: 77 buffers against 11).
  */
 export type AssetHead = { id: string; character_id: string | null; content_rating: ContentRating; path: string | null; is_data: boolean };
 export async function getApprovedAssetHead(db: Db, id: string): Promise<AssetHead | null> {
   const { rows } = await db.query<AssetHead>(
-    `select id, character_id, content_rating, case when url like 'data:%' then null else url end as path, (url like 'data:image/%') as is_data
+    `select id, character_id, content_rating, case when left(url, 16) like 'data:%' then null else url end as path, (left(url, 16) like 'data:image/%') as is_data
        from character_assets where id = $1 and review_status = 'approved'`,
     [id],
   );
@@ -216,10 +218,11 @@ export async function approvedClipId(db: Db, characterId: string): Promise<strin
 
 /**
  * Whether a character's newest approved clip is a playable video stored with us (a Veo clip, lib/video.ts) or
- * only a still (a clip from the retired Sora era, whose MP4 lived with OpenAI).
+ * only a still (a clip from the retired Sora era, whose MP4 lived with OpenAI). Told from the url's first 16 characters,
+ * so the video itself isn't read (getApprovedAssetHead).
  */
 export async function approvedClipIsVideo(db: Db, clipId: string): Promise<boolean> {
-  const { rows } = await db.query<{ video: boolean }>(`select url like 'data:video/mp4;%' as video from character_assets where id = $1`, [clipId]);
+  const { rows } = await db.query<{ video: boolean }>(`select left(url, 16) like 'data:video/mp4;%' as video from character_assets where id = $1`, [clipId]);
   return Boolean(rows[0]?.video);
 }
 

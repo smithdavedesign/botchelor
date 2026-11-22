@@ -36,7 +36,7 @@ export default function HouseDeck({ cards, still = false }: { cards: readonly De
         const place = (n - front + cards.length) % cards.length;
         return (
           <div key={c.id} className={`swipe-card wizard-deck-card house-deck-card is-${place === 0 ? "front" : place === 1 ? "next" : "back"}`} aria-hidden={place === 0 ? undefined : true}>
-            <span className="badge wizard-deck-example-tag">From the house</span>
+            <span className="badge wizard-deck-example-tag">On the show</span>
             <div className="swipe-photo">
               <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={140} decorative />
             </div>

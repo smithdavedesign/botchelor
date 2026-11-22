@@ -369,7 +369,9 @@ body {
 }
 
 /* A route's loading screen (app/PageLoading.tsx): what's loading, then a grey outline of the page with a slow shimmer.
-   Under reduced motion the global rule above stills the shimmer. */
+   Under reduced motion the global rule above stills the shimmer. It takes its page's width (.page-wide or .page-full,
+   app/ux/catalog.css), so main doesn't change width under it when the page arrives; the status line stays centred
+   under .page-full's reading measure for paragraphs. */
 .page-skeleton {
   padding: var(--space-3) 0;
 }
@@ -378,7 +380,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-4);
+  margin: 0 auto var(--space-4);
   color: var(--muted);
   font-weight: 600;
 }
@@ -539,6 +541,10 @@ body {
 
 main {
   max-width: var(--page-read);
+  /* At least the screen under the header, so the footer starts below the fold: a route's loading screen is short, and
+     the footer jumped from mid-screen to past it when the page arrived (2026-11-22 audit: a layout shift of about 0.8
+     on Watch and an episode at 1280×900). A short page's footer now sits at the bottom of the screen. */
+  min-height: calc(100svh - 4rem);
   margin: 0 auto;
   padding: 1.25rem var(--gutter) 4rem;
   scroll-margin-top: 1rem;
@@ -4603,7 +4609,7 @@ button.rating-chip:hover {
   background: color-mix(in srgb, var(--accent) 38%, rgba(0, 0, 0, 0.4));
 }
 .theater-replay .theater-verdict {
-  background: rgba(12, 8, 16, 0.97);
+  background: rgb(12, 8, 16);
   backdrop-filter: none;
 }
 .theater-replay .theater-verdict .share-ending {
@@ -4732,13 +4738,19 @@ button.rating-chip:hover {
   background: var(--media-bg);
 }
 /* The creator's verdict card (app/episodes/[id]/VerdictCard.tsx): the ending with a next step, so it stacks, and scrolls
-   inside the stage when a short screen can't hold all of it. */
+   inside the stage when a short screen can't hold all of it. It hangs just under the title bar and stops clear of the
+   transport at the foot: centred on the stage like the bare ending, a tall card started above a 1280×900 window, ending
+   line and all (2026-11-22 audit). Solid, so the bubbles behind it don't read through. */
 .verdict-card {
   display: grid;
   gap: var(--space-2);
   justify-items: center;
-  max-height: calc(100% - 7rem);
+  top: 4.5rem;
+  transform: translateX(-50%);
+  max-height: calc(100% - 10.5rem);
   overflow-y: auto;
+  background: rgb(12, 8, 16);
+  backdrop-filter: none;
 }
 .verdict-pair {
   display: flex;
@@ -5259,13 +5271,14 @@ button.chat-vote-tag[aria-pressed="true"] .chat-vote-tag-face {
     border-width: 1px 0 0;
     border-radius: 0;
   }
-  /* The verdict card sits at the foot of the phone's screen, over the thread, clear of the short scene banner. */
+  /* The verdict card sits at the foot of the phone's screen, over the thread, clear of the short scene banner, and of
+     the title bar over it: Exit, two lines of names and the "Just filmed" chip are about 6.4rem (2026-11-22 audit). */
   .theater-stage .verdict-card {
     top: auto;
     bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
     width: min(30rem, calc(100% - 2 * var(--gutter)));
-    max-height: calc(100% - 5rem);
+    max-height: calc(100% - 8rem);
   }
 }
 
@@ -11866,6 +11879,12 @@ main:has(> .episode-page) {
 .episode-hero {
   overflow: hidden;
   isolation: isolate;
+}
+/* Not while the theater is open, though: EpisodeTheater.tsx renders it inside the hero, fixed over the whole screen, and
+   an isolated hero is a stacking context its z-index can't climb out of. The sticky site header (z-index 20) then painted
+   over the theater's Exit and names, and, inert behind it, let presses through to the hidden Exit (2026-11-22 audit). */
+.episode-hero:has(.theater) {
+  isolation: auto;
 }
 .episode-hero-art {
   position: absolute;
