@@ -74,8 +74,9 @@ describe("an aired date's own page", () => {
     const said = (answer: string, myPick: string | null) => renderToStaticMarkup(createElement(DealbreakerQuiz, { episodeId: "e", characterName: "Cosmo", options: [answer], myPick, revealed: true, answer, correct: myPick === answer }));
     const stopped = said("Anyone who keeps both feet on the ground at all times.", null);
     expect(stopped).not.toContain("..");
-    expect(stopped).toContain("at all times.</strong> You didn");
-    expect(said("Liars", null)).toContain("Liars</strong>. You didn");
+    // Someone who never guessed is told the answer plainly, once (the 2026-11-22 audit: no "You didn't guess this one.").
+    expect(stopped).toContain("at all times.</strong></p>");
+    expect(said("Liars", null)).toContain("Liars</strong>.</p>");
     expect(said("Who does that?", "Who does that?")).toContain("Who does that?</strong> You picked it");
   });
 });
