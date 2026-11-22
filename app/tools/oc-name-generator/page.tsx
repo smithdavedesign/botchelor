@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { OC_NAMES_PATH, readBatch, readKind } from "@/lib/oc-names";
+import JsonLd from "@/app/JsonLd";
+import { toolJsonLd } from "@/lib/seo";
 import NamesView from "./NamesView";
 
 const TITLE = "OC Name Generator";
@@ -25,5 +27,11 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 /** The OC name generator (lib/oc-names.ts), every style mixed; each style has its own page at /tools/oc-name-generator/<style>. */
 export default async function OcNameGeneratorPage({ searchParams }: Props) {
   const sp = await searchParams;
-  return <NamesView style={null} kind={readKind(sp.kind)} batch={readBatch(sp.batch)} />;
+  return (
+    <>
+      <NamesView style={null} kind={readKind(sp.kind)} batch={readBatch(sp.batch)} />
+      {/* The tool as a free web app under the tools hub, for search (lib/seo.ts toolJsonLd). */}
+      <JsonLd data={toolJsonLd(OC_NAMES_PATH)} />
+    </>
+  );
 }

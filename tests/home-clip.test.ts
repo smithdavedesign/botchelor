@@ -435,7 +435,7 @@ describe("the home hero", () => {
     expect(html).toContain(`href="/episodes/${d.id}?play=1"`);
     expect(html).toContain("Watch the whole date");
     // The screen's promise and its one field; the last "Make your character" is at the end of the page.
-    expect(html).toContain("A blind-date show where nobody steers.");
+    expect(html).toContain("An AI blind-date show where nobody steers.");
     expect(html).toContain('<form class="home-express" action="/create" method="get">');
     expect(html.match(/>Make your character<\/a>/g)?.length).toBe(1);
     // The clip's "Watch the whole date" is the way to watch; nothing else on the screen asks (design review 2026-11-16, D-18).
@@ -511,7 +511,7 @@ describe("the home hero", () => {
     as(null);
     const html = await home();
     const box = html.indexOf('class="home-express"');
-    expect(box).toBeGreaterThan(html.indexOf("A blind-date show where nobody steers."));
+    expect(box).toBeGreaterThan(html.indexOf("An AI blind-date show where nobody steers."));
     expect(box).toBeLessThan(html.indexOf('class="home-open-clip"'));
     expect(html).toContain('<form class="home-express" action="/create" method="get">');
     expect(html).toContain("Describe someone in a sentence");

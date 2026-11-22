@@ -329,7 +329,8 @@ describe("the page (app/seasons/[slug])", () => {
     vi.useFakeTimers({ now: NOV(20), toFake: ["Date"] });
     const { generateMetadata } = await import("@/app/seasons/[slug]/page");
     const meta = await generateMetadata({ params: Promise.resolve({ slug: "december-2026" }) });
-    expect(meta.title).toBe("Season 3, December 2026: The Botchelor · Botchelor");
+    // The format's name says the brand already: no second "· Botchelor".
+    expect(meta.title).toBe("Season 3, December 2026: The Botchelor");
     expect(meta.robots).toBeUndefined();
     expect(String(meta.description)).toContain("casting is open now");
     for (const slug of ["november-2026", "january-2027", "march-2027"]) {

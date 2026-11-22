@@ -34,6 +34,9 @@ export const LANDING_CHANGES: readonly { path: string; changedAt: string }[] = [
   // The Character.AI rescue door (2026-11-14): /import's ?from=cai copy and the landing's new words.
   { path: "/import", changedAt: "2026-11-15T00:00:00Z" },
   { path: "/alternatives/character-ai", changedAt: "2026-11-15T00:00:00Z" },
+  // New titles that say "AI" (2026-11-22 audit), and the landings search engines had listed but never fetched.
+  ...["/", "/create", "/pricing", "/faq", "/seasons", "/contact", "/press", "/security", "/import", "/reviews"].map((path) => ({ path, changedAt: "2026-11-23T00:00:00Z" })),
+  ...["character-ai", "janitor-ai", "spicychat", "chai"].map((slug) => ({ path: `/alternatives/${slug}`, changedAt: "2026-11-23T00:00:00Z" })),
 ];
 
 /** The landing pages whose words changed inside the window (LANDING_CHANGES), as full URLs. */

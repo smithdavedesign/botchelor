@@ -664,7 +664,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     <article>
       <JsonLd
         data={[
-          characterJsonLd(c),
+          characterJsonLd(c, undefined, faceSrc),
           breadcrumbJsonLd([
             { name: "Botchelor", path: "/" },
             { name: "Characters", path: listHref },

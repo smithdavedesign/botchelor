@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
 import MoreTools from "../MoreTools";
+import JsonLd from "@/app/JsonLd";
+import { toolJsonLd } from "@/lib/seo";
 import { nextQuestion, OC_QUESTION_THEMES, OC_QUESTIONS, OC_QUESTIONS_PATH, ocQuestionHref, readQuestion } from "@/lib/oc-questions";
 
 const COUNT = OC_QUESTIONS.length;
@@ -93,6 +95,8 @@ export default async function OcQuestionsPage({ searchParams }: Props) {
           Make your character
         </Link>
         <MoreTools current={OC_QUESTIONS_PATH} />
+        {/* The tool as a free web app under the tools hub, for search (lib/seo.ts toolJsonLd). */}
+        <JsonLd data={toolJsonLd(OC_QUESTIONS_PATH)} />
       </section>
     </>
   );

@@ -23,7 +23,8 @@ async function creator(handle: string) {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const c = await creator((await params).handle);
   if (!c) return { title: "Creator not found" };
-  return { title: `${c.display_name} (@${c.handle}) on Botchelor`, description: c.bio ?? `Pictures and clips by @${c.handle}.`, alternates: { canonical: `/creators/${c.handle}` } };
+  // The show's own profile is named Botchelor: "Botchelor (@botchelor) on Botchelor" said it twice (2026-11-22 audit).
+  return { title: /botchelor/i.test(c.display_name) ? `${c.display_name} (@${c.handle}): pictures and clips` : `${c.display_name} (@${c.handle}) on Botchelor`, description: c.bio ?? `Pictures and clips by @${c.handle}.`, alternates: { canonical: `/creators/${c.handle}` } };
 }
 
 /** A creator's page (lib/showcase.ts): their handle, name and bio, and what they published, with the showcase's filters. */

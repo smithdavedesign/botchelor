@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { CSSProperties } from "react";
+import { Fragment, type CSSProperties } from "react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Icon, { type IconName } from "@/app/Icon";
@@ -33,6 +33,8 @@ import { ownedSkus } from "@/lib/payments";
 import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
 import { IMPORT_CAI_PATH } from "@/lib/import-character";
+import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
+import { FREE_TOOLS } from "@/lib/tools";
 import DateExcerpt from "./DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import { CallsLine } from "./YourCalls";
@@ -534,6 +536,37 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             Make your character
           </Link>
         </p>
+      )}
+
+      {/* Below the fold of a first visit's one screen (which keeps its one job): the free tools, the way in from another
+          app and the seasons, the landings search hadn't fetched (2026-11-22 audit: the home page linked none of them for a
+          first visit). An owner's page has its own lines for these in the cast section above. */}
+      {!creator && open && (
+        <nav className="home-more-links" aria-label="More of Botchelor">
+          <p className="muted small home-sky-line">
+            Free tools:{" "}
+            {FREE_TOOLS.map((t, i) => (
+              <Fragment key={t.path}>
+                {i > 0 && " · "}
+                <Link href={t.path}>{t.inline}</Link>
+              </Fragment>
+            ))}
+          </p>
+          <p className="muted small home-sky-line">
+            Coming from another app?{" "}
+            {ALTERNATIVES.map((a, i) => (
+              <Fragment key={a.slug}>
+                {i > 0 && " · "}
+                <Link href={alternativePath(a.slug)}>{a.name}</Link>
+              </Fragment>
+            ))}
+            {" · "}
+            <Link href="/import">Bring your character</Link>
+          </p>
+          <p className="muted small home-sky-line">
+            The show: <Link href="/seasons">every season so far</Link> · <Link href="/casting">casting for next month</Link>
+          </p>
+        </nav>
       )}
 
       {/* LaunchNest's listing checks the home page for its badge (its embed code, as given). Only here, not on every page:

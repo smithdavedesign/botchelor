@@ -72,7 +72,8 @@ export async function liveSeasonPaths(db: Db, now: Date = new Date(), env: Env =
 export function seasonLiveMeta(season: SeasonRef, def: SeasonFormatDef, phase: SeasonPagePhase): { title: string; description: string } {
   const starts = new Date(`${season.id}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
   return {
-    title: `Season ${season.number}, ${season.label}: ${def.title} · Botchelor`,
+    // A format named for the show ("The Botchelor") already says it: no second "· Botchelor" (2026-11-22 audit).
+    title: `Season ${season.number}, ${season.label}: ${def.title}${/botchelor/i.test(def.title) ? "" : " · Botchelor"}`,
     description: `${SEASON_PREMISE} ${def.pitch} ${phase === "preseason" ? `It starts ${starts}, and casting is open now.` : "On now: three dates to start with, the suitors, and when the roses are handed out."}`,
   };
 }

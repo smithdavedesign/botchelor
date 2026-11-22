@@ -38,6 +38,8 @@ import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import OriginBadge from "@/app/OriginBadge";
+import JsonLd from "@/app/JsonLd";
+import { breadcrumbJsonLd } from "@/lib/seo";
 import { originOf, originsOf, type Origin } from "@/lib/origin";
 import PairTiesCard from "@/app/graph/PairTiesCard";
 import { closedSeasons } from "@/lib/season-ref";
@@ -225,6 +227,16 @@ export default async function CouplePage({ params, searchParams }: Props) {
 
   return (
     <div className="couple-page">
+      {/* Where the couple sits on the site, for search (2026-11-22 audit: no page-level data); never a private character's. */}
+      {!ca.private && !cb.private && (
+        <JsonLd
+          data={breadcrumbJsonLd([
+            { name: "Botchelor", path: "/" },
+            { name: "Characters", path: "/characters" },
+            { name: `${ca.name} and ${cb.name}`, path: `/couples/${ca.id}/${cb.id}` },
+          ])}
+        />
+      )}
       <section className="card couple-head">
         {stageVenue ? <VenuePhoto venue={stageVenue} className="couple-stage" eager>{faces}</VenuePhoto> : faces}
         <h1>

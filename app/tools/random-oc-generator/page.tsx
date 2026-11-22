@@ -17,7 +17,7 @@ import {
   readOcBatch,
   roleLine,
 } from "@/lib/random-oc";
-import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
+import { pageMetadata, toolJsonLd } from "@/lib/seo";
 import { TOOLS_PATH } from "@/lib/tools";
 import MoreTools from "../MoreTools";
 
@@ -169,13 +169,8 @@ export default async function RandomOcGeneratorPage({ searchParams }: Props) {
         <MoreTools current={RANDOM_OC_PATH} />
       </section>
 
-      <JsonLd
-        data={breadcrumbJsonLd([
-          { name: "Botchelor", path: "/" },
-          { name: "Free OC tools", path: TOOLS_PATH },
-          { name: TITLE, path: RANDOM_OC_PATH },
-        ])}
-      />
+      {/* The tool as a free web app under the tools hub, for search (lib/seo.ts toolJsonLd). */}
+      <JsonLd data={toolJsonLd(RANDOM_OC_PATH)} />
     </div>
   );
 }

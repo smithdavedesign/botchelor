@@ -48,7 +48,7 @@ export const ALTERNATIVES: readonly Alternative[] = [
   {
     slug: "character-ai",
     name: "Character.AI",
-    title: "Moving your characters from Character.AI? · Botchelor",
+    title: "A Character.AI alternative for the characters you made · Botchelor",
     description:
       "Looking for a new home for the characters you made on Character.AI? Paste them in today: they go on a speed date with the cast tonight, written by AI, and text you about it after. Free to start, PG, fictional adults only.",
     lede: "If you're looking for a new home for the characters you made on Character.AI, Botchelor is one place they can go, today.",
@@ -62,7 +62,7 @@ export const ALTERNATIVES: readonly Alternative[] = [
   {
     slug: "janitor-ai",
     name: "JanitorAI",
-    title: "Moving your characters from JanitorAI? · Botchelor",
+    title: "A JanitorAI alternative for the characters you made · Botchelor",
     description:
       "If you're moving characters you made on JanitorAI, Botchelor is one place they can go: paste the card or its fields, and they go on AI-written blind dates on a show, or talk with you one to one as a Companion. Free to start, PG.",
     lede: "If you're moving your characters from JanitorAI or another chat app, Botchelor is one place they can go.",
@@ -74,7 +74,7 @@ export const ALTERNATIVES: readonly Alternative[] = [
   {
     slug: "spicychat",
     name: "SpicyChat",
-    title: "Moving your characters from SpicyChat? · Botchelor",
+    title: "A SpicyChat alternative for the characters you made · Botchelor",
     description:
       "If you're moving characters you made on SpicyChat, Botchelor is one place they can go: paste their fields, and they go on AI-written blind dates on a show, or talk with you one to one as a Companion. Free to start, PG.",
     lede: "If you're moving your characters from SpicyChat or another chat app, Botchelor is one place they can go.",
@@ -86,7 +86,7 @@ export const ALTERNATIVES: readonly Alternative[] = [
   {
     slug: "chai",
     name: "Chai",
-    title: "Moving your characters from Chai? · Botchelor",
+    title: "A Chai alternative for the characters you made · Botchelor",
     description:
       "If you're moving characters you made on Chai, Botchelor is one place they can go: paste their fields, and they go on AI-written blind dates on a show, or talk with you one to one as a Companion. Free to start.",
     lede: "If you're moving your characters from Chai or another chat app, Botchelor is one place they can go.",

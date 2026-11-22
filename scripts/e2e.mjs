@@ -174,7 +174,7 @@ async function main() {
       await page.goto(base);
       await page.getByRole("heading", { level: 1 }).waitFor();
       // A first visit's one screen (app/HomeOpen.tsx): the promise, the one-sentence box and the day's clip.
-      assert((await page.getByRole("heading", { level: 1, name: "A blind-date show where nobody steers." }).count()) > 0, "hero headline missing");
+      assert((await page.getByRole("heading", { level: 1, name: "An AI blind-date show where nobody steers." }).count()) > 0, "hero headline missing");
       assert((await page.getByText(/Free, no sign-up/).count()) > 0, "free/no-sign-up value prop missing");
       assert((await page.getByRole("link", { name: "Make your character" }).count()) > 0, "primary CTA missing");
       assert((await page.getByLabel("Describe someone in a sentence").count()) === 1, "the one-sentence box is missing");

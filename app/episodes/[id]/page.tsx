@@ -6,7 +6,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
-import { breadcrumbJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, logoJsonLd } from "@/lib/seo";
 import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle, wentWellTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
@@ -496,7 +496,9 @@ export default async function EpisodePage({
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
   // Which monthly season the date aired in (lib/season-ref.ts), for the TVEpisode markup; none before the seasons began.
-  const season = episode.aired_at ? (({ number, label, path }) => (number > 0 ? { number, label, path } : null))(seasonRef(seasonIdOf(new Date(episode.aired_at)))) : null;
+  const season = episode.aired_at
+    ? (({ id, number, label, path }) => (number > 0 ? { number, label, path, closed: id !== seasonIdOf(new Date()) } : null))(seasonRef(seasonIdOf(new Date(episode.aired_at))))
+    : null;
   const squash = (t: string | null | undefined) => (t ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   // The title card (docs/show-style.md): the episode's code and title once it airs. Older aired episodes have no
   // stored title, so the $0 template stands in; an unaired episode shows none (the setting is the tease).
@@ -534,7 +536,10 @@ export default async function EpisodePage({
             // since there is no video file to point at.
             "@type": ["CreativeWork", "TVEpisode"],
             partOfSeries: { "@type": "TVSeries", name: "Botchelor", url: `${base}/watch` },
-            ...(season ? { partOfSeason: { "@type": "TVSeason", name: season.label, seasonNumber: season.number, url: `${base}${season.path}` } } : {}),
+            // A running season's address moves on to the reunion or casting (app/seasons/[slug]): its url only once it closed.
+            ...(season
+              ? { partOfSeason: { "@type": "TVSeason", name: season.label, seasonNumber: season.number, ...(season.closed ? { url: `${base}${season.path}` } : {}) } }
+              : {}),
             ...(episode.aired_at ? { datePublished: episode.aired_at } : {}),
             name: `${a.name} × ${b.name}`,
             headline: `${a.name} × ${b.name}: an AI blind date`,
@@ -547,7 +552,7 @@ export default async function EpisodePage({
             character: episode.characters.map((c) => ({ "@type": "Person", name: c.name, url: `${base}/characters/${c.id}` })),
             image: `${base}/episodes/${episode.id}/opengraph-image`,
             isPartOf: { "@id": `${base}/#website` },
-            publisher: { "@type": "Organization", "@id": `${base}/#org`, name: "Botchelor", url: base, logo: `${base}/icon.svg` },
+            publisher: { "@type": "Organization", "@id": `${base}/#org`, name: "Botchelor", url: base, logo: logoJsonLd(base) },
           }, breadcrumbJsonLd([
             { name: "Botchelor", path: "/" },
             { name: "Watch", path: "/watch" },

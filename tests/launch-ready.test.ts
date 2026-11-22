@@ -21,7 +21,7 @@ import ShopPage from "@/app/shop/page";
 import sitemap from "@/app/sitemap";
 import TermsPage from "@/app/terms/page";
 import { setDbForTests, type Db } from "@/lib/db";
-import { landingPaths, SHARE_IMAGE, siteJsonLd, siteOffers } from "@/lib/seo";
+import { DESCRIPTION_MAX, landingPaths, SHARE_IMAGE, siteJsonLd, siteOffers } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
 
 afterEach(() => {
@@ -109,6 +109,8 @@ describe("search and sharing: every public page", () => {
       const description = String(m.description ?? "");
       expect(title, path).toMatch(/Botchelor/);
       expect(description.length, `${path} description`).toBeGreaterThan(50);
+      // About what a search result shows (lib/seo.ts fitDescription; 2026-11-22 audit: up to 254 characters, cut mid-word).
+      expect(description.length, `${path} description`).toBeLessThanOrEqual(DESCRIPTION_MAX);
       expect(titles.get(title), `${path} shares its title with ${titles.get(title)}`).toBeUndefined();
       expect(descriptions.get(description), `${path} shares its description with ${descriptions.get(description)}`).toBeUndefined();
       titles.set(title, path);

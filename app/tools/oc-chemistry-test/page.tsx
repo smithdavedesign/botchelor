@@ -3,6 +3,8 @@ import Link from "next/link";
 import { CHEMISTRY_EXAMPLE, CHEMISTRY_TEST_PATH, chemistryResultHref, SCORE_BANDS } from "@/lib/chemistry-test";
 import ChemistryForm from "./ChemistryForm";
 import MoreTools from "../MoreTools";
+import JsonLd from "@/app/JsonLd";
+import { toolJsonLd } from "@/lib/seo";
 
 const TITLE = "OC Chemistry Test";
 const DESCRIPTION =
@@ -90,6 +92,8 @@ export default function ChemistryTestPage() {
           Make your character
         </Link>
         <MoreTools current={CHEMISTRY_TEST_PATH} />
+        {/* The tool as a free web app under the tools hub, for search (lib/seo.ts toolJsonLd). */}
+        <JsonLd data={toolJsonLd(CHEMISTRY_TEST_PATH)} />
       </section>
     </>
   );
