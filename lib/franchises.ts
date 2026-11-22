@@ -14,6 +14,9 @@
  * - **What it's for:** people's characters get a warning (the originality panel and the MCP's create reply). Botchelor's
  *   own (the house, season-gen, recasts, the agent casts) and After Dark's are refused.
  */
+
+import { escapeRegExp } from "./text";
+
 export type FranchiseKind = "anime" | "game" | "western" | "webtoon" | "vtuber" | "music";
 
 /** Franchise, kind and its names: comma-separated, lower case. */
@@ -246,7 +249,6 @@ export const IDENTITY_FIELDS: ReadonlySet<string> = new Set(["name", "appearance
 /** Chinese, Japanese and Korean script: kana, CJK ideographs and Hangul. */
 const CJK = /[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]/u;
 const WORD = "[\\p{L}\\p{M}\\p{N}_]";
-const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 
 type Pattern = { franchise: string; kind: FranchiseKind; cast: RegExp | null; titles: RegExp | null };
 let compiled: Pattern[] | null = null;
@@ -267,8 +269,8 @@ const isTitle = (name: string, franchise: string): boolean => CJK.test(name) || 
 function pattern(names: readonly string[]): RegExp | null {
   if (!names.length) return null;
   const sorted = [...names].sort((a, b) => b.length - a.length);
-  const latin = sorted.filter((n) => !CJK.test(n)).map((n) => escape(n).replace(/ +/g, "[\\s_-]+"));
-  const cjk = sorted.filter((n) => CJK.test(n)).map(escape);
+  const latin = sorted.filter((n) => !CJK.test(n)).map((n) => escapeRegExp(n).replace(/ +/g, "[\\s_-]+"));
+  const cjk = sorted.filter((n) => CJK.test(n)).map(escapeRegExp);
   const alternatives = [...(latin.length ? [`(?<!${WORD})(?:${latin.join("|")})(?!${WORD})`] : []), ...(cjk.length ? [`(?:${cjk.join("|")})`] : [])];
   return new RegExp(alternatives.join("|"), "iu");
 }

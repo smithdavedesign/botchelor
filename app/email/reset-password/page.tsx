@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Choose a new password · Botchelor",
  * The link in a password reset email (lib/account-recovery.ts). Its token comes after the # (/email/reset-password#t=…),
  * so it never reaches a server log, a Referer header or analytics, and the form takes it out of the address bar. Opening
  * the page changes nothing: only the form sets the password, so a mail scanner opening the link can't use it up. Not
- * behind the 18+ gate (middleware.ts lets /email/ through): the account already answered it.
+ * behind the 18+ gate (proxy.ts lets /email/ through): the account already answered it.
  */
 export default function ResetPasswordPage() {
   return (

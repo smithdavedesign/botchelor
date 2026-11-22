@@ -15101,6 +15101,22 @@ button.thread-menu-item:hover:not(:disabled) {
 .tonight-part .situation-choices {
   grid-template-columns: minmax(0, 1fr);
 }
+/* A phone (the 2026-11-22 audit: an owner's home ran seven screens, this card two of them): the two parts side by side
+   in one sideways row (.scroll-row), one swipe apart, the dare peeking in at the edge, as /watch's ballots are. */
+@media (max-width: 720px) {
+  .tonight-votes-parts {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(86%, 1fr);
+    align-items: start;
+    scroll-snap-type: x mandatory;
+  }
+  .tonight-part + .tonight-part {
+    padding-top: 0;
+    padding-left: var(--space-4);
+    border-top: 0;
+    border-left: var(--control-border) solid var(--line);
+  }
+}
 @media (min-width: 900px) {
   .tonight-votes-parts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -15225,12 +15241,13 @@ button.thread-menu-item:hover:not(:disabled) {
   display: grid;
   gap: var(--space-1);
 }
+/* Each line runs as a sentence (it was a wrapping row, so on a phone its emoji, its words and its link each took a line
+   of their own: the 2026-11-22 audit's screenshots). */
 .show-since-list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0 var(--space-1);
   overflow-wrap: anywhere;
+}
+.show-since-more {
+  margin: var(--space-2) 0 0;
 }
 
 /* Tonight's situation on a phone: the faces above the question, and a smaller question, so it doesn't run down a narrow

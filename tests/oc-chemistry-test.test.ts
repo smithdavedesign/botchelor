@@ -43,7 +43,7 @@ import { ENDING_LABELS, ENDINGS, type AgendaId } from "@/lib/rules";
 import { CHARACTER_REJECTION_MESSAGES } from "@/lib/safety";
 import { staticSitemap } from "@/lib/seo";
 import { sheetSignals } from "@/lib/temperament";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
 
 const TOOL = CHEMISTRY_TEST_PATH;
