@@ -1,9 +1,12 @@
 import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, readJsonOr } from "@/lib/http";
 import { cleanFeed, loadFeed, saveFeed } from "@/lib/public-marketing";
 
 export const dynamic = "force-dynamic";
+
+/** The whole log at its largest (lib/public-marketing.ts keeps up to 3,000 posts, about 0.5 KB each), with room to spare. */
+const FEED_MAX_BYTES = 4 * 1024 * 1024;
 
 /** The marketing log as last sent (admin only; the public page is /marketing). */
 export const GET = handle(async (req) => {
@@ -18,8 +21,8 @@ export const GET = handle(async (req) => {
  */
 export const POST = handle(async (req) => {
   if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);
-  const feed = cleanFeed(await req.json().catch(() => null));
+  const feed = cleanFeed(await readJsonOr(req, FEED_MAX_BYTES, null));
   if (!feed) return json({ error: "bad_feed", message: "Send {channels: [...], posts: [...], spend?: [...]}." }, 400);
   await saveFeed(await getDb(), feed);
   return json({ ok: true, channels: feed.channels.length, posts: feed.posts.length, spend: feed.spend.length });
-});
+}, { maxBodyBytes: FEED_MAX_BYTES });

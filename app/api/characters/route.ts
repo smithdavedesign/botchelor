@@ -21,6 +21,7 @@ import { WHILE_AWAY_MODES } from "@/lib/activity";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { CHARACTER_TAGS_MAX, parseOwnerTags } from "@/lib/character-tags-shared";
 import { characterTags, refreshAutoTags, setOwnerTags } from "@/lib/character-tags";
+import { createRefusal } from "@/lib/create-limits";
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000; // immortal OCs are common; anything older is a typo
@@ -102,6 +103,9 @@ export const POST = handle(async (req) => {
   const soulKeys = unknownSoulKeys((raw as { soul?: unknown }).soul);
   if (soulKeys.refusal) return json({ error: "invalid_soul", field: "soul", message: soulKeys.refusal }, 422, sess);
   const db = await getDb();
+  // Caps on making characters, before anything that can spend (lib/create-limits.ts): per address, per agent, everyone.
+  const capped = await createRefusal(db, req, sess, checkOnly);
+  if (capped) return json(capped.body, capped.status, sess);
   const extras = await gateAfterDarkLooks(db, sess, normaliseExtras(input.extras));
   // Which language a person writes their character in (lib/language-seen.ts; an agent's call is counted as MCP).
   if (!isMcpCall(req)) {

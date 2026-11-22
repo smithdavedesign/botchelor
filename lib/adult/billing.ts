@@ -23,6 +23,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Db } from "../db";
 import { sendAccountEmail } from "../email";
+import { readBodyText } from "../http";
 import { siteUrl } from "../site";
 import { PROCESSORS } from "../legal-entity";
 import { ccbillConfig, ccbillPayUrl, ccbillSinglePayUrl } from "./billing-ccbill";
@@ -488,7 +489,7 @@ export async function postbackParams(req: Request): Promise<Record<string, strin
   for (const [k, v] of new URL(req.url).searchParams) out[k] = v;
   if (req.method === "POST") {
     const type = req.headers.get("content-type") ?? "";
-    const body = (await req.text()).slice(0, 20_000);
+    const body = (await readBodyText(req, 64 * 1024)).slice(0, 20_000);
     // CCBill's guide names its form posts "application/x-www-form-encoded"; its other choice is JSON.
     if (!type || /application\/x-www-form-(?:url)?encoded|text\/plain/i.test(type)) for (const [k, v] of new URLSearchParams(body)) out[k] = v;
     else if (/application\/json/i.test(type)) {

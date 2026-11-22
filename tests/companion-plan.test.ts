@@ -259,6 +259,42 @@ describe("the webhook", () => {
     expect((await companionAllowance(t.db, me.id)).unlimited).toBe(true);
   });
 
+  it("keeps an event whose grant failed for Stripe's retry, and grants it then (never marked done first)", async () => {
+    // 2026-11-22 audit: the event was marked done before the grant, so a grant that threw was answered 200 on every retry.
+    on();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const me = await person();
+    const ref = await subscribe(me);
+    const event = {
+      id: "evt_fail",
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_f", mode: "subscription", payment_status: "paid", client_reference_id: ref, subscription: "sub_f", customer_details: { email: "me@example.com" } } },
+    };
+    // The plan can't be written: the grant throws.
+    await t.db.query(`create function refuse_grant() returns trigger language plpgsql as $$ begin raise exception 'grant failed'; end $$`);
+    await t.db.query(`create trigger refuse_grant before insert or update on plan_entitlements for each row execute function refuse_grant()`);
+    try {
+      expect((await send(event)).status).toBe(500);
+    } finally {
+      await t.db.query(`drop trigger refuse_grant on plan_entitlements`);
+      await t.db.query(`drop function refuse_grant()`);
+    }
+    const outcome = async () => (await t.db.query<{ outcome: string }>(`select outcome from plan_events where event_id = 'evt_fail'`)).rows[0]?.outcome;
+    expect(await outcome()).toBe("received");
+    // Retried at once (the first attempt could still be running): come back later.
+    expect((await send(event)).status).toBe(409);
+    expect((await planState(t.db, me.id, "companion")).status).toBe("none");
+    // Retried after the claim lapsed: granted, confirmed once, and marked.
+    await t.db.query(`update plan_events set received_at = now() - interval '11 minutes' where event_id = 'evt_fail'`);
+    expect((await send(event)).status).toBe(200);
+    expect((await planState(t.db, me.id, "companion")).status).toBe("active");
+    expect(await outcome()).toBe("initial");
+    expect(sent).toHaveLength(1);
+    // Done: a later delivery changes nothing.
+    expect((await send(event)).status).toBe(200);
+    expect(sent).toHaveLength(1);
+  });
+
   it("ignores an unknown checkout, an unpaid one, and a test-mode event on production", async () => {
     on();
     const me = await person();

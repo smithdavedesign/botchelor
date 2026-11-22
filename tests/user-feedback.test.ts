@@ -348,6 +348,9 @@ describe("the beta prompt's show-once rule (pure)", () => {
     expect(cleanPage("/watch/abc?x=1#y")).toBe("/watch/abc");
     expect(cleanPage("https://evil.example/")).toBeNull();
     expect(cleanPage("//evil.example/")).toBeNull();
+    // A browser reads /\host as another site too: the admin page would have linked to it (2026-11-22 audit).
+    expect(cleanPage("/\\evil.example")).toBeNull();
+    expect(cleanPage("/watch/\u0000x")).toBeNull();
     expect(cleanPage(42)).toBeNull();
     expect(cleanViewport("1440x900")).toBe("1440x900");
     expect(cleanViewport("big")).toBeNull();

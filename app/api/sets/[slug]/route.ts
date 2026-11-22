@@ -13,7 +13,14 @@ const PIXEL = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBR
  */
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const normalized = normalizeScene(decodeURIComponent(slug));
+  let name: string;
+  try {
+    name = decodeURIComponent(slug);
+  } catch {
+    // A broken escape (%E0%A4%A) names no place: not found, as any unknown one is (it answered 500 until 2026-11-22).
+    return new Response("Not found", { status: 404, headers: { "x-set-status": "none", "cache-control": "public, max-age=300" } });
+  }
+  const normalized = normalizeScene(name);
   const db = await getDb();
   const set = normalized ? await getSet(db, normalized) : null;
   if (set) {

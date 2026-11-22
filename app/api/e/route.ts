@@ -2,7 +2,7 @@ import { afterDarkOnly } from "@/lib/after-dark-host";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
 import { cleanBeacon, deviceOf, overBudget, recordBeacon } from "@/lib/engagement";
-import { authFromRequest, handle } from "@/lib/http";
+import { authFromRequest, handle, readBodyText } from "@/lib/http";
 import { requestPlace } from "@/lib/place";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ const noContent = () => new Response(null, { status: 204 });
  */
 export const POST = handle(async (req: Request) => {
   if (detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"))) return noContent();
-  const text = await req.text().catch(() => "");
+  const text = await readBodyText(req, MAX_BODY).catch(() => "");
   if (!text || text.length > MAX_BODY) return noContent();
   let raw: unknown;
   try {
