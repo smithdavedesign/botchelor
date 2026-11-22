@@ -1,8 +1,9 @@
 # After Dark's own host on DigitalOcean App Platform (docs/after-dark-hosting.md, "3. DigitalOcean App Platform").
 # Create it with: Apps → Create App → "Import from app spec" (or `doctl apps create --spec .do/app.yaml`), then fill in
 # every value marked CHANGE_ME as an encrypted secret in the dashboard. Never commit real values to this file.
-# Billing: about $10 a month for the instance below, plus at most $5 for the hourly jobs; set a spend alert at $15 (runbook step 7).
-name: botchelor-after-dark
+# Billing: $10 a month for the instance below, and the hourly job by the second it runs (well under $1 a month); set a
+# spend alert at $15 (runbook step 7). The names below are the live app's (`botchelor`, its service `botchelor`).
+name: botchelor
 region: sfo
 alerts:
   - rule: DEPLOYMENT_FAILED
@@ -11,7 +12,7 @@ domains:
   - domain: ad.botchelor.com
     type: PRIMARY
 services:
-  - name: web
+  - name: botchelor
     github:
       repo: smithdavedesign/botchelor
       branch: main
@@ -28,6 +29,20 @@ services:
       period_seconds: 10
       timeout_seconds: 3
       failure_threshold: 3
+    # Emailed to the account: a restart loop, memory near the 1 GB limit, a pegged CPU.
+    alerts:
+      - rule: CPU_UTILIZATION
+        operator: GREATER_THAN
+        value: 90
+        window: TEN_MINUTES
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 85
+        window: FIVE_MINUTES
+      - rule: RESTART_COUNT
+        operator: GREATER_THAN
+        value: 1
+        window: FIVE_MINUTES
     envs:
       # The routing and redirects are read at build time as well as run time.
       - key: AFTER_DARK_ONLY

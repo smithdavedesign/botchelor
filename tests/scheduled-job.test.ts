@@ -56,7 +56,7 @@ function runAt(hour: string, o: { resume?: string[]; fail?: string; partError?: 
   expect(cmd.startsWith("sh -c '") && cmd.endsWith("'")).toBe(true);
   const script = cmd.slice("sh -c '".length, -1);
   const res = spawnSync("sh", ["-c", script], {
-    env: { PATH: `${dir}:/usr/bin:/bin`, CRON_SECRET: "test-secret-value", HOUR: hour, LOG: log, RESUME: resume, FAIL: o.fail ?? "", PART_ERROR: o.partError ?? "" },
+    env: { NODE_ENV: "test", PATH: `${dir}:/usr/bin:/bin`, CRON_SECRET: "test-secret-value", HOUR: hour, LOG: log, RESUME: resume, FAIL: o.fail ?? "", PART_ERROR: o.partError ?? "" },
     encoding: "utf8",
   });
   const calls = readFileSync(log, "utf8")
