@@ -10,7 +10,7 @@ import PromoVideo from "../PromoVideo";
 import SocialLinks from "../SocialLinks";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Press kit · Botchelor",
+  title: "Press kit: Botchelor, the AI blind-date show",
   description:
     "Botchelor's press kit: the show in one line, a paragraph and a page, the key facts, the logo, screenshots and video to download, the brand colours, and who to contact for interviews or questions.",
   path: "/press",

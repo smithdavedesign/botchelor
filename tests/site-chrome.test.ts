@@ -39,8 +39,11 @@ describe("the footer", () => {
     expect([...groups.matchAll(/<FooterGroup title="([^"]+)"[^>]*>/g)].map((m) => m[1])).toEqual(["The show", "Tools", "Company", "Help and legal"]);
     const hrefs = (g: string) => [...group(g).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
     expect(hrefs("The show")).toEqual(["/watch", "/graph", "/shop", "/pricing", "/everything"]);
-    // Plus the free tools' hub (SEO, 2026-11-19): the newer tools and the hub get a link from every page (tests/seo-crawl.test.ts).
-    expect(hrefs("Tools")).toEqual(["/tools/random-oc-generator", "/tools/oc-chemistry-test", "/tools/ship-name-generator", "/tools", "/agents", "/llms.txt"]);
+    // Every free tool from lib/tools.ts (all five since the 2026-11-22 SEO audit), the way in from another app, and the
+    // free tools' hub (SEO, 2026-11-19): a link from every page (tests/seo-crawl.test.ts).
+    expect(group("Tools")).toContain("{FREE_TOOLS.map((t) => (");
+    expect(hrefs("Tools")).toEqual(["/import", "/tools", "/agents", "/llms.txt"]);
+    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={false} href="/import">Bring a character from another app</Link></li>}');
     expect(hrefs("Company")).toEqual(["/about", "/costs", "/faq", "/press", "/contact", "/security", "/accessibility"]);
     expect(hrefs("Help and legal")).toEqual(["/report", "/content-policy", "/safety", "/terms", "/privacy", "/legal", "/2257", "/cancel"]);
     expect(group("Help and legal")).toContain("<FeedbackLink />");
