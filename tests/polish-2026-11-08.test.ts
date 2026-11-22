@@ -147,9 +147,10 @@ describe("After Dark's gate settles (item 21)", () => {
   it("prefetches none of the layout's links on After Dark's host, the logo included", () => {
     // "/" there hops to the show and back (ad → botchelor.com/after-dark → ad), so a prefetch of it never settled.
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-    // #1509 (de55bfa9): on After Dark's host the logo goes to /after-dark; it's still not prefetched there.
-    expect(layout).toMatch(/<Link prefetch=\{showPrefetch\} href=\{adHost \? "\/after-dark" : "\/"\} className="logo">/);
-    expect(layout.match(/<Link (?!prefetch=\{showPrefetch\})/g)).toBeNull();
+    // #1509 (de55bfa9): on After Dark's host the logo goes to /after-dark; it's still not prefetched there. On the show
+    // it's prefetched on intent only (app/IntentLink.tsx), and the footer's links never (2026-11-22 load audit).
+    expect(layout).toMatch(/<IntentLink prefetch=\{showPrefetch\} href=\{adHost \? "\/after-dark" : "\/"\} className="logo">/);
+    expect(layout.match(/<(?:Intent)?Link (?!prefetch=\{(?:showPrefetch|false)\})/g)).toBeNull();
   });
 });
 

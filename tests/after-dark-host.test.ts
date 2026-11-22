@@ -105,8 +105,9 @@ describe("with the switch off (no AFTER_DARK_ORIGIN): exactly today's behaviour"
       headers: expect.any(Function),
       // No X-Powered-By (2026-11-10 company pass), with or without the switch.
       poweredByHeader: false,
-      // The image optimizer keeps sharp's memory limits (lib/sharp-limits.ts), with or without the switch.
-      experimental: { imgOptConcurrency: 1, imgOptOperationCache: false },
+      // The image optimizer keeps sharp's memory limits (lib/sharp-limits.ts), and a wrong address gets a page built once
+      // (app/global-not-found.tsx), with or without the switch.
+      experimental: { imgOptConcurrency: 1, imgOptOperationCache: false, globalNotFound: true },
       // The show's words as addresses (lib/site-redirects.ts, 2026-11-07 audit item 14), with or without the switch.
       redirects: expect.any(Function),
     });

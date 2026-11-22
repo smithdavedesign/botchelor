@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import NavProgress from "./NavProgress";
+import IntentLink from "./IntentLink";
 import { episodeAllowance, freshAllowance, ownAllowance } from "@/lib/allowance";
 import { adTokenBalance } from "@/lib/adult/tokens";
 import { afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
@@ -43,6 +44,7 @@ import Nav from "./Nav";
 import NewsletterSignup from "./NewsletterSignup";
 import FooterGroup from "./FooterGroup";
 import SocialLinks from "./SocialLinks";
+import SupportEmail from "./SupportEmail";
 import { unreadChatTexts, unreadTexts } from "@/lib/inbox";
 import { rememberedCharacter } from "@/lib/current-character";
 import { pickerCharacters } from "@/lib/my-characters";
@@ -222,9 +224,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <header className="site-header">
           {/* Not prefetched on After Dark's host either: "/" there hops to the show and back, so the prefetch never settled. */}
           {/* On After Dark's own host the wordmark is its home: "/" there only hopped to the show and back. */}
-          <Link prefetch={showPrefetch} href={adHost ? "/after-dark" : "/"} className="logo">
+          {/* On the show, prefetched on intent only, as the header's links are (app/IntentLink.tsx). */}
+          <IntentLink prefetch={showPrefetch} href={adHost ? "/after-dark" : "/"} className="logo">
             Botchelor
-          </Link>
+          </IntentLink>
           {/* The header holds five kinds of thing (docs/brand.md, Header): the wordmark, the After Dark door, the meter,
               one call to action and the links. The tagline is the hero's; the theme setting is Account's. After Dark's
               host wears the moon beside the wordmark on every page, so nobody is unsure which side they're on. */}
@@ -248,7 +251,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {/* The footer in the page's own column (David 2026-11-17, "keep it contained within content wrapper"): the letter
               and the show's accounts on the left, four groups beside them (columns on a wide screen, rows that fold on a
               phone), then the fine print at the very bottom: the adults line, where to find help, the © line. The adults
-              line and the crisis line stay in the open, never one tap away. /everything keeps every other page. */}
+              line and the crisis line stay in the open, never one tap away. /everything keeps every other page. Its links
+              are never prefetched: on a short page all 25 came into view at once, two requests to the app each, before
+              anyone chose one (2026-11-22 load audit). */}
           <div className="footer-main">
             {/* The letter beside the show's own accounts (lib/company.ts), Discord's once its invite is set; neither on
                 After Dark's host. */}
@@ -260,47 +265,47 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             )}
             <nav className="footer-groups" aria-label="More of the site">
               <FooterGroup title="The show">
-                <li><Link prefetch={showPrefetch} href="/watch">Watch</Link></li>
-                <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
+                <li><Link prefetch={false} href="/watch">Watch</Link></li>
+                <li><Link prefetch={false} href="/graph">The Constellation</Link></li>
                 {/* The show's shop sells dates through Stripe, whose rules bar paying for adult content: never linked from After
                     Dark's host (the 2026-11-22 audit), whose tokens page is its account's. */}
-                {!adHost && <li><Link prefetch={showPrefetch} href="/shop">More dates</Link></li>}
-                {!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}
-                <li><Link prefetch={showPrefetch} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
+                {!adHost && <li><Link prefetch={false} href="/shop">More dates</Link></li>}
+                {!adHost && <li><Link prefetch={false} href="/pricing">Pricing</Link></li>}
+                <li><Link prefetch={false} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
               </FooterGroup>
               <FooterGroup title="Tools">
-                <li><Link prefetch={showPrefetch} href="/tools/random-oc-generator">Random OC generator</Link></li>
-                <li><Link prefetch={showPrefetch} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
-                <li><Link prefetch={showPrefetch} href="/tools/ship-name-generator">Ship name generator</Link></li>
+                <li><Link prefetch={false} href="/tools/random-oc-generator">Random OC generator</Link></li>
+                <li><Link prefetch={false} href="/tools/oc-chemistry-test">OC chemistry test</Link></li>
+                <li><Link prefetch={false} href="/tools/ship-name-generator">Ship name generator</Link></li>
                 {/* Every free tool (app/tools/page.tsx): the two newer ones and the hub itself get a link from every page (SEO, 2026-11-19). */}
-                <li><Link prefetch={showPrefetch} href="/tools" className="footer-all">All free tools →</Link></li>
+                <li><Link prefetch={false} href="/tools" className="footer-all">All free tools →</Link></li>
                 {/* For people building agents: the MCP server's front door (/agents: tools and changelog are a tap further). */}
-                {!adHost && <li><Link prefetch={showPrefetch} href="/agents">For AI agents</Link></li>}
+                {!adHost && <li><Link prefetch={false} href="/agents">For AI agents</Link></li>}
                 <li><a href="/llms.txt">llms.txt</a></li>
               </FooterGroup>
               <FooterGroup title="Company">
-                <li><Link prefetch={showPrefetch} href="/about">How it&apos;s built</Link></li>
-                <li><Link prefetch={showPrefetch} href="/costs">What it costs</Link></li>
-                <li><Link prefetch={showPrefetch} href="/faq">FAQ</Link></li>
-                <li><Link prefetch={showPrefetch} href="/press">Press kit</Link></li>
-                <li><Link prefetch={showPrefetch} href="/contact">Contact</Link></li>
-                <li><Link prefetch={showPrefetch} href="/security">Security</Link></li>
-                <li><Link prefetch={showPrefetch} href="/accessibility">Accessibility</Link></li>
+                <li><Link prefetch={false} href="/about">How it&apos;s built</Link></li>
+                <li><Link prefetch={false} href="/costs">What it costs</Link></li>
+                <li><Link prefetch={false} href="/faq">FAQ</Link></li>
+                <li><Link prefetch={false} href="/press">Press kit</Link></li>
+                <li><Link prefetch={false} href="/contact">Contact</Link></li>
+                <li><Link prefetch={false} href="/security">Security</Link></li>
+                <li><Link prefetch={false} href="/accessibility">Accessibility</Link></li>
               </FooterGroup>
               {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). On After Dark's host the
                   group stays open on a phone too: reporting and the 2257 statement are never a tap away there. */}
               <FooterGroup title="Help and legal" keepOpen={adHost}>
-                <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
+                <li><Link prefetch={false} href="/report">Report a problem</Link></li>
                 <li>
                   <FeedbackLink />
                 </li>
-                <li><Link prefetch={showPrefetch} href="/content-policy">Content policy</Link></li>
-                <li><Link prefetch={showPrefetch} href="/safety">Safety</Link></li>
-                <li><Link prefetch={showPrefetch} href="/terms">Terms and refunds</Link></li>
-                <li><Link prefetch={showPrefetch} href="/privacy">Privacy</Link></li>
-                <li><Link prefetch={showPrefetch} href="/legal">Terms and privacy, one page</Link></li>
-                <li><Link prefetch={showPrefetch} href="/2257">2257 statement</Link></li>
-                <li><Link prefetch={showPrefetch} href="/cancel">Cancel a subscription</Link></li>
+                <li><Link prefetch={false} href="/content-policy">Content policy</Link></li>
+                <li><Link prefetch={false} href="/safety">Safety</Link></li>
+                <li><Link prefetch={false} href="/terms">Terms and refunds</Link></li>
+                <li><Link prefetch={false} href="/privacy">Privacy</Link></li>
+                <li><Link prefetch={false} href="/legal">Terms and privacy, one page</Link></li>
+                <li><Link prefetch={false} href="/2257">2257 statement</Link></li>
+                <li><Link prefetch={false} href="/cancel">Cancel a subscription</Link></li>
               </FooterGroup>
             </nav>
           </div>
@@ -308,10 +313,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <CrisisResources />
           <p className="footer-legal">
             Adults (18+) only · No real people · {adHost ? "Every character is AI-generated fiction" : "Points are free and can't be bought"} · © {new Date().getUTCFullYear()} {OPERATOR}
+            {/* Never the address whole in the markup, where Cloudflare's email obfuscation would rewrite it (app/SupportEmail.tsx). */}
             {support && (
               <>
                 {" "}
-                · <a href={`mailto:${support}`}>{support}</a>
+                · <SupportEmail address={support} />
               </>
             )}
           </p>

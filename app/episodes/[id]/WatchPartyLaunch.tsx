@@ -22,7 +22,8 @@ export default function WatchPartyLaunch({ episodeId, isHost, partyId }: Props) 
       <section className="card watch-launch">
         <h2>Watch party</h2>
         <p className="muted">A live room is open for this date: react, chat and predict as it plays out.</p>
-        <Link href={`/watch/${partyId}`} className="button">
+        {/* Not prefetched: the room is a live page for those who join it, not for every reader of the episode. */}
+        <Link href={`/watch/${partyId}`} className="button" prefetch={false}>
           ▶ Open the watch party
         </Link>
         <ShareLink path={`/watch/${partyId}`} label="Room link" />
