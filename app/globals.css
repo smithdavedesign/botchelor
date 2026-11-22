@@ -16080,6 +16080,12 @@ button.thread-menu-item:hover:not(:disabled) {
   text-align: left;
   font-weight: 700;
 }
+/* What a grade means, over the grades (app/episodes/[id]/report-card/page.tsx). */
+.report-subjects .report-subjects-note {
+  caption-side: top;
+  text-align: left;
+  padding-bottom: var(--space-1);
+}
 .report-subjects td:last-child {
   text-align: right;
 }
