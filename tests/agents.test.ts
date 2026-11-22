@@ -472,7 +472,10 @@ describe("discoverability", () => {
   it("the /agents page lists every MCP tool, each in exactly one group", () => {
     const listed = AGENT_TOOL_GROUPS.flatMap((g) => g.tools);
     expect(new Set(listed).size).toBe(listed.length);
-    expect([...listed].sort()).toEqual(MCP_TOOLS.map((t) => t.name).sort());
+    // The companion tool is listed once COMPANION_OPEN=1, as on the live show; tests/mcp-reference.test.ts checks its
+    // group then. Unset (here) it answers by name only.
+    const open = new Set(MCP_TOOLS.map((t) => t.name as string));
+    expect(listed.filter((n) => n !== "companion" || open.has(n)).sort()).toEqual([...open].sort());
   });
 
   it("/llms.txt covers matching first, texting, waiting for your turn and feedback", () => {
