@@ -63,7 +63,8 @@ export default function Switches({
                 disabled={c.always || c.drawn !== null || busy === c.id}
                 onChange={(e) => void flip(c.id, e.target.checked)}
               />{" "}
-              {c.drawn ? `Out (drawn in ${DRAWN_IN[c.drawn]})` : c.always ? "In (house cast)" : c.on ? "In" : "Out"}
+              {/* Plain words, not "In"/"Out" (audit 2026-11-22: insider language). */}
+              {c.drawn ? `Can't be added (drawn in ${DRAWN_IN[c.drawn]})` : c.always ? "Always in (house cast)" : c.on ? "In After Dark" : "Add to After Dark"}
             </label>
           </li>
         ))}

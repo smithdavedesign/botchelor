@@ -10,9 +10,10 @@ type Search = Record<string, string | string[] | undefined>;
  * The showcase as reels (ReelFeed.tsx): the same posts and filters as its grid, most liked this week first, what they've
  * seen last. One body for both of its pages, the show's (/showcase/reels) and After Dark's (/after-dark/showcase/reels,
  * 2026-11-18: David, "keep the reel page as is, I like it"), so the two never drift. `place`: whose Gallery the way
- * back leads to (lib/showcase-paths.ts).
+ * back leads to (lib/showcase-paths.ts), and on After Dark's, where the feed's links lead. `nights` (After Dark's page):
+ * who a night can start with for this viewer, whose button opens their After Dark page.
  */
-export async function reelFeed(db: Db, viewer: ShowcaseViewer, sp: Search, place: ShowcasePlace = "show") {
+export async function reelFeed(db: Db, viewer: ShowcaseViewer, sp: Search, place: ShowcasePlace = "show", opts: { nights?: string[] } = {}) {
   const f = seenFilters(viewer, parseFilters(sp));
   // What this browser has seen goes last: a reload or a return starts on what's new to them, its pages as of now.
   const asOf = new Date();
@@ -45,6 +46,8 @@ export async function reelFeed(db: Db, viewer: ShowcaseViewer, sp: Search, place
       start={start}
       asOf={asOf.toISOString()}
       back={backQuery ? `${base}?${backQuery}` : base}
+      place={place}
+      nights={opts.nights}
     />
   );
 }

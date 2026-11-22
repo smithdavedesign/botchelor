@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as openRoute } from "@/app/api/companion/route";
 import { GET as viewRoute } from "@/app/api/companion/[id]/route";
@@ -8,6 +9,8 @@ import {
   auraVoiceFor,
   chargeLiveCall,
   endLiveCall,
+  LIVE_REFUND_WITHIN_MS,
+  LIVE_START_LIMITS,
   liveCall,
   liveCallsOn,
   mintSttToken,
@@ -21,6 +24,7 @@ import {
   deepgramHeard,
   echoOf,
   heardSoFar,
+  LIVE_CONNECT_MS,
   LIVE_START,
   liveStep,
   minutesDue,
@@ -32,12 +36,20 @@ import {
 } from "@/lib/companion-live-shared";
 import { extraPrice, extraTerms } from "@/lib/companion-shared";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { RUNPOD_API, setRunpodFetchForTests } from "@/lib/live-face/musetalk";
 import type { ChatMessage, ModelOptions } from "@/lib/model";
 import { grantPlan } from "@/lib/paid-plans";
 import { sseData } from "@/lib/sse";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
-vi.mock("@/lib/sets", async (orig) => ({ ...((await orig()) as object), inBackground: () => {} }));
+// Background work is counted, never run (a face kit drawn for the call is one).
+const background = vi.hoisted(() => ({ jobs: 0 }));
+vi.mock("@/lib/sets", async (orig) => ({
+  ...((await orig()) as object),
+  inBackground: () => {
+    background.jobs++;
+  },
+}));
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -386,6 +398,21 @@ describe("starting a call", () => {
     expect(r.body.extras.minute.included_left).toBe(19);
   });
 
+  it("draws a face kit only for a caller who sees faces (the plan, or an admin), as a call taking turns does", async () => {
+    for (const [who, jobs] of [
+      [{ tokens: 1 }, 0],
+      [{ plan: true }, 1],
+      [{ admin: true }, 1],
+    ] as const) {
+      const me = await person(who);
+      const id = await thread(me.cookie);
+      background.jobs = 0;
+      const r = await live(me.cookie, id, { action: "start", buy: true });
+      expect(r.status).toBe(200);
+      expect(background.jobs).toBe(jobs);
+    }
+  });
+
   it("charges nothing and goes the free way when Deepgram won't give a token", async () => {
     grantDown = true;
     const me = await person({ tokens: 1 });
@@ -429,6 +456,23 @@ describe("by the minute", () => {
     expect((await extraState(t.db, me.id, "minute")).included_left).toBe(20);
   });
 
+  it("gives it back to a call that timed out connecting, never to one that ran past that with nothing said", async () => {
+    // The window outlasts the browser's deadline for connecting, with room for the hang-up to arrive.
+    expect(LIVE_REFUND_WITHIN_MS).toBeGreaterThanOrEqual(LIVE_CONNECT_MS + 5_000);
+    const me = await person({ plan: true });
+    const id = await thread(me.cookie);
+    const t0 = new Date();
+    const timedOut = await startLiveCall(t.db, me.id, id, { now: t0 });
+    if (!timedOut.ok) throw new Error("should start");
+    expect(await endLiveCall(t.db, timedOut.call, new Date(t0.getTime() + LIVE_CONNECT_MS + 5_000))).toEqual({ minutes: 0, refunded: true });
+    expect((await extraState(t.db, me.id, "minute")).included_left).toBe(20);
+    const t1 = new Date(t0.getTime() + 60_000);
+    const quiet = await startLiveCall(t.db, me.id, id, { now: t1 });
+    if (!quiet.ok) throw new Error("should start");
+    expect(await endLiveCall(t.db, quiet.call, new Date(t1.getTime() + LIVE_REFUND_WITHIN_MS + 5_000))).toEqual({ minutes: 1, refunded: false });
+    expect((await extraState(t.db, me.id, "minute")).included_left).toBe(19);
+  });
+
   it("counts a tick over the route, and a fresh token needs the minutes paid", async () => {
     const me = await person({ admin: true });
     const id = await thread(me.cookie);
@@ -443,6 +487,95 @@ describe("by the minute", () => {
     // Someone else's call isn't theirs to use.
     const other = await person({ admin: true });
     expect((await live(other.cookie, id, { action: "tick", call_id: s.body.call.id })).status).toBe(404);
+  });
+});
+
+describe("warming their face", () => {
+  /** Runpod, faked: what was asked of it. */
+  let asked: { url: string; op?: unknown }[] = [];
+  beforeEach(() => {
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto");
+    vi.stubEnv("RUNPOD_API_KEY", "placeholder-runpod");
+    vi.stubEnv("LIVE_FACE_DITTO_ENDPOINT", "ep-d");
+    vi.stubEnv("LIVE_FACE_ENDPOINT", "");
+    asked = [];
+    setRunpodFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { input?: { op?: unknown } }) : undefined;
+      asked.push({ url: String(input), op: body?.input?.op });
+      return Response.json({ id: "job-warm", status: "IN_QUEUE" });
+    });
+  });
+  afterEach(() => {
+    setRunpodFetchForTests(null);
+  });
+  const settle = () => new Promise((ok) => setTimeout(ok, 10));
+
+  it("boots the worker when the call sheet asks, for someone who gets the face, and no more often than calls can start", async () => {
+    const me = await person({ admin: true });
+    const id = await thread(me.cookie);
+    const r = await live(me.cookie, id, { action: "warm" });
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual({ ok: true });
+    await settle();
+    expect(asked).toEqual([{ url: `${RUNPOD_API}/ep-d/run`, op: "warm" }]);
+    for (let i = 1; i < LIVE_START_LIMITS.perHour; i++) await live(me.cookie, id, { action: "warm" });
+    await settle();
+    expect(asked).toHaveLength(LIVE_START_LIMITS.perHour);
+    // Past the limit: still fine for the page, and nothing more booted.
+    expect((await live(me.cookie, id, { action: "warm" })).status).toBe(200);
+    await settle();
+    expect(asked).toHaveLength(LIVE_START_LIMITS.perHour);
+  });
+
+  it("boots nothing for someone the face isn't on for, or a guest", async () => {
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto:plan");
+    const me = await person();
+    const id = await thread(me.cookie);
+    expect((await live(me.cookie, id, { action: "warm" })).status).toBe(200);
+    expect([401, 404]).toContain((await live("bz_adult=1", id, { action: "warm" })).status);
+    await settle();
+    expect(asked).toEqual([]);
+  });
+
+  it("is the call sheet's to ask, never the thread page's", () => {
+    const page = readFileSync("app/companion/[id]/page.tsx", "utf8");
+    expect(page).not.toMatch(/warmLiveFace/);
+    const call = readFileSync("app/companion/[id]/CompanionCall.tsx", "utf8");
+    // Once, on a live call with their own moving face: the call screen mounts only after the 📞 tap.
+    expect(call).toContain('if (warmed.current || !canLive || mode !== "live" || live?.face !== "yours") return;');
+    expect(call).toContain('void livePost({ action: "warm" });');
+    const chat = readFileSync("app/companion/[id]/CompanionChat.tsx", "utf8");
+    expect(chat).toMatch(/\{calling && \(\s*<CompanionCall/);
+  });
+});
+
+describe("connecting (the call screen)", () => {
+  const call = readFileSync("app/companion/[id]/CompanionCall.tsx", "utf8");
+  const begin = call.slice(call.indexOf("async function liveBegin("), call.indexOf("async function liveOpen("));
+
+  it("asks for the microphone before the call starts, so nothing is taken while the browser waits for an answer", () => {
+    const mic = begin.indexOf("await mic.current.start(audio, (pcm) => socket.current?.send(pcm));");
+    const start = begin.indexOf('livePost({ action: "start"');
+    expect(mic).toBeGreaterThan(0);
+    expect(start).toBeGreaterThan(mic);
+  });
+
+  it("stops trying after LIVE_CONNECT_MS with a reason and Try again, and an answer that comes later lets go", () => {
+    expect(LIVE_CONNECT_MS).toBe(30_000);
+    expect(begin).toContain("if (!stale()) pause(CONNECT_TIMED_OUT, false, true);");
+    expect(begin).toContain("}, LIVE_CONNECT_MS);");
+    expect(call).toMatch(/const CONNECT_TIMED_OUT =\s*"The call didn't connect\. If your browser is asking to use the microphone, allow it, then try again\.";/);
+    expect(call).toContain("`↻ Try again");
+    // A microphone allowed after the deadline goes straight off (live-audio.ts), and a socket that opens late is closed.
+    expect(readFileSync("app/companion/[id]/live-audio.ts", "utf8")).toMatch(/if \(this\.stopped\) \{\s*stream\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\);/);
+    expect(call).toContain("if (stale()) return line.close();");
+  });
+
+  it("ticks no minute while it connects", () => {
+    const clock = call.slice(call.indexOf("// The clock, and the call ends after five quiet minutes."), call.indexOf("// Away from the tab"));
+    const skip = clock.indexOf('if (phaseNow.current === "connecting") return;');
+    expect(skip).toBeGreaterThan(0);
+    expect(clock.indexOf('livePost({ action: "tick"')).toBeGreaterThan(skip);
   });
 });
 

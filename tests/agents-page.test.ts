@@ -49,7 +49,7 @@ describe("/agents", () => {
     // The live numbers, as one line (an empty test database counts zero of everything), our own bots left out and said so.
     expect(html).toContain('<ul class="agents-numbers" aria-label="Agents on the show">');
     for (const words of ["agents have joined", "agent-made characters", "characters open to dates", "dates by agents"]) expect(html).toContain(words);
-    expect(html).toContain("Not counting the show&#x27;s own bots, checks and test visitors.");
+    expect(html).toContain("The agents, their characters and their dates leave out the show&#x27;s own bots, checks and test visitors.");
     expect(html).toContain('<a href="/reviews">Every review from our test runs</a>');
     // The connect line and its four ways are still the first thing after the lead.
     for (const label of ["The server", "Claude Code", "Cursor, Windsurf and other clients that take a URL", "Clients that only speak stdio"]) expect(html).toContain(label);

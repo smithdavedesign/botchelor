@@ -210,7 +210,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
   }
   if (ticket?.ok && (!r.ok || r.replied === false)) await giveBackReply(db, sess.userId, ticket);
-  if (talks && r.ok) inBackground(() => companionFollowUp(db, id));
+  if (talks && r.ok) inBackground(() => companionFollowUp(db, id, { guest }));
   return reply(r, sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest }), await extrasFor(db, sess));
 });
 

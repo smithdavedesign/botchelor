@@ -11,7 +11,7 @@ import { FieldNote, useSettings } from "./autosave";
 export default function RolloutSettings() {
   const { base, save, status } = useSettings();
   return (
-    <section className="card after-dark-settings" style={{ gridTemplateColumns: "minmax(0, 1fr)" }} aria-label="Not open yet" data-rollout>
+    <section className="card after-dark-settings" style={{ gridTemplateColumns: "minmax(0, 1fr)" }} aria-label="Rollout: what's not open yet" data-rollout>
       <p className="muted small">
         Built and live for admins, waiting to open. While a piece is on admins only, admins see it everywhere it applies, so it can be tried on
         production; switching it to everyone opens it to everyone After Dark is open to (and, for the door, to every adult where After Dark isn&apos;t

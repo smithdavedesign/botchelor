@@ -149,7 +149,7 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
         {made.length > 0 && (
           <section className="ad-home-section ad-home-latest" aria-labelledby="ad-char-yours" data-ad-character-yours>
             <div className="ad-home-head">
-              <h2 id="ad-char-yours">Yours of {name}</h2>
+              <h2 id="ad-char-yours">What you&apos;ve made of {name}</h2>
               <Link href="/after-dark/gallery">All of yours in the Gallery →</Link>
             </div>
             <ul className="after-dark-gallery ad-latest-strip">

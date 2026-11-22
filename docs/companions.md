@@ -923,8 +923,13 @@ you can talk over the other, and it's charged by the minute. It sits behind the 
     price ("Keep talking · 1 token for 10 minutes"); nothing is bought mid-sentence.
   - **Pausing hangs up the line** (the socket and microphone close and the server's call ends), so a pause isn't paid
     for. A quiet minute pauses it; five quiet minutes, a hidden tab, End call and leaving the page work as in v1. A call
-    that ends within 20 s with nothing said gives its first minute back. Calls end after 60 minutes
+    that ends within 40 s with nothing said gives its first minute back. Calls end after 60 minutes
     (`COMPANION_LIVE_MAX_MINUTES`). 20 starts an hour and 60 a day per person.
+  - **Connecting** (2026-11-21): the microphone is asked for first, so nothing is taken while the browser waits for an
+    answer; then the call starts and the socket opens. Not connected in 30 s (`LIVE_CONNECT_MS`), it pauses, says why
+    and offers ↻ Try again, and no minute ticks while it connects. The worker behind their live face boots when the
+    call sheet opens (the route's `warm`), never for a look at the thread, and a face kit is drawn only for a caller who
+    sees faces (the plan, or an admin).
 - **Privacy:** the person's voice goes from their browser to Deepgram and never to us; the companion's passes through
   our route in memory. Both ask Deepgram to keep nothing for training (`mip_opt_out=true`). Nothing logs audio, tokens
   or the key. In the privacy notice and the terms (`#companion-extras`), dated 10 November 2026.
