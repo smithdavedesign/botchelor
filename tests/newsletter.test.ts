@@ -55,7 +55,7 @@ import { ensureIssue, isoWeekId, letterWeek, runNewsletter } from "@/lib/newslet
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { EMAIL_MAX } from "@/lib/waitlist";
 import { ensureRevealVote, runDueReveal, voteReveal } from "@/lib/weekly-reveal";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { BASE_URL, episodeJson, scriptedModel, startTestDb } from "./helpers";
 
 // Built from parts so no literal secret sits in the repo (GitGuardian scans every commit).

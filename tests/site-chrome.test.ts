@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import EverythingPage, { metadata } from "@/app/everything/page";
 import PhoneTabBar, { tabBarShowsOn, tabBarTabs } from "@/app/PhoneTabBar";
 import { PUBLIC_PATHS } from "@/lib/site";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { BASE_URL } from "./helpers";
 
 const nav = vi.hoisted(() => ({ path: "/" }));

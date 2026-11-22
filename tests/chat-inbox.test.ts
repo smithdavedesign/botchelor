@@ -26,7 +26,7 @@ import { pairKey } from "@/lib/relationships";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { clearSharedCache } from "@/lib/shared-cache";
 import { PUBLIC_PATHS } from "@/lib/site";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { api, BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;

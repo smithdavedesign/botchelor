@@ -9,7 +9,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 /**
  * The unsubscribe link in every Sunday letter (lib/newsletter.ts). A button, not an unsubscribe on opening, so mail
  * scanners can't unsubscribe anyone by accident; mail apps' own unsubscribe button skips this page (RFC 8058). Not behind
- * the 18+ gate (middleware.ts): leaving must never take a hurdle.
+ * the 18+ gate (proxy.ts): leaving must never take a hurdle.
  */
 export default async function LeaveNewsletterPage({ searchParams }: { searchParams: SearchParams }) {
   const p = await searchParams;

@@ -20,7 +20,7 @@ import { HOUSE_TOOL_NAMES } from "@/lib/mcp/house";
 import { OC_TOOL_NAMES } from "@/lib/mcp/oc-tools";
 import { argType, BY_NAME_GROUP, TOOL_IDENTITY, toolReference } from "@/lib/mcp/reference";
 import { PUBLIC_PATHS } from "@/lib/site";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { BASE_URL } from "./helpers";
 
 const ROOT = join(__dirname, "..");

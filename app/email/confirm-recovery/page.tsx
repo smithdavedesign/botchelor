@@ -8,7 +8,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
  * The link in a recovery email's confirmation (lib/account-recovery.ts). A button, not a confirmation on opening, so a
- * mail scanner that opens links confirms nothing. Not behind the 18+ gate (middleware.ts lets /email/ through).
+ * mail scanner that opens links confirms nothing. Not behind the 18+ gate (proxy.ts lets /email/ through).
  */
 export default async function ConfirmRecoveryPage({ searchParams }: { searchParams: SearchParams }) {
   const p = await searchParams;
