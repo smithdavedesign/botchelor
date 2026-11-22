@@ -24,17 +24,9 @@ import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX
 import { VOICE_MAX } from "./rules";
 import { checkFields, sheetPgIssue, CHARACTER_REJECTION_MESSAGES } from "./safety";
 
-export const IMPORT_PATH = "/import";
-/** The landing page for people moving their characters from a chat app (app/alternatives/character-ai). */
-export const CHARACTER_AI_ALTERNATIVE_PATH = "/alternatives/character-ai";
-/**
- * The Character.AI rescue door (2026-11-14): /import opened from the home hero, the landing page or a post, with the
- * three steps to copy a Character.AI character above the box. The same page and parser; only the copy changes.
- */
-export const CAI_SOURCE = "cai";
-export const IMPORT_CAI_PATH = `${IMPORT_PATH}?from=${CAI_SOURCE}`;
-/** Where /import leaves the draft for /create?imported=1 (this browser only; read once, then removed). */
-export const IMPORT_STORAGE_KEY = "botchelor:import:v1";
+// Its addresses and the key the draft is left under are lib/import-paths.ts, so the builder loads them without this file's
+// checks (2026-11-22 audit).
+export { CAI_SOURCE, CHARACTER_AI_ALTERNATIVE_PATH, IMPORT_CAI_PATH, IMPORT_PATH, IMPORT_STORAGE_KEY } from "./import-paths";
 /** The longest paste or file the page reads (a big SillyTavern card with a lorebook is ~100 KB). */
 export const IMPORT_TEXT_MAX = 200_000;
 /** The most unlabelled text sent to the model (app/api/characters/import): the free tier's quota is shared with the show. */

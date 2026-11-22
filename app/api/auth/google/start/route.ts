@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { safeFrom } from "@/lib/age";
 import { googleConfigured, oauthRedirectUri, signOAuthState } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
+import { requestHost } from "@/lib/site";
 
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
 
@@ -17,7 +18,7 @@ export const GET = handle(async (req) => {
   const callback = new URL(oauthRedirectUri(req));
   const here = new URL(req.url);
   const next = here.searchParams.has("next") ? safeFrom(here.searchParams.get("next")) : null;
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? here.host;
+  const host = requestHost(req);
   if (host !== callback.host && !here.searchParams.has("hop")) {
     const hop = new URLSearchParams({ hop: "1", ...(next ? { next } : {}) });
     return new Response(null, { status: 302, headers: { location: `${callback.origin}/api/auth/google/start?${hop}` } });

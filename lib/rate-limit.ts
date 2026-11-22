@@ -22,7 +22,9 @@ export type RateLimitBucket =
   | "start_own_date"
   | "submit_own_date_step"
   | "feedback"
-  | "key_check";
+  | "key_check"
+  | "mcp_initialize"
+  | "mcp_initialize_day";
 
 /** Per-bucket window and limit, chosen so a healthy user never hits them and an abuser hits them fast. */
 const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = {
@@ -44,6 +46,10 @@ const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = 
   // Checking a key live (lib/connections.ts checkKey) sends it to its provider for us: a person connecting a few keys
   // checks a handful; anything more is someone using the show to test keys that aren't theirs.
   key_check: { windowSeconds: 600, max: 12 },
+  // New MCP sessions from one address (app/api/mcp, keyed by lib/limits visitorKey): each writes a session row. The
+  // busiest address in November (our own checks) opened 57 in an hour and 395 in a day; a registry's prober, fewer.
+  mcp_initialize: { windowSeconds: 3600, max: 150 },
+  mcp_initialize_day: { windowSeconds: 86_400, max: 1_500 },
 };
 
 type Entry = { timestamps: number[] };

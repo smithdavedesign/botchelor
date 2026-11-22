@@ -1,7 +1,8 @@
 # Botchelor: what it costs
 
 _Written 2026-10-21; updated 2026-10-24 (Venice's auto-pay, the scene writer measured: GLM-4.6 against DeepSeek V3.1,
-and admins' picture checks) 2026-10-30 (the move off Vercel: DigitalOcean, Bunny, Cloudflare; `docs/hosting.md`) 2026-11-08 (Cloudflare Workers Paid) and 2026-11-15 (a live call's minute, part by part). It covers what each operation costs, what the infrastructure costs every month, and what
+and admins' picture checks) 2026-10-30 (the move off Vercel: DigitalOcean, Bunny, Cloudflare; `docs/hosting.md`) 2026-11-08 (Cloudflare Workers Paid), 2026-11-15 (a live call's minute, part by part) and 2026-11-22 (the show's
+larger size, Neon's real bill, the balances, the backup's size; each date's cost kept in `ops_log`). It covers what each operation costs, what the infrastructure costs every month, and what
 the project has spent so far. All amounts are in US dollars._
 
 A date's token use, as measured on 2026-10-15, is "Per-date token use" below; After Dark's provider prices and token
@@ -19,11 +20,12 @@ have no billing API, so their top-ups are entered by hand.
 - Unit prices come from those two docs and the providers' pricing pages.
 - Volumes come from read-only counts on the production database (2026-10-21).
 - Vercel's figures come from its billing API (October, while it was still Pro).
-- DigitalOcean's prices are what its API quoted for each app spec (`POST /v2/apps/propose`); Bunny's are its price list
-  and the pull zone's settings.
-- Model calls are logged to Vercel's runtime logs (`episode_generated` with `cost_usd`), not to the database. Hobby-era
-  logs are gone, so model spend is **estimated**: volume × unit price. The providers' own dashboards hold the exact
-  figures.
+- DigitalOcean's prices are its list prices for each instance size (`GET /v2/apps/tiers/instance_sizes`) and what its
+  API quoted for each app spec (`POST /v2/apps/propose`); Bunny's are its price list and the pull zone's settings.
+- Each date's cost (`episode_generated` with `cost_usd`) went only to the runtime log, which each deploy throws away
+  (on Vercel, then on DigitalOcean). Since 2026-11-22 it is also a row in `ops_log` for 30 days (`lib/ops-log.ts`,
+  /admin → Servers). Model spend before then is **estimated**: volume × unit price. The providers' own dashboards hold
+  the exact figures.
 
 ## Each operation
 
@@ -35,6 +37,7 @@ have no billing API, so their top-ups are entered by hand.
 | A date told as a story | One call on the same model | under 1¢. Included with the Companion Plan; otherwise one bought date. |
 | Narrating an After Dark step | One DeepSeek V3.1 call: ~800–950 tokens in, ~150–250 out | **0.05–0.08¢, 2–3 s** (measured 2026-11-17), on top of the step's ~0.24¢ |
 | A text in the thread (house reply) | One short model call | well under 0.1¢ |
+| A companion's reply (docs/companions.md) | One call on the companion model (DeepSeek V3.1 through OpenRouter) | **~0.1¢**: 0.106¢ on average, from the cost recorded with each reply (read 2026-11-22) |
 | A companion's voice note (docs/companions.md, P3) | One Kokoro call (Venice `tts-kokoro`, or Replicate's Kokoro), kept by its words so it's never made twice | **~0.04¢ on Venice, up to ~0.2¢ on Replicate**. The plan includes 30 a month; else 1 token buys 100 (~0.7¢ each in). At most 3,000 a day across everyone. |
 | A character's face kit for calls (docs/PRDs/digital-human.md, Tier 0; drawn once per approved portrait) | Eight Qwen image edits on Replicate (`qwen/qwen-image-edit-2511`, ~3¢ each; the eighth is the talking still Ditto animates, drawn alone for an older kit on its next call) plus one Wan 2.2 clip at 480p (~5¢), each still and three frames of the clip through the PG check (one Venice vision call each) | **~29¢ a character, once**. Started by a plan member's or admin's call, at most 12 a day across everyone (`FACE_KIT_PER_DAY`, ~$3 a day at the most); nothing a minute. |
 | A live face on a call, our own renderer (docs/PRDs/digital-human.md, Tier 1b; `LIVE_FACE_PROVIDER=musetalk:admins`, live for admins 2026-11-14) | MuseTalk 1.5 on a Runpod Serverless worker (`workers/live-face/`): a bundle built once per kit from its idle loop (~40 s of GPU), then one clip per piece of a reply (~2 s of GPU for a 2-s piece); a 24 GB worker is ~$0.75/h, the 4090 tier ~$1.34/h, billed by the second while it runs plus a 30-s idle timeout | **~1.3–2.2¢ a call minute while a call runs**, nothing between calls; ~1¢ a bundle; prepaid balance on Runpod is the cap (David loaded ~$25 on 2026-11-13). The spike that proved it cost under $2. A second worker image, Ditto on TensorRT (`workers/live-face-ditto/`, its own endpoint `LIVE_FACE_DITTO_ENDPOINT`, 2026-11-14), bills the same way with nothing to build per character; its spike cost $2.14, and admins' calls run on it from the evening of 2026-11-14 (`LIVE_FACE_PROVIDER=ditto:admins`), and admins' and Companion Plan members' from 2026-11-15 (`ditto:plan`; no separate charge, it rides on the plan's call minutes, so a call minute costs ~3.3¢ with the face against ~7¢ sold); a character's idle, nod and tilt (`lib/live-face/ditto-clips.ts`) are about a cent of GPU once, the first time a Ditto call starts for them. Cast video intros (`lib/cast-intros.ts`, David 2026-11-14 "the cast on the show only as a demo"): OmniHuman on fal at 14¢ a second, about $1.30 a character once, the show's cast only, admin-triggered. |
@@ -56,7 +59,7 @@ have no billing API, so their top-ups are entered by hand.
 | A sale | Stripe 2.9% + 30¢ | **42¢** on a $4 pack |
 | Simulation run (`npm run sim:relationships`, paid mode) | 10 couples × 5 dates on Haiku | ~65¢ a run (stub mode is $0) |
 | Agent visitor loops (`scripts/loop/*`) | David's Claude subscription, stub models in the arena | $0 cash |
-| Nightly database backup (ai-stack `bin/db-backup`) | `pg_dump` of ~180 MB | $0 on Launch (it was ~1 GB a week of the free plan's 5 GB transfer) |
+| Nightly database backup (ai-stack `bin/db-backup`, [runbooks/restore.md](runbooks/restore.md)) | `pg_dump` of the whole database: about 1.2–1.3 GB a night in November (it was ~180 MB in October; the show's pictures stored in rows are most of it) | $0: ~38 GB a month of Launch's 500 GB of free transfer |
 
 **Database transfer (the cost behind the 2026-10-20 outage):** After Dark media was served straight from Postgres with
 no caching. A 10 MB video re-downloaded on every view used 10 MB of Neon transfer each time. #499 lets the admin's
@@ -122,22 +125,22 @@ A call minute sells for about 7–8¢ past the plan's included 20 (a token buys 
 
 | Service | Plan | Monthly cost | Notes |
 |---|---|---|---|
-| Vercel | **Hobby** (free) since 2026-10-30; Pro before | **$0** for botchelor | David moved the team to Hobby on 2026-10-30. Hobby can't build botchelor (12 functions a deployment, daily cron only, no commercial use), so the show moved to DigitalOcean (`docs/hosting.md`). The last Vercel build keeps serving botchelor.com until the Cloudflare cutover. October on Pro, mostly build minutes: ~$17 of the $20 credit by 10-21 and ~$2 billed above it. |
-| DigitalOcean App Platform: the show | `botchelor-show`, 1 vCPU / 1 GiB (`apps-s-1vcpu-1gb`), since 2026-10-30 | **$12** | `.do/show.yaml`. 100 GiB of outbound traffic included, then $0.02 a GiB. No hard cap: the instance price is fixed. |
-| DigitalOcean App Platform: After Dark | `clownfish-app` (ad.botchelor.com), 1 vCPU / 1 GiB fixed (`apps-s-1vcpu-1gb-fixed`), since 2026-10-30 | **$10** | `.do/app.yaml`. 100 GiB out included. |
-| DigitalOcean scheduled job | On After Dark's app: the lobby hourly, the showcase check hourly, the daily job at 16:20 UTC | **up to $5** | Smallest size (`apps-s-1vcpu-0.5gb`), billed for the time it runs. Each hourly run lasts ~20 minutes (it waits between the lobby and the showcase check), so expect well under $5. DigitalOcean quoted $15 for After Dark's app with the job. A $15 spend alert is still to be set (Billing → Spend alerts; the form didn't save from automation). |
-| Bunny (After Dark's media, media.botchelor.com) | Storage zone `botchelor-ad` (New York, Standard) + pull zone `botchelor-ad-media` | **$1 minimum, ~$1–6** | Storage $0.025/GB a month (1.35 GB copied on 2026-10-30: ~3¢). CDN $0.01/GB in Europe and North America; Asia, Africa and South America are switched off. **Spend cap: 500 GB a month on the pull zone (at most $5 of traffic).** Prepaid: on a 14-day trial ($20 of trial credit, ends ~2026-11-13). Before then David adds $20 with Auto-Recharge off, or the account is disabled. |
-| Cloudflare (DNS and proxy for botchelor.com) | **Free** | $0 | Being set up 2026-10-30: DNS for botchelor.com, the bare domain proxied to the show, visitor location headers (After Dark's region rules). DigitalOcean's DNS holds the zone until the nameservers move. |
+| Vercel | **Hobby** (free) since 2026-10-30; Pro before | **$0** for botchelor | David moved the team to Hobby on 2026-10-30. Hobby can't build botchelor (12 functions a deployment, daily cron only, no commercial use), so the show moved to DigitalOcean (`docs/hosting.md`); the Vercel project was deleted on 2026-10-31. October on Pro, mostly build minutes: ~$17 of the $20 credit by 10-21 and ~$2 billed above it. |
+| DigitalOcean App Platform: the show | `botchelor-show`, 1 vCPU / 2 GiB (`apps-s-1vcpu-2gb`) since 2026-11-22; 1 vCPU / 1 GiB (`apps-s-1vcpu-1gb`, $12) from 2026-10-30 | **$25** | `.do/show.yaml`. A size up on 2026-11-22: at 1 GiB, memory sat near the limit and the app restarted between deploys. 200 GiB of outbound traffic included (150 at 1 GiB), then $0.02 a GiB. No hard cap: the instance price is fixed. October was covered by DigitalOcean's signup credit. |
+| DigitalOcean App Platform: After Dark | `botchelor` (ad.botchelor.com; its own address is `clownfish-app-dvoft.ondigitalocean.app`), 1 vCPU / 1 GiB fixed (`apps-s-1vcpu-1gb-fixed`), since 2026-10-30 | **$10** | `.do/app.yaml`. 100 GiB out included. |
+| DigitalOcean scheduled job (`lobby`) | On After Dark's app: the lobby and the showcase check hourly, the daily job at 16:20 UTC and its resume pass until 23:20 | **under $1** | Smallest size (`apps-s-1vcpu-0.5gb`, about $0.0000021 a second), billed by the second it runs. Until 2026-11-22 every run waited 20 minutes before the showcase check (~$2 a month); now a run lasts as long as its calls, a minute or two. DigitalOcean quoted $15 for After Dark's app with the job. A $15 spend alert is still to be set (Billing → Spend alerts; the form didn't save from automation). |
+| Bunny (After Dark's media, media.botchelor.com) | Storage zone `botchelor-ad` (New York, Standard) + pull zone `botchelor-ad-media` | **$1 minimum, ~$1–6** | Storage $0.025/GB a month (1.35 GB copied on 2026-10-30: ~3¢). CDN $0.01/GB in Europe and North America; Asia, Africa and South America are switched off. **Spend cap: 500 GB a month on the pull zone (at most $5 of traffic).** Prepaid: $25 paid 2026-10-30, with auto-recharge of $25 whenever the balance drops under $5; the trial credit covered use until about 2026-11-13. Recharges since then aren't in the ledger yet. |
+| Cloudflare (DNS and proxy for botchelor.com) | **Free** | $0 | Since 2026-10-30: DNS for botchelor.com, the bare domain proxied to the show, visitor location headers (After Dark's region rules). The records are in `docs/hosting.md`. |
 | Cloudflare Workers Paid (the whole account) | **Workers Paid** since 2026-11-08 (David) | **$5** | Account-wide, shared with David's other products. Bought for alterpaw, pettycourt and squadwrap, whose share images take 0.1–1 s of CPU each; the free plan allows 10 ms a request. It includes 10M requests and 30M CPU-ms a month, then $0.30 a million requests and $0.02 a million CPU-ms. The idea-factory Worker (demand-test pages, every product's visit beacon) runs on the same account. |
 | Cloudflare Workers AI (`botchelor-images`, [workers/cf-images](../workers/cf-images/README.md), 2026-11-17) | Free allowance: 10,000 neurons a day | **$0** | On Workers Paid, use past the allowance would bill ($0.011 per 1,000 neurons), so the Worker stops at 9,000 a day. It's the only thing on the account with an AI binding (checked 2026-11-17). Its Durable Object and requests fit in the plan's included use. |
-| Neon (Postgres) | **Launch** since 2026-10-20 (account the Neon agent account (the owner's second Google account)) | **~$3–6** expected for botchelor | Compute $0.106 per CU-hour (32 CU-hours used in October so far), storage $0.35 per GB-month (~0.18 GB), transfer free up to 500 GB. A spending notification is set at $20. The same Neon org also holds alterpaw, squadwrap, tiebreak, grantgate and test, which are billed together. |
-| Domain botchelor.com | Wix registrar | David to fill in (typically ~$15–25 a year) | Wix is the registrar only. Since 2026-10-30 DNS is at DigitalOcean, moving to Cloudflare (`docs/hosting.md`). |
+| Neon (Postgres) | **Launch** since 2026-10-20 (the Neon agent account, the owner's second Google account) | **~$26** for November (~$5 for October) | Compute $0.106 per CU-hour. The compute is fixed at 0.25 CU and traffic every few minutes keeps it awake around the clock: 171 CU-hours by 2026-11-22 (≈$18), so about $26 for the month with storage (32 CU-hours in October, to 10-21). Storage $0.35 per GB-month: 2.1 GB in November (~0.18 GB in October), mostly the show's pictures stored in rows; the 7-day history and the snapshots kept since 2026-11-22 ([runbooks/restore.md](runbooks/restore.md)) add a little. Transfer is free up to 500 GB (107.6 GB by 11-22). The $20 spending notification is now below the monthly bill. The same Neon org also holds alterpaw, squadwrap, tiebreak, grantgate and test, which are billed together. |
+| Domain botchelor.com | Wix registrar | David to fill in (typically ~$15–25 a year) | Wix is the registrar only; DNS is at Cloudflare since 2026-10-30 (`docs/hosting.md`). |
 | Stripe | Pay per sale | $0 fixed | 2.9% + 30¢ per purchase. |
 | Resend (email) | Free | $0 | 3,000 emails a month, 100 a day. |
 | Google Analytics 4, Search Console, Bing Webmaster | Free | $0 | |
 | Vercel Web Analytics | Off since the move (it only runs on Vercel) | $0 | Google Analytics carries on. |
 | Our engagement log (`web_events`, 2026-10-31) | In the Neon database | ~$0 now | About 30 rows a visit, ~400 bytes each with indexes: 1,000 visitors a day is ~12 MB a day, ~4.4 GB at the 400-day limit, ~$1.50 a month of Neon storage. Inserts are one statement per batch of up to 25 events. |
-| GitHub | Free | $0 | Actions minutes ran out on 2026-10-19 (reset around Nov 1), while the repo was private. Since #575 (10-21) botchelor's CI runs by hand only, by choice; the repo is public now, so its Actions minutes are free. Merges are gated on local typecheck + tests ([BUILD.md](../BUILD.md)). |
+| GitHub | Free | $0 | The repo is public since 2026-11-14, so Actions minutes are free. CI runs on every pull request and on `main` since #1818 (2026-11-18): typecheck, the tests in four shards, the build and the e2e suite, and a merge waits for all of them ([BUILD.md](../BUILD.md)). Before that, minutes ran out on 2026-10-19 while the repo was private, and CI ran by hand only from #575 (10-21). |
 | Claude (all agent work) | David's subscription | Not per project | Never API credit. |
 
 ### The scene writer: GLM-4.6 against DeepSeek V3.1 (2026-10-24)
@@ -161,18 +164,20 @@ cost per call (8 calls, 2.8¢ in all; each writer needed one second call in its 
 - **Thinking room:** GLM-4.6 thinks ~960 tokens before it writes, inside the step's 1,600-token reply budget, which left about 600 for the lines; one call in four ran out and the step was written again. Each writer now has `think_tokens` added to its reply budget (GLM-4.6: 1,200), so the lines always have room.
 - The recaps, memory, facts and clip directions stay on DeepSeek V3.1, so they don't take a minute and a half each.
 
-**Steady-state fixed cost (since 2026-10-30; Workers Paid added 2026-11-08):** about **$35–45 a month** before any model spend:
+**Steady-state fixed cost (since 2026-11-22):** about **$70–75 a month** before any model spend:
 
 | | A month |
 |---|---|
-| DigitalOcean: the show ($12) + After Dark ($10) + the scheduled job (up to $5) | $22–27 |
-| Neon | ~$3–6 |
+| DigitalOcean: the show ($25) + After Dark ($10) + the scheduled job (under $1) | ~$36 |
+| Neon (November's estimate) | ~$26 |
 | Bunny | $1–6 (the $1 minimum until subscribers arrive) |
 | Cloudflare Workers Paid (the whole account, shared with the other products) | $5 |
 | Cloudflare DNS, Vercel (Hobby), Resend, GitHub | $0 |
 | The domain, prorated | ~$2 |
-| **Total** | **~$33–46** |
+| **Total** | **~$70–75** |
 
+Until 2026-11-21 this page said ~$35–45: the show was $12, and Neon was taken as ~$3–6, which held only in October,
+while the database was small and could sleep.
 Before the move it was about $25 (Vercel Pro $20 shared with David's other products, Neon ~$5, the domain). Keeping
 Vercel Pro would have cost $20 *plus* the After Dark host it needs anyway (~$15–20 with Bunny, `docs/after-dark-hosting.md`),
 so ~$45–50; the move is ~$10 a month cheaper and puts After Dark on a host whose terms allow it.
@@ -186,11 +191,13 @@ Every model provider is prepaid with auto-recharge off, so the balance is the mo
 
 | Provider | Loaded | Used for | Spent so far (estimate) |
 |---|---|---|---|
-| Venice | **$125** by the email receipts: $50 on 2026-10-19, a $25 auto top-up on 2026-10-23, $50 on 2026-10-24 (the $75 here before missed the last), **auto-pay: tops up under $10** ($12 on 2026-10-24) | After Dark pictures, tiles, videos and the Studio; since 2026-10-24 admins' picture checks too | **The first $50 is used up.** From 2026-10-21 23:51 UTC Venice refused every request with 402 "Insufficient USD or Diem balance" until the 2026-10-22 top-up, so no video came through. Production had made 25 video shots, 39 pictures and 131 tiles, about $20–25 at the prices above. Venice's usage page (venice.ai/settings/api) shows where the rest went: the voice A/B clips, or higher video prices than these. |
+| Venice | **$125** by the email receipts: $50 on 2026-10-19, a $25 auto top-up on 2026-10-23, $50 on 2026-10-24 (the $75 here before missed the last), **auto-pay: tops up under $10** ($12 on 2026-10-24; **$45.67 on 2026-11-22**) | After Dark pictures, tiles, videos and the Studio; since 2026-10-24 admins' picture checks too | **The first $50 is used up.** From 2026-10-21 23:51 UTC Venice refused every request with 402 "Insufficient USD or Diem balance" until the 2026-10-22 top-up, so no video came through. Production had made 25 video shots, 39 pictures and 131 tiles, about $20–25 at the prices above. Venice's usage page (venice.ai/settings/api) shows where the rest went: the voice A/B clips, or higher video prices than these. |
 | Hive | $111 | Moderation and age checks on every picture, tile and clip | ~$1.50 |
-| fal.ai | Prepaid (see the fal dashboard) | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
-| OpenRouter | **$50** (David, 2026-10-21) | After Dark scene text, the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`), and two keys outside botchelor on the same account (OpenClaw, and LiteLLM/RepoHQ) | **The whole account: $1.50** (OpenRouter's dashboard, 2026-10-22: 2K requests, 8.84M tokens, $0.17 per million blended). By key: NSFW Botchelor 3.93M tokens (most of the $1.50: the eval runs' $0.90 on pricier models, plus the scenes), OpenClaw 2.59M, LiteLLM + RepoHQ 2.33M. So almost all of the $50 is still there, shared by the three keys. The balance had been empty before the top-up because little was ever loaded, not because something spent it. |
-| Model key for dates (Gemini, or the frontier key when set) | Pay as you go | The show's dates and texts | ~$1–2.50 (100 dates, 70 of them on the paid daily quota) |
+| fal.ai | $50 (2026-10-19); $45.05 left on 2026-11-04 | Show tiles, portraits, sets | ~$3. That includes ~$0.70 of tiles thrown away by the Hive-429 bug, fixed in #310. |
+| OpenRouter | **$50** (David, 2026-10-21); **$3.99 left on 2026-11-22** | The show's dates (their own key since 2026-10-31, `FRONTIER_LLM_*` in `.do/show.yaml`, with a $50 limit), After Dark scene text, the After Dark eval/A-B runs (`/api/jobs/eval-after-dark`), companion replies, and two keys outside botchelor on the same account (OpenClaw, and LiteLLM/RepoHQ) | **$3.99 is about 160–300 more dates** at 1.3–2.5¢ each; once it's spent, dates fall back to the free model and the other calls on it fail. A top-up, with a limit, is David's call. On 2026-10-22 it was **the whole account: $1.50** (OpenRouter's dashboard, 2026-10-22: 2K requests, 8.84M tokens, $0.17 per million blended). By key: NSFW Botchelor 3.93M tokens (most of the $1.50: the eval runs' $0.90 on pricier models, plus the scenes), OpenClaw 2.59M, LiteLLM + RepoHQ 2.33M. So almost all of the $50 is still there, shared by the three keys. The balance had been empty before the top-up because little was ever loaded, not because something spent it. |
+| Google (Gemini) | Pay as you go, billed to the Botchelor project in Google Cloud | The free model the show falls back to, embeddings and evals | Not in the ledger: its bill is in Google Cloud's billing. In October ~$1–2.50 (100 dates, 70 of them on the paid daily quota). |
+| Replicate | Credit bought as needed: $74.07 in six purchases, 2026-10-23 to 11-04 | After Dark's second media provider, face kits, voice notes | Purchases after 2026-11-04 aren't in the ledger yet. |
+| Runpod | $25 on 2026-11-13; auto-pay adds $25 when the balance drops under $15 | The moving face on calls | ~$9 from 11-13 to 11-15 ($16.01 left then). |
 
 ## One-off payments
 

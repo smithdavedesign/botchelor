@@ -10,9 +10,15 @@
  * never-list). Nothing sent is nothing chosen: the scene opens as it did before (a pick by a stable hash). A refused
  * opening is never stored or logged.
  *
- * Pure and client-safe, like lib/scene-cards.ts: the pickers use it too.
+ * Pure; the server's: the pickers send their choice with lib/opening-choice.ts.
  */
-import { CARD_OPENING_MAX, showCardTextIssue } from "./scene-cards";
+import { CARD_OPENING_MAX } from "./scene-cards";
+import { showCardTextIssue } from "./scene-card-check";
+import { tidyOpening } from "./opening-choice";
+
+// The picker's side (what it sends for a choice) is lib/opening-choice.ts, which the pickers load without the content
+// filter this file's check runs (2026-11-22 audit).
+export { openingField, tidyOpening, type OpeningChoice } from "./opening-choice";
 
 export type OpeningResult = { ok: true; opening: string | null } | { ok: false; status: number; error: "invalid_opening" | "opening_not_allowed"; message: string };
 
@@ -29,9 +35,6 @@ export function writtenOpeningIssue(text: string): string | null {
   }
   return "That opening can't be used: the show is PG, so nothing sexual and no innuendo.";
 }
-
-/** A written opening, tidied to one line (nothing is cut: a long one is refused). */
-export const tidyOpening = (raw: string): string => raw.replace(/\s+/g, " ").trim();
 
 /**
  * The opening a picker's `opening` names: one of `openings` by its index (0, 1 or 2; "0" to "2" too), or the sentence
@@ -57,20 +60,3 @@ export function resolveOpening(raw: unknown, openings: readonly string[] | null)
 
 /** Whether an opening's text is one of ours (a card's, a generic one: it names {a} or {b}) rather than a person's own words. */
 export const openingHasSides = (text: string): boolean => /\{[ab]\}/.test(text);
-
-/* ------------------------------------------------ the picker's side ------------------------------------------------ */
-
-/** What the "How it opens" step chose: one of the three, any of the three at random, or a sentence of their own. */
-export type OpeningChoice = { pick: 0 | 1 | 2 } | { surprise: true } | { written: string };
-
-/**
- * The `opening` field a picker sends for its choice (nothing when nothing was chosen, or a written one is still
- * empty). "Surprise me" draws one of the three here, as it's sent. `random` is for tests.
- */
-export function openingField(choice: OpeningChoice | null | undefined, random: () => number = Math.random): { opening?: number | string } {
-  if (!choice) return {};
-  if ("pick" in choice) return { opening: choice.pick };
-  if ("surprise" in choice) return { opening: Math.min(2, Math.floor(random() * 3)) };
-  const text = tidyOpening(choice.written);
-  return text ? { opening: text } : {};
-}

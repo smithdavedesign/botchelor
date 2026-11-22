@@ -63,9 +63,11 @@
   animation: excerpt-in 0.3s ease-out both;
   animation-delay: calc(var(--i) * var(--excerpt-step) + 0.75s);
 }
+/* The second speaker's bubble is the filled buttons' pink, made for the label colour on it (4.5:1 in either theme);
+   the decoration pink lightened with white held the white words at 3.6:1 (2026-11-22 audit). */
 .date-excerpt-line.is-b .date-excerpt-bubble {
   border-radius: var(--radius) var(--radius) var(--radius-xs) var(--radius);
-  background: color-mix(in srgb, var(--accent) 88%, var(--bubble));
+  background: var(--accent-btn);
   color: var(--accent-ink);
 }
 /* "…" while they type: over the bubble's start, gone as the line lands (the layout never moves). */
@@ -85,7 +87,7 @@
   left: auto;
   right: calc(28px + 0.45rem);
   border-radius: var(--radius) var(--radius) var(--radius-xs) var(--radius);
-  background: color-mix(in srgb, var(--accent) 88%, var(--bubble));
+  background: var(--accent-btn);
 }
 .date-excerpt-typing span {
   width: 6px;
