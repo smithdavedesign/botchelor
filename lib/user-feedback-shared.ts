@@ -7,6 +7,8 @@
  * never read people's notes.
  */
 
+import { safeFrom } from "./age";
+
 export const FEEDBACK_CATEGORIES = ["bug", "idea", "love", "confusing", "other"] as const;
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
 export const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
@@ -77,11 +79,15 @@ export function promptPathBlocked(pathname: string): boolean {
   return pathname === "/gate" || /^\/(admin|after-dark|email)(\/|$)/.test(pathname);
 }
 
-/** The page a note was sent from: a path only, never its query or hash (they can carry tokens). Null if it isn't one. */
+/**
+ * The page a note was sent from: a path only, never its query or hash (they can carry tokens). Null if it isn't one of
+ * the site's own paths by the age gate's test (lib/age.ts safeFrom: no "//host", no "/\host", no control characters),
+ * since the admin page shows it as a link.
+ */
 export function cleanPage(value: unknown): string | null {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return null;
+  if (typeof value !== "string") return null;
   const path = value.split(/[?#]/)[0].slice(0, 200);
-  return path || null;
+  return path && safeFrom(path) === path ? path : null;
 }
 
 /** "390x844": the viewport in CSS pixels, or null when it isn't that shape. */

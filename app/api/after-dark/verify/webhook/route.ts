@@ -1,6 +1,6 @@
 import { applyDecision, diditConfig, diditSignatureOk } from "@/lib/adult/age-check";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, readBodyText } from "@/lib/http";
 import { overLimit, visitorKey } from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ const MAX_WEBHOOK_BYTES = 200_000;
 export const POST = handle(async (req: Request) => {
   const config = diditConfig();
   if (!config) return json({ error: "not_found" }, 404);
-  const raw = await req.text();
+  const raw = await readBodyText(req, MAX_WEBHOOK_BYTES);
   if (raw.length > MAX_WEBHOOK_BYTES || !diditSignatureOk(raw, req.headers, config.webhookSecret)) {
     const db = await getDb();
     const visitor = visitorKey(req.headers);

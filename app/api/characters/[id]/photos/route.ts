@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getDb } from "@/lib/db";
+import { getDb, type Db } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { pinPhoto, profilePhotos, sendPhoto, unpinPhoto } from "@/lib/studio/profile-photos";
 
@@ -10,13 +10,16 @@ const viewerOf = (req: Request) => {
   return auth?.authenticated ? auth.userId : null;
 };
 
-/** A character's profile photos (lib/studio/profile-photos.ts); a private character's to its owner only. */
+/** A character's profile photos (lib/studio/profile-photos.ts) as `viewer` may see them: a private character's to its owner only. */
+async function visiblePhotos(db: Db, id: string, viewer: string | null) {
+  const hidden = await db.query(`select 1 from characters where id = $1 and visibility = 'private' and owner_id is distinct from $2::text`, [id, viewer]);
+  return hidden.rows.length ? [] : profilePhotos(db, id);
+}
+
+/** A character's profile photos; a private character's to its owner only. */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
-  const db = await getDb();
-  const hidden = await db.query(`select 1 from characters where id = $1 and visibility = 'private' and owner_id is distinct from $2::text`, [id, viewerOf(req)]);
-  if (hidden.rows.length) return json({ photos: [] });
-  return json({ photos: await profilePhotos(db, id) });
+  return json({ photos: await visiblePhotos(await getDb(), id, viewerOf(req)) });
 });
 
 const Input = z.discriminatedUnion("action", [
@@ -36,7 +39,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   // The picture must be of this character (the URL's), so a link can't move one onto another's profile.
   const of = (await db.query<{ character_id: string }>(`select character_id from studio_pg_pictures where id = $1 and owner_id = $2`, [input.picture_id, viewer])).rows[0];
   if (input.action !== "unpin" && of?.character_id !== id) return json({ error: "not_found", message: "Pick one of your own Studio pictures of this character." }, 404);
-  if (input.action === "unpin") return json({ ok: await unpinPhoto(db, viewer, input.picture_id), photos: await profilePhotos(db, id) });
+  // The photos it answers with are the URL's character's, so they're held to GET's private check (2026-11-22 audit).
+  if (input.action === "unpin") return json({ ok: await unpinPhoto(db, viewer, input.picture_id), photos: await visiblePhotos(db, id, viewer) });
   const r = input.action === "pin" ? await pinPhoto(db, viewer, input.picture_id) : await sendPhoto(db, viewer, { picture_id: input.picture_id, to_character: input.to_character });
   return r.ok ? json(r) : json({ error: r.error, message: r.message }, r.status);
 });
