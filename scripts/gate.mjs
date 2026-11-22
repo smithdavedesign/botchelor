@@ -3,7 +3,7 @@
  * npm run gate: the quick local check before pushing a PR (a few minutes, one vitest worker for the 16 GB Mac).
  *
  *   1. tsc --noEmit over the whole project (about a minute)
- *   2. oxlint over the whole project (npm run lint, under a second)
+ *   2. oxlint over the changed files, as CI's typecheck job does (`npm run lint` checks the whole project)
  *   3. the test files this branch changed against origin/main (committed or not), and the tests that import a changed
  *      module directly, plus the CSS checks (css-tokens, css-balance) when a .css file changed
  *
@@ -56,7 +56,8 @@ function step(name, cmd, args) {
 
 console.log(`${changed.length} changed file(s) against ${BASE}`);
 step("typecheck", "npx", ["tsc", "--noEmit", "-p", "."]);
-step("lint", "npm", ["run", "--silent", "lint"]);
+const lintable = changed.filter((f) => /\.(ts|tsx|mts|mjs|js|cjs)$/.test(f));
+if (lintable.length) step("lint", "npx", ["oxlint", "--report-unused-disable-directives-severity=error", "--no-error-on-unmatched-pattern", ...lintable]);
 if (targets.length) {
   step(`${targets.length} test file(s) touching the change`, "npx", ["vitest", "run", "--maxWorkers=1", ...targets]);
 } else {

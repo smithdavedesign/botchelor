@@ -25,14 +25,21 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The commit before this change too: the lint step lints the files it changes.
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
-      # oxlint (.oxlintrc.json): hooks, <img>, `any` and a few always-a-bug rules; a stale eslint-disable fails it too.
-      - run: npm run lint
+      # oxlint (.oxlintrc.json) on the files this change touches: hooks, <img>, `any` and a few always-a-bug rules, and a
+      # stale eslint-disable fails it too. Only those files, so one that merged unlinted (its run started before this
+      # step existed) can't fail every other PR. `npm run lint` checks the whole project.
+      - run: >-
+          git diff --name-only --diff-filter=d HEAD^1 HEAD -- '*.ts' '*.tsx' '*.mts' '*.mjs' '*.js' '*.cjs' |
+          xargs -r -d '\n' npx oxlint --report-unused-disable-directives-severity=error --no-error-on-unmatched-pattern
 
   test:
     runs-on: ubuntu-latest
