@@ -15,8 +15,16 @@ export default async function RequestsPage() {
   return (
     <div className="showcase-page page-wide">
       <h1>Showcase requests</h1>
-      <p className="muted">Someone wants to publish a picture or clip with one of your characters in it. Nothing goes up without your OK.</p>
-      {id ? <Requests initial={await myRequests(await getDb(), id)} /> : <p><Link href="/account">Sign in</Link> to see what&apos;s waiting on you.</p>}
+      <p className="muted">When someone wants to publish a picture or clip with one of your characters, it waits here for your OK.</p>
+      {id ? (
+        <Requests initial={await myRequests(await getDb(), id)} />
+      ) : (
+        <p>
+          <Link className="button" href="/account?next=%2Fshowcase%2Frequests">
+            Sign in to see yours
+          </Link>
+        </p>
+      )}
       <p><Link href="/showcase">Back to the showcase</Link></p>
     </div>
   );
