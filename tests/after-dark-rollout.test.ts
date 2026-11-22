@@ -115,6 +115,23 @@ describe("the public door", () => {
     expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);
   });
 
+  it("After Dark's home sends someone signed out to the visitor's page, door open or not: one button, Sign in (2026-11-22 audit)", async () => {
+    expect(await publicDoorOpen()).toBe(false);
+    expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);
+    const visitor = await html(await AfterDarkSubscribe({ searchParams: Promise.resolve({}) }));
+    expect(visitor).toContain("Sign in to ask for an invite");
+    expect(visitor).toContain(`href="/account?next=${encodeURIComponent("/after-dark/subscribe")}"`);
+    // A member who's signed out signs in straight back to their nights.
+    expect(visitor).toContain(`href="/account?next=${encodeURIComponent("/after-dark")}"`);
+    // The waitlist is a fold under a text link, not a second button; and nothing is priced while nothing is for sale.
+    expect(visitor).toMatch(/<details class="ad-waitlist" data-waitlist="true"><summary>Email me when it opens<\/summary><form/);
+    expect(visitor).not.toContain("Hear first");
+    expect(visitor.match(/class="button[ "]/g)).toHaveLength(1);
+    expect(visitor).not.toMatch(/a month when it opens|\$\d/);
+    expect(visitor).toContain("Invite only while it&#x27;s in beta: free for");
+    expect(visitor).toContain("Video isn&#x27;t part of the beta.");
+  });
+
   it("an admin previews the landing as a visitor, or as someone signed in; without ?preview they're sent in", async () => {
     const admin = randomUUID();
     await claimAdmin(t.db, admin);
@@ -123,10 +140,10 @@ describe("the public door", () => {
     expect(await digest(page({}))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark;/);
     const visitor = await html(await page({ preview: "visitor" }));
     expect(visitor).toContain('data-preview="visitor"');
-    expect(visitor).toContain("Sign in to start");
+    expect(visitor).toContain("Sign in to ask for an invite");
     const member = await html(await page({ preview: "signed-in" }));
     expect(member).toContain('data-preview="signed-in"');
-    expect(member).not.toContain("Sign in to start");
+    expect(member).not.toContain("Sign in to ask for an invite");
     // Someone else can't preview: they just see the page as themselves.
     signIn(randomUUID());
     expect(await html(await page({ preview: "visitor" }))).not.toContain("data-preview");

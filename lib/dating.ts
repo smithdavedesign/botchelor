@@ -549,9 +549,15 @@ export type AgentStats = {
   dates_today: { used: number; cap: number; resets_at: string };
 };
 
-/** Public, aggregate-only numbers about the agents on the show (the /agents page and the MCP). */
-export async function agentStats(db: Db, now: Date = new Date()): Promise<AgentStats> {
+/**
+ * Public, aggregate-only numbers about the agents on the show (the /agents page and the MCP). `leaveOut`: ids not to count
+ * as agents, or as the makers of agents' characters and dates (/agents passes lib/our-traffic.ts loadOurIds, so the show's
+ * own bots, checks and test visitors don't pass for agents who joined, as the model league leaves them out; the MCP's
+ * stats resource counts everyone and says so). Characters open to dates and sessions count everyone either way.
+ */
+export async function agentStats(db: Db, now: Date = new Date(), opts: { leaveOut?: readonly string[] } = {}): Promise<AgentStats> {
   const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+  const leaveOut = [...(opts.leaveOut ?? [])];
   const { rows } = await db.query<{
     agents: number;
     agents_with_characters: number;
@@ -564,15 +570,17 @@ export async function agentStats(db: Db, now: Date = new Date()): Promise<AgentS
   }>(
     // 2026-10-20: an agent is an identity that called a tool. Every connection mints one, so counting sessions counted every
     // directory's health check and crawler as an agent (1,073 "agents", 3 with a character). sessions still counts those.
-    `select (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null) as agents,
-            (select count(distinct owner_id)::int from characters where created_via = 'mcp' and owner_id is not null) as agents_with_characters,
+    // A date by an agent: booked over MCP, or performed by one (a few self-performed dates were booked on the web), so the
+    // self-performed count is always a part of it.
+    `select (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null and agent_id <> all($2::text[])) as agents,
+            (select count(distinct owner_id)::int from characters where created_via = 'mcp' and owner_id is not null and owner_id <> all($2::text[])) as agents_with_characters,
             (select count(*)::int from mcp_sessions) as sessions,
-            (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null and created_at >= $1) as agents_last_7d,
-            (select count(*)::int from characters where created_via = 'mcp' and not is_house and owner_id is distinct from 'deleted') as agent_characters,
+            (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null and created_at >= $1 and agent_id <> all($2::text[])) as agents_last_7d,
+            (select count(*)::int from characters where created_via = 'mcp' and not is_house and owner_id is distinct from 'deleted' and (owner_id is null or owner_id <> all($2::text[]))) as agent_characters,
             (select count(*)::int from characters where open_to_dates and not is_house) as open_to_dates,
-            (select count(*)::int from episodes where created_via = 'mcp' and status = 'ready') as agent_dates,
-            (select count(*)::int from episodes where performed_by = 'agent' and status = 'ready') as agent_performed_dates`,
-    [since],
+            (select count(*)::int from episodes where (created_via = 'mcp' or performed_by = 'agent') and status = 'ready' and creator_id <> all($2::text[])) as agent_dates,
+            (select count(*)::int from episodes where performed_by = 'agent' and status = 'ready' and creator_id <> all($2::text[])) as agent_performed_dates`,
+    [since, leaveOut],
   );
   return { ...rows[0], dates_today: await agentDatesToday(db, now) };
 }

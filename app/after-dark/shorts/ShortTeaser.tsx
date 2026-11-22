@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import { billingOn } from "@/lib/adult/billing";
 import type { ShortTeaser } from "@/lib/adult/shorts";
 import { fillerLines } from "@/lib/adult/teaser";
 import { shortName } from "@/lib/names";
@@ -32,14 +33,20 @@ export function ShortTeaserCard({ short, filler = 3 }: { short: ShortTeaser; fil
   );
 }
 
-/** The way to unlock it: a subscription (the waitlist until the adult processor and the age check exist). */
+/**
+ * The way to unlock it: a subscription once a processor can sell one (lib/adult/billing.ts billingOn); until then the
+ * invite-only beta, and nothing offered for sale (the 2026-11-22 audit: it sold a subscription nobody could buy).
+ */
 export function SubscribeToUnlock() {
+  const selling = billingOn();
   return (
     <p className={styles.subscribe}>
       <Link className={`button primary ${styles.unlock}`} href="/after-dark/subscribe">
-        Subscribe to unlock
+        {selling ? "Subscribe to unlock" : "Ask for an invite"}
       </Link>
-      <span className="muted small">Adults only: the private side of this season. Episodes are included in the subscription.</span>
+      <span className="muted small">
+        Adults only: the private side of this season. {selling ? "Episodes are included in the subscription." : "It's invite-only while it's in beta."}
+      </span>
     </p>
   );
 }

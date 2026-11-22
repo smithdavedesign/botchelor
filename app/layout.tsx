@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import NavProgress from "./NavProgress";
 import { episodeAllowance, freshAllowance, ownAllowance } from "@/lib/allowance";
-import { adTokenBalance, adTokensOn } from "@/lib/adult/tokens";
+import { adTokenBalance } from "@/lib/adult/tokens";
 import { afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
 import { afterDarkDoors } from "@/lib/adult/doors";
 import { NO_AD_DOORS } from "@/lib/adult/door-links";
@@ -21,7 +21,7 @@ import Threshold from "./Threshold";
 import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { placeFromEdge } from "@/lib/place";
-import { SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
+import { AFTER_DARK_DESCRIPTION, SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
 import { showHome, siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
@@ -80,7 +80,8 @@ const TRACKING = trackingConfig();
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: SITE_TITLE,
-  description: SITE_DESCRIPTION,
+  // After Dark's own host isn't the show: its description says what it is (the build reads the same switch, lib/after-dark-host.ts).
+  description: afterDarkOnly() ? AFTER_DARK_DESCRIPTION : SITE_DESCRIPTION,
   applicationName: "Botchelor",
   // The tab icon lives in public/ (also the JSON-LD logo at /icon.svg), so it's declared here: only app/icon.* is automatic.
   // The Home Screen icon on an iPhone is the same PG tile as a PNG (scripts/make-icons.mjs); the manifest is app/manifest.ts.
@@ -142,8 +143,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // The nav's numbers, all at once (2026-11-04 performance audit: one after another they were five database round trips
   // on every signed-in page load, ~70 ms each from New York to the database in Oregon).
   const db = viewerId ? await getDb() : null;
-  // #1005: After Dark spends only bought tokens, never the free weekly dates, so its host counts those, as "tokens":
-  // its own once they're sold (lib/adult/tokens.ts), the show's until then.
+  // #1005: After Dark spends only tokens, never the free weekly dates, so its host counts those, as "tokens": its own once
+  // they're sold, until then the show's balance only as After Dark may spend it (lib/adult/tokens.ts: never a bought one).
   const adHost = afterDarkOnly();
   // On After Dark's own host the show's links go to the show: prefetching them only fetched "Moved to another host"
   // (middleware fetchAnswer), twenty times a page, and the page never settled (2026-11-07 audit, item 21).
@@ -179,7 +180,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // The nav changes once there's a character of theirs (app/Nav.tsx): until then, the show and one create button;
     // after, the face of the one they're working with, which switches it (app/CharacterPicker.tsx). One round trip.
     db && viewerId ? pickerCharacters(db, viewerId).catch(() => []) : [],
-    db && viewerId && adHost && adTokensOn() ? adTokenBalance(db, viewerId).catch(() => null) : null,
+    db && viewerId && adHost ? adTokenBalance(db, viewerId).catch(() => null) : null,
     // The season's format for the arc under the header (app/SeasonStrip.tsx): one shared copy for every visitor.
     adHost ? null : shared("watch:season-format", async () => seasonFormatNow(await getDb())).catch(() => null),
     // After Dark's header doors that depend on the viewer (lib/adult/doors.ts): the Studio's word, and the Showcase.
@@ -233,7 +234,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? dates.pack_left) : dates.left} meter={count.failed ? "none" : adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? 0) : dates.left} meter={count.failed ? "none" : adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board).
             A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}
@@ -261,7 +262,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <FooterGroup title="The show">
                 <li><Link prefetch={showPrefetch} href="/watch">Watch</Link></li>
                 <li><Link prefetch={showPrefetch} href="/graph">The Constellation</Link></li>
-                <li><Link prefetch={showPrefetch} href="/shop">{adHost ? "Tokens" : "More dates"}</Link></li>
+                {/* The show's shop sells dates through Stripe, whose rules bar paying for adult content: never linked from After
+                    Dark's host (the 2026-11-22 audit), whose tokens page is its account's. */}
+                {!adHost && <li><Link prefetch={showPrefetch} href="/shop">More dates</Link></li>}
                 {!adHost && <li><Link prefetch={showPrefetch} href="/pricing">Pricing</Link></li>}
                 <li><Link prefetch={showPrefetch} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
               </FooterGroup>
@@ -284,8 +287,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <li><Link prefetch={showPrefetch} href="/security">Security</Link></li>
                 <li><Link prefetch={showPrefetch} href="/accessibility">Accessibility</Link></li>
               </FooterGroup>
-              {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). */}
-              <FooterGroup title="Help and legal">
+              {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). On After Dark's host the
+                  group stays open on a phone too: reporting and the 2257 statement are never a tap away there. */}
+              <FooterGroup title="Help and legal" keepOpen={adHost}>
                 <li><Link prefetch={showPrefetch} href="/report">Report a problem</Link></li>
                 <li>
                   <FeedbackLink />
@@ -303,7 +307,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
           <CrisisResources />
           <p className="footer-legal">
-            Adults (18+) only · No real people · Points are free and can&apos;t be bought · © {new Date().getUTCFullYear()} {OPERATOR}
+            Adults (18+) only · No real people · {adHost ? "Every character is AI-generated fiction" : "Points are free and can't be bought"} · © {new Date().getUTCFullYear()} {OPERATOR}
             {support && (
               <>
                 {" "}
@@ -316,7 +320,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             Dark's host, which has its own five doors in its header. Last in the page's flow, so its room is the foot. */}
         {!adHost && <PhoneTabBar companions={companionOpen()} chat={navChat} unread={texts} hasCharacter={hasCharacter} />}
         <FeedbackDock />
-        <InstallHint hasCharacter={hasCharacter} />
+        {/* The show's app, installed: not offered on After Dark's host (its legal pages are served there too). */}
+        {!adHost && <InstallHint hasCharacter={hasCharacter} />}
         {google && consent.ask && <ConsentBanner />}
         <FunnelBeacon production={TRACKING.production} consentDefault={consent.granted} />
         <EngagementBeacon afterDarkHost={adHost} />

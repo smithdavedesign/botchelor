@@ -35,6 +35,11 @@ async function person(name: string, extra: Record<string, unknown> = {}) {
   const c = await (await api.createCharacter(validCharacter({ name, ...extra }), cookie)).json();
   return { cookie, userId: userIdOf(cookie), id: c.id as string };
 }
+/** The two as a couple the show knows (a match), which a double-date link needs (2026-11-21). */
+const pairUp = (a: string, b: string) => {
+  const [lo, hi] = [a, b].sort();
+  return t.db.query(`insert into matches (character_lo, character_hi) values ($1, $2) on conflict do nothing`, [lo, hi]);
+};
 const req = (path: string, cookie: string, body: unknown) =>
   new Request(`http://test.local${path}`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) });
 const take = (code: string, cookie: string, characterId: string) =>
@@ -60,6 +65,7 @@ const tracked = (event: string): Any[] =>
 describe("double-date links", () => {
   it("a couple's owner shares one stable link; a newcomer brings a character and a house date, and both tables book", async () => {
     const host = await person("Juni Marsh");
+    await pairUp(host.id, HOUSE_PARTNER_ID);
     const made = await linkRoute(req("/api/double-links", host.cookie, { character_id: host.id, partner_id: HOUSE_PARTNER_ID }));
     expect(made.status).toBe(201);
     const link = (await made.json()) as Any;
@@ -122,6 +128,7 @@ describe("double-date links", () => {
     await t.db.query(`update characters set visibility = 'private' where id = $1`, [stranger.id]);
     expect(await ensureDoubleLink(t.db, stranger.userId, stranger.id, HOUSE_PARTNER_ID)).toMatchObject({ ok: false, error: "private" });
 
+    await pairUp(host.id, HOUSE_PARTNER_ID);
     const link = (await ensureDoubleLink(t.db, host.userId, host.id, HOUSE_PARTNER_ID)) as Any;
     const second = await api.createCharacter(validCharacter({ name: "Lotte Hale" }), `bz_uid=${host.userId}`);
     expect(await takeDoubleLink(t.db, host.userId, link.code, ((await second.json()) as Any).id)).toMatchObject({ ok: false, error: "own_link" });
@@ -141,6 +148,7 @@ describe("double-date links", () => {
 
   it("checks both sides' dates before anything is made: nothing spent, and the link stays open", async () => {
     const host = await person("Juni Marsh");
+    await pairUp(host.id, HOUSE_PARTNER_ID);
     const link = (await ensureDoubleLink(t.db, host.userId, host.id, HOUSE_PARTNER_ID)) as Any;
     const friend = await person("Pia Voss");
 
@@ -168,6 +176,7 @@ describe("double-date links", () => {
 
   it("closes when turned off or after LINK_DAYS, and caps how many one person keeps open", async () => {
     const host = await person("Juni Marsh");
+    await pairUp(host.id, HOUSE_PARTNER_ID);
     const link = (await ensureDoubleLink(t.db, host.userId, host.id, HOUSE_PARTNER_ID)) as Any;
     const off = await linkRoute(req("/api/double-links", host.cookie, { character_id: host.id, partner_id: HOUSE_PARTNER_ID, revoke: true }));
     expect(off.status).toBe(200);
@@ -187,10 +196,40 @@ describe("double-date links", () => {
     const cast = seasonCastIds().filter((id) => id !== HOUSE_PARTNER_ID);
     let refused: Any = null;
     for (let i = 0; i < OPEN_LINKS_MAX + 1 && i < cast.length; i++) {
+      await pairUp(host.id, cast[i]);
       const r = (await ensureDoubleLink(t.db, host.userId, host.id, cast[i], later)) as Any;
       if (!r.ok) refused = r;
     }
     expect(refused).toMatchObject({ ok: false, error: "too_many_links" });
+  });
+
+  it("is for a couple the show knows: a date that aired or a match, or both characters the sharer's own (2026-11-21)", async () => {
+    const host = await person("Juni Marsh");
+    const other = await person("Odo Brand");
+    // Two public characters that never met: refused, and nothing is made.
+    expect(await ensureDoubleLink(t.db, host.userId, host.id, other.id)).toMatchObject({ ok: false, status: 409, error: "not_a_couple" });
+    expect(await ensureDoubleLink(t.db, host.userId, host.id, HOUSE_PARTNER_ID)).toMatchObject({ ok: false, error: "not_a_couple" });
+    expect((await t.db.query<Any>(`select count(*)::int as n from double_links`)).rows[0].n).toBe(0);
+
+    // A date between them that aired makes them one.
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const date = await (await api.createEpisode({ character_id: host.id, partner_id: HOUSE_PARTNER_ID }, host.cookie)).json();
+    expect(await ensureDoubleLink(t.db, host.userId, host.id, HOUSE_PARTNER_ID)).toMatchObject({ ok: false, error: "not_a_couple" }); // not aired yet
+    await api.reveal(date.id, host.cookie);
+    expect(await ensureDoubleLink(t.db, host.userId, host.id, HOUSE_PARTNER_ID)).toMatchObject({ ok: true, made: true });
+
+    // So does a match; and an old link closes once they no longer are one (the match ended, no date between them).
+    await pairUp(host.id, other.id);
+    const link = (await ensureDoubleLink(t.db, host.userId, host.id, other.id)) as Any;
+    expect(link).toMatchObject({ ok: true, made: true });
+    expect((await loadDoubleLink(t.db, link.code))!.status).toBe("open");
+    await t.db.query(`delete from matches`);
+    expect((await loadDoubleLink(t.db, link.code))!.status).toBe("closed");
+
+    // Two of the sharer's own: theirs to pair.
+    const second = (await (await api.createCharacter(validCharacter({ name: "Lotte Hale" }), host.cookie)).json()).id as string;
+    expect(await ensureDoubleLink(t.db, host.userId, host.id, second)).toMatchObject({ ok: true, made: true });
   });
 
   it("an agent's human gets a share link over MCP (double_date share_link, 2.26.0)", async () => {
@@ -205,6 +244,7 @@ describe("double-date links", () => {
     const call = async (name: string, args: Record<string, unknown>) =>
       ((await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, session)) as Any).result;
     const made = (await call("create_character", validCharacter({ name: "Juni Marsh" }))).structuredContent;
+    await pairUp(made.character.id, HOUSE_PARTNER_ID);
     const r = await call("double_date", { share_link: true, character_id: made.character.id, partner_id: HOUSE_PARTNER_ID, agent_id: made.agent_id });
     expect(r.isError).toBeUndefined();
     expect(r.structuredContent.share_link).toMatch(/\/double\/[a-z0-9]{12}$/);

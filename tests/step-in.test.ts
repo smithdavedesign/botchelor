@@ -5,6 +5,7 @@ import { deleteAccount } from "@/lib/account";
 import { loadOwnDate, rebuildOwnDate } from "@/lib/own-date";
 import { playEnding, playShift } from "@/lib/step-in-play";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
+import { refreshEpisodePair } from "@/lib/relationships";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { DISCLOSURE_EVERY, lineInCrisis, maybeCrisis, PG_REDIRECT, STEP_IN_MAX_PER_DAY, stepInOpen } from "@/lib/step-in";
@@ -365,9 +366,18 @@ describe("account deletion", () => {
     const { body } = await start(admin.cookie);
     await playThrough(admin.cookie, body.episode_id);
     await act(admin.cookie, body.episode_id, { action: "air" });
+    // Once it has aired, its couple is on the public record; deleting takes the couple off with the date (2026-11-21:
+    // the graph kept counting it).
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [body.episode_id]);
+    await refreshEpisodePair(t.db, body.episode_id);
+    const pair = (await t.db.query<Any>(`select character_a, character_b from episodes where id = $1`, [body.episode_id])).rows[0];
+    const publicDates = async () =>
+      (await t.db.query<Any>(`select public_dates from relationships where character_a in ($1, $2) and character_b in ($1, $2)`, [pair.character_a, pair.character_b])).rows[0]?.public_dates;
+    expect(await publicDates()).toBe(1);
     await deleteAccount(t.db, admin.id);
-    const ep = (await t.db.query<Any>(`select e.visibility, c.name, c.owner_id from episodes e join characters c on c.id = e.character_a where e.id = $1`, [body.episode_id])).rows[0];
-    expect(ep).toEqual({ visibility: "private", name: "A former viewer", owner_id: "deleted" });
+    const ep = (await t.db.query<Any>(`select e.visibility, c.name, c.owner_id, c.visibility as shown from episodes e join characters c on c.id = e.character_a where e.id = $1`, [body.episode_id])).rows[0];
+    expect(ep).toEqual({ visibility: "private", name: "A former viewer", owner_id: "deleted", shown: "private" });
+    expect(await publicDates()).toBe(0);
   });
 });
 

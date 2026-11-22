@@ -83,7 +83,7 @@ export default async function ShortsPage() {
         <h1>Episodes</h1>
         <p className="muted">
           Nights between two of this season&apos;s house cast, as episodes: read them, watch them in the theater, and the night&apos;s video when it has
-          one. Included in the subscription.
+          one.
         </p>
         {access.admin && <p className="muted small">You publish an episode from a pair&apos;s page: 📺 Episodes, above the scene.</p>}
         {shorts.length ? (

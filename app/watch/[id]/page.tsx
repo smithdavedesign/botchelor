@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
 import { SHARE_IMAGE } from "@/lib/seo";
@@ -11,13 +12,16 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }>; searchParams?: Promise<{ start?: string | string[] }> };
 
+/** The room as this viewer sees it: read once a request, for the title and the page alike (React's cache). */
+const roomFor = cache(async (id: string, viewerId: string | null) => getRoomState(await getDb(), id, viewerId));
+
 /**
  * A room replays one episode, so search engines are pointed at the episode page as the canonical copy (one
  * indexable URL per date, no duplicate content); the room itself stays out of the index but its links count.
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const state = await getRoomState(await getDb(), id, null).catch(() => null);
+  const state = await roomFor(id, userIdFromCookieStore(await cookies())).catch(() => null);
   if (!state) return { title: "Date room not found · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = state.characters;
   const title = `Watch ${a.name} × ${b.name} live · Botchelor`;
@@ -40,7 +44,7 @@ export default async function WatchRoomPage({ params, searchParams }: Props) {
   const viewerId = userIdFromCookieStore(await cookies());
   const db = await getDb();
   const [state, engaged] = await Promise.all([
-    getRoomState(db, id, viewerId),
+    roomFor(id, viewerId),
     // A viewer with characters of their own (the nav's own test, app/layout.tsx) came for the show, not by accident.
     viewerId ? db.query(`select 1 from characters where owner_id = $1 and not is_house limit 1`, [viewerId]).then((r) => r.rows.length > 0, () => false) : false,
   ]);

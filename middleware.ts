@@ -5,7 +5,7 @@ import { PLACE_COOKIE, PLACE_TRIED_COOKIE, placeCookieFresh } from "@/lib/jurisd
 import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
 import { showcaseSideMove } from "@/lib/showcase-paths";
-import { OLD_HOSTS, siteUrl } from "@/lib/site";
+import { OLD_HOSTS, requestHost, siteUrl } from "@/lib/site";
 import { NOTRACK_COOKIE } from "@/lib/tracking";
 
 /*
@@ -36,6 +36,29 @@ function moveToCanonical(req: NextRequest): NextResponse | null {
     return NextResponse.redirect(url, 307);
   }
   return NextResponse.redirect(`${canonical}${to}`, 308);
+}
+
+/** robots.txt on a copy of the site: nothing to crawl here. */
+const ROBOTS_KEEP_OUT = "User-agent: *\nDisallow: /\n";
+
+/**
+ * The show's app answers on more than its domain (2026-11-22 audit): its own DigitalOcean address
+ * (botchelor-show-….ondigitalocean.app) reaches it without Cloudflare and served an indexable copy of every page, and
+ * staging.botchelor.com points at it too (docs/hosting.md, DNS). The DigitalOcean address's pages move for good to the
+ * canonical domain, path and query kept; its /api stays, as www's does (the matcher skips it, and DigitalOcean's health
+ * check asks /api/health there). On any host but the canonical one, robots.txt keeps crawlers out of the copy. www and
+ * the old address move first (moveToCanonical); After Dark's app keeps its own rules (moveForAfterDark). A server whose
+ * address is this machine's (dev, tests, the harness) is left alone.
+ */
+function moveFromOtherHost(req: NextRequest): NextResponse | null {
+  if (afterDarkOnly()) return null;
+  const canonical = siteUrl();
+  const target = new URL(canonical).host;
+  const host = requestHost(req);
+  if (host === target || /^(localhost|127\.0\.0\.1)(:|$)/.test(target)) return null;
+  if (req.nextUrl.pathname === "/robots.txt") return new NextResponse(ROBOTS_KEEP_OUT, { headers: { "content-type": "text/plain; charset=utf-8" } });
+  if (!host.endsWith(".ondigitalocean.app")) return null;
+  return NextResponse.redirect(`${canonical}${req.nextUrl.pathname}${req.nextUrl.search}`, 308);
 }
 
 /**
@@ -238,7 +261,7 @@ function renewPlace(req: NextRequest): NextResponse | null {
 }
 
 export function middleware(req: NextRequest): NextResponse {
-  const moved = moveToCanonical(req) ?? moveShowcaseSide(req) ?? moveForAfterDark(req) ?? renewPlace(req);
+  const moved = moveToCanonical(req) ?? moveFromOtherHost(req) ?? moveShowcaseSide(req) ?? moveForAfterDark(req) ?? renewPlace(req);
   if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
   // After Dark's own host stays out of search (lib/after-dark-host.ts); its robots.txt says so too.

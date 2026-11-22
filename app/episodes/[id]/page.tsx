@@ -12,6 +12,7 @@ import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { reportCardPath } from "@/lib/report-card";
 import { getDb } from "@/lib/db";
+import { dateListed } from "@/lib/public-cast";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
 import { viewerContinue } from "@/lib/adult/overnight";
 import { isOvernight } from "@/lib/overnight";
@@ -81,7 +82,7 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 /**
  * Each episode gets its own title and summary for search and link previews, from the public view only (no
  * spoilers: the setting is the teaser). Only public, unhidden episodes are indexable; unlisted, private and
- * hidden ones tell crawlers to stay out.
+ * hidden ones tell crawlers to stay out, as does one with a deleted account's character (lib/public-cast.ts).
  *
  * The link preview is the share card (/api/og/episode/<id>): a "How does it end?" poll, as a large Twitter card.
  * Setting openGraph.images here is what puts it ahead of ./opengraph-image (the box score card, still served).
@@ -89,11 +90,11 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { id } = await params;
   const db = await getDb();
-  const [episode, clip] = await Promise.all([getEpisodeView(db, id, null), episodeClip(db, id).catch(() => null)]);
+  const [episode, clip, listed] = await Promise.all([getEpisodeView(db, id, null), episodeClip(db, id).catch(() => null), dateListed(db, id).catch(() => true)]);
   if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
-  const indexable = episode.visibility === "public";
+  const indexable = episode.visibility === "public" && listed;
   // An owner's share of a date that went well (lib/episode-share.ts ownerSharedPath, David 2026-11-11): the card and the
   // headline name the second date, only once aired and only for that ending; any other date keeps the question.
   const wentWell = (await searchParams)?.card === ENDING_CARD && endingCardAllowed(episode);

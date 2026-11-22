@@ -13,14 +13,16 @@ export const onRequestError: Instrumentation.onRequestError = async (err, reques
 };
 
 /**
- * Before either host serves a request (Next awaits register), the database schema is brought up to date (lib/db.ts
- * prepareDb), so a deploy's first visitors don't wait for it. Then After Dark's own host (lib/after-dark-host.ts) asks
- * after the videos being made while nobody has their page open (lib/adult/reel-collector.ts): a reel's shots come back
- * only when asked, and Replicate drops one nobody collected in half an hour. The show's host starts nothing more, and
- * the test runner nothing at all.
+ * Before either host serves a request (Next awaits register), it holds sharp to its memory limits (lib/sharp-limits.ts)
+ * and brings the database schema up to date (lib/db.ts prepareDb), so a deploy's first visitors don't wait for it.
+ * After Dark's own host (lib/after-dark-host.ts) also asks after the videos being made while nobody has their page open
+ * (lib/adult/reel-collector.ts): a reel's shots come back only when asked, and Replicate drops one nobody collected in
+ * half an hour. The test runner starts nothing.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NODE_ENV === "test") return;
+  const { limitSharp } = await import("./lib/sharp-limits");
+  await limitSharp();
   const { prepareDb } = await import("./lib/db");
   await prepareDb();
   const { afterDarkOnly } = await import("./lib/after-dark-host");

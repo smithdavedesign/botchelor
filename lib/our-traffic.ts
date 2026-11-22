@@ -55,15 +55,46 @@ export function setPublicLaunchDayForTests(day: string | null): void {
  * names) and whoever booked a date for one (only a character's owner can: a deleted account's kept characters move to
  * the deleted owner, but its dates keep their creator, as David's "Wren Kestrel" runs did), people first active before
  * the public launch (PUBLIC_LAUNCH_DAY), the deleted owner (a deleted account's kept characters) and the show itself.
+ *
+ * Kept in this server's memory for OUR_IDS_TTL_MS, one load at a time for everyone asking (2026-11-22 audit: the query,
+ * then reading every MCP call, held a database connection 4–7 s; an admin page asked 3–7 times at once, and two of them
+ * held 9 of the pool's 10). A failed load isn't kept; each caller gets its own copy. Off outside production (tests and
+ * scripts read it every time), unless a test turns it on.
  */
-export async function loadOurIds(db: Db): Promise<string[]> {
+export const OUR_IDS_TTL_MS = 10 * 60_000;
+type KeptIds = { at: number; ids: Promise<string[]> };
+const keptIds = new WeakMap<object, KeptIds>();
+let ourIdsCacheForced: boolean | null = null;
+const ourIdsCacheOn = () => ourIdsCacheForced ?? (process.env.NODE_ENV === "production" && !process.env.VITEST);
+
+/** Tests: switch the kept list on or off regardless of the environment (null: back to the default). */
+export function setOurIdsCacheForTests(enabled: boolean | null): void {
+  ourIdsCacheForced = enabled;
+}
+
+export async function loadOurIds(db: Db, now = Date.now()): Promise<string[]> {
+  if (!ourIdsCacheOn()) return queryOurIds(db);
+  const hit = keptIds.get(db);
+  if (hit && now - hit.at < OUR_IDS_TTL_MS) return [...(await hit.ids)];
+  const ids = queryOurIds(db);
+  keptIds.set(db, { at: now, ids });
+  ids.catch(() => {
+    if (keptIds.get(db)?.ids === ids) keptIds.delete(db);
+  });
+  return [...(await ids)];
+}
+
+async function queryOurIds(db: Db): Promise<string[]> {
   const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like $2)`;
+  // The call log's agents: its distinct (agent, client, user agent) first, then the patterns, so they run on ~18,000 pairs
+  // rather than every call (431,000 rows, 2026-11-22: 4.4 s against 0.3 s for the same ids). `offset 0` keeps the planner
+  // from pushing the patterns back down into the scan.
   const { rows } = await db.query<{ id: string }>(
     `select user_id as id from admins
      union select user_id from adult_entitlements where provider = 'reviewer'
      union select l.agent_id from agent_links l join admins a on a.user_id = l.user_id
      union select agent_id from mcp_sessions where ${ourClient}
-     union select agent_id from mcp_calls where agent_id is not null and ${ourClient}
+     union select agent_id from (select distinct agent_id, client_name, user_agent from mcp_calls where agent_id is not null offset 0) calls where ${ourClient}
      union select owner_id from characters where owner_id is not null and (name = any($5::text[]) or name ~* $6)
      union select e.creator_id from episodes e join characters c on c.id = e.character_a
             where e.creator_id is not null and (c.name = any($5::text[]) or c.name ~* $6)

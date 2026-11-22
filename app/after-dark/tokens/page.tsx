@@ -12,7 +12,7 @@ import { tokensWord } from "@/lib/adult/price-words";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { talkPrice } from "@/lib/adult/talks";
-import { adTokenBalance, adTokensOn, tokenPacks, tokenProcessors } from "@/lib/adult/tokens";
+import { adTokenBalance, adTokenSource, adTokensOn, tokenPacks, tokenProcessors, type AdTokenSource } from "@/lib/adult/tokens";
 import { monthOf } from "@/lib/adult/usage";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -34,6 +34,14 @@ const PASS: Record<string, string> = {
   reviewer: "Your reviewer pass",
   admin: "As an admin, nothing costs you tokens, and your access",
 };
+
+/** Where the balance comes from, in words (lib/adult/tokens.ts adTokenSource; the 2026-11-22 audit: no page said). */
+function sourceLine(source: AdTokenSource, balance: number): string | null {
+  if (source === "own") return "After Dark's own tokens, apart from the show's dates.";
+  if (source === "show") return "These are your Botchelor balance, shared with the show.";
+  if (source === "bought_on_show") return "Tokens bought on the show stay on the show: After Dark doesn't spend them.";
+  return balance > 0 ? "They were given to your account, not bought, and they're shared with the show, where they count as dates." : null;
+}
 
 /**
  * #1173 (David, 2026-11-01, "yes do 1-3"; about ten After Dark visitor reports since 2026-10-30: "I couldn't tell what a
@@ -59,8 +67,9 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
   const admin = entitled.why === "admin";
   const settings = await getAdultSettings(db);
   const plan = includedPlan(settings);
-  const [balance, chapter, picture, drawAhead, clip, talk, used] = await Promise.all([
+  const [balance, source, chapter, picture, drawAhead, clip, talk, used] = await Promise.all([
     adTokenBalance(db, viewer),
+    adTokenSource(db, viewer),
     includedPrice(db, viewer, settings.chapter_tokens),
     includedPrice(db, viewer, settings.menu_picture_tokens),
     includedPrice(db, viewer, settings.draw_ahead_tokens),
@@ -106,6 +115,11 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
         <p className="token-balance">
           You have <strong data-token-balance>{balance}</strong> {balance === 1 ? "token" : "tokens"}.
         </p>
+        {sourceLine(source, balance) && (
+          <p className="muted small" data-token-source={source}>
+            {sourceLine(source, balance)}
+          </p>
+        )}
         <section className="card">
           <h2>What&apos;s included</h2>
           <p>
@@ -116,9 +130,14 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
               Scene steps this month: {stepsLeft === null ? "no limit" : `${stepsLeft} of ${plan.steps} left`} (fair use).
             </li>
             <li>Pictures this month: {picturesLeft === null ? "no limit" : `${picturesLeft} of ${plan.pictures} left`}.</li>
-            <li>
-              Clips: {plan.clips} a month included{clip.included_left !== null ? `, ${clip.included_left} left` : ""}.
-            </li>
+            {/* Only to those whose pass includes clips (a subscription or a reviewer pass, lib/adult/pricing.ts clipsIncluded). */}
+            {clip.included_left !== null ? (
+              <li data-clips-included>
+                Clips: {clip.included_of} a month included, {clip.included_left} left.
+              </li>
+            ) : (
+              !admin && clip.tokens > 0 && <li data-clips-not-included>Clips: {tokensWord(clip.tokens)} each, not part of your pass.</li>
+            )}
           </ul>
           <p className="muted small">These come back on the 1st of each month. Tokens are for the extras below.</p>
         </section>

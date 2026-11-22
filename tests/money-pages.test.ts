@@ -159,8 +159,8 @@ describe("/companion/plan: the price over the faces, Free beside the plan", () =
     expect(html).toContain('<th scope="col">Free</th><th scope="col" class="is-plan">Companion Plan</th>');
     expect(html).toContain(`<th scope="row">Replies a day</th><td>${companionFreePerDay()} a day across every companion</td>`);
     expect(html).toContain(`No daily limit<small>fair use: ${COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month</small>`);
-    expect(html).toContain(`<td>A token buys ${COMPANION_EXTRAS.voice.bundle}</td>`);
-    expect(html).toContain(`${COMPANION_EXTRAS.voice.included} a month included<small>after that, a token buys ${COMPANION_EXTRAS.voice.bundle}</small>`);
+    expect(html).toContain(`<td>One date from a pack buys ${COMPANION_EXTRAS.voice.bundle}</td>`);
+    expect(html).toContain(`${COMPANION_EXTRAS.voice.included} a month included<small>after that, one date from a pack buys ${COMPANION_EXTRAS.voice.bundle}</small>`);
     expect(html).not.toContain("Live calls");
     expect(html.match(/class="money-yes"/g)).toHaveLength(6);
     expect(html).toContain("Their memory of you");
@@ -183,7 +183,7 @@ describe("/companion/plan: the price over the faces, Free beside the plan", () =
     const html = await render(await PlanPage({ searchParams: Promise.resolve({}) }));
     expect(html).toContain("Live calls");
     expect(html).toContain(`${extraTerms("minute").included} minutes a month`);
-    expect(html).toContain(`a token buys ${extraTerms("minute").bundle} minutes`);
+    expect(html).toContain(`one date from a pack buys ${extraTerms("minute").bundle} minutes`);
     expect(html).toContain("<td>Calls that take turns are free</td>");
   });
 

@@ -187,14 +187,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const relationshipsP = (async () => {
     const edges = await edgesP;
     const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
-    // Each one's face and whether it's private to someone else (then: its name only, never linked).
-    type Other = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; private: boolean };
+    // Each one's face, whether it's private to someone else (then: its name only, never linked) and whether its account
+    // is still there (a deleted one's character stays only so aired dates keep both names).
+    type Other = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; private: boolean; listed: boolean };
     const faces = new Map(
       others.length
         ? (
             await db.query<Other>(
               `select c.id, c.name, c.avatar_hue as hue, c.is_house as house, ${portraitPathSql("c")} as portrait,
-                      (c.visibility = 'private' and c.owner_id is distinct from $2::text) as private
+                      (c.visibility = 'private' and c.owner_id is distinct from $2::text) as private,
+                      c.owner_id is distinct from '${DELETED_OWNER}' as listed
                  from characters c where c.id = any($1)`,
               [others, viewerId],
             )
@@ -206,9 +208,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       .filter((x) => x.view !== null)
       .map(({ rel, view }) => {
         const otherId = rel.lo === id ? rel.hi : rel.lo;
-        const other = faces.get(otherId) ?? { id: otherId, name: "Someone", hue: null, house: false, portrait: null, private: true };
+        const other = faces.get(otherId) ?? { id: otherId, name: "Someone", hue: null, house: false, portrait: null, private: true, listed: false };
         return { otherId, other, path: `/couples/${rel.lo}/${rel.hi}`, view: view! };
       })
+      // Everyone but its owner never sees a private character here (its owner's choice), nor a deleted account's: their
+      // couple pages stay, the card just doesn't list them (2026-11-21).
+      .filter((r) => isOwner || (!r.other.private && r.other.listed))
       .sort((x, y) => y.view.tie - x.view.tie);
   })();
   // The owner's clip panel: admin (no paywall), their bought tokens, and whether they have a Google key.

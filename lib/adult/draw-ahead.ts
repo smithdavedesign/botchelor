@@ -11,7 +11,7 @@
  * over, or it's turned off. A viewer who can't pay for the next chapter has it turned off, and the theater says why
  * (picture_note). Offered while the settings' `draw_ahead` is on.
  */
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import type { Db } from "../db";
 import { tokensWord } from "./price-words";
 import { includedPrice } from "./pricing";
@@ -79,7 +79,7 @@ export async function aheadBudget(db: Db, sceneId: string, chapter: number): Pro
   if (price > 0 && !(await spendAdTokens(db, r.owner_id, price))) {
     await db.query(`update adult_scenes set draw_ahead = false, draw_ahead_chapter = null, draw_ahead_paid = 0, picture_note = $2 where id = $1`, [
       sceneId,
-      `Draw ahead is off: it takes ${tokensWord(price)} a chapter. Get more on the tokens page, then turn it on again in ⋯.`,
+      `Draw ahead is off: it takes ${tokensWord(price)} a chapter. ${moreTokensLine()}`,
     ]);
     return null;
   }
