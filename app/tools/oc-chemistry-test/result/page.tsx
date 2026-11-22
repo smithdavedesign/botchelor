@@ -42,7 +42,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
 /**
  * A pair's chemistry (lib/chemistry-test.ts), at an address anyone can share: the same answer for everyone, every
- * time, with no model and nothing stored. It ends on the show itself: "Watch the real date" opens /create with both
+ * time, with no model and nothing stored. It ends on the show itself: "Send {first} on a real date" opens /create with both
  * characters in.
  */
 export default async function ChemistryResultPage({ searchParams }: Props) {
@@ -101,12 +101,14 @@ export default async function ChemistryResultPage({ searchParams }: Props) {
         <p>
           {`The test reads five fields. On Botchelor, ${first} goes on a real blind date, written by AI and steered by nobody, not even you, while friends guess how it ends. The builder opens with ${first}'s fields in and ${second}'s one click away. Free to start, no sign-up.`}
         </p>
-        <Link className="button" href={createPairHref(a, b)}>
-          Watch the real date
-        </Link>
+        {/* The small print before the button, and the button promising only what it does (2026-11-22 audit: "Watch the real
+            date" promised the one date the line under it ruled out). */}
         <p className="muted small">
           {`Two characters made by the same person don't date each other, so ${first} meets this season's house cast, a match from the swipe deck, or a blind date.`}
         </p>
+        <Link className="button" href={createPairHref(a, b)}>
+          {`Send ${first} on a real date`}
+        </Link>
         <MoreTools current={CHEMISTRY_TEST_PATH} />
       </section>
 

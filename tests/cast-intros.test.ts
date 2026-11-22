@@ -125,6 +125,27 @@ describe("a cast intro", () => {
     const served = await introGet(new Request(`${BASE_URL}${intro.url}`), { params: Promise.resolve({ id: intro.id, file: intro.url.split("/").pop()! }) });
     expect(served.status).toBe(200);
     expect(served.headers.get("content-type")).toBe("video/mp4");
+    expect(served.headers.get("accept-ranges")).toBe("bytes");
+    expect(served.headers.get("content-length")).toBe(String(MP4.length));
+    expect(Buffer.from(await served.arrayBuffer()).equals(MP4)).toBe(true);
+    // Byte ranges (Safari plays nothing without them; a browser fetches only what it plays): a span, an open end, the
+    // last few bytes, and one past the end.
+    const ranged = (range: string) =>
+      introGet(new Request(`${BASE_URL}${intro.url}`, { headers: { range } }), { params: Promise.resolve({ id: intro.id, file: intro.url.split("/").pop()! }) });
+    const head = await ranged("bytes=0-3");
+    expect(head.status).toBe(206);
+    expect(head.headers.get("content-range")).toBe(`bytes 0-3/${MP4.length}`);
+    expect(head.headers.get("content-length")).toBe("4");
+    expect(head.headers.get("content-type")).toBe("video/mp4");
+    expect(head.headers.get("x-ai-generated")).toBe("true");
+    expect(Buffer.from(await head.arrayBuffer()).toString()).toBe("ftyp");
+    const rest = await ranged("bytes=4-");
+    expect(rest.headers.get("content-range")).toBe(`bytes 4-${MP4.length - 1}/${MP4.length}`);
+    expect(Buffer.from(await rest.arrayBuffer()).equals(MP4.subarray(4))).toBe(true);
+    expect(Buffer.from(await (await ranged("bytes=-3")).arrayBuffer()).toString()).toBe("mp4");
+    const past = await ranged(`bytes=${MP4.length}-`);
+    expect(past.status).toBe(416);
+    expect(past.headers.get("content-range")).toBe(`bytes */${MP4.length}`);
     // The plain name still serves it (links made before the version moved into the path).
     expect((await introGet(new Request(`${BASE_URL}/api/cast-intro/${intro.id}/intro.mp4`), { params: Promise.resolve({ id: intro.id, file: "intro.mp4" }) })).status).toBe(200);
     const audio = await introGet(new Request(`${BASE_URL}/api/cast-intro/${intro.id}/audio.wav`), { params: Promise.resolve({ id: intro.id, file: "audio.wav" }) });

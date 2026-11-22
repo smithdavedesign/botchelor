@@ -39,13 +39,16 @@ describe("the house deck beside an empty form", () => {
   const html = renderToStaticMarkup(createElement(DeckPreview, { ...base, examples: cards }));
 
   it("shows the three as the deck shows a card, tagged as the house's, Juniper in front", () => {
-    expect(html).toContain('<aside class="wizard-deck" aria-label="How the deck sees them">');
-    expect(html.match(/From the house/g)).toHaveLength(3);
+    // In a visitor's words (2026-11-22 audit): "the deck" and "the house" are ours.
+    expect(html).toContain('<aside class="wizard-deck" aria-label="How others will see them">');
+    expect(html).toContain('<p class="kicker">How others will see them</p>');
+    expect(html.match(/On the show/g)).toHaveLength(3);
+    expect(html).not.toMatch(/How the deck sees them|From the house|house cast/);
     expect(html).toMatch(/<div class="swipe-card wizard-deck-card house-deck-card is-front">.*?Juniper Vale/s);
     expect(html).toContain('house-deck-card is-next" aria-hidden="true"');
     expect(html).toContain('house-deck-card is-back" aria-hidden="true"');
     expect(html).toContain('src="/cast/house-juniper-');
-    expect(html).toContain("Three of the house cast, as the deck shows them. Yours fills in here as you type.");
+    expect(html).toContain("Three characters already on the show. Yours appears here as you type.");
     // Not the made-up example any more.
     expect(html).not.toContain("Marisol Vane");
   });

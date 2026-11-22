@@ -13,6 +13,7 @@ import { listBlocks } from "@/lib/people";
 import { backingBadges } from "@/lib/backing";
 import { listMyBadges, tryCloseDueSeasons, type Badge } from "@/lib/seasons";
 import AccountPanel from "./AccountPanel";
+import DeleteAccount from "./DeleteAccount";
 import PersonaCard from "./PersonaCard";
 import { getPersona, scenePersonaOn } from "@/lib/persona";
 import ClaimCard from "./ClaimCard";
@@ -250,6 +251,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
           </ul>
         </section>
       )}
+
+      {/* Deleting the account (DELETE /api/me), last on the page and folded: an account's, never an anonymous visitor's. */}
+      {auth?.authenticated && <DeleteAccount plan={companionPlan?.status ?? "none"} portal={portalLink()} />}
     </>
   );
 }

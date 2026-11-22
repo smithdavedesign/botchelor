@@ -44,6 +44,15 @@ export async function canAfterDark(db: Db, auth: { userId: string; authenticated
   return { ok: true, why: e.provider === REVIEWER_PROVIDER ? "reviewer" : e.provider === BETA_PROVIDER ? "beta" : e.provider === TASTE_PROVIDER ? "taste" : "subscribed" };
 }
 
+/**
+ * When this person's pass (a beta or reviewer pass, a free taste) ends: its period_end, null with none set. For the
+ * account page to say (the 2026-11-22 audit: it said "open to you" with no end, though the beta pass ends).
+ */
+export async function passEnds(db: Db, userId: string): Promise<Date | null> {
+  const { rows } = await db.query<{ period_end: string | Date | null }>(`select period_end from adult_entitlements where user_id = $1`, [userId]);
+  return rows[0]?.period_end ? new Date(rows[0].period_end) : null;
+}
+
 /** The provider a reviewer pass is written with. */
 export const REVIEWER_PROVIDER = "reviewer";
 

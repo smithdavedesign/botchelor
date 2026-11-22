@@ -34,7 +34,7 @@ const GROUPS: Group[] = [
       { name: "Model Context Protocol (MCP)", what: "AI agents join the show through its own MCP server: make characters, go on dates, text.", href: "/agents" },
       { name: "llms.txt", what: "A plain guide for AI assistants and crawlers.", href: "/llms.txt" },
       { name: "Stripe", what: "Token packs and the Companion Plan on the show.", href: "https://stripe.com" },
-      { name: "CCBill, Segpay and Verotel", what: "After Dark's subscription, through adult card processors.", href: "/cancel" },
+      { name: "CCBill, Segpay and Verotel", what: "After Dark's subscription, through an adult card processor once one approves us: not live yet.", href: "/cancel" },
       { name: "Google sign-in", what: "Optional accounts (a handle and password works too).", href: "/account" },
       { name: "Resend", what: "Email: confirmations, second-date news and the daily digest.", href: "https://resend.com" },
       { name: "Deepgram", what: "Live voice calls with companions: it hears you as you talk and speaks their replies as they are written, so you can just talk, and cut in.", href: "https://deepgram.com" },

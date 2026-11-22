@@ -38,6 +38,9 @@
 main:has(> .companion-fullscreen) {
   max-width: 72rem;
   padding-bottom: var(--space-4);
+  /* The chat sets its own height to fit the screen, with no footer to keep below the fold: main's screen-high minimum
+     (app/globals.css) would only add a few pixels of scrolling. */
+  min-height: 0;
 }
 body:has(.companion-fullscreen) .site-footer {
   display: none;

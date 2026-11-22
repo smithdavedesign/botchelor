@@ -61,7 +61,7 @@ import {
 } from "./studio";
 import { animatePrompt, ANIMATE_SECONDS, cleanCustom, DIALOG_MAX, EMPTY_PLACE_NEGATIVE, LEVEL_LABEL, type AnimateSeconds, type Level } from "./studio-catalog";
 import type { StudioConfig } from "./studio-config";
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { overCap } from "./usage";
 
 const fail = (status: number, error: string, message: string): StudioFail => ({ ok: false, status, error, message });
@@ -287,7 +287,7 @@ export async function keepAnimating(db: Db, viewer: string, characterId: string,
 
   const tokens = seconds === 10 ? config.prices.animate_10 : config.prices.animate_5;
   const pays = tokens > 0 && !admin;
-  if (pays && !(await spendAdTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the tokens page.`);
+  if (pays && !(await spendAdTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. ${moreTokensLine()}`);
   // Anything after this that doesn't come through gives the tokens back, and says so.
   const back = async (r: StudioFail): Promise<StudioFail> => {
     if (!pays) return r;

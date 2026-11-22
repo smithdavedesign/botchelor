@@ -46,7 +46,7 @@ export default function ContactPage() {
       </p>
       {email && (
         <p className="muted">
-          Or skip the email: <FeedbackLink /> (it&apos;s in the ☰ menu on every page).
+          Or skip the email: <FeedbackLink /> (it&apos;s at the foot of every page).
         </p>
       )}
 

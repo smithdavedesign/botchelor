@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { looksPictureWords, looksPortraitPrompt, LOOK_STEPS, tileSpecs, workOutfit } from "@/lib/looks";
+import LooksBuilder from "@/app/create/LooksBuilder";
+import { looksPictureWords, looksPortraitPrompt, LOOK_STEPS, stepsFor, tileSpecs, workOutfit } from "@/lib/looks";
 
 // More outfits and "Work clothes" dressed for their job (David, 2026-11-11: "if they are a captain … a captain outfit").
 describe("outfits", () => {
@@ -54,6 +57,19 @@ describe("the looks builder", () => {
     const src = readFileSync("app/create/LooksBuilder.tsx", "utf8");
     expect(src).toMatch(/\{step && \(\s*<button type="button" className="link-button" onClick=\{\(\) => go\(Math\.max\(0, at - 1\)\)\}/);
     expect(src).toContain("onError={() => setBroken((b) => new Set(b).add(id))}");
+  });
+
+  it("asks no bust size on the show, and shows After Dark's tab only to someone who can open it (2026-11-21 audit)", () => {
+    const html = (afterDark: boolean) =>
+      renderToStaticMarkup(createElement(LooksBuilder, { looks: { gender: "woman" }, setLooks: () => {}, age: "29", tiles: [], afterDark, onAppearance: () => {} }));
+    const visitor = html(false);
+    expect(visitor).toContain("Choose a body type");
+    expect(visitor).not.toContain("Choose a bust size");
+    expect(visitor).not.toContain("After Dark");
+    const member = html(true);
+    expect(member).toContain("🌙 After Dark");
+    expect(member).not.toContain("Choose a bust size"); // it opens on the show's tab; After Dark's tab still asks it
+    expect(stepsFor("woman", true).map((s) => s.id)).toContain("breasts");
   });
 
   it("redraws named tiles only when asked", () => {

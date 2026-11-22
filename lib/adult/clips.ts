@@ -25,7 +25,7 @@
  */
 import type { CameraMoveId } from "./camera-moves";
 import { isAdmin } from "../admins";
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { loadCharacter } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
@@ -547,7 +547,7 @@ export async function makeClip(db: Db, ownerId: string, ask: ClipAsk, baseUrl: s
   if (included) plan.meta = { ...plan.meta, included };
   const price = pays && !included ? settings.clip_tokens : 0;
   if (price > 0 && !(await spendAdTokens(db, ownerId, price))) {
-    return refuse(402, "needs_tokens", `A clip costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.`);
+    return refuse(402, "needs_tokens", `A clip costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}`);
   }
   const id = crypto.randomUUID();
   try {

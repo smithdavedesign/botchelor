@@ -66,3 +66,15 @@ describe("the Reunion has its own page again (2026-10-21: the Watch card's link 
     expect(route).toContain("<ReunionPanel reunion={reunion}");
   });
 });
+
+// The 2026-11-21 audit: every card on the lobby rendered its room in the background (Link prefetch), and a room page read
+// its room twice, once for its title and once for the page.
+describe("Watch loads lightly", () => {
+  it("never prefetches a room from a lobby card, and a room page reads its room once a request", () => {
+    expect(page).toMatch(/<Link href=\{room\.status === "ready" \? `\$\{room\.room_path\}\?start=1` : room\.room_path\} prefetch=\{false\}/);
+    const room = readFileSync(new URL("../app/watch/[id]/page.tsx", import.meta.url), "utf8");
+    expect(room).toContain("const roomFor = cache(async (id: string, viewerId: string | null) => getRoomState(");
+    expect(room.match(/getRoomState\(/g)).toHaveLength(1);
+    expect(room.match(/roomFor\(id, /g)).toHaveLength(2);
+  });
+});

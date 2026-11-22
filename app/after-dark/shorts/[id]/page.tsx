@@ -16,6 +16,7 @@ import { shortName } from "@/lib/names";
 import { ShortTeaserCard, SubscribeToUnlock } from "../ShortTeaser";
 import ShortAdmin from "../ShortAdmin";
 import ShortEpisode from "../ShortEpisode";
+import ReportLink from "../../ReportLink";
 import styles from "../shorts.module.css";
 import { currentHere } from "../../view";
 
@@ -105,6 +106,7 @@ export default async function ShortPage({ params }: Props) {
           boardLabel={seasonLabel(seasonIdOf(new Date()))}
           sides={short.episode ? await keptSidesForShort(db, access.viewer, short.id) : null}
         />
+        <ReportLink path={`/after-dark/shorts/${encodeURIComponent(short.id)}`} label="Report this episode" />
       </article>
     </div>
   );

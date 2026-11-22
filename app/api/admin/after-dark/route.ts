@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { answerBeat, PICTURE_FIELD_MAX, pictureNow, previewPicture, redrawPicture, SCENE_CUSTOM_MAX, SCENE_DIALOG_MAX } from "@/lib/adult/beats";
 import { adultViewer } from "@/lib/adult/mode";
+import { mediaRefusal } from "@/lib/adult/place";
 import { listMedia } from "@/lib/adult/media";
 import { WHISPER_MAX } from "@/lib/adult/director";
 import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "@/lib/adult/limits";
@@ -31,7 +32,7 @@ import { includedPrice } from "@/lib/adult/pricing";
 import { getAdultSettings } from "@/lib/adult/settings";
 import type { Db } from "@/lib/db";
 import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
-import { refundAdTokens, spendAdTokens } from "@/lib/adult/tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "@/lib/adult/tokens";
 import { crisisAware, str, type CrisisSurface } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
@@ -146,7 +147,7 @@ async function payChapter(db: Db, viewer: string, a: string, b: string, opts: { 
     if (!scene || scene.lines.length) return { paid: 0 };
   }
   if (!(await spendAdTokens(db, viewer, price))) {
-    return json({ error: "needs_tokens", message: `Each chapter costs ${price} token${price === 1 ? "" : "s"} (up to 120 lines, with its pictures). Get more on the tokens page.` }, 402);
+    return json({ error: "needs_tokens", message: `Each chapter costs ${price} token${price === 1 ? "" : "s"} (up to 120 lines, with its pictures). ${moreTokensLine()}` }, 402);
   }
   return { paid: price };
 }
@@ -165,7 +166,7 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     // Set the scene: 1 bought token (admins don't pay, like clips), given back if the place is refused.
     const pays = !(await isAdmin(db, admin));
     if (pays && !(await spendAdTokens(db, admin, SET_SCENE_TOKEN_COST))) {
-      return json({ error: "needs_tokens", message: `Setting the scene costs ${SET_SCENE_TOKEN_COST} token. Get more on the tokens page.` }, 402);
+      return json({ error: "needs_tokens", message: `Setting the scene costs ${SET_SCENE_TOKEN_COST} token. ${moreTokensLine()}` }, 402);
     }
     const moved = await setSceneTo(db, admin, input.a, input.b, input.set_scene);
     if (!moved.ok) {
@@ -227,13 +228,16 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     return json({ preview: { fields: plan.fields, wearing_from: plan.wearing_from, edit: plan.edit, prompt: plan.prompt } });
   }
   if (input.redraw) {
+    // A picture, so the regional rule first, as on every other media route (text only in the UK and Japan, lib/adult/place.ts).
+    const refused = await mediaRefusal(db, admin);
+    if (refused) return refused;
     const scene = await openScene(db, admin, input.a, input.b);
     if (!scene) return hidden();
     // What a picture from the shot menu costs, given back if it doesn't come: free for an admin, included with a
     // subscription (#1005, David 2026-10-30), bounded by the month's pictures.
     const price = (await includedPrice(db, admin, (await getAdultSettings(db)).menu_picture_tokens)).tokens;
     if (price > 0 && !(await spendAdTokens(db, admin, price))) {
-      return json({ error: "needs_tokens", message: `Redrawing a picture costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.` }, 402);
+      return json({ error: "needs_tokens", message: `Redrawing a picture costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}` }, 402);
     }
     const r = await redrawPicture(db, admin, input.redraw.picture_id, input.redraw.edit, requestBase(req), { ...scene, a: scene.a.id, b: scene.b.id, place: scene.set_place ?? scene.place }, price);
     if (!r.ok) {
@@ -243,6 +247,11 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     return json({ scene: (await openScene(db, admin, input.a, input.b)) ?? scene, beat: r.beat });
   }
   if (input.beat || input.picture_now) {
+    // Drawing one now (a beat's "now", or Picture this) is a picture: the regional rule first. "Later" draws nothing.
+    if (input.picture_now || input.beat?.answer === "now") {
+      const refused = await mediaRefusal(db, admin);
+      if (refused) return refused;
+    }
     const scene = await openScene(db, admin, input.a, input.b);
     if (!scene) return hidden();
     const r = input.beat

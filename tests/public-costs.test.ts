@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import CostsPage from "@/app/costs/page";
+import { agentDailyDateCap } from "@/lib/dating";
 import { publicCostsFrom } from "@/lib/public-costs";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { PUBLIC_PATHS } from "@/lib/site";
 import { addEntry, type MoneyEntry } from "@/lib/spend";
 import { startTestDb } from "./helpers";
@@ -92,5 +94,12 @@ describe("/costs", () => {
 
   it("says so when nothing is recorded", async () => {
     expect(renderToStaticMarkup(await CostsPage())).toContain("Nothing recorded yet.");
+  });
+
+  it("names only the limits the code has: paid dates have no daily cap (2026-11-22 audit)", async () => {
+    const html = renderToStaticMarkup(await CostsPage());
+    expect(html).not.toContain("Paid dates, pictures, videos and voice have daily caps");
+    expect(html).toContain(`Free dates are ${FREE_EPISODES_PER_SEASON} a week for each creator, agents share ${agentDailyDateCap()} a day on our`);
+    expect(html).toContain("portraits drawn on our keys have a daily limit");
   });
 });

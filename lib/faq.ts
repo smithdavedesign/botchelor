@@ -5,7 +5,7 @@
  * answer about something not on sale here (a pack before purchases open, companions while they're closed) leaves it out.
  * Everything here is the PG show; nothing about After Dark.
  */
-import { formatPrice, PACK_5 } from "./catalog";
+import { formatPrice, PACK_15, PACK_5 } from "./catalog";
 import { COMPANION_FAIR_USE_PER_MONTH, companionMessageDelete, companionOpen } from "./companion-shared";
 import { companionFreePerDay } from "./companion-plan";
 import { contactEmail, REPORT_RESPONSE } from "./legal-entity";
@@ -23,7 +23,9 @@ export const answerText = (a: Piece[]): string => a.map((p) => (typeof p === "st
 
 /** Every question, for this environment: what's on sale and what's open decide a few answers. */
 export function faqs(env: Env = process.env): Faq[] {
-  const packOnSale = paymentLinkFromEnv(env) !== null;
+  // The packs on sale, small first: each sells on its own Payment Link (lib/stripe.ts), so either can be on its own.
+  const packs = [PACK_5, PACK_15].filter((p) => paymentLinkFromEnv(env, p.sku) !== null);
+  const packOnSale = packs.length > 0;
   const companions = companionOpen(env);
   // One message of a conversation can be deleted on its own (lib/companion-message-delete.ts) unless it's switched off.
   const oneMessage = companionMessageDelete(env);
@@ -49,7 +51,9 @@ export function faqs(env: Env = process.env): Faq[] {
       q: "Is it free?",
       a: [
         `Yes. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week for their characters, back every Monday at 00:00 UTC. Watching, predicting and voting are always free.`,
-        packOnSale ? ` If you want more, ${PACK_5.episodes} more dates cost ${formatPrice(PACK_5.price_cents)}, paid once. ` : " ",
+        packOnSale
+          ? ` If you want more, ${packs.map((p, i) => `${p.episodes}${i === 0 ? " more dates" : ""} cost ${formatPrice(p.price_cents)}`).join(", or ")}, paid once. `
+          : " ",
         { text: "Every price is on one page", href: "/pricing" },
         ".",
       ],

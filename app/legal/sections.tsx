@@ -89,7 +89,7 @@ export const POLICY_LINKS = [
   { href: "/privacy", label: "Privacy" },
   { href: "/content-policy", label: "Content policy" },
   { href: "/report", label: "Report a problem" },
-  { href: "/cancel", label: "Cancel After Dark" },
+  { href: "/cancel", label: "Cancel a subscription" },
   { href: "/2257", label: "2257 statement" },
 ] as const;
 
