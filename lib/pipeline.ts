@@ -31,6 +31,7 @@ import { isLogistics, sharedHistory } from "./memory";
 import { simulateReflections, type Reflections } from "./reflection";
 import { summarizeUsage, type DateUsage } from "./pricing";
 import { transcriptQuality, type QualityContext, type QualityMetrics } from "./quality";
+import { inSpan } from "./request-timing";
 import { agenda } from "./rules";
 import { narrateEpisode, type EpisodeDraft } from "./showrunner";
 import type { BuiltDate } from "./simulation";
@@ -157,7 +158,10 @@ export type GeneratedDate = {
   afterglowError: unknown;
 };
 
-/** Wraps a model so every call (retries included) is counted, along with the tokens each one reports. */
+/**
+ * Wraps a model so every call (retries included) is counted, along with the tokens each one reports. Its time counts
+ * toward a timed request's model time (lib/request-timing.ts), when one is running.
+ */
 export function countingModel(model: Model): { model: Model; calls: () => number; usage: () => Usage[]; served: () => string[] } {
   let n = 0;
   const usage: Usage[] = [];
@@ -166,17 +170,19 @@ export function countingModel(model: Model): { model: Model; calls: () => number
     model: {
       complete(messages: ChatMessage[], options?: ModelOptions) {
         n++;
-        return model.complete(messages, {
-          ...options,
-          onUsage: (u) => {
-            usage.push(u);
-            options?.onUsage?.(u);
-          },
-          onModel: (id) => {
-            served.add(id);
-            options?.onModel?.(id);
-          },
-        });
+        return inSpan("model", () =>
+          model.complete(messages, {
+            ...options,
+            onUsage: (u) => {
+              usage.push(u);
+              options?.onUsage?.(u);
+            },
+            onModel: (id) => {
+              served.add(id);
+              options?.onModel?.(id);
+            },
+          }),
+        );
       },
     },
     calls: () => n,
