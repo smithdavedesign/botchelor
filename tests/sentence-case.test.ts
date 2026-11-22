@@ -41,11 +41,13 @@ describe("sentenceCase", () => {
 });
 
 describe("midSentence", () => {
-  it("lowers a phrase's first letter inside a sentence, but not an acronym or I", () => {
+  it("lowers a phrase's first letter inside a sentence, but not an acronym, I, or a question said as it was", () => {
     expect(midSentence("Checking the time")).toBe("checking the time");
     expect(midSentence("OCD about napkins")).toBe("OCD about napkins");
     expect(midSentence("I'm always right")).toBe("I'm always right");
     expect(midSentence("chewing loudly")).toBe("chewing loudly");
+    expect(midSentence("Who does that?")).toBe("Who does that?");
+    expect(midSentence("Liars!")).toBe("Liars!");
     expect(midSentence("")).toBe("");
   });
 });

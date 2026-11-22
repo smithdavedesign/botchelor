@@ -22,9 +22,11 @@ const innerCapital = (s: string) => /^.+\p{Lu}/u.test(s) && /\p{Ll}/u.test(s);
 
 /**
  * A phrase set inside a sentence, its first letter lower-case: "Sable's real dealbreaker was Checking the time." read as
- * a stray capital (the 2026-11-22 audit). An acronym, "I", or a word with a capital inside it keeps its case.
+ * a stray capital (the 2026-11-22 audit). An acronym, "I", or a word with a capital inside it keeps its case, and so does
+ * a question or an exclamation, which reads as something said: "was Who does that?".
  */
 export function midSentence(text: string): string {
+  if (/[?!]["”’')]*\s*$/u.test(text)) return text;
   const c = core(text.trimStart().split(/\s+/)[0] ?? "");
   if (!c || !startsUpper(c) || isAcronym(c) || c === "I" || /^I['’]/u.test(c) || innerCapital(c)) return text;
   return text.replace(c, c.charAt(0).toLowerCase() + c.slice(1));

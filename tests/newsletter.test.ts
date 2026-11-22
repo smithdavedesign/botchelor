@@ -469,7 +469,8 @@ describe("the weekly letter", () => {
     expect(letter.text).toContain(`“${secret}”\n2 of 3 votes.`);
     expect(letter.text).toContain(`${SITE}${room}?${tag}`);
     expect(letter.text).toContain(`The week's best dates`);
-    expect(letter.text).toContain(`Mara Vance × Jules Okafor\n“The String Lights Hold”\nA rooftop at dusk for e-w1`);
+    // In sentence case, as every title on the site reads (lib/sentence-case.ts).
+    expect(letter.text).toContain(`Mara Vance × Jules Okafor\n“The string lights hold”\nA rooftop at dusk for e-w1`);
     expect(letter.text).toContain(`${SITE}/episodes/e-w1?${tag}`);
     expect(letter.text).not.toContain("e-private");
     expect(letter.text).toMatch(/Best callers this week\n1\. Ana <b>: 2 of 2\n2\. A viewer: 1 of 2\n/);

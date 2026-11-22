@@ -72,9 +72,10 @@ afterEach(() => {
 });
 
 describe("1. the tool page: /tools/ship-name-generator", () => {
-  it("renders an h1 with 'Ship Name Generator' and a form with exactly two name inputs that submits to /ship", () => {
+  it("renders an h1 naming the ship name generator and a form with exactly two name inputs that submits to /ship", () => {
     const html = renderTool();
-    expect(html).toMatch(/<h1[^>]*>[^<]*Ship Name Generator[^<]*<\/h1>/);
+    // In sentence case, as the footer names the tools (the 2026-11-22 audit).
+    expect(html).toMatch(/<h1[^>]*>[^<]*ship name generator[^<]*<\/h1>/i);
     const inputs = [...html.matchAll(/<input[^>]*>/g)].map((m) => m[0]);
     expect(inputs).toHaveLength(2);
     expect(inputs[0]).toContain('name="a"');
@@ -89,8 +90,8 @@ describe("1. the tool page: /tools/ship-name-generator", () => {
     expect(html).toMatch(/<label[^>]*>Second name/);
   });
 
-  it("has a <title> with 'Ship Name Generator', a description, and a canonical link to itself", () => {
-    expect(String(toolMetadata.title)).toContain("Ship Name Generator");
+  it("has a <title> naming the ship name generator, a description, and a canonical link to itself", () => {
+    expect(String(toolMetadata.title)).toMatch(/ship name generator/i);
     expect(toolMetadata.description).toBeTruthy();
     expect(toolMetadata.alternates?.canonical).toBe(TOOL);
     expect(toolMetadata.openGraph?.title).toBeTruthy();

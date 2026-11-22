@@ -39,7 +39,7 @@ export default function EpisodeShelf({ items, label = "Latest episodes", prefetc
                 Speed-dating mixer
               </Link>
               <span className="episode-shelf-title">
-                {item.episodes.length} {item.episodes.length === 1 ? "date" : "dates"}{item.venue ? ` at ${venuePhrase(item.venue)}` : ""}
+                {`${item.episodes.length} ${item.episodes.length === 1 ? "date" : "dates"}${item.venue ? ` at ${venuePhrase(item.venue)}` : ""}`}
               </span>
               <span className="episode-shelf-chip">
                 <Icon name="glass" /> Mixer
