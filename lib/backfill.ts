@@ -13,7 +13,7 @@
  * Run by the daily job a few dates at a time (free model, $0). Each date is tried at most
  * BACKFILL_MAX_ATTEMPTS times (rate limits excepted), so one the model keeps failing on stops costing calls.
  */
-import { track, trackEpisodeCost } from "./analytics";
+import { trackEpisodeCostKept, trackKept } from "./ops-log";
 import type { Character } from "./character";
 import { generationPaused } from "./compute";
 import { ConversationError, isConversationEnabled, simulateConversation, type Turn } from "./conversation";
@@ -195,7 +195,7 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
       );
       filled.push(r.id);
       const calls = actor.calls() + director.calls();
-      trackEpisodeCost({
+      trackEpisodeCostKept({
         episode_id: r.id,
         where: "backfill",
         model: "free",
@@ -205,7 +205,7 @@ export async function backfillTranscripts(db: Db, limit = 2): Promise<BackfillRe
         usage: summarizeUsage([...actor.usage(), ...director.usage()], calls),
       });
     } catch (err) {
-      track("conversation_failed", { episode_id: r.id, where: "backfill", reason: failureReason(err) });
+      trackKept("conversation_failed", { episode_id: r.id, where: "backfill", reason: failureReason(err) });
       if (isRateLimited(err)) return { filled, failed, rate_limited: true };
       await db.query(`update episodes set backfill_failures = backfill_failures + 1 where id = $1`, [r.id]);
       failed.push(r.id);

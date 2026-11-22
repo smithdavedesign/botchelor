@@ -13953,7 +13953,7 @@ details > summary.small {
   padding: 0.4rem 0.6rem;
 }
 
-/* The basics on a directory card (app/characters/page.tsx Entry). */
+/* The basics on a directory card (app/characters/(list)/page.tsx Entry). */
 .dir-basics,
 .dir-job {
   margin: 0.35rem 0 0;
@@ -14039,7 +14039,7 @@ details > summary.small {
   }
 }
 
-/* Find a character (app/characters/page.tsx SearchForm): a box, the type and love-life menus (docs/tags.md) and the
+/* Find a character (app/characters/(list)/page.tsx SearchForm): a box, the type and love-life menus (docs/tags.md) and the
    button on one row; on a phone the box takes the first row and the menus and button share the second. */
 .characters-search {
   display: flex;

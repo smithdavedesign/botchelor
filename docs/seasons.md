@@ -115,7 +115,7 @@ but with no portrait.
 
 ## Every character: `/characters`
 
-[`app/characters/page.tsx`](../app/characters/page.tsx) and [`lib/directory.ts`](../lib/directory.ts).
+[`app/characters/(list)/page.tsx`](../app/characters/(list)/page.tsx) and [`lib/directory.ts`](../lib/directory.ts).
 - **Sections.** This season's cast; next season's candidates ("Joining next season" once approved); then everyone,
   the house first and then newest, 60 a page with their review stars.
 - **Private characters** (`characters.visibility = 'private'`, the owner's toggle on the card) are listed by name

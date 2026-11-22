@@ -242,7 +242,7 @@ export default async function EpisodePage({
   // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
   await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
-  // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).
+  // Hidden after reports: a 404 for everyone except its creators (see app/episodes/not-found.tsx).
   if (!episode || (episode.hidden && !episode.is_creator)) notFound();
   const cookieStore = await cookies();
   // Everything below starts at once (2026-11-04 performance audit: one after another, the owner's date page waited on
