@@ -8,6 +8,7 @@ import { openReportSummary } from "@/lib/moderation";
 import { contentReportSummary } from "@/lib/content-reports";
 import { companionReportSummary } from "@/lib/companion-reports";
 import { latestJobRuns, processMemory } from "@/lib/job-meter";
+import { databaseReachable } from "@/lib/public-health";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,9 @@ const STUCK_AFTER_MINUTES = 15;
  * Liveness. Public callers, DigitalOcean's 10-second health check among them, get only {ok} and the database isn't
  * touched: a `select 1` every 10 seconds kept Neon from ever scaling to zero, so the database ran (and billed) around the
  * clock (2026-11-01). Restarting the app wouldn't fix an unreachable database anyway.
+ * `?db=1` is for the outside uptime monitor (UptimeRobot, every 5 minutes, on both hosts): `{"ok":true,"db":"ok"}`, or
+ * 503 `{"ok":false,"db":"unreachable"}` when this server can't reach its database. No secret, nothing else said, and the
+ * database is asked at most every 30 s per instance (lib/public-health.ts), so it can't be used to load it.
  * The system monitor (RepoHQ's collector, hourly) sends the cron secret (Authorization: Bearer $CRON_SECRET): it gets
  * 200 when the app can reach its database, 503 when it can't, and what needs the owner: episodes with open reports,
  * complaints and takedown requests waiting (/report), companion replies reported (lib/companion-reports.ts), dates stuck
@@ -25,6 +29,9 @@ const STUCK_AFTER_MINUTES = 15;
  */
 export const GET = handle(async (req: Request) => {
   if (!internalJobAuthorized(req)) {
+    if (new URL(req.url).searchParams.get("db") === "1") {
+      return (await databaseReachable()) ? json({ ok: true, db: "ok" }) : json({ ok: false, db: "unreachable" }, 503);
+    }
     // Opening the shared database also brings the schema up to date: start it on a new replica's first check without
     // making the check wait for it. After the first call it's cached and sends nothing.
     void getDb().catch(() => {});
