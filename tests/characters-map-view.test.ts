@@ -37,7 +37,7 @@ describe("the Cards | Map switch", () => {
   });
 
   it("sits beside the Characters tabs, and the header's Characters door is current on the map", () => {
-    expect(readFileSync("app/characters/page.tsx", "utf8")).toMatch(/<div className="characters-strip">\s*<CharactersTabs[^>]*\/>\s*<ViewSwitch current="cards"/);
+    expect(readFileSync("app/characters/(list)/page.tsx", "utf8")).toMatch(/<div className="characters-strip">\s*<CharactersTabs[^>]*\/>\s*<ViewSwitch current="cards"/);
     const characters = { href: "/characters", label: "Characters", also: ["/graph"] };
     expect(readFileSync("app/Nav.tsx", "utf8")).toContain('{ href: "/characters", label: "Characters", also: ["/graph"] }');
     expect(readFileSync("app/PhoneTabBar.tsx", "utf8")).toContain('{ href: "/characters", label: "Characters", icon: "users", also: ["/graph"] }');

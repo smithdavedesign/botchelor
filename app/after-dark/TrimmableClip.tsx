@@ -14,6 +14,8 @@ import TrimmedVideo from "./TrimmedVideo";
  * (app/after-dark/MomentTools.tsx: a still of the second it's paused on, a boomerang, a loop), and what's made is handed
  * back for the gallery. The Studio's and the scene gallery's clips. With `autoplay` (the Gallery's grid, 2026-11-18) it
  * plays muted and looping while it's on screen (app/useInViewAutoplay.ts, the grid's), except while a panel is open.
+ * `poster`: the picture it was made from (lib/adult/media.ts Media.poster), shown until it plays; a tile with no tools
+ * then loads nothing of the clip before it plays (the 2026-11-22 audit: each tile fetched its video's start to show a frame).
  */
 export default function TrimmableClip({
   id,
@@ -23,6 +25,7 @@ export default function TrimmableClip({
   label,
   onMoment,
   autoplay = false,
+  poster = null,
 }: {
   id: string;
   src: string;
@@ -31,6 +34,7 @@ export default function TrimmableClip({
   label: string;
   onMoment?: (m: Media) => void;
   autoplay?: boolean;
+  poster?: string | null;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [trim, setTrim] = useState<Trim | null>(first);
@@ -47,7 +51,9 @@ export default function TrimmableClip({
         trim={trim}
         controls
         playsInline
-        preload="metadata"
+        poster={poster ? `/api/admin/after-dark/media/${encodeURIComponent(poster)}?w=640` : undefined}
+        // ✂️ and 📸 read the clip's length, so a tile with them still loads that much.
+        preload={poster && !canTrim && !onMoment ? "none" : "metadata"}
         aria-label={label}
         {...(autoplay ? { muted: true, loop: true, ...(open ? {} : { [AUTOPLAY_ATTR]: "" }) } : {})}
       />
