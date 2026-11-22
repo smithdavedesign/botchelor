@@ -51,9 +51,9 @@ export function cutoutUrl(portrait: string | null | undefined, origin: string = 
 /**
  * The stage picture a house-look portrait's figure stands as (lib/portraits.ts stagePicture): a file already cut out,
  * so it needs nothing from the zone. Null for anyone else, whose figure is their portrait (cut out by the zone when it
- * can). A served portrait (`/api/assets/<id>`) is looked up for the file its ledger row records: a house portrait's row
- * keeps its `/cast/…` path (app/api/assets/[id]/route.ts redirects there), which is also how a season newcomer drawn in
- * the house look (Barnaby) gets theirs. A failed lookup is null.
+ * can). A house file comes here as its own path (lib/portrait-sql.ts names it since the 2026-11-22 audit), a season
+ * newcomer drawn in the house look (Barnaby) included. A served portrait (`/api/assets/<id>`) from anywhere else is
+ * looked up for the file its ledger row records (a house portrait's row keeps its `/cast/…` path). A failed lookup is null.
  */
 export async function stageCutout(db: Db, portrait: string | null | undefined): Promise<string | null> {
   if (!portrait) return null;

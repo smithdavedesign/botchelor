@@ -17,8 +17,10 @@
 import { adultKeys } from "./adult/settings";
 import type { Db } from "./db";
 import { loadOurIds } from "./our-traffic";
+import { operatorPassPriceCents } from "./operator-pass";
 import { PLAN_IDS, PLANS, planPrice } from "./paid-plans";
 import { plusInterestCount, type PlusInterestCount } from "./plus-interest";
+import { centsIn } from "./stripe";
 import { addMonths, amountIn, isLowBalance, lowBalanceLine, type Category, type MoneyEntry, type Month, type NewEntry } from "./spend-shared";
 
 export * from "./spend-shared";
@@ -86,14 +88,12 @@ export type IncomeLine = { source: "orders" | "plans" | "after_dark" | "operator
 
 /** The operator pass's price, for counting its payments (Stripe's events carry no amount). */
 export function operatorPassPrice(env: Env = process.env): number {
-  const n = Number(env.OPERATOR_PASS_PRICE_USD?.trim());
-  return Number.isFinite(n) && n > 0 ? n : 9;
+  return operatorPassPriceCents(env) / 100;
 }
 
 /** A plan's price in dollars, from the label the page shows ("$9.99 a month"); Stripe's events carry no amount. */
 export function planPriceUsd(label: string): number {
-  const n = Number(/\$\s*(\d+(?:\.\d+)?)/.exec(label)?.[1]);
-  return Number.isFinite(n) ? n : 0;
+  return (centsIn(label) ?? 0) / 100;
 }
 
 const AD_SIGN: Record<string, number> = { initial: 1, rebill: 1, refund: -1, chargeback: -1 };

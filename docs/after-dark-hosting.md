@@ -69,7 +69,8 @@ The same code runs in both places. Two settings decide what each deployment does
   internal address (`lib/site.ts` `requestBase`).
 - Its media comes from Bunny when the `MEDIA_BUNNY_*` settings are there (`lib/object-store.ts`): new pictures and
   clips are stored in Bunny's storage zone, and every view is a redirect to a token-signed CDN link that expires,
-  the same link all through a six-hour window so the browser keeps its copy (`LINK_WINDOW_MS`, as with the bucket).
+  the same link all through an hour's window, living two hours at most (`BUNNY_LINK_WINDOW_MS`; the bucket's window is
+  six hours, `LINK_WINDOW_MS`).
 - The show's app has the same five `MEDIA_BUNNY_*` settings (2026-11-04), next to its own `MEDIA_S3_*`: an After Dark
   file it makes (an admin's showcase run, say) goes to Bunny, where every link to it is read, and the show's own files
   stay in its bucket (`byArea` in `lib/object-store.ts`). Without them, such a file is kept in Postgres instead.
@@ -154,8 +155,8 @@ the account after four days negative (files are deleted after 60 days disabled).
 5. **Token Authentication:** Security → **Token Authentication** on. Copy the **URL Token Authentication Key**. Leave
    **Token IP Validation off** (it turns the zone's IPv6 off and breaks links when a phone changes network; the app
    doesn't sign IPs).
-6. **Browser caching:** Caching → Browser Cache Expiration → **12 hours** (43,200 s, the life of a link), so a browser keeps a
-   file for as long as its link is handed out. Leave the edge cache at its default; storage-to-CDN traffic is free.
+6. **Browser caching:** Caching → Browser Cache Expiration → **12 hours** (43,200 s), so a browser keeps a file it has
+   fetched. A link itself lives at most two hours (lib/object-store.ts `BUNNY_LINK_WINDOW_MS`). Leave the edge cache at its default; storage-to-CDN traffic is free.
 7. **CORS** (the reel player preloads shots): Headers → **Add CORS headers** on, for `mp4, png, jpg, jpeg, webp`.
 8. **Spend cap:** Limits → **Monthly bandwidth limit: 500 GB**. The zone stops serving past it, at most $5 of traffic.
    Raise it when subscribers need more.

@@ -180,7 +180,7 @@ async function main() {
       const { body, signature } = signed({
         id: `evt_e2e_${Date.now()}`,
         type: "checkout.session.completed",
-        data: { object: { id: "cs_e2e", mode: "subscription", payment_status: "paid", client_reference_id: checkoutId, subscription: "sub_e2e", customer_details: { email: "e2e@example.com" } } },
+        data: { object: { id: "cs_e2e", mode: "subscription", payment_status: "paid", amount_total: 999, currency: "usd", client_reference_id: checkoutId, subscription: "sub_e2e", customer_details: { email: "e2e@example.com" } } },
       });
       const hook = await me.request.post(`${base}/api/webhooks/stripe-plans`, { headers: { "stripe-signature": signature, "content-type": "application/json" }, data: body });
       assert(hook.ok(), `the webhook: HTTP ${hook.status()}`);

@@ -28,7 +28,7 @@ import { createServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { startProviderStub } from "./harness.mjs";
+import { shellEnv, startProviderStub } from "./harness.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const NEXT_BIN = join(ROOT, "node_modules", "next", "dist", "bin", "next");
@@ -220,14 +220,10 @@ const SAMPLE_PACK = { episodes: 5, amount_cents: 400 };
 // Made up for this run and handed only to the app it starts; never written anywhere.
 const RUN_WEBHOOK_SECRET = randomBytes(24).toString("hex");
 
-/** The app's environment: this shell's, minus every piece of real infrastructure, plus the samples above. */
+/** The app's environment: what a process needs from this shell (harness.mjs shellEnv, never its keys), plus the samples above. */
 function appEnv(showrunnerPort) {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^(DATABASE_URL|GOOGLE_API_KEY|LLM_|STRIPE_|NEXT_PUBLIC_STRIPE_|VERCEL|CONTACT_EMAIL)/.test(key)) delete env[key];
-  }
   return {
-    ...env,
+    ...shellEnv(),
     NODE_ENV: "production",
     PGLITE_DIR: DATA_DIR,
     LLM_BASE_URL: `http://127.0.0.1:${showrunnerPort}/v1`,
@@ -254,7 +250,7 @@ function build() {
   const result = spawnSync(process.execPath, [NEXT_BIN, "build"], {
     cwd: ROOT,
     stdio: ["ignore", "ignore", "inherit"],
-    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" },
+    env: { ...shellEnv(), NEXT_TELEMETRY_DISABLED: "1" },
   });
   if (result.status !== 0) throw new Error("next build failed");
 }

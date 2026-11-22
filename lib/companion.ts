@@ -13,7 +13,7 @@ import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
 import { lessonsForPrompt } from "./character-lessons";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
-import { asksAboutLastDate, AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, namesAnotherDate, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, tooCloseTo, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { asksAboutLastDate, AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, namesAnotherDate, reachedFor, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, tooCloseTo, worldRest, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { FACTS_EVERY, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
@@ -66,6 +66,7 @@ import { showCastIds } from "./season-cast";
 import { companionStory } from "./story-state";
 import { countCrisis, lineInCrisis, PG_REDIRECT } from "./step-in";
 import { venue, venueName, type VenueId } from "./venues";
+import { storedWorldWords } from "./world-words";
 
 export * from "./companion-shared";
 
@@ -132,9 +133,19 @@ export const COMPANION_DEFAULT_MODEL = "deepseek/deepseek-chat-v3.1:nitro";
  * model when it's down; the show's model alone where there's no key (a dev machine, the tests).
  */
 export async function companionModel(db: Db, env: Record<string, string | undefined> = process.env): Promise<Model> {
+  const primary = await companionWriter(db, env);
+  return primary ? fallbackModel(primary, getModel()) : getModel();
+}
+
+/**
+ * The companions' writer alone, with nothing behind it: OpenRouter with the saved key, or null where there's none. A
+ * reply puts the show's model behind it (companionModel); the words of a character's world (lib/world-words.ts) don't,
+ * so a failed call there means no words, never a call on the show's model.
+ */
+export async function companionWriter(db: Db, env: Record<string, string | undefined> = process.env): Promise<Model | null> {
   const { openrouter } = await adultKeys(db).catch(() => ({ openrouter: null }));
-  if (!openrouter) return getModel();
-  const primary = openAICompatibleModel({
+  if (!openrouter) return null;
+  return openAICompatibleModel({
     baseUrl: OPENROUTER_BASE_URL,
     apiKey: openrouter,
     model: env.COMPANION_MODEL?.trim() || COMPANION_DEFAULT_MODEL,
@@ -143,7 +154,6 @@ export async function companionModel(db: Db, env: Record<string, string | undefi
     retryDelaysMs: [1_500],
     extraBody: { usage: { include: true }, provider: adultProviderRouting(env) },
   });
-  return fallbackModel(primary, getModel());
 }
 
 let modelForTests: Model | null = null;
@@ -862,6 +872,9 @@ async function speak(
 ): Promise<SpeakResult> {
   // The Companion Plan's longer memory (lib/writing-style.ts hasDepth): twice the turns in the prompt.
   const deep = await hasDepth(db, t.user_id, now);
+  // The words of its own world a model listed for it once (lib/world-words.ts): read alongside the turns. None (no row,
+  // or a failed read) is fine: the rest works from the sheet alone, and nothing is redrawn for it.
+  const listedP = storedWorldWords(db, character.id);
   const { turns, avoid, photos } = await recentTurns(db, t.id, opts.replacing, deep ? DEEP_TURNS : RECENT_TURNS);
   const lastUser = [...turns].reverse().find((x) => x.role === "user")?.text ?? "";
   const facts = await factsForPrompt(db, t.id, lastUser, now);
@@ -905,8 +918,17 @@ async function speak(
   const elsewhere = (x: string) =>
     `${x.slice(0, 300)} (that wasn't your last date: it was with ${lastDate?.partner}${lastDate?.venue ? `, at ${lastDate.venue}` : ""}. Tell them about that one)`;
   const temperature = passedOn.length ? REGENERATE_TEMPERATURE : 0.9;
+  const worldList = await listedP;
+  // Resting its world (its last reply reached for it): a texted reply that leans on it again is drawn once more, told so.
+  // Only with the listed words (none: no redraw), only on the first draw, and never on a call or in a scene.
+  const rest = worldRest({ character, turns, deep, scene, worldWords: worldList });
+  let worldRedrawn = false;
+  const leansAgain = (x: string, attempt: number): string[] =>
+    attempt === 0 && !call && worldList.length > 0 && rest.reached.length > 0 ? reachedFor(x, rest.world, rest.topic) : [];
+  const leanedAgain = (x: string, words: readonly string[]) =>
+    `${x.slice(0, 300)} (that leaned on your own world again: ${words.slice(0, 4).map((w) => `"${w}"`).join(", ")}. Say it without your work, your hobbies or your sayings: plain words, in your own voice)`;
   const prompt = (o: { insteadOf: string | null; told?: boolean }) =>
-    companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, passedOn, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona, storyMode: o.told === true });
+    companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, passedOn, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona, storyMode: o.told === true, worldWords: worldList });
 
   // Story mode (lib/narration.ts): in a scene, for someone on the narrated style (the Companion Plan's, and admins':
   // lib/writing-style.ts), the reply is written as prose in ONE call, where a script line used to get a narration pass
@@ -1001,9 +1023,15 @@ async function speak(
     if (drawn.length && drawn.every((b) => checkFamilyTalk(b).ok && !crisisIntent(b))) {
       // Not an earlier line, and not a bubble before it in this same reply (the sim saw one paragraph sent twice).
       const fresh = drawn.filter((b, i) => !repeatsEarlier(b, [...said, ...drawn.slice(0, i)]));
+      const leans = fresh.length === drawn.length && !passed(drawn.join(" ")) ? leansAgain(drawn.join(" "), attempt) : [];
       if (fresh.length === drawn.length && !passed(drawn.join(" ")) && otherDate(drawn.join(" "))) {
         safeRepeat ??= { bubbles: drawn, action: null };
         insteadOf = elsewhere(drawn.join(" "));
+      } else if (leans.length) {
+        // The first draw stands if the second can't be used or doesn't come (the model down, the time up): fails open.
+        safeRepeat ??= { bubbles: drawn, action: null };
+        insteadOf = leanedAgain(drawn.join(" "), leans);
+        worldRedrawn = true;
       } else if (fresh.length === drawn.length && !passed(drawn.join(" "))) bubbles = drawn;
       else {
         safeRepeat ??= { bubbles: fresh.length ? fresh : drawn, action: null };
@@ -1035,7 +1063,7 @@ async function speak(
     );
   }
   await db.query(`update companion_threads set last_at = $2 where id = $1`, [t.id, tick(now, texts.length).toISOString()]);
-  track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles || told ? undefined : true, call: call || undefined, story: told ? true : undefined });
+  track("companion_reply", { model: modelId ?? undefined, cost: cost || undefined, ms: Date.now() - started, bubbles: texts.length, deflected: bubbles || told ? undefined : true, call: call || undefined, story: told ? true : undefined, world_rest: rest.reached.length ? true : undefined, world_redraw: worldRedrawn || undefined });
   return { ok: true, ids, texts };
 }
 

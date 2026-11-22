@@ -10,7 +10,7 @@ import type { Db } from "./db";
 import { isProductionDeploy } from "./deploy";
 import { sendAccountEmail } from "./email";
 import { siteUrl } from "./site";
-import { isTestModeLink, paymentLinkUrl, RENEWAL_GRACE_MS } from "./stripe";
+import { centsIn, isTestModeLink, paymentLinkUrl, RENEWAL_GRACE_MS } from "./stripe";
 import { soft } from "./soft";
 
 type Env = Record<string, string | undefined>;
@@ -56,6 +56,14 @@ export function plansOn(env: Env = process.env): boolean {
 /** The plan's price as shown (its env label, set with the link; else the default). */
 export function planPrice(plan: PlanId, env: Env = process.env): string {
   return (env[PLANS[plan].priceEnv] ?? "").trim().slice(0, 40) || PLANS[plan].price;
+}
+
+/**
+ * The least a plan's first checkout must pay, in cents: its price as the page shows it (the label is set together with
+ * the link, so a price changed in Stripe is changed here too), else the plan's own default.
+ */
+export function planPriceCents(plan: PlanId, env: Env = process.env): number {
+  return centsIn(planPrice(plan, env)) ?? centsIn(PLANS[plan].price) ?? 0;
 }
 
 /** Stripe's billing portal login link (STRIPE_PORTAL_LINK), where a subscriber cancels or changes their card. */

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkLimit, ModelId } from "@/lib/connections-http";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { getDb } from "@/lib/db";
 import { byokAvailable, deleteUserKey, isImageProvider, isTextProvider, listUserKeys, pingKey, saveUserKey, type KeyKind } from "@/lib/keys";
@@ -24,7 +25,7 @@ const KeyInput = z.object({
   provider: z.string().trim().min(1).max(40),
   kind: z.enum(["text", "image"]).default("text"),
   key: z.string().trim().min(8).max(400),
-  model: z.string().trim().max(80).optional(),
+  model: ModelId.optional(),
 });
 
 /** Save (or replace) a key for a provider. Known providers only — no custom endpoints. */
@@ -42,7 +43,7 @@ export const PUT = handle(async (req) => {
 const TestInput = z.object({
   provider: z.string().trim().min(1).max(40),
   key: z.string().trim().min(8).max(400),
-  model: z.string().trim().max(80).optional(),
+  model: ModelId.optional(),
 });
 
 /**
@@ -55,6 +56,9 @@ export const POST = handle(async (req) => {
   if (gate.error) return gate.error;
   const input = parseBody(TestInput, await readJson(req), "invalid_test");
   if (!isTextProvider(input.provider)) return json({ error: "unknown_provider", message: "Pick a supported provider." }, 422);
+  // Each test is a live call to the provider: the same limit as Connections' checks (rate-limit.ts key_check).
+  const limited = checkLimit(gate.userId);
+  if (limited) return limited;
   const result = await pingKey(input.provider, input.key, input.model ?? null);
   return json({ test: result });
 });

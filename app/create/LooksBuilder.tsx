@@ -205,6 +205,7 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
                       tabIndex={locked ? -1 : undefined}
                     >
                       {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- the look's own picture, already sized by the asset route
                         <img src={img} alt="" loading="lazy" decoding="async" onError={() => setBroken((b) => new Set(b).add(id))} />
                       ) : (
                         // No picture drawn for this tile yet: a figure over the label, not an empty box.

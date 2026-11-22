@@ -67,7 +67,7 @@ for (let i = 0; i < 200 && !up; i++) {
     console.error(`arena: next start exited with code ${child.exitCode}; see ${join(out, "server.log")}`);
     process.exit(2);
   }
-  try { up = (await fetch(`${base}/legal`)).ok; } catch {}
+  try { up = (await fetch(`${base}/legal`)).ok; } catch { /* not up yet */ }
   if (!up) await new Promise((r) => setTimeout(r, 300));
 }
 if (!up) {
@@ -178,7 +178,7 @@ const stop = () => {
   clearInterval(watchdog);
   if (crowdTimer) clearInterval(crowdTimer);
   writeCrowd(busy?.stats);
-  if (!brain) try { writeFileSync(join(out, "world.json"), JSON.stringify(world, null, 2)); } catch {}
+  if (!brain) try { writeFileSync(join(out, "world.json"), JSON.stringify(world, null, 2)); } catch { /* shutting down: a missing snapshot is no reason to fail */ }
   if (busy) console.error(`crowd stats ${JSON.stringify(busy.stats)}; brain ${JSON.stringify(brain?.summary())}`);
   stub?.close();
   child.kill("SIGTERM");

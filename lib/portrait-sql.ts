@@ -21,8 +21,21 @@ export const approvedPortraitSelect = (characterId: string) =>
  * SQL for the served path (`/api/assets/<id>`) of the newest approved portrait of the `characters` row aliased
  * `alias`, or null when it has none. approvedPortraitId inline, so every list of characters (an episode's two,
  * the feed, the cast, a watch room) carries its generated portraits in the same statement, not a read per avatar.
+ *
+ * A portrait whose ledger row records a reviewed file shipped with the app (`/cast/<file>`, the only shape the image
+ * route redirects to) is that file's path itself: no database read and no redirect per face (2026-11-22: Barnaby, a
+ * season newcomer in the house look, was the one face of the cast that every list fetched through the image route).
+ * The length is asked first, and only a short value is matched: a stored length comes from the value's header, so the
+ * multi-megabyte data URLs most rows hold are never read just to rule them out.
  */
-export const portraitPathSql = (alias: string): string => `('/api/assets/' || (${approvedPortraitSelect(`${alias}.id`)}))`;
+export const portraitPathSql = (alias: string): string =>
+  `(${approvedPortraitSelect(`${alias}.id`).replace(
+    /^select portrait_asset\.id /,
+    // A function, so the pattern's `$'` is SQL and not replace()'s "the text after the match".
+    () => `select case when octet_length(portrait_asset.url) > 200 then '/api/assets/' || portrait_asset.id
+                 when portrait_asset.url ~ '^/cast/[A-Za-z0-9_.-]+\\.(webp|png|jpe?g)$' then portrait_asset.url
+                 else '/api/assets/' || portrait_asset.id end `,
+  )})`;
 
 /**
  * Each character in a list already loaded, with its portrait (portraitPathSql) in one query: for lists built from

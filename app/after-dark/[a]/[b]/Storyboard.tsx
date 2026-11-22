@@ -183,12 +183,12 @@ export default function Storyboard({
   }
 
   /** Start one shot from a picture of the pair they already have: nothing drawn. */
-  async function usePicture(i: number, imageId: string) {
+  async function pickPicture(i: number, imageId: string) {
     if (await call({ action: "use_picture", id: draft.id, shot: i, image_id: imageId }, `shot:${i}`)) setOpen(null);
   }
 
   /** Use a video the owner already made for this shot: the shot is done as it is, nothing filmed or spent. */
-  async function useVideo(i: number, videoId: string) {
+  async function pickVideo(i: number, videoId: string) {
     if (await call({ action: "use_video", id: draft.id, shot: i, video_id: videoId }, `shot:${i}`)) setOpen(null);
   }
 
@@ -270,6 +270,7 @@ export default function Storyboard({
                     s.from_video ? (
                       <video src={mediaUrl(pic)} muted playsInline preload="metadata" aria-label="A video you made" />
                     ) : (
+                      // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
                       <img src={mediaUrl(pic)} alt="" loading="lazy" />
                     )
                   ) : (
@@ -427,7 +428,7 @@ export default function Storyboard({
                       </ul>
                       {picked?.shot === i && (
                         <div className="ad-shot-buttons">
-                          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void usePicture(i, picked.id)} title="Start the shot from this very picture: nothing is drawn">
+                          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void pickPicture(i, picked.id)} title="Start the shot from this very picture: nothing is drawn">
                             Use it as is
                           </button>
                           <button type="button" className="button-ghost small" disabled={busy !== null || Boolean(paused)} onClick={() => void drawLike(i, picked.id)} title="Draw the two of them posed, framed and placed like this picture (and your words, if any)">
@@ -451,7 +452,7 @@ export default function Storyboard({
                       </ul>
                       {picked?.shot === i && (
                         <div className="ad-shot-buttons">
-                          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void useVideo(i, picked.id)} title="Use this video for the shot as it is: nothing is drawn or filmed">
+                          <button type="button" className="secondary small" disabled={busy !== null} onClick={() => void pickVideo(i, picked.id)} title="Use this video for the shot as it is: nothing is drawn or filmed">
                             Use this video
                           </button>
                         </div>

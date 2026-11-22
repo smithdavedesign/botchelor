@@ -657,6 +657,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     reduced.addEventListener("change", onTheme);
     wake(1);
 
+    const images = imagesRef.current;
     return () => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
@@ -671,9 +672,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       scheme.removeEventListener("change", onTheme);
       reduced.removeEventListener("change", onTheme);
       simRef.current = null;
-      imagesRef.current.clear();
+      images.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Rebuild the sim when the (filtered) data changes. Everyone still on the sky keeps their place (./sim.ts warmStart),

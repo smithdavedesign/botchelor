@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { hiveState, mediaPauses, pauseClock } from "@/lib/adult/hive-limit";
+import { jobHealth, troubleOf } from "@/lib/adult/job-health";
 import { signedInAdmin } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { getAdultSettings } from "@/lib/adult/settings";
@@ -66,7 +67,7 @@ export default async function AfterDarkSettingsPage({ searchParams }: { searchPa
         </p>
       </details>
       <SettingsProvider initial={settings}>
-        <StatusStrip pauses={pauses} />
+        <StatusStrip pauses={pauses} trouble={troubleOf(await jobHealth(db))} />
         <SettingsTabs
           initial={typeof tab === "string" ? tab : "models"}
           tabs={[

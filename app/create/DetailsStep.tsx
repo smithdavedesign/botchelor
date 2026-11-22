@@ -43,6 +43,12 @@ const PLACEHOLDERS: Partial<Record<TextDetail, string>> = {
   red_flag: "Owns a gong",
 };
 
+/** The dice's name: "Suggest an occupation", "Suggest a quirk", "Suggest walk-on music" (2026-11-22 audit: "Suggest a occupation"). */
+export const suggestLabel = (label: string): string => {
+  const what = label.toLowerCase();
+  return /music$/.test(what) ? `Suggest ${what}` : `Suggest ${/^[aeiou]/.test(what) ? "an" : "a"} ${what}`;
+};
+
 /** One free-text detail with its 🎲 (which draws a fresh idea into this field). */
 export function DetailField({ k, extras, setExtras }: { k: TextDetail; extras: CharacterExtras; setExtras: SetExtras }) {
   const { label, max } = TEXT_DETAILS[k];
@@ -59,7 +65,7 @@ export function DetailField({ k, extras, setExtras }: { k: TextDetail; extras: C
           <input type="text" name={key} maxLength={max} placeholder={PLACEHOLDERS[k] && `e.g. ${PLACEHOLDERS[k]}`} value={extras[k] ?? ""} onChange={(e) => set(e.target.value)} {...invalid} />
         )}
         {SUGGESTIONS[k] && (
-          <button type="button" className="dice" aria-label={`Suggest a ${label.toLowerCase()}`} title="Suggest one" onClick={() => set(suggest(k))}>
+          <button type="button" className="dice" aria-label={suggestLabel(label)} title="Suggest one" onClick={() => set(suggest(k))}>
             🎲
           </button>
         )}
