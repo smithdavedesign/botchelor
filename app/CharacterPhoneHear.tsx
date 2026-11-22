@@ -12,7 +12,7 @@ import { requestJson } from "@/app/request";
  * lib/after-date-text.ts). Their character texts them about its last date and the thread opens; the tap is the opt-in
  * for its later texts. Companions sit behind the 18+ gate and, for a guest, a free-reply count: a refusal says what to do.
  */
-export default function CharacterPhoneHear({ episodeId, label }: { episodeId: string; label: string }) {
+export default function CharacterPhoneHear({ episodeId, label, quiet = false }: { episodeId: string; label: string; /** The second button, beside "Watch". */ quiet?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ message: string; fix: { href: string; label: string } | null } | null>(null);
@@ -43,7 +43,7 @@ export default function CharacterPhoneHear({ episodeId, label }: { episodeId: st
 
   return (
     <>
-      <button type="button" className="primary" onClick={() => void hear()} disabled={busy} data-track="home-phone-hear">
+      <button type="button" className={quiet ? "button-ghost" : "primary"} onClick={() => void hear()} disabled={busy} data-track="home-phone-hear">
         {busy ? "Opening…" : label}
       </button>
       {error && (
