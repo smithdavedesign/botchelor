@@ -4,6 +4,7 @@ import Link from "next/link";
 import SetHero from "@/app/SetHero";
 import Icon from "@/app/Icon";
 import PackVenues from "@/app/PackVenues";
+import WeeklyTime from "@/app/WeeklyTime";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
 import { CATALOG, formatPrice, frameClass, onSale, PACK_15, PACK_5, PACKS, type ItemKind } from "@/lib/catalog";
@@ -138,7 +139,7 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         </div>
         <p id="shop-balance" className="money-meter-line muted small">
           {dates.free_left} of {dates.free_per_season} free this week
-          {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back Monday 00:00 UTC.
+          {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back <WeeklyTime weekday={1} />.
         </p>
       </section>
       {checkout === "success" && (

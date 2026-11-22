@@ -202,6 +202,16 @@ describe("the company pages", () => {
     expect(security).toContain("link at the foot of every page");
   });
 
+  // "00:00 UTC" read as a programmer's clock (2026-11-22 audit): /pricing sends it, then the browser shows the viewer's own
+  // day and time (app/WeeklyTime.tsx); /faq's answer, plain text for search too, says it in words.
+  it("says when free dates come back in the viewer's clock on /pricing, and in words on /faq", () => {
+    expect(words(render(PricingPage))).toContain("3 dates a week for your characters, back every Monday at 00:00 UTC");
+    expect(readFileSync("app/pricing/page.tsx", "utf8")).toContain("back every <WeeklyTime weekday={1} />");
+    const free = answerText(faqs({}).find((f) => f.id === "free")!.a);
+    expect(free).toContain("back every Monday at midnight UTC (Sunday afternoon or evening in the Americas)");
+    expect(free).not.toContain("00:00");
+  });
+
   it("/pricing shows the free dates, and the pack's button only while purchases are open", () => {
     vi.stubEnv("STRIPE_PAYMENT_LINK", "");
     let text = words(render(PricingPage));

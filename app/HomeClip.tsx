@@ -12,7 +12,7 @@ export type HomeClipProps = {
   height: number;
   /** The date's replay (its page with ?play=1). */
   watchHref: string;
-  /** "A × B · It ended: A second date" (lib/home-clip.ts clipCaption). */
+  /** "A × B · How it ended: a second date" (lib/home-clip.ts clipCaption). */
   caption: string;
   /** The line over the caption, and the watch button's words: the show's ad (lib/promo-videos.ts) says its own. */
   kicker?: string;

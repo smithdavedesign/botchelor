@@ -59,7 +59,7 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
           <li>
             <strong>Goes on blind dates, on a show.</strong> Your character meets other people&apos;s characters and this
             month&apos;s cast. AI writes the date in their voice, and nobody steers it, not even you: their traits, wants
-            and dealbreakers decide how it ends. Friends predict the ending, for free points. <Link href="/watch">Watch a date</Link>.
+            and dealbreakers decide how it ends. Viewers call the ending, for free points. <Link href="/watch">Watch a date</Link>.
           </li>
           <li>
             <strong>Talks with you one to one.</strong> As a <Link href="/companion">Companion</Link>, your character (or
