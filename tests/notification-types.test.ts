@@ -111,9 +111,24 @@ describe("the inbox says each thing once, in words, and asks only for what can s
     const live = (await listNotifications(t.db, u))[0];
     expect(live).toMatchObject({ read: false, body: expect.stringMatching(/^Book it/) });
     expect(live.ended).toBeUndefined();
-    // One of them unmatched (lib/unmatch.ts deletes the match).
+    // One of them unmatched (lib/unmatch.ts keeps that, and deletes the match).
+    await t.db.query(`insert into unmatches (character_lo, character_hi, by_character) values ($1, $2, $1) on conflict do nothing`, [lo, hi]);
     await t.db.query(`delete from matches where character_lo = $1 and character_hi = $2`, [lo, hi]);
     expect((await listNotifications(t.db, u))[0]).toMatchObject({ read: true, ended: true, body: ENDED_MATCH_BODY, link: `/messages/${lo}/${hi}` });
     expect(await unreadCount(t.db, u)).toBe(0);
+    await t.db.query(`delete from unmatches where character_lo = $1 and character_hi = $2`, [lo, hi]);
+  });
+
+  it("calls a pair whose character was deleted ended too, but not a pair that never needed a match row", async () => {
+    const u = `user-${randomUUID()}`;
+    const [lo, hi] = [HOUSE_CHARACTERS[2].id, HOUSE_CHARACTERS[3].id].sort();
+    await t.db.query(`delete from matches where character_lo = $1 and character_hi = $2`, [lo, hi]);
+    // A house partner's date needs no match: the prompt still asks.
+    await notify(t.db, u, { kind: "date_agreed", title: "📅 They want to go on a date", body: "Book it from their chat.", link: `/messages/${lo}/${hi}` });
+    expect((await listNotifications(t.db, u))[0]).toMatchObject({ read: false, body: "Book it from their chat." });
+    const gone = `gone-${randomUUID()}`;
+    await notify(t.db, u, { kind: "matched", title: "💘 A match", body: "Say hi.", link: `/messages/${[lo, gone].sort().join("/")}` });
+    const [first] = await listNotifications(t.db, u);
+    expect(first).toMatchObject({ kind: "matched", ended: true, body: ENDED_MATCH_BODY });
   });
 });

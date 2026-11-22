@@ -10,6 +10,7 @@ import type { Db } from "./db";
 import { emailNow } from "./email";
 import { notificationTypeOf, withoutRawIds } from "./notification-types";
 import { pushToUser } from "./push";
+import { DELETED_OWNER } from "./rules";
 
 export type NotificationKind =
   | "texted" // a couple's text: the show's daily one, or one they sent themselves (one unread per couple)
@@ -126,13 +127,19 @@ export async function markPairNotices(db: Db, userId: string, x: string, y: stri
     .catch(() => {});
 }
 
-/** The pairs ("lo/hi") of `items`' matched / date_agreed notices that still have a match, in one read; null when none asks. */
-async function livePairs(db: Db, items: Notification[]): Promise<Set<string> | null> {
+/**
+ * The pairs ("lo/hi") of `items`' matched / date_agreed notices that can't date any more, in one read (null when none
+ * asks): they unmatched (lib/unmatch.ts keeps that), or one of them is gone or kept only for the dates it aired in
+ * (DELETED_OWNER). A pair that never needed a match row (a house partner) isn't one.
+ */
+async function endedPairs(db: Db, items: Notification[]): Promise<Set<string> | null> {
   const asked = items.map((n) => pairOfNotice(n)).filter((p): p is [string, string] => p !== null);
   if (!asked.length) return null;
   const { rows } = await db.query<{ lo: string; hi: string }>(
-    `select character_lo as lo, character_hi as hi from matches where character_lo = any($1) and character_hi = any($2)`,
-    [[...new Set(asked.map((p) => p[0]))], [...new Set(asked.map((p) => p[1]))]],
+    `select p.lo, p.hi from unnest($1::text[], $2::text[]) as p(lo, hi)
+      where exists (select 1 from unmatches um where um.character_lo = p.lo and um.character_hi = p.hi)
+         or (select count(*) from characters c where c.id in (p.lo, p.hi) and c.owner_id is distinct from $3) < 2`,
+    [asked.map((p) => p[0]), asked.map((p) => p[1]), DELETED_OWNER],
   );
   return new Set(rows.map((r) => `${r.lo}/${r.hi}`));
 }
@@ -142,18 +149,18 @@ export const ENDED_MATCH_BODY = "This match has ended, so there's nothing to boo
 
 /**
  * The render-time half for a match that ended (UX audit 2026-11-22: old "Book it" prompts read as still waiting): a
- * matched or date_agreed notice with no date booked since (withBookings) whose pair has no match any more (one of them
- * unmatched, lib/unmatch.ts, or a character was deleted) says so instead, and is read. A live match, however old, still
- * asks: its date can still be booked.
+ * matched or date_agreed notice with no date booked since (withBookings) whose pair can't date any more (endedPairs: one
+ * of them unmatched, or a character was deleted) says so instead, and is read. A live match, however old, still asks:
+ * its date can still be booked.
  */
 export async function withEndedMatches(db: Db, userId: string, items: Notification[], known?: Set<string> | null): Promise<Notification[]> {
-  const live = known === undefined ? await livePairs(db, items) : known;
-  if (!live) return items;
+  const ended = known === undefined ? await endedPairs(db, items) : known;
+  if (!ended) return items;
   const pairs = items.map((n) => (n.booked ? null : pairOfNotice(n)));
   const stale: string[] = [];
   const out = items.map((n, i): Notification => {
     const pair = pairs[i];
-    if (!pair || live.has(`${pair[0]}/${pair[1]}`)) return n;
+    if (!pair || !ended.has(`${pair[0]}/${pair[1]}`)) return n;
     if (!n.read) stale.push(n.id);
     return { ...n, body: ENDED_MATCH_BODY, read: true, ended: true };
   });
@@ -441,8 +448,8 @@ export async function listNotifications(db: Db, userId: string, limit = 50, offs
   );
   const items: Notification[] = rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, link: r.link, created_at: new Date(r.created_at).toISOString(), read: r.read_at !== null }));
   // Whether each pair still has a match is read alongside its bookings, not after them.
-  const [booked, live] = await Promise.all([withBookings(db, userId, items), livePairs(db, items)]);
-  return withTurnState(db, userId, await withEndedMatches(db, userId, booked, live));
+  const [booked, ended] = await Promise.all([withBookings(db, userId, items), endedPairs(db, items)]);
+  return withTurnState(db, userId, await withEndedMatches(db, userId, booked, ended));
 }
 
 /**
