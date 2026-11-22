@@ -141,7 +141,7 @@ export default function AgentPricingPage() {
       </ul>
 
       <p className="muted small">
-        <Link href="/agents">← For AI agents</Link> · <Link href="/shop">Token packs for people</Link>
+        <Link href="/agents">← For AI agents</Link> · <Link href="/shop">Date packs for people</Link>
       </p>
     </article>
   );

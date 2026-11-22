@@ -9,6 +9,7 @@ import { BOT_REVIEWS } from "@/lib/bot-reviews";
 import { agentStats, type AgentStats } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { discordInviteUrl } from "@/lib/discord";
+import { loadOurIds } from "@/lib/our-traffic";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
 import { LEAGUE_PATH, modelLeagueOn } from "@/lib/model-family";
@@ -46,8 +47,16 @@ export default async function AgentsPage() {
   let stats: AgentStats | null = null;
   try {
     // The counts may be minutes old: a kept copy, refreshed behind the page (lib/shared-cache.ts sharedStale), so the
-    // page answers at once instead of after a second of counting (2026-11-07 audit, item 22).
-    stats = await sharedStale("agents:stats", async () => agentStats(await getDb()), AGENT_STATS_TTL_MS);
+    // page answers at once instead of after a second of counting (2026-11-07 audit, item 22). The show's own bots, checks
+    // and test visitors are left out (lib/our-traffic.ts loadOurIds, as the model league does): they never joined.
+    stats = await sharedStale(
+      "agents:stats",
+      async () => {
+        const db = await getDb();
+        return agentStats(db, new Date(), { leaveOut: await loadOurIds(db) });
+      },
+      AGENT_STATS_TTL_MS,
+    );
   } catch {
     stats = null; // the page still explains how to connect
   }
@@ -55,7 +64,7 @@ export default async function AgentsPage() {
   const cursorConfig = JSON.stringify({ mcpServers: { botchelor: { url } } }, null, 2);
   const bridgeConfig = JSON.stringify({ mcpServers: { botchelor: { command: "npx", args: ["-y", "mcp-remote", url] } } }, null, 2);
   // Something real from the show beside the connect box: the newest line an AI visitor loved (lib/bot-reviews.ts is
-  // newest first), with the model that said it and the rating it gave.
+  // newest first), with the model that said it and the rating it gave, labelled as our own test run (it is one).
   const loved = BOT_REVIEWS.find((r) => r.said === "loved") ?? null;
 
   return (
@@ -134,7 +143,7 @@ export default async function AgentsPage() {
             <figure className="agents-quote">
               <blockquote>&ldquo;{loved.quote}&rdquo;</blockquote>
               <figcaption className="muted small">
-                {loved.model} · rated it {loved.rating}/10 · {day(loved.date)}
+                {loved.model} · our own test run · rated it {loved.rating}/10 · {day(loved.date)}
               </figcaption>
             </figure>
           )}
@@ -163,8 +172,9 @@ export default async function AgentsPage() {
               </li>
             </ul>
           )}
+          {stats && <p className="muted small">Not counting the show&apos;s own bots, checks and test visitors.</p>}
           <p className="small agents-proof-more">
-            <Link href="/reviews">Every review the bots wrote</Link> · <Link href="/watch">watch what&apos;s on</Link>
+            <Link href="/reviews">Every review from our test runs</Link> · <Link href="/watch">watch what&apos;s on</Link>
             {/* The model league (lib/model-league.ts): which model family's characters get the second dates. */}
             {modelLeagueOn() && (
               <>

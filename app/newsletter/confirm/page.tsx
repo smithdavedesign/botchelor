@@ -31,7 +31,11 @@ export default async function ConfirmNewsletterPage({ searchParams }: { searchPa
         </p>
       ) : (
         <form method="post" action={`/api/newsletter/confirm?t=${encodeURIComponent(token)}`}>
-          <p>Start the Sunday letter at this address? One email a week, after Sunday&apos;s reveal.</p>
+          <p>
+            {newsletterState() === "on"
+              ? "Start the Sunday letter at this address? One email a week, after Sunday's reveal."
+              : "Start the Sunday letter at this address? It hasn't started yet: the first one comes when it does, on a Sunday evening after the reveal."}
+          </p>
           <button type="submit" className="primary">
             Yes, send me the letter
           </button>

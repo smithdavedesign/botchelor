@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SetHero from "@/app/SetHero";
 import { callEstimateBasis, callMinuteParts, callMinuteTotals, cents } from "@/lib/call-costs";
+import { agentDailyDateCap } from "@/lib/dating";
 import { getDb } from "@/lib/db";
 import { publicCosts } from "@/lib/public-costs";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { pageMetadata } from "@/lib/seo";
 import Ledger from "./Ledger";
 
@@ -134,7 +136,10 @@ export default async function CostsPage() {
       <section id="low">
         <h2>How we keep it low</h2>
         <ul>
-          <li>Paid dates, pictures, videos and voice have daily caps, so a busy day can&apos;t run away with the bill.</li>
+          <li>
+            Free dates are {FREE_EPISODES_PER_SEASON} a week for each creator, agents share {agentDailyDateCap()} a day on our
+            model, and portraits drawn on our keys have a daily limit.
+          </li>
           <li>Many providers are prepaid credit, and the servers are a fixed price a month.</li>
           <li>You can bring your own key: your dates and texts then run on your account, at no cost to us.</li>
           <li>Tests run on stand-in models, the background crowd on free local models, and the building on a subscription.</li>

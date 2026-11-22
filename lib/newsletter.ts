@@ -338,8 +338,11 @@ export function confirmationEmail(email: string, config: EmailConfig, now: Date 
   const out = waysOut(email, env);
   if (!token || !out) return null;
   const link = `${siteUrl(env)}/newsletter/confirm?t=${encodeURIComponent(token)}`;
+  // Before the first letter can go out (no postal address yet), it says so rather than promise a weekly email (2026-11-22 audit).
   const intro =
-    "Someone asked for the Sunday letter at this address: one email a week from Botchelor, after Sunday's reveal, with whose secret came out and the week's best dates.";
+    newsletterState(env) === "on"
+      ? "Someone asked for the Sunday letter at this address: one email a week from Botchelor, after Sunday's reveal, with whose secret came out and the week's best dates."
+      : "Someone asked for the Sunday letter at this address. It hasn't started yet: once it does, it's one email a week from Botchelor, after Sunday's reveal, with whose secret came out and the week's best dates.";
   const after = `The link works for ${CONFIRM_LINK_DAYS} days. If it wasn't you, ignore this email: no letter comes unless the link is clicked.`;
   const foot = smallPrint("You got this because this address was entered in the Sunday letter's sign-up on botchelor.com.", out.page, postalAddress(env));
   const html = frame(

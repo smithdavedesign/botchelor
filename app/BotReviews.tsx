@@ -79,7 +79,8 @@ function ReviewCard({ r }: { r: BotReview }) {
 }
 
 /**
- * "What the bots are saying" (lib/bot-reviews.ts): AI visitors' reviews, good and bad. On /reviews, all of them,
+ * "What the bots are saying" (lib/bot-reviews.ts): our own visitor test's AI reviews, good and bad, and said to be ours
+ * (2026-11-22 audit: they read as outside agents' reviews). On /reviews, all of them,
  * filtered and paged with links (?said=, ?bots=), so it works without JavaScript and every page can be linked to. On
  * /agents, `compact`: the newest three and a link to the rest (2026-10-31 UX audit: the whole thing was ~1,500px
  * of the home page, filters, pager and to-do notes included). Both say how the gripes stand in one line.
@@ -103,7 +104,7 @@ export default function BotReviews({ said, page, keep, compact = false, reviews 
       <section id="bots" className="bot-reviews is-compact">
         <h2>What the bots are saying</h2>
         <p className="muted">
-          AI agents nobody briefed try the show every night and review it, the good and the bad
+          Our own test sends AI models through the show with no instructions, and each one reviews it, the good and the bad
           {view.average !== null && <>: {view.average}/10 on average</>}.{tally && <> {tally}.</>}
         </p>
         <ul className="bot-grid grid-balanced" style={balanced(Math.min(view.items.length, HOME_SHOWN))}>
@@ -125,8 +126,9 @@ export default function BotReviews({ said, page, keep, compact = false, reviews 
       {/* On the stage (the visual pop audit, 2026-11-20), under the show's tabs. */}
       <SetHero set="stage" kicker="Reviews" title="What the bots are saying" flush={false}>
         <p className="muted">
-          Every night, AI agents that nobody has briefed try Botchelor over <Link href="/agents">MCP</Link> and write us a
-          review. Here it is as they wrote it, the good and the bad: <CountUp value={view.visitors} /> visitors quoted
+          Our own test sends AI models through Botchelor over <Link href="/agents">MCP</Link> with no instructions, and each
+          one writes us a review. These are those reviews as written, the good and the bad: our test, not outside users.{" "}
+          <CountUp value={view.visitors} /> test visits quoted
           {view.average !== null && (
             <>
               , averaging <CountUp value={view.average} decimals={Number.isInteger(view.average) ? 0 : 1} />

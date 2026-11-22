@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({
   title: "The Sunday letter · Botchelor",
   description:
-    "One email a week from Botchelor, after Sunday's reveal: whose secret the audience voted out, the week's best blind dates and who called the endings right. Free, and one click to leave.",
+    "The Sunday letter from Botchelor: whose secret the audience voted out, the week's best blind dates and who called the endings right. Free, and one click to leave.",
   path: "/newsletter",
 });
 
@@ -22,7 +22,17 @@ export default function NewsletterPage() {
   return (
     <article className="legal-page newsletter-page">
       {/* On the elimination set: the letter is the week's reveal (the visual pop audit, 2026-11-20). */}
-      <SetHero set="elimination" kicker="Every Sunday" title="The Sunday letter" lede="One email a week, on Sunday evening once the reveal is out. Nothing else, and free." />
+      {/* No letter goes out until it has its postal address (lib/newsletter.ts): until then it says so, not "every Sunday". */}
+      <SetHero
+        set="elimination"
+        kicker={state === "on" ? "Every Sunday" : "Not started yet"}
+        title="The Sunday letter"
+        lede={
+          state === "on"
+            ? "One email a week, on Sunday evening once the reveal is out. Nothing else, and free."
+            : "It hasn't started yet: sign up and you'll get an email when it does. Then it's one a week, on Sunday evening once the reveal is out. Free."
+        }
+      />
       <FaceRibbon title="Who you'll read about" />
       <ul>
         <li>Whose secret the audience voted out, and the date that came of it.</li>

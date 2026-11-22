@@ -216,6 +216,33 @@ describe("the new policy pages", () => {
     expect(strip(html)).toMatch(/until the end of the period you've already paid for/);
   });
 
+  it("/cancel covers the Companion Plan first, the subscription on sale, with Stripe's billing portal, then After Dark", () => {
+    vi.stubEnv("CONTACT_EMAIL", "help@botchelor.example");
+    vi.stubEnv("STRIPE_PORTAL_LINK", "https://billing.stripe.com/p/login/test_botchelor");
+    const html = render(CancelPage);
+    const text = strip(html);
+    // 2026-11-22 audit: the footer's "Cancel a subscription" landed on "nothing to cancel today" while the plan was on sale.
+    expect(text).toMatch(/<h1>Cancel a subscription<\/h1>/);
+    expect(text).not.toMatch(/nothing to cancel today/);
+    expect(html.indexOf('id="companion-plan"')).toBeGreaterThan(-1);
+    expect(html.indexOf('id="companion-plan"')).toBeLessThan(html.indexOf('id="after-dark"'));
+    // Online, in the portal, with the email route beside it; it runs to the end of the month paid for.
+    expect(html).toContain('href="https://billing.stripe.com/p/login/test_botchelor"');
+    const plan = text.slice(text.indexOf('id="companion-plan"'), text.indexOf('id="after-dark"'));
+    expect(plan).toMatch(/billed by Stripe every month until you cancel/);
+    expect(plan).toContain('href="mailto:help@botchelor.example"');
+    expect(plan).toMatch(/runs to the end of the month you've already paid for/);
+    expect(plan).toContain('href="/terms#refunds"');
+    // After Dark after it, still not on sale.
+    expect(text.slice(text.indexOf('id="after-dark"'))).toMatch(/After Dark isn't on sale yet, so there's nothing to cancel there today/);
+
+    // No portal link set: the receipt's link, never a dead button.
+    vi.stubEnv("STRIPE_PORTAL_LINK", "");
+    const without = render(CancelPage);
+    expect(without).not.toContain("data-cancel-portal");
+    expect(strip(without)).toMatch(/use the link in Stripe's receipt email/);
+  });
+
   it("/report shows the form, the promises, and prefills what's reported", async () => {
     const html = strip(renderToStaticMarkup(await ReportPage({ searchParams: Promise.resolve({ what: "/episodes/abc123" }) })));
     expect(html).toMatch(/<h1>Report a problem<\/h1>/);
