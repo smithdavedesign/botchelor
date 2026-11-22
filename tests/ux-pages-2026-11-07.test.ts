@@ -179,7 +179,7 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
     // 2026-11-22: "Try it now" has the button that does it right under it, and the same one in thumb reach on a phone.
     const head = html.slice(html.indexOf("Try it now"));
     expect(head).toMatch(/^[^]*?<div id="companion-cta"><button type="button" class="button" data-track="companion-hero">Talk to [^<]+<\/button><\/div>/);
-    expect(html.indexOf('id="companion-cta"')).toBeLessThan(html.indexOf("companion-card"));
+    expect(html.indexOf("companion-tile")).toBeGreaterThan(html.indexOf('id="companion-cta"'));
     expect(html).toMatch(/class="phone-action-bar"[^>]*><button type="button" class="button" data-track="companion-hero">Talk to /);
     // A bare bz_uid (anyone could type one) never reads as a guest: that's the sign-in page.
     as(`bz_uid=${crypto.randomUUID()}`);
