@@ -51,10 +51,11 @@ export const SHEET_EXAMPLE = {
 } as const;
 
 /**
- * How the swipe deck will show them (the design system's create screen, 2026-11-11: "How the deck sees them"), filled
- * in as the sheet is: the parts of a card on /swipe (app/swipe/SwipeDeck.tsx Card, from lib/swipes.ts toCard) in the
- * same order and with the same classes, and a quiet stand-in where a part is still empty. Beside the form on a wide
- * screen; a phone keeps the one-row preview above it.
+ * How the swipe deck will show them (the design system's create screen, 2026-11-11), filled in as the sheet is: the
+ * parts of a card on /swipe (app/swipe/SwipeDeck.tsx Card, from lib/swipes.ts toCard) in the same order and with the
+ * same classes, and a quiet stand-in where a part is still empty. Beside the form on a wide screen; a phone keeps the
+ * one-row preview above it. Headed "How others will see them" (2026-11-22 audit: "How the deck sees them" and "the house
+ * cast" were our words, not a visitor's).
  *
  * While nothing is typed yet it shows the example character, greyed and labelled Example, so the card reads as a card;
  * the first thing typed (a name, usually) switches it to their own, stand-ins and all.
@@ -68,18 +69,18 @@ export default function DeckPreview({ seed, name, age, hue, portrait, bio, want,
   // the show, tagged as theirs, rather than the made-up example in initials.
   if (empty && examples.length > 0) {
     return (
-      <aside className="wizard-deck" aria-label="How the deck sees them">
-        <p className="kicker">How the deck sees them</p>
+      <aside className="wizard-deck" aria-label="How others will see them">
+        <p className="kicker">How others will see them</p>
         <HouseDeck cards={examples} still={typing} />
-        <p className="muted small wizard-deck-example-note">Three of the house cast, as the deck shows them. Yours fills in here as you type.</p>
+        <p className="muted small wizard-deck-example-note">Three characters already on the show. Yours appears here as you type.</p>
         {picture}
       </aside>
     );
   }
   if (empty) {
     return (
-      <aside className="wizard-deck" aria-label="How the deck sees them">
-        <p className="kicker">How the deck sees them</p>
+      <aside className="wizard-deck" aria-label="How others will see them">
+        <p className="kicker">How others will see them</p>
         <div className="swipe-card wizard-deck-card wizard-deck-example">
           <span className="badge wizard-deck-example-tag">Example</span>
           <div className="swipe-photo">
@@ -108,15 +109,15 @@ export default function DeckPreview({ seed, name, age, hue, portrait, bio, want,
             </p>
           </div>
         </div>
-        <p className="muted small wizard-deck-example-note">Yours fills in here as you type.</p>
+        <p className="muted small wizard-deck-example-note">Yours appears here as you type.</p>
         {picture}
       </aside>
     );
   }
   const shown = name.trim() || "Your character";
   return (
-    <aside className="wizard-deck" aria-label="How the deck sees them">
-      <p className="kicker">How the deck sees them</p>
+    <aside className="wizard-deck" aria-label="How others will see them">
+      <p className="kicker">How others will see them</p>
       <div className="swipe-card wizard-deck-card">
         <div className="swipe-photo">
           <Avatar seed={seed} name={name.trim() || "?"} hue={hue} portraitSrc={portrait} size={140} decorative />

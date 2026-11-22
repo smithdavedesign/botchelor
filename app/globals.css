@@ -4593,7 +4593,7 @@ button.rating-chip:hover {
   background: color-mix(in srgb, var(--accent) 38%, rgba(0, 0, 0, 0.4));
 }
 .theater-replay .theater-verdict {
-  background: rgba(12, 8, 16, 0.97);
+  background: rgb(12, 8, 16);
   backdrop-filter: none;
 }
 .theater-replay .theater-verdict .share-ending {
@@ -4722,13 +4722,19 @@ button.rating-chip:hover {
   background: var(--media-bg);
 }
 /* The creator's verdict card (app/episodes/[id]/VerdictCard.tsx): the ending with a next step, so it stacks, and scrolls
-   inside the stage when a short screen can't hold all of it. */
+   inside the stage when a short screen can't hold all of it. It hangs just under the title bar and stops clear of the
+   transport at the foot: centred on the stage like the bare ending, a tall card started above a 1280×900 window, ending
+   line and all (2026-11-22 audit). Solid, so the bubbles behind it don't read through. */
 .verdict-card {
   display: grid;
   gap: var(--space-2);
   justify-items: center;
-  max-height: calc(100% - 7rem);
+  top: 4.5rem;
+  transform: translateX(-50%);
+  max-height: calc(100% - 10.5rem);
   overflow-y: auto;
+  background: rgb(12, 8, 16);
+  backdrop-filter: none;
 }
 .verdict-pair {
   display: flex;
@@ -5249,13 +5255,14 @@ button.chat-vote-tag[aria-pressed="true"] .chat-vote-tag-face {
     border-width: 1px 0 0;
     border-radius: 0;
   }
-  /* The verdict card sits at the foot of the phone's screen, over the thread, clear of the short scene banner. */
+  /* The verdict card sits at the foot of the phone's screen, over the thread, clear of the short scene banner, and of
+     the title bar over it: Exit, two lines of names and the "Just filmed" chip are about 6.4rem (2026-11-22 audit). */
   .theater-stage .verdict-card {
     top: auto;
     bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
     transform: translateX(-50%);
     width: min(30rem, calc(100% - 2 * var(--gutter)));
-    max-height: calc(100% - 5rem);
+    max-height: calc(100% - 8rem);
   }
 }
 
@@ -11837,6 +11844,12 @@ main:has(> .episode-page) {
 .episode-hero {
   overflow: hidden;
   isolation: isolate;
+}
+/* Not while the theater is open, though: EpisodeTheater.tsx renders it inside the hero, fixed over the whole screen, and
+   an isolated hero is a stacking context its z-index can't climb out of. The sticky site header (z-index 20) then painted
+   over the theater's Exit and names, and, inert behind it, let presses through to the hidden Exit (2026-11-22 audit). */
+.episode-hero:has(.theater) {
+  isolation: auto;
 }
 .episode-hero-art {
   position: absolute;
