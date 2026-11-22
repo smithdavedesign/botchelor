@@ -47,7 +47,7 @@ export function trackingConfig(env: Record<string, string | undefined> = process
   };
 }
 
-/** Set by ?repohq-notrack=1 on any page (middleware.ts): this browser is the owner's, so app/funnel.ts never counts it. */
+/** Set by ?repohq-notrack=1 on any page (proxy.ts): this browser is the owner's, so app/funnel.ts never counts it. */
 export const NOTRACK_COOKIE = "repohq_notrack";
 
 /**

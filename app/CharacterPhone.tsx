@@ -102,11 +102,15 @@ export default function CharacterPhone({ phone }: { phone: CharacterPhoneView })
             {phone.action.label}
           </Link>
         )}
-        {phone.secondary && (
-          <Link className="button-ghost" href={phone.secondary.href} data-track="home-phone-thread">
-            {phone.secondary.label}
-          </Link>
-        )}
+        {/* The quieter second: "Hear from" beside "Watch" (the date comes first), else the thread. */}
+        {phone.secondary &&
+          (phone.secondary.kind === "hear" ? (
+            <CharacterPhoneHear episodeId={phone.secondary.episodeId} label={phone.secondary.label} quiet />
+          ) : (
+            <Link className="button-ghost" href={phone.secondary.href} data-track="home-phone-thread">
+              {phone.secondary.label}
+            </Link>
+          ))}
       </p>
 
       {phone.others.length > 0 && (
