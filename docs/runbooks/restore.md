@@ -83,5 +83,7 @@ lost.
   commands above: all 283 tables and 523 indexes, 1.8 GB, in 51 seconds. The only error was a setting that Postgres 16
   (the Mac's) doesn't know and 18 does (`transaction_timeout`). A single `pg_restore` of the same dump left out the 79
   tables with `pg_attver`, which is why section 4 takes three steps.
-- **Not yet:** a point-in-time side branch and a snapshot restored to a side branch (a few cents of compute, nothing
-  touched on `main`): do one the next time someone is at Neon's console, and note it here.
+- **2026-11-22, a point-in-time side branch:** `main` as it stood 2 hours earlier came back on a side branch with all
+  282 tables, and the branch expired by itself.
+- **Not yet:** a snapshot restored to a side branch (a few cents of compute, nothing touched on `main`): do one the next
+  time someone is at Neon's console, and note it here.
