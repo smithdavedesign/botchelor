@@ -55,7 +55,8 @@
     "screenshots:recovery-live": "node scripts/account-recovery-live.mjs",
     "portraits": "node scripts/portraits.mjs",
     "payment:live": "node scripts/payment-live.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --report-unused-disable-directives-severity=error ."
   },
   "engines": {
     "node": "24.x"
@@ -82,6 +83,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/web-push": "3.6.4",
+    "oxlint": "1.90.0",
     "playwright-core": "^1.64.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.4"

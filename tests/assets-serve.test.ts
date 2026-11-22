@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as getAsset } from "@/app/api/assets/[id]/route";
 import { recordAsset, reviewAsset } from "@/lib/assets";
+import { setDbForTests } from "@/lib/db";
 import { startTestDb } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -69,6 +70,47 @@ describe("serving an approved asset", () => {
     expect(odd.status).toBe(200);
     expect(odd.headers.get("content-type")).toBe("image/png");
     expect((await serve(id, "?w=nope")).headers.get("content-type")).toBe("image/png");
+  });
+
+  it("a small copy already kept is one read: the gate's columns and the copy come together (2026-11-22 audit)", async () => {
+    const { default: sharp } = await import("sharp");
+    const big = await sharp({ create: { width: 512, height: 512, channels: 3, background: "#3c6" } }).png().toBuffer();
+    const id = await approved("data:image/png;base64," + big.toString("base64"));
+    expect((await serve(id, "?w=96")).status).toBe(200); // made and kept
+    const reads: string[] = [];
+    setDbForTests({ query: (sql, params) => (reads.push(sql), t.db.query(sql, params)), exec: (sql) => t.db.exec(sql) });
+    try {
+      const res = await serve(id, "?w=96");
+      expect(res.headers.get("content-type")).toBe("image/webp");
+      expect((await sharp(Buffer.from(await res.arrayBuffer())).metadata()).width).toBe(128);
+    } finally {
+      setDbForTests(t.db);
+    }
+    expect(reads).toHaveLength(1);
+  });
+
+  it("a burst of faces (a page opened with the CDN's cache empty) never takes more than four connections at once", async () => {
+    const ids = await Promise.all(Array.from({ length: 6 }, (_, i) => approved("/cast/house-nell-v3.webp", 10 + i)));
+    const seen = { now: 0, most: 0 };
+    setDbForTests({
+      query: async (sql, params) => {
+        seen.most = Math.max(seen.most, ++seen.now);
+        try {
+          await new Promise((r) => setTimeout(r, 20));
+          return await t.db.query(sql, params);
+        } finally {
+          seen.now--;
+        }
+      },
+      exec: (sql) => t.db.exec(sql),
+    });
+    try {
+      const all = await Promise.all(Array.from({ length: 24 }, (_, i) => serve(ids[i % ids.length], "?w=96")));
+      expect(all.every((r) => r.status === 307)).toBe(true);
+    } finally {
+      setDbForTests(t.db);
+    }
+    expect(seen.most).toBe(4);
   });
 
   it("/api/assets/<id>.webp is the same small copy, public, so the CDN keeps it (2026-11-01 audit, R3)", async () => {

@@ -4266,6 +4266,8 @@ create table if not exists house_scene_reports (
   created_at timestamptz not null default now(),
   primary key (scene_id, line, reporter_id)
 );
+-- A report from a brand-new identity is kept for the admins' list but hides nothing (lib/report-trust.ts, 2026-11-22).
+alter table house_scene_reports add column if not exists counts boolean not null default true;
 -- Marketing, in the open (/marketing, lib/public-marketing.ts, docs/marketing.md): the marketing loop's channels, posts
 -- and planned spend, sent after every run (POST /api/admin/marketing). One row, replaced whole each time.
 create table if not exists marketing_feed (
@@ -4456,6 +4458,19 @@ create table if not exists session_versions (
   changed_at timestamptz not null default now()
 );
 create index if not exists session_versions_changed_idx on session_versions (changed_at);
+
+-- Bans and suspensions an admin puts on an account (any identity id), an agent, or an address (its visitor key, a keyed
+-- hash: no address is stored), lib/bans.ts. No end (until null) is a ban; an end is a suspension. Each process keeps the
+-- live ones in memory. A moderation record: kept when the account is deleted, like session_versions.
+create table if not exists bans (
+  kind text not null check (kind in ('account', 'agent', 'address')),
+  target text not null,
+  until timestamptz,
+  reason text,
+  banned_by text not null,
+  created_at timestamptz not null default now(),
+  primary key (kind, target)
+);
 
 -- When a character came into its account by a claim (null: it was made there). The account's choices that are consents
 -- cover a claimed character only from this moment on (lib/ml-consent.ts consentedCharactersSql), as a linked agent's do.
@@ -5001,7 +5016,19 @@ function openShared(): Promise<Db> {
 
 export function getDb(): Promise<Db> {
   if (testDb) return Promise.resolve(testDb);
-  return openShared().then(withSeasonCast).then(withSessionVersions);
+  return openShared().then(withSeasonCast).then(withSessionVersions).then(withBans);
+}
+
+/** The live bans every change is checked against (lib/bans.ts), loaded as the session versions are. */
+async function withBans(db: Db): Promise<Db> {
+  try {
+    const { refreshBans, bansLoaded } = await import("./bans");
+    const loading = refreshBans(db).catch((err) => console.error("[bans] could not load:", err instanceof Error ? err.message : "unknown"));
+    if (!bansLoaded()) await loading;
+  } catch (err) {
+    console.error("[bans] could not load:", err instanceof Error ? err.message : "unknown");
+  }
+  return db;
 }
 
 /**

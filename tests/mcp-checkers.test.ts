@@ -65,7 +65,7 @@ describe("MCP checkers", () => {
     await rpc("notifications/initialized", {}, ctx);
     expect(queries).toBe(0);
     // The same answer an agent gets: a session id and an agent id to keep.
-    const meta = (init?.result as { _meta: Record<string, unknown> })._meta;
+    const meta = (init!.result as { _meta: Record<string, unknown> })._meta;
     expect(meta["mcp-session-id"]).toBe(ctx.sessionId);
     expect(meta.agent_id).toEqual(expect.any(String));
     expect(waitingWrites()).toBe(7); // the session, its funnel event and five logged calls
@@ -86,7 +86,7 @@ describe("MCP checkers", () => {
     const { ctx, init } = await connect("rokmcp-probe", "rokmcp-collector/0.2 (+https://rokmcp.com/bot)");
     expect(queries).toBe(0);
     await rpc("tools/call", { name: "list_cast", arguments: {} }, ctx);
-    const agentId = (init?.result as { _meta: Record<string, unknown> })._meta.agent_id;
+    const agentId = (init!.result as { _meta: Record<string, unknown> })._meta.agent_id;
     const call = (await t.db.query<{ agent_id: string }>(`select agent_id from mcp_calls where session_id = $1 and method = 'tools/call'`, [ctx.sessionId])).rows[0];
     expect(call?.agent_id).toBe(agentId);
   });

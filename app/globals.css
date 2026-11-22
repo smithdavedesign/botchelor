@@ -10109,6 +10109,21 @@ body:has(.ad-discreet) {
   color: var(--ad-ink, var(--ink));
   padding: var(--space-2) var(--space-3);
 }
+/* A desktop: the six tabs fit the column (the 2026-11-22 audit found "✨ Cr…" cut off, with no way to see it was a
+   row that scrolls), and where a longer Gallery count still tips it over, a mouse gets a thin scrollbar to say so. */
+@media (min-width: 601px) {
+  .ad-studio-tabs {
+    gap: 0;
+  }
+  .ad-studio-tabs button {
+    padding: var(--space-2);
+  }
+}
+@media (min-width: 601px) and (pointer: fine) {
+  .ad-studio-tabs.scroll-row {
+    scrollbar-width: thin;
+  }
+}
 .ad-studio-tabs button.on {
   border-bottom-color: var(--night-hot);
   font-weight: 700;
@@ -13276,7 +13291,8 @@ html.constellation-locked body {
 .ad-graph-svg {
   display: block;
   width: 100%;
-  max-width: 34rem;
+  /* The box has room round the ring for the names (lib/adult/graph.ts labelAt), so it's a little wider. */
+  max-width: 40rem;
   margin: var(--space-3) auto;
   aspect-ratio: 1;
 }
@@ -13297,6 +13313,11 @@ a:hover > .ad-edge,
 .ad-label {
   font-size: 3px;
   fill: var(--ink);
+  /* A thin edge of the page's colour, so a name stays readable where a pair's line runs under it. */
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 0.6px;
+  stroke-linejoin: round;
 }
 .ad-pairs {
   width: 100%;
@@ -13311,6 +13332,11 @@ a:hover > .ad-edge,
 }
 .ad-pairs tr.picked td {
   background: var(--soft);
+}
+/* A job kind with a failure or a stuck job in the last day (app/admin/after-dark/providers Jobs): it stands out. */
+.ad-job-health tr.ad-job-trouble th,
+.ad-job-health tr.ad-job-trouble td {
+  background: color-mix(in srgb, var(--bad-text) 12%, transparent);
 }
 section:has(> .ad-pairs) {
   overflow-x: auto;
@@ -13376,14 +13402,31 @@ section:has(> .ad-pairs) {
   align-items: center;
   gap: var(--space-2);
 }
+.ad-stars [role="radiogroup"] {
+  display: inline-flex;
+}
+/* Each star a target of its own (the 2026-11-22 audit: they were 13 px wide, 121 of them on a page): 28 px with a
+   mouse, a finger's 40 px on a touch screen. */
 .ad-star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  margin: 0;
   border: 0;
   background: none;
-  padding: 0 0.1rem;
+  padding: 0;
   font-size: var(--icon-sm);
   line-height: 1;
   cursor: pointer;
   color: var(--muted);
+}
+@media (pointer: coarse) {
+  .ad-star {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
 }
 .ad-star.on {
   color: #f5b301;

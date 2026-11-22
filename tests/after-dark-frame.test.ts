@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // After Dark's frame (the design kit's After Dark header, 2026-11-12; its doors 2026-11-15, lib/adult/doors.ts): on its
@@ -235,6 +236,8 @@ describe("the home's latest", () => {
     expect(html).toContain('href="/after-dark/gallery?tab=videos"');
     expect(html).toContain('href="/after-dark/gallery?tab=pictures"');
     expect(html).toContain("New video");
+    // "New" rides on its tile's corner, not loose under it (the 2026-11-22 audit).
+    expect(readFileSync("app/ux/after-dark.css", "utf8")).toMatch(/\.ad-latest-strip \.ad-new-badge \{\s*position: absolute;/);
     // At a tile's size (the 2026-11-22 audit: two 1 MB pictures on the hub), and a video with no picture of its own by its first frame.
     expect(html).toContain('src="/api/admin/after-dark/media/old-picture?w=640"');
     expect(html).toContain('src="/api/admin/after-dark/media/new-video#t=0.1"');
