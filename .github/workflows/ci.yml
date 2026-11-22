@@ -47,3 +47,55 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx vitest run --shard=${{ matrix.shard }}/4
+
+  # The production build, as DigitalOcean runs it on every deploy (.do/show.yaml: DEPLOY_ENV=production and a database
+  # at build time). It catches what tsc and vitest can't: a server-only import reaching a client module, a bundling or
+  # config error, a page that fails while it's prerendered. Until this job, DO's deploy was the first build (2026-11-21
+  # audit). No real secrets: public placeholder addresses, a session secret made up for the run, and a throwaway Postgres
+  # (trust auth, no password) for anything read while building; the app creates its own schema there.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DEPLOY_ENV: production
+      DATABASE_URL: postgres://postgres@localhost:5432/postgres
+      SITE_URL: https://botchelor.example
+      AFTER_DARK_ORIGIN: https://ad.botchelor.example
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm run build
+
+  # TRIAL (not for merge yet): the main browser suite (scripts/e2e.mjs) against `next start`, its own local database and a
+  # stub model, no keys and no network beyond the runner.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright-core install --with-deps --only-shell chromium
+      - run: echo "CHROMIUM_PATH=$(find ~/.cache/ms-playwright -type f -name chrome-headless-shell | head -1)" >> "$GITHUB_ENV"
+      - run: npm run e2e
