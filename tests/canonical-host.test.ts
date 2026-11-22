@@ -313,3 +313,31 @@ describe("a route's loading screen (app/PageLoading.tsx)", () => {
     expect(readFileSync("app/ux/companion.css", "utf8")).toMatch(/main:has\(> \.companion-fullscreen\) \{[^}]*min-height: 0;/);
   });
 });
+
+describe("addresses the proxy refuses or doesn't trust (2026-11-22 audit)", () => {
+  it("answers a badly encoded path 400, on a page or under /api, before Next's route matching turns it into a 500", () => {
+    vi.stubEnv("SITE_URL", "https://botchelor.com");
+    for (const url of ["https://botchelor.com/characters/%E0%A4%A", "https://botchelor.com/api/sets/%E0%A4%A", "https://botchelor.com/couples/%ZZ/x"]) {
+      const res = page(url, { cookie: "bz_adult=1" });
+      expect(res.status, url).toBe(400);
+    }
+    // A good escape goes on: a page as before, an /api path untouched by anything else here.
+    expect(page("https://botchelor.com/characters/caf%C3%A9", { cookie: "bz_adult=1" }).headers.get("x-middleware-next")).toBe("1");
+    const api = page("https://botchelor.com/api/sets/caf%C3%A9");
+    expect(api.headers.get("x-middleware-next")).toBe("1");
+    expect(api.headers.get("location")).toBeNull();
+    // The matcher sends /api here only when its path holds a %.
+    const apiEntry = config.matcher.find((m) => m.startsWith("/api/"));
+    expect(apiEntry).toBe("/api/(.*%.*)");
+    const apiMatcher = new RegExp(`^${apiEntry}$`);
+    expect(apiMatcher.test("/api/sets/%E0%A4%A")).toBe(true);
+    for (const path of ["/api/mcp", "/api/webhooks/stripe", "/api/health"]) expect(apiMatcher.test(path), path).toBe(false);
+  });
+
+  it("goes by the Host header, never a forwarded host a client wrote", () => {
+    vi.stubEnv("SITE_URL", "https://botchelor.com");
+    const res = page("https://botchelor.com/characters", { cookie: "bz_adult=1", "x-forwarded-host": "www.botchelor.com" });
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+  });
+});

@@ -72,6 +72,22 @@ describe("the footer", () => {
     expect(css).toMatch(/\.site-footer \.footer-links button\.link-button \{[^}]*color: var\(--muted\);\s*font-weight: inherit;\s*text-decoration: none;/);
   });
 
+  // WCAG 2.5.8 (2026-11-22 audit): the links' boxes were the text's 17px, and "Content policy", under the feedback
+  // button's taller box, failed target-size on every desktop page. Every link and the button are 24px boxes, with no
+  // padding or margin reaching into the next row; a touchscreen's are 44px (the coarse rule, later in the sheet).
+  it("makes every link in its groups a 24px target, and 44px on a touchscreen", () => {
+    const css = source("app/ux/chrome.css");
+    const rule = css.match(/\n\.site-footer \.footer-groups \.footer-links li > :is\(a, button\) \{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toMatch(/display: inline-flex;/);
+    expect(rule).toMatch(/min-height: 1\.5rem;/);
+    expect(rule).toMatch(/margin-block: 0;/);
+    expect(rule).toMatch(/padding-block: 0;/);
+    // Same selector, so the later touchscreen rule wins there.
+    const coarse = css.indexOf("@media (pointer: coarse)");
+    expect(css.indexOf(".site-footer .footer-groups .footer-links li > :is(a, button) {")).toBeLessThan(coarse);
+    expect(css.slice(coarse)).toMatch(/\.site-footer \.footer-groups \.footer-links li > :is\(a, button\) \{[^}]*min-height: 44px;/);
+  });
+
   it("keeps its content in the page's wide column under an edge-to-edge rule, with every footer rule in one place (chrome.css)", () => {
     const css = source("app/ux/chrome.css");
     const base = css.match(/\n\.site-footer \{([^}]*)\}/)?.[1] ?? "";

@@ -10,6 +10,13 @@ const FFMPEG = ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-st
 
 const afterDark = afterDarkNextConfig(process.env, siteUrl(process.env));
 
+/**
+ * The cast's files (public/cast) are named for what they show (house-juniper-v5.webp, a loop's -a): a redrawn face gets
+ * a new name, so a browser and the CDN keep each for a week. Next's default for public/ is max-age=0, which had every
+ * page's faces checked again with the server (the 2026-11-22 audit: kept 4 hours, by Cloudflare's own default).
+ */
+const CAST_CACHE = "public, max-age=604800, stale-while-revalidate=86400";
+
 const nextConfig: NextConfig = {
   // PGlite (local fallback database) ships WASM files and must be loaded by Node, not bundled. ffmpeg-static is a path to
   // a binary (lib/media-tools/ffmpeg.ts), loaded by Node too.
@@ -37,7 +44,7 @@ const nextConfig: NextConfig = {
   // Every response carries the security headers (lib/security-headers.ts).
   headers: async () => [
     { source: "/:path*", headers: [...SECURITY_HEADERS] },
-    { source: "/cast/:file*", headers: Object.entries(AI_HEADERS).map(([key, value]) => ({ key, value })) },
+    { source: "/cast/:file*", headers: [...Object.entries(AI_HEADERS).map(([key, value]) => ({ key, value })), { key: "Cache-Control", value: CAST_CACHE }] },
   ],
   // No "X-Powered-By: Next.js": it tells a scanner what to try and tells a visitor nothing.
   poweredByHeader: false,

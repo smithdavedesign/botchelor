@@ -265,26 +265,38 @@ describe("#437: a probe initialize doesn't orphan an agent_id", () => {
   it("the same client within the window gets the same agent_id back while it hasn't written anything", async () => {
     expect(AGENT_REUSE_MINUTES).toBe(10);
     const first = await connect("probe-client", probe);
-    const second = (await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "probe-client" } }, { ...probe })) as Any;
+    const second = (await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "probe-client" } }, { ...probe, sessionId: first.sessionId })) as Any;
     expect(second.result._meta.agent_id).toBe(first.agentId);
     expect(second.result._meta.agent_id_reused).toBe(true);
     // A read doesn't count as writing.
     await call("list_cast", {}, { sessionId: first.sessionId });
-    expect((await connect("probe-client", probe)).agentId).toBe(first.agentId);
+    expect((await connect("probe-client", { ...probe, sessionId: first.sessionId })).agentId).toBe(first.agentId);
+  });
+
+  it("only for the client holding the earlier session's id: another on the same address, client and agent gets its own (2026-11-22 audit)", async () => {
+    // Many people's connectors come from one cloud's addresses with the same client name and user agent.
+    const first = await connect("probe-client", probe);
+    const stranger = await connect("probe-client", probe);
+    expect(stranger.agentId).not.toBe(first.agentId);
+    // A session id that isn't one of this client's doesn't count either.
+    const other = await connect("another-client", probe);
+    expect((await connect("probe-client", { ...probe, sessionId: other.sessionId })).agentId).not.toBe(other.agentId);
+    expect((await connect("probe-client", { ...probe, sessionId: "not-a-session" })).agentId).not.toBe(first.agentId);
   });
 
   it("never hands out an identity that has written, nor across clients, addresses or the window", async () => {
     const first = await connect("probe-client", probe);
     const made = await call("create_character", validCharacter({ name: "Ada Lumen" }), { sessionId: first.sessionId });
     expect(made.isError).toBeUndefined();
-    expect((await connect("probe-client", probe)).agentId).not.toBe(first.agentId);
+    expect((await connect("probe-client", { ...probe, sessionId: first.sessionId })).agentId).not.toBe(first.agentId);
 
     const lone = await connect("other-client", probe);
-    expect((await connect("another-client", probe)).agentId).not.toBe(lone.agentId);
-    expect((await connect("other-client", { ...probe, visitor: "visitor-hash-2" })).agentId).not.toBe(lone.agentId);
-    expect((await connect("other-client", { userAgent: probe.userAgent })).agentId).not.toBe(lone.agentId); // no address: no reuse
+    const held = { sessionId: lone.sessionId };
+    expect((await connect("another-client", { ...probe, ...held })).agentId).not.toBe(lone.agentId);
+    expect((await connect("other-client", { ...probe, ...held, visitor: "visitor-hash-2" })).agentId).not.toBe(lone.agentId);
+    expect((await connect("other-client", { userAgent: probe.userAgent, ...held })).agentId).not.toBe(lone.agentId); // no address: no reuse
     await t.db.query(`update mcp_sessions set created_at = now() - interval '11 minutes'`);
-    expect((await connect("other-client", probe)).agentId).not.toBe(lone.agentId);
+    expect((await connect("other-client", { ...probe, ...held })).agentId).not.toBe(lone.agentId);
   });
 });
 

@@ -122,8 +122,9 @@ export default async function RandomOcGeneratorPage({ searchParams }: Props) {
                   <dd>{`${oc.secret[0].toUpperCase()}${oc.secret.slice(1)}`}</dd>
                 </dl>
                 <p className="random-oc-actions">
-                  {/* nofollow: the builder drafts from the sentence as it opens, so a crawler has no reason to go there. */}
-                  <Link className="button" href={createFromOc(oc)} rel="nofollow" data-track="random-oc-make">
+                  {/* nofollow: the builder drafts from the sentence as it opens, so a crawler has no reason to go there.
+                      Outlined: six of them to a page, so the page's one filled button is Six more (2026-11-22). */}
+                  <Link className="button secondary" href={createFromOc(oc)} rel="nofollow" data-track="random-oc-make">
                     Make this character
                   </Link>
                   {partner && partner !== oc && (

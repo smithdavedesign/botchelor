@@ -187,8 +187,34 @@ export function overBudget(visitor: string, n: number, now = Date.now()): boolea
   return w.n > MAX_PER_WINDOW;
 }
 
+/**
+ * What one address (lib/limits visitorKey) may send in ten minutes: a few browsers' worth of events, under at most
+ * MAX_VISITORS_PER_ADDRESS visitor ids. The id is the browser's own, so without this a script on one address could make
+ * one up per batch and fake any number of visitors (2026-11-22 audit).
+ */
+export const MAX_PER_ADDRESS = 3 * MAX_PER_WINDOW;
+export const MAX_VISITORS_PER_ADDRESS = 30;
+const addresses = new Map<string, { n: number; until: number; visitors: Set<string> }>();
+
+/** Whether this address is over its share (events, or new visitor ids); counts these events when it isn't. */
+export function addressOverBudget(address: string, visitor: string, n: number, now = Date.now()): boolean {
+  let w = addresses.get(address);
+  if (!w || w.until <= now) {
+    if (addresses.size > 50_000) addresses.clear();
+    w = { n: 0, until: now + WINDOW_MS, visitors: new Set() };
+    addresses.set(address, w);
+  }
+  if (!w.visitors.has(visitor)) {
+    if (w.visitors.size >= MAX_VISITORS_PER_ADDRESS) return true;
+    w.visitors.add(visitor);
+  }
+  w.n += n;
+  return w.n > MAX_PER_ADDRESS;
+}
+
 export function resetBudgetsForTests(): void {
   windows.clear();
+  addresses.clear();
 }
 
 /** EVENT_KEYS=0: an event's character and date are not kept (the two columns stay empty; "watched it end" keeps its date as a prop, as before). */

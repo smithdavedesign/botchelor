@@ -51,6 +51,22 @@ const read = (page, scope) =>
     };
   }, scope);
 
+/**
+ * Loud controls in the site's header bar. None: the page's own primary button is the one loud thing on a screen, and the
+ * bar's "Make your character" is the outline button (2026-11-22 audit: it was a second gradient button beside the
+ * page's). The wordmark's gradient is its letters (background-clip: text), not a button's paint.
+ */
+const headerLoud = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll(".nav a, .nav button")]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && cs.backgroundImage.includes("gradient") && !`${cs.backgroundClip} ${cs.webkitBackgroundClip}`.includes("text");
+      })
+      .map((el) => el.textContent.trim().replace(/\s+/g, " ").slice(0, 40)),
+  );
+
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || chromiumPath(), args: ["--autoplay-policy=no-user-gesture-required"] });
 try {
@@ -90,6 +106,8 @@ try {
     const clip = await page.locator(".home-open .home-clip").count();
     check(home.h1 !== null && (await page.locator(".home-open.home-open--one").count()) === 1, `${label} /: the one-screen opening, "${home.h1}"`);
     check(home.loud.length === 1, `${label} /: one loud button in the opening (${JSON.stringify(home.loud)})`);
+    const homeBar = await headerLoud(page);
+    check(homeBar.length === 0, `${label} /: nothing loud in the header (${JSON.stringify(homeBar)})`);
     check(clip === 1, `${label} /: the clip plays beside it (${clip})`);
     check(home.links <= 12, `${label} /: ${home.links} links on the page, ${home.height}px tall`);
     check(!home.sideways, `${label} /: no sideways scroll`);
@@ -104,6 +122,8 @@ try {
     check(tiles.length >= 1 && strays === 0, `${label} /shop: the tiles are the packs alone (${tiles.join(", ")})`);
     check(tiles.length < 2 || tiles[0] === "pack_15", `${label} /shop: the bigger pack comes first`);
     check(shop.loud.length === 1 && /^Buy /.test(shop.loud[0] ?? ""), `${label} /shop: one loud button, a pack's Buy (${JSON.stringify(shop.loud)})`);
+    const shopBar = await headerLoud(page);
+    check(shopBar.length === 0, `${label} /shop: nothing loud in the header (${JSON.stringify(shopBar)})`);
     check(!shop.sideways, `${label} /shop: no sideways scroll`);
     if (label === "phone") await under(".money-tiles");
     await settle();
@@ -117,6 +137,8 @@ try {
     const others = await page.locator(".pricing-also > li").evaluateAll((els) => els.map((el) => el.id));
     check(cards.length === 2 && cards[0] === "free", `${label} /pricing: two cards (${cards.join(", ")})`);
     check(pricing.loud.length === 1, `${label} /pricing: one loud button (${JSON.stringify(pricing.loud)})`);
+    const pricingBar = await headerLoud(page);
+    check(pricingBar.length === 0, `${label} /pricing: nothing loud in the header (${JSON.stringify(pricingBar)})`);
     check(others.length >= 1 && others.includes("own-key"), `${label} /pricing: the rest are lines (${others.join(", ")})`);
     check(!/operator pass/i.test(pricing.text), `${label} /pricing: no operator pass`);
     check(!pricing.sideways, `${label} /pricing: no sideways scroll`);
