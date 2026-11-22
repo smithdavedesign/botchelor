@@ -152,13 +152,21 @@ export async function listApprovedAssets(
  * `left()`, but a `like` on the whole column unpacks all of it, every lookup (2026-11-22 audit: 77 buffers against 11).
  */
 export type AssetHead = { id: string; character_id: string | null; content_rating: ContentRating; path: string | null; is_data: boolean };
-export async function getApprovedAssetHead(db: Db, id: string): Promise<AssetHead | null> {
-  const { rows } = await db.query<AssetHead>(
-    `select id, character_id, content_rating, case when left(url, 16) like 'data:%' then null else url end as path, (left(url, 16) like 'data:image/%') as is_data
-       from character_assets where id = $1 and review_status = 'approved'`,
-    [id],
+/**
+ * With `width`, the small copy kept at that width rides along (`thumb`, null when there's none yet): one read where an
+ * image request used to make two in a row, each a trip to the database (2026-11-22 audit: a page of faces with the CDN's
+ * cache empty sent every one of them here). The bytes only leave once the gate allows it (app/api/assets/[id]).
+ */
+export async function getApprovedAssetHead(db: Db, id: string, width: number | null = null): Promise<(AssetHead & { thumb: Buffer | null }) | null> {
+  const { rows } = await db.query<AssetHead & { thumb: Buffer | Uint8Array | null }>(
+    `select a.id, a.character_id, a.content_rating, case when left(a.url, 16) like 'data:%' then null else a.url end as path,
+            (left(a.url, 16) like 'data:image/%') as is_data,
+            case when $2::int is null then null else (select t.data from character_asset_thumbs t where t.asset_id = a.id and t.width = $2::int) end as thumb
+       from character_assets a where a.id = $1 and a.review_status = 'approved'`,
+    [id, width],
   );
-  return rows[0] ?? null;
+  const r = rows[0];
+  return r ? { ...r, thumb: r.thumb ? Buffer.from(r.thumb) : null } : null;
 }
 
 /** The small copy of an asset at `width`, resized before and kept (character_asset_thumbs), or null. */
