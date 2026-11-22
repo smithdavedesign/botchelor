@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as confirmAge } from "@/app/api/age/route";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { ADULT_COOKIE, ADULT_COOKIE_MAX_AGE, adultCookie, hasAdultCookie } from "@/lib/age";
-import { MCP_CALL_URL } from "@/lib/http";
+import { MCP_CALL_PATH } from "@/lib/http";
 import { middleware } from "@/middleware";
 import { api, BASE_URL, startTestDb, validCharacter } from "./helpers";
 
@@ -194,7 +194,7 @@ describe("the builder's 18+ box is the creator's attestation (POST /api/characte
     expect(checked.status).toBe(200);
     expect(setsAdult(checked)).toBe(false);
     // An MCP tool call (lib/http isMcpCall) runs the same handler; an agent carries no cookies, so it gets none.
-    const mcp = await postCharacter(new Request(MCP_CALL_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ keep_name: true, ...validCharacter(), over_18: true }) }));
+    const mcp = await postCharacter(new Request(`${BASE_URL}${MCP_CALL_PATH}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ keep_name: true, ...validCharacter(), over_18: true }) }));
     expect(mcp.status).toBe(201);
     expect(setsAdult(mcp)).toBe(false);
   });
