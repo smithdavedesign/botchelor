@@ -7,6 +7,8 @@ import NamesView from "./NamesView";
 const TITLE = "OC Name Generator";
 const DESCRIPTION =
   "A free name generator for original characters: fantasy, modern, sci-fi, gothic and cozy names, feminine, masculine or neutral, twelve at a time. No sign-up, no AI.";
+/** What a search result shows, in full (lib/seo.ts DESCRIPTION_MAX); the share cards keep DESCRIPTION. */
+const SEARCH_DESCRIPTION = "Free names for original characters: fantasy, modern, sci-fi, gothic or cozy, feminine, masculine or neutral, twelve at a time. No sign-up, no AI.";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -16,7 +18,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const variant = sp.kind !== undefined || sp.batch !== undefined;
   return {
     title: `${TITLE}: names for your original character · Botchelor`,
-    description: DESCRIPTION,
+    description: SEARCH_DESCRIPTION,
     alternates: { canonical: OC_NAMES_PATH },
     ...(variant ? { robots: { index: false, follow: true } } : {}),
     openGraph: { type: "website", siteName: "Botchelor", title: TITLE, description: DESCRIPTION, url: OC_NAMES_PATH },
