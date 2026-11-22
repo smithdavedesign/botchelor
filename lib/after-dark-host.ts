@@ -20,6 +20,8 @@
  *
  * Edge-safe and dependency-free: proxy.ts, next.config.ts and client code (app/Nav.tsx) all import it.
  */
+import { escapeRegExp } from "./text";
+
 
 type Env = Record<string, string | undefined>;
 
@@ -156,7 +158,6 @@ export function afterDarkPageMove(pathname: string, search: string, opts: { iden
 
 type Redirect = { source: string; destination: string; permanent: false };
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * next.config.ts's part: nothing at all with the switch off. On, the two settings for client code (`env`) and the API
@@ -189,7 +190,7 @@ export function afterDarkNextConfig(env: Env, show: string): { env?: Record<stri
   }
   const keep = [...AFTER_DARK_APIS, ...AFTER_DARK_HOST_APIS]
     .map((r) => r.replace(/^\/api\//, ""))
-    .map((r) => (r.endsWith("/") ? `${escapeRe(r.slice(0, -1))}(?:/|$)` : `${escapeRe(r)}$`));
+    .map((r) => (r.endsWith("/") ? `${escapeRegExp(r.slice(0, -1))}(?:/|$)` : `${escapeRegExp(r)}$`));
   // After Dark's own tiles are in /api/looks/, kept above with the rest of the builder's tiles.
   const rules: Redirect[] = [{ source: `/api/:path((?!${keep.join("|")}).*)`, destination: `${showOrigin}/api/:path`, permanent: false }];
   return { env: { AFTER_DARK_ORIGIN: origin, AFTER_DARK_ONLY: "1" }, redirects: async () => rules };

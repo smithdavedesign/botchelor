@@ -141,7 +141,7 @@ full, not only to what the rest of the site does ([safety-protocol.md](safety-pr
 
 **Someone signed in** (unchanged since it was built):
 
-- **1 free a day** (`STEP_IN_FREE_PER_DAY`), then one of their dates (the week's free dates first, then pack dates:
+- **1 free a day** (`step_in_usage.free_used`), then one of their dates (the week's free dates first, then pack dates:
   `reserveEpisode`, as for any date). Leaving before saying anything gives it back.
 - **At most 5 a day** (`STEP_IN_MAX_PER_DAY`; admins 20). Counted in `step_in_usage (user_id, day)`.
 
