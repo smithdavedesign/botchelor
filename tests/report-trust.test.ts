@@ -47,7 +47,10 @@ describe("whose report counts (reportCounts)", () => {
     expect(reportCounts(req(signedInCookie(randomUUID())))).toBe(true);
     expect(reportCounts(req(anonymous(60)))).toBe(false);
     expect(reportCounts(req(anonymous(REPORTER_MIN_AGE_SECONDS + 60)))).toBe(true);
-    // A bare id counts only where bare ids are read at all (the tests and local play; never the live site).
+    // A bare id counts only where bare ids are read at all (local play and older tests, LEGACY_BARE_UID; never the live
+    // site, whose rule this file runs under).
+    expect(reportCounts(req(newUserCookie()))).toBe(false);
+    vi.stubEnv("LEGACY_BARE_UID", "1");
     expect(reportCounts(req(newUserCookie()))).toBe(true);
   });
 });
@@ -87,7 +90,7 @@ describe("a date's report", () => {
     expect(over.status).toBe(429);
     expect((await over.json()).error).toBe("too_many_reports");
     expect((await fromIp("203.0.113.21")).status).toBeLessThan(300);
-    const me = newUserCookie();
+    const me = anonymous(60);
     for (let i = 0; i < REPORT_LIMITS.perHour; i++) expect((await fromIp(`198.51.100.${i + 1}`, me)).status).toBeLessThan(300);
     expect((await fromIp("198.51.100.200", me)).status).toBe(429);
   });
@@ -106,8 +109,8 @@ describe("a house line's report", () => {
       expect(await res.json()).toEqual({ reported: true, hidden: false });
     }
     expect((await listSceneReports(t.db))[0]).toMatchObject({ scene_id: SCENE, line: 2, reports: REPORT_HIDE_THRESHOLD, hidden: false });
-    for (let i = 0; i < REPORT_HIDE_THRESHOLD - 1; i++) expect(await (await report(2, newUserCookie())).json()).toMatchObject({ hidden: false });
-    expect(await (await report(2, newUserCookie())).json()).toMatchObject({ hidden: true });
+    for (let i = 0; i < REPORT_HIDE_THRESHOLD - 1; i++) expect(await (await report(2, signedInCookie(randomUUID()))).json()).toMatchObject({ hidden: false });
+    expect(await (await report(2, signedInCookie(randomUUID()))).json()).toMatchObject({ hidden: true });
     expect((await listSceneReports(t.db))[0]).toMatchObject({ line: 2, reports: REPORT_HIDE_THRESHOLD * 2, hidden: true });
   });
 });
@@ -122,8 +125,8 @@ describe("a chat message's report", () => {
     const report = (cookie?: string) => chatReport(post(`/api/watch-parties/${party}/report`, { message_id: message }, cookie ? { cookie } : {}), { params: Promise.resolve({ id: party }) });
     for (let i = 0; i < REPORT_HIDE_THRESHOLD; i++) expect(await (await report()).json()).toEqual({ hidden: false });
     expect(await t.count("watch_message_reports")).toBe(0);
-    for (let i = 0; i < REPORT_HIDE_THRESHOLD - 1; i++) await report(newUserCookie());
-    expect(await (await report(newUserCookie())).json()).toEqual({ hidden: true });
+    for (let i = 0; i < REPORT_HIDE_THRESHOLD - 1; i++) await report(signedInCookie(randomUUID()));
+    expect(await (await report(signedInCookie(randomUUID()))).json()).toEqual({ hidden: true });
   });
 });
 

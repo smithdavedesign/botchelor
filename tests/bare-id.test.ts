@@ -283,9 +283,9 @@ describe("only lib/http.ts makes the server's own request", () => {
   }
 
   /**
-   * The rest of the suite runs with LEGACY_BARE_UID=1, so a route or job that writes a bare id cookie by hand, or
-   * builds a request to MCP_CALL_PATH itself, passes every other test and then acts as a stranger in production (its
-   * request isn't one internalRequest made). This is the test that catches it.
+   * The files on tests/legacy-bare-id-files.json run with LEGACY_BARE_UID=1, so a route or job that writes a bare id
+   * cookie by hand, or builds a request to MCP_CALL_PATH itself, passes those tests and then acts as a stranger in
+   * production (its request isn't one internalRequest made). This is the test that catches it.
    */
   it("no other file writes a bare id cookie or builds a request to MCP_CALL_PATH by hand", () => {
     const BY_HAND = [/\$\{USER_COOKIE\}=/, /bz_uid=\$\{/, /["'`]bz_uid=["'`]\s*\+/, /new Request\([^;]*MCP_CALL_PATH/];

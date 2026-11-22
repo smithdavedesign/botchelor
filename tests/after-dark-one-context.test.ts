@@ -7,6 +7,7 @@ import { autoPicturesSettled, kickAutoPicture, PICTURE_GAP } from "@/lib/adult/a
 import { beatPicturesSettled, OLDER_WORDS } from "@/lib/adult/beats";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { setFramingViewForTests } from "@/lib/adult/framing";
+import { setMediaFetchForTests } from "@/lib/adult/media";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { claimAdmin } from "@/lib/admins";
@@ -15,7 +16,7 @@ import { loadCharacter } from "@/lib/character";
 import { sessionCookies } from "@/lib/http";
 import type { ChatMessage } from "@/lib/model";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { BASE_URL, newUserCookie, refusedFetch, startTestDb, userIdOf } from "./helpers";
 
 // David, 2026-10-25: "look at the flow and prompts and data given and let's make sure we can guide it if needed and also
 // tighten it up". One context for every scene picture: drawn from their faces (and bodies, undressed), dressed in their
@@ -49,6 +50,7 @@ afterEach(async () => {
   setAdultModelForTests(null);
   setSeasonCastForTests(null);
   setReelFetchForTests(null);
+  setMediaFetchForTests(null);
   setCheckFetchForTests(null);
   setCheckSleepForTests(null);
   setReelPausesForTests(true);
@@ -63,9 +65,11 @@ const signedIn = (userId: string) => sessionCookies({ userId, authenticated: tru
 const post = (body: unknown, cookie: string, handler: (r: Request) => Promise<Response> = POST, path = "/api/admin/after-dark") =>
   handler(new Request(`${BASE_URL}${path}`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) }));
 
-/** Venice's multi-edit and Hive stubbed: each scene picture's prompt and the pictures it was made from. */
+/** Venice's multi-edit and Hive stubbed: each scene picture's prompt and the pictures it was made from. A picture from
+ * words alone (lib/adult/media.ts, a new place's backdrop) is refused, as Venice refuses the placeholder key. */
 function fakeMedia() {
   const edits: { prompt: string; images: string[] }[] = [];
+  setMediaFetchForTests(refusedFetch);
   setCheckFetchForTests(async (input: RequestInfo | URL) => Response.json(String(input) === HIVE_VLM ? ADULTS : CLEAN_MOD));
   setReelFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
     if (!String(input).endsWith("/image/multi-edit")) return new Response("?", { status: 500 });

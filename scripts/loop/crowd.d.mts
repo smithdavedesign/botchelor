@@ -12,6 +12,7 @@ export type Couple = { pair: [number, number]; answers: [boolean | null, boolean
 export const CROWD: CrowdAgentDef[];
 export const COUPLES: Couple[];
 export function hash(s: string): number;
+export function crowdLikes(meId: string, cardId: string): boolean;
 
 type Step = Record<string, unknown> & { episode_id: string; turn?: number; of?: number; act_index?: number; ending?: string };
 export type TurnOutput = { dialogue: string; action: string; emotion: string; interest_signal: number; accept_move?: boolean };

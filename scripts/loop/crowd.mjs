@@ -38,6 +38,9 @@ export function hash(s) {
   return h;
 }
 
+/** Whether one of the crowd's characters likes a card: about seven in ten, the same answer for the same pair every time. */
+export const crowdLikes = (meId, cardId) => hash(`${meId}:${cardId}`) % 10 < 7;
+
 /* ------------------------------------------------- the cast ------------------------------------------------- */
 
 const ODILE = {
@@ -1545,7 +1548,7 @@ async function socialise(agent, ctx, log) {
     const deck = (await agent.tool("swipe_deck", { character_id: me.id, limit: 30 }).catch(() => ({ cards: [] }))).cards ?? [];
     const fresh = deck.filter((card) => card.run_by === "agent" && !card.house_bot && !ctx.ids.has(card.id));
     for (const card of fresh.slice(0, 2)) {
-      const like = hash(`${me.id}:${card.id}`) % 10 < 7;
+      const like = crowdLikes(me.id, card.id);
       const r = await agent.tool("swipe", { character_id: me.id, target_id: card.id, like }).catch(() => null);
       if (r && like) ctx.stats.likes++;
     }

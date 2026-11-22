@@ -7,7 +7,7 @@ import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route"
 import { HIVE_VLM, setCheckFetchForTests } from "@/lib/adult/check";
 import { baselinePrompt, drawBaselineChoices, listMedia, makePicture, setMediaFetchForTests } from "@/lib/adult/media";
 import { PICTURE_PRESETS, TAG_FIXES } from "@/lib/adult/rating-tags";
-import { baselines } from "@/lib/adult/reels";
+import { baselines, setReelFetchForTests } from "@/lib/adult/reels";
 import {
   betaSample,
   choosePreset,
@@ -28,7 +28,7 @@ import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { BASE_URL, newUserCookie, refusedFetch, startTestDb, userIdOf } from "./helpers";
 
 // Ratings that steer a viewer's own next pictures and videos (lib/adult/steering.ts, David 2026-10-24). Providers stubbed.
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -46,6 +46,9 @@ beforeEach(async () => {
   vi.stubEnv("VERCEL", "");
   vi.stubEnv("VERCEL_ENV", "");
   setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
+  // A picture drawn from their portrait (lib/adult/reels.ts) is refused, as Venice refuses the placeholder key: the
+  // pictures here come from the words (fakeVenice).
+  setReelFetchForTests(refusedFetch);
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -53,6 +56,7 @@ afterEach(() => {
   setSeasonCastForTests(null);
   setMediaFetchForTests(null);
   setCheckFetchForTests(null);
+  setReelFetchForTests(null);
 });
 
 const [RAFE, JUNIPER] = [HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id];

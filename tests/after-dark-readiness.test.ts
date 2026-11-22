@@ -11,7 +11,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import type { ChatMessage } from "@/lib/model";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
+import { BASE_URL, newUserCookie, refusedFetch, startTestDb, userIdOf } from "./helpers";
 
 // David, 2026-10-25: "force the user to go to the studio and set up the baseline face and body images, so when we go
 // after dark it is not guessing for new characters … creation → image bases → after dark". Sweet thang (18, no face or
@@ -153,6 +153,7 @@ describe("a night with someone not set up", () => {
     const { id, cookie } = await setup();
     await setUp(id);
     writes();
+    setReelFetchForTests(refusedFetch); // the picture itself is refused, as Venice refuses the placeholder key
     await post({ a: SWEET, b: RAFE }, cookie);
     const res = await post({ a: SWEET, b: RAFE, picture_preview: { line: 1 } }, cookie);
     expect(res.status).toBe(200);
