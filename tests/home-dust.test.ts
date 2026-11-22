@@ -20,7 +20,7 @@ const atRest = (css: string) => {
   return parts[0] + parts.slice(1).map((b) => b.slice(b.indexOf("\n}") + 2)).join("");
 };
 
-const html = renderToStaticMarkup(createElement(HomeOpen, { kicker: null, line: [], tonight: null, latest: null, watch: { href: "/watch", label: "Watch a date" }, next: null }));
+const html = renderToStaticMarkup(createElement(HomeOpen, { arc: false, line: [], lede: "Describe a character in a sentence.", box: null, clip: null }));
 
 describe("the dust in the beams", () => {
   it("is set dressing over the stage: two beams, hidden from screen readers, before the words", () => {

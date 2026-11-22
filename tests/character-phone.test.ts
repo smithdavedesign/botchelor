@@ -322,8 +322,9 @@ describe("the home page", () => {
   it("a stranger sees no phone: the page they had", async () => {
     const html = await home();
     expect(html).not.toContain("char-phone");
-    // A stranger's home opens on the first screen (lib/home-open.ts); the hero's headline is a level down under it.
-    expect(html).toContain('<h2 class="hero-title">Give your character a love life.</h2>');
+    // A stranger's home is the one screen (app/HomeOpen.tsx): the promise, the sentence box and the clip.
+    expect(html).toContain('class="home-open home-open--one');
+    expect(html).not.toContain("hero-title");
     // A visitor with a cookie and no character, too.
     as(newUserCookie());
     expect(await home()).not.toContain("char-phone");

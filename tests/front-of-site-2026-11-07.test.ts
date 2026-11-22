@@ -187,7 +187,9 @@ describe("the home hero is a real date (item 2)", () => {
     as(null);
     const Home = (await import("@/app/page")).default;
     const html = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
-    expect(html).toContain('class="hero-art has-date"');
+    // Under a first visit's one screen (2026-11-21), in a section of its own; the screen itself plays the clip.
+    expect(html).toContain('class="home-date"');
+    expect(html).not.toContain('class="hero-art has-date"');
     expect(html).toContain("Only the ones that deserve it. This one&#x27;s a four.");
     expect(html).toContain(`href="/episodes/${id}?play=1"`);
     expect(html).not.toContain("Awkwardness");

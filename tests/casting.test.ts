@@ -662,18 +662,28 @@ describe("the surfaces", () => {
     const Home = (await import("@/app/page")).default;
     const month = new Date(`${NEXT}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
     const stranger = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
-    expect(stranger).toContain(`Their first date is with ${LEAD_FIRST}, ${month}&#x27;s Botchelor: nobody steers it, roses are handed out on Sunday, and they text you whether they got one. Make one in a minute`);
-    expect(stranger).not.toContain("They go on blind dates nobody steers");
+    // The one screen's line (app/HomeOpen.tsx, 2026-11-21): who the first date is with, in plain words. A stranger has
+    // no season yet, so no month and no "Botchelor"; the old page's longer line is HOME_OPEN=0's.
+    expect(stranger).toContain(`Describe a character in a sentence. Their first date is with ${LEAD_FIRST}, next season&#x27;s lead. You watch it air. Free, no sign-up.`);
+    expect(stranger).not.toContain(`${month}&#x27;s Botchelor`);
+    expect(stranger).not.toContain("They go on a blind date an AI writes.");
+    vi.stubEnv("HOME_OPEN", "0");
+    const old = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
+    vi.unstubAllEnvs();
+    expect(old).toContain(`Their first date is with ${LEAD_FIRST}, ${month}&#x27;s Botchelor: nobody steers it, roses are handed out on Sunday, and they text you whether they got one. Make one in a minute`);
+    expect(old).not.toContain("They go on blind dates nobody steers");
     // Someone with a character of their own: no visitor hero at all (the 2026-11-20 mobile audit, B10).
     const me = await newcomer();
     jar.cookies.set(me.cookie.split("=")[0], me.cookie.split("=")[1]);
     const owner = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
     expect(owner).not.toContain("They go on blind dates nobody steers");
     expect(owner).not.toContain("Their first date is with");
-    // Switched off: a stranger's hero is the old one too.
+    // Switched off: a stranger's screen says the usual blind date, with nobody named.
     jar.cookies.clear();
     vi.stubEnv("OPEN_CASTING", "0");
-    expect(renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }))).toContain("They go on blind dates nobody steers");
+    const usual = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
+    expect(usual).toContain("Describe a character in a sentence. They go on a blind date an AI writes. You watch it air. Free, no sign-up.");
+    expect(usual).not.toContain("Their first date is with");
   });
 
   it("\"Try someone new\" after no rose offers a suitor once the lead is the only house character met", async () => {

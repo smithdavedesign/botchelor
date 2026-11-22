@@ -1,11 +1,14 @@
 /**
- * A stranger's first screen on home (the design system's first screen B, "the season promo", 2026-11-18): this
- * season's cast on the stage under the neon heart, tonight's people stepped forward and lit, one line on what is
- * between them, and one call to watch. Everything under it (the hero with the sentence box, the tonight band, the
- * shelves) stays as it was: the brief changed what a stranger meets first, not where the page sends them.
+ * A stranger's first screen on home: the cast on the stage under the neon heart, tonight's people stepped forward and
+ * lit, the promise, the sentence box and the day's clip (app/HomeOpen.tsx).
  *
- * Data only; app/HomeOpen.tsx draws it. HOME_OPEN=0 turns it off and the hero leads again. Someone with a character
- * never sees it: their home opens on their character's phone.
+ * It began as the design system's first screen B, "the season promo" (2026-11-18): tonight's story in a line and one
+ * call to watch, above the hero, the tonight band and the shelves. On 2026-11-21 the screen and the hero became one
+ * (the growth plan and the product audit: too many first steps, too much assumed context), so the page reads from here
+ * only who is on the stage and whether the season strip steps aside; tonight's story stays the producer's and /watch's.
+ *
+ * Data only. HOME_OPEN=0 turns it off and the page is as it was: the hero leads, with the band and the vote under it.
+ * Someone with a character never sees it: their home opens on their character's phone.
  */
 import type { Db } from "@/lib/db";
 import { LINK_WORDS, isLinkKind, linkBetween } from "@/lib/character-links";
@@ -106,22 +109,6 @@ export async function openTonight(db: Db, now: Date = new Date(), env: Env = pro
   return { who, names: null, label: null, text: beat.tonight.replace(/^Tonight:\s*/, ""), episode };
 }
 
-/**
- * Where the one call goes, and what it says it is: tonight's date once it has aired; else a date on the air right now;
- * else the week's best-rated date (or the newest), playing; else the show. It never says "tonight" about anything else.
- */
-export function openWatch(x: {
-  tonight: Pick<OpenTonight, "episode"> | null;
-  live: { room_path: string } | null;
-  featured: { share_path: string } | null;
-  best: boolean;
-}): { href: string; label: string } {
-  if (x.tonight?.episode) return { href: `/episodes/${x.tonight.episode}?play=1`, label: "Watch tonight's date" };
-  if (x.live) return { href: x.live.room_path, label: "Watch a date live" };
-  if (x.featured) return { href: `${x.featured.share_path}?play=1`, label: x.best ? "Watch this week's best date" : "Watch the latest date" };
-  return { href: "/watch", label: "Watch the show" };
-}
-
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 
 export type OpenKicker = { head: string; long: string; short: string };
@@ -150,10 +137,4 @@ export function openLine(cast: readonly OpenFace[], leads: readonly OpenFace[], 
   const left = back.slice(0, Math.ceil(back.length / 2));
   const right = back.slice(left.length);
   return [...left.map((face) => ({ face, lead: false })), ...leads.map((face) => ({ face, lead: true })), ...right.map((face) => ({ face, lead: false }))];
-}
-
-/** "December: The Botchelor, with Nell." when next month runs a different format; who leads it when that is known. */
-export function nextSeasonLine(month: string, title: string | null, lead: { month: string; name: string } | null): string | null {
-  if (!title) return null;
-  return `${month}: ${title}${lead && lead.month === month ? `, with ${firstName(lead.name)}` : ""}.`;
 }
