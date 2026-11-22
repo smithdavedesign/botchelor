@@ -1142,7 +1142,7 @@ function Gallery({
               {m.kind === "video" ? (
                 status === "ready" ? (
                   // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
-                  <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim label="A clip" onMoment={onAdd} />
+                  <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim label="A clip" onMoment={onAdd} poster={m.poster} />
                 ) : (
                   <p className="muted small">{status === "failed" ? "The clip failed." : "Clip on its way…"}</p>
                 )

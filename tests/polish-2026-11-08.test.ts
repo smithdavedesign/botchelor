@@ -210,7 +210,7 @@ describe("the bots' reviews moved to /agents (item 16)", () => {
 describe("whole tiles are the tap target (item 18)", () => {
   it("makes a pair's whole row on /characters the link to the couple", async () => {
     const { character } = await airedDate();
-    const Characters = (await import("@/app/characters/page")).default;
+    const Characters = (await import("@/app/characters/(list)/page")).default;
     const html = renderToStaticMarkup(await Characters({ searchParams: Promise.resolve({ tab: "cast" }) } as never));
     expect(html).toContain('class="card graph-row tap-card"');
     expect(html).toMatch(new RegExp(`class="pair-link stretch" href="/couples/[^"]*${character}`));

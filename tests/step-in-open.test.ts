@@ -139,6 +139,8 @@ async function playThrough(cookie: string, id: string) {
   for (let i = 0; r.body.view?.state === "your_line" && i < 30; i++) {
     r = await act(cookie, id, { action: "line", dialogue: `My line ${i}: I collect old maps of cities that never existed, volume ${i * 3}.` });
   }
+  // As the page does: the last line comes back on its own, then it asks for the write-up.
+  if (r.body.view?.state === "finishing") r = await act(cookie, id, { action: "advance" });
   return r;
 }
 const hits = async (bucket: string) => (await t.db.query<{ n: number }>(`select count(*)::int as n from rate_hits where bucket = $1`, [bucket])).rows[0].n;

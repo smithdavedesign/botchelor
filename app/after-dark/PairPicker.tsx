@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import Avatar from "@/app/Avatar";
-import { fold, pairOf, pickGroups, surprisePair, underWay, whoseCounts, whoseFilters, type PickerData, type Whose } from "@/lib/adult/pair-pick";
+import { capGroups, FACES_SHOWN, fold, pairOf, pickGroups, surprisePair, underWay, whoseCounts, whoseFilters, type PickerData, type Whose } from "@/lib/adult/pair-pick";
 import type { CastMember, CastPair } from "@/lib/adult/scenes";
 
 type Who = CastMember;
@@ -130,7 +130,8 @@ export function NightList({ nights }: { nights: Pair[] }) {
  * panel that scrolls instead of a wall of 150 names. Pick one and the box asks who they're with (only those they can
  * pair with, theirs under way first); pick the second and the pair shows large with the way in. 🎲 picks a new pair at
  * random. Start over clears either pick. A pair kept from an earlier cast (#1132) is only under Continue: who left the
- * cast isn't a face to start a new pair with.
+ * cast isn't a face to start a new pair with. Each group shows its first FACES_SHOWN faces until "Show all" (the
+ * 2026-11-22 audit: all 227 were drawn, and loaded, on every visit); a new pick or search shows the short groups again.
  *
  * data-first-scene: the first pair's scene, for the screenshot scripts (they open a scene without picking).
  */
@@ -140,17 +141,26 @@ export default function PairPicker({
   firstScene,
   stepIn = false,
   preselect = null,
+  featured = null,
 }: PickerData & {
   /** Step in is open to this viewer (lib/adult/step-in.ts): a row offers it with whoever is picked. */
   stepIn?: boolean;
   /** One of the cast picked already (the hub's ?with=, from a character's page, app/after-dark/characters/[id]): the box asks who they're with. */
   preselect?: string | null;
+  /** The night the hub's hero card already offers (its path): left out of Continue, so it isn't shown twice in a row. */
+  featured?: string | null;
 }) {
   const [one, setOne] = useState<string | null>(() => (preselect && cast.some((c) => c.id === preselect) ? preselect : null));
   const [two, setTwo] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQueryNow] = useState("");
   const [whose, setWhose] = useState<Whose>("all");
   const [allNights, setAllNights] = useState(false);
+  // Every face of every group, once "Show all" is pressed; back to the short groups with a new search or pick.
+  const [everyone, setEveryone] = useState(false);
+  const setQuery = (q: string) => {
+    setQueryNow(q);
+    setEveryone(false);
+  };
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => setNow(Date.now()), []);
   // `going`: under way (lines, or a chapter filed, or kept from an earlier cast), the latest played first. `cast`: who a
@@ -164,6 +174,7 @@ export default function PairPicker({
   // What the panel shows: the first pick's faces, or who the first pick can be with, in groups.
   const groups = useMemo(() => pickGroups(cast, going, { one: picked?.id ?? null, query, whose }), [cast, going, picked, query, whose]);
   const shown = groups.reduce((n, g) => n + g.faces.length, 0);
+  const panel = capGroups(groups, everyone ? Infinity : FACES_SHOWN);
 
   const pickOne = (id: string) => {
     setOne(id);
@@ -199,11 +210,13 @@ export default function PairPicker({
       else if (one) setOne(null);
     }
   };
-  const nights = allNights ? going : going.slice(0, CONTINUE_SHOWN);
+  // Continue: the nights under way but the one the hero card offers (the audit, 2026-11-22: the same night twice in a row).
+  const listed = featured ? going.filter((p) => p.path !== featured) : going;
+  const nights = allNights ? listed : listed.slice(0, CONTINUE_SHOWN);
 
   return (
     <div className="ad-pair-picker" data-first-scene={firstScene}>
-      {going.length > 0 && (
+      {listed.length > 0 && (
         <>
           <h3 className="ad-hub-sub">Continue</h3>
           <ul className="ad-nights">
@@ -211,10 +224,10 @@ export default function PairPicker({
               <NightCard key={p.path} p={p} now={now} />
             ))}
           </ul>
-          {going.length > CONTINUE_SHOWN && (
+          {listed.length > CONTINUE_SHOWN && (
             <p className="ad-nights-more">
               <button type="button" className="button-ghost" onClick={() => setAllNights(!allNights)} aria-expanded={allNights}>
-                {allNights ? "Show fewer" : `Show all ${going.length} nights`}
+                {allNights ? "Show fewer" : `Show all ${listed.length} nights`}
               </button>
             </p>
           )}
@@ -315,8 +328,8 @@ export default function PairPicker({
                 {q ? `${shown} ${shown === 1 ? "match" : "matches"}` : ""}
               </p>
               <div className="ad-pp-panel" role="group" aria-label={picked ? `Pick who ${first(picked.name)} is with` : "Pick the first of the two"}>
-                {groups.length ? (
-                  groups.map((g) => (
+                {panel.length ? (
+                  panel.map((g) => (
                     <section key={g.label} className="ad-pp-group">
                       <h4 className="ad-pp-group-label">{g.label}</h4>
                       <ul className="ad-pp-grid">
@@ -324,6 +337,11 @@ export default function PairPicker({
                           <PickFace key={c.id} c={c} meta={meta} onPick={() => (picked ? pickTwo(c.id) : pickOne(c.id))} />
                         ))}
                       </ul>
+                      {g.hidden > 0 && (
+                        <button type="button" className="link-button ad-pp-more" onClick={() => setEveryone(true)} data-show-all>
+                          Show all {g.faces.length + g.hidden}
+                        </button>
+                      )}
                     </section>
                   ))
                 ) : (
