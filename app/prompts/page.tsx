@@ -13,9 +13,11 @@ import {
   PROMPT_SOURCES,
   PROMPTS_PER_PAGE,
   findPrompts,
+  indexablePromptTags,
   parseQuery,
   parseSource,
   parseTag,
+  promptTagPath,
   tagById,
   tagCounts,
   visibleTags,
@@ -75,6 +77,10 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
   const filtered = Boolean(q || source || tag || artists);
   const tags = tagCounts(showNsfw);
   const groups = [...new Set(tags.map((t) => t.group))];
+  // The tags with a page of their own (app/prompts/tag/[id]), linked below the list: the chips and the select filter
+  // this page, so without these nothing here led to the tag pages (2026-11-22 audit).
+  const paged = indexablePromptTags();
+  const pagedGroups = [...new Set(paged.map((t) => t.group))];
 
   return (
     <article className="page-wide prompts-page">
@@ -167,6 +173,26 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
           </ul>
         )}
         <Pager page={list.page} pages={list.pages} label="Prompt pages" href={(n) => pageHref(PATH, keep, "page", n, "prompts")} />
+      </section>
+
+      <section className="card prompts-by-tag" aria-labelledby="prompts-by-tag-title">
+        <h2 id="prompts-by-tag-title">Prompts by tag</h2>
+        {pagedGroups.map((g) => (
+          <div key={g}>
+            <h3>{g}</h3>
+            <ul className="prompt-tags">
+              {paged
+                .filter((t) => t.group === g)
+                .map((t) => (
+                  <li key={t.id}>
+                    <Link className={`prompt-tag${t.studio ? "" : " is-facet"}`} href={promptTagPath(t.id)}>
+                      {`${t.label} (${t.count.toLocaleString("en-US")})`}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        ))}
       </section>
 
       <section className="card prompts-credits">

@@ -133,7 +133,8 @@ describe("search and sharing: every public page", () => {
 
   it("names the site's 1200×630 card with the card's own size and alt", () => {
     expect(ogImage.size).toEqual({ width: SHARE_IMAGE.width, height: SHARE_IMAGE.height });
-    expect(SHARE_IMAGE).toMatchObject({ url: "/opengraph-image", width: 1200, height: 630, alt: ogImage.alt });
+    // Named by its .png address, which the CDN keeps (app/share-card.png/route.tsx): the same card as /opengraph-image.
+    expect(SHARE_IMAGE).toMatchObject({ url: "/share-card.png", width: 1200, height: 630, alt: ogImage.alt });
   });
 
   it("leaves og:title and twitter:title to each page, so a page that sets neither never borrows the home page's", () => {

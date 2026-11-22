@@ -33,9 +33,12 @@ export const SITE_DESCRIPTION =
 export const AFTER_DARK_DESCRIPTION =
   "Botchelor After Dark: the private, adults-only side of the season. AI-generated fiction between fictional adults, invite only while it's in beta.";
 
-/** The site's share card, drawn with code at build time (app/opengraph-image.tsx). */
+/**
+ * The site's share card, drawn with code at build time (app/site-card.tsx). Named by its .png address, the one the CDN
+ * keeps (app/share-card.png/route.tsx); /opengraph-image is the same card for a page that names none.
+ */
 export const SHARE_IMAGE_ALT = "Botchelor: give your character a love life. Blind dates nobody steers; they text you how it went.";
-export const SHARE_IMAGE = { url: "/opengraph-image", width: 1200, height: 630, alt: SHARE_IMAGE_ALT, type: "image/png" };
+export const SHARE_IMAGE = { url: "/share-card.png", width: 1200, height: 630, alt: SHARE_IMAGE_ALT, type: "image/png" };
 
 type ShareImage = { url: string; width: number; height: number; alt: string; type?: string };
 
