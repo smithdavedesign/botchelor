@@ -295,13 +295,33 @@ export function worldOf(c: Pick<Character, "name" | "bio" | "extras">, listed: r
   return world;
 }
 
-/** How many of the listed words the rest line names, as that world (the rest is still checked). */
-export const WORLD_NAMED = 10;
+/**
+ * How many of the listed words the rest line names, as that world: all of them (lib/world-words.ts keeps at most 20),
+ * since the redraw checks every one and a word it was never told about shouldn't cost a second draw.
+ */
+export const WORLD_NAMED = 20;
+
+/**
+ * Whether their message asks about the character's own life: its work, its day or week, its plans, its hobbies ("what
+ * are you doing this weekend?", "how's the shop?"). Its world is the answer then, so that reply doesn't rest it (the rest
+ * line said "just tell them" while the redraw took it out again: 2026-11-22, a third of the redraws on past threads).
+ */
+export const asksAboutThem = (text: string): boolean =>
+  /\b(?:what(?:['’]s| is| are)? (?:you|u) (?:up to|doing|working on|making|building|reading|into)\b|what do you do\b|what(?:['’]s| is) new with you|how(?:['’]s| is| was| has| have)? (?:your|the) (?:day|week|weekend|morning|evening|night|work|job|shop|studio|workshop|craft|project)\b|how(?:['’]s| is) work\b|(?:any|got any|have any|what are your) plans\b|your (?:work|job|craft|shop|studio|workshop|hobby|hobbies|weekend|week|day|plans|project|projects)\b|tell me (?:more )?about (?:yourself|your|what you))/i.test(
+    text,
+  );
+
+/** What they said since the character's last reply (their messages in a row are one turn). */
+function theirLatest(turns: readonly PromptTurn[]): string {
+  const out: string[] = [];
+  for (let i = turns.length - 1; i >= 0 && turns[i].role === "user"; i--) out.unshift(turns[i].text);
+  return out.join(" ");
+}
 
 /**
  * Whether this reply rests its world, worked out once for the prompt and the redraw alike (lib/companion.ts speak): its
  * world, the words of it its last reply here reached for (none: no rest), and the topic (what they said lately, and the
- * scene's place), whose words never count.
+ * scene's place), whose words never count. Asked about its work or its week, it doesn't rest: that's the answer.
  */
 export function worldRest(args: {
   character: Pick<Character, "name" | "bio" | "extras">;
@@ -313,9 +333,17 @@ export function worldRest(args: {
   const lately = repliesOf(args.turns.slice(-(args.deep ? DEEP_TURNS : RECENT_TURNS)));
   const world = worldOf(args.character, args.worldWords);
   const topic = [...lately.theirs, args.scene?.prompt ?? ""];
-  const reached = lately.replies.length ? reachedFor(lately.replies[lately.replies.length - 1], world, topic) : [];
+  const asked = asksAboutThem(theirLatest(args.turns));
+  const reached = lately.replies.length && !asked ? reachedFor(lately.replies[lately.replies.length - 1], world, topic) : [];
   return { world, reached, topic };
 }
+
+/**
+ * Resting its world with the listed words, the rest is said once more at the end of their turn, where the model reads
+ * last: the rest line up top alone was passed over (2026-11-22, live: both resting replies leaned on it again and were
+ * drawn twice). Never stored: only this call's prompt carries it.
+ */
+export const WORLD_REST_NOTE = "(Plain words this time: leave your work, your hobbies and your sayings out of this reply.)";
 
 /** The character's replies in a thread's turns (its bubbles in a row are one reply, with what it did), and the person's words. */
 export function repliesOf(turns: readonly PromptTurn[]): { replies: string[]; theirs: string[] } {
@@ -622,6 +650,7 @@ export function companionMessages(args: {
   }
   // The model answers a user turn: the opener, or a thread whose last word was the character's, gets one.
   if (messages[messages.length - 1]?.role !== "user") messages.push({ role: "user", content: args.cue ?? "(They're waiting for your reply.)" });
+  if (reached.length && listed.length) messages[messages.length - 1].content += `\n\n${WORLD_REST_NOTE}`;
   return messages;
 }
 

@@ -3,7 +3,7 @@
 // right after one that did is drawn once more, failing open.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { openThread, sendMessage, setCompanionModelForTests } from "@/lib/companion";
-import { companionMessages, worldOf, worldRest, type PromptTurn } from "@/lib/companion-prompt";
+import { asksAboutThem, companionMessages, WORLD_REST_NOTE, worldOf, worldRest, type PromptTurn } from "@/lib/companion-prompt";
 import type { Character } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import type { ChatMessage, Model } from "@/lib/model";
@@ -97,6 +97,59 @@ describe("the rest, with the listed words", () => {
     expect(s).toContain(`That world, for you, is words like ${WORDS.join(", ")}: none of them this time, not even in passing.`);
     // Without the listed words, no rest here (the sheet says nothing about clocks), and nothing named.
     expect(companionMessages(base)[0].content).not.toContain("reached for your own world");
+  });
+
+  it("says the rest once more at the end of their turn, with the listed words only, and never for good", () => {
+    const turns: PromptTurn[] = [
+      { role: "user", text: "Any advice for a first date?" },
+      { role: "character", text: "Go slow. Even the best mainspring snaps if you force it." },
+      { role: "user", text: "Ha. Okay, where would you take someone?" },
+    ];
+    const base = { character: nell, turns, facts: [], summary: null, length: "normal" as const, avoid: [], now: new Date("2026-11-22T12:00:00Z") };
+    const rested = companionMessages({ ...base, worldWords: WORDS });
+    expect(rested.at(-1)).toEqual({ role: "user", content: `Ha. Okay, where would you take someone?\n\n${WORLD_REST_NOTE}` });
+    // The turns it came from are as they were (the note is this call's alone).
+    expect(turns[2].text).toBe("Ha. Okay, where would you take someone?");
+    expect(companionMessages(base).at(-1)).toEqual({ role: "user", content: "Ha. Okay, where would you take someone?" });
+    // A thread whose last word was the character's: the note goes on the cue.
+    const cued = companionMessages({ ...base, turns: turns.slice(0, 2), worldWords: WORDS, cue: "(Say hi.)" });
+    expect(cued.at(-1)).toEqual({ role: "user", content: `(Say hi.)\n\n${WORLD_REST_NOTE}` });
+  });
+
+  it("doesn't rest when they ask about its work, its week or its plans: that's the answer", () => {
+    for (const asked of [
+      "What are you doing this weekend?",
+      "what u up to",
+      "How's the shop?",
+      "how’s work",
+      "How was your day?",
+      "Any plans tonight?",
+      "Tell me about your work.",
+      "what do you do for fun",
+      "What's new with you?",
+    ])
+      expect(asksAboutThem(asked)).toBe(true);
+    for (const not of [
+      "How was your last date?",
+      "Where would you take someone on a first date in winter?",
+      "Last one: what makes a good friend, in your book?",
+      "I burned dinner tonight. Cheer me up?",
+      "Any advice for someone nervous about a first date?",
+    ])
+      expect(asksAboutThem(not)).toBe(false);
+    const turns: PromptTurn[] = [
+      { role: "user", text: "Any advice for a first date?" },
+      { role: "character", text: "Go slow. Even the best mainspring snaps if you force it." },
+      { role: "user", text: "Ha, noted." },
+      { role: "user", text: "So what are you doing this weekend?" },
+    ];
+    expect(worldRest({ character: nell, turns, worldWords: WORDS }).reached).toEqual([]);
+    const m = companionMessages({ character: nell, turns, facts: [], summary: null, length: "normal", avoid: [], now: new Date("2026-11-22T12:00:00Z"), worldWords: WORDS });
+    expect(m[0].content).not.toContain("reached for your own world");
+    expect(m.at(-1)!.content).not.toContain(WORLD_REST_NOTE);
+    // Only what they said since its last reply counts: an earlier question about its week doesn't stop the rest.
+    const later: PromptTurn[] = [{ role: "user", text: "What are you doing this weekend?" }, ...turns.slice(1, 3)];
+    expect(worldRest({ character: nell, turns: later, worldWords: WORDS }).reached).toEqual(["mainspring"]);
   });
 });
 
@@ -234,6 +287,7 @@ describe("the companion's one redraw", () => {
     expect(prompts).toHaveLength(2);
     expect(prompts[0][0].content).toContain('Your last reply reached for your own world ("mainspring").');
     expect(prompts[0][0].content).toContain("That world, for you, is words like clockwork, pendulum");
+    expect(prompts[0].at(-1)!.content).toBe(`Where would you take someone in winter?\n\n${WORLD_REST_NOTE}`);
     expect(prompts[1][0].content).toContain('(that leaned on your own world again: "tick", "clockwork". Say it without your work, your hobbies or your sayings');
     expect(await said(thread)).toBe("Ask her about her week, and actually listen.");
     // It's counted, so how often it fires shows in the logs.
@@ -268,5 +322,15 @@ describe("the companion's one redraw", () => {
     draws.push(["Clockwork? Mine runs on tea."]);
     await sendMessage(t.db, me, thread, "Do you ever dream in clockwork?");
     expect(prompts).toHaveLength(1);
+  });
+
+  it("doesn't rest or redraw when they ask about its week: its world is the answer", async () => {
+    const { me, thread } = await leaningThread(true);
+    draws.push(["Restoring a music box with a stubborn mainspring, and a pendulum that won't settle."]);
+    expect((await sendMessage(t.db, me, thread, "What are you doing this weekend?")).ok).toBe(true);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0][0].content).not.toContain("reached for your own world");
+    expect(prompts[0].at(-1)!.content).toBe("What are you doing this weekend?");
+    expect(await said(thread)).toBe("Restoring a music box with a stubborn mainspring, and a pendulum that won't settle.");
   });
 });
