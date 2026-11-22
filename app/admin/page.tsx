@@ -9,6 +9,7 @@ import NewFeedbackCount from "./feedback/NewFeedbackCount";
 import RelationshipsPanel from "./RelationshipsPanel";
 import FrontierCompare from "./FrontierCompare";
 import KeysPanel from "./KeysPanel";
+import OpsPanel from "./OpsPanel";
 import ReportsPanel from "./ReportsPanel";
 import ScenesPanel from "./ScenesPanel";
 
@@ -60,6 +61,7 @@ export default async function AdminPage() {
           ))}
         </ul>
         <AdminClaim />
+        <OpsPanel />
         <ReportsPanel />
         <RelationshipsPanel />
         <ScenesPanel />

@@ -286,6 +286,22 @@
   max-width: 34rem;
   text-wrap: pretty;
 }
+/* Where the date goes once it's filmed (app/AirChoice.tsx): one line that says so, and the tick that keeps it private.
+   On the first-date card it sits centred above the Start button; in the confirm sheet, under the lede. */
+.air-choice {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+.send-phase .send-first .air-choice {
+  justify-items: center;
+}
+.air-choice .air-choice-note {
+  margin: 0;
+}
+.air-choice .air-choice-toggle {
+  margin-top: 0;
+}
 @media (max-width: 30rem) {
   .send-phase .send-first-stage {
     height: 9rem;
