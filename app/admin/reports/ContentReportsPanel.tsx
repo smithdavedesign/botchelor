@@ -5,16 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { ContentReportRow } from "@/lib/content-reports";
 import { CONTENT_REPORT_LABELS, type ContentReportDecision } from "@/lib/content-reports-shared";
 
-/** The admin password saved by the other admin panels in this browser, if any (an admin account works without it). */
-function adminHeaders(): Record<string, string> {
-  try {
-    const key = localStorage.getItem("bz_frontier");
-    return key ? { "x-frontier-key": key } : {};
-  } catch {
-    return {};
-  }
-}
-
 const when = (iso: string) => new Date(iso).toLocaleString();
 const STATUS_LABELS: Record<string, string> = { open: "Open", resolved: "Resolved", hidden: "Date hidden", dismissed: "Dismissed" };
 
@@ -29,7 +19,7 @@ export default function ContentReportsPanel() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(`/api/admin/content-reports${all ? "?status=all" : ""}`, { headers: adminHeaders() });
+      const res = await fetch(`/api/admin/content-reports${all ? "?status=all" : ""}`);
       const body = await res.json();
       if (res.ok) setReports(body.reports);
       else setError(body.message ?? "Not authorized.");
@@ -46,7 +36,7 @@ export default function ContentReportsPanel() {
     try {
       const res = await fetch("/api/admin/content-reports", {
         method: "POST",
-        headers: { "content-type": "application/json", ...adminHeaders() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ id, decision, note: notes[id] || undefined }),
       });
       if (!res.ok) setError((await res.json().catch(() => ({}))).message ?? "That didn't work.");

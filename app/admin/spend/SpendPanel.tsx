@@ -10,23 +10,13 @@ const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateStrin
 const EVERY_LABEL: Record<Every, string> = { once: "Once", month: "Every month", year: "Every year" };
 const STATE_LABEL = { live: "Live", no_key: "No key", no_api: "No billing API", error: "Didn't answer" } as const;
 
-const headers = (json = false): Record<string, string> => {
-  let key = "";
-  try {
-    key = localStorage.getItem("bz_frontier") ?? "";
-  } catch {
-    /* private mode: an admin account still works */
-  }
-  return { ...(key ? { "x-frontier-key": key } : {}), ...(json ? { "content-type": "application/json" } : {}) };
-};
-
 type Draft = { kind: Kind; category: Category; provider: string; label: string; usd: string; every: Every; starts_on: string; ends_on: string; note: string };
 const today = () => new Date().toISOString().slice(0, 10);
 const EMPTY: Draft = { kind: "cost", category: "api", provider: "", label: "", usd: "", every: "once", starts_on: today(), ends_on: "", note: "" };
 
 /**
  * The spend tracker: the month's totals, its costs and income line by line, six months side by side, each provider's
- * balance, and every entry with a form to add one. Reuses the admin password saved in this browser, like the other panels.
+ * balance, and every entry with a form to add one. For a signed-in admin account (lib/admin-auth.ts), like the other panels.
  * The ledger draws first; the balances (four billing APIs, kept a few minutes on the server) come in after, with a red
  * flag for one that runs out within a week at its recent pace.
  */
@@ -40,7 +30,7 @@ export default function SpendPanel() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
 
   const load = useCallback(async (m: string) => {
-    const res = await fetch(`/api/admin/spend?month=${m}`, { headers: headers() }).catch(() => null);
+    const res = await fetch(`/api/admin/spend?month=${m}`).catch(() => null);
     const body = res ? await res.json().catch(() => ({})) : {};
     if (res?.ok) {
       setView(body as SpendView);
@@ -53,7 +43,7 @@ export default function SpendPanel() {
   // Once, beside the ledger: the balances don't change with the month shown.
   useEffect(() => {
     void (async () => {
-      const res = await fetch("/api/admin/spend?part=balances", { headers: headers() }).catch(() => null);
+      const res = await fetch("/api/admin/spend?part=balances").catch(() => null);
       const body = res ? await res.json().catch(() => ({})) : {};
       if (res?.ok && Array.isArray(body.readings)) setReadings(body.readings as Reading[]);
       else setReadingsNote(res ? "The balances couldn't be read." : "Network error.");
@@ -63,7 +53,7 @@ export default function SpendPanel() {
 
   async function post(payload: unknown, done: (body: Record<string, unknown>) => string) {
     setBusy(true);
-    const res = await fetch("/api/admin/spend", { method: "POST", headers: headers(true), body: JSON.stringify(payload) }).catch(() => null);
+    const res = await fetch("/api/admin/spend", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) }).catch(() => null);
     const body = res ? await res.json().catch(() => ({})) : {};
     setBusy(false);
     if (res?.ok) {

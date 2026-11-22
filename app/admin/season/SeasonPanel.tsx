@@ -86,18 +86,9 @@ export default function SeasonPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const headers = (): Record<string, string> => {
-    try {
-      const key = localStorage.getItem("bz_frontier");
-      return key ? { "x-frontier-key": key } : {};
-    } catch {
-      return {};
-    }
-  };
-
   async function call(body?: Record<string, unknown>) {
     setError(null);
-    const res = await fetch("/api/admin/season", body ? { method: "POST", headers: { "content-type": "application/json", ...headers() }, body: JSON.stringify(body) } : { headers: headers() });
+    const res = await fetch("/api/admin/season", body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : undefined);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return setError(data.message ?? "Not authorized.");
     setView(data as View);

@@ -31,17 +31,8 @@ export default function InvitesPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const headers = (): Record<string, string> => {
-    try {
-      const key = localStorage.getItem("bz_frontier");
-      return key ? { "x-frontier-key": key } : {};
-    } catch {
-      return {};
-    }
-  };
-
   async function load() {
-    const res = await fetch("/api/admin/casting-invites", { headers: headers() });
+    const res = await fetch("/api/admin/casting-invites");
     const data = await res.json().catch(() => ({}));
     if (res.ok) setView(data as View);
   }
@@ -56,7 +47,7 @@ export default function InvitesPanel() {
     try {
       const res = await fetch("/api/admin/casting-invites", {
         method: "POST",
-        headers: { "content-type": "application/json", ...headers() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ count, note: note.trim() || null }),
       });
       const data = (await res.json().catch(() => ({}))) as { invites?: { url: string }[]; message?: string };

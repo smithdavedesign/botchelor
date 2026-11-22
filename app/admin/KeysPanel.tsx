@@ -14,24 +14,14 @@ const SECRET: Record<Status["secret"], string> = {
 /**
  * Stored keys (lib/key-store-admin.ts): how every person's key and every house key is sealed, and a button that seals
  * the legacy ones under KEY_ENCRYPTION_SECRET now. When legacy is 0, SESSION_SECRET can be rotated without losing a key.
- * Counts only. Reuses the admin password saved in this browser, like the other panels.
+ * Counts only. For a signed-in admin account (lib/admin-auth.ts), like the other panels.
  */
 export default function KeysPanel() {
   const [status, setStatus] = useState<Status | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const headers = () => {
-    let key = "";
-    try {
-      key = localStorage.getItem("bz_frontier") ?? "";
-    } catch {
-      /* private mode: an admin account still works */
-    }
-    return key ? { "x-frontier-key": key } : ({} as Record<string, string>);
-  };
-
   useEffect(() => {
-    fetch("/api/admin/keys", { headers: headers() })
+    fetch("/api/admin/keys")
       .then(async (res) => {
         const body = await res.json();
         if (res.ok) setStatus(body as Status);
@@ -43,7 +33,7 @@ export default function KeysPanel() {
   async function reseal() {
     setBusy(true);
     setNote(null);
-    const res = await fetch("/api/admin/keys", { method: "POST", headers: headers() }).catch(() => null);
+    const res = await fetch("/api/admin/keys", { method: "POST" }).catch(() => null);
     setBusy(false);
     const body = res ? await res.json().catch(() => ({})) : {};
     if (res?.ok) {

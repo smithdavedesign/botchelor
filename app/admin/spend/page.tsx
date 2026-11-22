@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { signedInAdmin } from "../signed-in-admin";
+import AdminGate from "../AdminGate";
 import SpendPanel from "./SpendPanel";
 
 export const dynamic = "force-dynamic";
@@ -7,9 +9,10 @@ export const metadata: Metadata = { title: "Spend · Admin · Botchelor", robots
 
 /**
  * Admin: the spend tracker (lib/spend.ts). Costs (API and models, infrastructure, other) and income, month by month, and
- * each provider's live balance. Behind the admin password or an admin account, like the other panels.
+ * each provider's live balance. For a signed-in admin account (lib/admin-auth.ts), like the other panels.
  */
-export default function AdminSpendPage() {
+export default async function AdminSpendPage() {
+  const admin = await signedInAdmin();
   return (
     <article className="admin-wide">
       <p className="kicker">
@@ -22,7 +25,9 @@ export default function AdminSpendPage() {
         live from each provider that has a billing API. That&apos;s usage, shown next to the cash and never added to it, since a top-up is
         already counted when it&apos;s paid.
       </p>
-      <SpendPanel />
+      <AdminGate admin={admin} areas={[{ href: "/admin/spend", label: "Spend" }]}>
+        <SpendPanel />
+      </AdminGate>
     </article>
   );
 }
