@@ -27,8 +27,8 @@ import { checkShowText } from "./safety";
 import { resolveOpening } from "./scene-opening";
 import { haveDated, swipeGateOn } from "./swipe-gate";
 import { areUnmatched, unmatchedMessage } from "./unmatch";
+import { checkCustomRoleplay } from "./roleplay-check";
 import {
-  checkCustomRoleplay,
   dateRoleplayById,
   fillPremise,
   ROLEPLAY_ANSWERS,

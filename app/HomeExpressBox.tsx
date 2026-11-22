@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN } from "@/lib/express-create";
+import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN } from "@/lib/express-text";
 
 /**
  * One-sentence create, on the home page (2026-11-15: 12 visitors opened /create and 4 finished; the box was a click
@@ -12,7 +12,7 @@ import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN }
  * form to /create?say=…, which the builder takes out of the address at once. Shown only while one-sentence create is on
  * (lib/home-clip.ts homeExpressBoxOn).
  *
- * Under the field, the builder's own three examples (lib/express-create.ts EXPRESS_EXAMPLES; 2026-11-21: 3 of 53
+ * Under the field, the builder's own three examples (lib/express-text.ts EXPRESS_EXAMPLES; 2026-11-21: 3 of 53
  * strangers on home in two weeks used the box, while /create's box, which has them, is where most drafts start). A tap
  * fills the field and leaves the button to them, so an example is a start, not a send.
  */
