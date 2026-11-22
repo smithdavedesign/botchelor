@@ -18,7 +18,7 @@ import ModalSheet from "../Sheet";
 import CrisisNotice, { crisisFrom } from "../CrisisNotice";
 import { requestJson, watchLinkOf } from "../request";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "../RoleplayPicker";
-import { openingField, type OpeningChoice } from "@/lib/scene-opening";
+import { openingField, type OpeningChoice } from "@/lib/opening-choice";
 import type { CrisisResources } from "@/lib/crisis";
 import DetailsStep, { DetailField } from "./DetailsStep";
 import OriginalityPanel from "./OriginalityPanel";
@@ -82,7 +82,8 @@ import ChoosePicture from "@/app/studio/ChoosePicture";
 import CharacterName from "@/app/CharacterName";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { THIS_WEEK_MAX } from "@/lib/life";
-import { IMPORT_PATH, IMPORT_STORAGE_KEY, type ImportedDraft } from "@/lib/import-character";
+import type { ImportedDraft } from "@/lib/import-character";
+import { IMPORT_PATH, IMPORT_STORAGE_KEY } from "@/lib/import-paths";
 import { sendHeldUs, type ImportMemoryNote } from "@/app/import/held-history";
 import ImportMemory from "@/app/import/ImportMemory";
 import { stampDateStarted } from "@/lib/engagement-keys";
@@ -104,8 +105,8 @@ import {
   isExpressFailure,
   type ExpressEvent,
   type ExpressFailure,
-} from "@/lib/express-create";
-import { isPastPg } from "@/lib/safety";
+} from "@/lib/express-text";
+import { isPastPg } from "@/lib/safety-reasons";
 import PastPgDoor, { type PastPgDoorLink } from "./PastPgDoor";
 import { FieldIssue, IssueContext, invalidProps } from "./FieldIssue";
 import { placedTexts, placeServerIssues, selectorOf, sheetIssues, type FormIssue, type IssueStep, type SheetDraft } from "./sheet-issues";

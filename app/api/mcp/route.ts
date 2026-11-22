@@ -3,6 +3,7 @@ import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
 import { attachStream, sseFrame } from "@/lib/mcp-stream";
 import { visitorKey } from "@/lib/limits";
 import { frontierAuthorized } from "@/lib/model";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { requestBase } from "@/lib/site";
 
 /**
@@ -31,6 +32,29 @@ const JSON_HEADERS = { "content-type": "application/json; charset=utf-8", "cache
 const rpcError = (code: number, message: string, status = 200) =>
   new Response(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code, message } }), { status, headers: JSON_HEADERS });
 
+/**
+ * New sessions are limited per address (2026-11-22 audit: every initialize writes a session row, with no limit): a
+ * 429 once an address has opened more than lib/rate-limit's mcp_initialize allows in an hour, or mcp_initialize_day
+ * in a day. Calls on a session already open never count. Null while there's room (or with no address: local runs).
+ */
+function tooManySessions(body: unknown, visitor: string | null): Response | null {
+  const msgs = Array.isArray(body) ? body : [body];
+  const init = msgs.find((m) => m && typeof m === "object" && (m as { method?: unknown }).method === "initialize") as { id?: unknown } | undefined;
+  if (!init || !visitor) return null;
+  for (const kind of ["mcp_initialize", "mcp_initialize_day"] as const) {
+    const d = checkRateLimit(visitor, kind);
+    if (d.ok) continue;
+    const when = d.retry_after_seconds < 120 ? `${d.retry_after_seconds} seconds` : `${Math.ceil(d.retry_after_seconds / 60)} minutes`;
+    const message = `Too many new sessions from this address: try again in ${when}. A session you already have keeps working, and initialize with params.agent_id resumes your identity.`;
+    const id = typeof init.id === "string" || typeof init.id === "number" ? init.id : null;
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32000, message, data: { code: "rate_limited", retry_after_seconds: d.retry_after_seconds } } }), {
+      status: 429,
+      headers: { ...JSON_HEADERS, "retry-after": String(d.retry_after_seconds) },
+    });
+  }
+  return null;
+}
+
 export async function POST(req: Request): Promise<Response> {
   let body: unknown;
   try {
@@ -43,11 +67,14 @@ export async function POST(req: Request): Promise<Response> {
     return rpcError(-32700, `parse error: the request body isn't valid JSON (${why}). Send one JSON-RPC object, e.g. {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_status","arguments":{}}}; strings inside it (a turn's output too) must be JSON-escaped.`);
   }
 
+  const visitor = visitorKey(req.headers);
+  const limited = tooManySessions(body, visitor);
+  if (limited) return limited;
   const ctx: McpContext = {
     sessionId: req.headers.get("mcp-session-id"),
     userAgent: req.headers.get("user-agent"),
     // #437: so a probe initialize and the real one from the same client share an agent_id (lib/mcp.ts reusableAgent).
-    visitor: visitorKey(req.headers),
+    visitor,
     base: requestBase(req),
     // Only a key that passes here, so a wrong one counts towards the lockout like anywhere else (lib/admin-key.ts).
     adminKey: frontierAuthorized(req) ? req.headers.get("x-frontier-key") : null,

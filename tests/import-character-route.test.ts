@@ -4,7 +4,7 @@ import { POST } from "@/app/api/characters/import/route";
 import AlternativePage from "@/app/alternatives/character-ai/page";
 import ImportPage from "@/app/import/page";
 import { importFromFields } from "@/lib/import-character";
-import { IMPORT_READ_LIMITS } from "@/lib/limits";
+import { IMPORT_READ_ALL_LIMITS, IMPORT_READ_LIMITS } from "@/lib/limits";
 import { setFrontierModelForTests, setModelForTests } from "@/lib/model";
 import { staticSitemap } from "@/lib/seo";
 import { jsonRequest, newUserCookie, scriptedModel, startTestDb } from "./helpers";
@@ -73,6 +73,15 @@ describe("POST /api/characters/import (free text, the show's free model)", () =>
     const cookie = newUserCookie();
     for (let i = 0; i < IMPORT_READ_LIMITS.perHour; i++) expect((await read(`A baker number ${i}.`, cookie)).status).toBe(200);
     expect((await read("One more baker.", cookie)).status).toBe(429);
+  });
+
+  it("is limited across everyone too, so fresh cookies and addresses stop at the show's share (2026-11-22 audit)", async () => {
+    // This hour's site-wide reads, already used.
+    await t.db.query(`insert into rate_hits (bucket, key, at) select 'import_read_all', 'all', now() from generate_series(1, $1)`, [IMPORT_READ_ALL_LIMITS.perHour]);
+    scriptedModel(['{"name":"Ada Lane"}']);
+    const res = await read("A baker with a fresh cookie.", newUserCookie());
+    expect(res.status).toBe(429);
+    expect(((await res.json()) as { error: string }).error).toBe("too_many_imports");
   });
 });
 

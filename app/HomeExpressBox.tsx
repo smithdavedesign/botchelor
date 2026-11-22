@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN } from "@/lib/express-create";
+import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN } from "@/lib/express-text";
 
 /**
  * One-sentence create, on the home page (2026-11-15: 12 visitors opened /create and 4 finished; the box was a click
@@ -12,10 +12,16 @@ import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN }
  * form to /create?say=…, which the builder takes out of the address at once. Shown only while one-sentence create is on
  * (lib/home-clip.ts homeExpressBoxOn).
  *
- * Under the field, the builder's own three examples (lib/express-create.ts EXPRESS_EXAMPLES; 2026-11-21: 3 of 53
+ * Under the field, the builder's own three examples (lib/express-text.ts EXPRESS_EXAMPLES; 2026-11-21: 3 of 53
  * strangers on home in two weeks used the box, while /create's box, which has them, is where most drafts start). A tap
  * fills the field and leaves the button to them, so an example is a start, not a send.
+ *
+ * The empty field shows an example, marked "e.g." and short enough to show whole on a phone 320px wide, and Meet them on
+ * an empty field sends that example (2026-11-22 audit: on a phone the example was cut off, read as already typed, and the
+ * button then only asked for a sentence).
  */
+const EXAMPLE = "a retired lighthouse keeper";
+
 export default function HomeExpressBox() {
   const field = useRef<HTMLInputElement>(null);
   return (
@@ -24,6 +30,8 @@ export default function HomeExpressBox() {
       action="/create"
       method="get"
       onSubmit={(e) => {
+        const input = field.current;
+        if (input && !input.value.trim()) input.value = EXAMPLE;
         const text = String(new FormData(e.currentTarget).get("say") ?? "").trim();
         if (text.length < EXPRESS_TEXT_MIN) return;
         try {
@@ -44,12 +52,11 @@ export default function HomeExpressBox() {
           id="home-express-text"
           name="say"
           type="text"
-          required
           minLength={EXPRESS_TEXT_MIN}
           maxLength={EXPRESS_TEXT_MAX}
           autoComplete="off"
           enterKeyHint="go"
-          placeholder="A lighthouse keeper who fixes radios"
+          placeholder={`e.g. ${EXAMPLE}`}
         />
         <button type="submit" data-track="home-express">
           Meet them

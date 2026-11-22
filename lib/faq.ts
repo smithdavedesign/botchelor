@@ -50,7 +50,8 @@ export function faqs(env: Env = process.env): Faq[] {
       id: "free",
       q: "Is it free?",
       a: [
-        `Yes. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week for their characters, back every Monday at 00:00 UTC. Watching, predicting and voting are always free.`,
+        // In words, not "00:00 UTC" (2026-11-22 audit): this answer is plain text, for search too (faqJsonLd).
+        `Yes. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week for their characters, back every Monday at midnight UTC (Sunday afternoon or evening in the Americas). Watching, predicting and voting are always free.`,
         packOnSale
           ? ` If you want more, ${packs.map((p, i) => `${p.episodes}${i === 0 ? " more dates" : ""} cost ${formatPrice(p.price_cents)}`).join(", or ")}, paid once. `
           : " ",

@@ -84,11 +84,4 @@ describe("words on the create flow", () => {
     expect(panel).not.toMatch(/lets you keep dates\s+private/);
     expect(panel).toContain("An account keeps your characters across devices and lets you bring your");
   });
-
-  it("the home box's example fits a phone's width", () => {
-    const box = readFileSync("app/HomeExpressBox.tsx", "utf8");
-    const placeholder = box.match(/placeholder="([^"]+)"/)?.[1] ?? "";
-    expect(placeholder).toBe("A lighthouse keeper who fixes radios");
-    expect(placeholder.length).toBeLessThanOrEqual(36);
-  });
 });

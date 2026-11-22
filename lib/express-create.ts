@@ -7,8 +7,9 @@
  *
  * What this module is: the words sent to the model, the step from its reading to a builder draft (the same mapping and
  * screening every import takes), the adult-age rule, a look that fits the words, the plain sentence for each way it can
- * fail, and the engagement events. Pure and client-safe: the route (app/api/characters/draft) adds the limits, the model
- * call and the name check; the builder (app/create/CreateWizard.tsx) shows the box and applies the draft.
+ * fail, and the engagement events. Pure: the route (app/api/characters/draft) adds the limits, the model call and the name
+ * check; the builder (app/create/CreateWizard.tsx) shows the box and applies the draft, loading only the browser's half
+ * (lib/express-text.ts).
  *
  * Nothing here decides what is allowed: the draft is cut and screened by the import reader's own checks, the builder's
  * Identity rules and the save (POST /api/characters: checkSheetText in any language, the 18+ rule, the name check) judge
@@ -19,20 +20,29 @@ import { NAME_MAX } from "./field-limits";
 import { importFromFields, readyToDate, statedAge, stillMissing, SOURCE_KEYS, type ImportedDraft, type SourceFields } from "./import-character";
 import { LOOK_STEPS, optionsFor, WORK_OUTFITS, type Gender, type Looks } from "./looks";
 import { CHARACTER_REJECTION_MESSAGES, checkSheetText, isPastPg, type RejectReason } from "./safety";
+import type { ExpressFailure } from "./express-text";
 
-/** The box takes about a tweet: a sentence or two, not a card (that is /import's job). */
-export const EXPRESS_TEXT_MAX = 280;
-/** Less than this is not a description ("hi"); the button stays off. */
-export const EXPRESS_TEXT_MIN = 8;
-/**
- * Where the home page's box leaves its sentence for /create (sessionStorage; app/HomeExpressBox.tsx), so what someone
- * typed is never in an address the analytics see. Without script the form sends it as /create?say=… instead.
- */
-export const EXPRESS_SAY_KEY = "bz_express_say";
+// The box's own half (its limits, examples, failure lines and events) is lib/express-text.ts, which the browser loads
+// without this file's checks (2026-11-22 audit); it's all here too, for the route and the tests.
+export {
+  EXPRESS_CLIENT_TIMEOUT_MS,
+  EXPRESS_EXAMPLES,
+  EXPRESS_FAILURES,
+  EXPRESS_SAY_KEY,
+  EXPRESS_TEXT_MAX,
+  EXPRESS_TEXT_MIN,
+  expressDraftedEvent,
+  expressEventAt,
+  expressFailedEvent,
+  expressFailureLine,
+  expressStartedEvent,
+  isExpressFailure,
+  type ExpressEvent,
+  type ExpressFailure,
+} from "./express-text";
+
 /** How long the route waits for the model before the form opens instead (the model's own timeout and retries run to a minute). */
 export const EXPRESS_TIMEOUT_MS = 12_000;
-/** How long the builder waits for the route: a little longer, so the server's own answer arrives first when it has one. */
-export const EXPRESS_CLIENT_TIMEOUT_MS = 16_000;
 
 const MIN_AGE = 18;
 const MAX_AGE = 1000;
@@ -41,13 +51,6 @@ const MAX_AGE = 1000;
 export function expressCreateOn(env: Record<string, string | undefined> = process.env): boolean {
   return env.EXPRESS_CREATE?.trim() !== "0";
 }
-
-/** The three taps that fill the box: originals written for this page, each a different kind of person. */
-export const EXPRESS_EXAMPLES: readonly { label: string; text: string }[] = [
-  { label: "Night baker", text: "A night-shift baker who names every sourdough starter and can't do small talk before sunrise." },
-  { label: "Stuntman", text: "A retired stuntman in his fifties who now teaches ballroom dancing and is afraid of escalators." },
-  { label: "Storm chaser", text: "A storm-chasing meteorologist who is fearless in a tornado and hopeless at first dates." },
-];
 
 /**
  * The system prompt. Unlike /import's ("use only what the text says"), this one is asked to fill what the sentence leaves
@@ -68,39 +71,6 @@ export const EXPRESS_PROMPT =
   "appearance (how they look, only when the text says, otherwise an empty string). " +
   "Keep every fact the text gives. Where it gives none, invent small, specific details that fit this one person. " +
   "Every character is an adult. Nothing sexual, no real people, no brand names, no famous characters.";
-
-/** Why a draft did not happen; each opens the usual form with one plain sentence (expressFailureLine). */
-export const EXPRESS_FAILURES = ["minor", "real_person", "unsafe", "limited", "model", "timeout", "network", "unreadable", "off"] as const;
-export type ExpressFailure = (typeof EXPRESS_FAILURES)[number];
-export const isExpressFailure = (r: unknown): r is ExpressFailure => typeof r === "string" && (EXPRESS_FAILURES as readonly string[]).includes(r);
-
-const HERE_IS_THE_FORM = "so here's the form with your words in the bio.";
-
-/**
- * The one sentence the form opens with after a failure. A refusal by the show's rules says the rule (the save would say
- * the same); everything else says what happened. What they typed is already in the bio either way.
- */
-export function expressFailureLine(reason: ExpressFailure, serverMessage?: string | null): string {
-  switch (reason) {
-    case "minor":
-      return CHARACTER_REJECTION_MESSAGES.minor;
-    case "real_person":
-      return CHARACTER_REJECTION_MESSAGES.real_person;
-    case "unsafe":
-      return serverMessage?.trim() || CHARACTER_REJECTION_MESSAGES.innuendo;
-    case "limited":
-      return `That's a lot of drafts from here for one day, ${HERE_IS_THE_FORM}`;
-    case "timeout":
-      return `The draft took too long, ${HERE_IS_THE_FORM}`;
-    case "network":
-      return `The connection dropped, ${HERE_IS_THE_FORM}`;
-    case "unreadable":
-      return `We couldn't find a character in that, ${HERE_IS_THE_FORM}`;
-    case "off":
-    case "model":
-      return `The show's writer couldn't draft them just now, ${HERE_IS_THE_FORM}`;
-  }
-}
 
 const refusalOf = (reason: RejectReason): ExpressFailure => (reason === "minor" ? "minor" : reason === "real_person" ? "real_person" : "unsafe");
 
@@ -353,30 +323,4 @@ export function draftFromReading(reading: SourceFields, text: string, givenName 
     invented: { name: Boolean(draft.sheet.name) && !typed, age: Boolean(age?.invented) },
     dropped: result.dropped,
   };
-}
-
-/* ------------------------------------------------------------------------------------------------------------ *
- * The engagement events (the beacon never sends in dev or headless runs, so tests pin them as data)
- * ------------------------------------------------------------------------------------------------------------ */
-
-export type ExpressEvent = { name: "express_started" | "express_drafted" | "express_failed"; props: Record<string, string | number | boolean | null> };
-
-/** "Meet them" was tapped: how much they wrote, whether they named them, whether an example filled the box. Never the words. */
-export function expressStartedEvent(o: { length: number; named: boolean; example: boolean }): ExpressEvent {
-  return { name: "express_started", props: { length: o.length, named: o.named, example: o.example } };
-}
-
-/** A draft came back: ready (on to Look) or short (the form, with what came in), and whether a look was suggested. */
-export function expressDraftedEvent(o: { ready: boolean; invented_name: boolean; look: boolean }): ExpressEvent {
-  return { name: "express_drafted", props: { ready: o.ready, invented_name: o.invented_name, look: o.look } };
-}
-
-/** No draft: why. The form opened with their words in the bio. */
-export function expressFailedEvent(reason: ExpressFailure): ExpressEvent {
-  return { name: "express_failed", props: { reason } };
-}
-
-/** The same event with where the sentence was typed, when that wasn't /create itself (the home page's box: "home"). */
-export function expressEventAt(ev: ExpressEvent, place: string | null): ExpressEvent {
-  return place ? { name: ev.name, props: { ...ev.props, place } } : ev;
 }
