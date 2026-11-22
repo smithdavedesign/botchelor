@@ -72,7 +72,7 @@ describe("/casting", () => {
     expect(cast.length).toBeGreaterThan(0);
     const { main } = columns(renderToStaticMarkup(await CastingPage()));
     expect(main).toContain('class="casting-slots"');
-    expect(count(main, 'class="casting-slot is-taken tap-card"')).toBe(Math.min(cast.length, size));
+    expect(count(main, 'class="casting-slot is-taken tap-card tilt"')).toBe(Math.min(cast.length, size));
     expect(count(main, 'class="casting-slot is-open is-pickable"')).toBe(open);
     for (const c of cast.slice(0, size)) {
       expect(main).toContain(`class="stretch" href="/characters/${c.id}"`);
@@ -106,8 +106,8 @@ describe("/casting", () => {
     expect(hero).toContain(`href="/characters/${lead.id}"`);
     expect(hero).toContain(`${seasonMonth(season_id)}&#x27;s lead`);
     expect(main).toContain("No suitors yet for");
-    expect(count(main, 'class="casting-slot is-taken is-lead tap-card"')).toBe(1);
-    expect(count(main, 'class="casting-slot is-taken tap-card"')).toBe(0);
+    expect(count(main, 'class="casting-slot is-taken is-lead tap-card tilt"')).toBe(1);
+    expect(count(main, 'class="casting-slot is-taken tap-card tilt"')).toBe(0);
     expect(count(main, 'class="casting-slot is-open is-pickable"')).toBe(places - 1);
     expect(main).toContain(`<strong>${lead.name}</strong>`);
     expect(main).toContain(`${seasonMonth(season_id)}&#x27;s lead`);

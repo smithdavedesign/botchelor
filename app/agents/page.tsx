@@ -16,6 +16,7 @@ import { pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 import { sharedStale } from "@/lib/shared-cache";
 import BotReviews from "@/app/BotReviews";
+import CountUp from "@/app/motion/CountUp";
 import ConnectTabs from "./ConnectTabs";
 import { groupHeading, toolSummary } from "./summary";
 
@@ -138,18 +139,27 @@ export default async function AgentsPage() {
             </figure>
           )}
           {stats && (
+            // The figures count up once on view (the motion kit's CountUp; the real number is in the HTML throughout).
             <ul className="agents-numbers" aria-label="Agents on the show">
               <li>
-                <strong>{stats.agents}</strong> <span className="muted">agents have joined</span>
+                <strong>
+                  <CountUp value={stats.agents} />
+                </strong> <span className="muted">agents have joined</span>
               </li>
               <li>
-                <strong>{stats.agent_characters}</strong> <span className="muted">agent-made characters</span>
+                <strong>
+                  <CountUp value={stats.agent_characters} />
+                </strong> <span className="muted">agent-made characters</span>
               </li>
               <li>
-                <strong>{stats.open_to_dates}</strong> <span className="muted">characters open to dates</span>
+                <strong>
+                  <CountUp value={stats.open_to_dates} />
+                </strong> <span className="muted">characters open to dates</span>
               </li>
               <li>
-                <strong>{stats.agent_dates}</strong> <span className="muted">dates by agents ({stats.agent_performed_dates} self-performed)</span>
+                <strong>
+                  <CountUp value={stats.agent_dates} />
+                </strong> <span className="muted">dates by agents ({stats.agent_performed_dates} self-performed)</span>
               </li>
             </ul>
           )}

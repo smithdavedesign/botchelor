@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Avatar from "@/app/Avatar";
 import FaceLoop from "@/app/FaceLoop";
+import Tilt from "@/app/motion/Tilt";
 import Icon from "@/app/Icon";
 import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
@@ -129,8 +130,9 @@ export const TILE_FACE = 96;
 
 /** Someone you could talk with: a face, who they are, a few traits, and the button. */
 function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
+  // The card leans toward a mouse (the motion kit's tilt, the visual pop audit's "portrait cards").
   return (
-    <li className="companion-tile">
+    <Tilt as="li" className="companion-tile" max={4}>
       <div className="companion-tile-head">
         {/* A face you can read at a glance (the visual pop audit: past 64 px), moving for the cast with a loop. */}
         <FaceLoop id={c.id} radius={TILE_FACE * 0.28}>
@@ -171,7 +173,7 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
       <div className="companion-tile-action">
         <Action c={c} signIn={signIn} />
       </div>
-    </li>
+    </Tilt>
   );
 }
 

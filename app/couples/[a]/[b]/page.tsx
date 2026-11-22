@@ -42,6 +42,7 @@ import PairTiesCard from "@/app/graph/PairTiesCard";
 import { closedSeasons } from "@/lib/season-ref";
 import { cachedPairTies } from "@/lib/social/cache";
 import { socialLensesOn } from "@/lib/social/lens-sky";
+import CoupleMain from "./CoupleMain";
 
 export const dynamic = "force-dynamic";
 
@@ -296,7 +297,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
       {/* Two columns on a wide screen, as the design system draws a couple (all-screens board, 2026-11-11): their dates
           on the left; the roleplay, the arc, their texts, inside jokes and what they've told each other on the right. */}
       <div className="couple-layout">
-        <div className="couple-main">
+        <CoupleMain>
           <section className="couple-dates-section" id="their-dates">
             <h2>Their dates</h2>
             {/* One row a date, as the design system draws them: the place's photo, the date and when, where, and how it
@@ -340,7 +341,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
           ) : (
             between && <PairTiesCard pair={between} closedSeasons={new Set(closedSeasons().map((x) => x.id))} skipDated level={2} className="card couple-ties" />
           )}
-        </div>
+        </CoupleMain>
         <aside className="couple-rail" aria-label="The two of them">
 
           {roleplay && (

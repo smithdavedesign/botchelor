@@ -2004,6 +2004,11 @@ main:has(> .couple-page) {
     gap: var(--space-5);
     align-items: start;
   }
+  /* A dates column beside a longer right one stays in view and ends with it (CoupleMain.tsx sets where it holds). */
+  .couple-main.is-pinned {
+    position: sticky;
+    top: var(--pin-top, 5rem);
+  }
 }
 
 /* ---------------- the house (app/house/page.tsx, app/HouseScene.tsx; lib/house-scenes.ts) ----------------

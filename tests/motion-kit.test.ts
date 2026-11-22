@@ -66,6 +66,6 @@ describe("CountUp", () => {
 describe("Tilt", () => {
   it("wraps its card without changing it at rest", () => {
     const html = renderToStaticMarkup(createElement(Tilt, { className: "award", as: "li", children: "Barnaby" }));
-    expect(html).toBe('<li class="tilt award">Barnaby</li>');
+    expect(html).toBe('<li class="award tilt">Barnaby</li>');
   });
 });

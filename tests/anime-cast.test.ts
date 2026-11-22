@@ -274,7 +274,7 @@ const companion = (i: number, style: CompanionListItem["style"] = "realistic"): 
   style,
 });
 const html = (props: Parameters<typeof CompanionBrowser>[0]) => renderToStaticMarkup(createElement(CompanionBrowser, props));
-const tiles = (markup: string) => markup.match(/<li class="companion-tile"/g)?.length ?? 0;
+const tiles = (markup: string) => markup.match(/<li class="companion-tile tilt"/g)?.length ?? 0;
 
 describe("the companions browser's Style filter (app/companion/CompanionBrowser.tsx)", () => {
   it("shows only once someone listed is drawn in anime", () => {
