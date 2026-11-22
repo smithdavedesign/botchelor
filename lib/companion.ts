@@ -13,7 +13,7 @@ import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
 import { lessonsForPrompt } from "./character-lessons";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
-import { AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, tooCloseTo, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { asksAboutLastDate, AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, namesAnotherDate, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, tooCloseTo, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
 import { FACTS_EVERY, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
@@ -899,6 +899,11 @@ async function speak(
   const passedOn = opts.passedOn ?? [];
   const passed = (x: string) => passedOn.length > 0 && tooCloseTo(x, passedOn);
   const unlike = (x: string) => `${x.slice(0, 300)} (that's the reply they passed on, reworded: say something else)`;
+  // Asked about its last date, a reply that gives it someone else it has dated is drawn once more, told which it was.
+  const dated = (character.memory?.people ?? []).map((p) => p.name);
+  const otherDate = (x: string) => lastDate !== null && asksAboutLastDate(lastUser) && namesAnotherDate(x, lastDate.partner, dated, lastUser);
+  const elsewhere = (x: string) =>
+    `${x.slice(0, 300)} (that wasn't your last date: it was with ${lastDate?.partner}${lastDate?.venue ? `, at ${lastDate.venue}` : ""}. Tell them about that one)`;
   const temperature = passedOn.length ? REGENERATE_TEMPERATURE : 0.9;
   const prompt = (o: { insteadOf: string | null; told?: boolean }) =>
     companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, passedOn, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona, storyMode: o.told === true });
@@ -980,6 +985,11 @@ async function speak(
           insteadOf = passed(line.say) ? unlike(line.say) : again(line.say);
           continue;
         }
+        if (otherDate(line.say)) {
+          safeRepeat ??= { bubbles: [line.say], action: line.action };
+          insteadOf = elsewhere(line.say);
+          continue;
+        }
         bubbles = [line.say];
         action = line.action;
       } else insteadOf = `${line ? `${line.action ? `(${line.action}) ` : ""}${line.say}` : raw}`.slice(0, 300) + " (keep it PG and kind)";
@@ -991,7 +1001,10 @@ async function speak(
     if (drawn.length && drawn.every((b) => checkFamilyTalk(b).ok && !crisisIntent(b))) {
       // Not an earlier line, and not a bubble before it in this same reply (the sim saw one paragraph sent twice).
       const fresh = drawn.filter((b, i) => !repeatsEarlier(b, [...said, ...drawn.slice(0, i)]));
-      if (fresh.length === drawn.length && !passed(drawn.join(" "))) bubbles = drawn;
+      if (fresh.length === drawn.length && !passed(drawn.join(" ")) && otherDate(drawn.join(" "))) {
+        safeRepeat ??= { bubbles: drawn, action: null };
+        insteadOf = elsewhere(drawn.join(" "));
+      } else if (fresh.length === drawn.length && !passed(drawn.join(" "))) bubbles = drawn;
       else {
         safeRepeat ??= { bubbles: fresh.length ? fresh : drawn, action: null };
         insteadOf = fresh.length === drawn.length ? unlike(drawn.join(" ")) : again(drawn.join(" "));

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { byName, oneFaceGroups, pairOf, pairPath, pickerData, pickGroups, surprisePair, whoseCounts, whoseFilters } from "@/lib/adult/pair-pick";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import PairPicker from "@/app/after-dark/PairPicker";
+import { byName, capGroups, FACES_SHOWN, oneFaceGroups, pairOf, pairPath, pickerData, pickGroups, surprisePair, whoseCounts, whoseFilters } from "@/lib/adult/pair-pick";
 import type { CastMember, CastPair } from "@/lib/adult/scenes";
 
 // The hub's pair picker (lib/adult/pair-pick.ts; David, 2026-11-18: "change the choose a new pair to be better ux like a
@@ -111,14 +114,65 @@ describe("what the panel shows", () => {
     expect(names(groups(null, "", "house")).flatMap(([, n]) => n)).toEqual(["Juniper", "Star", "Sweet"]);
   });
 
-  it("once one is picked, who they can be with: their nights first, saying how far, then someone new", () => {
+  it("once one is picked, who they can be with: their nights first, saying how far, then someone new, the house cast first", () => {
     expect(groups(sweet.id)).toEqual([
       { label: "Their nights with Sweet", faces: [{ c: expect.objectContaining({ id: star.id }), meta: "38 lines" }] },
-      { label: "Someone new", faces: ["Dex", "Inès", "Juniper"].map((n) => ({ c: expect.objectContaining({ name: expect.stringMatching(new RegExp(`^${n}`)) }) })) },
+      { label: "Someone new", faces: ["Juniper", "Dex", "Inès"].map((n) => ({ c: expect.objectContaining({ name: expect.stringMatching(new RegExp(`^${n}`)) }) })) },
     ]);
     expect(groups(juniper.id)[0]).toMatchObject({ faces: [{ meta: "Chapter 3" }] });
-    expect(names(groups(ines.id))).toEqual([["Who Inès can be with · 4", ["Dex", "Juniper", "Star", "Sweet"]]]);
+    expect(names(groups(ines.id))).toEqual([["Who Inès can be with · 4", ["Juniper", "Star", "Sweet", "Dex"]]]);
+    // Typed, the matches by how well they match, as before.
     expect(names(groups(ines.id, "sw"))).toEqual([["Who Inès can be with · 1", ["Sweet"]]]);
+  });
+
+  it("with no nights yet: the house cast, then everyone else (only where the house cast is some of them)", () => {
+    const fresh = pickerData(allPairs());
+    expect(names(pickGroups(fresh.cast, [], { one: null, query: "", whose: "all" }))).toEqual([
+      ["House cast", ["Juniper", "Star", "Sweet"]],
+      ["Everyone else", ["Dex", "Inès"]],
+    ]);
+    const house = [star, sweet];
+    expect(names(pickGroups(house, [], { one: null, query: "", whose: "all" }))).toEqual([["Everyone · 2", ["Star", "Sweet"]]]);
+  });
+});
+
+describe("a short panel (the 2026-11-22 audit: all 227 faces were drawn and loaded)", () => {
+  const many = (n: number, extra: Partial<CastMember> = {}) => Array.from({ length: n }, (_, i) => who(`c-${String(i).padStart(3, "0")}`, `Person ${String(i).padStart(3, "0")}`, extra));
+  const house = many(16, { house: true }).map((c, i) => ({ ...c, id: `h-${i}`, name: `House ${String(i).padStart(2, "0")}` }));
+  const rest = many(211);
+  const cast = [...house, ...rest];
+
+  it("cuts each group to FACES_SHOWN, saying how many it leaves out, and shows them all on request", () => {
+    const groups = pickGroups(cast, [], { one: null, query: "", whose: "all" });
+    const short = capGroups(groups, FACES_SHOWN);
+    expect(short.map((g) => [g.label, g.faces.length, g.hidden])).toEqual([
+      ["House cast", 12, 4],
+      ["Everyone else", 12, 199],
+    ]);
+    expect(capGroups(groups, Infinity).map((g) => [g.faces.length, g.hidden])).toEqual([
+      [16, 0],
+      [211, 0],
+    ]);
+    // A short group stays whole.
+    expect(capGroups([{ label: "x", faces: [{ c: sweet }] }], 12)).toEqual([{ label: "x", faces: [{ c: sweet }], hidden: 0 }]);
+  });
+
+  it("the hub draws the short groups with a Show all, and leaves the hero's night out of Continue", () => {
+    const pairs: CastPair[] = [
+      { a: house[0], b: rest[0], lines: 12, path: pairPath(house[0].id, rest[0].id), updated_at: "2026-11-21T00:00:00Z", last: null, chapter: 1 },
+      { a: house[1], b: rest[1], lines: 3, path: pairPath(house[1].id, rest[1].id), updated_at: "2026-11-20T00:00:00Z", last: null, chapter: 1 },
+    ];
+    const html = renderToStaticMarkup(createElement(PairPicker, { cast, nights: pairs, firstScene: pairs[0].path, featured: pairs[0].path }));
+    // Their 4 from the nights, then 12 of the other 14 house faces, then 12 of the other 209.
+    expect(html.match(/data-face=/g)?.length).toBe(4 + 12 + 12);
+    expect(html).toContain("Show all 14");
+    expect(html).toContain("Show all 209");
+    expect(html).not.toContain(`data-night="${pairs[0].path}"`);
+    expect(html).toContain(`data-night="${pairs[1].path}"`);
+    // With only the hero's night under way, no Continue list at all.
+    const one = renderToStaticMarkup(createElement(PairPicker, { cast, nights: pairs.slice(0, 1), firstScene: pairs[0].path, featured: pairs[0].path }));
+    expect(one).not.toContain("data-night=");
+    expect(one).not.toMatch(/>Continue</);
   });
 });
 
