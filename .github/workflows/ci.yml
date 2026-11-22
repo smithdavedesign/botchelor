@@ -1,8 +1,9 @@
-# Typecheck + the full unit suite on every PR and every push to main, on GitHub's free hosted runners
-# (the repo is public, so Actions minutes cost nothing). The suite is split over 4 parallel shards so the whole run
-# takes a few minutes and none of it lands on the 16 GB Mac. Locally, `npm run gate` is enough before a PR.
+# Typecheck, the full unit suite, the production build and the browser suite on every PR and every push to main, on
+# GitHub's free hosted runners (the repo is public, so Actions minutes cost nothing). The unit suite is split over 4
+# parallel shards so the whole run takes a few minutes and none of it lands on the 16 GB Mac. Locally, `npm run gate`
+# is enough before a PR.
 #
-# Guards: concurrency cancels older runs on the same branch; a 15-minute timeout kills a hung job.
+# Guards: concurrency cancels older runs on the same branch; a timeout kills a hung job.
 name: CI
 
 on:
@@ -84,11 +85,14 @@ jobs:
       - run: echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: npm run build
 
-  # TRIAL (not for merge yet): the main browser suite (scripts/e2e.mjs) against `next start`, its own local database and a
-  # stub model, no keys and no network beyond the runner.
+  # The main browser suite (scripts/e2e.mjs, `npm run e2e`): it builds the app, starts it with `next start` on a local
+  # database of its own (PGlite, fresh each run) and a stub model, and drives the product through a real browser. No keys,
+  # nothing paid, no network beyond the runner once the browser is installed. About five minutes, beside the unit shards.
+  # A change that moves what a step looks for fixes that step in the same PR (until 2026-11-21 it ran only by hand, and
+  # 18 of its texts had gone from the app).
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

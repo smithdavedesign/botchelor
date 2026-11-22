@@ -466,6 +466,8 @@ async function main() {
       await page.getByRole("tab", { name: "Dates" }).click();
       await page.getByRole("link", { name: "📱 See their board →" }).click();
       await page.waitForURL(/\/characters\/[^/]+\/relationships$/);
+      // A client-side move: the address changes first, then the board replaces its loading screen (relationships/loading.tsx).
+      await page.locator(".phone-row").first().waitFor({ state: "attached", timeout: 10_000 }).catch(() => {});
       assert((await page.locator(".phone-row").count()) >= 1, "the board should list their date");
       assert((await page.locator(".phone-row-preview").count()) >= 1, "an owner should see the newest text");
     });
@@ -588,8 +590,11 @@ async function main() {
       // Each directory card's name is its link (app/characters/page.tsx Entry).
       await spage.locator(".gallery a.dir-name").first().click();
       await spage.waitForURL(/\/characters\//);
-      // The card's face: their hello clip where they have one, else the portrait (app/characters/[id]/page.tsx).
-      assert((await spage.locator(".contestant .contestant-card-face :is(.avatar, .intro-clip)").count()) > 0, "contestant card face missing");
+      // The card's face: their hello clip where they have one, else the portrait (app/characters/[id]/page.tsx). A
+      // client-side move changes the address before the card replaces the loading screen (characters/[id]/loading.tsx).
+      const face = spage.locator(".contestant .contestant-card-face :is(.avatar, .intro-clip)");
+      await face.first().waitFor({ state: "attached", timeout: 10_000 }).catch(() => {});
+      assert((await face.count()) > 0, "contestant card face missing");
       // Share sits behind ⋯ in the header's row since 2026-11-16 (app/characters/[id]/HeaderActions.tsx).
       await spage.locator(".contestant-actions .thread-menu > button").click();
       assert((await spage.locator('.contestant-actions [role="menuitem"]').count()) > 0, "the share item is missing from the card's ⋯ menu");
