@@ -4,6 +4,8 @@
 # versions (a 2026-11-13 bump to diffusers 0.38 + transformers 5.10 made the image unbuildable); constraints.txt repeats
 # them so no pip step, and no automated dependency bump, can move them.
 diffusers==0.30.2
+# accelerate stays at MuseTalk's pin: the open advisory on sharded checkpoints has no fixed release yet (1.16.0
+# still loads shard paths as the index names them), and this worker only loads the weights baked into its image.
 accelerate==0.28.0
 numpy==1.23.5
 opencv-python-headless==4.9.0.80

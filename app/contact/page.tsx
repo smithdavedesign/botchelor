@@ -7,7 +7,7 @@ import { FeedbackLink } from "../FeedbackDock";
 import SocialLinks from "../SocialLinks";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Contact · Botchelor",
+  title: "Contact Botchelor: support, reports, press and security",
   description:
     "How to reach the people behind Botchelor: the support address, where reports, refunds, privacy requests, press and security questions go, and the show's accounts on X, Bluesky, TikTok and Discord.",
   path: "/contact",

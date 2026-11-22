@@ -63,6 +63,7 @@ const MAIN = hook("main");
 const SITE = "https://botchelor.com";
 const ON = { DISCORD_WEBHOOK_URL: MAIN, SITE_URL: SITE };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sent = { url: string; body: Record<string, any> };
 /** A stand-in for Discord: answers each send with the next status (the last one repeats), or throws for "throw". */
 function fakeDiscord(...statuses: (number | "throw")[]) {

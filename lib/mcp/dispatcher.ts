@@ -18,6 +18,7 @@
  * in mcp_sessions, so we can see who comes to the show. No IP, no content, nothing personal.
  */
 import { isOurs } from "../our-traffic";
+import { agentBan } from "../bans";
 import { ownSecrets } from "../cast-secrets";
 import { deferWrite, flushCheckerLog, isCheckerHandshake, noteCheckerSession, waitingWrites } from "./probe-log";
 import { crisisCheck, crisisField } from "../crisis";
@@ -38,6 +39,7 @@ import { declareModel, MODEL_NOT_RECORDED, modelEcho } from "../model-league";
 import { normalizeModel } from "../model-family";
 import { proseArguments, recordLanguage } from "../language-seen";
 import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
+import { ModelId } from "../connections-http";
 import { hasJobKey, removeConnection } from "../connections";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
 import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "../mcp-subscriptions";
@@ -6515,9 +6517,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         return { error: `provider must be one of: ${Object.keys(TEXT_PROVIDERS).join(", ")}. Got ${provider || "(empty)"}.` };
       }
       if (apiKey.length < 8) return { error: 'api_key is required and must be at least 8 characters. Try set_model again with the key as "api_key".' };
+      if (model !== null && !ModelId.safeParse(model).success) {
+        return { error: `model "${model.slice(0, 80)}" isn't a model id (like "gemini-3.5-flash" or "openai/gpt-4.1-mini"). Nothing was saved.` };
+      }
       // Optional pre-save ping: on failure, nothing is saved and the provider's error is returned.
       let test: Awaited<ReturnType<typeof pingKey>> | undefined;
       if (args.test === true) {
+        // Each test is a live call to the provider: the same limit as the site's key checks (rate-limit.ts key_check).
+        const gate = checkRateLimit(who.id, "key_check");
+        if (!gate.ok) return { error: `Too many key tests in a few minutes: try again in ${Math.max(1, Math.ceil(gate.retry_after_seconds / 60))} minutes. Nothing was saved.` };
         test = await pingKey(provider, apiKey, model);
         if (!test.ok) return { error: `The key didn't work: ${test.error}. Nothing was saved.` };
       }
@@ -9944,7 +9952,7 @@ async function logCall(msg: RpcMessage, ctx: McpContext, out: Record<string, unk
   // Which language the agent wrote in (lib/language-seen.ts), refused calls too: the call's prose arguments, never the words.
   const prose = tool ? proseArguments(msg.params?.arguments) : [];
   if (prose.length) {
-    const given = clip((msg.params?.arguments as Record<string, unknown>).agent_id, 64);
+    const given = clip((msg.params?.arguments as Record<string, unknown> | undefined)?.agent_id, 64);
     const actor = given ?? (await db.query<{ agent_id: string | null }>(`select agent_id from mcp_sessions where id = $1`, [sessionId])).rows[0]?.agent_id;
     await recordLanguage(db, actor, "mcp", prose);
   }
@@ -10357,6 +10365,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           { error: "That agent_id belongs to someone playing on the website, not to an agent. Leave agent_id out for an id of your own." },
         );
       }
+      // A banned or suspended agent, or one calling from a banned address, makes no calls (lib/bans.ts).
+      const banned = agentBan(acting?.id, ctx.visitor);
+      if (banned) return refuse({ error: banned.message, code: "suspended" });
       // The house crowd (lib/house-bots.ts): never a vote, and nothing at all while HOUSE_CROWD_PAUSED is on.
       if (acting) {
         const houseBot = await houseBotRefusal(db, acting.id, name);

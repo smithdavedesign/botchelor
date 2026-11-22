@@ -58,9 +58,13 @@ describe("/agents", () => {
 
   it("lists the tool groups as cards with short titles, a long title's caveat first, and every tool inside", () => {
     const cards = [...html.matchAll(/<li class="card agents-card"><h3>([^<]+)<\/h3>/g)].map((m) => m[1]);
-    expect(cards).toHaveLength(AGENT_TOOL_GROUPS.length);
+    // No card for a group none of whose tools is listed just now (companions while COMPANION_OPEN is unset, as here).
+    const listed = new Set(PUBLIC_MCP_TOOLS.map((t) => t.name as string));
+    const shown = AGENT_TOOL_GROUPS.filter((g) => g.tools.some((n) => listed.has(n)));
+    expect(cards).toHaveLength(shown.length);
     for (const title of cards) expect(title.split(/\s+/).length, title).toBeLessThanOrEqual(GROUP_TITLE_MAX_WORDS);
-    for (const g of AGENT_TOOL_GROUPS) {
+    if (!listed.has("companion")) expect(cards).not.toContain("Companions");
+    for (const g of shown) {
       const { title, caveat } = groupHeading(g.title);
       expect(cards).toContain(escapeHtml(title));
       if (caveat) expect(html, g.title).toContain(`<p class="muted small agents-card-caveat">${escapeHtml(caveat)}</p>`);
@@ -68,7 +72,7 @@ describe("/agents", () => {
     for (const tool of PUBLIC_MCP_TOOLS) expect(html, tool.name).toContain(`<code>${tool.name}</code>`);
     // "Start here" is the one card open; the rest fold to their count and a peek at the names.
     expect(html.match(/<details class="ux-fold agents-card-tools" open="">/g)).toHaveLength(1);
-    expect(html.match(/<details class="ux-fold agents-card-tools">/g)).toHaveLength(AGENT_TOOL_GROUPS.length - 1);
+    expect(html.match(/<details class="ux-fold agents-card-tools">/g)).toHaveLength(shown.length - 1);
     expect(html).toContain('<code class="fold-status muted small">my_status, set_profile, link_account</code>');
   });
 

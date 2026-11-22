@@ -582,7 +582,7 @@ describe("the verdict, shared (lib/step-in-share.ts)", () => {
     expect(html).toContain(`Someone stepped into a date with ${FIRST} and it ended: <strong>Friends.</strong> Your turn.`);
     const meta = await generateMetadata({ searchParams: Promise.resolve(q) });
     expect(String(meta.title)).toBe(`${FIRST} and I: friends. · Botchelor`);
-    const image = (meta.openGraph?.images as { url: string }[])[0].url;
+    const image = (meta.openGraph!.images as { url: string }[])[0].url;
     expect(image).toBe(stepInShareImage(readStepInShare(q)!));
     expect(image.startsWith("/api/og/step-in?")).toBe(true);
     const card = await cardRoute(new Request(BASE_URL + image));

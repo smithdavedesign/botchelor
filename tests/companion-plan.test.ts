@@ -10,7 +10,7 @@ import { COMPANION_FAIR_USE_PER_MONTH, COMPANION_FREE_PER_DAY, companionAllowanc
 import { setEmailSenderForTests, type EmailMessage } from "@/lib/email";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { grantPlan, planLink, planState, plansOn, prunePlanCheckouts, sendPlanReminders, subscriptionOwner } from "@/lib/paid-plans";
-import { invoicePeriodEnd, invoiceSubscription, RENEWAL_GRACE_MS, subscriptionEnding, subscriptionPeriodEnd } from "@/lib/stripe";
+import { invoicePeriodEnd, invoiceSubscription, paidAtLeast, RENEWAL_GRACE_MS, subscriptionEnding, subscriptionPeriodEnd } from "@/lib/stripe";
 import { BASE_URL, FAKE_WEBHOOK_SECRET, signedInCookie, startTestDb, stripeSignature, TEST_SESSION_SECRET } from "./helpers";
 
 vi.mock("@/lib/sets", async (orig) => ({ ...((await orig()) as object), inBackground: () => {} }));
@@ -241,7 +241,7 @@ describe("the webhook", () => {
     const event = {
       id: "evt_1",
       type: "checkout.session.completed",
-      data: { object: { id: "cs_1", mode: "subscription", payment_status: "paid", client_reference_id: ref, subscription: "sub_1", customer_details: { email: "me@example.com" } } },
+      data: { object: { id: "cs_1", mode: "subscription", payment_status: "paid", amount_total: 999, currency: "usd", client_reference_id: ref, subscription: "sub_1", customer_details: { email: "me@example.com" } } },
     };
     expect((await send(event)).status).toBe(200);
     expect((await planState(t.db, me.id, "companion")).status).toBe("active");
@@ -268,7 +268,7 @@ describe("the webhook", () => {
     const event = {
       id: "evt_fail",
       type: "checkout.session.completed",
-      data: { object: { id: "cs_f", mode: "subscription", payment_status: "paid", client_reference_id: ref, subscription: "sub_f", customer_details: { email: "me@example.com" } } },
+      data: { object: { id: "cs_f", mode: "subscription", payment_status: "paid", amount_total: 999, currency: "usd", client_reference_id: ref, subscription: "sub_f", customer_details: { email: "me@example.com" } } },
     };
     // The plan can't be written: the grant throws.
     await t.db.query(`create function refuse_grant() returns trigger language plpgsql as $$ begin raise exception 'grant failed'; end $$`);
@@ -299,11 +299,51 @@ describe("the webhook", () => {
     on();
     const me = await person();
     const ref = await subscribe(me);
-    await send({ id: "evt_a", type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", client_reference_id: "nobody", subscription: "sub_x" } } });
-    await send({ id: "evt_b", type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "unpaid", client_reference_id: ref, subscription: "sub_x" } } });
+    const paid = { amount_total: 999, currency: "usd" };
+    await send({ id: "evt_a", type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", ...paid, client_reference_id: "nobody", subscription: "sub_x" } } });
+    await send({ id: "evt_b", type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "unpaid", ...paid, client_reference_id: ref, subscription: "sub_x" } } });
     vi.stubEnv("DEPLOY_ENV", "production");
-    await send({ id: "evt_c", livemode: false, type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", client_reference_id: ref, subscription: "sub_x" } } });
+    await send({ id: "evt_c", livemode: false, type: "checkout.session.completed", data: { object: { mode: "subscription", payment_status: "paid", ...paid, client_reference_id: ref, subscription: "sub_x" } } });
     expect((await planState(t.db, me.id, "companion")).status).toBe("none");
+  });
+
+  it("counts a promotion code's discount as paid, never a cheaper link's price", () => {
+    expect(paidAtLeast({ amount_total: 499, currency: "usd", total_details: { amount_discount: 500 } }, 999)).toBe(true);
+    expect(paidAtLeast({ amount_total: 0, currency: "usd", total_details: { amount_discount: 999 } }, 999)).toBe(true);
+    expect(paidAtLeast({ amount_total: 0, currency: "usd", total_details: { amount_discount: 499 } }, 999)).toBe(false);
+    expect(paidAtLeast({ amount_total: 499, currency: "usd", total_details: { amount_discount: -900 } }, 999)).toBe(false);
+    expect(paidAtLeast({ currency: "usd", total_details: { amount_discount: 999 } }, 999)).toBe(false);
+  });
+
+  it("starts no plan on a checkout that paid less than the plan's price, another currency, or no amount", async () => {
+    // 2026-11-22 audit: any Payment Link in the account carries a checkout id, so a cheaper one could start the plan.
+    on();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const me = await person();
+    const ref = await subscribe(me);
+    const checkout = (id: string, paid: Record<string, unknown>) => ({
+      id,
+      type: "checkout.session.completed",
+      data: { object: { id: `cs_${id}`, mode: "subscription", payment_status: "paid", client_reference_id: ref, subscription: `sub_${id}`, ...paid } },
+    });
+    const outcome = async (id: string) => (await t.db.query<{ outcome: string }>(`select outcome from plan_events where event_id = $1`, [id])).rows[0]?.outcome;
+    for (const [id, paid] of [
+      ["evt_cheap", { amount_total: 100, currency: "usd" }],
+      ["evt_eur", { amount_total: 999, currency: "eur" }],
+      ["evt_none", {}],
+    ] as const) {
+      expect((await send(checkout(id, paid))).status).toBe(200);
+      expect(await outcome(id)).toBe("underpaid");
+    }
+    expect((await planState(t.db, me.id, "companion")).status).toBe("none");
+    expect(sent).toHaveLength(0);
+    expect(errors).toHaveBeenCalled();
+    // The price the page shows is the floor: a dearer label raises it, and paying it starts the plan.
+    vi.stubEnv("COMPANION_PLAN_PRICE", "$12 a month");
+    expect((await send(checkout("evt_old", { amount_total: 999, currency: "usd" }))).status).toBe(200);
+    expect(await outcome("evt_old")).toBe("underpaid");
+    expect((await send(checkout("evt_full", { amount_total: 1200, currency: "USD" }))).status).toBe(200);
+    expect((await planState(t.db, me.id, "companion")).status).toBe("active");
   });
 
   it("renews, cancels, resumes and ends, on the 2025-03-31 payload shapes and the older ones", async () => {

@@ -44,7 +44,12 @@ describe("the Shoot tab", () => {
     expect(src).toContain("useState<string | null>(null)");
     expect(shoot).toContain("onClick={() => pick(g.id, o.id, g.multi)}");
     expect(shoot).toContain("…or add your own ${g.title.toLowerCase()}");
-    expect(shoot).toContain("Set {first}&apos;s studio intensity to Filthy");
+    expect(shoot).toContain("Raise {first}&apos;s limit to Filthy");
+    // Said plainly (the 2026-11-22 audit: "locked at Explicit", "Model: Qwen Edit" read as the tool's words).
+    expect(src).toContain("`Intensity: ${INTENSITY[s.identity.intensity].label} (their limit)`");
+    expect(src).not.toMatch(/locked at \$\{INTENSITY|studio intensity to Filthy|>\s*Model: <strong>/);
+    // Every field a placeholder used to describe has a name of its own.
+    for (const tag of src.match(/<(?:textarea|input)\b[^>]*className="ad-studio-(?:custom|own)"[^>]*>/g) ?? []) expect(tag).toMatch(/aria-label=/);
   });
 
   it("keeps the model one tap away, open when it can't run, and the Shoot button in reach", () => {

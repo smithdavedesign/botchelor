@@ -99,7 +99,7 @@ admin's provider cards.
 
 | State | Pill | Status line | Meta | Actions |
 |---|---|---|---|---|
-| **unset** | "Free model" (dates) or "Not set up" | "Using: Botchelor's free model" / "Not set up: portraits need your own OpenAI key." | none | Connect |
+| **unset** | "Free model" (dates) or "Not set up" | "Using: Botchelor's free model" / "Not set up: every character gets a free portrait; your own OpenAI key draws more." | none | Connect |
 | **connected** | "✓ Connected" (green) | "Your OpenRouter key ✓ · deepseek/deepseek-chat" (M3 adds " · $1.20 of $10 this month") | "•••• abcd · checked 2 min ago · last used 1 hour ago" | Change, Check, Use Botchelor's free model / Stop using it |
 | **verifying** | "Checking…" | as before | as before | (while a Check runs) |
 | **error** | "Needs attention" (red) | "Your OpenRouter key · deepseek/deepseek-chat" | "•••• abcd · failed 5 min ago · …" | as connected; the error line says what to do |

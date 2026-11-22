@@ -50,6 +50,7 @@ import {
   sampleLineLabel,
   tellLabel,
   TEXT_DETAILS,
+  TEXT_DETAIL_KEYS,
   type CharacterExtras,
   profileComplete,
 } from "@/lib/extras";
@@ -301,6 +302,7 @@ function Stepper({
   labels,
   optional = [],
   issues = [],
+  filled,
 }: {
   step: number;
   max: number;
@@ -309,6 +311,11 @@ function Stepper({
   optional?: readonly number[];
   /** Per step, how many of its texts won't pass the show's check (app/create/sheet-issues.ts): those steps say so. */
   issues?: readonly number[];
+  /**
+   * Per step, whether it holds anything. Given (an edit, where every step is open), a step is ticked only when it does
+   * (2026-11-22 audit: the edit rail ticked steps that were never filled in); without it, reached is done.
+   */
+  filled?: readonly boolean[];
 }) {
   // Seven steps don't fit a 375px phone: the rail scrolls sideways, so bring the current step into view.
   const rail = useRef<HTMLOListElement>(null);
@@ -319,7 +326,8 @@ function Stepper({
   return (
     <ol ref={rail} className="wizard-rail" aria-label="Progress">
       {labels.map((label, i) => {
-        const state = i === step ? "current" : i < max ? "done" : "todo";
+        const done = i < max && (filled?.[i] ?? true);
+        const state = i === step ? "current" : done ? "done" : "todo";
         const fix = issues[i] ?? 0;
         return (
           <li key={label} className={`wizard-rail-step ${state}${optional.includes(i) ? " optional" : ""}${fix ? " has-issues" : ""}`}>
@@ -327,11 +335,11 @@ function Stepper({
               type="button"
               className="wizard-rail-dot"
               aria-current={i === step ? "step" : undefined}
-              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : i < max ? " (done)" : ""}${fix ? `, ${fix} to fix` : ""}`}
+              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : done ? " (done)" : i < max ? " (empty)" : ""}${fix ? `, ${fix} to fix` : ""}`}
               disabled={i > max}
               onClick={() => i <= max && onJump(i)}
             >
-              <span className="wizard-rail-num">{fix ? "!" : i < max && i !== step ? "✓" : i + 1}</span>
+              <span className="wizard-rail-num">{fix ? "!" : done && i !== step ? "✓" : i + 1}</span>
             </button>
             <span className="wizard-rail-label">
               {label}
@@ -996,6 +1004,17 @@ export default function CreateWizard({
   // The whole sheet's length (lib/sheet-words.ts): Go deeper and the review show it against the 400–999 sweet spot. Not
   // `words`, which is the bio's own counter above.
   const sheetLength = sheetWords({ bio: sheet.bio, want: sheet.want, dealbreaker: sheet.dealbreaker, traits, voice, appearance, soul, extras, hiding, week });
+  // Whether a step holds anything, for the edit rail's ticks (Stepper `filled`). Identity and the review always do.
+  const has = (x: string | null | undefined) => Boolean(x?.trim());
+  const stepHolds = (real: number): boolean => {
+    if (real === S.voice) return has(voice) || Object.values(extras.lines ?? {}).some(has) || Object.values(extras.tells ?? {}).some(has) || (extras.never_says ?? []).some(has);
+    if (real === S.look) return Boolean(extras.looks?.gender);
+    if (real === S.details) return (extras.prompts ?? []).some((p) => has(p.answer)) || (extras.hobbies ?? []).length > 0 || has(week) || TEXT_DETAIL_KEYS.some((k) => has(extras[k]));
+    if (real === S.facts) return (extras.facts ?? []).some((f) => has(f.value));
+    if (real === S.deeper) return (extras.hot_takes ?? []).some(has) || has(extras.baggage) || has(extras.wins_them_over) || Boolean(extras.mood) || hidingList(hiding).length > 0;
+    if (real === S.soul) return [soul.values, soul.insecurities, soul.humor, soul.boundaries, soul.romantic, soul.communication].some(has);
+    return true;
+  };
 
   async function createCharacter() {
     if (stopForIssues()) return;
@@ -1291,6 +1310,7 @@ export default function CreateWizard({
         onJump={(i) => jump(track[i] ?? i)}
         labels={track.map((i) => labels[i])}
         issues={track.map((real) => issues.filter((x) => S[x.step] === real).length)}
+        filled={edit ? track.map(stepHolds) : undefined}
         // On the depth track a first character's dating profile is optional too: an empty one is filled at Create.
         optional={edit || !depth ? [] : firstCharacter ? [...OPTIONAL_STEPS, S.details] : OPTIONAL_STEPS}
       />
@@ -1842,7 +1862,9 @@ export default function CreateWizard({
                 ));
             })()}
 
-            <DepthMeter words={sheetLength} />
+            {/* On the depth track only (an edit, or "Add depth"): right after a one-sentence draft, "40 words: the sweet
+                spot is 400–999" read as a verdict on a character that's ready to date (2026-11-22 audit). */}
+            {depth && <DepthMeter words={sheetLength} />}
 
             {/* Not on someone's first character: the tips wait for its first date (the character's page). */}
             {!createOnTop && (

@@ -16,8 +16,10 @@ import type { DateInput, Outcome, SideSetup } from "./engine";
 import { ModelError, type ChatMessage, type Model } from "./model";
 import { venue, venuePhrase, type PlaceId } from "./venues";
 import { DEFAULT_FORMAT, formatNote, type FormatContext, type FormatId } from "./formats";
+import { quotedPrivate } from "./private-leak";
 import { hasSelfTalk, stripSelfTalk } from "./quality";
 import { checkShowText } from "./safety";
+import { SOUL_FIELDS } from "./souls";
 
 /** CharacterSheet now lives in the engine (it decides outcomes from it); re-exported for existing imports. */
 export type { CharacterSheet } from "./engine";
@@ -266,6 +268,28 @@ export function orderConfessionals(draft: EpisodeDraft, characters: readonly [Pi
   return swapped ? { ...draft, confessionals: [cb, ca] } : draft;
 }
 
+/** What only the narrator is told: each character's soul (the one it's given), dealbreaker, and the creator's note. */
+export function privateTexts(input: DateInput, characters: readonly [Character, Character]): string[] {
+  const out: string[] = [];
+  for (const c of characters) {
+    if (c.soul && !c.soul.local_only) for (const f of SOUL_FIELDS) if (c.soul[f]?.trim()) out.push(c.soul[f]);
+    if (c.dealbreaker?.trim()) out.push(c.dealbreaker);
+  }
+  for (const side of [input.a, input.b]) if (side.note?.trim()) out.push(side.note);
+  return out;
+}
+
+/** What's public already: their sheets, and what they said and did on the date. */
+function publicTexts(characters: readonly [Character, Character], story?: DateStory): string[] {
+  return [
+    ...characters.flatMap((c) => [c.bio, ...c.persona.traits, c.persona.want, c.look.appearance ?? "", c.voice ?? ""]),
+    ...(story?.transcript ?? []).flatMap((t) => [t.dialogue, t.action ?? ""]),
+  ];
+}
+
+/** The recap's words, all of them read by the public once it airs. */
+const shownTexts = (e: EpisodeDraft): string[] => [e.setting, ...e.goals, ...e.scenes, e.twist, e.finale, e.best_line, ...e.confessionals];
+
 export async function narrateEpisode(
   model: Model,
   input: DateInput,
@@ -278,6 +302,11 @@ export async function narrateEpisode(
   story?: DateStory,
 ): Promise<EpisodeDraft> {
   const messages = buildMessages(input, outcome, characters, producer, venueId, formatId, formatCtx, story);
+  // A recap that quotes a private note (lib/private-leak.ts) is tried again, and never aired (2026-11-22 audit).
+  const secret = privateTexts(input, characters);
+  const open = publicTexts(characters, story);
+  const leaks = (e: EpisodeDraft) => quotedPrivate(shownTexts(e), secret, open) !== null;
+  const finished = (e: EpisodeDraft) => orderConfessionals(anchorBestLine(e, story?.transcript ?? []), characters);
   const reasons: string[] = [];
   for (let attempt = 0; attempt < SHOWRUNNER_ATTEMPTS; attempt++) {
     let raw: string;
@@ -288,10 +317,18 @@ export async function narrateEpisode(
       continue;
     }
     const result = parseEpisode(raw);
-    if (result.ok) return orderConfessionals(anchorBestLine(result.episode, story?.transcript ?? []), characters);
+    if (result.ok) {
+      const episode = finished(result.episode);
+      if (!leaks(episode)) return episode;
+      reasons.push("private_leak");
+      continue;
+    }
     // Self-talk on the last try: take the asides out rather than lose the date (it was safe, just untidy).
     if (result.reason === "self_talk" && result.episode && attempt === SHOWRUNNER_ATTEMPTS - 1) {
-      return orderConfessionals(anchorBestLine(repairSelfTalk(result.episode), story?.transcript ?? []), characters);
+      const episode = finished(repairSelfTalk(result.episode));
+      if (!leaks(episode)) return episode;
+      reasons.push("private_leak");
+      continue;
     }
     reasons.push(result.reason);
   }

@@ -76,7 +76,9 @@ const pendingSteer = {
   save(a: string, b: string, v: { text: string; mode: "nudge" | "direct" }) {
     try {
       sessionStorage.setItem(this.key(a, b), JSON.stringify(v));
-    } catch {}
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
   },
   read(a: string, b: string): { text: string; mode: "nudge" | "direct" } | null {
     try {
@@ -89,7 +91,9 @@ const pendingSteer = {
   clear(a: string, b: string) {
     try {
       sessionStorage.removeItem(this.key(a, b));
-    } catch {}
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
   },
 };
 
@@ -189,14 +193,18 @@ export default function SceneWriter({
     setPageTabState(t);
     try {
       localStorage.setItem(PAGE_TAB_KEY, t);
-    } catch {}
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
   };
   useEffect(() => {
     let want: string | null = new URLSearchParams(window.location.search).get("tab");
     if (!want) {
       try {
         want = localStorage.getItem(PAGE_TAB_KEY);
-      } catch {}
+      } catch {
+        /* storage blocked (a private window): not remembered */
+      }
     }
     if (want && (PAGE_TABS as readonly string[]).includes(want) && !(want === "make" && textOnly)) setPageTabState(want as PageTab);
     // Once, on opening.

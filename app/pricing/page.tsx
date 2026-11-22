@@ -16,7 +16,7 @@ import { paymentLinkFromEnv } from "@/lib/stripe";
 import { STORY_TOKENS, stylesAudience } from "@/lib/writing-style";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Pricing · Botchelor",
+  title: `Botchelor pricing: ${FREE_EPISODES_PER_SEASON} free AI dates a week, packs from ${formatPrice(PACK_5.price_cents)}`,
   description: `Every price on Botchelor on one page: ${FREE_EPISODES_PER_SEASON} free dates a week for everyone, a pack of ${PACK_5.episodes} more dates paid once, the Companion Plan, and your own model key at no charge from us.`,
   path: "/pricing",
 });

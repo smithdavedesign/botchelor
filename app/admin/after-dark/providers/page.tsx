@@ -8,6 +8,7 @@ import { billingOverview, configuredProcessors, PROCESSOR_INFO } from "@/lib/adu
 import { signedInAdmin } from "@/lib/adult/mode";
 import ClearFlagButton from "./ClearFlagButton";
 import { lockedForCookies } from "@/lib/adult/privacy";
+import { jobHealth, LAST_FAILURE_DAYS, modelsUsed, STUCK_AFTER_MIN, type JobHealth } from "@/lib/adult/job-health";
 import { houseProviderStatus, type HouseCard } from "@/lib/adult/provider-status";
 import { recentVideoFailures, type VideoFailure } from "@/lib/adult/video-failures";
 import { ago, maskKey } from "@/lib/connections-shared";
@@ -55,7 +56,7 @@ export default async function AfterDarkProvidersPage() {
   const store = await cookies();
   const admin = await signedInAdmin(db, authFromCookieStore(store));
   if (!admin || (await lockedForCookies(db, admin, store))) notFound();
-  const cards = await houseProviderStatus(db);
+  const [cards, jobs, used] = await Promise.all([houseProviderStatus(db), jobHealth(db), modelsUsed(db)]);
   const failures = await recentVideoFailures(db).catch(() => []);
   const billing = await billingOverview(db);
   const processors = configuredProcessors();
@@ -83,15 +84,67 @@ export default async function AfterDarkProvidersPage() {
             status={statusOf(c)}
             meta={[
               ...(c.last4 ? [maskKey(c.last4)] : []),
-              ...(c.model ? [c.model] : []),
+              // What's set for new pictures, and what actually made this week's (the 2026-11-22 audit: Venice's card named
+              // lustify-v8, which made none of the week's pictures: every one was an edit from a face, qwen-edit-uncensored).
+              ...(c.model ? [used[c.provider]?.length ? `set: ${c.model}` : c.model] : []),
+              ...(used[c.provider]?.length ? [`this week: ${used[c.provider].slice(0, 3).map((m) => `${m.model} ×${m.n}`).join(", ")}`] : []),
               c.last_used_at ? `${LAST[c.provider]} ${ago(c.last_used_at, now)}` : "not used yet",
             ]}
           />
         ))}
       </div>
+      <Jobs rows={jobs} />
       <Failures rows={failures} />
       <Billing overview={billing} processors={processors} />
     </article>
+  );
+}
+
+/**
+ * How each kind of job went in the last day (lib/adult/job-health.ts): made, failed, stuck, and the last failure with its
+ * reason. A row with a failure or a stuck job stands out; the video rows' reasons are in the table under it.
+ */
+function Jobs({ rows }: { rows: JobHealth[] }) {
+  return (
+    <section id="jobs" data-admin-job-health>
+      <h2>Jobs, the last 24 hours</h2>
+      <p className="muted small">
+        Stuck: still making after {STUCK_AFTER_MIN} minutes, at any age. The last failure looks back {LAST_FAILURE_DAYS} days.
+      </p>
+      <div className="table-scroll">
+        <table className="ad-pairs ad-job-health">
+          <thead>
+            <tr>
+              <th scope="col">Job</th>
+              <th scope="col">Made</th>
+              <th scope="col">Failed</th>
+              <th scope="col">Stuck</th>
+              <th scope="col">Last failure</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((j) => (
+              <tr key={j.kind} className={j.failed || j.stuck ? "ad-job-trouble" : undefined} data-job={j.kind}>
+                <th scope="row">{j.label}</th>
+                <td>{j.made}</td>
+                <td>{j.failed}</td>
+                <td>{j.stuck}</td>
+                <td>
+                  {j.last_failure ? (
+                    <>
+                      {when(j.last_failure.at)}
+                      {j.last_failure.reason ? <span className="muted"> · {j.last_failure.reason}</span> : null}
+                    </>
+                  ) : (
+                    <span className="muted">None</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

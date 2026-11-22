@@ -385,7 +385,8 @@ def load_bundle(key: str, local_path: str | None = None) -> dict:
         frames, _ = decode_video(read("loop.mp4"))
         coords = json.loads(read("coords.json"))
         mask_boxes = json.loads(read("mask_boxes.json"))
-        latents = torch.load(io.BytesIO(read("latents.pt")), map_location="cpu")
+        # weights_only: the bundle comes back from storage, so it may only hold tensors (a list of them), never code.
+        latents = torch.load(io.BytesIO(read("latents.pt")), map_location="cpu", weights_only=True)
         with np.load(io.BytesIO(read("masks.npz"))) as z:
             masks = [z[f"arr_{i}"] for i in range(len(z.files))]
     n = min(len(frames), len(coords), len(latents), len(masks))

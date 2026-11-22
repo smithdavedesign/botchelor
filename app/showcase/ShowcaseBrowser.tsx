@@ -126,6 +126,8 @@ export default async function ShowcaseBrowser({
   const sideKeep: Filters = { sort: filters.sort, following: filters.following };
   // The dropdowns' form carries what's set by the bars and the page's own filters it doesn't show.
   const formKeys = new Set<string>(["character", "place", "act", "from", "pov", "shape"]);
+  // The dropdowns' own picks: their fold below opens when any is set.
+  const formPicked = [...formKeys].filter((k) => filters[k as Key] !== undefined && filters[k as Key] !== false).length;
   const keep = Object.entries(filters).flatMap(([k, v]): [string, string][] =>
     v === undefined || v === false || k === "page" || formKeys.has(k) || k in fixed ? [] : [[k, v === true ? "1" : String(v)]],
   );
@@ -161,14 +163,22 @@ export default async function ShowcaseBrowser({
           )}
         </div>
         {(selects.length > 0 || pov) && (
-          <FilterForm key={query({})} action={base} keep={keep}>
-            {selects}
-            {pov && (
-              <label className="showcase-check">
-                <input type="checkbox" name="pov" value="1" defaultChecked={Boolean(f.pov)} /> First person <span className="showcase-count">{facets.pov}</span>
-              </label>
-            )}
-          </FilterForm>
+          // On a phone the dropdowns fold under one "Filters" row, open when one is set (the 2026-11-22 audit: they stood
+          // between the top of the page and its first picture); a wider screen shows them as before (showcase.css).
+          <details className="showcase-filter-fold" open={formPicked > 0 || undefined}>
+            <summary className="showcase-filter-toggle">
+              Filters
+              {formPicked > 0 && <span className="showcase-count">{formPicked} on</span>}
+            </summary>
+            <FilterForm key={query({})} action={base} keep={keep}>
+              {selects}
+              {pov && (
+                <label className="showcase-check">
+                  <input type="checkbox" name="pov" value="1" defaultChecked={Boolean(f.pov)} /> First person <span className="showcase-count">{facets.pov}</span>
+                </label>
+              )}
+            </FilterForm>
+          </details>
         )}
         {picked.length > 0 && (
           <p className="showcase-picked small">

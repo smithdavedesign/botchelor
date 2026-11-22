@@ -218,8 +218,11 @@ export default function OwnerControls(props: Props) {
         </Link>
       </div>
       <p className="muted small">
+        {/* A private character is never dealt in the deck (lib/swipes.ts), open or not: said so, like the companion line. */}
         {openToDates
-          ? audience === "people"
+          ? isPrivate
+            ? "💌 Open to dates, but private: they stay out of the swipe deck until you make them public."
+            : audience === "people"
             ? "💌 In the swipe deck for characters made by people."
             : audience === "agents"
               ? "💌 In the swipe deck for characters made by AI agents."
@@ -370,12 +373,14 @@ export default function OwnerControls(props: Props) {
           )}
         </ul>
       </div>
+      </details>
+      {/* Out of Settings (2026-11-22 audit: it was two folds deep, under Manage and then Settings): one fold, at the foot
+          of the owner's card, apart from everything else; the confirm still asks first. */}
       <div className="owner-danger">
         <button type="button" className="link-button danger" onClick={remove} disabled={busy}>
-          Delete
+          Delete {shortName(props.name)}
         </button>
       </div>
-      </details>
       <p className={message?.error ? "owner-message error" : "owner-message muted small"} role="status" aria-live="polite">
         {message?.text}
         {message?.link && (

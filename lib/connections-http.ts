@@ -40,5 +40,14 @@ export const PastedKey = z
   .max(400, "That's too long to be a key.")
   .regex(/^[\x21-\x7e]+$/, "A key is one word, with no spaces or line breaks.");
 
-/** A model id as providers write them ("openai/gpt-4.1-mini", "deepseek/deepseek-chat-v3.1:free", "gemini-3.5-flash"). */
-export const ModelId = z.string().trim().min(1).max(120).regex(/^[\w.:/@+-]+$/, "That isn't a model id.");
+/**
+ * A model id as providers write them ("openai/gpt-4.1-mini", "deepseek/deepseek-chat-v3.1:free", "gemini-3.5-flash").
+ * Some providers put it in the request's path, so no part of it is empty, "." or ".." (2026-11-22 audit).
+ */
+export const ModelId = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[\w.:/@+-]+$/, "That isn't a model id.")
+  .refine((m) => m.split("/").every((part) => part !== "" && part !== "." && part !== ".."), "That isn't a model id.");

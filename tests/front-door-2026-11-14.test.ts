@@ -70,7 +70,8 @@ describe("the hero", () => {
     expect(html).not.toContain("Your character&#x27;s love life");
     expect(html).not.toContain('id="hero-cta"');
     expect(html).not.toContain('href="/create?sample=1"');
-    expect(html).not.toContain("Bring your character");
+    const screen = html.slice(0, html.indexOf("<h2>How it works</h2>"));
+    expect(screen).not.toContain("Bring your character");
     expect(html).not.toContain('data-track="open-watch"');
     expect(html).not.toContain("phone-action-bar");
     // Tonight's workings, the cast, the map and the tools wait until they have a character (or are a click away in the
@@ -86,6 +87,14 @@ describe("the hero", () => {
     expect(html).toContain('class="faq"');
     expect(html.match(/>Make your character<\/a>/g)?.length).toBe(1);
     expect(html.indexOf('class="cta-row cta-final"')).toBeGreaterThan(html.indexOf('class="faq"'));
+    // Then, after everything, one quiet row of links for search (the 2026-11-22 SEO audit: the home page linked none of
+    // the free tools or the other apps' landings for a first visit): never on the screen, nothing to do but follow.
+    const more = html.indexOf('class="home-more-links"');
+    expect(more).toBeGreaterThan(html.indexOf('class="cta-row cta-final"'));
+    for (const href of ["/tools/random-oc-generator", "/tools/oc-name-generator", "/tools/oc-questions", "/tools/ship-name-generator", "/tools/oc-chemistry-test", "/alternatives/character-ai", "/alternatives/chai", "/import", "/seasons", "/casting", "/step-in", "/reviews"]) {
+      expect(html.slice(more), href).toContain(`href="${href}"`);
+      expect(screen, href).not.toContain(`href="${href}"`);
+    }
     expect(html).not.toContain(OLD);
   });
 

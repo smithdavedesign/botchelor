@@ -52,14 +52,15 @@ export const SHARE_DESCRIPTION_MAX = 200;
 /**
  * The page's description and og:description: who meets whom, the setting (the teaser, never a spoiler), and the
  * invitation. The setting is cut to fit, so "Guess how it ends" is always there. It never lists the endings: a
- * description that says "just friends" would read as a hint.
+ * description that says "just friends" would read as a hint. `max`: the share cards' 200, or a search result's
+ * lib/seo.ts DESCRIPTION_MAX for the page's own description tag.
  */
-export function shareDescription(names: [string, string], setting: string, aired: boolean): string {
+export function shareDescription(names: [string, string], setting: string, aired: boolean, max = SHARE_DESCRIPTION_MAX): string {
   const lead = `${names[0]} meets ${names[1]}.`;
   const ask = aired ? "Guess how it ends, then watch the date." : "Guess how it ends before the finale airs, for free points.";
-  const room = SHARE_DESCRIPTION_MAX - lead.length - ask.length - 2;
+  const room = max - lead.length - ask.length - 2;
   const teaser = clip(setting.trim(), room);
-  return clip([lead, teaser, ask].filter(Boolean).join(" "), SHARE_DESCRIPTION_MAX);
+  return clip([lead, teaser, ask].filter(Boolean).join(" "), max);
 }
 
 /** The headline a shared link carries: on Reddit its title, on the card and in og:title. */

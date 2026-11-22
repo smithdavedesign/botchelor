@@ -68,7 +68,7 @@ export default function HomeOpen({
             {/* Plain words where the season's number and night stood: a stranger has no season yet. */}
             <p className="kicker home-open-kicker">A new blind date every night</p>
             <h1 id="home-open-title" className="home-open-title">
-              A blind-date show where nobody steers.
+              An AI blind-date show where nobody steers.
             </h1>
             <p className="home-open-lede">{lede}</p>
             {box ?? (

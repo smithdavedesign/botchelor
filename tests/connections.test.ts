@@ -252,7 +252,7 @@ describe("the shared pieces the page uses", () => {
     const none = jobCards({ connections: [], jobs: [] }, now);
     expect(none.map((c) => [c.job, c.state, c.pill, c.status])).toEqual([
       ["text", "unset", "Free model", "Using: Botchelor's free model"],
-      ["image", "unset", "Not set up", "Not set up: portraits need your own OpenAI key."],
+      ["image", "unset", "Not set up", "Not set up: every character gets a free portrait; your own OpenAI key draws more."],
       ["video", "unset", "Not set up", "Not set up: clips need your own Google key, with billing on."],
       ["live_face", "unset", "Free model", "Using: Botchelor's own renderer"],
       ["after_dark", "unset", "For tokens", "Using: Botchelor's models, for tokens"],

@@ -46,7 +46,7 @@ describe("the error pages", () => {
   it("try the page again when Try again is pressed", () => {
     const retry = vi.fn();
     const button = find(PageError({ title: "This page didn't load", retry }), (el) => el.type === "button");
-    (button?.props.onClick as () => void)();
+    (button!.props.onClick as () => void)();
     expect(retry).toHaveBeenCalledTimes(1);
   });
 

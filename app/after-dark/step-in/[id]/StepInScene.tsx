@@ -110,7 +110,9 @@ export default function StepInScene({ initial, places, personaHref, cutout = nul
   useEffect(() => {
     try {
       if (localStorage.getItem(FIGURE_KEY) === "off") setFigureOn(false);
-    } catch {}
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
   }, []);
   const hasFigure = Boolean(view.character.portrait || cutout);
   function toggleFigure() {
@@ -118,7 +120,9 @@ export default function StepInScene({ initial, places, personaHref, cutout = nul
     setFigureOn(next);
     try {
       localStorage.setItem(FIGURE_KEY, next ? "on" : "off");
-    } catch {}
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
   }
 
   /** One move (app/api/admin/after-dark/step-in/[id]): the scene as it stands comes back with a refusal too. Whether it went through. */

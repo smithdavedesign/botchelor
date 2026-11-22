@@ -14,6 +14,7 @@
  *    downloaded at once, and only from Replicate's own hosts.
  */
 
+import { REPLICATE_MODEL_ID } from "../replicate-model";
 import { logRequest } from "./request-log";
 
 export const REPLICATE = "https://api.replicate.com/v1";
@@ -61,8 +62,8 @@ export function retryAfterMs(header: string | null | undefined, now = Date.now()
 }
 
 const VERSION_ID = /^[0-9a-f]{64}$/;
-/** A model as a setting holds it: `owner/name`, optionally with `:` and a version id, or a bare version id. */
-export const MODEL_ID = /^(?:[\w.-]+\/[\w.-]+(?::[0-9a-f]{64})?|[0-9a-f]{64})$/;
+/** A model as a setting holds it: `owner/name`, `owner/name:version` or a version id (lib/replicate-model.ts). */
+export const MODEL_ID = REPLICATE_MODEL_ID;
 
 /** Where a prediction for `model` is created, and its body. */
 export function predictionRequest(model: string, input: Record<string, unknown>): { url: string; body: Record<string, unknown> } {

@@ -15,7 +15,7 @@ import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
 import { showsCloseness } from "@/lib/relationship-stages";
-import { SHARE_IMAGE, coupleIndexable } from "@/lib/seo";
+import { SHARE_IMAGE, breadcrumbJsonLd, coupleIndexable, fitDescription } from "@/lib/seo";
 import { DELETED_OWNER } from "@/lib/rules";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
@@ -38,6 +38,7 @@ import { arcQuestion } from "@/lib/arcs";
 import { followState } from "@/lib/follows";
 import AfterDarkTeaser from "@/app/AfterDarkTeaser";
 import OriginBadge from "@/app/OriginBadge";
+import JsonLd from "@/app/JsonLd";
 import { originOf, originsOf, type Origin } from "@/lib/origin";
 import PairTiesCard from "@/app/graph/PairTiesCard";
 import { closedSeasons } from "@/lib/season-ref";
@@ -175,7 +176,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // descriptive, the description honest about what's on the page, and the canonical pointing at the sorted pair.
   return {
     title: `${ca.name} and ${cb.name}: their blind dates and how it's going · Botchelor`,
-    description: `${ca.name} and ${cb.name} on Botchelor: every blind date they've been on, where they stand now, their inside jokes and the plans they made in the morning-after texts.`,
+    description: fitDescription(`${ca.name} and ${cb.name} on Botchelor: every blind date they've been on, where they stand now, their inside jokes and the plans they made in the morning-after texts.`),
     alternates: { canonical: `/couples/${lo}/${hi}` },
     // With a private character or a deleted account's (lib/public-cast.ts), the page stays up but out of search (and the
     // sitemap), as does a couple short of the sitemap's bar: one date so far, or two machine-made characters.
@@ -228,6 +229,16 @@ export default async function CouplePage({ params, searchParams }: Props) {
 
   return (
     <div className="couple-page">
+      {/* Where the couple sits on the site, for search (2026-11-22 audit: no page-level data); never a private character's. */}
+      {!ca.private && !cb.private && (
+        <JsonLd
+          data={breadcrumbJsonLd([
+            { name: "Botchelor", path: "/" },
+            { name: "Characters", path: "/characters" },
+            { name: `${ca.name} and ${cb.name}`, path: `/couples/${lo}/${hi}` },
+          ])}
+        />
+      )}
       <section className="card couple-head">
         {stageVenue ? <VenuePhoto venue={stageVenue} className="couple-stage" eager>{faces}</VenuePhoto> : faces}
         <h1>

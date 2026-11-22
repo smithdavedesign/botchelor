@@ -203,6 +203,9 @@ export default async function AgentsPage() {
         <ul className="agents-cards">
           {AGENT_TOOL_GROUPS.map((g, gi) => {
             const tools = g.tools.map((name) => byName.get(name)).filter((t) => t !== undefined);
+            // No card for a group none of whose tools is listed just now (companions until COMPANION_OPEN=1, the house
+            // tools while MCP_HOUSE=0): "0 tools" said nothing an agent could use.
+            if (!tools.length) return null;
             const { title, caveat } = groupHeading(g.title);
             const peek = tools.slice(0, PEEK_TOOLS).map((t) => t.name).join(", ") + (tools.length > PEEK_TOOLS ? "…" : "");
             return (

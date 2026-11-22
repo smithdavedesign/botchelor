@@ -185,7 +185,8 @@ export const PROVIDER_INFO: Record<UserProvider, ProviderInfo> = {
     label: "OpenAI",
     mark: "AI",
     jobs: ["text", "image"],
-    blurb: "GPT models for dates, and the only key that makes portraits.",
+    // Every character already gets a free portrait (lib/default-portraits.ts): this key draws more, on demand.
+    blurb: "GPT models for dates, and extra portraits on demand (every character already gets a free one).",
     keyHint: "Starts with sk-",
     keysUrl: "https://platform.openai.com/api-keys",
     billingUrl: "https://platform.openai.com/settings/organization/billing/overview",
@@ -462,7 +463,7 @@ export type JobCard = {
 /** What a job card says with no key of yours. */
 const UNSET_STATUS: Record<Job, string> = {
   text: "Using: Botchelor's free model",
-  image: "Not set up: portraits need your own OpenAI key.",
+  image: "Not set up: every character gets a free portrait; your own OpenAI key draws more.",
   video: "Not set up: clips need your own Google key, with billing on.",
   live_face: "Using: Botchelor's own renderer",
   after_dark: "Using: Botchelor's models, for tokens",
