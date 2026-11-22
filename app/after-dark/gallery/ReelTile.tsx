@@ -39,11 +39,12 @@ export default function ReelTile({ item, open, onOpen, onClose, onChange }: { it
       ) : cover?.media_id ? (
         <video
           src={mediaUrl(cover.media_id)}
-          poster={cover.frame_id ? mediaUrl(cover.frame_id) : undefined}
+          // The keyframe at a tile's size (the full picture is 1 MB or more), and nothing of the shot loaded before it plays.
+          poster={cover.frame_id ? `${mediaUrl(cover.frame_id)}?w=640` : undefined}
           muted
           loop
           playsInline
-          preload="metadata"
+          preload={cover.frame_id ? "none" : "metadata"}
           aria-label={`The first shot of ${who}'s video`}
           {...{ [AUTOPLAY_ATTR]: "" }}
         />

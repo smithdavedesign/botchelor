@@ -50,6 +50,26 @@ describe("ownMedia", () => {
     await t.db.query(`update adult_images set superseded_by = 'kept' where id = 'old'`);
     expect((await ownMedia(t.db, me)).map((m) => m.id)).toEqual(["kept"]);
   });
+
+  it("gives a clip the picture it was made from as its poster: never a clip's own clip, an unready picture or someone else's", async () => {
+    const me = userIdOf(newUserCookie());
+    const other = userIdOf(newUserCookie());
+    const add = (id: string, owner: string, kind: string, mime: string, status: string, source: string | null) =>
+      t.db.query(`insert into adult_images (id, owner_id, character_id, kind, prompt, mime, status, source_image) values ($1, $2, $3, $4, 'x', $5, $6, $7)`, [id, owner, A.id, kind, mime, status, source]);
+    await add("pic", me, "scene", "image/png", "ready", null);
+    await add("key", me, "frame", "image/png", "ready", null);
+    await add("drawing", me, "scene", "image/png", "pending", null);
+    await add("theirs", other, "scene", "image/png", "ready", null);
+    await add("from-pic", me, "video", "video/mp4", "ready", "pic");
+    await add("from-key", me, "video", "video/mp4", "ready", "key");
+    await add("loop", me, "video", "video/mp4", "ready", "from-pic");
+    await add("from-drawing", me, "video", "video/mp4", "ready", "drawing");
+    await add("from-theirs", me, "video", "video/mp4", "ready", "theirs");
+    const poster = Object.fromEntries((await ownMedia(t.db, me)).map((m) => [m.id, m.poster ?? null]));
+    expect(poster).toMatchObject({ "from-pic": "pic", "from-key": "key", loop: null, "from-drawing": null, "from-theirs": null, pic: null });
+    expect((await listMedia(t.db, [A.id], me)).find((m) => m.id === "from-pic")?.poster).toBe("pic");
+    expect((await characterMedia(t.db, A.id, me)).find((m) => m.id === "from-key")?.poster).toBe("key");
+  });
 });
 
 // The Gallery's tabs (2026-11-15, lib/adult/gallery.ts): Videos (reels as one each, then the clips), Pictures, Faces.
