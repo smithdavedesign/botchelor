@@ -814,8 +814,9 @@ export async function listFeed(db: Db, viewerId: string | null, limit = FEED_LIM
 /**
  * What any public list of dates may show ($1 = the viewer, $2 = the report threshold): ready, public, not hidden by
  * reports, and not involving a creator the viewer blocked (see listFeed). Needs EPISODE_SELECT's `e`, `a`, `b`, `rep`.
+ * Exported for the episode page's "Up next" (lib/up-next.ts), which reads its own few columns.
  */
-const PUBLIC_FEED_WHERE = `rep.n < $2::int
+export const PUBLIC_FEED_WHERE = `rep.n < $2::int
         and e.status = 'ready'
         and e.visibility = 'public'
         and not exists (
@@ -825,7 +826,7 @@ const PUBLIC_FEED_WHERE = `rep.n < $2::int
            where bl.blocker_id = $1::text and bc.id in (e.character_a, e.character_b))`;
 
 /** Not one of the viewer's own dates ($1): those are on their account page, so Watch leaves them out. */
-const NOT_THE_VIEWERS = `not coalesce($1::text in (a.owner_id, b.owner_id), false)`;
+export const NOT_THE_VIEWERS = `not coalesce($1::text in (a.owner_id, b.owner_id), false)`;
 
 /** Watch's "Latest episodes": this many aired dates a page. */
 export const WATCH_PAGE_SIZE = 12;

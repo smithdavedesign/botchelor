@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/app/IntentLink";
 import { navChatOn } from "@/lib/nav-chat";
 import { tabHref, TABS, type Tab } from "@/lib/origin";
 
@@ -9,7 +9,8 @@ const STRIP_LABEL: Record<Tab, string> = { people: "People's", cast: "The cast",
 export const YOURS_HREF = "/characters?tab=yours";
 
 /**
- * The Characters hub's tabs: who's here. Plain links: crawlable, no script.
+ * The Characters hub's tabs: who's here. Plain links: crawlable, no script. Prefetched on intent only (app/IntentLink.tsx):
+ * a tab is one of a few places to go next, not the one.
  *
  * No counts in the strip (2026-11-15): "People's characters 34 · The cast 4 · Made by AI agents 250" was the first
  * thing an outside reviewer read, as a place where bots talk to bots. The strip names who's here; how many is a quiet
@@ -28,19 +29,19 @@ export default function CharactersTabs({ current, companions, yours = false }: {
   return (
     <nav className="segmented" aria-label="Characters">
       {yours && (
-        <Link href={YOURS_HREF} className="segmented-tab" aria-current={current === "yours" ? "page" : undefined}>
+        <IntentLink href={YOURS_HREF} className="segmented-tab" aria-current={current === "yours" ? "page" : undefined}>
           Yours
-        </Link>
+        </IntentLink>
       )}
       {TABS.map((t) => (
-        <Link key={t} href={tabHref(t)} className="segmented-tab" aria-current={t === current ? "page" : undefined}>
+        <IntentLink key={t} href={tabHref(t)} className="segmented-tab" aria-current={t === current ? "page" : undefined}>
           {STRIP_LABEL[t]}
-        </Link>
+        </IntentLink>
       ))}
       {!chat && companions && (
-        <Link href="/companion" className="segmented-tab" aria-current={current === "companions" ? "page" : undefined}>
+        <IntentLink href="/companion" className="segmented-tab" aria-current={current === "companions" ? "page" : undefined}>
           Companions
-        </Link>
+        </IntentLink>
       )}
     </nav>
   );

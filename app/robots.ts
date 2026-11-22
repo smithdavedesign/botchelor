@@ -17,11 +17,15 @@ export const dynamic = "force-dynamic";
  * date that aired publicly, lib/home-clip.ts) and the cast intros (/api/cast-intro/…, from the approved PG portrait,
  * lib/cast-intros.ts). Account and admin pages are personal. The framework's prefetch requests (`?_rsc=`, lib/bots.ts
  * RSC_PREFETCH) were half of Googlebot's crawl in 2026-11 and are never pages, so crawlers skip them.
+ *
+ * So are /create's pre-filled addresses (`/create?say=…`, `?name=…`, `?meet=…`: one for every character the free tools
+ * make up and one for every character on the site, so there's no end to them). Each is the same form with a box filled
+ * in, and each was a full render: ClaudeBot fetched about 235 of them in 47 minutes on 2026-11-22. /create stays open.
  */
 export default function robots(): MetadataRoute.Robots {
   const base = siteUrl();
   const allow = ["/", "/api/mcp", "/api/episodes", "/api/og/", "/api/assets/", "/api/shots/", "/api/home-clip/", "/api/cast-intro/"];
-  const disallow = ["/api/", "/api/assets/*/teaser", "/account", "/admin", RSC_PREFETCH];
+  const disallow = ["/api/", "/api/assets/*/teaser", "/account", "/admin", RSC_PREFETCH, "/create?"];
   return {
     rules: [
       { userAgent: "*", allow, disallow },

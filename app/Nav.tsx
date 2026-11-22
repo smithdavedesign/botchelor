@@ -6,6 +6,7 @@ import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import CharacterPicker from "@/app/CharacterPicker";
 import Icon from "@/app/Icon";
+import IntentLink from "@/app/IntentLink";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { NO_AD_DOORS, studioDoorLabel, type AdDoors } from "@/lib/adult/door-links";
 import { AD_SHOWCASE } from "@/lib/showcase-paths";
@@ -148,7 +149,10 @@ export default function Nav({
   companions?: boolean;
   /** Where "Back to the show" goes (lib/site.ts showHome): the show's address on After Dark's host. */
   showHref?: string;
-  /** False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx). */
+  /**
+   * False on After Dark's own host: the show's links there only redirect, so they aren't prefetched (app/layout.tsx).
+   * On the show they're prefetched on intent only (app/IntentLink.tsx): the header is on every page.
+   */
   prefetchShow?: boolean;
   /** On After Dark's own host: whether the Studio is open to them and whether they may see the showcase's After Dark side (lib/adult/doors.ts). */
   adDoors?: AdDoors;
@@ -161,6 +165,8 @@ export default function Nav({
   character?: string | null;
 }) {
   const pf = prefetchShow ? undefined : false;
+  // The show's doors prefetch on intent (a hovered or keyboard-focused link); After Dark's own, on its own host, as before.
+  const Door = adHost ? Link : IntentLink;
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   // #1005 (2026-10-30 prod loop: "the shop said 40 tokens, the header still said 43"): the count is read again when the
@@ -240,28 +246,28 @@ export default function Nav({
             <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
           </Link>
         ) : personal ? (
-          <Link prefetch={pf} href="/shop" className={`token-pill token-pill--dates${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
+          <IntentLink prefetch={pf} href="/shop" className={`token-pill token-pill--dates${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
             <Icon name="clapper" className="token-pip" />
             <span className="token-count">{tokens}</span>
             <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
-          </Link>
+          </IntentLink>
         ) : (
-          <Link prefetch={pf} href="/shop" className="token-pill token-pill--dates" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
+          <IntentLink prefetch={pf} href="/shop" className="token-pill token-pill--dates" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
             <Icon name="clapper" className="token-pip" />
             <span className="token-count">{tokens}</span>
             <span className="token-word">{tokens === 1 ? "free date" : "free dates"}</span>
-          </Link>
+          </IntentLink>
         )}
         {/* The one call to action, in the bar above 900px: words, or an icon-only plus between 900 and 1180px. On a
             phone it's in the menu (nav-create below). */}
         {!hasCharacter && !adHost && (
           <>
-            <Link prefetch={pf} href="/create" className="button nav-cta nav-cta-full" aria-current={pathname === "/create" ? "page" : undefined}>
+            <IntentLink prefetch={pf} href="/create" className="button nav-cta nav-cta-full" aria-current={pathname === "/create" ? "page" : undefined}>
               Make your character
-            </Link>
-            <Link prefetch={pf} href="/create" className="button nav-cta nav-cta-compact" aria-label="Make your character" aria-current={pathname === "/create" ? "page" : undefined}>
+            </IntentLink>
+            <IntentLink prefetch={pf} href="/create" className="button nav-cta nav-cta-compact" aria-label="Make your character" aria-current={pathname === "/create" ? "page" : undefined}>
               <Icon name="plus" />
-            </Link>
+            </IntentLink>
           </>
         )}
       </div>
@@ -282,26 +288,26 @@ export default function Nav({
         createPortal(<button type="button" className="nav-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setOpen(false)} />, document.body)}
       <div id="nav-menu" className="nav-links" data-open={open}>
         {!hasCharacter && !adHost && (
-          <Link prefetch={pf} href="/create" className="button nav-create" aria-current={pathname === "/create" ? "page" : undefined}>
+          <IntentLink prefetch={pf} href="/create" className="button nav-create" aria-current={pathname === "/create" ? "page" : undefined}>
             Make your character
-          </Link>
+          </IntentLink>
         )}
         {navLinks(hasCharacter, adHost, chat, adDoors).map((l) => (
           <Fragment key={l.href}>
             {/* After Dark's own links are on its own host, so they prefetch; the show's there only hop back. */}
-            <Link prefetch={adHost ? undefined : pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
+            <Door prefetch={adHost ? undefined : pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
               {l.label}
               {l.href === (chat ? "/chat" : "/matches") && texts > 0 && (
                 <span className="nav-count" aria-label={`${texts} unread texts`}>
                   {texts > 99 ? "99+" : texts}
                 </span>
               )}
-            </Link>
+            </Door>
             {/* NAV_CHAT=0, phone menu only: the companions' directory under Characters (in the desktop bar it's a tab). */}
             {l.href === "/characters" && companions && !chat && !adHost && (
-              <Link prefetch={pf} href="/companion" className="nav-sub">
+              <IntentLink prefetch={pf} href="/companion" className="nav-sub">
                 Companions
-              </Link>
+              </IntentLink>
             )}
           </Fragment>
         ))}
@@ -315,7 +321,7 @@ export default function Nav({
         {/* A first visit has nothing to be told yet (the audit, 2026-11-11, 2.6): the bell waits for a viewer of their own. */}
         {/* The bell is the show's (its notifications are the show's page), so not on After Dark's own host. */}
         {(personal || unread > 0) && !adHost && (
-          <Link prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
+          <IntentLink prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
             <Icon name="bell" className="nav-bell-icon" />
             <span className="nav-bell-label">Notifications</span>
             {unread > 0 && (
@@ -323,7 +329,7 @@ export default function Nav({
                 {unread > 99 ? "99+" : unread}
               </span>
           )}
-        </Link>
+        </IntentLink>
         )}
         {/* On a phone the floating Feedback button sat on forms (UX audit 2026-10-23): it lives in the menu there. */}
         <button

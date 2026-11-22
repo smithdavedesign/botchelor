@@ -1,4 +1,4 @@
-import Link from "next/link";
+import IntentLink from "@/app/IntentLink";
 import { tabHref, type Tab } from "@/lib/origin";
 import type { SkyGroup } from "@/lib/origin-group";
 
@@ -26,6 +26,7 @@ export const cardsHref = (group: SkyGroup | null): string => spotHref(group ? TA
  * Characters as cards or as a map (2026-11-21, David: the graph "seems worthy of its own page besides hidden behind
  * characters page"): the same people two ways. Cards is the hub (/characters); Map is the Constellation (/graph), opened
  * on the group the cards were showing, so the switch keeps your place both ways. Plain links: crawlable, no script.
+ * Prefetched on intent only (app/IntentLink.tsx), as the tabs beside it are.
  */
 export default function ViewSwitch({ current, spot = null, group = null }: { current: "cards" | "map"; /** On Characters: the tab showing. */ spot?: CharactersSpot; /** On the map: the group it opened on. */ group?: SkyGroup | null }) {
   // Each link keeps the place: on the cards, Cards is this tab and Map its group; on the map, the reverse.
@@ -33,12 +34,12 @@ export default function ViewSwitch({ current, spot = null, group = null }: { cur
   const map = current === "map" ? (group ? `/graph?origin=${group}` : "/graph") : mapHref(spot);
   return (
     <nav className="segmented view-switch" aria-label="Show characters as">
-      <Link href={cards} className="segmented-tab" aria-current={current === "cards" ? "page" : undefined} data-track="characters-view-cards">
+      <IntentLink href={cards} className="segmented-tab" aria-current={current === "cards" ? "page" : undefined} data-track="characters-view-cards">
         Cards
-      </Link>
-      <Link href={map} className="segmented-tab" aria-current={current === "map" ? "page" : undefined} data-track="characters-view-map">
+      </IntentLink>
+      <IntentLink href={map} className="segmented-tab" aria-current={current === "map" ? "page" : undefined} data-track="characters-view-map">
         Map
-      </Link>
+      </IntentLink>
     </nav>
   );
 }

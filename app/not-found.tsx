@@ -4,8 +4,9 @@ import Link from "next/link";
 export const metadata: Metadata = { title: "Not found · Botchelor" };
 
 /**
- * Every 404: a wrong address, or a page that called notFound() (a character, date or couple that's private or gone).
- * Inside the site's layout, so the nav is there (2026-10-31 UX audit: it was Next's bare white page, no way back).
+ * A page that called notFound() (a character, date or couple that's private or gone). Inside the site's layout, so the
+ * nav is there (2026-10-31 UX audit: it was Next's bare white page, no way back). A wrong address, which no route
+ * matches, gets app/global-not-found.tsx instead: the same words on a page built once (2026-11-22 load audit).
  */
 export default function NotFound() {
   return (

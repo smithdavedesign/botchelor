@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Icon, { type IconName } from "@/app/Icon";
+import IntentLink from "@/app/IntentLink";
 import { atLink, SHOW_PAGES, type NavLink } from "@/app/Nav";
 
 type Tab = NavLink & { icon: IconName };
@@ -63,7 +63,8 @@ export function tabBarShowsOn(path: string): boolean {
 
 /**
  * Phones only (app/ux/chrome.css shows it up to 720px). The outer element stays in the page's flow at the bar's height,
- * so the foot of every page scrolls clear of it, and wherever the bar is hidden that room goes with it.
+ * so the foot of every page scrolls clear of it, and wherever the bar is hidden that room goes with it. Its tabs are
+ * prefetched on intent only (app/IntentLink.tsx), which on a phone means never: the bar is on screen on every page.
  */
 export default function PhoneTabBar({ companions = false, chat = true, unread = 0, hasCharacter = true }: { companions?: boolean; chat?: boolean; /** Unread texts of both kinds: a dot on Chat. */ unread?: number; /** The viewer has a character: Studio opens on their own. */ hasCharacter?: boolean }) {
   const pathname = usePathname() ?? "/";
@@ -74,13 +75,13 @@ export default function PhoneTabBar({ companions = false, chat = true, unread = 
         {tabBarTabs(companions, chat, hasCharacter).map((t) => {
           const here = atLink(t, pathname);
           return (
-            <Link key={t.href} href={t.href} className="tabbar-tab" aria-current={here ? "page" : undefined}>
+            <IntentLink key={t.href} href={t.href} className="tabbar-tab" aria-current={here ? "page" : undefined}>
               <span className="tabbar-icon-wrap">
                 <Icon name={t.icon} className="tabbar-icon" />
                 {t.href === "/chat" && unread > 0 && <span className="tabbar-dot" aria-label={`${unread} unread`} />}
               </span>
               <span className="tabbar-label">{t.label}</span>
-            </Link>
+            </IntentLink>
           );
         })}
       </nav>

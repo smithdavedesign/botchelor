@@ -74,6 +74,8 @@ import GeneratingPoller from "./GeneratingPoller";
 import PushToggle from "@/app/notifications/PushToggle";
 import { pushKeys } from "@/lib/push";
 import { withoutLeadName } from "./lead-name";
+import UpNext from "./UpNext";
+import { upNextFor, type UpNextEpisode } from "@/lib/up-next";
 
 export const dynamic = "force-dynamic";
 
@@ -295,6 +297,7 @@ export default async function EpisodePage({
     continueNight,
     textedAbout,
     cut,
+    upNext,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -377,6 +380,8 @@ export default async function EpisodePage({
     ready && episode.is_creator && viewerId && chatDateLinks() ? textsAboutDate(db, viewerId, id).catch((): TextedAbout[] => []) : ([] as TextedAbout[]),
     // The date's short version (lib/home-clip.ts episodeCut): the voiced cut of an aired public date, when one was made.
     ready && episode.revealed ? episodeCut(db, episode.id).catch(() => null) : null,
+    // "Up next" (lib/up-next.ts, the 2026-11-22 audit): the couple's next date, then the newest others, in one cheap read.
+    ready ? upNextFor(db, episode.id, viewerId).catch((): UpNextEpisode[] => []) : ([] as UpNextEpisode[]),
   ]);
   const { open: storyOpen, kept: keptStory, price: storyPrice } = await storyState.catch(() => ({ open: false, kept: null, price: undefined }));
   const talk = await talkP;
@@ -485,6 +490,9 @@ export default async function EpisodePage({
   const reportCard = episode.revealed && episode.box_score && episode.visibility !== "private" && !episode.hidden ? reportCardPath(episode.id) : null;
   // A creator's first date, just filmed: the page under the theater stays clear of the games (the card is the next step).
   const firstDateJustFilmed = play && episode.is_creator && (creatorSide?.dates ?? 0) <= 1;
+  // What comes next, at the foot of the date and on the theater's ending; not on a first date just filmed, whose next
+  // step is the verdict card (its character texting them).
+  const next = firstDateJustFilmed ? [] : upNext;
   // Which date this is for the couple: a happy ending on their third date reads "A fourth date", never "A second date".
   const dateNo = dateNumberOf(episode);
   // Which monthly season the date aired in (lib/season-ref.ts), for the TVEpisode markup; none before the seasons began.
@@ -583,6 +591,7 @@ export default async function EpisodePage({
               coldOpen={coldOpen}
               cut={cut ? { src: cut.src, poster_src: cut.poster_src, seconds: cut.seconds } : null}
               reportCard={reportCard}
+              upNext={next[0] ? { href: `${next[0].share_path}?play=1`, characters: next[0].characters } : null}
             />
           ) : (
             episode.transcript &&
@@ -909,25 +918,23 @@ export default async function EpisodePage({
         />
       )}
 
-      {episode.revealed && !episode.is_creator && (
+      {/* The ending's call, once it has aired: only for someone who made one (the 2026-11-22 audit: "You didn't predict this
+          one." under "You didn't guess this one." was the page's last word to everyone who never played). */}
+      {episode.revealed && !episode.is_creator && episode.my_pick && (
         <section className="card">
-          {episode.my_pick ? (
-            <p className={episode.my_points ? "notice" : undefined}>
-              You picked {endingLabel(episode.my_pick, dateNo)}
-              {episode.drama_question &&
-                episode.my_drama_pick &&
-                ` and ${dramaAnswerLabel(episode.drama_question, episode.my_drama_pick, names)}`}
-              : {episode.my_points ? `+${episode.my_points}` : "0"} points.
-              {myShare && (
-                <>
-                  {" "}
-                  <ShareRecord share={myShare} where="episode" />
-                </>
-              )}
-            </p>
-          ) : (
-            <p className="muted">You didn&apos;t predict this one.</p>
-          )}
+          <p className={episode.my_points ? "notice" : undefined}>
+            You picked {endingLabel(episode.my_pick, dateNo)}
+            {episode.drama_question &&
+              episode.my_drama_pick &&
+              ` and ${dramaAnswerLabel(episode.drama_question, episode.my_drama_pick, names)}`}
+            : {episode.my_points ? `+${episode.my_points}` : "0"} points.
+            {myShare && (
+              <>
+                {" "}
+                <ShareRecord share={myShare} where="episode" />
+              </>
+            )}
+          </p>
         </section>
       )}
 
@@ -943,6 +950,7 @@ export default async function EpisodePage({
         />
       )}
 
+      <UpNext episodes={next} />
         </div>
         <aside className="episode-rail" aria-label="Around this date">
           {prev && (

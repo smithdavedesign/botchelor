@@ -56,6 +56,14 @@ describe("robots.txt and the framework's prefetch requests", () => {
       for (const url of ["/", "/tools", "/tools/oc-chemistry-test", "/episodes/abc", "/import?from=cai&utm_source=reddit", "/api/og/episode/abc", "/api/assets/abc", "/api/mcp"]) {
         expect(crawlable(url, allow, disallow), url).toBe(true);
       }
+      // /create's pre-filled addresses are one form, endlessly (a crawler fetched about 235 in 47 minutes, 2026-11-22);
+      // /create itself, and every page beside it, stays open.
+      for (const url of ["/create?say=A%20hedge%20witch", "/create?name=Juniper", "/create?meet=house-nell", "/create?next=%2Fchat"]) {
+        expect(crawlable(url, allow, disallow), url).toBe(false);
+      }
+      for (const url of ["/create", "/creators/botchelor", "/characters/house-nell", "/characters?tab=people", "/tools/random-oc-generator"]) {
+        expect(crawlable(url, allow, disallow), url).toBe(true);
+      }
       // The show's PG media on public pages (2026-11-22 audit: Google rendered them blank): character photos, the home
       // video and its poster, a cast intro.
       for (const url of ["/api/shots/abc.webp", "/api/home-clip/abc/poster.jpg", "/api/home-clip/abc/loop.mp4", "/api/cast-intro/abc/intro-1795213677.mp4"]) {
@@ -112,7 +120,7 @@ describe("the free tools hub (/tools, lib/tools.ts)", () => {
 
   it("is in every page's footer, after the two tools the design system lists", () => {
     const layout = source("app/layout.tsx");
-    expect(layout).toContain('<li><Link prefetch={showPrefetch} href="/tools" className="footer-all">All free tools →</Link></li>');
+    expect(layout).toContain('<li><Link prefetch={false} href="/tools" className="footer-all">All free tools →</Link></li>');
     expect(source("app/everything/page.tsx")).toContain('<Link href="/tools">All the free OC tools</Link>');
   });
 });

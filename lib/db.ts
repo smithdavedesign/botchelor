@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Pool } from "pg";
 import { afterDarkOnly } from "./after-dark-host";
-import { watchedQueries, type PoolWatchOptions } from "./db-watch";
+import { watchedQueries, withDbLabel, type PoolWatchOptions } from "./db-watch";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { HOUSE_KITS } from "./house-kits";
 import { isDeployed } from "./deploy";
@@ -4764,10 +4764,23 @@ update showcase_posts p set from_date = (${madeInSql("i")} = 'night')
  where p.source = 'after_dark' and i.id = p.media_id and p.from_date is distinct from (${madeInSql("i")} = 'night');
 `;
 
+/**
+ * Limits for the apply's one transaction (2026-11-21 audit). Each ALTER in it waits for its table's lock, and while it
+ * waits every other query on that table queues behind it, so one slow read could hold the site. Now any lock wait over
+ * 5 s (the advisory lock included: another instance is applying) fails the apply, which rolls back and is tried again,
+ * and one statement running over two minutes is a runaway and fails too (on a copy of production on 2026-11-22 the
+ * slowest of its 929 statements took 0.1 s, and the whole apply 2.5 s). SET LOCAL ends with the transaction: the pooled
+ * connection goes back with its usual settings. Not hashed in schemaVersion, since it writes nothing.
+ */
+const SCHEMA_LIMITS_SQL = `
+set local lock_timeout = '5s';
+set local statement_timeout = '120s';
+`;
+
 /** Idempotent: creates the tables and upserts the house characters, free and premium. */
 export async function ensureSchema(db: Db): Promise<void> {
   // One round trip: the made-in re-tag goes after the tables it reads, in the same exec.
-  await db.exec(SCHEMA_SQL + MADE_IN_SQL);
+  await db.exec(SCHEMA_LIMITS_SQL + SCHEMA_SQL + MADE_IN_SQL);
   const cast = [
     ...HOUSE_CHARACTERS.map((c) => ({ ...c, sku: null })),
     ...PREMIUM_HOUSE_CHARACTERS.map((c) => ({ ...c, sku: c.sku })),
@@ -4807,26 +4820,54 @@ export function schemaVersion(): string {
     .slice(0, 16);
 }
 
+/** Where the apply's line goes: a failure to the error log, the rest to the usual one. Tests pass their own. */
+export type SchemaLog = (line: string, failed: boolean) => void;
+const consoleSchemaLog: SchemaLog = (line, failed) => (failed ? console.error(line) : console.log(line));
+
+/** A database error for a log line: its message on one line, cut short, with its SQLSTATE; never a connection string. */
+export function dbFailure(err: unknown): string {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  const message = typeof e?.message === "string" && e.message ? e.message : String(err);
+  const code = typeof e?.code === "string" ? ` (${e.code})` : "";
+  const flat = message.replace(/postgres(?:ql)?:\/\/\S+/gi, "postgres://…").replace(/\s+/g, " ").trim();
+  return `${flat.length > 200 ? `${flat.slice(0, 199)}…` : flat}${code}`;
+}
+
 /**
  * ensureSchema, skipped when this exact schema and house cast are already applied. Every serverless cold start used to
  * re-run ~150 DDL statements (two of them table-locking constraint rebuilds) and two upserts per house character, one
  * round trip each, before its first query: /feed took 3.9s on a cold start against 0.7s warm (2026-10-16). Now a cold
  * start costs one select; the first instance after a schema or cast change applies it and records the new version.
+ * Either way it logs one line with how it went and how long it took ("[db] schema apply ok 8123 ms (version …)",
+ * "skipped (unchanged)", "failed after … ms: …"): nothing said how long a deploy's apply held the site (2026-11-21 audit).
  */
-export async function ensureSchemaCurrent(db: Db): Promise<void> {
+export async function ensureSchemaCurrent(db: Db, log: SchemaLog = consoleSchemaLog): Promise<void> {
+  const started = Date.now();
   const version = schemaVersion();
-  try {
-    const { rows } = await db.query<{ version: string }>("select version from schema_meta where id = 1");
-    if (rows[0]?.version === version) return;
-  } catch {
-    // No schema_meta yet (a fresh database, or one from before it existed): apply everything below.
-  }
-  await ensureSchema(db);
-  await db.query(
-    `insert into schema_meta (id, version, applied_at) values (1, $1, now())
-       on conflict (id) do update set version = excluded.version, applied_at = now()`,
-    [version],
-  );
+  // Its queries are named in the pool's slow-query lines (lib/db-watch.ts), not "outside a request".
+  await withDbLabel("schema apply", async () => {
+    try {
+      const { rows } = await db.query<{ version: string }>("select version from schema_meta where id = 1");
+      if (rows[0]?.version === version) {
+        log(`[db] schema apply skipped (unchanged) ${Date.now() - started} ms`, false);
+        return;
+      }
+    } catch {
+      // No schema_meta yet (a fresh database, or one from before it existed): apply everything below.
+    }
+    try {
+      await ensureSchema(db);
+      await db.query(
+        `insert into schema_meta (id, version, applied_at) values (1, $1, now())
+           on conflict (id) do update set version = excluded.version, applied_at = now()`,
+        [version],
+      );
+    } catch (err) {
+      log(`[db] schema apply failed after ${Date.now() - started} ms: ${dbFailure(err)}`, true);
+      throw err;
+    }
+    log(`[db] schema apply ok ${Date.now() - started} ms (version ${version})`, false);
+  });
 }
 
 // PGLITE_DIR lets a throwaway run (scripts/screenshots.mjs) keep its sample data apart from yours.
@@ -4906,7 +4947,7 @@ export function setDbForTests(db: Db | null): void {
 }
 
 // Cached on globalThis so dev-server hot reloads reuse one pool / one PGlite instance.
-const cache = globalThis as typeof globalThis & { __botchelorDb?: Promise<Db> };
+const cache = globalThis as typeof globalThis & { __botchelorDb?: Promise<Db>; __botchelorStartupApply?: Promise<boolean> };
 
 /**
  * This season's stored cast (lib/season-cast.ts), loaded into memory at most once a minute so its many synchronous
@@ -4922,11 +4963,13 @@ async function withSeasonCast(db: Db): Promise<Db> {
   return db;
 }
 
-export function getDb(): Promise<Db> {
-  if (testDb) return Promise.resolve(testDb);
+/** The process's database, opened once with its schema brought up to date. */
+function openShared(): Promise<Db> {
   if (!cache.__botchelorDb) {
     const opening = openDb().then(async (db) => {
-      await ensureSchemaCurrent(db);
+      // The apply this server started with (prepareDb) may still be running: wait for it rather than race it. Once it
+      // has brought the schema up to date there is nothing to check again (and no second log line).
+      if (!(await cache.__botchelorStartupApply)) await ensureSchemaCurrent(db);
       return db;
     });
     // A failed open (e.g. the database is briefly unreachable) must not poison every later request.
@@ -4935,7 +4978,12 @@ export function getDb(): Promise<Db> {
     });
     cache.__botchelorDb = opening;
   }
-  return cache.__botchelorDb.then(withSeasonCast).then(withSessionVersions);
+  return cache.__botchelorDb;
+}
+
+export function getDb(): Promise<Db> {
+  if (testDb) return Promise.resolve(testDb);
+  return openShared().then(withSeasonCast).then(withSessionVersions);
 }
 
 /**
@@ -4951,4 +4999,70 @@ async function withSessionVersions(db: Db): Promise<Db> {
     console.error("[session-versions] could not load:", err instanceof Error ? err.message : "unknown");
   }
   return db;
+}
+
+/** How long a server's start waits for its schema: DigitalOcean's first health check comes 20 s in (.do/*.yaml). */
+const STARTUP_WAIT_MS = 15_000;
+/** The pause before a blocked apply is tried again at startup. */
+const STARTUP_RETRY_MS = 1_000;
+
+/** Worth another try: a lock wait or a statement over its limit (55P03, 57014), or Neon dropping the connection. */
+function worthRetrying(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  return code === "55P03" || code === "57014" || isDroppedConnection(err);
+}
+
+/** A database to apply the schema on, and how to let it go. */
+type Connection = { db: Db; close: () => Promise<void> };
+
+/**
+ * At a server's start (instrumentation.ts register, which Next awaits before it serves a request): bring the schema up
+ * to date, so a deploy's first visitors don't wait for the apply (2026-11-21 audit). It runs on a pool of its own, closed
+ * after: instrumentation is a separate bundle, and the shared pool's slow-query lines read the app's own request labels
+ * (lib/db-watch.ts). An apply that timed out (the other host is applying, or a table stayed locked) is tried again for
+ * up to 15 s. Never throws: if the database still isn't ready the server starts anyway and the first request tries
+ * again, as it always did; if the apply is still running, requests wait for it (openShared). Local runs without a
+ * DATABASE_URL open their file database on first use, as before (a second PGlite on the same files would clash).
+ */
+export async function prepareDb(options: { waitMs?: number; connect?: () => Promise<Connection> } = {}): Promise<void> {
+  const url = process.env.DATABASE_URL;
+  const connect =
+    options.connect ??
+    (url && !testDb
+      ? async (): Promise<Connection> => {
+          const pool = await createPool(url);
+          return { db: pgPoolDb(pool), close: () => pool.end() };
+        }
+      : null);
+  if (!connect) return;
+  const waitMs = options.waitMs ?? STARTUP_WAIT_MS;
+  const deadline = Date.now() + waitMs;
+  const applying = (async () => {
+    const { db, close } = await connect();
+    try {
+      for (;;) {
+        try {
+          return await ensureSchemaCurrent(db);
+        } catch (err) {
+          if (!worthRetrying(err) || Date.now() + STARTUP_RETRY_MS >= deadline) throw err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, STARTUP_RETRY_MS));
+      }
+    } finally {
+      await close().catch(() => undefined);
+    }
+  })();
+  // Never rejects: a failed apply at startup is the first request's to try again.
+  const settled = applying.then(
+    () => true,
+    (err: unknown) => {
+      console.error(`[db] database not ready at startup (${dbFailure(err)}); the first request tries again`);
+      return false;
+    },
+  );
+  cache.__botchelorStartupApply = settled;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const done = await Promise.race([settled, new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), waitMs)))]);
+  clearTimeout(timer);
+  if (done === null) console.warn(`[db] schema apply still running after ${Math.round(waitMs / 1000)} s at startup; requests wait for it`);
 }

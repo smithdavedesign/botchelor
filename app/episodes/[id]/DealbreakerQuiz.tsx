@@ -24,21 +24,26 @@ export default function DealbreakerQuiz({ episodeId, characterName, options, myP
     // The dealbreaker is said as written, and most end on a full stop: the sentence adds one only when it doesn't
     // (visual audit 2026-11-20: "…at all times..").
     const stop = answer && /[.!?…]["”')]*$/.test(answer.trim()) ? "" : ".";
+    // Someone who never guessed is told the answer once, plainly (2026-11-22 audit: "You didn't guess this one." and then
+    // "You didn't predict this one." were the page's last words); the result and its points are for those who played.
+    if (!myPick) {
+      return (
+        <section className="card quiz quiz-answer">
+          <p>
+            {characterName}&apos;s real dealbreaker: <strong>{answer}</strong>
+            {stop}
+          </p>
+        </section>
+      );
+    }
     return (
       <section className="card quiz">
         <h2>Guess the dealbreaker</h2>
-        {myPick ? (
-          <p className={correct ? "notice" : undefined}>
-            {characterName}&apos;s real dealbreaker was <strong>{answer}</strong>
-            {stop} You picked {picked === answer ? "it" : `“${picked}”`}:{" "}
-            {correct ? `+${POINTS_PER_DEALBREAKER_PICK} points.` : "0 points."}
-          </p>
-        ) : (
-          <p className="muted">
-            {characterName}&apos;s real dealbreaker was <strong>{answer}</strong>
-            {stop} You didn&apos;t guess this one.
-          </p>
-        )}
+        <p className={correct ? "notice" : undefined}>
+          {characterName}&apos;s real dealbreaker was <strong>{answer}</strong>
+          {stop} You picked {picked === answer ? "it" : `“${picked}”`}:{" "}
+          {correct ? `+${POINTS_PER_DEALBREAKER_PICK} points.` : "0 points."}
+        </p>
       </section>
     );
   }
