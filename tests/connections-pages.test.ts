@@ -13,6 +13,7 @@ vi.mock("next/navigation", async (original) => ({
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import KeysPage from "@/app/account/keys/page";
+import RequestsPage from "@/app/showcase/requests/page";
 import ConnectionCard from "@/app/account/keys/ConnectionCard";
 import ProviderMark from "@/app/account/keys/ProviderMark";
 import KeyForm from "@/app/account/keys/KeyForm";
@@ -63,6 +64,17 @@ describe("/account/keys: Connections", () => {
     expect(html).toContain("<h1>Connections</h1>");
     expect(html).toContain('href="/account?next=%2Faccount%2Fkeys"');
     expect(html).not.toContain("connection-card");
+    // 2026-11-22: why it needs an account, in plain words, and a button to the sign-in.
+    expect(html).toContain("Keys are saved to your account");
+    expect(html).not.toContain("anonymous session");
+    expect(html).toContain('<a class="button" href="/account?next=%2Faccount%2Fkeys">Sign in to add a key</a>');
+  });
+
+  it("/showcase/requests signed out says what waits there, not that something does, with one button to sign in (2026-11-22)", async () => {
+    const html = renderToStaticMarkup(await RequestsPage());
+    expect(html).toContain("When someone wants to publish a picture or clip with one of your characters, it waits here for your OK.");
+    expect(html).not.toContain("Someone wants to publish");
+    expect(html).toContain('<a class="button" href="/account?next=%2Fshowcase%2Frequests">Sign in to see yours</a>');
   });
 
   it("an anonymous cookie gets the same sign-in state", async () => {
