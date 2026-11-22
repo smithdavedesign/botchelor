@@ -1,6 +1,6 @@
 import { adminAuthorized } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, jsonWhenDone } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
 import { checkBatch, recheckBatch } from "@/lib/showcase-check";
 import { audioBatch } from "@/lib/showcase-audio";
@@ -28,7 +28,10 @@ async function run(req: Request): Promise<Response> {
   // ?audio=1: only the clips not yet read for sound (lib/showcase-audio.ts), for a backfill.
   if (q.get("audio") === "1") return json(await audioBatch(db));
   // Hourly: the checks, then a still for each clip published since (they share the job's ffmpeg), then its sound.
-  return json({ ...(await checkBatch(db)), posters: await posterBatch(db), audio: await audioBatch(db) });
+  const batch = async () => ({ ...(await checkBatch(db)), posters: await posterBatch(db), audio: await audioBatch(db) });
+  // The scheduled job's call is streamed (lib/http.ts jsonWhenDone): a batch of new clips can outlast the edge's 100 s
+  // cutoff, and the job reads the answer's ok: true. /admin/showcase's button keeps the plain answer its loop reads.
+  return internalJobAuthorized(req) ? jsonWhenDone(req, batch) : json(await batch());
 }
 
 export const GET = handle(run);
