@@ -253,6 +253,10 @@
   margin: -1.1rem -1.25rem var(--space-2);
   padding-bottom: var(--space-4);
 }
+/* The stage's neon heart hangs at the top of the art: a wide card's band keeps it in frame, over the faces. */
+.send-phase .send-first-stage > img {
+  object-position: 50% 10%;
+}
 .send-phase .send-first-faces {
   position: relative;
   z-index: 1;

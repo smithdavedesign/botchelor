@@ -602,7 +602,8 @@ async function main() {
           }
           const attest = page.locator('.wizard-attest input[type="checkbox"]');
           if (await attest.count()) await attest.check();
-          await page.getByRole("button", { name: /^Create / }).click();
+          // A first character's sheet has Create on top as well as at the end (CreateWizard createOnTop): either saves.
+          await page.getByRole("button", { name: /^Create / }).first().click();
           await page.locator("[data-first-date]").waitFor({ timeout: 30_000 });
         },
       },
