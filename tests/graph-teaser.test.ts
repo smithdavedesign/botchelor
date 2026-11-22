@@ -285,7 +285,7 @@ describe("the pages", () => {
     );
   }
   const characters = async (sp: Record<string, string> = {}) =>
-    renderToStaticMarkup(await (await import("@/app/characters/page")).default({ searchParams: Promise.resolve(sp) }));
+    renderToStaticMarkup(await (await import("@/app/characters/(list)/page")).default({ searchParams: Promise.resolve(sp) }));
 
   it("the cast tab draws the cast's corner and links to it; with no dates it keeps the plain link", async () => {
     const empty = await characters();
