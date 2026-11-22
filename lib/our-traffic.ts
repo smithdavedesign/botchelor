@@ -20,14 +20,15 @@ export const SYSTEM_ID = "system";
  * Characters our own scripts and tests make, by name: their owners are ours too. A harness run against production on
  * 2026-10-14 made eleven of the cast below from eleven fresh browsers in one minute, and the insights overview counted
  * them as new people (botchelor-41, 2026-10-22: "it isn't a drop; the week before was test traffic"). Sources:
- * scripts/harness.mjs CAST, scripts/sim-pairs.mjs and the tests' defaults, plus David's own test characters. Names nobody
- * picks by chance; extend it when a new script writes to production.
+ * scripts/harness.mjs CAST, scripts/sim-pairs.mjs and the tests' defaults, plus David's own test characters (the quoted,
+ * accented one with an emoji was a 2026-11-13 test of odd names, tests/feedback-2026-11-14.test.ts). Names nobody picks by
+ * chance; extend it when a new script writes to production.
  */
 export const OUR_TEST_NAMES: readonly string[] = [
   "Mira Quell", "Otto Fenn", "Tamsin Holloway", "Bas Niro", "Wrenna Sol", "Halden Voss", "Ysolde Marchetti", "Pike Alderman",
   "Soraya Bell", "Emrys Nakamura-Pine", "Emrys Pine", "Pernilla Krause", "Avi Marin", "Clem Osei", "Dez Kowal", "Hei Park",
   "Juno Wick", "Nova Pike", "Riv Marchand", "Current Partner", "David's OC",
-  "David Smith", "Wren Kestrel",
+  "David Smith", "Wren Kestrel", 'Zoë "Café" Marlowe 🚀',
 ];
 /** A test-style character name ("Quinn Tester", "Planna Testwell"), in Postgres's word-boundary syntax. */
 export const TEST_NAME_SQL = "\\m(test|tester|testwell|e2e)\\M";
