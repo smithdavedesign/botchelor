@@ -89,7 +89,7 @@ jobs:
   # database of its own (PGlite, fresh each run) and a stub model, and drives the product through a real browser. No keys,
   # nothing paid, no network beyond the runner once the browser is installed. About five minutes, beside the unit shards.
   # A change that moves what a step looks for fixes that step in the same PR (until 2026-11-21 it ran only by hand, and
-  # 18 of its texts had gone from the app).
+  # it had drifted so far from the app that 6 of its 34 steps passed).
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
