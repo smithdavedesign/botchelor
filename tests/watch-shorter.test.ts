@@ -88,8 +88,10 @@ describe("Watch's first screens", () => {
     expect(page).not.toContain("watch-lead-kicker");
   });
 
-  it("lists one room a pair to start, whichever way round", () => {
+  it("lists one room a pair to start, whichever way round, with a short badge", () => {
     expect(page).toContain('const pairKey = (r: LobbyEntry) => r.characters.map((c) => c.id).sort().join(" ");');
+    // "Date 7", not "SEVENTH DATE" cut off on a phone.
+    expect(page).toContain('<span className="badge watch-lobby-second">{dateBadge(room.date_number)}</span>');
   });
 
   it("on a phone, the lead date shows two lines then its button, and tonight's votes sit side by side, a swipe apart", () => {

@@ -43,7 +43,7 @@ import { getProfileName } from "@/lib/people";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
-import { dateLabel, dateNumberOf, endingLabel } from "@/lib/rules";
+import { dateBadge, dateNumberOf, endingLabel } from "@/lib/rules";
 import StripPager from "./StripPager";
 import Pager from "@/app/Pager";
 import ShowTabs from "@/app/ShowTabs";
@@ -100,7 +100,8 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
         </strong>
         <span className="muted">
           {room.kind === "template" ? "Open room" : "Premiere"} · {room.phase_label}
-          {room.date_number && <span className="badge watch-lobby-second">{dateLabel(room.date_number)}</span>}
+          {/* "Date 7", as every badge numbers a date (lib/rules.ts dateBadge): "SEVENTH DATE" was cut off on a phone. */}
+          {room.date_number && <span className="badge watch-lobby-second">{dateBadge(room.date_number)}</span>}
         </span>
       </div>
       {/* A room to start or replay: its action looks like the button it is (the whole card is the link). */}
