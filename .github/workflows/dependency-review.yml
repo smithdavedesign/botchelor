@@ -1,0 +1,27 @@
+# Dependency review, free on a public repo: a pull request that changes the npm packages is checked for any it adds or
+# moves to a version with a known high or critical vulnerability. Only those PRs run it, and it isn't one of main's
+# required checks; when it does run, bz-merge-when-green.sh waits for it, so such a PR doesn't merge itself. The
+# live-face workers' pip pins are left out, as Dependabot leaves them (.github/dependabot.yml: every pin is deliberate).
+# Added 2026-11-22 (audit).
+name: Dependency review
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: dependency review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never

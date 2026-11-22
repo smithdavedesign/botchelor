@@ -12,6 +12,7 @@ import {
   cleanReply,
   createBrain,
   bestLineCandidates,
+  crowdLikes,
   crowdRound,
   isLogisticsLine,
   echoesProfile,
@@ -129,10 +130,17 @@ describe("the loop arena's crowd", () => {
   it("keeps it moving while a visitor's there: likes, answers, texts back and plays its side of their date", async () => {
     const { agents } = await seedCrowd(transport, { agents: 3, secondDates: 0 });
     const v = await visitor();
-    const mine = (await call("create_character", validCharacter({ name: "Vera Atlas", extras: profile, open_to_dates: true }), v)).structuredContent.character.id;
+    // Whether one of the crowd likes a card is a hash of the pair (crowdLikes: about seven in ten), so on the character's
+    // random id all six passing is a 1-in-1,400 draw, and CI drew it on 2026-11-20. One none of them would like is made
+    // again under another name and id; the round below is the crowd's own.
+    const crowdChars = agents.flatMap((a) => a.chars);
+    let mine = "";
+    for (const name of ["Vera Atlas", "Vera Atwood", "Vera Ashby"]) {
+      mine = (await call("create_character", validCharacter({ name, extras: profile, open_to_dates: true }), v)).structuredContent.character.id;
+      if (crowdChars.some((c) => crowdLikes(c.id, mine))) break;
+    }
 
-    // A round: most of the crowd likes the visitor's character (about seven in ten; all six passing is a 1-in-1,400 chance),
-    // so a like back is a match at once.
+    // A round: most of the crowd likes the visitor's character, so a like back is a match at once.
     const first = await crowdRound(agents);
     expect(first.likes).toBeGreaterThan(0);
     const likers = (await t.db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine])).rows.map((r) => r.swiper);

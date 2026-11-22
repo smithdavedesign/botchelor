@@ -1,4 +1,4 @@
-import { beforeEach } from "vitest";
+import { beforeEach, expect } from "vitest";
 import { setAdminCheckerDefaultForTests, setModerationFetchForTests } from "@/lib/adult/moderation";
 import { setBriefModelForTests } from "@/lib/adult/picture-brief";
 import { setGiftsOnAirForTests } from "@/lib/gift-catalog";
@@ -18,3 +18,19 @@ beforeEach(() => {
   });
   setAdminCheckerDefaultForTests("same");
 });
+
+// EXPERIMENT (2026-11-22, not for merge as is): which tests reach a host outside this machine. Logged, not refused.
+const realFetch = globalThis.fetch;
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  let url: URL | null = null;
+  try {
+    url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+  } catch {
+    url = null;
+  }
+  if (url && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+    const st = expect.getState();
+    process.stderr.write(`[external-fetch] ${String(st.testPath ?? "").split("/tests/")[1] ?? "?"} > ${st.currentTestName ?? "?"} -> ${url.origin}${url.pathname}\n`);
+  }
+  return realFetch(input, init);
+}) as typeof fetch;
