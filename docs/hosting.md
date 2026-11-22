@@ -6,9 +6,9 @@ routes), only daily cron jobs, and no commercial use. So the show moved to Digit
 
 | | What | Spec | Cost |
 |---|---|---|---|
-| The show | `botchelor.com`, `www.botchelor.com` | [`.do/show.yaml`](../.do/show.yaml) | $12 a month (1 vCPU, 1 GiB) |
+| The show | `botchelor.com`, `www.botchelor.com` | [`.do/show.yaml`](../.do/show.yaml) | $25 a month (1 vCPU, 2 GiB, since 2026-11-22; $12 for 1 GiB before) |
 | After Dark | `ad.botchelor.com` | [`.do/app.yaml`](../.do/app.yaml), runbook [after-dark-hosting.md](after-dark-hosting.md) | $10 a month |
-| Scheduled jobs | the lobby (hourly), the showcase check (hourly, which also cuts a first-frame still for each new clip: lib/showcase-posters.ts), the daily job | a job on After Dark's app (`.do/app.yaml` `jobs`) | at most $5 a month |
+| Scheduled jobs | the lobby (hourly), the showcase check (hourly, which also cuts a first-frame still for each new clip: lib/showcase-posters.ts), the daily job and its resume pass | a job on After Dark's app (`.do/app.yaml` `jobs`) | under $1 a month (billed by the second) |
 | After Dark's media | `media.botchelor.com` | Bunny (runbook) | about $1–6 a month |
 
 The database (Neon) and the show's media bucket (Neon Object Storage) didn't move.
@@ -38,6 +38,13 @@ The move was `region` in each app's spec, at the same price; Bunny's storage zon
   the show's one instance for minutes and botchelor.com answered 504 for ~5 and ~9 minutes on 2026-11-11. Each part's
   time, memory peak and longest event-loop stall go to `job_runs` (`lib/job-meter.ts`) and show in the monitor's
   `/api/health` (`daily_job`, with the instance's memory under `process`).
+- **The daily job survives a deploy** (`lib/daily-parts.ts`, 2026-11-22). Each part writes `started`, then `done` or
+  `failed` with its reason, to `ops_log`. From 17:20 to 23:20 UTC the hourly run also calls `daily?part=resume`, which
+  runs the first part of the day that didn't finish (cut off by a deploy, failed, or never started), up to two a run
+  and three tries a part a day, and answers `resumed: null` once there's nothing left. /admin → Servers shows the day's
+  parts. Every job answer ends `"ok":true` once its work is done; a call without it prints `FAILED: <host> <job>` and
+  fails the run, so DigitalOcean's job history shows it. Nothing in the run waits idle: DigitalOcean ends a job run at
+  30 minutes.
 - **Long requests:** App Platform has no `maxDuration`. Its edge (Cloudflare) ends a response that sends nothing for
   100 seconds, so streams keep sending, and slow work runs in `after()` once the response is out, as before.
   MCP waits (`wait_seconds`) still sometimes got a bare `error code: 504` from it at 50 seconds, though 40 or less never
@@ -45,12 +52,30 @@ The move was `region` in each app's spec, at the same price; Bunny's storage zon
 
 ## Deploys
 
-Both apps build `main` on every push (`deploy_on_push`). A deploy is live when its app's deployment is `ACTIVE`:
-DigitalOcean dashboard → Apps → the app → Activity, or the API (`GET /v2/apps/<id>/deployments`). Pull requests get no
-preview deployment any more: merge on the local checks (`tsc`, the full test suite) and GitGuardian, then watch the
-deploy and check `https://botchelor.com/api/health`. Since 2026-10-31 the Vercel project skips every build (Settings →
-Git → Ignored Build Step is `exit 0`), so it no longer fails on Hobby; if a "Vercel" check still shows on a pull request,
-ignore it.
+Both apps build `main` on every push (`deploy_on_push`), about six minutes from merge to live. A deploy is live when
+its app's deployment is `ACTIVE`: DigitalOcean dashboard → Apps → the app → Activity, or the API
+(`GET /v2/apps/<id>/deployments`); a deployment `CANCELED` was overtaken by a newer merge, which contains it. Pull
+requests get no preview deployment: a merge waits for CI (typecheck, the tests in four shards, the build, the e2e
+suite) and GitGuardian, then watch the deploy and check `https://botchelor.com/api/health?db=1` and
+`https://ad.botchelor.com/api/health?db=1` (`{"ok":true,"db":"ok"}`; the uptime monitor watches the same two). /admin →
+Servers shows the commit each host runs ([switches.md](switches.md), "What's live right now").
+
+When something goes wrong: [runbooks/incident.md](runbooks/incident.md), [runbooks/rollback.md](runbooks/rollback.md),
+[runbooks/restore.md](runbooks/restore.md), [runbooks/rotate-keys.md](runbooks/rotate-keys.md).
+
+**Each deploy restarts both apps** (one instance each): about 36 deploys a day in mid-November. What a restart used to
+cost, and what keeps it small now: the schema is applied before the first request (`instrumentation.ts`), the daily
+job's parts resume (above), and the servers' own log (`ops_log`: starts, failed dates, date costs, job parts) outlives
+the container. Ways to cut the restarts themselves, each David's call because it costs money or slows merges:
+
+| Option | A month | What it changes |
+|---|---|---|
+| Two instances of the show | +$25 (2 × $25) | A deploy replaces them one at a time, so a warm one always serves, and one instance crashing doesn't take botchelor.com down |
+| Two instances of After Dark (the fixed 1 GiB size allows only one, so 2 × `apps-s-1vcpu-1gb` at $12) | +$14 | The same for ad.botchelor.com |
+| Deploy in batches: `deploy_on_push` off and `main` deployed at set times (a scheduled workflow) | $0 | A few restarts a day instead of ~36; a merge waits for the next batch to go live |
+| No deploys 16:15–16:45 UTC (a rule in the merge scripts) | $0 | The 16:20 daily job runs undisturbed; the resume pass covers it today |
+| A longer stop for old containers (`termination.grace_period_seconds`, up to 600) | $0 | Requests and job parts in flight finish; each deploy takes longer |
+
 
 ## Settings and logs
 
@@ -327,7 +352,11 @@ ignore it.
   `OPERATOR_PASS_LINK` beside it. Unset, the link still works for whoever has it and a pass already held keeps its
   reserved dates; nothing on the site points at it (`lib/operator-pass.ts operatorPassOffered`).
 - **Logs:** each app's Runtime Logs in the dashboard (Apps → the app → Runtime Logs). Everything that used to go to
-  Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now.
+  Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now, and lasts
+  only until the next deploy or restart. What has to outlive that is kept in the database for 30 days: `ops_log`
+  (`lib/ops-log.ts`: each server start with its commit and memory limit, failed dates and conversations with their
+  reason, each date's cost, the daily job's parts), shown on /admin → Servers; route failures go to `server_errors`
+  (7 days). No paid log service ([runbooks/incident.md](runbooks/incident.md), "Where the logs are").
 
 ## DNS: Cloudflare (from 2026-10-30)
 

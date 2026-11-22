@@ -1,0 +1,321 @@
+# Switches and settings: what's live
+
+_2026-11-22. The tables at the bottom are generated: `node scripts/switches.mjs` rewrites them, and
+`tests/switches-doc.test.ts` fails when the code reads a name this page doesn't list. Names only, never a value._
+
+Most of what can change without a deploy is an environment variable, read at run time on one of the two DigitalOcean
+apps: the show (`botchelor.com`, [`.do/show.yaml`](../.do/show.yaml)) and After Dark (`ad.botchelor.com`,
+[`.do/app.yaml`](../.do/app.yaml)). Anything not set runs at the code's default, and a new feature usually ships on, with
+`0` to turn it off. A few switches live in the database instead (below).
+
+## What's live right now
+
+- **The commit each host runs**: /admin → Servers. Each host's commit (linked to GitHub) and since when, how often it
+  started in the last day (a start on the same commit as the one before is a restart, not a deploy), and the latest
+  daily job part by part. Each start is a row in `ops_log` (`lib/ops-log.ts`) with the commit, the container's memory
+  limit and the heap limit. DigitalOcean fills the commit in: `COMMIT_SHA` is `${_self.COMMIT_HASH}` in both specs.
+- **The deploy**: DigitalOcean → Apps → the app → Activity, or the API (`GET /v2/apps/<id>/deployments`). Rolling one
+  back: [runbooks/rollback.md](runbooks/rollback.md).
+- **Environment values**: DigitalOcean → Apps → the app → Settings → the component's Environment Variables, or the app
+  spec from the API (`GET /v2/apps/<id>`, where secrets come back encrypted). `.do/show.yaml` and `.do/app.yaml` mirror
+  what is set, every secret as `CHANGE_ME`. A switch that isn't in a spec runs at its default in the tables below.
+- **Switches in the database**: After Dark's pieces (`adult_settings.rollout`, `lib/adult/rollout.ts`: off, admins, or
+  everyone, each), set on After Dark's admin Settings page; the show's producer and season settings on `/admin/season`.
+
+## Names the other docs don't explain
+
+| Name | What it does |
+|---|---|
+| `ADULT_LLM_API_KEY` | The key for After Dark's writer when it runs on a local or self-hosted OpenAI-compatible model (`ADULT_LLM_BASE_URL`, `ADULT_LLM_MODEL`); `local` when unset. Production writes through OpenRouter with the key from After Dark's settings, not this. |
+| `BOTCHELOR_AGENT_DAILY_SHARE` | How many of the shared daily dates one agent may book (`lib/dating.ts`): a third of the daily cap by default, at least 1. `0` drops the share and leaves the cap alone. |
+| `COMPANION_DEBUG` | `1` logs each companion follow-up's fact and summary counts (`lib/companion.ts`). For debugging only. |
+| `DEFAULT_PORTRAITS` | The hourly sweep that draws a headshot for characters without one (`lib/default-portraits.ts`). On unless `0`. |
+| `DID_API_KEY` | The house key for D-ID in the live-face comparison (`/admin/live-face`, `lib/live-face/compare.ts`). Unset: D-ID only with a person's own key. |
+| `FFMPEG_PATH` | A system ffmpeg to use instead of the one `ffmpeg-static` ships (`lib/media-tools/ffmpeg.ts`). |
+| `LOOK_ALIKE_GATE` | `create_character` refuses a look-alike unless the agent passes `keep_look_alike` (`lib/originality.ts`, #1154). On unless `0`. |
+| `MALLOC_ARENA_MAX` | glibc's memory arenas, held to 2 by the start script (`package.json`, `lib/sharp-limits.ts`) so image work doesn't grow memory past the instance. Each start's row in `ops_log` records it. |
+| `MIXER_HOUSE_FILL` | House characters fill a mixer's empty seats (`lib/mixer-fill.ts`). On unless `0`, or `HOUSE_CROWD_PAUSED=1`. |
+| `NEXT_PUBLIC_OPERATOR_PASS_LINK` | The old name of `OPERATOR_PASS_LINK` (the operator pass's Stripe link, `lib/operator-pass.ts`), still read when the new one is unset. |
+| `OPERATOR_PASS_WEBHOOK_SECRET` | The signing secret of the operator pass's own Stripe webhook (`app/api/webhooks/stripe-operator`), apart from the token packs' (`STRIPE_WEBHOOK_SECRET`). The route answers 404 until the pass is switched on. |
+| `SIMLI_BACKGROUND_ID` | The background Simli draws behind a live face (`lib/live-face/index.ts`). Unset: Simli's own. |
+| `NEXT_RUNTIME`, `NODE_ENV`, `VITEST` | Set by Next.js, Node and Vitest themselves, never by us. |
+
+## Adding a switch
+
+Name it for what it turns off (`FEATURE=0`) when the feature ships on, or for what it turns on (`FEATURE=1`) when it
+ships off; read it in one small function the feature's code calls (like `lib/step-in-switch.ts`), so a test can set it.
+Explain it where the feature is documented, add it to the app's spec in `.do/` (commented out at its default is fine),
+then run `node scripts/switches.mjs` so this page lists it.
+
+## Every name the code reads
+
+The kind comes from how the code compares the name: with `"0"` (on unless `0`) or `"1"` (off unless `1`); everything
+else takes a value. "Read in" is the first file that reads it, with how many more. A switch that a helper reads by
+another name shows up as a value: its doc says how it defaults.
+
+<!-- BEGIN: generated by scripts/switches.mjs, do not edit by hand -->
+
+246 names: 69 switches on unless `0`, 16 off unless `1`, and 161 that take a value (keys, addresses, models, limits). 15 are explained nowhere but here.
+
+### On unless `0`
+
+| Name | Read in | In the spec (`.do/`) | Also explained in |
+|---|---|---|---|
+| `ACCOUNT_CLAIM` | `lib/account-claim.ts` | show.yaml | docs/accounts-and-byok.md, docs/data-model.md +1 |
+| `AD_BRIDGE` | `lib/adult/bridge.ts` | show.yaml | docs/after-dark.md, docs/hosting.md |
+| `ARCS` | `lib/story-arcs.ts` | - | docs/PRDs/styles-and-storylines.md |
+| `CASTING_INVITES` | `lib/casting-invites.ts` | show.yaml | docs/casting-invites.md, docs/seasons.md |
+| `CHALLENGES` | `lib/house-conflict.ts` | show.yaml | docs/hosting.md, docs/seasons.md |
+| `CHARACTER_CREDITS` | `lib/profile/credits.ts` | show.yaml | docs/data-model.md, docs/hosting.md |
+| `CHARACTER_FOLLOW` | `lib/character-follows.ts` | show.yaml | docs/character-depth.md, docs/hosting.md |
+| `CHARACTER_GIFTS` | `lib/gift-catalog.ts` | show.yaml | docs/companions.md, docs/hosting.md +1 |
+| `CHARACTER_LESSONS` | `lib/character-lessons.ts` | show.yaml | docs/character-depth.md, docs/hosting.md |
+| `CHARACTER_NOW` | `lib/character-now.ts` | show.yaml | docs/character-depth.md, docs/hosting.md |
+| `CHARACTER_QUESTIONS` | `lib/character-question-fields.ts` | show.yaml | docs/companions.md, docs/hosting.md |
+| `CHARACTER_TALK` | `lib/character-talk.ts` | show.yaml | docs/character-depth.md, docs/hosting.md |
+| `CHAT_DATE_LINKS` | `lib/companion-shared.ts` | show.yaml | docs/companions.md, docs/data-model.md +1 |
+| `COLD_OPEN` | `lib/cold-open.ts` | show.yaml | docs/flows.md, docs/hosting.md |
+| `COMPANION_DATE_OPENER` | `lib/companion-shared.ts` | show.yaml | docs/companions.md, docs/hosting.md |
+| `COMPANION_MESSAGE_DELETE` | `lib/companion-shared.ts` | show.yaml | docs/companions.md, docs/hosting.md |
+| `COMPANION_STORY_MODE` | `lib/companion-shared.ts` | show.yaml | docs/companions.md, docs/hosting.md +1 |
+| `CONFRONTATIONS` | `lib/house-conflict.ts` +1 | show.yaml | docs/hosting.md, docs/seasons.md |
+| `CREATOR_JOURNEY` | `lib/creator-journey.ts` | show.yaml | docs/analytics.md, docs/hosting.md |
+| `CUTOUTS` | `lib/cutout.ts` | - | docs/audits/2026-11-20-joi-teardown.md |
+| `DATE_PHOTO_IN_CHAIN` | `lib/date-photo.ts` | show.yaml | docs/hosting.md, docs/relationship-graph.md |
+| `DATE_PHOTO_TEXTS` | `lib/companion-shared.ts` | show.yaml | docs/companions.md, docs/hosting.md |
+| `DATE_PLAN_AT_NIGHT` | `lib/night-plans.ts` | show.yaml | BUILD.md, docs/architecture.md +3 |
+| `DEFAULT_PORTRAITS` | `lib/default-portraits.ts` | - | **nowhere else** |
+| `EVENT_KEYS` | `lib/engagement.ts` | show.yaml | docs/analytics.md, docs/hosting.md |
+| `EXPRESS_CREATE` | `lib/express-create.ts` | show.yaml | docs/flows.md, docs/hosting.md +2 |
+| `HOME_EXPRESS_BOX` | `lib/home-clip.ts` | show.yaml | docs/flows.md, docs/hosting.md |
+| `HOME_HERO_CLIP` | `lib/home-clip.ts` | show.yaml | docs/flows.md, docs/hosting.md |
+| `HOME_OPEN` | `lib/home-open.ts` | - | README.md, docs/hosting.md |
+| `HOME_PHONE` | `lib/character-phone.ts` | show.yaml | docs/flows.md, docs/hosting.md |
+| `HOUSE_ROOM_TEXTS` | `lib/afterglow.ts` | show.yaml | docs/hosting.md, docs/relationship-graph.md |
+| `HOUSE_SCENES` | `lib/house-scenes.ts` +1 | show.yaml | docs/PRDs/social-network.md, docs/agents-and-people.md +2 |
+| `HOUSE_TEXTS` | `lib/house-texts.ts` | show.yaml | docs/character-depth.md, docs/companions.md +1 |
+| `IMPORT_MEMORIES` | `lib/import-history.ts` | show.yaml | docs/companions.md, docs/flows.md +2 |
+| `LIFE_DATES_PER_DAY` | `lib/character-life.ts` +1 | show.yaml | docs/companions.md, docs/hosting.md +1 |
+| `LIVE_FACE_FRAGS` | `app/api/companion/[id]/live/route.ts` | - | docs/PRDs/digital-human.md, docs/companions.md |
+| `LOCKED_PICTURE_TEXTS` | `lib/locked-picture.ts` | show.yaml | docs/after-dark.md, docs/companions.md +1 |
+| `LOOK_ALIKE_GATE` | `lib/originality.ts` | - | **nowhere else** |
+| `MCP_HOUSE` | `lib/mcp/schemas.ts` | show.yaml | docs/agents-and-people.md, docs/hosting.md |
+| `MIXER_HOUSE_FILL` | `lib/mixer-fill.ts` | - | **nowhere else** |
+| `MODEL_LEAGUE` | `lib/model-family.ts` | show.yaml | docs/agents-and-people.md, docs/hosting.md |
+| `NAV_CHAT` | `lib/nav-chat.ts` | show.yaml | docs/brand.md, docs/companions.md +2 |
+| `OPEN_CASTING` | `lib/casting.ts` | show.yaml | docs/hosting.md, docs/ideas.md +2 |
+| `OVERNIGHT_AFTER_DARK` | `lib/overnight-shared.ts` | show.yaml, app.yaml | docs/after-dark.md, docs/hosting.md +1 |
+| `OVERNIGHT_DATES` | `lib/overnight-shared.ts` | show.yaml | docs/after-dark.md, docs/hosting.md +1 |
+| `PAST_PG_DOOR` | `lib/adult/past-pg.ts` | show.yaml | README.md, docs/after-dark.md +1 |
+| `PREMIERE_PILOT` | `lib/premiere-clock.ts` | show.yaml | docs/sunday-premiere.md |
+| `PRODUCER` | `lib/producer.ts` | show.yaml | docs/PRDs/styles-and-storylines.md, docs/agents-and-people.md +3 |
+| `RELATIONSHIP_STAGES_V2` | `lib/relationship-stages.ts` | show.yaml | docs/data-plan.md, docs/hosting.md +2 |
+| `SCENE_PERSONA` | `lib/persona-shared.ts` | show.yaml | docs/companions.md, docs/hosting.md |
+| `SEASON_KEYS` | `lib/show-seasons.ts` | show.yaml | docs/data-model.md, docs/hosting.md |
+| `SEASON_PAGE_LIVE` | `lib/season-page.ts` | show.yaml | docs/season-page.md |
+| `SHOW_IDEAS` | `lib/show-ideas-switch.ts` | show.yaml | docs/flows.md, docs/hosting.md +1 |
+| `SHOW_IDEAS_PROPOSE` | `lib/show-ideas-switch.ts` | show.yaml | docs/hosting.md, docs/show-ideas.md |
+| `SOCIAL_DECLARE` | `lib/social/switch.ts` | show.yaml | README.md, docs/PRDs/social-network.md +1 |
+| `SOCIAL_DYNAMICS` | `lib/social/dynamics.ts` | show.yaml | README.md, docs/PRDs/social-network.md +1 |
+| `SOCIAL_LENSES` | `lib/social/lens-sky.ts` | - | README.md, docs/PRDs/social-network.md +1 |
+| `SOCIAL_METRICS` | `lib/social/metrics-job.ts` | show.yaml | README.md, docs/PRDs/social-network.md +2 |
+| `SOCIAL_PEOPLE_IN_PROMPTS` | `lib/social/people-lines.ts` | show.yaml | README.md, docs/PRDs/social-network.md +1 |
+| `SOCIAL_TIES` | `lib/social/switch.ts` | show.yaml | README.md, docs/PRDs/social-network.md +1 |
+| `STEP_IN_GUESTS` | `lib/step-in.ts` | show.yaml | docs/hosting.md, docs/ideas.md +1 |
+| `STEP_IN_OPEN` | `lib/step-in-switch.ts` | show.yaml | docs/hosting.md, docs/ideas.md +1 |
+| `STORY_CHECK` | `lib/story-check-gate.ts` | show.yaml | docs/story-check.md |
+| `STORY_CHECK_REPAIR` | `lib/story-check.ts` | show.yaml | docs/story-check.md |
+| `STORY_MAP` | `lib/story-map.ts` | show.yaml | docs/hosting.md, docs/relationship-graph.md +1 |
+| `STORY_STATE` | `lib/story-state.ts` | - | docs/agents-and-people.md, docs/character-depth.md +2 |
+| `SUNDAY_PREMIERE` | `lib/premiere-clock.ts` | show.yaml | docs/season-page.md, docs/seasons.md +1 |
+| `SWIPE_GATE` | `lib/swipe-gate.ts` | - | BUILD.md, docs/flows.md +2 |
+| `WORKERS_AI` | `lib/workers-ai.ts` | show.yaml | docs/PRDs/styles-and-storylines.md |
+
+### Off unless `1`
+
+| Name | Read in | In the spec (`.do/`) | Also explained in |
+|---|---|---|---|
+| `AD_SPEND_SHOW_TOKENS` | `lib/adult/tokens.ts` | - | docs/after-dark.md |
+| `AFTER_DARK_ONLY` | `lib/adult/mode.ts` +1 | show.yaml, app.yaml | BUILD.md, docs/PRDs/after-dark.md +3 |
+| `BOTCHELOR_INLINE_GENERATION` | `lib/jobs.ts` | - | docs/agent-visitor-test.md, docs/history/roadmap-to-2026-10-16.md |
+| `COMPANION_DEBUG` | `lib/companion.ts` | - | **nowhere else** |
+| `COMPANION_OPEN` | `lib/companion-shared.ts` | show.yaml | docs/companions.md, docs/flows.md +1 |
+| `FREE_WEEKLY_SECOND_DATE` | `lib/allowance.ts` | - | BUILD.md, docs/companions.md +2 |
+| `FRONTIER_DEFAULT` | `lib/model.ts` | show.yaml | BUILD.md, docs/agents-and-people.md +1 |
+| `HOUSE_CROWD_PAUSED` | `lib/house-bots.ts` | - | docs/house-crowd.md |
+| `LEGACY_BARE_UID` | `lib/http.ts` | - | docs/accounts-and-byok.md |
+| `MODERATION_DEV_OFF` | `lib/adult/moderation.ts` | - | docs/PRDs/reel-storyboard.md, docs/after-dark.md |
+| `OPERATOR_PASS_ENABLED` | `lib/operator-pass.ts` | - | docs/architecture.md |
+| `OPERATOR_PASS_SALE` | `lib/operator-pass.ts` | - | README.md, REVENUE.md +4 |
+| `ORIGINALITY_CONCEPT` | `lib/originality-concept.ts` | show.yaml | BUILD.md, ROADMAP.md +2 |
+| `PRODUCER_PLANS` | `lib/night-plans.ts` | show.yaml | docs/date-quality.md, docs/hosting.md +1 |
+| `STORY_CHECK_FEATURE_REPAIRED` | `lib/story-check-gate.ts` | show.yaml | docs/story-check.md |
+| `STRIPE_ALLOW_TEST_LINK` | `lib/operator-pass.ts` +2 | - | docs/history/build-log-2026-10-13-to-16.md, docs/launch-readiness.md +1 |
+
+### Values: keys, addresses, models and limits
+
+| Name | Read in | In the spec (`.do/`) | Also explained in |
+|---|---|---|---|
+| `AD_EVAL_DAILY_USD` | `lib/adult/eval.ts` | - | docs/after-dark-hosting.md, docs/after-dark.md |
+| `AD_SUBSCRIPTION_NAME` | `lib/adult/billing.ts` | - | docs/after-dark.md |
+| `AD_SUBSCRIPTION_PRICE_USD` | `lib/adult/billing.ts` | - | docs/after-dark-costs.md, docs/after-dark-processor-application.md +1 |
+| `AD_TOKEN_PACKS` | `lib/adult/tokens.ts` | - | docs/after-dark.md |
+| `ADULT_LLM_API_KEY` | `lib/adult/mode.ts` | - | **nowhere else** |
+| `ADULT_LLM_BASE_URL` | `lib/adult/mode.ts` | - | docs/PRDs/after-dark.md |
+| `ADULT_LLM_MODEL` | `lib/adult/mode.ts` | - | docs/PRDs/after-dark.md |
+| `ADULT_MODE` | `lib/adult/mode.ts` | show.yaml, app.yaml | docs/PRDs/after-dark.md, docs/after-dark-hosting.md +2 |
+| `ADULT_TEXT_PROVIDERS` | `lib/adult/mode.ts` | - | docs/after-dark-hosting.md, docs/after-dark.md |
+| `AFTER_DARK_ORIGIN` | `lib/after-dark-host.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md, docs/after-dark.md |
+| `BING_SITE_VERIFICATION` | `lib/tracking.ts` | - | BUILD.md, docs/seo-and-tracking.md |
+| `BOTCHELOR_AGENT_DAILY_DATES` | `lib/dating.ts` | - | BUILD.md, docs/PRDs/agent-world.md +1 |
+| `BOTCHELOR_AGENT_DAILY_SHARE` | `lib/dating.ts` | - | **nowhere else** |
+| `BOTCHELOR_AIR_WINDOW_MINUTES` | `lib/air.ts` | - | BUILD.md, docs/agents-and-people.md |
+| `BOTCHELOR_PAUSE` | `lib/compute.ts` | - | BUILD.md, docs/companions.md +5 |
+| `BOTCHELOR_SEASON_CAST` | `lib/season-cast.ts` | - | BUILD.md, docs/seasons.md |
+| `BOTCHELOR_SEASON_CAST_SIZE` | `lib/season-cast.ts` | - | BUILD.md |
+| `BUNNY_ACCOUNT_KEY` | `lib/spend.ts` | - | docs/costs.md |
+| `BYOK_STUB_ORIGIN` | `lib/connections.ts` | - | docs/PRDs/connections.md, docs/accounts-and-byok.md |
+| `CCBILL_ACCOUNT` | `lib/adult/billing-ccbill.ts` | - | docs/after-dark.md |
+| `CCBILL_FLEX_ID` | `lib/adult/billing-ccbill.ts` | - | docs/after-dark.md |
+| `CCBILL_SALT` | `lib/adult/billing-ccbill.ts` | - | docs/after-dark.md |
+| `CCBILL_SUBACCOUNT` | `lib/adult/billing-ccbill.ts` | - | docs/after-dark.md |
+| `CCBILL_WEBHOOK_KEY` | `lib/adult/billing-ccbill.ts` | - | docs/after-dark.md |
+| `CEREMONY_HOUR_UTC` | `lib/ceremony.ts` | show.yaml | docs/seasons.md, docs/sunday-premiere.md |
+| `CHARACTER_GIFTS_RATE` | `lib/gift-catalog.ts` | show.yaml | docs/hosting.md, docs/relationship-graph.md |
+| `COMMIT_SHA` | `lib/deploy.ts` | show.yaml, app.yaml | **nowhere else** |
+| `COMPANION_FREE_ALL_PER_DAY` | `lib/companion-plan.ts` | - | docs/companions.md |
+| `COMPANION_FREE_PER_DAY` | `lib/companion-plan.ts` | - | docs/audits/2026-11-11-design-vs-live-and-ux-audit.md, docs/companions.md |
+| `COMPANION_GUEST_REPLIES` | `lib/companion-shared.ts` | - | docs/companions.md |
+| `COMPANION_LIVE` | `lib/companion-call-voice.ts` +1 | show.yaml | docs/PRDs/digital-human.md, docs/companions.md |
+| `COMPANION_LIVE_BUNDLE` | `lib/companion-shared.ts` | - | docs/companions.md |
+| `COMPANION_LIVE_INCLUDED` | `lib/companion-shared.ts` | - | docs/companions.md |
+| `COMPANION_LIVE_MAX_MINUTES` | `lib/companion-live.ts` | - | docs/companions.md |
+| `COMPANION_MODEL` | `lib/companion.ts` | - | docs/companions.md |
+| `CONCEPT_TWIN_MIN` | `lib/originality-concept.ts` | - | BUILD.md, docs/character-depth.md |
+| `CONTACT_EMAIL` | `lib/legal-entity.ts` +1 | show.yaml, app.yaml | BUILD.md, LAUNCH-READY.md +6 |
+| `CRON_SECRET` | `lib/jobs.ts` | show.yaml, app.yaml | BUILD.md, docs/after-dark-hosting.md +9 |
+| `CROWD_MIN` | `lib/crowd-threshold.ts` | - | docs/show-style.md |
+| `DAILY_TEXT_COUPLES` | `lib/between-dates.ts` | - | BUILD.md, docs/agents-and-people.md +1 |
+| `DATABASE_URL` | `lib/db.ts` | show.yaml, app.yaml | BUILD.md, README.md +8 |
+| `DATE_TEXTS_CHARS` | `lib/text-chain.ts` | - | BUILD.md, docs/relationship-graph.md |
+| `DB_POOL_SIZE` | `lib/db.ts` | - | docs/audits/2026-11-01-audit.md |
+| `DEEPGRAM_API_KEY` | `lib/companion-call-voice.ts` +1 | show.yaml | docs/companions.md, docs/runbooks/rotate-keys.md |
+| `DEEPGRAM_API_URL` | `lib/companion-live.ts` | - | docs/companions.md |
+| `DEEPGRAM_STT_MODEL` | `lib/companion-live.ts` | - | docs/companions.md |
+| `DEPLOY_ENV` | `lib/deploy.ts` | show.yaml, app.yaml | GROWTH.md, LAUNCH-READY.md +6 |
+| `DID_API_KEY` | `lib/live-face/compare.ts` | - | **nowhere else** |
+| `DIDIT_API_KEY` | `lib/adult/age-check.ts` | show.yaml | docs/after-dark.md, docs/runbooks/rotate-keys.md |
+| `DIDIT_WEBHOOK_SECRET` | `lib/adult/age-check.ts` | show.yaml | docs/after-dark.md, docs/runbooks/rotate-keys.md |
+| `DIDIT_WORKFLOW_ID` | `lib/adult/age-check.ts` | show.yaml | docs/after-dark.md |
+| `DISCORD_INVITE_URL` | `lib/discord.ts` | show.yaml | BUILD.md, docs/company.md +2 |
+| `DISCORD_WEBHOOK_URL` | `lib/discord.ts` | show.yaml | BUILD.md, docs/discord.md +2 |
+| `DO_BILLING_TOKEN` | `lib/spend.ts` | show.yaml | docs/costs.md, docs/runbooks/rotate-keys.md |
+| `EARNED_ENDINGS` | `lib/date-turn.ts` | show.yaml | docs/date-quality.md, docs/hosting.md +1 |
+| `EMAIL_DAILY_CAP` | `lib/email.ts` | - | BUILD.md, docs/accounts-and-byok.md +2 |
+| `EMAIL_FROM` | `lib/email.ts` | - | BUILD.md, README.md +1 |
+| `EMBED_API_KEY` | `lib/originality-concept.ts` | show.yaml | BUILD.md, docs/PRDs/group-dates.md +3 |
+| `EMBED_CHECK_TIMEOUT_MS` | `lib/originality-concept.ts` | - | BUILD.md, docs/character-depth.md |
+| `EMBED_DAILY_CAP` | `lib/originality-concept.ts` | - | BUILD.md, docs/character-depth.md +1 |
+| `EMBED_MODEL` | `lib/originality-concept.ts` | - | BUILD.md |
+| `EMBED_URL` | `lib/originality-concept.ts` | - | BUILD.md |
+| `EVAL_GOOGLE_API_KEY` | `app/api/jobs/eval/route.ts` | show.yaml | docs/date-quality.md, docs/history/roadmap-to-2026-10-16.md +1 |
+| `FACE_KIT_PER_DAY` | `lib/face-kit.ts` | - | docs/PRDs/digital-human.md, docs/companions.md +1 |
+| `FAST_FIRST_LINE` | `lib/fast-date.ts` | show.yaml | docs/date-quality.md, docs/hosting.md |
+| `FFMPEG_PATH` | `lib/media-tools/ffmpeg.ts` | - | **nowhere else** |
+| `FIRST_DATE_FORMAT` | `lib/first-date.ts` | show.yaml | docs/companions.md, docs/hosting.md +1 |
+| `FRONTIER_DAILY_DATE_CAP` | `lib/limits.ts` | - | BUILD.md, docs/PRDs/agent-world.md +5 |
+| `FRONTIER_LLM_API_KEY` | `lib/model.ts` | show.yaml | BUILD.md, README.md +3 |
+| `FRONTIER_LLM_BASE_URL` | `lib/model.ts` | show.yaml | BUILD.md, README.md +2 |
+| `FRONTIER_LLM_MODEL` | `lib/model.ts` +1 | show.yaml | BUILD.md, README.md +1 |
+| `FRONTIER_PASSWORD` | `lib/mcp/dispatcher.ts` +1 | show.yaml, app.yaml | BUILD.md, README.md +4 |
+| `GEO_HEADERS` | `lib/place.ts` | show.yaml | docs/hosting.md, docs/seo-and-tracking.md +1 |
+| `GOOGLE_API_KEY` | `lib/model.ts` +1 | show.yaml | BUILD.md, README.md +5 |
+| `GOOGLE_OAUTH_CLIENT_ID` | `app/api/auth/google/start/route.ts` +1 | show.yaml | BUILD.md, docs/accounts-and-byok.md |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | `lib/auth.ts` | show.yaml | BUILD.md, docs/accounts-and-byok.md +1 |
+| `GOOGLE_SITE_VERIFICATION` | `lib/tracking.ts` | show.yaml | BUILD.md, docs/seo-and-tracking.md |
+| `HOT_TAKES_WAIT_MS` | `lib/fast-date.ts` | - | docs/date-quality.md, docs/hosting.md |
+| `HOUSE_SCENE_HOUR_UTC` | `lib/house-scenes.ts` | - | docs/companions.md, docs/hosting.md +1 |
+| `HOUSE_TEXT_REPLIES` | `lib/texting.ts` | - | BUILD.md, docs/agents-and-people.md +1 |
+| `HOUSE_TEXT_REPLIES_DAILY` | `lib/texting.ts` | - | BUILD.md, docs/agents-and-people.md +1 |
+| `IMPORT_HISTORY_MODEL` | `lib/import-history-reader.ts` | - | docs/flows.md, docs/hosting.md |
+| `INDEXNOW_KEY` | `lib/indexnow.ts` | show.yaml | BUILD.md, docs/runbooks/rotate-keys.md +1 |
+| `KEY_ENCRYPTION_SECRET` | `lib/key-crypto.ts` | show.yaml | docs/PRDs/agent-world.md, docs/PRDs/connections.md +4 |
+| `LIVE_FACE_BBOX_SHIFT` | `lib/live-face/index.ts` | - | docs/PRDs/digital-human.md |
+| `LIVE_FACE_ENDPOINT` | `lib/live-face/musetalk.ts` | show.yaml | docs/PRDs/digital-human.md, docs/companions.md |
+| `LIVE_FACE_PROVIDER` | `lib/live-face/index.ts` | show.yaml | docs/PRDs/digital-human.md, docs/companions.md +1 |
+| `LLM_ACTOR_REASONING` | `lib/model.ts` | - | docs/history/upgrade-cost.md |
+| `LLM_API_KEY` | `lib/model.ts` +1 | - | BUILD.md, README.md +4 |
+| `LLM_BASE_URL` | `lib/model.ts` +1 | - | BUILD.md, README.md +3 |
+| `LLM_DIRECTOR_MODEL` | `lib/model.ts` | - | BUILD.md, docs/date-quality.md +3 |
+| `LLM_DIRECTOR_REASONING` | `lib/model.ts` | - | docs/history/upgrade-cost.md |
+| `LLM_MODEL` | `lib/model.ts` +1 | - | BUILD.md, README.md +4 |
+| `LOOKS_PORTRAITS_PER_DAY` | `lib/looks-draw.ts` | - | docs/looks.md |
+| `MALLOC_ARENA_MAX` | `lib/ops-log.ts` | - | **nowhere else** |
+| `MATCH_CHATS_DAILY` | `lib/swipes.ts` | - | BUILD.md, docs/agents-and-people.md |
+| `MEDIA_BUNNY_CDN_HOST` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md |
+| `MEDIA_BUNNY_KEY` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md, docs/runbooks/rotate-keys.md |
+| `MEDIA_BUNNY_REGION` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md |
+| `MEDIA_BUNNY_TOKEN_KEY` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md, docs/runbooks/rotate-keys.md |
+| `MEDIA_BUNNY_ZONE` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md |
+| `MEDIA_S3_ACCESS_KEY_ID` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/PRDs/digital-human.md +2 |
+| `MEDIA_S3_BUCKET` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/after-dark-hosting.md |
+| `MEDIA_S3_ENDPOINT` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/after-dark-hosting.md |
+| `MEDIA_S3_REGION` | `lib/object-store.ts` | show.yaml | BUILD.md |
+| `MEDIA_S3_SECRET_ACCESS_KEY` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/PRDs/digital-human.md +2 |
+| `NAME` | `lib/after-dark-host.ts` | show.yaml | AGENTS.md, docs/discord.md +2 |
+| `NEWSLETTER_DAILY_CAP` | `lib/newsletter.ts` | show.yaml | docs/newsletter.md |
+| `NEWSLETTER_POSTAL_ADDRESS` | `lib/newsletter.ts` | show.yaml | docs/newsletter.md |
+| `NEXT_PUBLIC_DEPLOY_ENV` | `app/funnel.ts` | - | GROWTH.md, LAUNCH-READY.md |
+| `NEXT_PUBLIC_GA_ID` | `lib/tracking.ts` | show.yaml, app.yaml | BUILD.md, docs/after-dark-hosting.md +1 |
+| `NEXT_PUBLIC_GTM_ID` | `lib/tracking.ts` | app.yaml | docs/after-dark-hosting.md, docs/seo-and-tracking.md |
+| `NEXT_PUBLIC_OPERATOR_PASS_LINK` | `lib/operator-pass.ts` | - | **nowhere else** |
+| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | `lib/stripe.ts` | show.yaml | BUILD.md, LAUNCH-READY.md +2 |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | `lib/push.ts` | - | BUILD.md |
+| `NEXT_PUBLIC_VERCEL_ENV` | `app/funnel.ts` | - | GROWTH.md, LAUNCH-READY.md |
+| `NEXT_RUNTIME` | `instrumentation.ts` | - | **nowhere else** |
+| `NODE_ENV` | `app/api/auth/carry/route.ts` +11 | - | **nowhere else** |
+| `OAUTH_REDIRECT_BASE` | `lib/auth.ts` | show.yaml | BUILD.md, docs/accounts-and-byok.md |
+| `OPERATOR_PASS_LINK` | `lib/operator-pass.ts` | show.yaml | docs/architecture.md, docs/hosting.md +1 |
+| `OPERATOR_PASS_PRICE_USD` | `lib/spend.ts` | - | docs/audits/2026-11-13-design-lift.md, docs/pricing-and-byok.md |
+| `OPERATOR_PASS_WEBHOOK_SECRET` | `app/api/webhooks/stripe-operator/route.ts` | show.yaml | docs/runbooks/rotate-keys.md |
+| `PGLITE_DIR` | `lib/db.ts` | - | BUILD.md |
+| `PREMIERE_HOUR_UTC` | `lib/premiere-clock.ts` | show.yaml | docs/season-page.md, docs/seasons.md +1 |
+| `REPLICATE_API_TOKEN` | `lib/adult/settings.ts` | show.yaml | docs/after-dark-costs.md, docs/after-dark-hosting.md +2 |
+| `RESEND_API_KEY` | `lib/email.ts` | show.yaml, app.yaml | BUILD.md, README.md +5 |
+| `RUNPOD_API_KEY` | `lib/live-face/ditto.ts` +1 | show.yaml | docs/PRDs/digital-human.md, docs/companions.md +1 |
+| `SEGPAY_PACKAGE_ID` | `lib/adult/billing-segpay.ts` | - | docs/after-dark.md |
+| `SEGPAY_POSTBACK_IPS` | `lib/adult/billing-segpay.ts` | - | docs/after-dark.md |
+| `SEGPAY_POSTBACK_SECRET` | `lib/adult/billing-segpay.ts` | - | docs/after-dark.md |
+| `SEGPAY_PRICE_POINT_ID` | `lib/adult/billing-segpay.ts` | - | docs/after-dark.md |
+| `SEGPAY_TOKEN_PRICE_POINTS` | `lib/adult/billing-segpay.ts` | - | docs/after-dark.md |
+| `SESSION_SECRET` | `lib/account-recovery.ts` +13 | show.yaml, app.yaml | BUILD.md, README.md +8 |
+| `SIMLI_API_KEY` | `lib/live-face/compare.ts` +1 | show.yaml | docs/PRDs/digital-human.md, docs/companions.md +1 |
+| `SIMLI_BACKGROUND_ID` | `lib/live-face/index.ts` | - | **nowhere else** |
+| `SITE_URL` | `lib/show-shots.ts` +1 | show.yaml, app.yaml | LAUNCH-READY.md, docs/after-dark-hosting.md +2 |
+| `SPEED_DATE_MODEL` | `lib/fast-date.ts` | show.yaml | docs/date-quality.md, docs/hosting.md |
+| `SPEED_DATE_REASONING` | `lib/fast-date.ts` | show.yaml | docs/date-quality.md, docs/hosting.md |
+| `STAND_IN_TEXTS` | `lib/texting.ts` | - | docs/PRDs/connections.md |
+| `STEP_IN_GUEST_DAILY_MAX` | `lib/step-in.ts` | show.yaml | docs/hosting.md, docs/step-into-the-date.md |
+| `STORY_CHECK_BACKFILL_DAYS` | `lib/story-check.ts` | show.yaml | docs/story-check.md |
+| `STORY_CHECK_PER_HOUR` | `lib/story-check.ts` | show.yaml | docs/story-check.md |
+| `STRIPE_PAYMENT_LINK` | `lib/stripe.ts` | show.yaml | BUILD.md, LAUNCH-READY.md +6 |
+| `STRIPE_PLANS_WEBHOOK_SECRET` | `app/api/webhooks/stripe-plans/route.ts` | show.yaml | docs/companions.md, docs/pricing-and-byok.md +1 |
+| `STRIPE_PORTAL_LINK` | `lib/paid-plans.ts` | show.yaml | docs/companions.md, docs/pricing-and-byok.md |
+| `STRIPE_PRICE_LABEL` | `lib/stripe.ts` | show.yaml | BUILD.md, docs/history/build-log-2026-10-13-to-16.md +2 |
+| `STRIPE_WEBHOOK_SECRET` | `app/api/webhooks/stripe/route.ts` | show.yaml | BUILD.md, LAUNCH-READY.md +6 |
+| `VAPID_PRIVATE_KEY` | `lib/push.ts` | show.yaml | BUILD.md, docs/relationship-graph.md +1 |
+| `VAPID_PUBLIC_KEY` | `lib/push.ts` | show.yaml | BUILD.md, docs/relationship-graph.md +1 |
+| `VERCEL` | `lib/deploy.ts` +2 | - | docs/PRDs/connections.md, docs/after-dark-hosting.md +1 |
+| `VERCEL_ENV` | `lib/deploy.ts` | show.yaml | docs/PRDs/connections.md, docs/PRDs/reel-storyboard.md +2 |
+| `VERCEL_GIT_COMMIT_SHA` | `lib/deploy.ts` +1 | - | docs/feedback.md |
+| `VERCEL_PROJECT_PRODUCTION_URL` | `lib/auth.ts` +1 | - | docs/history/build-log-2026-10-13-to-16.md |
+| `VEROTEL_PERIOD` | `lib/adult/billing-verotel.ts` | - | docs/after-dark.md |
+| `VEROTEL_SHOP_ID` | `lib/adult/billing-verotel.ts` | - | docs/after-dark.md |
+| `VEROTEL_SIGNATURE_KEY` | `lib/adult/billing-verotel.ts` | - | docs/after-dark.md |
+| `VITEST` | `lib/cutout.ts` +4 | - | **nowhere else** |
+| `WATCH_ADMIN_TOKEN` | `app/api/watch-parties/templates/route.ts` +1 | show.yaml | BUILD.md, docs/history/build-log-2026-10-13-to-16.md +1 |
+| `WORKERS_AI_KEY` | `lib/workers-ai.ts` | show.yaml | docs/PRDs/styles-and-storylines.md, docs/runbooks/rotate-keys.md |
+| `WORKERS_AI_URL` | `lib/workers-ai.ts` | show.yaml | docs/PRDs/styles-and-storylines.md |
+| `WRITING_STYLES` | `lib/writing-style.ts` | show.yaml | docs/companions.md, docs/hosting.md +1 |
+
+<!-- END: generated -->
