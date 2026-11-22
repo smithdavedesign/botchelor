@@ -586,6 +586,26 @@ async function main() {
         },
       },
       { name: "create", path: "/create?sample=1", walk: "wizard" },
+      {
+        // A first character's first date (app/create/CreateWizard.tsx SendPhase, 2026-11-21): someone new makes the
+        // sample character and lands on the one card, the stage with the two faces and the Start button. Its own browser
+        // ("newcomer": 18+, no characters), so nobody else's states change; it only exists in the same tab as the save.
+        name: "create-first-date",
+        path: "/create?sample=1",
+        as: "newcomer",
+        walk: async (page) => {
+          for (let i = 0; i < 8; i++) {
+            const next = page.getByRole("button", { name: /^Next\b/ });
+            if (!(await next.count())) break;
+            await next.first().click();
+            await page.waitForTimeout(250);
+          }
+          const attest = page.locator('.wizard-attest input[type="checkbox"]');
+          if (await attest.count()) await attest.check();
+          await page.getByRole("button", { name: /^Create / }).click();
+          await page.locator("[data-first-date]").waitFor({ timeout: 30_000 });
+        },
+      },
       { name: "character-owner", path: `/characters/${myChar}`, as: "owner" },
       { name: "character-edit", path: `/characters/${myChar}/edit`, as: "owner", walk: "wizard" },
       { name: "create-send", path: `/create?character=${myChar}`, as: "owner" },
