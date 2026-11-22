@@ -3,8 +3,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 /**
  * How many database round trips each heavy page waits on, one after another (the 2026-11-04 performance audit). The
  * apps run in New York and the database in Oregon, so each round trip costs ~70 ms on prod: a page that waits on 20 in
- * a row spends ~1.4 s before its first byte. Every query here is slowed by LATENCY_MS, so a page's time over LATENCY_MS,
- * rounded down, is its depth: the round trips it waits on in sequence. Budgets keep a page from sliding back.
+ * a row spends ~1.4 s before its first byte. Every query here is slowed by LATENCY_MS and counted as one round trip
+ * deeper than the deepest query that had finished when it started, so a page's depth is the round trips it waits on in
+ * sequence, however long its own work between them takes. Budgets keep a page from sliding back.
  */
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
 vi.mock("next/headers", () => ({
@@ -25,7 +26,13 @@ let t: Awaited<ReturnType<typeof startTestDb>>;
 const counter = { n: 0 };
 /** PERF_TRACE=<page name>: each of that page's queries, by the round trip it starts in, and where it came from. */
 const trace: { at: number; sql: string; from: string }[] = [];
-let traceStart = 0;
+let traceOn = false;
+/**
+ * The round trips of the run being measured: a query is one deeper than the deepest that had finished when it started
+ * (or got a free connection), so queries sent together share one, and a query sent after another's answer, or after
+ * waiting for a connection, is one more. `run` keeps a query from an earlier run that the page didn't wait for out.
+ */
+const trips = { run: 0, finished: 0 };
 /** Prod's pool (lib/db.ts POOL_SIZE): more queries at once than this wait for a free connection. */
 const POOL = 10;
 let busy = 0;
@@ -50,14 +57,18 @@ const slow = (db: Db): Db => ({
   exec: (sql) => db.exec(sql),
 });
 const timed = async (sql: string, params?: unknown[]) => {
-  {
-    counter.n++;
-    if (traceStart) {
-      const from = (new Error().stack ?? "").split("\n").slice(2).map((l) => /\/(app|lib)\/([^:]+):(\d+)/.exec(l)).filter(Boolean).slice(0, 2).map((m) => `${m![1]}/${m![2]}:${m![3]}`).join(" < ");
-      trace.push({ at: Math.floor((performance.now() - traceStart) / LATENCY_MS), sql: sql.replace(/\s+/g, " ").trim().slice(0, 70), from });
-    }
-    await new Promise((r) => setTimeout(r, LATENCY_MS));
-    return t.db.query(sql, params);
+  counter.n++;
+  const run = trips.run;
+  const trip = trips.finished + 1;
+  if (traceOn) {
+    const from = (new Error().stack ?? "").split("\n").slice(2).map((l) => /\/(app|lib)\/([^:]+):(\d+)/.exec(l)).filter(Boolean).slice(0, 2).map((m) => `${m![1]}/${m![2]}:${m![3]}`).join(" < ");
+    trace.push({ at: trip, sql: sql.replace(/\s+/g, " ").trim().slice(0, 70), from });
+  }
+  await new Promise((r) => setTimeout(r, LATENCY_MS));
+  try {
+    return await t.db.query(sql, params);
+  } finally {
+    if (run === trips.run) trips.finished = Math.max(trips.finished, trip);
   }
 };
 
@@ -104,29 +115,31 @@ function side() {
 
 /**
  * Runs a page's server work once cold, then warm (as most requests are), and returns its depth and query count.
- * Depth is wall-clock time, and a busy machine only ever adds to it (other suites, local models): one warm run failed a
- * different page by 1–4 round trips on different runs (2026-11-08) while main and the branch measured the same alone.
- * So the best of WARM_RUNS is the page's own cost; a real extra round trip still adds LATENCY_MS to every run.
- * Rounded down, not to the nearest: each round trip adds a whole LATENCY_MS, so the floor never misses one, and a page's
- * own work between them (rendering, under LATENCY_MS in all) never reads as one. LATENCY_MS is 100 so that work stays a
- * small part of it: the heaviest here, the owner's character page, renders in ~50 ms of its ~950. At 30 ms and rounded
- * to the nearest, render time read as one more round trip on 13 of these pages every run, and on the visitor's home
- * page (three round trips and ~14 ms of rendering, 102–105 ms, the same before and after #1790–#1802) on some runs, so
- * it flipped between 3 and 4 against its budget of 3 (2026-11-17).
+ * Depth used to be wall-clock time over LATENCY_MS, rounded down, so the page's own work and a busy machine counted too:
+ * one warm run failed a page by 1–4 round trips (2026-11-08), the visitor's home page flipped between 3 and 4 on ~14 ms
+ * of rendering (2026-11-17), and the owner's character page, ten round trips and ~50 ms of rendering (1,046–1,060 ms),
+ * took 1,113 ms on a busy CI runner and read as eleven (2026-11-22). Counted round trips (`trips`) leave time out, so a
+ * page measures the same on any machine; `ms` stays in the report. LATENCY_MS stays 100 so queries a page sends
+ * together have all started before the first answer comes back. The fewest of WARM_RUNS is kept, as before.
  */
 const WARM_RUNS = 3;
 let tracing = false;
 async function measure(run: () => Promise<unknown>) {
+  trips.run++;
+  trips.finished = 0;
   await run().catch(() => {});
   let best = { depth: Infinity, queries: 0, ms: Infinity };
   for (let i = 0; i < WARM_RUNS; i++) {
     counter.n = 0;
+    trips.run++;
+    trips.finished = 0;
+    if (tracing) (trace.length = 0), (traceOn = true);
     const start = performance.now();
-    if (tracing) (trace.length = 0), (traceStart = start);
     await run();
     const ms = performance.now() - start;
-    traceStart = 0;
-    if (ms < best.ms) best = { depth: Math.floor(ms / LATENCY_MS), queries: counter.n, ms: Math.round(ms) };
+    traceOn = false;
+    const depth = trips.finished;
+    if (depth < best.depth || (depth === best.depth && ms < best.ms)) best = { depth, queries: counter.n, ms: Math.round(ms) };
   }
   return best;
 }
