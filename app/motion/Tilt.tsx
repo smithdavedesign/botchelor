@@ -14,7 +14,7 @@ type Props = {
 /**
  * A card that leans toward the pointer (the motion kit's tilt, app/ux/motion.css .tilt). A mouse or a pen only, never a
  * finger: a phone's tap shouldn't wobble the card it opens. Reduced motion turns the lean off in CSS, so it only ever
- * writes two custom properties here.
+ * writes two custom properties here. The card's own classes come first, so a page's class still opens its class list.
  */
 export default function Tilt({ children, className, as: Tag = "div", max = 6 }: Props) {
   const ref = useRef<HTMLElement>(null);
@@ -36,7 +36,7 @@ export default function Tilt({ children, className, as: Tag = "div", max = 6 }: 
     el.classList.remove("is-tilting");
   };
   return (
-    <Tag ref={ref} className={className ? `tilt ${className}` : "tilt"} onPointerMove={lean} onPointerLeave={rest}>
+    <Tag ref={ref} className={className ? `${className} tilt` : "tilt"} onPointerMove={lean} onPointerLeave={rest}>
       {children}
     </Tag>
   );
