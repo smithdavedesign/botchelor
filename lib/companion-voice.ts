@@ -19,6 +19,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { track } from "./analytics";
 import { loadCharacter } from "./character";
 import { giveBackExtra, takeExtra, type ExtraRefusal, type ExtraTicket } from "./companion-extras";
+import { withoutStageDirections } from "./companion-live-shared";
 import { COMPANION_AGENT_VOICE_LIMITS } from "./companion-shared";
 import { crisisIntent } from "./crisis";
 import type { Db } from "./db";
@@ -70,8 +71,9 @@ export async function voiceNote(
   if (m.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const character = await loadCharacter(db, m.character_id);
   if (!character) return fail(404, "not_found", "Pick one of their replies.");
-  // A story reply (lib/narration.ts story mode) is prose around what's said: only the quoted speech is voiced.
-  const words = sayable(m.form === "story" ? storySpeech(m.text).join(" ") : m.text);
+  // A story reply (lib/narration.ts story mode) is prose around what's said: only the quoted speech is voiced. Never a
+  // stage direction either ("(slides his phone across the bar) Watch this." is said "Watch this.").
+  const words = sayable(withoutStageDirections(m.form === "story" ? storySpeech(m.text).join(" ") : m.text));
   if (!words) return fail(422, "silent", "There's nothing to say out loud in that one.");
   if (!checkFamilyTalk(words).ok || crisisIntent(words)) return fail(422, "refused", "That one can't be voiced.");
   const voice = voiceFor(character);

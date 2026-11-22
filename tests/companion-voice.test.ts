@@ -144,6 +144,18 @@ describe("voice notes", () => {
     expect(await credits(me.id)).toBe(COMPANION_EXTRAS.voice.bundle - 1);
   });
 
+  it("never says a stage direction: the voice skips it, the message on screen keeps it", async () => {
+    const me = await person();
+    await tokens(me.id, 1);
+    const { id } = await thread(me.cookie);
+    const line = "(slides his phone across the bar) Watch this. [grins] You can ask it anything.";
+    const msg = (await t.db.query<{ id: string }>(`insert into companion_messages (id, thread_id, role, text) values ($1, $2, 'character', $3) returning id`, [crypto.randomUUID(), id, line])).rows[0].id;
+    const made = await voice(me.cookie, id, msg, true);
+    expect(made.status).toBe(200);
+    expect(asked.at(-1).input).toBe("Watch this. You can ask it anything.");
+    expect(made.body.view.messages.find((m: Any) => m.id === msg).text).toBe(line);
+  });
+
   it("the plan includes 30 a month, counted per person; then the price", async () => {
     const me = await person();
     await grantPlan(t.db, me.id, "companion", "initial", { subscriptionId: "sub_v" });
