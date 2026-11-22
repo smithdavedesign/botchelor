@@ -201,9 +201,10 @@ export default function CompanionChat({
     return { them: here.findLast((m) => m.role === "character") ?? null, you: here.findLast((m) => m.role === "user") ?? null };
   }, [shown, since]);
   const newest = shown.findLast((m) => m.role === "character") ?? null;
-  // Whether a reply shows its voice note and Report: the newest always, an earlier one once its ⋯ is open (or while
-  // it's being recorded or reported).
-  const footOpen = (m: CompanionMessageView) => newest?.id === m.id || actionsFor === m.id || voicing === m.id || reporting === m.id;
+  // Whether a reply shows its voice note and Report: the newest that can have them (a photo has neither) always, an
+  // earlier one once its ⋯ is open (or while it's being recorded or reported).
+  const newestSaid = shown.findLast((m) => m.role === "character" && !m.photo) ?? null;
+  const footOpen = (m: CompanionMessageView) => newestSaid?.id === m.id || actionsFor === m.id || voicing === m.id || reporting === m.id;
   const spoken = useRef(newest?.id ?? null);
 
   useLayoutEffect(() => {
@@ -866,7 +867,7 @@ export default function CompanionChat({
                       // A voice note and Report under the newest reply; an earlier one keeps a voice note it has and opens
                       // the rest from its ⋯ (2026-11-22: a pill and a link under every reply, 28 pills on one thread).
                       <div className="companion-foot">
-                        {newest?.id !== m.id && (
+                        {newestSaid?.id !== m.id && (
                           <button
                             type="button"
                             className="linklike small muted companion-more"
@@ -902,7 +903,7 @@ export default function CompanionChat({
                           )
                         ) : (
                           // A guest: asked once, on the newest reply, to sign in for them.
-                          newest?.id === m.id && (
+                          newestSaid?.id === m.id && (
                             <Link className="button-ghost small companion-voice-note" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} title="Voice notes come with a free account" data-track="companion-voice-signin">
                               🔊 Voice notes with a free account
                             </Link>
