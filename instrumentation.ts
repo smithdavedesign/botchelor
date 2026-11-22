@@ -1,4 +1,6 @@
 import type { Instrumentation } from "next";
+// Zod's settings before any route builds a schema (lib/zod-config.ts); the browser gets them from instrumentation-client.ts.
+import "./lib/zod-config";
 
 /**
  * Server errors outside the API wrapper (pages, server components, actions) are counted for the monitor too
