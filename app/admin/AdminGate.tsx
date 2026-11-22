@@ -1,101 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import AdminClaim from "./AdminClaim";
 
-const STORAGE_KEY = "bz_frontier";
+/** Where this browser used to keep the admin password (localStorage): cleared on sight, nothing reads it now. */
+const OLD_STORAGE_KEY = "bz_frontier";
 
 type Area = { href: string; label: string };
 
 /**
- * /admin's sign-in. Every panel below reads the admin password from this browser (localStorage) and, without it, used
- * to say "Not signed in." over its own empty form — eight times down a phone screen. Until there's a password (or the
- * account is an admin), this shows one sign-in card and a line of the admin areas instead.
- *
- * `admin` is the server's answer for a signed-in admin account (./signed-in-admin.ts), so a signed-out visit asks no
- * admin API anything (each ask was a 403 in the console).
+ * /admin's door. An admin page is for a signed-in admin account (lib/admins.ts): `admin` is the server's answer
+ * (./signed-in-admin.ts), so a signed-out visit asks no admin API anything (each ask was a 403 in the console), and an
+ * admin is never asked for a second password (2026-11-22 audit). The admin APIs take the same account
+ * (lib/admin-auth.ts); scripts send the admin key in a header instead. A browser no longer keeps that key: a signed-in
+ * account that isn't an admin yet can still be made one with it, typed once (./AdminClaim.tsx).
  */
 export default function AdminGate({ areas, admin, children }: { areas: Area[]; admin: boolean; children: ReactNode }) {
-  const [state, setState] = useState<"checking" | "out" | "in">("checking");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  // The same check the panels' API makes, for a typed password.
-  async function check(key: string): Promise<boolean> {
-    const res = await fetch("/api/admin/reports", { headers: { "x-frontier-key": key } }).catch(() => null);
-    return Boolean(res?.ok);
-  }
-
   useEffect(() => {
-    let saved = "";
     try {
-      saved = localStorage.getItem(STORAGE_KEY) ?? "";
+      localStorage.removeItem(OLD_STORAGE_KEY);
     } catch {
-      /* private mode: an admin account still works */
+      /* private mode: nothing was kept */
     }
-    setState(saved || admin ? "in" : "out");
-  }, [admin]);
+  }, []);
 
-  async function signIn(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const key = password.trim();
-    const ok = await check(key);
-    setBusy(false);
-    if (!ok) {
-      setError("That isn't the admin password.");
-      return;
-    }
-    try {
-      localStorage.setItem(STORAGE_KEY, key);
-    } catch {
-      /* private mode: the panels will ask again */
-    }
-    setPassword("");
-    setState("in");
-  }
-
-  function signOut() {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* nothing saved */
-    }
-    setState("out");
-  }
-
-  if (state === "checking") return <p className="muted small">Checking…</p>;
-  if (state === "in") {
-    return (
-      <>
-        <p className="admin-signed-in muted small">
-          Signed in on this browser.{" "}
-          <button type="button" className="link-button" onClick={signOut}>
-            Forget the password
-          </button>
-        </p>
-        {children}
-      </>
-    );
-  }
+  if (admin) return <>{children}</>;
   return (
     <>
       <section className="card admin-signin">
-        <h2>Sign in</h2>
-        <form onSubmit={signIn}>
-          <label>
-            Admin password
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
-          </label>
-          <button type="submit" disabled={busy}>
-            {busy ? "Checking…" : "Sign in"}
-          </button>
-        </form>
-        <p className="muted small">Kept in this browser only. An admin account works too: sign in to it and reload.</p>
-        {error && <p className="error">{error}</p>}
+        <h2>Admins only</h2>
+        <p>
+          These pages are for an admin account. <Link href="/account">Sign in to it</Link>, then come back.
+        </p>
       </section>
+      <AdminClaim />
       <p className="muted small admin-areas">
         Admin areas:{" "}
         {areas.map((a, i) => (

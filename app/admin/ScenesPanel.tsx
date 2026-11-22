@@ -7,7 +7,7 @@ import type { QueuedSet } from "@/lib/sets";
 
 /**
  * Scenes people asked for (owner-only): places dates went that the library has no set for yet, by a plan they texted or
- * a move on the date, most asked-for first. Reuses the admin password saved by the frontier tool in this browser.
+ * a move on the date, most asked-for first. For a signed-in admin account (lib/admin-auth.ts).
  */
 export default function ScenesPanel() {
   const [scenes, setScenes] = useState<SceneRequest[] | null>(null);
@@ -15,18 +15,9 @@ export default function ScenesPanel() {
   const [error, setError] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
 
-  const key = () => {
-    try {
-      return localStorage.getItem("bz_frontier") ?? "";
-    } catch {
-      return ""; // private mode
-    }
-  };
-
   useEffect(() => {
     (async () => {
-      if (!key()) return setError("Not signed in.");
-      const res = await fetch("/api/admin/scenes", { headers: { "x-frontier-key": key() } });
+      const res = await fetch("/api/admin/scenes");
       const body = await res.json();
       if (res.ok) {
         setScenes(body.scenes);
@@ -39,7 +30,7 @@ export default function ScenesPanel() {
   const drawQueue = async () => {
     setDrawing(true);
     try {
-      const res = await fetch("/api/admin/scenes", { method: "POST", headers: { "x-frontier-key": key(), "content-type": "application/json" }, body: JSON.stringify({ queue: true, limit: 5 }) });
+      const res = await fetch("/api/admin/scenes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ queue: true, limit: 5 }) });
       const body = await res.json();
       if (res.ok) setQueue(body.queue ?? []);
       else setError(body.message ?? "Couldn't draw the queue.");

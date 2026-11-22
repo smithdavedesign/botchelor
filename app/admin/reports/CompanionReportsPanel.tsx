@@ -6,25 +6,16 @@ import { venueName } from "@/lib/venues";
 
 const WHO = { user: "Them", character: "Companion", system: "Notice" } as const;
 
-/** Reported companion replies waiting for the owner (lib/companion-reports.ts). Works with the saved admin password or an admin account. */
+/** Reported companion replies waiting for the owner (lib/companion-reports.ts). For a signed-in admin account (lib/admin-auth.ts). */
 export default function CompanionReportsPanel() {
   const [reports, setReports] = useState<CompanionReport[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const headers = (): Record<string, string> => {
-    try {
-      const key = localStorage.getItem("bz_frontier");
-      return key ? { "x-frontier-key": key } : {};
-    } catch {
-      return {};
-    }
-  };
-
   async function load() {
     setError(null);
     try {
-      const res = await fetch("/api/admin/companion-reports", { headers: headers() });
+      const res = await fetch("/api/admin/companion-reports");
       const body = await res.json();
       if (res.ok) setReports(body.reports);
       else setError(body.message ?? "Not authorized.");
@@ -41,7 +32,7 @@ export default function CompanionReportsPanel() {
     try {
       const res = await fetch("/api/admin/companion-reports", {
         method: "POST",
-        headers: { "content-type": "application/json", ...headers() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ message_id: messageId, decision }),
       });
       if (!res.ok) setError((await res.json().catch(() => ({}))).message ?? "That didn't work.");

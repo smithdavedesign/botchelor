@@ -58,16 +58,6 @@ function query(f: Filters, extra: Record<string, string> = {}): string {
   return p.toString();
 }
 
-/** The admin password saved by the other admin panels in this browser, if any (an admin account works without it). */
-function adminHeaders(): Record<string, string> {
-  try {
-    const key = localStorage.getItem("bz_frontier");
-    return key ? { "x-frontier-key": key } : {};
-  } catch {
-    return {};
-  }
-}
-
 const when = (iso: string) => new Date(iso).toLocaleString();
 const shortDay = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 
@@ -110,15 +100,13 @@ function Sparkline({ days, value, label, unit }: { days: TrendDay[]; value: (d: 
 /**
  * The People tab (lib/user-feedback.ts): what people send with "Give us feedback". The numbers for the filter (notes,
  * new, average rating, NPS) with a per-day trend, the notes themselves, each one's status and the owner's note, and a
- * CSV of the same notes. Works with the saved admin password or a signed-in admin account.
+ * CSV of the same notes. For a signed-in admin account (lib/admin-auth.ts).
  */
 export default function PeopleFeedback() {
   const [filters, setFilters] = useState<Filters>(START);
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [needsPassword, setNeedsPassword] = useState(false);
-  const [password, setPassword] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [sort, setSort] = useState<Sort>("triage");
@@ -130,14 +118,11 @@ export default function PeopleFeedback() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/feedback/people?${query(f)}`, { headers: adminHeaders() });
+      const res = await fetch(`/api/admin/feedback/people?${query(f)}`);
       const body = await res.json().catch(() => ({}));
       if (mine !== latest.current) return;
       if (res.ok) {
         setData(body as Data);
-        setNeedsPassword(false);
-      } else if (res.status === 403) {
-        setNeedsPassword(true);
       } else {
         setError(body.issues?.[0]?.message ?? body.message ?? "That didn't load.");
       }
@@ -154,20 +139,10 @@ export default function PeopleFeedback() {
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) => setFilters((f) => ({ ...f, [key]: value }));
 
-  async function signIn() {
-    try {
-      localStorage.setItem("bz_frontier", password.trim());
-    } catch {
-      /* private mode: it still works for this page */
-    }
-    setPassword("");
-    await load(filters);
-  }
-
   async function patch(body: Record<string, unknown>): Promise<boolean> {
     const res = await fetch("/api/admin/feedback/people", {
       method: "PATCH",
-      headers: { "content-type": "application/json", ...adminHeaders() },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     }).catch(() => null);
     if (!res?.ok) setError((await res?.json().catch(() => ({})))?.message ?? "That didn't save.");
@@ -203,7 +178,7 @@ export default function PeopleFeedback() {
 
   async function exportCsv() {
     setError(null);
-    const res = await fetch(`/api/admin/feedback/people?${query(filters, { format: "csv" })}`, { headers: adminHeaders() }).catch(() => null);
+    const res = await fetch(`/api/admin/feedback/people?${query(filters, { format: "csv" })}`).catch(() => null);
     if (!res?.ok) {
       setError("The export didn't work.");
       return;
@@ -216,26 +191,6 @@ export default function PeopleFeedback() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-  }
-
-  if (needsPassword) {
-    return (
-      <section className="card">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void signIn();
-          }}
-        >
-          <label htmlFor="people-password">Admin password</label>
-          <input id="people-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="submit" className="small" disabled={!password.trim()}>
-            Sign in
-          </button>
-        </form>
-        <p className="muted small">Or sign in with an admin account.</p>
-      </section>
-    );
   }
 
   const s = data?.summary;

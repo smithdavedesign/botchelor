@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { addDays, dayDiff, isDay, isoDay, shortDay, type Interval } from "@/lib/chart";
 import type { Insights, Segment } from "@/lib/insights";
 import AgentsTab from "./AgentsTab";
@@ -25,7 +25,6 @@ const SEGMENT_LABELS: Record<Segment, string> = { all: "All", people: "People", 
 const MAX_DAYS = 365;
 /** Past this many days the charts go weekly unless asked otherwise. */
 const WEEKLY_FROM = 92;
-const STORAGE_KEY = "bz_frontier";
 
 export type Filters = { tab: Tab; preset: Preset | "custom"; from: string; to: string; segment: Segment; ours: boolean; interval: Interval | "auto" };
 
@@ -64,25 +63,13 @@ export function filtersQuery(f: Filters): string {
   return p.toString();
 }
 
-const savedKey = (): string => {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? "";
-  } catch {
-    return ""; // private mode
-  }
-};
-
-/** A fetch with the saved admin password, if there is one (a signed-in admin account needs none). */
-const adminFetch = (path: string) => {
-  const key = savedKey();
-  return fetch(path, { headers: key ? { "x-frontier-key": key } : {} });
-};
+/** The tabs' fetch: the admin APIs know a signed-in admin account by its session (lib/admin-auth.ts). */
+const adminFetch = (path: string) => fetch(path);
 
 /**
- * The analytics page (owner-only): one row of filters that scopes every tab, kept in the address, and five tabs. It
- * signs in like the other admin panels (the saved admin password, a signed-in admin account, or a box to enter it).
- * `admin` is the server's answer for a signed-in admin account: with neither it nor a saved password, the box shows
- * straight away and nothing asks the API (that ask was a 403 in the console).
+ * The analytics page (owner-only): one row of filters that scopes every tab, kept in the address, and five tabs. For a
+ * signed-in admin account, like the other admin pages (../AdminGate.tsx). `admin` is the server's answer for one:
+ * without it nothing asks the API (that ask was a 403 in the console).
  */
 export default function InsightsDashboard({ admin }: { admin: boolean }) {
   const params = useSearchParams();
@@ -91,8 +78,6 @@ export default function InsightsDashboard({ admin }: { admin: boolean }) {
   const [data, setData] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [needsPassword, setNeedsPassword] = useState(false);
-  const [password, setPassword] = useState("");
   // On a phone the filters fold under one "Filters" line (they took ~350px above every tab); open everywhere else.
   const [filtersOpen, setFiltersOpen] = useState(true);
   useEffect(() => {
@@ -121,25 +106,17 @@ export default function InsightsDashboard({ admin }: { admin: boolean }) {
   const load = useCallback(
     async (fresh = false) => {
       const id = ++request.current;
-      if (!admin && !savedKey()) {
-        setNeedsPassword(true);
-        return;
-      }
+      if (!admin) return;
       setLoading(true);
       setError(null);
       try {
         const res = await adminFetch(insightsPath(fresh));
         if (id !== request.current) return; // a newer range was asked for meanwhile
-        if (res.status === 403) {
-          setNeedsPassword(true);
-          return;
-        }
         if (!res.ok) {
           setError(`The overview didn't load (${res.status}).`);
           return;
         }
         setData(await res.json());
-        setNeedsPassword(false);
       } catch {
         if (id === request.current) setError("Network error.");
       } finally {
@@ -153,31 +130,6 @@ export default function InsightsDashboard({ admin }: { admin: boolean }) {
     void load();
   }, [load]);
 
-  async function signIn(e: FormEvent) {
-    e.preventDefault();
-    const key = password.trim();
-    try {
-      const res = await fetch(insightsPath(false), { headers: { "x-frontier-key": key } });
-      if (!res.ok) {
-        setError(res.status === 403 ? "That password didn't work." : `The overview didn't load (${res.status}).`);
-        return;
-      }
-      // Saved only once it works, the same way the other admin panels read it, so one sign-in covers them all.
-      try {
-        localStorage.setItem(STORAGE_KEY, key);
-      } catch {
-        /* private mode: this page still works until it's closed */
-      }
-      setPassword("");
-      setError(null);
-      setData(await res.json());
-      // The tabs mount again now, and load their own data with the saved password.
-      setNeedsPassword(false);
-    } catch {
-      setError("Network error.");
-    }
-  }
-
   function onTabKey(e: KeyboardEvent<HTMLButtonElement>, index: number) {
     const moves: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1, Home: -index, End: TABS.length - 1 - index };
     if (!(e.key in moves)) return;
@@ -185,21 +137,6 @@ export default function InsightsDashboard({ admin }: { admin: boolean }) {
     const next = TABS[(index + moves[e.key] + TABS.length) % TABS.length].key;
     update({ tab: next });
     tabRefs.current[next]?.focus();
-  }
-
-  if (needsPassword) {
-    return (
-      <section className="card">
-        <form onSubmit={signIn}>
-          <label htmlFor="admin-password">Admin password</label>
-          <input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="submit" className="small" disabled={!password.trim()}>
-            Sign in
-          </button>
-        </form>
-        {error && <p className="error">{error}</p>}
-      </section>
-    );
   }
 
   const tab = filters.tab;

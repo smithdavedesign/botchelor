@@ -6,21 +6,14 @@ import type { RelationshipMetrics } from "@/lib/relationship-metrics";
 
 const pct = (r: number | null) => (r === null ? "—" : `${Math.round(r * 100)}%`);
 
-/** Is the long game working (owner-only)? Reuses the admin password saved by the frontier tool in this browser. */
+/** Is the long game working (owner-only)? For a signed-in admin account (lib/admin-auth.ts). */
 export default function RelationshipsPanel() {
   const [m, setM] = useState<RelationshipMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      let key = "";
-      try {
-        key = localStorage.getItem("bz_frontier") ?? "";
-      } catch {
-        /* private mode */
-      }
-      if (!key) return setError("Not signed in.");
-      const res = await fetch("/api/admin/relationships", { headers: { "x-frontier-key": key } });
+      const res = await fetch("/api/admin/relationships");
       const body = await res.json();
       if (res.ok) setM(body);
       else setError(body.message ?? "Not authorized.");

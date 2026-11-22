@@ -15,7 +15,7 @@ import ScenesPanel from "./ScenesPanel";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Admin · Botchelor", robots: { index: false, follow: false } };
 
-/** Admin: password-gated tools — reports to review, who the agents are, and a frontier (paid) model comparison. */
+/** Admin: tools for a signed-in admin account — reports to review, who the agents are, and a frontier (paid) model comparison. */
 export default async function AdminPage() {
   const admin = await signedInAdmin();
   const tiles = [

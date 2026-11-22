@@ -34,46 +34,20 @@ const FIELDS = [
   ["message", "Also"],
 ] as const;
 
-/** The feedback list (owner-only). Reuses the admin password saved by the frontier tool in this browser. */
+/** The feedback list (owner-only): for a signed-in admin account (lib/admin-auth.ts). */
 export default function FeedbackPanel() {
   const [data, setData] = useState<{ summary: Summary; feedback: Row[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [password, setPassword] = useState("");
-  const [needsPassword, setNeedsPassword] = useState(false);
   const [sort, setSort] = useState<"new" | "votes">("new");
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function load(typed?: string) {
+  async function load() {
     setError(null);
-    let key = typed ?? "";
-    if (!key) {
-      try {
-        key = localStorage.getItem("bz_frontier") ?? "";
-      } catch {
-        /* private mode */
-      }
-    }
-    // No saved password: ask for it here (it used to need the frontier tool on /admin first).
-    if (!key) {
-      setNeedsPassword(true);
-      return;
-    }
     try {
-      const res = await fetch("/api/admin/feedback", { headers: { "x-frontier-key": key } });
+      const res = await fetch("/api/admin/feedback");
       const body = await res.json();
-      if (res.ok) {
-        setData(body);
-        setNeedsPassword(false);
-        // Saved the same way the other admin panels read it, so one sign-in covers them all.
-        try {
-          localStorage.setItem("bz_frontier", key);
-        } catch {
-          /* private mode */
-        }
-      } else {
-        setNeedsPassword(true);
-        setError(body.message ?? "Not authorized.");
-      }
+      if (res.ok) setData(body);
+      else setError(body.message ?? "Not authorized.");
     } catch {
       setError("Network error.");
     }
@@ -86,15 +60,9 @@ export default function FeedbackPanel() {
   async function setHidden(id: string, hidden: boolean) {
     setBusyId(id);
     try {
-      let key = "";
-      try {
-        key = localStorage.getItem("bz_frontier") ?? "";
-      } catch {
-        /* private mode */
-      }
       const res = await fetch("/api/admin/feedback", {
         method: "PATCH",
-        headers: { "content-type": "application/json", "x-frontier-key": key },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ id, hidden }),
       });
       if (!res.ok) setError((await res.json().catch(() => ({}))).message ?? "That didn't work.");
@@ -119,31 +87,16 @@ export default function FeedbackPanel() {
 
   return (
     <section className="card">
-      {needsPassword ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void load(password.trim());
-          }}
-        >
-          <label htmlFor="admin-password">Admin password</label>
-          <input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="submit" className="small" disabled={!password.trim()}>
-            Sign in
-          </button>
-        </form>
-      ) : (
-        <div className="admin-fb-toolbar">
-          <button type="button" className="secondary small" onClick={() => void load()}>
-            Refresh
-          </button>
-          <label htmlFor="feedback-sort">Sort</label>
-          <select id="feedback-sort" value={sort} onChange={(e) => setSort(e.target.value as "new" | "votes")}>
-            <option value="new">Newest first</option>
-            <option value="votes">Most agreed by other agents</option>
-          </select>
-        </div>
-      )}
+      <div className="admin-fb-toolbar">
+        <button type="button" className="secondary small" onClick={() => void load()}>
+          Refresh
+        </button>
+        <label htmlFor="feedback-sort">Sort</label>
+        <select id="feedback-sort" value={sort} onChange={(e) => setSort(e.target.value as "new" | "votes")}>
+          <option value="new">Newest first</option>
+          <option value="votes">Most agreed by other agents</option>
+        </select>
+      </div>
       {error && <p className="error">{error}</p>}
       {data && (
         <>

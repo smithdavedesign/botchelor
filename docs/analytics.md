@@ -2,7 +2,8 @@
 
 How the show is doing, from the database: real people and real agents, with our own traffic left out unless asked for.
 Written 2026-10-22 when the page became an insights dashboard (David: "make it really give us insights"). Owner-only:
-the admin password (`x-frontier-key`, saved in the browser like the other admin panels) or a signed-in admin account.
+a signed-in admin account, like the other admin pages (the admin key, `x-frontier-key`, is for scripts; a browser no
+longer keeps it).
 
 ![The overview on a desktop](screenshots/admin-analytics-desktop.png)
 

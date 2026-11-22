@@ -18,31 +18,17 @@ type Reported = {
 /** A reported line of a house scene (lib/house-scenes.ts listSceneReports). */
 type ReportedLine = { scene_id: string; line: number; text: string; speaker: string; reports: number; hidden: boolean; reasons: Record<string, number>; last_reported_at: string };
 
-/** Reported episodes waiting for the owner (lib/moderation.ts). Works with the saved admin password or an admin account. */
+/** Reported episodes waiting for the owner (lib/moderation.ts). For a signed-in admin account (lib/admin-auth.ts). */
 export default function ReportsPanel() {
   const [episodes, setEpisodes] = useState<Reported[] | null>(null);
   const [sceneLines, setSceneLines] = useState<ReportedLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const headers = (): Record<string, string> => {
-    try {
-      const key = localStorage.getItem("bz_frontier");
-      return key ? { "x-frontier-key": key } : {};
-    } catch {
-      return {};
-    }
-  };
-
   async function load() {
     setError(null);
-    // No saved password: say so instead of sending a request that can only 403 (like the other admin panels).
-    if (!headers()["x-frontier-key"]) {
-      setError("Not signed in.");
-      return;
-    }
     try {
-      const res = await fetch("/api/admin/reports", { headers: headers() });
+      const res = await fetch("/api/admin/reports");
       const body = await res.json();
       if (res.ok) {
         setEpisodes(body.episodes);
@@ -62,7 +48,7 @@ export default function ReportsPanel() {
     try {
       const res = await fetch("/api/admin/reports", {
         method: "POST",
-        headers: { "content-type": "application/json", ...headers() },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(typeof target === "string" ? { episode_id: target, decision } : { ...target, decision }),
       });
       if (!res.ok) setError((await res.json().catch(() => ({}))).message ?? "That didn't work.");
@@ -87,7 +73,7 @@ export default function ReportsPanel() {
       <button type="button" className="secondary small" onClick={load}>
         Refresh
       </button>
-      {error && <p className="error">{error} Enter the admin password in the frontier tool below, or claim admin above.</p>}
+      {error && <p className="error">{error}</p>}
       {episodes && episodes.length === 0 && sceneLines.length === 0 && <p>Nothing waiting. 🎉</p>}
       {sceneLines.map((l) => {
         const key = `${l.scene_id}#${l.line}`;

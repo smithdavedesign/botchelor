@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-/** Mark this account as the show's admin (skips the clip paywall). Needs the admin password once. */
+/**
+ * Mark this account as the show's admin (skips the clip paywall, opens the admin pages). Needs the admin password once:
+ * typed here and sent with that one request, never kept. Shows nothing to a visitor who isn't signed in.
+ */
 export default function AdminClaim() {
   const [state, setState] = useState<{
     admin: boolean;
@@ -61,9 +64,11 @@ export default function AdminClaim() {
       );
     setPassword("");
     await load();
+    // The admin pages ask the server who's an admin (./signed-in-admin.ts): let them ask again.
+    if (res?.ok) router.refresh();
   }
 
-  if (!state) return null;
+  if (!state || (!state.admin && !state.signed_in)) return null;
   return (
     <section className="card">
       <h2>Admin on this account</h2>
@@ -106,7 +111,6 @@ export default function AdminClaim() {
           <p className="muted small">
             Enter the admin password once to make this account an admin (no clip
             paywall).
-            {!state.signed_in && " Sign in first: an admin is a signed-in account."}
           </p>
           <label>
             Admin password

@@ -2,6 +2,7 @@ import { ApiError, readBodyText } from "@/lib/http";
 import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
 import { attachStream, sseFrame } from "@/lib/mcp-stream";
 import { visitorKey } from "@/lib/limits";
+import { frontierAuthorized } from "@/lib/model";
 import { requestBase } from "@/lib/site";
 
 /**
@@ -48,7 +49,8 @@ export async function POST(req: Request): Promise<Response> {
     // #437: so a probe initialize and the real one from the same client share an agent_id (lib/mcp.ts reusableAgent).
     visitor: visitorKey(req.headers),
     base: requestBase(req),
-    adminKey: req.headers.get("x-frontier-key"),
+    // Only a key that passes here, so a wrong one counts towards the lockout like anywhere else (lib/admin-key.ts).
+    adminKey: frontierAuthorized(req) ? req.headers.get("x-frontier-key") : null,
     // The core tools by default; /api/mcp?tools=all lists every tool (lib/mcp.ts CORE_MCP_TOOLS).
     toolset: new URL(req.url).searchParams.get("tools") === "all" ? "all" : "core",
   };
