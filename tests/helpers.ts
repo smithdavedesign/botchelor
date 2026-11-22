@@ -41,7 +41,7 @@ import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { forgetSessionVersionsForTests } from "@/lib/session-versions";
 import { signSession } from "@/lib/auth";
-import { USER_COOKIE } from "@/lib/http";
+import { bareIdsAllowed, USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setConversationEnabledForTests } from "@/lib/conversation";
 import { setAfterglowEnabledForTests } from "@/lib/afterglow";
@@ -825,9 +825,13 @@ export function scriptOutcome(partial: Partial<Outcome> & { ending: Ending }) {
   setEngineForTests(fixedEngine(partial));
 }
 
-/** Creates a creator, their character and one episode: the engine is forced to `ending`, the model scripted. */
+/**
+ * Creates a creator, their character and one episode: the engine is forced to `ending`, the model scripted. The creator
+ * is a bare id cookie, or a signed session where production's rule would name nobody by one (the file stubs
+ * SESSION_SECRET and isn't on tests/legacy-bare-id-files.json).
+ */
 export async function setupEpisode(ending: Ending = "friends", outcome: Partial<Outcome> = {}, draft: Record<string, unknown> = {}) {
-  const creator = newUserCookie();
+  const creator = bareIdsAllowed() ? newUserCookie() : signedInCookie(randomUUID());
   const character = await (await api.createCharacter(validCharacter(), creator)).json();
   scriptOutcome({ ...outcome, ending });
   scriptedModel([episodeJson(draft)]);
