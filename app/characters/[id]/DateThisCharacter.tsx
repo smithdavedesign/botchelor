@@ -8,7 +8,7 @@ import DateConfirm from "@/app/DateConfirm";
 import { requestJson, watchLinkOf } from "@/app/request";
 import { saySpent } from "@/app/spent";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
-import { openingField, type OpeningChoice } from "@/lib/scene-opening";
+import { openingField, type OpeningChoice } from "@/lib/opening-choice";
 import type { DateCta } from "@/lib/date-cta";
 import { shortName } from "@/lib/names";
 import { takenNote } from "@/lib/partners-shared";

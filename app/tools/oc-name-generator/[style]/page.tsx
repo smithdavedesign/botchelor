@@ -15,7 +15,8 @@ export const dynamicParams = false;
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const style = readStyle((await params).style);
-  if (!style) return {};
+  // No such style: the not-found page's title and robots, not the home page's (its page turns it away below too).
+  if (!style) notFound();
   const sp = await searchParams;
   const { title, blurb } = OC_NAME_STYLE_INFO[style];
   const path = ocNamesHref(style);

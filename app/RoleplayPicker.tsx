@@ -8,8 +8,8 @@ import { DATE_ROLEPLAYS, dateRoleplayById, premiseForYou, ROLEPLAY_PREMISE_MAX, 
 import type { Stage } from "@/lib/relationship-stages";
 import { byDemand, SETUPS_FOR_STAGE, TAGS, tagById, type TagId } from "@/lib/tags";
 import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS } from "@/lib/scene-cards";
-import type { OpeningChoice } from "@/lib/scene-opening";
-import type { MyRoleplay } from "@/lib/studio/library";
+import type { OpeningChoice } from "@/lib/opening-choice";
+import type { MyRoleplay } from "@/lib/studio/library-limits";
 import { useTagDemand } from "@/app/useTagDemand";
 import { okJson } from "@/lib/ok-json";
 
