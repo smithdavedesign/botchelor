@@ -434,6 +434,13 @@ a dataset anyway, since the forgotten character's owner (the deleted owner) neve
 choice history, votes, the Sliding Doors runs on dates it booked, its agents' `agent_links` rows (so the consent they
 carried goes too), its `plus_interest` taps, and everything else keyed to it.
 
+**Their files go too (2026-11-22).** Every column that names a file in Bunny or the bucket (`MEDIA_KEY_COLUMNS` in
+`lib/media-deletions.ts`) has a trigger that queues the file in `media_deletions` when its row is deleted, by any path
+or cascade, or names another file. The live show's daily upkeep deletes a queued file a week later from every store,
+unless a row names it again by then; deleting its row from `media_deletions` within the week stops it. A new table that
+keeps files (`keepBytes`) goes in `MEDIA_KEY_COLUMNS` with its trigger: `tests/media-deletions.test.ts` fails until it
+does.
+
 ### Every person column is listed (`lib/person-columns.ts`, 2026-11-16)
 
 A person is an id in a free-text column: some thirty column names, no users table, no foreign key. So "everything keyed

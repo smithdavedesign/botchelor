@@ -31,6 +31,7 @@ import { markDay7Returns } from "@/lib/agent-funnel";
 import { dailyMatchmakerPicks } from "@/lib/house-matchmaker";
 import { houseTextsSweep, houseWordUpkeep } from "@/lib/house-texts";
 import { pruneHouseBotLogs, pruneKeptData } from "@/lib/retention";
+import { deleteDueMedia } from "@/lib/media-deletions";
 import { pruneExports } from "@/lib/media-tools/export";
 import { getModel } from "@/lib/model";
 import { relationshipMetrics } from "@/lib/relationship-metrics";
@@ -76,6 +77,9 @@ async function upkeep({ db, step }: Ctx): Promise<PartResult> {
   await step("house_bot_logs", () => pruneHouseBotLogs(db).catch(() => {}));
   // Exports past their day (lib/media-tools/export.ts): their files in the bucket, then their rows.
   await step("exports", () => pruneExports(db).catch(() => {}));
+  // Files of deleted accounts, characters and pictures, a week after they were queued, if nothing names them
+  // (lib/media-deletions.ts): from every store this host reaches, Bunny included.
+  const media = await step("media_deletions", () => deleteDueMedia(db).catch(() => null));
   // Self-performed dates an agent started and never finished (never visible; lib/own-date.ts).
   const ownDatesCleared = await step("own_dates", () => clearStaleOwnDates(db).catch(() => 0));
   // Rate-limit rows only live as long as their longest window (lib/limits.ts).
@@ -94,7 +98,10 @@ async function upkeep({ db, step }: Ctx): Promise<PartResult> {
   // The providers' balances read once a day (lib/spend.ts), and the admins emailed when one that doesn't top itself up
   // has under a week left at its recent pace. Billing APIs only: nothing spends.
   const lowBalances = await step("low_balances", () => alertLowBalances(db).catch(() => 0));
-  return { body: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances }, counts: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances } };
+  return {
+    body: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances, media_deleted: media?.deleted ?? null },
+    counts: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances, media_deleted: media?.deleted ?? null, media_failed: media?.failed ?? null },
+  };
 }
 
 async function show({ db, step, backfillLimit }: Ctx): Promise<PartResult> {

@@ -4766,6 +4766,60 @@ create table if not exists social_suggestion_log (
 create index if not exists social_suggestion_log_character_idx on social_suggestion_log (character_id, shown_at desc);
 create index if not exists social_suggestion_log_viewer_idx on social_suggestion_log (viewer);
 create index if not exists social_suggestion_log_shown_idx on social_suggestion_log (shown_at);
+-- Files in the stores waiting to be deleted (lib/media-deletions.ts, 2026-11-22). A row that names a file (each column
+-- below) queues it when the row goes or names another file instead: a person's deletion, a cascade from a deleted
+-- account or character, a picture drawn again. The daily upkeep deletes it from the stores a week later, and only if no
+-- row names it then; a deletion in Bunny can't be undone, so the week is the time to stop one (delete its row here).
+-- Holds only the key.
+create table if not exists media_deletions (
+  key text primary key,
+  due_at timestamptz not null,
+  reason text not null,
+  queued_at timestamptz not null default now(),
+  tries integer not null default 0,
+  last_error text,
+  done_at timestamptz,
+  outcome text check (outcome in ('deleted', 'kept', 'failed'))
+);
+create index if not exists media_deletions_due_idx on media_deletions (due_at) where done_at is null;
+-- The column is the trigger's argument, read from the row by name (not the whole row: some keep their bytes beside it).
+-- A key already waiting keeps its time; one done before waits its week again.
+create or replace function media_file_gone() returns trigger language plpgsql as $$
+declare
+  gone text;
+  still text;
+begin
+  execute format('select ($1).%I::text', tg_argv[0]) using old into gone;
+  if tg_op = 'UPDATE' then
+    execute format('select ($1).%I::text', tg_argv[0]) using new into still;
+  end if;
+  if gone is not null and gone is distinct from still then
+    insert into media_deletions (key, due_at, reason)
+    values (gone, now() + interval '7 days', tg_table_name || '.' || tg_argv[0] || ' ' || lower(tg_op))
+    on conflict (key) do update
+      set due_at = excluded.due_at, reason = excluded.reason, queued_at = now(), tries = 0, last_error = null, done_at = null, outcome = null
+      where media_deletions.done_at is not null;
+  end if;
+  return null;
+end $$;
+create or replace trigger adult_images_object_key_gone after delete or update of object_key on adult_images for each row execute function media_file_gone('object_key');
+create or replace trigger adult_talks_object_key_gone after delete or update of object_key on adult_talks for each row execute function media_file_gone('object_key');
+create or replace trigger adult_presence_object_key_gone after delete or update of object_key on adult_presence for each row execute function media_file_gone('object_key');
+create or replace trigger studio_pg_pictures_object_key_gone after delete or update of object_key on studio_pg_pictures for each row execute function media_file_gone('object_key');
+create or replace trigger look_tiles_object_key_gone after delete or update of object_key on look_tiles for each row execute function media_file_gone('object_key');
+create or replace trigger media_exports_object_key_gone after delete or update of object_key on media_exports for each row execute function media_file_gone('object_key');
+create or replace trigger companion_voice_object_key_gone after delete or update of object_key on companion_voice for each row execute function media_file_gone('object_key');
+create or replace trigger face_kits_object_key_gone after delete or update of object_key on face_kits for each row execute function media_file_gone('object_key');
+create or replace trigger show_shots_object_key_gone after delete or update of object_key on show_shots for each row execute function media_file_gone('object_key');
+create or replace trigger live_face_compares_audio_key_gone after delete or update of audio_key on live_face_compares for each row execute function media_file_gone('audio_key');
+create or replace trigger live_face_renders_mp4_key_gone after delete or update of mp4_key on live_face_renders for each row execute function media_file_gone('mp4_key');
+create or replace trigger live_face_clips_object_key_gone after delete or update of object_key on live_face_clips for each row execute function media_file_gone('object_key');
+create or replace trigger character_intros_audio_key_gone after delete or update of audio_key on character_intros for each row execute function media_file_gone('audio_key');
+create or replace trigger character_intros_object_key_gone after delete or update of object_key on character_intros for each row execute function media_file_gone('object_key');
+create or replace trigger place_sounds_object_key_gone after delete or update of object_key on place_sounds for each row execute function media_file_gone('object_key');
+create or replace trigger home_clips_loop_key_gone after delete or update of loop_key on home_clips for each row execute function media_file_gone('loop_key');
+create or replace trigger home_clips_poster_key_gone after delete or update of poster_key on home_clips for each row execute function media_file_gone('poster_key');
+create or replace trigger home_clips_cut_key_gone after delete or update of cut_key on home_clips for each row execute function media_file_gone('cut_key');
 `;
 
 /**
