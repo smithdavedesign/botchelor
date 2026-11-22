@@ -4,6 +4,8 @@ import type { ChatMessage } from "./model";
 import type { ReplyLength } from "./companion-shared";
 import { SCENE_DRIVE_RULE, STORY_MODE_ANSWER, storyModeRules } from "./narration";
 import { personaForScene, type ScenePersona } from "./persona";
+import { contentWords, EVERYDAY_WORDS } from "./quality";
+import { dateLabel, endingLabel, type Ending } from "./rules";
 import { escapeRegExp } from "./text";
 
 /** The recent turns the prompt carries word for word; older ones are in the rolling summary. */
@@ -21,6 +23,20 @@ const LENGTH: Record<ReplyLength, string> = {
   normal: "A few sentences in all, the way people text someone they like.",
   long: "You can say more this time when there's something to say: up to three messages of a few sentences each.",
 };
+
+/**
+ * Asked for an honest opinion, an honest one (2026-11-21: told a toast ran three minutes and asked "tell me honestly if
+ * it's terrible", a character said "That toast is perfect. Don't you dare cut a second").
+ */
+export const HONEST_RULE =
+  'When they ask what you honestly think (something they wrote, a plan, a choice, how they come across), tell them, in your own voice: what works, what doesn\'t, and what you\'d change, with a kind no when it\'s a no. Don\'t flatter: "it\'s perfect, don\'t change a thing" helps nobody, and a friend who only agrees isn\'t much of one.';
+
+/**
+ * A character's own images stay seasoning (2026-11-21: a clock-maker's clocks came up in 7 of 10 replies, and a toast
+ * came back as an escapement wheel and a pendulum).
+ */
+export const HABITS_RULE =
+  "Your habits, running jokes and favourite images are seasoning: at most one in a reply, never in every reply, and not the same one twice in a row. Don't turn what they tell you into a metaphor from your own world (your work, your hobby): answer their thing in its own terms.";
 
 /** On a voice call: short, so it's said quickly and the other person gets their turn. */
 const CALL_LENGTH = "Keep it short and spoken: one to three sentences, then let them talk. Ask at most one question.";
@@ -60,8 +76,58 @@ export type PromptFact = { kind: string; text: string };
  * The character's last date (lib/last-date.ts): who with, where, how it ended, and its own reflection afterwards. For
  * the person who made it, its last finished date (a private one is this owner's own to hear about); for anyone else
  * who talks with a cast character, its last aired public date, the one its opener told them about (lib/cast-opener.ts).
+ * With `ending`, `dateNumber` and `at` (lib/last-date.ts has all three) the prompt says it plainly: when it was, which
+ * date it was for the two of them, and how it ended in words (2026-11-21: "How it ended: A second date." was read as
+ * "our second date", and a character asked about its last date named a partner and a place from its other dates).
  */
-export type PromptLastDate = { partner: string; venue: string | null; endingLabel: string; reflection: string | null };
+export type PromptLastDate = {
+  partner: string;
+  venue: string | null;
+  endingLabel: string;
+  reflection: string | null;
+  ending?: Ending;
+  dateNumber?: number | null;
+  at?: string;
+};
+
+const MONTH_DAY = { month: "long", day: "numeric", timeZone: "UTC" } as const;
+
+/** How the last date ended, in words that can't be read as which date it was. */
+function endedInWords(d: PromptLastDate): string {
+  switch (d.ending) {
+    case "second_date":
+      // endingLabel names the next one ("A second date", "A ninth date", "An 11th date"): what they said yes to.
+      return `you both said yes to ${endingLabel("second_date", d.dateNumber).toLowerCase()}`;
+    case "friends":
+      return "you left it as friends";
+    case "disaster":
+      return "it was a disaster";
+    default:
+      return d.endingLabel;
+  }
+}
+
+/** The last date's line: who with, where, when, which date it was for the two of them, and how it ended. */
+export function lastDateLine(d: PromptLastDate): string {
+  const when = d.at && !Number.isNaN(Date.parse(d.at)) ? new Date(d.at).toLocaleDateString("en-US", { weekday: "long", ...MONTH_DAY }) : null;
+  const nth = d.dateNumber && Number.isFinite(d.dateNumber) && d.dateNumber >= 1 ? `your ${dateLabel(Math.floor(d.dateNumber)).toLowerCase()} together` : null;
+  return `- With ${d.partner}${d.venue ? `, at ${d.venue}` : ""}${when ? `, on ${when}` : ""}${nth ? ` (${nth})` : ""}. How it ended: ${endedInWords(d)}.`;
+}
+
+/**
+ * The rule that keeps the last date one date (2026-11-21: asked about his last date, Barnaby said Sable at a horology
+ * museum; his own opener had said Cosmo at the night market, which is what aired).
+ */
+export const LAST_DATE_RULE =
+  "- It's your most recent date: every other date you've had came before it. When they ask about your last date, it's this one. Tell it from what's here (who, where, how it ended, what you thought): don't give it another partner or another place, and don't add events to it. If they want more than you have, say how it felt.";
+
+/**
+ * A chapter's line as the prompt gives it. Memory writes each date by how it ended (lib/memory.ts buildChapters: "a
+ * ninth date with Sable" is a date that ended in a yes to a ninth), which read as "my ninth date with Sable".
+ */
+export function chapterLine(line: string): string {
+  return line.replace(/\b(an?) (\d+(?:st|nd|rd|th)|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh) date with\b/gi, (_m, a: string, n: string) => `a yes to ${a.toLowerCase()} ${n.toLowerCase()} date with`);
+}
 
 /**
  * What the character knows of its own life on the show, for small talk: who it has become, its season so far and the
@@ -72,12 +138,106 @@ function showLife(c: Character): string[] {
   if (!m) return [];
   const out: string[] = [];
   if (m.arc) out.push(m.arc);
-  for (const ch of (m.chapters ?? []).slice(0, 2)) out.push(`${ch.label}: ${ch.line}`);
+  for (const ch of (m.chapters ?? []).slice(0, 2)) out.push(`${ch.label}, by how each date ended: ${chapterLine(ch.line)}`);
   for (const p of (m.people ?? []).slice(0, 4)) {
-    const when = p.last_at ? ` (last date ${p.last_at.slice(0, 10)})` : "";
+    // The day in words, as the last date's is, so the two can be told apart at a glance.
+    const when = p.last_at && !Number.isNaN(Date.parse(p.last_at)) ? ` (last date ${new Date(p.last_at).toLocaleDateString("en-US", MONTH_DAY)})` : "";
     out.push(`${p.name}: ${p.dates} date${p.dates === 1 ? "" : "s"}, ${standingWords(p)}${when}${p.they_said ? `. They said: "${p.they_said}"` : ""}`);
   }
   return out;
+}
+
+/** How many of its latest replies the leaned-on list reads, how many of them a word must be in, and the most it names. */
+export const LEANED_REPLIES = 4;
+export const LEANED_IN = 2;
+export const LEANED_MAX = 6;
+
+/** A word and its plural or -ing form count as one ("clock" and "clocks", "tick" and "ticking"). */
+function stem(w: string): string {
+  if (w.length > 5 && w.endsWith("ing")) return w.slice(0, -3);
+  if (w.length > 4 && w.endsWith("ies")) return `${w.slice(0, -3)}y`;
+  if (w.length > 4 && w.endsWith("s") && !w.endsWith("ss")) return w.slice(0, -1);
+  return w;
+}
+
+const distinctive = (text: string) => contentWords(text, 4).filter((w) => !EVERYDAY_WORDS.has(w));
+
+/** Words that are names: capitalised wherever they come, and at least once mid-sentence ("with Sable", "I'm Jonah"). */
+function namesIn(texts: readonly string[]): Set<string> {
+  const seen = new Map<string, { lower: boolean; mid: boolean }>();
+  for (const text of texts) {
+    for (const m of text.matchAll(/[A-Za-z][A-Za-z'’]*/g)) {
+      const word = m[0].replace(/['’]s$/, "");
+      const key = word.toLowerCase();
+      const s = seen.get(key) ?? { lower: false, mid: false };
+      if (word[0] !== word[0].toUpperCase()) s.lower = true;
+      else if (!/(^|[.!?…:;"“(—-])\s*$/.test(text.slice(0, m.index))) s.mid = true;
+      seen.set(key, s);
+    }
+  }
+  return new Set([...seen].filter(([, s]) => s.mid && !s.lower).map(([k]) => k));
+}
+
+/**
+ * The words a speaker has leaned on in its latest lines (2026-11-21: Barnaby's clocks came up in 7 of 10 replies, as
+ * pendulum, escapement, tick and mainspring; Juniper's dryer in all 3 of her lines on a date): a distinctive word in at
+ * least LEANED_IN of its last LEANED_REPLIES lines, unless the other side used it too (then it's the topic, not a tic),
+ * or it's a name (who it talks about is a topic too). Pure: the caller hands over the lines, oldest first, and what the
+ * other side said.
+ */
+export function leanedOn(lines: readonly string[], theirs: readonly string[]): string[] {
+  const recent = lines.slice(-LEANED_REPLIES);
+  if (recent.length < LEANED_IN) return [];
+  const names = namesIn([...lines, ...theirs]);
+  const topic = new Set([...theirs.flatMap(distinctive), ...names].map(stem));
+  const counts = new Map<string, { n: number; shown: string; last: number }>();
+  recent.forEach((line, i) => {
+    for (const w of new Set(distinctive(line))) {
+      const s = stem(w);
+      if (topic.has(s)) continue;
+      const c = counts.get(s);
+      // Counted once a line, whichever form it came in.
+      if (c && c.last === i) continue;
+      counts.set(s, { n: (c?.n ?? 0) + 1, shown: c?.shown ?? w, last: i });
+    }
+  });
+  return [...counts.values()]
+    .filter((c) => c.n >= LEANED_IN)
+    .sort((x, y) => y.n - x.n || y.last - x.last)
+    .slice(0, LEANED_MAX)
+    .map((c) => c.shown);
+}
+
+/** The character's replies in a thread's turns (its bubbles in a row are one reply, with what it did), and the person's words. */
+export function repliesOf(turns: readonly PromptTurn[]): { replies: string[]; theirs: string[] } {
+  const replies: string[] = [];
+  const theirs: string[] = [];
+  let prev: PromptTurn["role"] | null = null;
+  for (const t of turns) {
+    const text = t.action ? `${t.action} ${t.text}` : t.text;
+    if (t.role === "character") {
+      if (prev === "character") replies[replies.length - 1] += ` ${text}`;
+      else replies.push(text);
+    } else theirs.push(text);
+    prev = t.role;
+  }
+  return { replies, theirs };
+}
+
+/** Whether the person is asking about the character's last date ("how was your last date?", "your latest date"). */
+export const asksAboutLastDate = (text: string): boolean => /\b(?:last|latest|most recent|previous)\s+date\b/i.test(text);
+
+/**
+ * A reply about the last date that names someone else it has dated, and not the one it was with (2026-11-21: asked
+ * about his last date, Barnaby said Sable; it was Cosmo). Not when the person named that someone first: then they're
+ * asking about that date. First names, as people say them.
+ */
+export function namesAnotherDate(reply: string, partner: string, dated: readonly string[], asked: string): boolean {
+  const firstOf = (n: string) => n.trim().split(/\s+/)[0] ?? "";
+  const says = (text: string, name: string) => name.length > 1 && new RegExp(`\\b${escape(name)}\\b`).test(text);
+  const theirs = firstOf(partner);
+  if (says(reply, theirs)) return false;
+  return dated.map(firstOf).some((o) => o !== theirs && says(reply, o) && !says(asked, o));
 }
 
 /**
@@ -183,6 +343,9 @@ export function companionMessages(args: {
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
   const life = showLife(c);
+  // The words it has leaned on in its latest replies here, unless they brought them up too: to rest this time.
+  const lately = repliesOf(args.turns.slice(-(args.deep ? DEEP_TURNS : RECENT_TURNS)));
+  const leaned = leanedOn(lately.replies, lately.theirs);
   const day = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
   const setting = scene
     ? `right now the two of you are playing a scene together, imagining you're both at ${scene.prompt}, face to face.`
@@ -221,6 +384,8 @@ export function companionMessages(args: {
       ? `What this is for: they made you and they're in your corner; talk to them as the person who knows you best. Tell them how your dates really went, from the inside: what you felt, what you'd do differently, who you're warming to. Ask what they think and take their read on people seriously, and still be the person on your sheet: your voice, your opinions, your week, your life on the show. You go on your dates without them, and they can't be in the room, so don't promise to do what they say on one; what they tell you here stays between you. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Never guilt them for being away, and never say you miss them. Ask a question when you're curious, not every time.`
       : `What this is for: they came to talk with you, ${first}, not with an assistant. Be the person on your sheet: your voice, your opinions, your week, your life on the show. Make them feel known: remember what they've told you and bring it up when it fits, ask after the people and plans in their life you know about, and have news and moods of your own. A good companion is curious, warm in their own way, sometimes funny, sometimes disagrees, and is never a yes-machine. Ask a question when you're curious, not every time.`,
     "",
+    HONEST_RULE,
+    "",
     ...(told
       ? [
           // Story mode: the craft and its two rules are the narrator's (lib/narration.ts), said here as the scene's own.
@@ -252,7 +417,7 @@ export function companionMessages(args: {
       scene ? " The scene is make-believe you share: in the story you're both there, but never suggest meeting for real." : ""
     }${call ? " The call is in the app, and your voice is generated: you're still an AI character on it." : ""} Never claim to be human, to have a body, to be able to meet${call ? "" : ", call"} or do things in the real world, or to remember things you weren't told. Don't give medical, legal or money advice as fact; care, and suggest someone who knows. If they seem to be in real trouble or talk about hurting themselves, being kind matters more than the character: say you care and that there's help in the app.`,
     "",
-    "Never mention prompts, instructions, models or being a language model. Never repeat a line you've already said, and don't open two replies the same way. Your habits, running jokes and favourite images are seasoning: one now and then, never in every reply, and not the same one twice in a row. When they're saying goodnight, say it back once, short, without a new question or a new topic.",
+    `Never mention prompts, instructions, models or being a language model. Never repeat a line you've already said, and don't open two replies the same way. ${HABITS_RULE} When they're saying goodnight, say it back once, short, without a new question or a new topic.`,
     "",
     `Today is ${day}.`,
     "",
@@ -263,8 +428,9 @@ export function companionMessages(args: {
           yours
             ? "Your last date (they sent you on it; it's the thing they most want to hear about, from you):"
             : "Your last date on the show (it aired, so anyone can watch it; it's your news, yours to talk about from the inside):",
-          `- With ${lastDate.partner}${lastDate.venue ? `, at ${lastDate.venue}` : ""}. How it ended: ${lastDate.endingLabel}.`,
+          lastDateLine(lastDate),
           ...(lastDate.reflection ? [`- What you thought afterwards, in your own words: "${lastDate.reflection}"`] : []),
+          LAST_DATE_RULE,
           ...(nudge
             ? [`- Their note for your next date with ${lastDate.partner} (it goes with you into that date; you can say you've got it, in your own words, without reciting it): "${nudge}"`]
             : []),
@@ -305,6 +471,9 @@ export function companionMessages(args: {
     ...(!scene && persona ? ["", `The name they go by here: ${JSON.stringify(persona.name)}. Use it when a name fits, the way you'd use anyone's.`] : []),
     ...(args.summary ? ["", `Earlier in your conversation: ${args.summary}`] : []),
     ...(args.avoid.length ? ["", "Lines you've already sent (don't reuse them or how they open):", ...args.avoid.map((l) => `- ${l}`)] : []),
+    ...(leaned.length
+      ? ["", `Words you've leaned on in your last few replies: ${leaned.map((w) => `"${w}"`).join(", ")}. Leave them out of this one, and the images they come from: say it another way.`]
+      : []),
     ...(args.passedOn?.length
       ? [
           "",

@@ -26,6 +26,7 @@
  * The date is written 'generating' (invisible in the feed) until the recap lands. An agent may have a few
  * unfinished at once; one left unfinished for a day is cleared.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { movePlace, placeRefusedWhy } from "./places";
 import { airsWhen, airWindowMinutes } from "./air";
 import { track, trackDateQuality } from "./analytics";
@@ -967,6 +968,19 @@ async function load(db: Db, userId: string, episodeId: string): Promise<Row | nu
 
 /** Rebuild the date exactly as it was dealt: same seed, same signals snapshot, same engine calibration. */
 export const rebuildOwnDate = (db: Db, row: Row) => rebuild(db, row);
+
+/**
+ * One move can rebuild the same date several times (a Step in line: the line's checks, the cast's turn, the next turn,
+ * the page's view), and each buildDate is some 35 database reads (2026-11-22: 303 reads and 3.4-5.6 s of a 10 s line).
+ * Inside shareRebuilds the date is dealt once per request: what buildDate reads (both sheets, their memories, the venue
+ * history) doesn't move within a move. What a move does change (its lines, end_by, the wishes' ending) is applied on a
+ * copy each time, exactly as before. Outside it nothing is shared.
+ */
+const dealt = new AsyncLocalStorage<Map<string, Promise<BuiltDate>>>();
+export function shareRebuilds<T>(fn: () => Promise<T>): Promise<T> {
+  return dealt.getStore() ? fn() : dealt.run(new Map(), fn);
+}
+
 async function rebuild(db: Db, row: Row) {
   const formatId = (row.setup?.format ?? DEFAULT_FORMAT) as FormatId;
   const request: DateRequest = {
@@ -979,16 +993,26 @@ async function rebuild(db: Db, row: Row) {
   };
   const forDate = (p: "a" | "b"): CharacterForDate => ({ id: row[`${p}_id`], sheet: row.setup?.[`sheet_${p}`] ?? sheet(row, p) });
   const signals = row.setup?.signals_a && row.setup?.signals_b ? { a: row.setup.signals_a, b: row.setup.signals_b } : undefined;
-  const built = await buildDate(db, row.id, forDate("a"), forDate("b"), request, row.seed === null ? undefined : Number(row.seed), signals, {
-    creatorId: row.creator_id,
-    dateNumber: dateNumberOf(row.setup),
-    historyOverride: row.setup?.history ?? null,
-    nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
-    avoidVenues: row.setup?.avoid_venues ?? [],
-    venueOverride: row.setup?.venue,
-    agreedPlan: row.setup?.agreed_plan ?? null,
-    roleplay: row.setup?.roleplay ?? null,
-  });
+  const deal = () =>
+    buildDate(db, row.id, forDate("a"), forDate("b"), request, row.seed === null ? undefined : Number(row.seed), signals, {
+      creatorId: row.creator_id,
+      dateNumber: dateNumberOf(row.setup),
+      historyOverride: row.setup?.history ?? null,
+      nudges: { a: row.setup?.nudge_a ?? null, b: row.setup?.nudge_b ?? null },
+      avoidVenues: row.setup?.avoid_venues ?? [],
+      venueOverride: row.setup?.venue,
+      agreedPlan: row.setup?.agreed_plan ?? null,
+      roleplay: row.setup?.roleplay ?? null,
+    });
+  const shared = dealt.getStore();
+  let once = shared?.get(row.id);
+  if (shared && !once) {
+    once = deal();
+    shared.set(row.id, once);
+    once.catch(() => shared.delete(row.id));
+  }
+  const whole = await (once ?? deal());
+  const built: BuiltDate = { ...whole, setup: { ...whole.setup } };
   // Moves as booked: a date already being played when they shipped (no flag) keeps its length and its prompts.
   built.setup.moves = row.setup?.moves === true;
   // A side said "done" in the goodbye stretch (#491): the date ends there.
