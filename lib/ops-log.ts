@@ -97,12 +97,14 @@ export function trackEpisodeCostKept(props: EpisodeCost): void {
 const isLimit = (bytes: number) => Number.isFinite(bytes) && bytes > 0 && bytes < 2 ** 50;
 
 /**
- * The container's memory limit in MB (cgroup v2, else v1, else what Node says the process is held to), or null with
- * none (a developer's machine).
+ * The container's memory limit in MB (cgroup v2, else v1, else what Node says the process is held to, when that is
+ * below the memory the machine shows: equal or more is the machine, not a limit), or null with none (a developer's
+ * machine, and DigitalOcean's containers so far).
  */
 export function containerMemoryLimitMb(
   read: (path: string) => string = (p) => readFileSync(p, "utf8"),
   constrained: () => number | undefined = () => process.constrainedMemory?.(),
+  total: () => number = totalmem,
 ): number | null {
   for (const path of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
     try {
@@ -114,7 +116,7 @@ export function containerMemoryLimitMb(
     }
   }
   const bytes = Number(constrained() ?? 0);
-  return isLimit(bytes) ? Math.round(bytes / MB) : null;
+  return isLimit(bytes) && bytes < total() ? Math.round(bytes / MB) : null;
 }
 
 /**

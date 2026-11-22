@@ -131,10 +131,13 @@ describe("the servers' own log (lib/ops-log.ts)", () => {
     expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "max\n", "/sys/fs/cgroup/memory/memory.limit_in_bytes": "1073741824" }), none)).toBe(1024);
     expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory/memory.limit_in_bytes": "9223372036854771712" }), none)).toBeNull();
     expect(containerMemoryLimitMb(files({}), none)).toBeNull();
-    // No cgroup file to read (DigitalOcean's containers, 2026-11-22): what Node says the process is held to.
-    expect(containerMemoryLimitMb(files({}), () => 2 * 1024 ** 3)).toBe(2048);
-    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "max\n" }), () => undefined)).toBeNull();
-    expect(containerMemoryLimitMb(files({}), () => 2 ** 62)).toBeNull(); // "no limit" as a huge number
+    // No cgroup file to read (DigitalOcean's containers, 2026-11-22): what Node says the process is held to, when it is
+    // below the machine's memory; equal to it is just the machine.
+    const fourGb = () => 4 * 1024 ** 3;
+    expect(containerMemoryLimitMb(files({}), () => 2 * 1024 ** 3, fourGb)).toBe(2048);
+    expect(containerMemoryLimitMb(files({}), fourGb, fourGb)).toBeNull();
+    expect(containerMemoryLimitMb(files({ "/sys/fs/cgroup/memory.max": "max\n" }), () => undefined, fourGb)).toBeNull();
+    expect(containerMemoryLimitMb(files({}), () => 2 ** 62, fourGb)).toBeNull(); // "no limit" as a huge number
   });
 
   it("writes a start's row on the connection that brought the schema up to date", async () => {
