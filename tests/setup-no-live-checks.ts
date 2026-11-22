@@ -1,4 +1,4 @@
-import { beforeEach, expect } from "vitest";
+import { afterEach, beforeEach } from "vitest";
 import { setAdminCheckerDefaultForTests, setModerationFetchForTests } from "@/lib/adult/moderation";
 import { setBriefModelForTests } from "@/lib/adult/picture-brief";
 import { setGiftsOnAirForTests } from "@/lib/gift-catalog";
@@ -19,18 +19,28 @@ beforeEach(() => {
   setAdminCheckerDefaultForTests("same");
 });
 
-// EXPERIMENT (2026-11-22, not for merge as is): which tests reach a host outside this machine. Logged, not refused.
+// And no test reaches a host outside this machine: a real call is slow and sometimes times out, and with a test's
+// placeholder key it would be refused anyway. A call to any other http(s) host throws as if offline and fails the test
+// that made it, naming the address and the code that called it: stub that module's fetch (its set…FetchForTests).
 const realFetch = globalThis.fetch;
+const LOCAL = new Set(["localhost", "127.0.0.1", "[::1]"]);
+let reached: string[] = [];
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   let url: URL | null = null;
   try {
     url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
   } catch {
-    url = null;
+    // Not an absolute address: the real fetch says why.
   }
-  if (url && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
-    const st = expect.getState();
-    process.stderr.write(`[external-fetch] ${String(st.testPath ?? "").split("/tests/")[1] ?? "?"} > ${st.currentTestName ?? "?"} -> ${url.origin}${url.pathname}\n`);
+  if (url && /^https?:$/.test(url.protocol) && !LOCAL.has(url.hostname)) {
+    const from = new Error().stack?.split("\n").find((line) => /\/(lib|app)\//.test(line))?.trim();
+    reached.push(`${url.origin}${url.pathname}${from ? ` (${from})` : ""}`);
+    throw new TypeError(`fetch failed: tests don't reach ${url.host}`);
   }
   return realFetch(input, init);
 }) as typeof fetch;
+afterEach(() => {
+  const calls = reached;
+  reached = [];
+  if (calls.length) throw new Error(`the test reached outside this machine; stub the module's fetch instead:\n${calls.join("\n")}`);
+});

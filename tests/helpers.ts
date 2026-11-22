@@ -489,6 +489,12 @@ export function scriptedModel(outputs: Array<string | Error>) {
   return { calls };
 }
 
+/**
+ * What a provider answers a test's placeholder key: 401. For a module's fetch seam (its set…FetchForTests) in a test
+ * that doesn't script that provider: no test reaches a real host (tests/setup-no-live-checks.ts).
+ */
+export const refusedFetch: typeof fetch = async () => Response.json({ error: "Authentication failed" }, { status: 401 });
+
 export function newUserCookie(): string {
   return `${USER_COOKIE}=${randomUUID()}`;
 }

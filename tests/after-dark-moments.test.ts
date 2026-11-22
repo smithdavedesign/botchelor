@@ -14,6 +14,7 @@ import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import { runFfmpeg, videoDuration, videoInfo } from "@/lib/media-tools/ffmpeg";
+import { ModelError } from "@/lib/model";
 import { publish, saveCreatorProfile } from "@/lib/showcase";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { BASE_URL, newUserCookie, startTestDb, userIdOf } from "./helpers";
@@ -382,6 +383,8 @@ describe("keep going from here", () => {
     await ready(cookie, id);
     fakeVenice();
     fakeHive();
+    // The director (the text model) refuses, as OpenRouter refuses the placeholder key.
+    setAdultModelForTests({ complete: async () => Promise.reject(new ModelError("model returned HTTP 401", 401)) });
     const { reel, video } = await kissClip(cookie);
     // The clip as if it were a shot of the night's video.
     await t.db.query(`update adult_reels set kind = 'night', clip = null where id = $1`, [reel.id]);

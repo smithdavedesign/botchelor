@@ -8,7 +8,8 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
 import { checkAdultText } from "@/lib/safety";
 import { setSeasonCastForTests } from "@/lib/season-cast";
-import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
+import { setSetsFetchForTests } from "@/lib/sets";
+import { api, BASE_URL, newUserCookie, refusedFetch, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 // After dark (lib/adult): admin only, local only, this season's cast only, and nothing it writes reaches the show.
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -671,9 +672,12 @@ describe("who it opens for (canAfterDark)", () => {
 });
 
 describe("the picture request", () => {
+  // A place's backdrop (lib/sets.ts) is refused, as fal refuses the placeholder key: the pictures here are the people.
+  beforeEach(() => setSetsFetchForTests(refusedFetch));
   afterEach(() => {
     setMediaFetchForTests(null);
     setCheckFetchForTests(null);
+    setSetsFetchForTests(null);
   });
 
   it("asks fal's custom-model endpoint for the photoreal base, steering away from anyone young-looking", async () => {
@@ -835,9 +839,13 @@ describe("the teaser in the show", () => {
 });
 
 describe("pictures on Venice", () => {
+  // A picture drawn from their portrait (lib/adult/reels.ts) is refused, as Venice refuses the placeholder key: the
+  // pictures here come from the words.
+  beforeEach(() => setReelFetchForTests(refusedFetch));
   afterEach(() => {
     setMediaFetchForTests(null);
     setCheckFetchForTests(null);
+    setReelFetchForTests(null);
   });
 
   it("draws a new portrait over the admin MCP tool, keeps the old one beside it, and refuses anyone outside After Dark", async () => {

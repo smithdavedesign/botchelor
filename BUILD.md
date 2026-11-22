@@ -78,6 +78,7 @@ npm run typecheck
 | `npm run sim:visitors` | The self-improving loop now: uninstructed agents explore a local copy, then triage (`LOOP_FIX=1` adds the fixer) |
 | `npm run screenshots` | The launch proof: six PNGs in `docs/screenshots/` (home, date, shop; desktop and iPhone 13), for README's "Screenshots" |
 | `npm run screenshots:season` | Plays a sample season and regenerates most of `docs/screenshots/` |
+| `npm run screenshots:shrink` | Before committing new screenshots: each PNG not committed yet is redrawn about a third the size, looking the same (`npm run gate` runs it too) |
 | `npm run check:launch` | Search, sharing, legal and Buy-button checks on a local production build ([LAUNCH-READY.md](LAUNCH-READY.md)) |
 
 **Gates.** Before a PR, run `npm run gate` locally (a few minutes): `tsc` plus the test files the branch changed and

@@ -60,4 +60,9 @@ if (targets.length) {
 } else {
   console.log("\nNo test imports the change directly: CI's full suite covers it.");
 }
+// New proof screenshots not committed yet: drawn again a third the size, looking the same (scripts/shrink-screenshots.mjs).
+// One already committed keeps its first copy in the history, so the script leaves those alone.
+if (changed.some((f) => f.startsWith("docs/screenshots/") && f.endsWith(".png"))) {
+  step("shrink new screenshots", "node", ["scripts/shrink-screenshots.mjs"]);
+}
 console.log("\nGate passed. Push, open the PR; CI runs the full suite on GitHub.");
