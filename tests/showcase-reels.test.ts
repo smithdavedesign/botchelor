@@ -50,6 +50,8 @@ describe("the feed's shape", () => {
     expect(kinds(both)).toEqual(["create", "after_dark", "create"]);
     expect(kinds(feedOf(posts, { afterDarkCard: false }))).toEqual(["create", "create", "create"]);
     expect(feedOf([1, 2], { afterDarkCard: true }).every((x) => x.kind === "post")).toBe(true);
+    // After Dark's own reels: its card for a night of their own, never the show's create card.
+    expect(kinds(feedOf(posts, { afterDarkCard: false, place: "after_dark" }))).toEqual(["night", "night", "night"]);
     // A still never moves the same way as the one before it.
     for (let i = 0; i < 8; i++) expect(motionOf(i)).not.toBe(motionOf(i + 1));
     expect(reelsQuery({ place: "bar", page: "3", start: "p1", side: ["after_dark"] }, { creator: "mara" })).toBe("?place=bar&side=after_dark&creator=mara");
@@ -235,6 +237,38 @@ describe("the reels' page", () => {
     expect(html).toContain(`href="/showcase?character=${w.mara}"`);
     expect(ad).toContain(`href="/showcase?character=${w.mara}&amp;side=after_dark"`);
     expect(ad).not.toContain(`href="/showcase?character=${w.mara}"`);
+  });
+
+  // The 2026-11-22 audit: on After Dark's reels "💘 Date {name}" opened the show's character page, the show's "your first
+  // dates are free" card came up, and the page had no h1.
+  it("on After Dark's own reels keeps every link on After Dark: a night with someone in their cast, the rest on its showcase", async () => {
+    const w = await world(1);
+    const dark = (await listShowcase(t.db, ADMIN, { side: "after_dark" }, { pageSize: REEL_PAGE })).posts;
+    expect(dark.length).toBe(2);
+    const opts = { initial: dark, explicit: true, side: "after_dark" as const, place: "after_dark" as const, back: "/after-dark/showcase" };
+    const html = render({ ...opts, nights: [w.mara] });
+    expect(html).toContain('<h1 class="sr-only">After Dark reels</h1>');
+    expect(html).toContain(`href="/after-dark/characters/${w.mara}"`);
+    expect(html).toContain("A night with Mara");
+    expect(html).toContain(`href="/after-dark/showcase?character=${encodeURIComponent(w.mara)}"`);
+    expect(html).toContain('href="/after-dark/showcase?creator=mara"');
+    expect(html).not.toMatch(/href="\/(characters|creators|create)\b/);
+    expect(html).not.toContain("💘 Date");
+    // The end card starts a night of their own, at the hub's picker.
+    expect(html).toContain('href="/after-dark#scenes"');
+    expect(html).not.toContain("Make your own character");
+    // Each screen of the feed is an article, as role="feed" asks.
+    expect(html.match(/<section[^>]*role="article"/g)).toHaveLength(dark.length + 1);
+    // Someone not in their After Dark: no night, and "See all of" is the button.
+    const outside = render({ ...opts, nights: [] });
+    expect(outside).not.toContain("A night with");
+    expect(outside).not.toContain("/after-dark/characters/");
+    expect(outside).toContain(`href="/after-dark/showcase?character=${encodeURIComponent(w.mara)}"`);
+    // The show's own reels are as they were, with their heading.
+    const show = render({ initial: dark, explicit: true, side: "after_dark" });
+    expect(show).toContain('<h1 class="sr-only">Showcase reels</h1>');
+    expect(show).toContain(`href="/characters/${w.mara}"`);
+    expect(show).not.toContain("A night with");
   });
 
   it("starts a new feed for each set of filters, and opens the safe side for anyone After Dark isn't open to", async () => {

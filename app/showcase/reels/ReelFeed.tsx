@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { trackConversion } from "@/app/conversion";
 import type { Post } from "@/lib/showcase";
 import { shortName } from "@/lib/names";
+import { showcasePaths } from "@/lib/showcase-paths";
 import LikeButton from "../LikeButton";
 import MadeWith from "../MadeWith";
 import { playClip, useSound } from "../sound";
@@ -26,13 +27,17 @@ type Props = {
   /** When the feed began: its every page orders what was seen before then last (lib/showcase.ts seenBefore). */
   asOf: string;
   back: string;
+  /** Whose reels: the show's, or After Dark's own (/after-dark/showcase/reels), whose links stay on After Dark. */
+  place?: "show" | "after_dark";
+  /** After Dark's: who a night can start with for this viewer (their After Dark cast), whose button opens their page there. */
+  nights?: string[];
 };
 
 /** The show's own media route: always works, one redirect more than `p.media` for a file After Dark keeps. */
 const route = (p: Post) => `/api/showcase/${p.id}/media`;
 const withSize = (url: string, size: "tile" | "screen") => `${url}${url.includes("?") ? "&" : "?"}size=${size}`;
 const isClip = (x: ReturnType<typeof feedOf<Post>>[number] | undefined) => x?.kind === "post" && x.post.mime.startsWith("video/");
-const cta = (name: "date" | "see_all" | "after_dark" | "create") => () => trackConversion("reel_cta", { cta: name });
+const cta = (name: "date" | "see_all" | "after_dark" | "create" | "night") => () => trackConversion("reel_cta", { cta: name });
 
 /**
  * The showcase as reels (David, 2026-10-29: "an infinite reel / video, scroll-swipe, like candy.ai, Instagram, TikTok"):
@@ -68,7 +73,9 @@ export default function ReelFeed(props: Props) {
   const [ready, setReady] = useState(-1);
   const [sound, setSound] = useSound();
   const scroller = useRef<HTMLDivElement>(null);
-  const feed = useMemo(() => feedOf(posts, { afterDarkCard: !props.explicit && props.side === "pg" }), [posts, props.explicit, props.side]);
+  const place = props.place ?? "show";
+  const feed = useMemo(() => feedOf(posts, { afterDarkCard: !props.explicit && props.side === "pg", place }), [posts, props.explicit, props.side, place]);
+  const nights = useMemo(() => new Set(props.nights ?? []), [props.nights]);
   const total = feed.length + (more ? 0 : 1);
 
   useEffect(() => {
@@ -194,6 +201,8 @@ export default function ReelFeed(props: Props) {
 
   return (
     <div className={styles.reels}>
+      {/* The page's heading, for a screen reader: the feed itself is all pictures (audit 2026-11-22: no h1). */}
+      <h1 className="sr-only">{place === "after_dark" ? "After Dark reels" : "Showcase reels"}</h1>
       <div className={styles.top}>
         <Link href={props.back} className={styles.topLink} aria-label="Back to the showcase">
           ← Showcase
@@ -212,7 +221,7 @@ export default function ReelFeed(props: Props) {
       </div>
       <div className={styles.feed} ref={scroller} role="feed" aria-busy={loading} aria-label="Reels">
         {feed.length === 0 && (
-          <section className={`${styles.slide} ${styles.card}`} data-i={0}>
+          <section className={`${styles.slide} ${styles.card}`} data-i={0} role="article" aria-label="Nothing here yet">
             <div className={styles.cardBody}>
               <h2>Nothing here yet</h2>
               <p>Creators publish from their Studio: 📣 on any picture or clip.</p>
@@ -236,6 +245,8 @@ export default function ReelFeed(props: Props) {
               veiled={!shown}
               locked={props.explicit ? 0 : (locked[x.post.character.id] ?? 0)}
               side={props.side}
+              place={place}
+              nights={nights}
               onShare={() => void share(x.post)}
               onInfo={() => setInfo(x.post.id)}
               onReady={() => setReady(i)}
@@ -245,16 +256,22 @@ export default function ReelFeed(props: Props) {
           ),
         )}
         {!more && feed.length > 0 && (
-          <section className={`${styles.slide} ${styles.card}`} data-i={feed.length} aria-label="The end, for now" aria-current={active === feed.length ? "true" : undefined}>
+          <section className={`${styles.slide} ${styles.card}`} data-i={feed.length} role="article" aria-label="The end, for now" aria-current={active === feed.length ? "true" : undefined}>
             <div className={styles.cardBody}>
               <h2>That&apos;s everything here, for now</h2>
               <p>New pictures and clips land as their creators publish them.</p>
               <button type="button" className={styles.cta} onClick={() => go(0)}>
                 Start again from the top
               </button>
-              <Link href="/create" className={styles.ctaGhost} onClick={cta("create")}>
-                Make your own character
-              </Link>
+              {place === "after_dark" ? (
+                <Link href={NIGHT_HREF} className={styles.ctaGhost} onClick={cta("night")}>
+                  Start a night of your own
+                </Link>
+              ) : (
+                <Link href="/create" className={styles.ctaGhost} onClick={cta("create")}>
+                  Make your own character
+                </Link>
+              )}
             </div>
           </section>
         )}
@@ -297,6 +314,8 @@ function Slide({
   veiled,
   locked,
   side,
+  place,
+  nights,
   onShare,
   onInfo,
   onReady,
@@ -312,6 +331,10 @@ function Slide({
   locked: number;
   /** The side being watched: "See all of" opens the same one. */
   side: "pg" | "after_dark";
+  /** Whose reels: on After Dark's, its links stay on After Dark (lib/showcase-paths.ts). */
+  place: "show" | "after_dark";
+  /** After Dark's: who a night can start with (their names and button open their After Dark page). */
+  nights: ReadonlySet<string>;
   onShare: () => void;
   onInfo: () => void;
   onReady: () => void;
@@ -327,8 +350,15 @@ function Slide({
   const failed = fallback || !p.media || p.media === route(p) ? undefined : () => setFallback(true);
   const first = shortName(p.character.name);
   const who = `${p.character.name}${p.partner ? ` and ${p.partner.name}` : ""}, by @${p.creator.handle}`;
+  // On After Dark's reels every link stays there (audit 2026-11-22: "Date {name}" opened the show's character page): a
+  // name opens their After Dark page when a night can start with them, else their posts on After Dark's showcase.
+  const ad = place === "after_dark";
+  const paths = showcasePaths(place);
+  const nightHref = (id: string) => `/after-dark/characters/${encodeURIComponent(id)}`;
+  const nameHref = (id: string) => (ad ? (nights.has(id) ? nightHref(id) : paths.character(id)) : `/characters/${id}`);
+  const night = ad && nights.has(p.character.id);
   return (
-    <section className={styles.slide} data-i={i} aria-label={who} aria-current={active ? "true" : undefined}>
+    <section className={styles.slide} data-i={i} role="article" aria-label={who} aria-current={active ? "true" : undefined}>
       {/* The same picture, blurred, filling a wide screen's sides. */}
       {!video && near && <img className={styles.backdrop} src={still("tile")} alt="" aria-hidden="true" onError={failed} />}
       <div className={`${styles.frame}${veiled ? ` ${styles.veiled}` : ""}`}>
@@ -354,26 +384,39 @@ function Slide({
         <div className={styles.shade} aria-hidden="true" />
         <div className={styles.info}>
           <p className={styles.who}>
-            <Link href={`/characters/${p.character.id}`}>{p.character.name}</Link>
+            <Link href={nameHref(p.character.id)}>{p.character.name}</Link>
             {p.partner && (
               <>
                 {" & "}
-                <Link href={`/characters/${p.partner.id}`}>{p.partner.name}</Link>
+                <Link href={nameHref(p.partner.id)}>{p.partner.name}</Link>
               </>
             )}
             {p.rating === "suggestive" && <span className={styles.tag}>Suggestive</span>}
           </p>
           <p className={styles.by}>
-            <Link href={`/creators/${p.creator.handle}`}>@{p.creator.handle}</Link>
+            <Link href={paths.creator(p.creator.handle)}>@{p.creator.handle}</Link>
           </p>
           {p.caption && <p className={styles.caption}>{p.caption}</p>}
           <p className={styles.ctas}>
-            {/* A date when they can be asked by name; else their page, to meet them (lib/showcase.ts dateable). */}
-            <Link href={`/characters/${p.character.id}`} className={styles.cta} onClick={cta("date")}>
-              {p.dateable === false ? `Meet ${first}` : `💘 Date ${first}`}
-            </Link>
-            {/* On the side being watched: from After Dark's reels, their After Dark shots (David, 2026-11-08). */}
-            <Link href={`/showcase?character=${encodeURIComponent(p.character.id)}${side === "after_dark" ? "&side=after_dark" : ""}`} className={styles.ctaGhost} onClick={cta("see_all")}>
+            {/* A date when they can be asked by name; else their page, to meet them (lib/showcase.ts dateable). On After Dark's
+                reels, a night with them, from their After Dark page, when they're in this viewer's After Dark. */}
+            {ad ? (
+              night && (
+                <Link href={nightHref(p.character.id)} className={styles.cta} onClick={cta("night")}>
+                  A night with {first}
+                </Link>
+              )
+            ) : (
+              <Link href={`/characters/${p.character.id}`} className={styles.cta} onClick={cta("date")}>
+                {p.dateable === false ? `Meet ${first}` : `💘 Date ${first}`}
+              </Link>
+            )}
+            {/* On the side being watched: from After Dark's reels, their After Dark shots (David, 2026-11-08), on After Dark's showcase. */}
+            <Link
+              href={ad ? paths.character(p.character.id) : `/showcase?character=${encodeURIComponent(p.character.id)}${side === "after_dark" ? "&side=after_dark" : ""}`}
+              className={night || !ad ? styles.ctaGhost : styles.cta}
+              onClick={cta("see_all")}
+            >
               See all of {first}
             </Link>
           </p>
@@ -404,7 +447,10 @@ function Slide({
   );
 }
 
-const CARDS: Record<ReelCard, { title: string; body: string; cta: string; href: string; track: "create" | "after_dark" }> = {
+/** After Dark's hub, at its picker: where a night of their own starts. */
+const NIGHT_HREF = "/after-dark#scenes";
+
+const CARDS: Record<ReelCard, { title: string; body: string; cta: string; href: string; track: "create" | "after_dark" | "night" }> = {
   create: {
     title: "Make your own character",
     body: "Two minutes: a name, a look, what they're after. Then send them on dates and watch what happens. Your first dates are free.",
@@ -419,12 +465,20 @@ const CARDS: Record<ReelCard, { title: string; body: string; cta: string; href: 
     href: "/after-dark/subscribe",
     track: "after_dark",
   },
+  // After Dark's own reels: a night of their own, in place of the show's create card (audit 2026-11-22).
+  night: {
+    title: "🌙 A night of your own",
+    body: "Pick two of the cast and start their night. You steer it; they play it out in their own voices.",
+    cta: "Pick a pair",
+    href: NIGHT_HREF,
+    track: "night",
+  },
 };
 
 function Card({ i, card, active, onNext }: { i: number; card: ReelCard; active: boolean; onNext: () => void }) {
   const c = CARDS[card];
   return (
-    <section className={`${styles.slide} ${styles.card}`} data-i={i} aria-label={c.title} aria-current={active ? "true" : undefined}>
+    <section className={`${styles.slide} ${styles.card}`} data-i={i} role="article" aria-label={c.title} aria-current={active ? "true" : undefined}>
       <div className={styles.cardBody}>
         <h2>{c.title}</h2>
         <p>{c.body}</p>

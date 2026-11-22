@@ -39,6 +39,8 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const CallId = z.string().min(1).max(64);
 const Action = z.discriminatedUnion("action", [
+  // The call sheet opened: their live face's worker starts booting, so a call's first clause finds it hot.
+  z.object({ action: z.literal("warm") }),
   // Starts a call: its first minute is taken. `buy`: the price was on the button. `lang`: the browser's language.
   z.object({ action: z.literal("start"), buy: z.boolean().optional(), lang: z.string().max(35).optional() }),
   // A fresh token to open the socket again (after a pause or a dropped connection).
@@ -65,8 +67,8 @@ const Action = z.discriminatedUnion("action", [
 const LIVE_OFF = { error: "live_off", message: "Live calls aren't on right now." };
 
 /**
- * A live call (docs/companions.md, P6; lib/companion-live.ts): start one (the first minute, a token for the browser's
- * socket to Deepgram), a fresh token, a tick (the minutes that have started), a turn (what they said in; the reply
+ * A live call (docs/companions.md, P6; lib/companion-live.ts): warm its face (the call sheet opened), start one (the
+ * first minute, a token for the browser's socket to Deepgram), a fresh token, a tick (the minutes that have started), a turn (what they said in; the reply
  * streamed out, each checked piece with its voice), and the end. Accounts only, and only while live calls are on.
  */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
@@ -80,6 +82,15 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (!liveCallsOn(process.env, { admin, guest: false })) return json(LIVE_OFF, 404, sess);
   const input = parseBody(Action, await readJson(req), "invalid_request");
   const extras = () => extrasState(db, sess.userId);
+
+  if (input.action === "warm") {
+    // Sent when the call sheet opens (CompanionCall), never for looking at the thread: that booted a GPU on every view
+    // (2026-11-21). Only for those who get the face (warmLiveFace asks), and no more often than calls can start.
+    if (!(await overLimit(db, "companion_live_warm", sess.userId, LIVE_START_LIMITS))) {
+      warmLiveFace(process.env, await liveFaceWho(db, process.env, { admin, userId: sess.userId }));
+    }
+    return json({ ok: true }, 200, sess);
+  }
 
   if (input.action === "start") {
     const view = await getThread(db, sess.userId, id);
@@ -104,8 +115,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     }
     track("companion_call", { stage: "start", live: true });
     const base = requestBase(req);
-    // Their face for the call (lib/face-kit.ts), drawn once if they have none: the call doesn't wait for it.
-    inBackground(() => ensureFaceKit(db, view.view.character.id, base));
+    // Their face for the call (lib/face-kit.ts), drawn once if they have none, and only for a caller who sees faces (the
+    // plan, or an admin), as a call taking turns does: the call doesn't wait for it.
+    if ((await companionAllowance(db, sess.userId, new Date(), process.env)).unlimited) inBackground(() => ensureFaceKit(db, view.view.character.id, base));
     // A live face (lib/live-face), when it's on for this person and the character has one: a token to open the stream.
     const face = await liveFaceSession(db, view.view.character.id, base, { admin, userId: sess.userId }, { maxSeconds: liveMaxMinutes(process.env) * 60 });
     return json({ call: { id: started.call.id, minutes: started.call.minutes }, stt: { url: sttUrl(process.env, input.lang), ...token }, face, extras: await extras() }, 200, sess);

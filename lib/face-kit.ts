@@ -111,6 +111,12 @@ const AT_ONCE = 3;
 const STILL_LOST_MS = 10 * 60 * 1000;
 /** A loop not back from Replicate by then is given up. */
 const LOOP_GIVE_UP_MS = 20 * 60 * 1000;
+/**
+ * A loop still "making" this long was never collected (collectFaceKits runs only while a page polls): it counts as
+ * failed, so the next call draws it again. Two characters' loops sat "making" for days and kept them from ever getting
+ * a kit (2026-11-21).
+ */
+const LOOP_LOST_MS = 30 * 60 * 1000;
 /** A kit that failed is not tried again on a call for this long (an admin can at once). */
 const RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
 /** Stills kept at this width (they show at 136 px or less), as WebP. */
@@ -147,7 +153,13 @@ export async function faceSource(db: Db, characterId: string, baseUrl: string): 
 
 async function rowsFor(db: Db, characterId: string, sourceId: string): Promise<Row[]> {
   const { rows } = await db.query<Row>(`select id, part, status, error, queue_id, updated_at, created_at from face_kits where character_id = $1 and source_id = $2`, [characterId, sourceId]);
-  return rows.map((r) => (r.part !== "loop" && r.status === "making" && Date.now() - new Date(r.updated_at).getTime() > STILL_LOST_MS ? { ...r, status: "failed", error: "it was lost while being drawn" } : r));
+  return rows.map((r): Row => {
+    if (r.status !== "making") return r;
+    const age = Date.now() - new Date(r.updated_at).getTime();
+    if (r.part !== "loop" && age > STILL_LOST_MS) return { ...r, status: "failed", error: "it was lost while being drawn" };
+    if (r.part === "loop" && age > LOOP_LOST_MS) return { ...r, status: "failed", error: "it was never collected" };
+    return r;
+  });
 }
 
 function kitOf(rows: Row[]): FaceKit | null {

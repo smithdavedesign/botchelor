@@ -129,12 +129,12 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
             {adDoor.state === "open"
               ? `Private shoots of ${first} for adults, in After Dark.`
               : adDoor.state === "switch_in"
-                ? `Private shoots of ${first} for adults, in After Dark. Your characters start Out: switch ${first} In there first.`
+                ? `Private shoots of ${first} for adults, in After Dark. Add ${first} to After Dark there first.`
                 : `Private shoots of your own characters, for adults only.${adDoor.inviteOnly ? " It's invite only while it's in beta." : ""}`}
           </p>
           <p>
             <Link className="button-ghost" href={adDoor.href} prefetch={false}>
-              {adDoor.state === "open" ? `Open ${first}'s After Dark Studio` : adDoor.state === "switch_in" ? `Switch ${first} In` : "See the After Dark Studio"}
+              {adDoor.state === "open" ? `Open ${first}'s After Dark Studio` : adDoor.state === "switch_in" ? `Add ${first} to After Dark` : "See the After Dark Studio"}
             </Link>
           </p>
         </section>

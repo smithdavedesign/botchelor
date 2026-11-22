@@ -148,14 +148,14 @@ describe("the Studio door", () => {
     expect(html).toContain('class="ad-whos-in-row"');
     expect(html).not.toContain("account-character");
     expect(html).toContain("Ines Valdecasas-Rook");
-    expect(html).toContain("1 of yours is Out.");
+    expect(html).toContain("1 of yours isn&#x27;t in yet.");
     expect(html).not.toContain(`href="/after-dark/studio/${ines}"`);
     await setAdultSwitch(t.db, id, ines, true);
     html = renderToStaticMarkup(await AfterDarkStudio());
     expect(html).toContain(`data-studio-card="${ines}"`);
     expect(html).toContain(`href="/after-dark/studio/${ines}"`);
     expect(html).toContain("Pick their face first");
-    expect(html).not.toContain("of yours is Out");
+    expect(html).not.toContain("of yours isn&#x27;t in yet");
   });
 
   it("says what to do when there's nobody to switch", async () => {

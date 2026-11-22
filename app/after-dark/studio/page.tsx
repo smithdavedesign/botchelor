@@ -67,8 +67,8 @@ export default async function AfterDarkStudioPage({ searchParams }: { searchPara
           </p>
         ) : (
           <p className="muted">
-            Who&apos;s in your After Dark. Your own characters start Out: nothing of theirs comes here until you switch them In, and you can switch
-            them Out again any time.
+            Who&apos;s in your After Dark. Your own characters aren&apos;t in it until you add them: nothing of theirs comes here before that, and you
+            can take them out again any time.
           </p>
         )}
         {doors.studio &&
@@ -94,8 +94,8 @@ export default async function AfterDarkStudioPage({ searchParams }: { searchPara
           ) : (
             <p className="card muted" data-studio-empty>
               {yours.length
-                ? "Switch one of yours In below and their Studio opens here."
-                : "The Studio is for your own characters. Once you've made one on the show and switched them In below, their Studio opens here."}
+                ? "Add one of yours below and their Studio opens here."
+                : "The Studio is for your own characters. Once you've made one on the show and added them below, their Studio opens here."}
             </p>
           ))}
         {/* One "Who's in" heading: the switches' own card holds it (and the anchor the pair page links to). */}
@@ -104,8 +104,9 @@ export default async function AfterDarkStudioPage({ searchParams }: { searchPara
             <Switches key={onKey} initial={switchable} headingId="ad-whos-in">
               {doors.studio && (
                 <p className="muted small">
-                  Your own characters start Out: nothing of theirs comes here until you switch them In, and you can switch them Out again any time.
-                  {yoursOut > 0 ? ` ${yoursOut} of yours ${yoursOut === 1 ? "is" : "are"} Out.` : ""}
+                  Your own characters aren&apos;t in After Dark until you add them: nothing of theirs comes here before that, and you can take them out
+                  again any time.
+                  {yoursOut > 0 ? ` ${yoursOut} of yours ${yoursOut === 1 ? "isn't" : "aren't"} in yet.` : ""}
                 </p>
               )}
             </Switches>

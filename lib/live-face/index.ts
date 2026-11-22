@@ -327,8 +327,9 @@ export async function liveFaceSession(db: Db, characterId: string, baseUrl: stri
 
 /**
  * Spins the set renderer's worker up for this person (nothing awaited, nothing when live faces are off for them): the
- * companion page calls it as it opens and a call on every tick, so a reply's first clause finds a hot worker rather
- * than a 22–32 s boot (the browser gives a first clip 4 s, so a cold boot meant a plain first reply).
+ * call sheet asks as it opens (the live route's "warm"; never a look at the thread, since 2026-11-21) and a call on
+ * every tick, so a reply's first clause finds a hot worker rather than a 22–32 s boot (the browser gives a first clip
+ * 4 s, so a cold boot meant a plain first reply).
  */
 export function warmLiveFace(env: Env, who: LiveFaceWho): void {
   if (!liveFaceOn(env, who)) return;

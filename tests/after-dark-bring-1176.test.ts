@@ -62,7 +62,7 @@ describe("#1176: bringing a new character into After Dark", () => {
     const { ines } = await me();
     const html = await home({ bring: ines });
     expect(html).toMatch(new RegExp(`data-bring="${ines}"[\\s\\S]*<h2>Bring Ines Valdecasas-Rook into After Dark</h2>`));
-    expect(html).toContain("Characters start Out: nothing of theirs comes here until you switch them In.");
+    expect(html).toContain("Your own characters aren&#x27;t in After Dark until you add them: nothing of theirs comes here before that.");
     expect(html.indexOf("data-bring=")).toBeLessThan(html.indexOf("<h2>Scenes</h2>"));
   });
 

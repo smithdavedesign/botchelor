@@ -318,8 +318,8 @@ describe("My studio's door to the After Dark Studio (lib/adult/studio-door.ts)",
     for (const line of [
       "After Dark Studio",
       "Private shoots of Nell for adults, in After Dark.",
-      "Private shoots of Nell for adults, in After Dark. Your characters start Out: switch Nell In there first.",
-      "Switch Nell In",
+      "Private shoots of Nell for adults, in After Dark. Add Nell to After Dark there first.",
+      "Add Nell to After Dark",
       "Private shoots of your own characters, for adults only. It's invite only while it's in beta.",
       "See the After Dark Studio",
     ]) {

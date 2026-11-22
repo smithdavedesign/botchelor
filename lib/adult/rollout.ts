@@ -1,7 +1,7 @@
 /**
  * What of After Dark is built but not open yet (David, 2026-11-13: "until we get a payment system we cannot open it to
  * public. so keep it admin only but build it anyway and we can switch it from admin only later"). Each piece is "admins"
- * (only admins see it, to try it) until it's switched to "everyone" in the settings (Not open yet tab). The pieces are the
+ * (only admins see it, to try it) until it's switched to "everyone" in the settings (the Rollout tab). The pieces are the
  * design review's P3 list (docs/audits/2026-11-11-design-vs-live-and-ux-audit.md): the public door and its day-one set,
  * "Make more" on a night, the phone's ⋯ sheet in the theater, and the chapter reader.
  * Client-safe: no server imports (the settings page shares it).

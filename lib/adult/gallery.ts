@@ -19,10 +19,13 @@ export const GALLERY_MAX = 960;
 
 export type GalleryCounts = Record<GalleryTab, number> & { reels: number; clips: number };
 
-/** The tab asked for, else Videos when there are any, else Pictures (a new account opens on what it has). */
-export function galleryTab(raw: unknown, counts: Pick<GalleryCounts, "videos">): GalleryTab {
+/**
+ * The tab asked for, else the fuller of Videos and Pictures, Videos on a tie (a new account opens on what it has). The
+ * old rule, Videos whenever there was one, opened 90 pictures and one video on that one video (2026-11-22 audit).
+ */
+export function galleryTab(raw: unknown, counts: Pick<GalleryCounts, "videos" | "pictures">): GalleryTab {
   if (typeof raw === "string" && (GALLERY_TABS as readonly string[]).includes(raw)) return raw as GalleryTab;
-  return counts.videos > 0 ? "videos" : "pictures";
+  return counts.videos > 0 && counts.videos >= counts.pictures ? "videos" : "pictures";
 }
 
 /** `?n=`: how many to show, in whole pages, at least one page and at most GALLERY_MAX. */
