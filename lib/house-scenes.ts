@@ -971,7 +971,9 @@ export type SceneReportReason = (typeof REPORT_REASONS)[number];
 
 /**
  * Reports one line of a scene (one report per person per line). Once REPORT_HIDE_THRESHOLD people have, the line is
- * hidden (derived at read time, as a date's reports are) and what it told is taken back out of the story state.
+ * hidden (derived at read time, as a date's reports are) and what it told is taken back out of the story state. A
+ * report that doesn't count (lib/report-trust.ts: a brand-new identity) is kept for the admins' list and left out of
+ * that count.
  */
 export async function reportSceneLine(
   db: Db,
@@ -979,14 +981,22 @@ export async function reportSceneLine(
   line: number,
   reporterId: string,
   reason: SceneReportReason = "other",
+  opts: { counts?: boolean } = {},
 ): Promise<{ ok: true; reported: boolean; hidden: boolean } | { ok: false; status: number; error: string }> {
   const scene = (await db.query<{ lines: SceneLine[] }>(`select lines from house_scenes where id = $1 and source in ('model', 'template')`, [sceneId])).rows[0];
   if (!scene || !Number.isInteger(line) || line < 1 || line > scene.lines.length) return { ok: false, status: 404, error: "line_not_found" };
-  const made = await db.query(`insert into house_scene_reports (scene_id, line, reporter_id, reason) values ($1, $2, $3, $4) on conflict do nothing returning scene_id`, [sceneId, line, reporterId, reason]);
-  const n = (await db.query<{ n: number }>(`select count(*)::int as n from house_scene_reports where scene_id = $1 and line = $2`, [sceneId, line])).rows[0].n;
+  const counts = opts.counts !== false;
+  const made = await db.query(
+    `insert into house_scene_reports (scene_id, line, reporter_id, reason, counts) values ($1, $2, $3, $4, $5) on conflict do nothing returning scene_id`,
+    [sceneId, line, reporterId, reason, counts],
+  );
+  const n = (await db.query<{ n: number }>(`select count(*)::int as n from house_scene_reports where scene_id = $1 and line = $2 and counts`, [sceneId, line])).rows[0].n;
   const hidden = n >= REPORT_HIDE_THRESHOLD;
-  if (hidden) await retractLine(db, sceneId, line);
-  if (hidden) await houseTies(db);
+  // A report that doesn't count never sets that work going.
+  if (hidden && counts) {
+    await retractLine(db, sceneId, line);
+    await houseTies(db);
+  }
   return { ok: true, reported: made.rows.length > 0, hidden };
 }
 
@@ -995,9 +1005,9 @@ export type SceneReviewDecision = (typeof SCENE_REVIEW_DECISIONS)[number];
 
 /** Reported scene lines nobody has reviewed, most reported first (the admin's list). */
 export async function listSceneReports(db: Db): Promise<{ scene_id: string; line: number; text: string; speaker: string; reports: number; hidden: boolean; reasons: Record<string, number>; last_reported_at: string }[]> {
-  const { rows } = await db.query<{ scene_id: string; line: number; n: number; last_at: string | Date; reasons: Record<string, number>; lines: SceneLine[] }>(
-    `select r.scene_id, r.line, r.n, r.last_at, r.reasons, s.lines
-       from (select scene_id, line, count(*)::int as n, max(created_at) as last_at,
+  const { rows } = await db.query<{ scene_id: string; line: number; n: number; counted: number; last_at: string | Date; reasons: Record<string, number>; lines: SceneLine[] }>(
+    `select r.scene_id, r.line, r.n, r.counted, r.last_at, r.reasons, s.lines
+       from (select scene_id, line, count(*)::int as n, (count(*) filter (where counts))::int as counted, max(created_at) as last_at,
                     (select jsonb_object_agg(reason, c) from (select reason, count(*)::int as c from house_scene_reports x where x.scene_id = h.scene_id and x.line = h.line group by reason) g) as reasons
                from house_scene_reports h group by scene_id, line) r
        join house_scenes s on s.id = r.scene_id
@@ -1011,7 +1021,7 @@ export async function listSceneReports(db: Db): Promise<{ scene_id: string; line
     text: r.lines[r.line - 1]?.text ?? "",
     speaker: names.get(r.lines[r.line - 1]?.character_id ?? "") ?? "?",
     reports: r.n,
-    hidden: r.n >= REPORT_HIDE_THRESHOLD,
+    hidden: r.counted >= REPORT_HIDE_THRESHOLD,
     reasons: r.reasons ?? {},
     last_reported_at: new Date(r.last_at).toISOString(),
   }));
@@ -1099,7 +1109,7 @@ async function sceneViews(db: Db, rows: readonly StoredScene[]): Promise<HouseSc
       `select c.id, c.name, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, c.is_house as house, c.visibility from characters c where c.id = any($1)`,
       [charIds],
     ),
-    db.query<{ scene_id: string; line: number }>(`select scene_id, line from house_scene_reports where scene_id = any($1) group by scene_id, line having count(*) >= $2`, [sceneIds, REPORT_HIDE_THRESHOLD]),
+    db.query<{ scene_id: string; line: number }>(`select scene_id, line from house_scene_reports where scene_id = any($1) and counts group by scene_id, line having count(*) >= $2`, [sceneIds, REPORT_HIDE_THRESHOLD]),
     goneEpisodes(db, episodeIds),
   ]);
   const byId = new Map(chars.rows.filter((c) => c.visibility === "public").map((c) => [c.id, c]));

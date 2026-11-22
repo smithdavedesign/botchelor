@@ -299,7 +299,8 @@ describe("/api/admin/season: the format picker", () => {
       `insert into character_assets (id, character_id, kind, source_type, source_model, url, review_status, content_rating) values ('asset-season-face', $1, 'portrait', 'generated', 'm', '/cast/face.webp', 'approved', 'pg')`,
       [first.character_id],
     );
-    expect((await read()).find((c) => c.character_id === first.character_id)).toMatchObject({ portrait: "/api/assets/asset-season-face", house: true });
+    // The file itself, not the image route that would only redirect there (2026-11-22 audit: lib/portrait-sql.ts).
+    expect((await read()).find((c) => c.character_id === first.character_id)).toMatchObject({ portrait: "/cast/face.webp", house: true });
     // The house cast outlives a reset, and its assets with it.
     await t.db.query(`delete from character_assets where id = 'asset-season-face'`);
   });

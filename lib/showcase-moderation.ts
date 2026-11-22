@@ -1,28 +1,36 @@
 /**
  * Reports and takedowns on the showcase (docs/PRDs/showcase.md): anyone who can see a post can report it, through the
  * site's own reports (lib/content-reports.ts: the admins emailed, the response promise said). A serious one (a minor, a
- * real person, non-consent, an intimate image) holds the post out of sight at once until an admin looks; the admin
- * releases it, or removes it for good (it can't be published again).
+ * real person, non-consent, an intimate image) from a signed-in account holds the post out of sight at once until an
+ * admin looks (2026-11-22 audit: one anonymous report took any post down); the admin releases it, or removes it for good
+ * (it can't be published again). A signed-out reporter's serious report reaches the admins the same way and holds
+ * nothing. Reports are limited per address and per person, and holds per account (HOLD_LIMITS).
  */
 import { clearSharedCache } from "./shared-cache";
 import { isUrgent, type ContentReportCategory } from "./content-reports-shared";
-import { saveContentReport } from "./content-reports";
+import { CONTENT_REPORT_LIMITS, saveContentReport } from "./content-reports";
 import type { Db } from "./db";
+import { overLimit } from "./limits";
 import { postMedia, type ShowcaseViewer } from "./showcase";
 
 /** A serious report holds a post at once; non-consent too (a character used without its owner's say). */
 const HOLDS = (c: ContentReportCategory) => isUrgent(c) || c === "non_consent";
+/** Holds one account may cause: past this its serious reports still reach the admins, without holding the post. */
+export const HOLD_LIMITS = { perHour: 3, perDay: 10 };
 
 export async function reportPost(
   db: Db,
   v: ShowcaseViewer,
   postId: string,
   input: { category: ContentReportCategory; details: string | null },
-  ctx: { userAgent: string | null },
-): Promise<{ ok: true; held: boolean; promise: string } | { ok: false }> {
+  ctx: { userAgent: string | null; address?: string | null },
+): Promise<{ ok: true; held: boolean; promise: string } | { ok: false } | { ok: false; limited: true }> {
   if (!(await postMedia(db, v, postId))) return { ok: false };
+  // The same buckets as /report's form (app/api/content-reports): a person's reports of every kind, together.
+  if (ctx.address && (await overLimit(db, "content_report", ctx.address, CONTENT_REPORT_LIMITS))) return { ok: false, limited: true };
+  if (v.id && (await overLimit(db, "content_report_user", v.id, CONTENT_REPORT_LIMITS))) return { ok: false, limited: true };
   const saved = await saveContentReport(db, { category: input.category, target: `/showcase?post=${postId}`, details: input.details, email: null }, { userId: v.id, account: Boolean(v.id), userAgent: ctx.userAgent });
-  const held = HOLDS(input.category);
+  const held = HOLDS(input.category) && v.id !== null && !(await overLimit(db, "showcase_hold", v.id, HOLD_LIMITS));
   if (held) await db.query(`update showcase_posts set held = true where id = $1 and status <> 'removed'`, [postId]);
   return { ok: true, held, promise: saved.promise };
 }

@@ -1,9 +1,10 @@
 import { resizedWebp } from "@/lib/thumbs";
 import { AI_HEADERS, markAiImage } from "@/lib/ai-mark";
 import { assetServe, PUBLIC_CACHE } from "@/lib/asset-gate";
-import { getApprovedAsset, getApprovedAssetHead, getAssetThumb, keepAssetThumb } from "@/lib/assets";
+import { getApprovedAsset, getApprovedAssetHead, keepAssetThumb } from "@/lib/assets";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
+import { poolShare, withinShare } from "@/lib/pool-share";
 
 type Ctx = { params: Promise<{ id: string }> };
 const DATA_PNG = /^data:image\/(png|jpeg|webp);base64,/;
@@ -21,12 +22,18 @@ const STATIC_CAST = /^\/cast\/[\w.-]+\.(webp|png|jpe?g)$/;
  * them at once, every one decoded from its full PNG on the request, and the show's single replica stalled until the
  * gateway gave up on it for minutes. The cache answers without reading the file; the few resizes that still happen
  * run a handful at a time.
+ *
+ * With Cloudflare's cache empty (a new face, a purge, a region's first visitor), a page of faces sends every one of them
+ * here at once: 195 for one character's world (2026-11-22 audit). So the usual answer, the gate's columns and the small
+ * copy, is one read, and this route's reads take at most IMAGE_QUERIES_AT_ONCE of the pool at a time (lib/pool-share.ts):
+ * the faces fill in a moment later, and the pages they're on still get connections.
  */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   // /api/assets/<id>.webp is the same picture: the extension is only there so the CDN caches it (app/Avatar.tsx sized).
   const id = (await ctx.params).id.replace(/\.webp$/, "");
-  const db = await getDb();
-  const head = await getApprovedAssetHead(db, id);
+  const db = withinShare(await getDb(), IMAGES);
+  const width = widthFor(new URL(req.url).searchParams.get("w"));
+  const head = await getApprovedAssetHead(db, id, width);
   if (!head) return json({ error: "asset_not_found" }, 404);
   const gate = await assetServe(db, req, head.content_rating, head.character_id);
   // The answer depends on who's asking, so neither of these may be cached for everyone (json() is no-store).
@@ -45,11 +52,7 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   // Every picture here was made by a model: it goes out with the "AI-generated" mark in its XMP and its headers
   // (lib/ai-mark.ts). A no-op for one stored with it; an older one is marked as it's sent.
   const headers = { "cache-control": gate.cache, ...AI_HEADERS };
-  const width = widthFor(new URL(req.url).searchParams.get("w"));
-  if (width) {
-    const kept = await getAssetThumb(db, id, width);
-    if (kept) return new Response(new Uint8Array(markAiImage(kept)), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
-  }
+  if (width && head.thumb) return new Response(new Uint8Array(markAiImage(head.thumb)), { status: 200, headers: { ...headers, "content-type": "image/webp" } });
   const asset = await getApprovedAsset(db, id);
   if (!asset?.url || !DATA_PNG.test(asset.url)) return json({ error: "asset_not_found" }, 404);
   const [, type] = DATA_PNG.exec(asset.url)!;
@@ -63,6 +66,10 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   }
   return new Response(new Uint8Array(markAiImage(bytes)), { status: 200, headers: { ...headers, "content-type": `image/${type}` } });
 });
+
+/** How many of this route's reads run at once on this server (of the pool's 10 on prod): the rest wait their turn. */
+const IMAGE_QUERIES_AT_ONCE = 4;
+const IMAGES = poolShare(IMAGE_QUERIES_AT_ONCE);
 
 /** The widths a small copy comes in (each one cached by the CDN for a year), so ?w= can't mint endless variants. */
 const ASSET_WIDTHS = [64, 128, 256, 384] as const;

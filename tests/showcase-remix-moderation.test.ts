@@ -8,7 +8,9 @@ import { GET as modGet, POST as modPost } from "@/app/api/admin/showcase/route";
 import { POST as profilePost } from "@/app/api/creator-profile/route";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
+import { CONTENT_REPORT_LIMITS } from "@/lib/content-reports";
 import { setSeasonCastForTests } from "@/lib/season-cast";
+import { HOLD_LIMITS } from "@/lib/showcase-moderation";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { api, BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -85,24 +87,47 @@ describe("reports and takedowns", () => {
   it("a serious report holds a post out of sight until an admin releases it or removes it for good", async () => {
     const me = await person("mara");
     const post = await publish(me.cookie, await pgShot(me.id, me.character));
-    const report = (category: string) => reportPostRoute(req("/x", { method: "POST", body: JSON.stringify({ category, details: "looks off" }) }), params({ id: post.post_id }));
+    const report = (category: string, cookie?: string) => reportPostRoute(req("/x", { method: "POST", cookie, body: JSON.stringify({ category, details: "looks off" }) }), params({ id: post.post_id }));
     expect(await (await report("other")).json()).toMatchObject({ ok: true, held: false });
     expect((await (await listGet(req("/api/showcase"))).json()).posts).toHaveLength(1);
-    expect(await (await report("real_person")).json()).toMatchObject({ held: true });
+    // Signed out, a serious report reaches the admins and holds nothing (2026-11-22 audit: one took any post down).
+    expect(await (await report("real_person")).json()).toMatchObject({ ok: true, held: false });
+    expect((await (await listGet(req("/api/showcase"))).json()).posts).toHaveLength(1);
+    const fan = await person();
+    expect(await (await report("real_person", fan.cookie)).json()).toMatchObject({ held: true });
     expect((await (await listGet(req("/api/showcase"))).json()).posts).toHaveLength(0);
     expect((await mediaGet(req("/x"), params({ id: post.post_id }))).status).toBe(404);
     // The creator still sees their own.
     expect((await mediaGet(req("/x", { cookie: me.cookie }), params({ id: post.post_id }))).status).toBe(200);
-    expect((await t.db.query(`select 1 from content_reports where target = $1`, [`/showcase?post=${post.post_id}`])).rows).toHaveLength(2);
+    expect((await t.db.query(`select 1 from content_reports where target = $1`, [`/showcase?post=${post.post_id}`])).rows).toHaveLength(3);
     const admin = await person(undefined, true);
     expect((await modGet(req("/x", { cookie: me.cookie }))).status).toBe(403);
     const queue = (await (await modGet(req("/x", { cookie: admin.cookie }))).json()).posts;
-    expect(queue).toMatchObject([{ id: post.post_id, held: true, reports: 2 }]);
+    expect(queue).toMatchObject([{ id: post.post_id, held: true, reports: 3 }]);
     expect((await modPost(req("/x", { method: "POST", cookie: admin.cookie, body: JSON.stringify({ post_id: post.post_id, decision: "release" }) }))).status).toBe(200);
     expect((await (await listGet(req("/api/showcase"))).json()).posts).toHaveLength(1);
     expect((await t.db.query<{ status: string }>(`select status from content_reports where target = $1`, [`/showcase?post=${post.post_id}`])).rows.every((r) => r.status === "resolved")).toBe(true);
     await modPost(req("/x", { method: "POST", cookie: admin.cookie, body: JSON.stringify({ post_id: post.post_id, decision: "remove" }) }));
     expect((await (await listGet(req("/api/showcase"))).json()).posts).toHaveLength(0);
+  });
+});
+
+describe("report limits", () => {
+  it("limits reports per address and per person, and the holds one account can cause", async () => {
+    const me = await person("mara");
+    const posts = [];
+    for (let i = 0; i < HOLD_LIMITS.perHour + 1; i++) posts.push((await publish(me.cookie, await pgShot(me.id, me.character))).post_id);
+    const report = (id: string, category: string, headers: Record<string, string>) =>
+      reportPostRoute(new Request(`${BASE_URL}/x`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ category }) }), params({ id }));
+    // One address, signed out: CONTENT_REPORT_LIMITS an hour, then a 429.
+    for (let i = 0; i < CONTENT_REPORT_LIMITS.perHour; i++) expect((await report(posts[0], "other", { "do-connecting-ip": "203.0.113.30" })).status).toBe(200);
+    const over = await report(posts[0], "other", { "do-connecting-ip": "203.0.113.30" });
+    expect(over.status).toBe(429);
+    expect((await over.json()).error).toBe("too_many_reports");
+    // One account's serious reports hold HOLD_LIMITS posts an hour; past that they still reach the admins.
+    const fan = await person();
+    for (let i = 0; i < HOLD_LIMITS.perHour; i++) expect(await (await report(posts[i], "minor", { cookie: fan.cookie, "do-connecting-ip": `198.51.100.${i + 1}` })).json()).toMatchObject({ held: true });
+    expect(await (await report(posts[HOLD_LIMITS.perHour], "minor", { cookie: fan.cookie, "do-connecting-ip": "198.51.100.99" })).json()).toMatchObject({ ok: true, held: false });
   });
 });
 
