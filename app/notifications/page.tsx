@@ -19,7 +19,7 @@ import type { CharacterRef } from "@/lib/game";
 import Pager from "@/app/Pager";
 import { clampPage, pageCount, pageHref, parsePage } from "@/lib/paging";
 import { pushKeys } from "@/lib/push";
-import ClearNotifications from "./ClearNotifications";
+import { ClearAllButton, DismissButton, InboxList, InboxProvider, InboxRow } from "./Inbox";
 import NotificationSettings from "./NotificationSettings";
 import NotificationMutes from "./NotificationMutes";
 import { mutedTypes } from "@/lib/notification-mutes";
@@ -42,20 +42,27 @@ function splitEmoji(title: string): [string | null, string] {
 /** Notifications: this many a page (?page=N), newest first. */
 const NOTIFICATIONS_PAGE = 10;
 
-/** The type filter's chips: All, then each type someone has any of, with how many (and how many are new). */
-function TypeFilter({ active, counts, all }: { active: NotificationType | null; counts: Map<NotificationType, { n: number; unread: number }>; all: number }) {
+/**
+ * The type filter's chips: All, then each type someone has any of (the design system's Notifications screen: the
+ * words alone; a type with something new carries a dot, read out as "new").
+ */
+function TypeFilter({ active, counts }: { active: NotificationType | null; counts: Map<NotificationType, { n: number; unread: number }> }) {
   const href = (type: NotificationType | null) => (type ? `/notifications?type=${type}` : "/notifications");
   return (
-    <nav className="filter-pills" aria-label="Filter notifications by type">
+    <nav className="filter-pills notif-filter" aria-label="Filter notifications by type">
       <Link href={href(null)} aria-current={active === null ? "true" : undefined}>
-        All <span className="filter-n">{all}</span>
+        All
       </Link>
       {NOTIFICATION_TYPES.filter((t) => (counts.get(t)?.n ?? 0) > 0 || t === active).map((t) => {
         const c = counts.get(t) ?? { n: 0, unread: 0 };
         return (
           <Link key={t} href={href(t)} aria-current={active === t ? "true" : undefined}>
-            <span aria-hidden="true">{NOTIFICATION_TYPE_EMOJI[t]}</span> {NOTIFICATION_TYPE_LABELS[t]} <span className="filter-n">{c.n}</span>
-            {c.unread > 0 && <span className="filter-new">{c.unread} new</span>}
+            {NOTIFICATION_TYPE_LABELS[t]}
+            {c.unread > 0 && active !== t && (
+              <span className="notif-filter-dot">
+                <span className="sr-only">, new</span>
+              </span>
+            )}
           </Link>
         );
       })}
@@ -65,8 +72,10 @@ function TypeFilter({ active, counts, all }: { active: NotificationType | null; 
 
 /**
  * What happened between dates (lib/notifications.ts), a page at a time, filtered by type (?type=, lib/notification-types.ts)
- * with each row labelled with its type. Opening the page marks everything read; each can be cleared, or all at once
- * from ⚙ Settings. A row opens with a tap anywhere on it (2026-10-31 UX audit).
+ * with each row labelled with its type. Opening the page marks everything read. Laid out as the design system's
+ * Notifications screen (2026-11-21): Clear all beside the heading, and on every row its picture (their faces, or the
+ * type's mark), an unread dot and a × (app/notifications/Inbox.tsx: both clear at once, with Undo). A row opens with a
+ * tap anywhere on it (2026-10-31 UX audit).
  */
 export default async function NotificationsPage({ searchParams }: { searchParams?: Promise<{ page?: string | string[]; type?: string | string[] }> } = {}) {
   const viewerId = userIdFromCookieStore(await cookies());
@@ -110,23 +119,29 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       : false;
 
   return (
-    <>
+    <InboxProvider ids={items.map((n) => n.id)} total={total} type={type}>
       <div className="section-head notif-head">
-        <h1>Notifications</h1>
-        <NotificationSettings canClear={items.length > 0}>
-          {push && <PushToggle publicKey={push.publicKey} />}
-          {viewerId && <NotificationMutes initial={muted} />}
-          <div className="notif-setting">
-            <h3>Email</h3>
-            <p className="muted">
-              Rather hear by email? Turn it on in your <Link href="/account">account</Link>.
-            </p>
-          </div>
-        </NotificationSettings>
+        <div>
+          <p className="kicker">Inbox</p>
+          <h1>Notifications</h1>
+        </div>
+        <div className="notif-head-actions">
+          {items.length > 0 && <ClearAllButton typeLabel={type ? NOTIFICATION_TYPE_LABELS[type] : null} />}
+          <NotificationSettings>
+            {push && <PushToggle publicKey={push.publicKey} />}
+            {viewerId && <NotificationMutes initial={muted} />}
+            <div className="notif-setting">
+              <h3>Email</h3>
+              <p className="muted">
+                Rather hear by email? Turn it on in your <Link href="/account">account</Link>.
+              </p>
+            </div>
+          </NotificationSettings>
+        </div>
       </div>
       {push && <PushToggle publicKey={push.publicKey} prompt />}
-      {all > 0 && <TypeFilter active={type} counts={typeCounts} all={all} />}
-      <section className="card">
+      {all > 0 && <TypeFilter active={type} counts={typeCounts} />}
+      <section className="card notif-card">
         {items.length === 0 && type ? (
           <EmptyState emoji={NOTIFICATION_TYPE_EMOJI[type]} title={`No ${NOTIFICATION_TYPE_LABELS[type].toLowerCase()} notifications`} action={{ href: "/notifications", label: "See them all" }} />
         ) : items.length === 0 ? (
@@ -139,59 +154,65 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             Texts between your characters and the people they&apos;re seeing, second dates, couples moving up a stage and how your votes went all land here.
           </EmptyState>
         ) : (
-          <>
+          <InboxList>
           <ul className="list" aria-label="Notifications">
             {items.map((n) => {
               const [emoji, title] = splitEmoji(n.title);
               const who = faces.get(n.id) ?? [];
+              const kind = notificationTypeOf(n.kind);
               return (
-              <li key={n.id} className={`notification${n.read ? "" : " unread"}${n.booked ? " is-booked" : ""}${who.length ? " has-faces" : ""}${n.link ? " tap-card" : ""}`}>
-                {who.length > 0 && (
+              <InboxRow key={n.id} id={n.id} className={`notification${n.read ? "" : " unread"}${n.booked ? " is-booked" : ""}${who.length ? " has-faces" : ""}${n.link ? " tap-card" : ""}`}>
+                {/* Who it's about, or else the mark its title led with (the type's, when it led with none). */}
+                {who.length > 0 ? (
                   <span className={`notif-faces${who.length > 1 ? " is-pair" : ""}`} aria-hidden="true">
                     {who.map((c) => (
                       <Avatar key={c.id} seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={32} decorative round />
                     ))}
                   </span>
-                )}
-                <strong className="notif-title">
-                  {!n.read && <span className="sr-only">New: </span>}
-                  {emoji && (
-                    <span className="notif-emoji" aria-hidden="true">
-                      {emoji}
-                    </span>
-                  )}
-                  {n.link ? (
-                    <Link className="stretch" href={n.link}>
-                      {title}
-                    </Link>
-                  ) : (
-                    title
-                  )}
-                </strong>
-                {n.booked ? (
-                  // A "Book it" notice whose date has been booked since (lib/notifications.ts withBookings).
-                  <span className="notification-booked">
-                    ✓ {n.body} <Link href={`/episodes/${n.booked.episode_id}`}>{n.booked.status === "ready" ? "Watch it" : n.booked.performed === "show" ? "Watch it being filmed" : "See the date"}</Link>
-                  </span>
                 ) : (
-                  n.body && <span className="notif-body">{n.body}</span>
+                  <span className="notif-tile" aria-hidden="true">
+                    {emoji ?? NOTIFICATION_TYPE_EMOJI[kind]}
+                  </span>
                 )}
-                {(() => {
-                  const p = proposals.get(n.id);
-                  return p && waiting.has(p.tieId) ? <TieAnswer characterId={p.characterId} tieId={p.tieId} /> : null;
-                })()}
-                <span className="muted small">
-                  <span className="notif-type">{NOTIFICATION_TYPE_LABELS[notificationTypeOf(n.kind)]}</span> · <When iso={n.created_at} /> ·{" "}
-                  <ClearNotifications id={n.id} />
+                <span className="notif-main">
+                  <strong className="notif-title">
+                    {!n.read && <span className="sr-only">New: </span>}
+                    {n.link ? (
+                      <Link className="stretch" href={n.link}>
+                        {title}
+                      </Link>
+                    ) : (
+                      title
+                    )}
+                  </strong>
+                  {n.booked ? (
+                    // A "Book it" notice whose date has been booked since (lib/notifications.ts withBookings).
+                    <span className="notification-booked">
+                      ✓ {n.body} <Link href={`/episodes/${n.booked.episode_id}`}>{n.booked.status === "ready" ? "Watch it" : n.booked.performed === "show" ? "Watch it being filmed" : "See the date"}</Link>
+                    </span>
+                  ) : (
+                    n.body && <span className="notif-body">{n.body}</span>
+                  )}
+                  {(() => {
+                    const p = proposals.get(n.id);
+                    return p && waiting.has(p.tieId) ? <TieAnswer characterId={p.characterId} tieId={p.tieId} /> : null;
+                  })()}
+                  <span className="muted small">
+                    <span className="notif-type">{NOTIFICATION_TYPE_LABELS[kind]}</span> · <When iso={n.created_at} />
+                  </span>
                 </span>
-              </li>
+                <span className="notif-end">
+                  {!n.read && <span className="notif-dot" aria-hidden="true" />}
+                  <DismissButton id={n.id} />
+                </span>
+              </InboxRow>
               );
             })}
           </ul>
           <Pager page={page} pages={pages} label="Notifications pages" href={(n) => pageHref("/notifications", type ? { type } : {}, "page", n)} prev="Newer" next="Older" />
-          </>
+          </InboxList>
         )}
       </section>
-    </>
+    </InboxProvider>
   );
 }

@@ -202,8 +202,10 @@ describe("stale “Book it” notices (lib/notifications.ts)", () => {
     expect(html).toContain("Booked: their date is ready to watch.");
     expect(html).toContain(`href="/episodes/${episode}"`);
     expect(html).not.toMatch(/Book it/);
-    // Clear all is in ⚙ Settings, a modal (2026-10-31 UX audit); the row opens with a tap anywhere on it.
-    expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*><span aria-hidden="true">⚙<\/span> Settings<\/button>/);
+    // Clear all beside the heading and Settings in a modal (the design system's Notifications screen, 2026-11-21); the
+    // row opens with a tap anywhere on it.
+    expect(html).toMatch(/<div class="notif-head-actions"><button[^>]*class="link-button notif-clear-all"[^>]*>Clear all<\/button>/);
+    expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*>Settings<\/button>/);
     expect(html).toMatch(/<li class="notification[^"]* tap-card">/);
   });
 
