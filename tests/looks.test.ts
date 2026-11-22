@@ -115,7 +115,7 @@ describe("the catalog", () => {
     const line = looksAppearance({ gender: "woman", ethnicity: "latina", hair_style: "curly", hair_color: "red", eyes: "green", body: "curvy" });
     expect(line).toBe("Latina woman, long voluminous curly copper-red hair, vivid green eyes, a curvy hourglass figure with full hips");
     // The ethnicity names who it is, so it never reads as a hair colour beside the hair words (2026-11-22 audit).
-    expect(looksAppearance({ gender: "woman", ethnicity: "black", hair_style: "straight", hair_color: "red" })).toMatch(/^Black woman, .*copper-red hair$/);
+    expect(looksAppearance({ gender: "woman", ethnicity: "black", hair_style: "straight", hair_color: "red" })).toBe("Black woman, long straight copper-red hair falling past the shoulders");
     expect(looksAppearance({ gender: "man", ethnicity: "black" })).toBe("Black man");
     expect(line.length).toBeLessThanOrEqual(140);
     expect(normaliseLooks({ gender: "woman", facial_hair: "full_beard", hair_style: "buzz", eyes: "blue" })).toEqual({ gender: "woman", eyes: "blue" });
