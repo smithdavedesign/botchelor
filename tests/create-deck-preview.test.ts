@@ -18,7 +18,7 @@ describe("the creator's deck preview", () => {
   // tagged Example, until something is typed; then their own card, with stand-ins where parts are still empty.
   it("starts as the example character, tagged Example, in the deck's own classes", () => {
     const html = renderToStaticMarkup(createElement(DeckPreview, base));
-    expect(html).toContain('<aside class="wizard-deck" aria-label="How the deck sees them">');
+    expect(html).toContain('<aside class="wizard-deck" aria-label="How others will see them">');
     expect(html).toContain('class="swipe-card wizard-deck-card wizard-deck-example"');
     expect(html).toContain('<span class="badge wizard-deck-example-tag">Example</span>');
     expect(html).toContain('<h2 class="swipe-name">Marisol Vane<span class="swipe-age">, 31</span></h2>');

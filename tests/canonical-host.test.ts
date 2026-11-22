@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as carry } from "@/app/api/auth/carry/route";
@@ -59,6 +61,54 @@ describe("the old address moves to botchelor.com (middleware)", () => {
     expect(page("https://botchelor.vercel.app/feed", { cookie: "bz_adult=1" }).headers.get("location")).toBeNull();
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", ""); // unset: siteUrl() is localhost, so nothing moves
     expect(page("https://botchelor.vercel.app/feed", { cookie: "bz_adult=1" }).headers.get("location")).toBeNull();
+  });
+});
+
+// The app's own DigitalOcean address reached it without Cloudflare and served an indexable copy of every page
+// (2026-11-22 audit); staging.botchelor.com points at the app too. middleware.ts moveFromOtherHost.
+describe("the app's other addresses: the platform's own moves to botchelor.com, and no copy is crawled", () => {
+  const DO = "https://botchelor-show-t9g76.ondigitalocean.app";
+  const onDigitalOcean = () => {
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
+    vi.stubEnv("SITE_URL", "https://botchelor.com");
+  };
+
+  it("moves the DigitalOcean address's pages there for good, path and query kept, for anyone", () => {
+    onDigitalOcean();
+    const visitors: Record<string, string>[] = [{}, { cookie: `bz_adult=1; bz_uid=${UID}` }, { "user-agent": GOOGLEBOT }];
+    for (const headers of visitors) {
+      const res = page(`${DO}/characters/house-nell?utm_source=x`, headers);
+      expect(res.status).toBe(308);
+      expect(res.headers.get("location")).toBe("https://botchelor.com/characters/house-nell?utm_source=x");
+    }
+    expect(page(`${DO}/`).headers.get("location")).toBe("https://botchelor.com/");
+  });
+
+  it("answers robots.txt on any host but botchelor.com with Disallow, and leaves botchelor.com's and www's as they were", async () => {
+    onDigitalOcean();
+    for (const host of [DO, "https://staging.botchelor.com", "http://203.0.113.9"]) {
+      const res = page(`${host}/robots.txt`, { "user-agent": GOOGLEBOT });
+      expect(res.status, host).toBe(200);
+      expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+      expect(await res.text()).toBe("User-agent: *\nDisallow: /\n");
+    }
+    expect(page("https://botchelor.com/robots.txt").headers.get("x-middleware-next")).toBe("1"); // app/robots.ts
+    expect(page("https://www.botchelor.com/robots.txt").headers.get("location")).toBe("https://botchelor.com/robots.txt");
+  });
+
+  it("never moves /api (DigitalOcean's health check), staging's pages, After Dark's app or a server on this machine", () => {
+    onDigitalOcean();
+    const matcher = new RegExp(`^${config.matcher[0]}$`);
+    for (const path of ["/api/health", "/api/mcp", "/api/jobs/lobby"]) expect(matcher.test(path), path).toBe(false);
+    expect(page("https://staging.botchelor.com/watch", { cookie: "bz_adult=1" }).headers.get("x-middleware-next")).toBe("1");
+    vi.stubEnv("AFTER_DARK_ONLY", "1");
+    vi.stubEnv("AFTER_DARK_ORIGIN", "https://ad.botchelor.com");
+    expect(page("https://clownfish-app-x.ondigitalocean.app/after-dark", { cookie: "bz_adult=1; bz_place_tried=1" }).headers.get("location")).toBeNull();
+    vi.unstubAllEnvs();
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
+    vi.stubEnv("SITE_URL", ""); // no address of its own: localhost, as in dev and the tests
+    expect(page(`${DO}/watch`, { cookie: "bz_adult=1" }).headers.get("x-middleware-next")).toBe("1");
+    expect(page("http://127.0.0.1:3000/robots.txt").headers.get("x-middleware-next")).toBe("1");
   });
 });
 
@@ -209,5 +259,57 @@ describe("a route's loading screen (app/PageLoading.tsx)", () => {
       expect(html).toContain('<div class="page-skeleton-body" aria-hidden="true">');
       expect(html).toContain('aria-busy="true"');
     }
+  });
+
+  // 2026-11-22 audit: a layout shift of about 0.8 on Watch and an episode at 1280×900, from the swap of this screen for
+  // the page. The outline sat in the reading column under a wide page, and the footer jumped from mid-screen past it.
+  it("takes its page's width, so main keeps its width when the page arrives", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { createElement } = await import("react");
+    const { default: PageLoading } = await import("@/app/PageLoading");
+    const rootClass = (width?: "wide" | "full") =>
+      /^<div class="([^"]*)"/.exec(renderToStaticMarkup(createElement(PageLoading, { shape: "list", label: "Loading…", width })))?.[1];
+    expect(rootClass()).toBe("page-skeleton page-skeleton-list");
+    expect(rootClass("wide")).toBe("page-skeleton page-skeleton-list page-wide");
+    expect(rootClass("full")).toBe("page-skeleton page-skeleton-list page-full");
+  });
+
+  it("is as wide as its page on every route: what loading.tsx says matches the class that widens main there", () => {
+    // main:has(> .x) widens main for a page whose root wears one of these (app/ux/catalog.css; an episode, a couple and
+    // the watch room by their own rules).
+    const WIDE = new Set(["page-wide", "episode-page", "couple-page", "watch"]);
+    const FULL = new Set(["page-full"]);
+    const loadings: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (name === "loading.tsx") loadings.push(path);
+      }
+    };
+    walk("app");
+    expect(loadings.length).toBeGreaterThan(20);
+    // Every class named in a className, quoted or in a {…} expression's strings, in the route's own files.
+    const classesIn = (src: string) =>
+      [...src.matchAll(/className=(?:"([^"]*)"|\{([^}]*)\})/g)].flatMap((m) =>
+        (m[1] ?? [...m[2].matchAll(/["'`]([^"'`]*)["'`]/g)].map((s) => s[1]).join(" ")).split(/\s+/),
+      );
+    const wrong = loadings.flatMap((file) => {
+      const dir = dirname(file);
+      const own = readdirSync(dir).filter((f) => f.endsWith(".tsx") && f !== "loading.tsx");
+      const classes = new Set(own.flatMap((f) => classesIn(readFileSync(join(dir, f), "utf8"))));
+      const page = [...classes].some((c) => FULL.has(c)) ? "full" : [...classes].some((c) => WIDE.has(c)) ? "wide" : "read";
+      const said = /width="(wide|full)"/.exec(readFileSync(file, "utf8"))?.[1] ?? "read";
+      return said === page ? [] : [`${dir}: loading screen ${said}, page ${page}`];
+    });
+    expect(wrong).toEqual([]);
+  });
+
+  it("keeps the footer below the fold while it shows, and after a short page arrives", () => {
+    const css = readFileSync("app/globals.css", "utf8");
+    expect(css).toMatch(/\nmain \{[^}]*min-height: calc\(100svh - 4rem\);/);
+    expect(css).toMatch(/\.page-skeleton-status \{[^}]*margin: 0 auto var\(--space-4\);/);
+    // The companion chat fits the screen by its own height and has no footer: no minimum there.
+    expect(readFileSync("app/ux/companion.css", "utf8")).toMatch(/main:has\(> \.companion-fullscreen\) \{[^}]*min-height: 0;/);
   });
 });
