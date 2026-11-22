@@ -84,7 +84,8 @@ a.showcase-side {
   font-weight: 600;
   font-size: var(--text-sm);
 }
-/* The button fill, not the decoration pink: white on --accent is 4.15:1, on --accent-btn 5.2:1, count and all. */
+/* The filled buttons' pink under the label colour, 4.5:1 in either theme (the decoration pink held white at 4.2:1, and
+   the count faded to 80% at 3.8:1: 2026-11-22 audit). The count is told apart by its size. */
 a.showcase-side.on {
   background: var(--accent-btn);
   color: var(--accent-ink);
