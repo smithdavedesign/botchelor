@@ -118,80 +118,80 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
   const summary = [p.blur ? "blur on" : "blur off", p.neutral_title ? "neutral title" : "full title", p.pin ? "PIN on" : "PIN off"].join(" · ");
   return (
     <>
-    <details className="card settings ad-privacy">
-      <summary>Privacy: {summary}</summary>
-      <label className="check">
-        <input type="checkbox" checked={p.blur} disabled={busy} onChange={(e) => void flip("blur", e.target.checked, e.target.checked ? "Blur on." : "Blur off.")} />
-        <span>
-          Blur pictures and videos until I tap them <span className="muted small">(and again when I leave the page)</span>
-        </span>
-      </label>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={p.neutral_title}
-          disabled={busy}
-          onChange={(e) => void flip("neutral_title", e.target.checked, e.target.checked ? "Neutral title on." : "Neutral title off.")}
-        />
-        <span>
-          Neutral tab title <span className="muted small">(just &ldquo;{NEUTRAL_TITLE}&rdquo;)</span>
-        </span>
-      </label>
+      <details className="card settings ad-privacy">
+        <summary>Privacy: {summary}</summary>
+        <label className="check">
+          <input type="checkbox" checked={p.blur} disabled={busy} onChange={(e) => void flip("blur", e.target.checked, e.target.checked ? "Blur on." : "Blur off.")} />
+          <span>
+            Blur pictures and videos until I tap them <span className="muted small">(and again when I leave the page)</span>
+          </span>
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={p.neutral_title}
+            disabled={busy}
+            onChange={(e) => void flip("neutral_title", e.target.checked, e.target.checked ? "Neutral title on." : "Neutral title off.")}
+          />
+          <span>
+            Neutral tab title <span className="muted small">(just &ldquo;{NEUTRAL_TITLE}&rdquo;)</span>
+          </span>
+        </label>
 
-      <fieldset className="ad-privacy-pin">
-        <legend>PIN</legend>
-        {p.pin ? (
-          <p className="muted small">On. A device asks for it before any of this opens, then stays open for {UNLOCK_HOURS} hours.</p>
-        ) : (
-          <p className="muted small">Off. A {PIN_MIN} to {PIN_MAX} digit PIN makes every device ask before any of this opens.</p>
-        )}
-        {mode ? (
-          <form className="ad-pin-form" onSubmit={submitPin}>
-            {mode !== "set" && <PinField label="Current PIN" value={current} onChange={setCurrent} autoFocus />}
-            {mode !== "remove" && (
-              <>
-                <PinField label="New PIN" value={next} onChange={setNext} autoFocus={mode === "set"} />
-                <PinField label="New PIN again" value={again} onChange={setAgain} />
-              </>
-            )}
+        <fieldset className="ad-privacy-pin">
+          <legend>PIN</legend>
+          {p.pin ? (
+            <p className="muted small">On. A device asks for it before any of this opens, then stays open for {UNLOCK_HOURS} hours.</p>
+          ) : (
+            <p className="muted small">Off. A {PIN_MIN} to {PIN_MAX} digit PIN makes every device ask before any of this opens.</p>
+          )}
+          {mode ? (
+            <form className="ad-pin-form" onSubmit={submitPin}>
+              {mode !== "set" && <PinField label="Current PIN" value={current} onChange={setCurrent} autoFocus />}
+              {mode !== "remove" && (
+                <>
+                  <PinField label="New PIN" value={next} onChange={setNext} autoFocus={mode === "set"} />
+                  <PinField label="New PIN again" value={again} onChange={setAgain} />
+                </>
+              )}
+              <div className="ad-privacy-actions">
+                <button type="submit" disabled={busy}>
+                  {busy ? "…" : mode === "remove" ? "Turn the PIN off" : mode === "change" ? "Change PIN" : "Set PIN"}
+                </button>
+                <button type="button" className="button-ghost" disabled={busy} onClick={() => pinFor(null)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
             <div className="ad-privacy-actions">
-              <button type="submit" disabled={busy}>
-                {busy ? "…" : mode === "remove" ? "Turn the PIN off" : mode === "change" ? "Change PIN" : "Set PIN"}
-              </button>
-              <button type="button" className="button-ghost" disabled={busy} onClick={() => pinFor(null)}>
-                Cancel
-              </button>
+              {p.pin ? (
+                <>
+                  <button type="button" className="secondary small" disabled={busy} onClick={() => void lockNow()}>
+                    Lock now
+                  </button>
+                  <button type="button" className="button-ghost small" disabled={busy} onClick={() => pinFor("change")}>
+                    Change PIN
+                  </button>
+                  <button type="button" className="button-ghost small" disabled={busy} onClick={() => pinFor("remove")}>
+                    Turn off
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="secondary small" disabled={busy} onClick={() => pinFor("set")}>
+                  Set a PIN
+                </button>
+              )}
             </div>
-          </form>
-        ) : (
-          <div className="ad-privacy-actions">
-            {p.pin ? (
-              <>
-                <button type="button" className="secondary small" disabled={busy} onClick={() => void lockNow()}>
-                  Lock now
-                </button>
-                <button type="button" className="button-ghost small" disabled={busy} onClick={() => pinFor("change")}>
-                  Change PIN
-                </button>
-                <button type="button" className="button-ghost small" disabled={busy} onClick={() => pinFor("remove")}>
-                  Turn off
-                </button>
-              </>
-            ) : (
-              <button type="button" className="secondary small" disabled={busy} onClick={() => pinFor("set")}>
-                Set a PIN
-              </button>
-            )}
-          </div>
-        )}
-      </fieldset>
-      <div role="status" aria-live="polite">
-        {note && <p className={note.error ? "error" : "muted small"}>{note.text}</p>}
-      </div>
-    </details>
-    {/* Download and delete in a card of their own, never folded away (the 2026-11-22 audit found the delete inside the
-        closed Privacy card, whose line names only the blur, the title and the PIN). */}
-    <section className="card settings ad-privacy-profile" aria-labelledby="ad-profile-data">
+          )}
+        </fieldset>
+        <div role="status" aria-live="polite">
+          {note && <p className={note.error ? "error" : "muted small"}>{note.text}</p>}
+        </div>
+      </details>
+      {/* Download and delete in a card of their own, never folded away (the 2026-11-22 audit found the delete inside the
+          closed Privacy card, whose line names only the blur, the title and the PIN). */}
+      <section className="card settings ad-privacy-profile" aria-labelledby="ad-profile-data">
         <h2 id="ad-profile-data">Your turn-ons and hard nos</h2>
         <p className="muted small">
           What you saved for your characters and your limits for each pair. Only you see them, and they&apos;re stored only with your consent.
@@ -216,10 +216,10 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
             </button>
           </div>
         )}
-      <div role="status" aria-live="polite">
-        {profileNote && <p className={profileNote.error ? "error" : "muted small"}>{profileNote.text}</p>}
-      </div>
-    </section>
+        <div role="status" aria-live="polite">
+          {profileNote && <p className={profileNote.error ? "error" : "muted small"}>{profileNote.text}</p>}
+        </div>
+      </section>
     </>
   );
 }
