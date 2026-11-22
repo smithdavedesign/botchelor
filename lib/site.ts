@@ -23,7 +23,7 @@ export function showHome(env: Record<string, string | undefined> = process.env):
 }
 
 /**
- * The site's other addresses: the old one and www. Their pages move to the canonical domain (middleware.ts), and a
+ * The site's other addresses: the old one and www. Their pages move to the canonical domain (proxy.ts), and a
  * player's identity is carried across (app/api/auth/carry), which only ever sends a browser back to one of these.
  */
 export const OLD_HOSTS: ReadonlySet<string> = new Set(["botchelor.vercel.app", "www.botchelor.com"]);
@@ -52,7 +52,11 @@ export function requestBase(req: Request, env: Record<string, string | undefined
   }
 }
 
-/** The pages worth listing for search engines: public, and the same for every visitor. */
+/**
+ * The pages worth listing for search engines: public, and the same for every visitor. Not a page behind the 18+ gate:
+ * crawlers pass it (proxy.ts), people don't, so a search result there landed on the gate (2026-11-22 audit: /shop,
+ * whose prices /pricing shows in the open, and the prompts library).
+ */
 export const PUBLIC_PATHS = [
   "/",
   "/create",
@@ -66,7 +70,6 @@ export const PUBLIC_PATHS = [
   "/characters?tab=agents",
   "/agents",
   "/reviews",
-  "/shop",
   "/terms",
   "/privacy",
   "/content-policy",
@@ -80,7 +83,6 @@ export const PUBLIC_PATHS = [
   "/tools/oc-chemistry-test",
   "/tools/oc-name-generator",
   "/tools/oc-questions",
-  "/prompts",
   "/about",
   "/costs",
   "/marketing",

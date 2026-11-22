@@ -115,6 +115,17 @@ describe("a wrong address", () => {
     // A page that calls notFound() keeps the site's layout and the same words.
     expect(source("app/not-found.tsx")).toContain("<h1>This page isn&apos;t on the show</h1>");
   });
+
+  it("is one page everywhere: no route has a not-found of its own (2026-11-22: a missing date and its report card had a second, with only a plain link back)", async () => {
+    const { globSync } = await import("node:fs");
+    expect(globSync("app/**/not-found.tsx").sort()).toEqual(["app/not-found.tsx"]);
+  });
+
+  it("says noindex and nothing else to search engines: the layout's index, follow (and Google's copy of it) is replaced", async () => {
+    const { metadata } = await import("@/app/not-found");
+    expect(metadata.title).toBe("Not found · Botchelor");
+    expect(metadata.robots).toEqual({ index: false, follow: true });
+  });
 });
 
 describe("the footer's support address", () => {

@@ -336,6 +336,18 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-foot .companion-voice-note[aria-pressed="true"] {
   background: var(--soft);
 }
+/* An earlier reply's ⋯ (its voice note and Report open from it): quiet like Report, a finger-sized target, and lit
+   while it's open. */
+.companion-foot .companion-more {
+  min-width: 1.75rem;
+  min-height: 1.5rem;
+  font-size: var(--text-sm);
+  line-height: 1;
+  text-decoration: none;
+}
+.companion-foot .companion-more[aria-expanded="true"] {
+  opacity: 1;
+}
 .companion-report {
   display: flex;
   flex-wrap: wrap;
