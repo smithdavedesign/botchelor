@@ -65,6 +65,7 @@ import { setPublicLaunchDayForTests } from "@/lib/our-traffic";
 import { setPlaceForTests } from "@/lib/place";
 import { setCheckSleepForTests } from "@/lib/adult/check";
 import { clearEndingsLatelyForTests } from "@/lib/endings-lately";
+import { forgetContentSitemapForTests } from "@/lib/seo";
 import { setWelcomeFromForTests } from "@/lib/welcome";
 import { setSocialDerivingForTests } from "@/lib/social/switch";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
@@ -196,6 +197,8 @@ export async function startTestDb() {
       clearEndingsLatelyForTests();
       // The session versions this process knows (lib/session-versions.ts) went with their table.
       forgetSessionVersionsForTests();
+      // The sitemap's characters and dates are kept an hour per database (lib/seo.ts cachedContentSitemap).
+      forgetContentSitemapForTests();
       for (const table of [
         // The data plan's tables: rows between two house characters would otherwise outlive a reset.
         "ml_consents",

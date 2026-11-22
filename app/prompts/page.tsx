@@ -36,6 +36,9 @@ export const metadata: Metadata = {
   title: `${TITLE}: portrait prompts for drawing your character · Botchelor`,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
+  // Behind the 18+ gate (its words are an open dataset's, kept for grown-ups), so a search result landed people on the
+  // gate: kept out of search and the sitemap, links still followed (2026-11-22 audit).
+  robots: { index: false, follow: true },
   // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
   openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", title: TITLE, description: DESCRIPTION, url: PATH, images: [SHARE_IMAGE] },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
