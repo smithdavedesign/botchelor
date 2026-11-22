@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getDb } from "@/lib/db";
+import { LEAGUE_PATH, leagueShown } from "@/lib/model-league";
 import { contentSitemap, staticSitemap } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 
@@ -13,9 +14,12 @@ export const dynamic = "force-dynamic";
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
+  // The model league goes in once a family has its rates (lib/model-league.ts leagueShown); until then it isn't indexed.
+  const leagueOut = (await leagueShown()) ? null : `${base}${LEAGUE_PATH}`;
+  const pages = staticSitemap(base).filter((e) => e.url !== leagueOut);
   try {
-    return [...staticSitemap(base), ...(await contentSitemap(await getDb(), base))];
+    return [...pages, ...(await contentSitemap(await getDb(), base))];
   } catch {
-    return staticSitemap(base);
+    return pages;
   }
 }

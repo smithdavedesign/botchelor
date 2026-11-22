@@ -14,6 +14,10 @@ import { BASE_URL } from "./helpers";
 
 const nav = vi.hoisted(() => ({ path: "/" }));
 vi.mock("next/navigation", () => ({ usePathname: () => nav.path }));
+// Whether the model league has its rates yet (lib/model-league.ts leagueShown reads the database; tests/model-league.test.ts
+// covers it): /everything links it only then.
+const league = vi.hoisted(() => ({ shown: false }));
+vi.mock("@/lib/model-league", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/model-league")>()), leagueShown: async () => league.shown }));
 
 const BROWSER = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -21,6 +25,7 @@ const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.
 afterEach(() => {
   vi.unstubAllEnvs();
   nav.path = "/";
+  league.shown = false;
 });
 
 describe("the footer", () => {
@@ -108,8 +113,10 @@ describe("/everything", () => {
     "/report", "/content-policy", "/terms", "/privacy", "/legal", "/2257", "/cancel",
   ];
 
-  it("lists every link the footer's four groups had, under the same headings, and the footer's old About this show", () => {
-    const html = renderToStaticMarkup(createElement(EverythingPage));
+  const everything = async () => renderToStaticMarkup(await EverythingPage());
+
+  it("lists every link the footer's four groups had, under the same headings, and the footer's old About this show", async () => {
+    const html = await everything();
     for (const href of OLD_FOOTER) expect(html, href).toContain(`href="${href}"`);
     expect(html).toContain("https://stats.uptimerobot.com/"); // Status
     expect(html).toContain(">Give us feedback</button>");
@@ -119,8 +126,9 @@ describe("/everything", () => {
   });
 
   // David 2026-11-17, "add anything that's missing": the show's own doors, a person's own pages and the agents' pages.
-  it("lists the show's doors, a person's own pages and every agents' page, in four columns on a wide page", () => {
-    const html = renderToStaticMarkup(createElement(EverythingPage));
+  it("lists the show's doors, a person's own pages and every agents' page, in four columns on a wide page", async () => {
+    league.shown = true;
+    const html = await everything();
     const added = [
       "/watch", "/house", "/reunion", "/characters", "/showcase",
       "/create", "/swipe", "/matches", "/chat", "/studio", "/notifications", "/account",
@@ -134,11 +142,17 @@ describe("/everything", () => {
     expect(css).toMatch(/\.legal-page\.company-page \.everything-groups section \{[^}]*break-inside: avoid;/);
   });
 
-  it("lists Companions only while they're open", () => {
-    expect(renderToStaticMarkup(createElement(EverythingPage))).not.toContain('href="/companion"');
-    expect(renderToStaticMarkup(createElement(EverythingPage))).not.toContain('href="/companion/plan"');
+  it("lists Companions only while they're open", async () => {
+    expect(await everything()).not.toContain('href="/companion"');
+    expect(await everything()).not.toContain('href="/companion/plan"');
     vi.stubEnv("COMPANION_OPEN", "1");
-    expect(renderToStaticMarkup(createElement(EverythingPage))).toContain('href="/companion"');
+    expect(await everything()).toContain('href="/companion"');
+  });
+
+  it("links the model league only once it has its rates", async () => {
+    expect(await everything()).not.toContain('href="/agents/league"');
+    league.shown = true;
+    expect(await everything()).toContain('href="/agents/league"');
   });
 
   it("has its own metadata, is in the sitemap, and the 18+ gate lets a person through", () => {
