@@ -17,7 +17,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { pairKey } from "@/lib/relationships";
 import { venueBackdrop } from "@/lib/portraits";
 import { upsertTie } from "@/lib/social/ties";
-import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
+import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let owner = "";
@@ -110,6 +110,22 @@ describe("a couple's dates", () => {
     } finally {
       setDbForTests(t.db);
       logged.mockRestore();
+    }
+  });
+});
+
+describe("a couple page's head", () => {
+  it("keeps the page out of search with a private character or a deleted account's on it (2026-11-21)", async () => {
+    const { generateMetadata } = await import("@/app/couples/[a]/[b]/page");
+    const robots = async () => (await generateMetadata({ params: Promise.resolve({ a: character, b: partner }) })).robots;
+    expect(await robots()).toBeUndefined();
+    try {
+      await t.db.query(`update characters set visibility = 'private' where id = $1`, [character]);
+      expect(await robots()).toEqual({ index: false, follow: true });
+      await t.db.query(`update characters set visibility = 'public', owner_id = 'deleted' where id = $1`, [character]);
+      expect(await robots()).toEqual({ index: false, follow: true });
+    } finally {
+      await t.db.query(`update characters set visibility = 'public', owner_id = $2 where id = $1`, [character, userIdOf(owner)]);
     }
   });
 });

@@ -62,6 +62,36 @@ describe("#1173: After Dark's tokens page", () => {
     expect(html).toMatch(/Token packs for After Dark aren&#x27;t on sale yet/);
     expect(html).not.toMatch(/href="\/shop"/);
     expect(html).not.toMatch(/Top up on the shop/);
+    // A subscription includes clips, and says how many are left (2026-11-22 audit: only those it's true for read it).
+    expect(html).toMatch(/<li data-clips-included="true">Clips: 3 a month included, 3 left\.<\/li>/);
+    expect(html).not.toContain("data-clips-not-included");
+  });
+
+  it("a beta pass: clips aren't included, and the page says where the balance comes from (2026-11-22 audit)", async () => {
+    const me = userIdOf(newUserCookie());
+    await t.db.query(`insert into adult_entitlements (user_id, subscription_status, provider, period_end, age_verified_at) values ($1, 'active', 'beta', now() + interval '30 days', now())`, [me]);
+    await grantTokens(t.db, me, 4, "test");
+    as(me);
+    let html = await page();
+    expect(html).toMatch(/Your beta pass covers the nights themselves/);
+    expect(html).not.toContain("data-clips-included");
+    expect(html).toMatch(/<li data-clips-not-included="true">Clips: 1 token each, not part of your pass\.<\/li>/);
+    // Given, never bought: After Dark may spend them, and says they're the show's balance too.
+    expect(html).toMatch(/You have <strong data-token-balance="true">4<\/strong> tokens/);
+    expect(html).toMatch(/data-token-source="given">They were given to your account, not bought/);
+    // Once they've bought dates on the show (Stripe), After Dark spends none of that balance, and says so.
+    await t.db.query(
+      `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, paid_at) values ('o-beta', $1, 'episode_pack_5', 'episode_pack', 400, 'usd', 'paid', 5, now())`,
+      [me],
+    );
+    html = await page();
+    expect(html).toMatch(/You have <strong data-token-balance="true">0<\/strong> tokens/);
+    expect(html).toMatch(/data-token-source="bought_on_show">Tokens bought on the show stay on the show/);
+    // AD_SPEND_SHOW_TOKENS=1 brings back the shared balance, bought tokens and all.
+    vi.stubEnv("AD_SPEND_SHOW_TOKENS", "1");
+    html = await page();
+    expect(html).toMatch(/You have <strong data-token-balance="true">9<\/strong> tokens/);
+    expect(html).toMatch(/data-token-source="show">These are your Botchelor balance, shared with the show/);
   });
 
   it("once After Dark sells its own packs: its own balance, the packs and their prices, and the word after paying", async () => {

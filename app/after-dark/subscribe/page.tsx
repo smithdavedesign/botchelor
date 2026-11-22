@@ -83,15 +83,23 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
                 ) : (
                   <p>Ask for an invite to the beta. It belongs to an account, so sign in first (or make one: it&apos;s free).</p>
                 )}
+                {/* One button on the page (the 2026-11-22 audit: two equal ones, and "start" said nothing of the invite). */}
                 <Link className="button" href={`/account?next=${encodeURIComponent(invitePath(source))}`}>
-                  Sign in to start
+                  Sign in to ask for an invite
                 </Link>
+                <p className="muted small" data-member-sign-in>
+                  Already in? <Link href={`/account?next=${encodeURIComponent("/after-dark")}`}>Sign in</Link> and you&apos;re straight back to your
+                  nights.
+                </p>
               </section>
-              <p className="muted">Or leave your email and you&apos;ll hear when subscriptions open.</p>
-              <WaitlistForm refSlug="after-dark" />
+              <details className="ad-waitlist" data-waitlist>
+                <summary>Email me when it opens</summary>
+                <WaitlistForm refSlug="after-dark" />
+              </details>
             </>
           )}
-          <WhatsInside shorts={shorts} price={priceLabel(subscriptionPrice())} />
+          {/* No processor, nothing for sale: the beta's terms, never a price (the 2026-11-22 audit). */}
+          <WhatsInside shorts={shorts} price={null} betaDays={BETA_DAYS} />
         </article>
       </div>
     );
@@ -165,7 +173,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
             <li>Cancel any time online. What you&apos;ve paid for stays open to the end of the month.</li>
           </ul>
         </section>
-        <WhatsInside shorts={shorts} price={null} />
+        <WhatsInside shorts={shorts} price={null} betaDays={null} />
         {taste && auth?.authenticated && <TasteStep db={db} userId={auth.userId} />}
         {auth?.authenticated ? (
           <SubscribeForm
@@ -242,7 +250,5 @@ async function InviteStep({ db, userId, source }: { db: Awaited<ReturnType<typeo
       </p>
     );
   }
-  const settings = await getAdultSettings(db).catch(() => null);
-  const plan = includedPlan(settings);
-  return <InviteForm days={BETA_DAYS} clipTokens={plan.clipTokens} reelTokens={plan.reelTokens} source={source} />;
+  return <InviteForm days={BETA_DAYS} source={source} />;
 }

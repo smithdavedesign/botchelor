@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { REPORT_RESPONSE } from "@/lib/legal-entity";
+import { AFTER_DARK_TEXT_ONLY, REPORT_RESPONSE } from "@/lib/legal-entity";
 import { pageMetadata } from "@/lib/seo";
-import { Contact, LAST_UPDATED, OnThisPage, PolicyLinks } from "../legal/sections";
+import { Contact, LAST_UPDATED, listing, OnThisPage, PolicyLinks } from "../legal/sections";
 
 export const metadata: Metadata = pageMetadata({
   title: "Content policy · Botchelor",
@@ -87,8 +87,8 @@ export default function ContentPolicyPage() {
         After Dark is a separate, adults-only (18+) paid tier, in private testing and not open yet. It allows explicit
         text, and in some places pictures, video and voiced lines, between consenting fictional adults, always inside the
         lines above. Each owner opts each of their own characters in; nobody can take someone else&apos;s character there.
-        It isn&apos;t offered where the law asks for an age check we don&apos;t offer, and it&apos;s text only in the UK
-        (see the <Link href="/terms#where">terms</Link>).
+        It isn&apos;t offered where the law asks for an age check we don&apos;t offer, and it&apos;s text only in{" "}
+        {listing(AFTER_DARK_TEXT_ONLY)} (see the <Link href="/terms#where">terms</Link>).
       </p>
 
       <h2 id="checks">What we check automatically</h2>

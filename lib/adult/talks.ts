@@ -11,7 +11,7 @@
  */
 import { createHash } from "node:crypto";
 import { isAdmin } from "../admins";
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import type { Db } from "../db";
 import { keepBytes, readBytes } from "../object-store";
 import { mediaBytes, signedPresenceUrl } from "./media";
@@ -86,7 +86,7 @@ export async function makeTalk(db: Db, viewer: string, ask: TalkAsk, baseUrl: st
   const voiceId = voiced.ok ? voiced.voices[0]?.id : null;
   const audio = voiceId ? await mediaBytes(db, voiceId, viewer) : null;
   if (!audio) return fail(502, "no_voice", voiced.ok ? `Their voice for that line couldn't be made (${voiced.voices[0]?.message ?? voiced.voices[0]?.reason ?? "error"}).` : voiced.message);
-  if (price > 0 && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `A talking moment costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.`);
+  if (price > 0 && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `A talking moment costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}`);
   const id = crypto.randomUUID();
   const model = (await getAdultSettings(db)).talk_model;
   try {

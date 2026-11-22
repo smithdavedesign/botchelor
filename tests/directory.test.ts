@@ -341,6 +341,51 @@ describe("a private character", () => {
   });
 });
 
+// 2026-11-21: a house character's board listed a private, deleted account's test character. Another character's board
+// and card leave out a private character and a deleted account's for everyone but an owner of the pair.
+describe("someone else's board and card", () => {
+  it("leave out a private character and a deleted account's, but not for the pair's owners", async () => {
+    const house = HOUSE_CHARACTERS[0].id;
+    const hidden = await made("Quiet Type");
+    scriptOutcome({ ending: "friends" });
+    scriptedModel([episodeJson()]);
+    const res = await api.createEpisode({ character_id: hidden.id, partner_id: house }, hidden.cookie);
+    expect(res.status).toBe(200);
+    expect((await api.reveal((await res.json()).id, hidden.cookie)).status).toBeLessThan(300);
+    const { default: RelationshipBoard } = await import("@/app/characters/[id]/relationships/page");
+    const { default: CharacterPage } = await import("@/app/characters/[id]/page");
+    const as = (cookie: string) => {
+      jar.cookies.clear();
+      jar.cookies.set(cookie.split("=")[0], cookie.split("=")[1]);
+    };
+    const board = async (cookie: string) => {
+      as(cookie);
+      return renderToStaticMarkup(await RelationshipBoard({ params: Promise.resolve({ id: house }) }));
+    };
+    const { prerender } = await import("react-dom/static");
+    const card = async (cookie: string) => {
+      as(cookie);
+      // Its card has parts that load on their own (they suspend): rendered to the end, as the server streams it.
+      const { prelude } = await prerender(await CharacterPage({ params: Promise.resolve({ id: house }) }));
+      return new Response(prelude).text();
+    };
+    const couple = `/couples/${[hidden.id, house].sort().join("/")}`;
+    const stranger = newUserCookie();
+    expect(await board(stranger)).toContain("Quiet Type");
+    expect(await card(stranger)).toContain(couple);
+
+    await api.editCharacter(hidden.id, { visibility: "private" }, hidden.cookie);
+    expect(await board(stranger)).not.toContain("Quiet Type");
+    expect(await card(stranger)).not.toContain(couple);
+    expect(await board(hidden.cookie)).toContain("Quiet Type"); // its owner still sees it there
+
+    // A deleted account's character that stayed public (deleting one makes it private since): gone for everyone.
+    await t.db.query(`update characters set visibility = 'public', owner_id = 'deleted' where id = $1`, [hidden.id]);
+    expect(await board(stranger)).not.toContain("Quiet Type");
+    expect(await card(stranger)).not.toContain(couple);
+  });
+});
+
 // Design audit 2026-11-14: "294 characters and no way to find one". A GET search (?q=) on /characters, by name, trait,
 // bio, job or hometown, under the directory's own rules: never a private character, never a deleted account's.
 describe("finding a character on /characters (lib/directory.ts searchDirectory)", () => {

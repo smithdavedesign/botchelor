@@ -8,7 +8,7 @@ import { notFound } from "next/navigation";
 import Icon from "@/app/Icon";
 import { billingOn, subscriptionState } from "@/lib/adult/billing";
 import { afterDarkTitle } from "@/lib/adult/discreet";
-import { canAfterDark } from "@/lib/adult/entitlement";
+import { canAfterDark, passEnds } from "@/lib/adult/entitlement";
 import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
 import { writerOptions } from "@/lib/adult/writer";
 import { getDb } from "@/lib/db";
@@ -26,6 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
 /** "October 24, 2026", in UTC. */
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
 const PROCESSOR = { ccbill: "CCBill", segpay: "Segpay", verotel: "Verotel" } as const;
+/** A pass that isn't a subscription, in words, and its end date after them. */
+const PASS: Partial<Record<string, string>> = { beta: "Your beta pass is free", reviewer: "Your reviewer pass is open", taste: "Your free taste is open" };
 
 /**
  * After Dark's Account (the design kit's After Dark header, 2026-11-12): what's After Dark's own to set. Privacy (blur,
@@ -41,12 +43,13 @@ export default async function AfterDarkAccountPage() {
   if (!entitled.ok) notFound();
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
   const owner = auth!.userId;
-  const [privacy, writer, sub, adultStyle] = await Promise.all([
+  const [privacy, writer, sub, adultStyle, passEnd] = await Promise.all([
     getPrivacy(db, owner),
     writerOptions(db, owner),
     subscriptionState(db, owner),
     // Writing styles (lib/writing-style.ts): admins, and everyone once the "narrated" rollout switch opens it.
     adultNarratedOpen(db, owner).then(async (open) => (open ? (await storedStyles(db, owner)).adult : null)),
+    PASS[entitled.why] ? passEnds(db, owner) : null,
   ]);
   // Why it's open, when it isn't a subscription: an admin, a beta pass, a free taste (lib/adult/entitlement.ts).
   const why = entitled.why;
@@ -65,8 +68,13 @@ export default async function AfterDarkAccountPage() {
             <p data-subscription="cancelled">Cancelled: no more charges. Open until {sub.periodEnd ? day(sub.periodEnd) : "the end of the month"}.</p>
           ) : why === "admin" ? (
             <p className="muted">Open to you as an admin: nothing to pay.</p>
+          ) : PASS[why] ? (
+            <p className="muted" data-pass={why}>
+              {PASS[why]}
+              {passEnd ? ` until ${day(passEnd.toISOString())}` : ""}.
+            </p>
           ) : (
-            <p className="muted">Open to you without a subscription{why === "taste" ? " (a free taste)" : ""}.</p>
+            <p className="muted">Open to you without a subscription.</p>
           )}
           <p className="ad-panel-actions">
             <Link className="button-ghost small" href="/after-dark/tokens">

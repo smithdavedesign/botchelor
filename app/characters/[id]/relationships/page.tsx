@@ -20,6 +20,7 @@ import { dayLabel } from "@/lib/text-chain-shared";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import CharacterName from "@/app/CharacterName";
+import { DELETED_OWNER } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-type Person = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; owner_id: string | null };
+type Person = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; owner_id: string | null; private: boolean };
 
 /**
  * A character's relationship board (David, 2026-10-17): everyone it has dated, like the messages list on its phone,
@@ -76,7 +77,8 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
   const people = new Map(
     (
       await db.query<Person>(
-        `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, c.owner_id
+        `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, c.owner_id,
+                c.visibility = 'private' as private
            from characters c where c.id = any($1)`,
         [[id, ...edges.map((r) => (r.lo === id ? r.hi : r.lo))]],
       )
@@ -85,12 +87,12 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
   const owns = (characterId: string) => viewerId !== null && people.get(characterId)?.owner_id === viewerId;
   // The social graph's other edge (lib/group-dates.ts): people this character MET at a group night (a double date's
   // other table, a mixer rotation it wasn't in) without dating. Public, from aired dates; the owner's take is theirs.
-  // A private character among them is left out for everyone but its own owner.
+  // A private character among them is left out for everyone but its own owner, a deleted account's for everyone.
   const metAll = (await memoryP)?.met ?? [];
   const metFaces = new Map(
     metAll.length
       ? (
-          await db.query<Person & { private: boolean }>(
+          await db.query<Person>(
             `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, c.owner_id,
                     c.visibility = 'private' as private
                from characters c where c.id = any($1)`,
@@ -101,7 +103,7 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
   );
   const met = metAll.filter((m) => {
     const face = metFaces.get(m.id);
-    return face && (!face.private || (viewerId !== null && face.owner_id === viewerId));
+    return face && face.owner_id !== DELETED_OWNER && (!face.private || (viewerId !== null && face.owner_id === viewerId));
   });
   const rows = (
     await Promise.all(
@@ -109,8 +111,11 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
         const other = people.get(rel.lo === id ? rel.hi : rel.lo);
         // An owner of either character sees the pair's dates and texts; everyone else, the public layer.
         const owner = owns(id) || (other ? owns(other.id) : false);
-        const view = other ? viewRelationship(rel, { userId: viewerId, owner }) : null;
-        if (!other || !view) return null;
+        // Everyone else never sees a private character here (its owner's choice), nor a deleted account's (kept only so
+        // aired dates keep both names): their couple pages stay, the board just doesn't list them.
+        if (!other || (!owner && (other.private || other.owner_id === DELETED_OWNER))) return null;
+        const view = viewRelationship(rel, { userId: viewerId, owner });
+        if (!view) return null;
         const last = owner ? ((await loadChain(db, id, other.id, { userId: viewerId, owner })).filter(isText).at(-1) ?? null) : null;
         const end: End = rel.lo === id ? "lo" : "hi";
         const at = [last?.at ?? null, view.last_at].filter((x): x is string => x !== null).sort().at(-1) ?? null;
@@ -126,7 +131,7 @@ export default async function RelationshipBoard({ params, searchParams }: Props)
     const last = (await loadChain(db, id, m.with.id, { userId: viewerId, owner: true })).filter(isText).at(-1) ?? null;
     const end: End = id < m.with.id ? "lo" : "hi";
     rows.push({
-      other: { id: m.with.id, name: m.with.name, house: m.with.house, hue: m.with.hue, portrait: m.with.portrait, owner_id: null },
+      other: { id: m.with.id, name: m.with.name, house: m.with.house, hue: m.with.hue, portrait: m.with.portrait, owner_id: null, private: false },
       view: { stage_label: m.agreed ? "📅 Date agreed" : "💘 Matched", dates: 0 } as (typeof rows)[number]["view"],
       owner: true,
       last,

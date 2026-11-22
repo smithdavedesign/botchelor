@@ -264,11 +264,16 @@ describe("ownership: a creator edits and deletes only their own characters (M16)
   it("keeps a character that already aired, but strips its soul and owner link (a tombstone)", async () => {
     const { creator, character, episode } = await setupEpisode("friends");
     await api.editCharacter(character.id, { soul: { values: "guarded but kind", local_only: false } }, creator);
+    const shown = async () => (await t.db.query<{ c: string; e: string }>(`select c.visibility as c, e.visibility as e from characters c, episodes e where c.id = $1 and e.id = $2`, [character.id, episode.id])).rows[0];
+    const before = await shown();
     const res = await api.deleteCharacter(character.id, creator);
     expect(await res.json()).toMatchObject({ deleted: false, anonymized: true });
     const row = await sheet(character.id);
     expect(row.owner_id).toBe("deleted"); // detached, fictional sheet kept
     expect((await t.db.query(`select 1 from souls where character_id = $1`, [character.id])).rows).toHaveLength(0);
     expect((await t.db.query(`select 1 from episodes where id = $1`, [episode.id])).rows).toHaveLength(1); // episode intact
+    // Private (2026-11-21): its name on the date it aired in, nothing more. The date itself keeps its visibility.
+    expect(before.c).toBe("public");
+    expect(await shown()).toEqual({ c: "private", e: before.e });
   });
 });

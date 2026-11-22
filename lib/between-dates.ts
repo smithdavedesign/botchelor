@@ -23,6 +23,7 @@ import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { checkFieldsAnyLanguage, UNREAD_MESSAGE } from "./language-check";
 import { loadChain, promptTexts, PUBLIC_VIEWER, type ChainItem } from "./text-chain";
 import { critiqueText, planAlreadyMade, writeCritiquedText } from "./text-critic";
+import { listedCharacterSql } from "./public-cast";
 
 /* ------------------------------------------------------ drama ------------------------------------------------------ */
 
@@ -31,7 +32,8 @@ export const WARM_STAGES = ["sparks", "dating", "going_steady"] as const;
 
 /**
  * Who else a character is seeing, from the public record (aired public dates, recent): the names of its other warm
- * relationships, excluding `exceptId`. Public knowledge on the show, so safe for a prompt and a couple's page.
+ * relationships, excluding `exceptId`. Public knowledge on the show, so safe for a prompt and a couple's page: never a
+ * private character (its owner's choice) nor a deleted account's.
  */
 export async function alsoSeeing(db: Db, characterId: string, exceptId: string | null, days = 60): Promise<string[]> {
   const { rows } = await db.query<{ name: string }>(
@@ -41,6 +43,7 @@ export async function alsoSeeing(db: Db, characterId: string, exceptId: string |
       where $1 in (r.character_a, r.character_b)
         and ($2::text is null or $2 not in (r.character_a, r.character_b))
         and r.public_stage = any($3) and r.public_last_at > now() - make_interval(days => $4)
+        and o.visibility = 'public' and ${listedCharacterSql("o")}
       order by r.public_tie desc limit 3`,
     [characterId, exceptId, [...WARM_STAGES], days],
   );

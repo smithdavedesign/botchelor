@@ -242,7 +242,7 @@ async function shorts(s) {
   const tease = await anon.newPage();
   await desktop(tease);
   await tease.goto(`${base}/after-dark/shorts`);
-  await tease.getByText("Subscribe to unlock").first().waitFor({ timeout: 30_000 });
+  await tease.getByText(/Subscribe to unlock|Ask for an invite/).first().waitFor({ timeout: 30_000 });
   const html = await tease.content();
   assert(!html.includes("I counted every boat") && !html.includes("/media/"), "the teaser has none of the night");
   await shot(tease, "shorts-teaser-desktop");

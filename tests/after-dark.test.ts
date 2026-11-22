@@ -926,6 +926,26 @@ describe("set the scene (1 token)", () => {
     expect(refused.status).toBe(422);
     expect(await used()).toBe(1);
   });
+
+  it("never spends tokens bought on the show's checkout unless AD_SPEND_SHOW_TOKENS=1, and says why (2026-11-22 audit)", async () => {
+    await call(settingsPost, "/api/admin/after-dark/settings", { enabled: true, openrouter_key: "placeholder-text-ABCD" }, (await admin()).cookie);
+    const sub = userIdOf(newUserCookie());
+    await entitle(sub);
+    const cookie = signedIn(sub);
+    await t.db.query(
+      `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, paid_at) values ($1, $2, 'episode_pack_5', 'episode_pack', 400, 'usd', 'paid', 5, now())`,
+      [crypto.randomUUID(), sub],
+    );
+    const used = async () => (await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [sub])).rows[0]?.used ?? 0;
+    const refused = await post({ a: CAST_A, b: CAST_B, set_scene: "a lighthouse" }, cookie);
+    expect(refused.status).toBe(402);
+    expect((await refused.json()).message).toMatch(/After Dark's own billing isn't open yet/);
+    expect(await used()).toBe(0);
+    // The switch back: every token of the show's balance spendable here, as before.
+    vi.stubEnv("AD_SPEND_SHOW_TOKENS", "1");
+    expect((await post({ a: CAST_A, b: CAST_B, set_scene: "a lighthouse" }, cookie)).status).toBe(200);
+    expect(await used()).toBe(1);
+  });
 });
 
 import { DELETE as reelDelete, GET as reelGet, POST as reelPost } from "@/app/api/admin/after-dark/reel/route";

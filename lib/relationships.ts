@@ -764,13 +764,43 @@ const REL_COLUMNS = `character_a, character_b, dates, second_dates, last_ending,
   last_at, public_dates, public_second_dates, public_last_ending, public_stage, public_tie, public_last_at, detail, computed_at,
   shown_stage, public_shown_stage`;
 
-/** One pair's edge, or null when they've never dated. Rows from before the graph was derived heal on first read. */
+/**
+ * SQL: the stored edge in `r` still counts a date as public that no longer is (made private, not aired, or gone),
+ * because whatever changed the date never refreshed the edge (2026-11-21: dates made private by hand stayed on public
+ * boards, with their stage and date count). Read beside the edge, so a reader refreshes it before anyone sees it
+ * (loadRelationship, relationshipsOf), and the hourly job sweeps the rest (healStaleRelationships).
+ */
+const stalePublicSql = (r: string) => `(${r}.public_dates > 0 and exists (
+    select 1 from jsonb_array_elements(case when jsonb_typeof(${r}.detail->'history') = 'array' then ${r}.detail->'history' else '[]'::jsonb end) sh
+      left join episodes se on se.id = sh->>'episode_id'
+     where (sh->>'public')::boolean and (se.id is null or se.visibility <> 'public' or se.revealed_at is null)))`;
+
+/** Stale edges one relationshipsOf read refreshes, one at a time; any more are left out of what it returns until the sweep. */
+const STALE_REFRESHED_PER_READ = 3;
+
+/** One pair's edge, or null when they've never dated. Rows from before the graph was derived heal on first read, as does a stale one (stalePublicSql). */
 export async function loadRelationship(db: Db, x: string, y: string): Promise<Relationship | null> {
   const [lo, hi] = pairKey(x, y);
-  const r = (await db.query<RelRow>(`select ${REL_COLUMNS} from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0];
+  const r = (
+    await db.query<RelRow & { stale: boolean }>(`select ${REL_COLUMNS}, ${stalePublicSql("r")} as stale from relationships r where character_a = $1 and character_b = $2`, [lo, hi])
+  ).rows[0];
   if (!r) return null;
-  if (!r.computed_at) return refreshRelationship(db, lo, hi);
+  if (!r.computed_at || r.stale) return refreshRelationship(db, lo, hi);
   return fromRow(r);
+}
+
+/**
+ * The hourly sweep (app/api/jobs/lobby): refreshes up to `limit` stale edges (stalePublicSql) that nobody has read since,
+ * so the Constellation, the boards and the sitemap's couples let go of a date made private by hand. How many it refreshed.
+ */
+export async function healStaleRelationships(db: Db, limit = 50): Promise<number> {
+  const { rows } = await db.query<{ character_a: string; character_b: string }>(
+    `select r.character_a, r.character_b from relationships r where ${stalePublicSql("r")} limit $1`,
+    [limit],
+  );
+  let healed = 0;
+  for (const r of rows) if (await refreshRelationship(db, r.character_a, r.character_b).then(() => true, () => false)) healed++;
+  return healed;
 }
 
 /** Heals up to `limit` edges stored before they were derived (no detail yet). Cheap to call on a listing or a cron. */
@@ -783,14 +813,26 @@ export async function healRelationships(db: Db, limit = 25): Promise<number> {
   return rows.length;
 }
 
-/** Every edge of one character, strongest tie first. */
+/**
+ * Every edge of one character, strongest tie first. A stale one (stalePublicSql) is refreshed before it's returned, one
+ * at a time and a few a read, so a page never shows a date that went private; past that many, it's left out for now.
+ */
 export async function relationshipsOf(db: Db, characterId: string): Promise<Relationship[]> {
   await healRelationships(db, 10);
-  const { rows } = await db.query<RelRow>(
-    `select ${REL_COLUMNS} from relationships where $1 in (character_a, character_b) order by tie_strength desc, last_at desc nulls last`,
+  const { rows } = await db.query<RelRow & { stale: boolean }>(
+    `select ${REL_COLUMNS}, ${stalePublicSql("r")} as stale from relationships r where $1 in (character_a, character_b) order by tie_strength desc, last_at desc nulls last`,
     [characterId],
   );
-  return rows.map((r) => fromRow(r));
+  const out: Relationship[] = [];
+  let refreshed = 0;
+  for (const r of rows) {
+    if (!r.stale) out.push(fromRow(r));
+    else if (refreshed++ < STALE_REFRESHED_PER_READ) {
+      const rel = await refreshRelationship(db, r.character_a, r.character_b).catch(() => null);
+      if (rel) out.push(rel);
+    }
+  }
+  return out;
 }
 
 /**

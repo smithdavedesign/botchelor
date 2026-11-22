@@ -58,8 +58,9 @@ describe("account export and deletion (PRD §6.1)", () => {
     expect(await t.count("profiles", `user_id = '${uid}'`)).toBe(0);
     expect(await t.count("souls", `character_id = '${character.id}'`)).toBe(0);
     expect(await t.count("characters", `id = '${plain.id}'`)).toBe(0);
-    // The fictional sheet stays in the shared episode, but detached from the user.
-    expect(await t.count("characters", `id = '${character.id}' and owner_id = '${DELETED_OWNER}'`)).toBe(1);
+    // The fictional sheet stays in the shared episode, but detached from the user, and private: its name on that date,
+    // no card, board or sitemap entry of its own (2026-11-21).
+    expect(await t.count("characters", `id = '${character.id}' and owner_id = '${DELETED_OWNER}' and visibility = 'private'`)).toBe(1);
   });
 
   it("DELETE /api/me needs {confirm:true}, then the export comes back empty", async () => {
