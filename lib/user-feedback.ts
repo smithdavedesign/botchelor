@@ -8,6 +8,7 @@
  * (lib/bot-reviews.ts) can't reach people's words.
  */
 import type { Db } from "./db";
+import { commitSha } from "./deploy";
 import { isOurs } from "./our-traffic";
 import { checkFields } from "./safety";
 import { npsScore, type FeedbackCategory, type FeedbackStatus } from "./user-feedback-shared";
@@ -39,13 +40,8 @@ export type FeedbackContext = {
   version: string | null;
 };
 
-/**
- * The commit this deployment runs, short, attached on the server so the page never has to know it. DigitalOcean's
- * COMMIT_HASH (bound in each app's spec: `.do/*.yaml`, `${_self.COMMIT_HASH}`); Vercel's name only read where it was
- * the one set, as notes sent from there carried it.
- */
-export const appVersion = (env: Record<string, string | undefined> = process.env): string | null =>
-  (env.COMMIT_HASH?.trim() || env.VERCEL_GIT_COMMIT_SHA?.trim())?.slice(0, 12) || null;
+/** The commit this deployment runs (lib/deploy.ts commitSha), short, attached on the server so the page never has to know it. */
+export const appVersion = (env: Record<string, string | undefined> = process.env): string | null => commitSha(env)?.slice(0, 12) ?? null;
 
 /**
  * Stores one note. Words that fail the content filter (lib/safety.ts, the one other people's text goes through) are kept,

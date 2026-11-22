@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { trackConversion } from "@/app/conversion";
 import DateConfirm from "@/app/DateConfirm";
 import { requestJson, watchLinkOf } from "@/app/request";
+import { saySpent } from "@/app/spent";
 import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from "@/app/RoleplayPicker";
 import { openingField, type OpeningChoice } from "@/lib/scene-opening";
 import type { DateCta } from "@/lib/date-cta";
@@ -92,6 +93,7 @@ export default function DateThisCharacter({
     if (res.ok && typeof res.data.id === "string") {
       // A date started from here counts like one from /create, RepoHQ's activation included (app/conversion.ts).
       trackConversion("date_started", { mode: "partner" });
+      saySpent();
       return router.push(`/episodes/${res.data.id}?play=1`);
     }
     setMessage({ text: res.message, shop: res.status === 402 || res.status === 429, link: watchLinkOf(res.data) });

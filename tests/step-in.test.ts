@@ -204,6 +204,29 @@ describe("a step-in date", () => {
     expect(aired.body.view.visibility).toBe("public");
   });
 
+  it("times each move: how long, and how much waited on the database and the model, never the words", async () => {
+    const admin = await person({ admin: true });
+    const { body } = await start(admin.cookie);
+    const id = body.episode_id as string;
+    const log = vi.mocked(console.log);
+    log.mockClear();
+    await playThrough(admin.cookie, id, true);
+    const timings = log.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('"event":"step_in_timing"')).map((line) => JSON.parse(line) as Any);
+    // One a move: the opening advance, then each of their lines.
+    expect(timings.length).toBeGreaterThanOrEqual(4);
+    for (const x of timings) {
+      expect(x).toMatchObject({ episode_id: id, action: expect.stringMatching(/^(advance|line)$/) });
+      for (const k of ["ms", "db_queries", "db_ms", "model_calls", "model_ms", "other_ms"]) expect(typeof x[k]).toBe("number");
+      expect(JSON.stringify(x)).not.toContain("old maps");
+    }
+    // A line the cast answers waits on its database and its model; the last one also on the verdict and the recap.
+    const lines = timings.filter((x) => x.action === "line");
+    expect(lines[0].db_queries).toBeGreaterThan(0);
+    expect(lines[0].model_calls).toBeGreaterThanOrEqual(1);
+    expect(lines.at(-1)).toMatchObject({ state: "done" });
+    expect(lines.at(-1).model_calls).toBeGreaterThanOrEqual(3);
+  });
+
   it("says it's AI again when they come back after a while", async () => {
     const admin = await person({ admin: true });
     const id = (await start(admin.cookie)).body.episode_id;
@@ -299,6 +322,23 @@ describe("the self-harm protocol", () => {
     expect(r.body.crisis_resources).toBeTruthy();
     expect(await t.count("episodes")).toBe(0);
     expect((await t.db.query(`select surface, n from crisis_referrals`)).rows).toEqual([{ surface: "step_in_about", n: 1 }]);
+  });
+
+  it("tells the cast member which of its own images it has leaned on tonight, unless the person brought them up", async () => {
+    // 2026-11-21: Juniper's dryer came up in all three of her lines.
+    const admin = await person({ admin: true });
+    const id = (await start(admin.cookie)).body.episode_id;
+    castNext = ["My dryer takes nine minutes to do anything, so I have opinions.", "The dryer and I have an understanding, nine minutes at a time."];
+    await playThrough(admin.cookie, id, true);
+    const turns = calls.filter((c) => c.kind === "turn").map((c) => c.messages.map((m) => m.content).join("\n"));
+    expect(turns.length).toBeGreaterThanOrEqual(3);
+    const leaned = (prompt: string) => /"words_youve_leaned_on_lately":\s*\[([^\]]*)\]/.exec(prompt)?.[1] ?? null;
+    // Its first two lines: nothing to rest yet. Its third: the dryer and the nine, not the person's maps.
+    expect(leaned(turns[0])).toBeNull();
+    expect(leaned(turns[1])).toBeNull();
+    expect(leaned(turns.at(-1)!)).toContain('"dryer"');
+    expect(leaned(turns.at(-1)!)).toContain('"nine"');
+    expect(leaned(turns.at(-1)!)).not.toContain("maps");
   });
 
   it("never lets the cast member voice self-harm: that line is drawn again", async () => {

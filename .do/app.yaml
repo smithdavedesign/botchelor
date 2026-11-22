@@ -36,10 +36,10 @@ services:
       - key: DEPLOY_ENV
         value: production
         scope: RUN_AND_BUILD_TIME
-      # The commit this deployment runs, for the version a feedback note carries (lib/user-feedback.ts appVersion).
-      - key: COMMIT_HASH
+      # The commit this build came from (lib/deploy.ts commitSha), filled in by DigitalOcean (/admin's Servers panel).
+      - key: COMMIT_SHA
         value: ${_self.COMMIT_HASH}
-        scope: RUN_TIME
+        scope: RUN_AND_BUILD_TIME
       - key: AFTER_DARK_ORIGIN
         value: https://ad.botchelor.com
         scope: RUN_AND_BUILD_TIME

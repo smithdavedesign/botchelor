@@ -67,6 +67,12 @@ export type Media = {
   date_pin?: boolean;
   /** A video's trim (lib/adult/trim.ts): where it starts and ends, and the parts cut out. */
   trim?: import("./trim").Trim | null;
+  /**
+   * A clip's still while it waits to play: the picture it was made from (its first frame), when that's a ready picture of
+   * the same owner; null otherwise (a boomerang or loop is made from a clip). The 2026-11-22 audit: a clip's tile had no
+   * poster, so each one fetched its video's start to show a frame.
+   */
+  poster?: string | null;
   /** Made in the Studio (a shoot), not on their dates. */
   studio?: boolean;
   /** Tagged as two of them together (lib/adult/media-tags.ts "who": "pair"). */
@@ -877,6 +883,8 @@ const MEDIA_SELECT = `select i.id, i.character_id, i.character_b, i.kind, i.stat
             (i.shoot_id is not null) as studio,
             -- A video's trim (lib/adult/trim.ts), honoured wherever it plays.
             i.trim,
+            -- A clip's still while it waits to play: the picture it was made from (Media.poster).
+            (case when i.kind = 'video' then (select s.id from adult_images s where s.id = i.source_image and s.owner_id = i.owner_id and s.mime like 'image/%' and s.status = 'ready') end) as poster,
             -- Made from a clip (lib/adult/moments.ts): a boomerang or a loop, or a still saved from it, and which clip.
             i.derived, i.moment_at, (case when i.derived is not null or i.moment_at is not null then i.source_image end) as from_clip,
             -- Its shape (native sizes) and, a fixed version, the picture it was fixed from and how (lib/adult/fix.ts).

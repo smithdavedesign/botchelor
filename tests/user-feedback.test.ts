@@ -319,11 +319,11 @@ describe("the viewer's context (GET /api/feedback)", () => {
 });
 
 describe("the app version a note carries (appVersion)", () => {
-  it("is DigitalOcean's commit, short; Vercel's only where it's the one set; else none", () => {
-    expect(appVersion({ COMMIT_HASH: "0123456789abcdef0123" })).toBe("0123456789ab");
-    expect(appVersion({ COMMIT_HASH: "0123456789abcdef", VERCEL_GIT_COMMIT_SHA: "fedcba9876543210" })).toBe("0123456789ab");
+  it("is DigitalOcean's commit (COMMIT_SHA), short; Vercel's only where it's the one set; else none", () => {
+    expect(appVersion({ COMMIT_SHA: "0123456789abcdef0123" })).toBe("0123456789ab");
+    expect(appVersion({ COMMIT_SHA: "0123456789abcdef", VERCEL_GIT_COMMIT_SHA: "fedcba9876543210" })).toBe("0123456789ab");
     expect(appVersion({ VERCEL_GIT_COMMIT_SHA: "fedcba9876543210" })).toBe("fedcba987654");
-    expect(appVersion({ COMMIT_HASH: " " })).toBeNull();
+    expect(appVersion({ COMMIT_SHA: " " })).toBeNull();
     expect(appVersion({})).toBeNull();
   });
 });

@@ -65,7 +65,7 @@ flowchart TD
     accept -- "No, or a week passes" --> card
 
     book{"Allowed to book?<br/>one partner rule, blocks,<br/>daily limits"} -- "No" --> card
-    book -- "Yes: public, unlisted or private" --> allowance{"Date available?<br/>3 free a week, then tokens"}
+    book -- "Yes: on the air by default, or private<br/>with 'Keep it private' on the first-date card<br/>or the send sheet (unlisted: API and MCP)" --> allowance{"Date available?<br/>3 free a week, then tokens"}
     allowance -- "Out of dates" --> shop{"Signed in?<br/>(buying needs an account)"}
     shop -- "No" --> account["Optional account:<br/>Google or handle + password,<br/>adopts this browser's characters"] --> shop
     shop -- "Yes" --> pay["Stripe Payment Link: 5 dates for $4<br/>(signed webhook adds them)"] --> allowance
@@ -77,7 +77,7 @@ flowchart TD
     theater --> verdict["The verdict card: the ending, who they dated,<br/>what their character thought, 'Hear from X'<br/>(their character texts them in its companion thread),<br/>'Tell me when X texts', share.<br/>On the filming stage as soon as the ending stands<br/>(the early verdict, 30-60 s before the date is ready;<br/>'Skip to the ending' from then on)"]
     theater --> vis{"Booked as?"}
     vis -- "Public / unlisted" --> air["Airs on its own when the<br/>10-minute prediction window closes"]
-    vis -- "Private" --> airp["Offline: never airs, no second date,<br/>out of the public record<br/>(the pair still remember it)"]
+    vis -- "Private" --> airp["Offline: never airs, out of the public record<br/>(the pair still remember it). A second date<br/>it leads to stays private too"]
     air --> counts["Predictions scored; memory, relationship,<br/>follows and arcs count it"]
 
     counts --> after["Afterglow texts, texting between dates,<br/>notifications and email"]
@@ -230,7 +230,7 @@ flowchart TD
     recap --> ready["Date ready"]
     showdate --> ready
     ready --> vis{"Booked as?"}
-    vis -- "Private" --> offline["Offline: never airs, no second date;<br/>the pair still remember it"]
+    vis -- "Private" --> offline["Offline: never airs; the pair still remember it.<br/>A second date it leads to stays private too"]
     vis -- "Public or unlisted" --> window["Open for predictions for 10 minutes<br/>(others find it: browse_episodes open: true)"]
     window --> aired["Airs on its own: predictions scored,<br/>memory and relationships count it"]
 
