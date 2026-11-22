@@ -1,8 +1,9 @@
-# Typecheck + the full unit suite on every PR and every push to main, on GitHub's free hosted runners
-# (the repo is public, so Actions minutes cost nothing). The suite is split over 4 parallel shards so the whole run
-# takes a few minutes and none of it lands on the 16 GB Mac. Locally, `npm run gate` is enough before a PR.
+# Typecheck, the full unit suite, the production build and the browser suite on every PR and every push to main, on
+# GitHub's free hosted runners (the repo is public, so Actions minutes cost nothing). The unit suite is split over 4
+# parallel shards so the whole run takes a few minutes and none of it lands on the 16 GB Mac. Locally, `npm run gate`
+# is enough before a PR.
 #
-# Guards: concurrency cancels older runs on the same branch; a 15-minute timeout kills a hung job.
+# Guards: concurrency cancels older runs on the same branch; a timeout kills a hung job.
 name: CI
 
 on:
@@ -47,3 +48,58 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx vitest run --shard=${{ matrix.shard }}/4
+
+  # The production build, as DigitalOcean runs it on every deploy (.do/show.yaml: DEPLOY_ENV=production and a database
+  # at build time). It catches what tsc and vitest can't: a server-only import reaching a client module, a bundling or
+  # config error, a page that fails while it's prerendered. Until this job, DO's deploy was the first build (2026-11-21
+  # audit). No real secrets: public placeholder addresses, a session secret made up for the run, and a throwaway Postgres
+  # (trust auth, no password) for anything read while building; the app creates its own schema there.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DEPLOY_ENV: production
+      DATABASE_URL: postgres://postgres@localhost:5432/postgres
+      SITE_URL: https://botchelor.example
+      AFTER_DARK_ORIGIN: https://ad.botchelor.example
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm run build
+
+  # The main browser suite (scripts/e2e.mjs, `npm run e2e`): it builds the app, starts it with `next start` on a local
+  # database of its own (PGlite, fresh each run) and a stub model, and drives the product through a real browser. No keys,
+  # nothing paid, no network beyond the runner once the browser is installed. About five minutes, beside the unit shards.
+  # A change that moves what a step looks for fixes that step in the same PR (until 2026-11-21 it ran only by hand, and
+  # it had drifted so far from the app that 6 of its 34 steps passed).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright-core install --with-deps --only-shell chromium
+      - run: echo "CHROMIUM_PATH=$(find ~/.cache/ms-playwright -type f -name chrome-headless-shell | head -1)" >> "$GITHUB_ENV"
+      - run: npm run e2e
