@@ -74,12 +74,17 @@ describe("a newcomer's first date, straight away", () => {
     };
     const first = renderToStaticMarkup(createElement(SendPhase, { ...props, firstCharacter: true }));
     expect(first).toContain("data-first-date");
-    expect(first).toContain("Leopold&#x27;s first date can start right now");
+    // The heading names the date (2026-11-21: "Who should … meet?" read as a choice there wasn't), the stage shows the two.
+    expect(first).toContain("Leopold&#x27;s first date</h1>");
+    expect(first).not.toContain("Who should Leopold Sol meet?");
+    expect(first).toMatch(/send-first-stage[\s\S]*send-first-faces slide-pair/);
     expect(first).toContain("▶ Start the date now");
     expect(first.indexOf("data-first-date")).toBeLessThan(first.indexOf("send-blind"));
     expect(first).toContain("Send Leopold Sol on a blind date"); // still there, below
     const card = first.slice(first.indexOf("data-first-date"), first.indexOf("send-blind"));
-    expect(card).toContain("meets Nell");
+    expect(card).toContain("Leopold meets Nell");
+    expect(card).toMatch(/<h2 id="send-first-who"[^>]*>Leopold <span aria-hidden="true">×<\/span><span class="sr-only"> and <\/span> Nell<\/h2>/);
+    expect(card).toContain("Nobody can steer how it ends, not even you. Uses 1 of your 3 free dates.");
     expect(card).not.toContain("Goldie");
     // PR1 (2026-11-14): the first date is a speed date (6 lines, about a minute) and the card says so; every other way to
     // date (the blind date, swipes, the house cast by name) folds under "More ways to date", closed.
@@ -100,6 +105,7 @@ describe("a newcomer's first date, straight away", () => {
     const later = renderToStaticMarkup(createElement(SendPhase, { ...props, firstCharacter: false }));
     expect(later).not.toContain("data-first-date");
     expect(later).not.toContain("send-more-ways");
+    expect(later).toContain("Who should Leopold Sol meet?");
     expect(later).toContain("Swipe to meet someone new");
     // Out of dates: no instant date (it would only fail).
     const broke = renderToStaticMarkup(createElement(SendPhase, { ...props, firstCharacter: true, tokens: { ...TOKENS, free_left: 0, left: 0 } }));

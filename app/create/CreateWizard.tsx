@@ -1,6 +1,7 @@
 "use client";
 
 import { afterDarkHref } from "@/lib/after-dark-host";
+import { showSetPath } from "@/lib/show-sets";
 import { shortName } from "@/lib/names";
 import { takenNote } from "@/lib/partners-shared";
 import Link from "next/link";
@@ -677,7 +678,8 @@ export default function CreateWizard({
     };
     setExpressBusy(true);
     setError(null);
-    send(expressStartedEvent({ length: text.length, named: Boolean(expressName.trim()), example: expressExample.current === text }));
+    // An example word for word, whether tapped here or on home's box (which hands over only the words).
+    send(expressStartedEvent({ length: text.length, named: Boolean(expressName.trim()), example: expressExample.current === text || EXPRESS_EXAMPLES.some((ex) => ex.text === text) }));
     try {
       const { ok, status, data } = await requestJson("/api/characters/draft", { text, ...(expressName.trim() ? { name: expressName.trim() } : {}) }, "POST", { timeoutMs: EXPRESS_CLIENT_TIMEOUT_MS });
       const d = data.draft as ImportedDraft | undefined;
@@ -2455,13 +2457,23 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
     </>
   );
 
+  // Who the instant first date is with: the season's lead while casting is open, else the house cast member picked.
+  const date = instant ? (casting ? { id: casting.lead.id, name: casting.lead.name, hue: casting.lead.hue, portrait: casting.lead.portrait } : { id: instant.id, name: instant.name, hue: instant.hue ?? null, portrait: null }) : null;
+  const dateFirst = date ? shortName(date.name) : "";
+
   return (
     <article className="send-phase">
       <p className="kicker">{character.name} is ready</p>
-      <h1 className="send-title heading-face">
-        <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={character.portrait ?? null} size={40} decorative round />
-        <span>Who should {character.name} meet?</span>
-      </h1>
+      {/* With the first date on offer, nothing is left to choose (2026-11-21: a first creator read "Who should … meet?" as
+          a question, opened the fold and left without a date), so the heading names the date instead. */}
+      {date ? (
+        <h1 className="send-title heading-face">{`${first}'s first date`}</h1>
+      ) : (
+        <h1 className="send-title heading-face">
+          <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={character.portrait ?? null} size={40} decorative round />
+          <span>Who should {character.name} meet?</span>
+        </h1>
+      )}
       {returnTo && (
         <p>
           <Link className="button" href={returnTo.href}>
@@ -2484,11 +2496,14 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
           <span className="muted small">{` (${shortName(buildNext.name)} goes on dates of their own: one creator's characters don't date each other.)`}</span>
         </p>
       )}
-      <p className="muted">
-        {/* In the nav's words (app/Nav.tsx: "1 date left"). */}
-        {tokens.left} {tokens.left === 1 ? "date" : "dates"} left · free dates come back Monday 00:00 UTC.{" "}
-        {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
-      </p>
+      {/* The first-date card says what it uses itself, so the count stands here only over the full menu. */}
+      {!date && (
+        <p className="muted">
+          {/* In the nav's words (app/Nav.tsx: "1 date left"). */}
+          {tokens.left} {tokens.left === 1 ? "date" : "dates"} left · free dates come back Monday 00:00 UTC.{" "}
+          {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
+        </p>
+      )}
 
       {taken && (
         // With someone and wanting only them: why the others are closed, the one date that's open, and where to change it.
@@ -2504,47 +2519,62 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         </div>
       )}
 
-      {instant && (
+      {instant && date && (
         // The first date, straight away (lib/first-date.ts): the default settings, a house cast member, the theater next.
         // It plays in the first-date format (the speed date: 6 lines, about two minutes to write), so the verdict comes while they're
         // still watching; the classic date's 12 lines took as long again, and nobody stayed for the ending.
-        <div className="card send-first" data-first-date data-first-format={firstFormat}>
-          {casting ? (
-            <Avatar seed={casting.lead.id} name={casting.lead.name} hue={casting.lead.hue} portraitSrc={casting.lead.portrait} house size={56} />
-          ) : (
-            <Avatar seed={instant.id} name={instant.name} hue={instant.hue ?? null} house size={56} />
-          )}
-          <div className="send-first-meta">
-            <strong>{casting ? `First date: ${shortName(casting.lead.name)}, ${casting.billing}. Roses on Sunday.` : `${first}'s first date can start right now`}</strong>
-            <p>
-              {casting
-                ? `${first} walks on for a date with ${shortName(casting.lead.name)}`
-                : `${first} meets ${shortName(instant.name)}${instant.archetype ? `, ${instant.archetype.toLowerCase()} from this season's cast` : ", from this season's cast"}`}
-              {firstFormat === "speed_date"
-                ? `, for a speed date: ${firstLines} lines, ${WRITE_TIME_SPEED}. It plays as you watch, and nobody can steer how it ends.`
-                : `, for a ${showFormat(firstFormat).label.toLowerCase()}: ${firstLines} lines. It plays as you watch, and nobody can steer how it ends.`}
-              {casting ? ` On Sunday at ${String(casting.hour).padStart(2, "0")}:${String(casting.minute).padStart(2, "0")} UTC ${shortName(casting.lead.name)} hands out roses, and you hear whether ${first} got one.` : ""}
-            </p>
-            <button
-              type="button"
-              className="primary"
-              data-track="first_date_now"
-              disabled={busy !== null}
-              onClick={() => void (casting ? sendOnDate(null, false, { format: firstFormat }) : sendOnDate(instant.id, true, { format: firstFormat }))}
-            >
-              {busy === "episode" ? "Starting the date…" : "▶ Start the date now"}
-            </button>
-            {busy === "episode" && <p className="muted small">The engine is deciding the outcome and the showrunner is writing it…</p>}
-            {error && !pending && wall && <OutOfDates data={wall} first={first} />}
-            {error && !pending && !wall && (
-              <p className="error small" role="alert">
-                {error} {outOfTokens && offer && <Link href="/shop">{offer}</Link>}
-                {watchLink && <Link href={watchLink}>Watch it</Link>}
-              </p>
-            )}
-            <p className="muted small">Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}. More ways to date are below.</p>
+        // Laid out as the show's own moment, not a settings row (2026-11-21): the stage with the two of them meeting on it
+        // (the couple page's band and the motion kit's .slide-pair), the pair's names, what kind of date it is, and one
+        // large button. What it costs and the roses are small print under the button.
+        <section className="card send-first" data-first-date data-first-format={firstFormat} aria-labelledby="send-first-who">
+          <div className="venue-photo send-first-stage">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a static public asset (the home stage, 1024×576) */}
+            <img src={showSetPath("stage")} alt="" width={1024} height={576} decoding="async" />
+            <div className="send-first-faces slide-pair" aria-hidden="true">
+              <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={character.portrait ?? null} size={88} decorative round eager />
+              <Avatar seed={date.id} name={date.name} hue={date.hue} portraitSrc={date.portrait} house size={88} decorative round eager />
+            </div>
           </div>
-        </div>
+          <h2 id="send-first-who" className="send-first-who heading-face">
+            {first} <span aria-hidden="true">×</span>
+            <span className="sr-only"> and </span> {dateFirst}
+          </h2>
+          <p className="send-first-what">
+            {casting
+              ? `${dateFirst} is ${casting.billing}, and ${first} walks on for a date with ${dateFirst}`
+              : `${first} meets ${dateFirst}${instant.archetype ? `, ${instant.archetype.toLowerCase()} from this season's cast` : ", from this season's cast"}`}
+            {firstFormat === "speed_date"
+              ? `, for a speed date: ${firstLines} lines, ${WRITE_TIME_SPEED}. It plays as you watch.`
+              : `, for a ${showFormat(firstFormat).label.toLowerCase()}: ${firstLines} lines. It plays as you watch.`}
+          </p>
+          <button
+            type="button"
+            className="primary send-first-go"
+            data-track="first_date_now"
+            disabled={busy !== null}
+            onClick={() => void (casting ? sendOnDate(null, false, { format: firstFormat }) : sendOnDate(instant.id, true, { format: firstFormat }))}
+          >
+            {busy === "episode" ? "Starting the date…" : "▶ Start the date now"}
+          </button>
+          {busy === "episode" && (
+            <p className="muted small" role="status">
+              The engine is deciding the outcome and the showrunner is writing it…
+            </p>
+          )}
+          {error && !pending && wall && <OutOfDates data={wall} first={first} />}
+          {error && !pending && !wall && (
+            <p className="error small" role="alert">
+              {error} {outOfTokens && offer && <Link href="/shop">{offer}</Link>}
+              {watchLink && <Link href={watchLink}>Watch it</Link>}
+            </p>
+          )}
+          <p className="muted small send-first-fine">
+            Nobody can steer how it ends, not even you. Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}.
+            {casting
+              ? ` On Sunday at ${String(casting.hour).padStart(2, "0")}:${String(casting.minute).padStart(2, "0")} UTC ${dateFirst} hands out roses, and you hear whether ${first} got one.`
+              : ""}
+          </p>
+        </section>
       )}
 
       {/* With a first date on offer, every other way to date folds away under it: one choice on the screen (the plan's

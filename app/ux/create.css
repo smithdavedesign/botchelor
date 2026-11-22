@@ -232,23 +232,67 @@
   margin-top: var(--space-2);
 }
 
-/* A first character's first date, straight away (lib/first-date.ts): their match's face, then one button. */
+/* A first character's first date, straight away (lib/first-date.ts), as the show's own moment (2026-11-21): the home
+   stage across the top of the card with the two of them meeting on it (as on the couple page, app/ux/show.css
+   .couple-stage), the pair's names, one line on the date, one large button, the small print. Centred: one thing to do. */
 .send-phase .send-first {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+  border-color: var(--accent);
+  overflow: hidden;
+}
+/* The stage runs to the card's edges: the card's own padding, taken back. */
+.send-phase .send-first-stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  justify-self: stretch;
+  height: 11rem;
+  margin: -1.1rem -1.25rem var(--space-2);
+  padding-bottom: var(--space-4);
+}
+/* The stage's neon heart hangs at the top of the art: a wide card's band keeps it in frame, over the faces. */
+.send-phase .send-first-stage > img {
+  object-position: 50% 10%;
+}
+.send-phase .send-first-faces {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: var(--space-3);
-  align-items: flex-start;
-  border-color: var(--accent);
 }
-.send-phase .send-first-meta {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
+.send-phase .send-first-faces .avatar {
+  box-shadow: 0 0 0 3px var(--on-photo), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
 }
-.send-phase .send-first-meta p {
+.send-phase .send-first-who {
   margin: 0;
+  font-size: var(--text-xl);
 }
-.send-phase .send-first-meta > button {
-  justify-self: start;
+.send-phase .send-first-what {
+  margin: 0;
+  max-width: 34rem;
+  text-wrap: pretty;
+}
+.send-phase .send-first-go {
+  margin-top: var(--space-2);
+  min-width: min(100%, 18rem);
+  min-height: 3rem;
+  font-size: var(--text-md);
+}
+.send-phase .send-first-fine {
+  margin: 0;
+  max-width: 34rem;
+  text-wrap: pretty;
+}
+@media (max-width: 30rem) {
+  .send-phase .send-first-stage {
+    height: 9rem;
+  }
+  .send-phase .send-first-go {
+    width: 100%;
+  }
 }
 /* Every other way to date, folded under the first-date card (2026-11-14 PR1: one choice on the screen). The summary reads
    as a heading; the first card inside gets the usual gap. */

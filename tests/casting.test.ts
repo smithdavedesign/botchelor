@@ -640,21 +640,19 @@ describe("the surfaces", () => {
       return html.slice(html.indexOf("data-first-date"), html.indexOf("send-more-ways"));
     };
     const on = card(casting);
-    expect(on).toContain(`First date: ${LEAD_FIRST}, December&#x27;s Botchelor. Roses on Sunday.`);
-    expect(on).toContain(`Leopold walks on for a date with ${LEAD_FIRST}, for a speed date: 6 lines`);
+    expect(on).toContain(`${LEAD_FIRST} is December&#x27;s Botchelor, and Leopold walks on for a date with ${LEAD_FIRST}, for a speed date: 6 lines`);
     expect(on).toContain(`On Sunday at 23:20 UTC ${LEAD_FIRST} hands out roses, and you hear whether Leopold got one.`);
     expect(on).toContain("▶ Start the date now");
     expect(on).not.toContain("meets Nell");
-    expect(card({ ...casting, phase: "season", billing: "this season's Botchelor" })).toContain(`First date: ${LEAD_FIRST}, this season&#x27;s Botchelor. Roses on Sunday.`);
+    expect(card({ ...casting, phase: "season", billing: "this season's Botchelor" })).toContain(`${LEAD_FIRST} is this season&#x27;s Botchelor, and Leopold walks on`);
     // Casting closed: the card as it was.
     const off = card(null);
-    expect(off).toContain("Leopold&#x27;s first date can start right now");
-    expect(off).toContain("meets Nell");
-    expect(off).not.toContain("Roses on Sunday");
+    expect(off).toContain("Leopold meets Nell");
+    expect(off).not.toContain("hands out roses");
     // A post's link named a cast member (?meet=): that date stays theirs.
     const meet = card(casting, { meet: "house-juniper" });
     expect(meet).toContain("meets Juniper");
-    expect(meet).not.toContain("Roses on Sunday");
+    expect(meet).not.toContain("hands out roses");
   });
 
   it("the home hero tells a stranger who the first date is with while casting is open, and an owner no pitch", async () => {

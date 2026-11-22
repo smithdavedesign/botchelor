@@ -614,7 +614,8 @@ async function capture(base, leagueId, viewer) {
       await home.getByText("Review & create").waitFor();
       await home.locator('.wizard-attest input[type="checkbox"]').check();
       await home.getByRole("button", { name: `Create ${c.name}` }).click();
-      await home.getByText(`Who should ${c.name} meet?`).waitFor();
+      // A first character's screen names its first date (SendPhase, 2026-11-21); any later one asks who they should meet.
+      await home.getByRole("heading", { level: 1, name: new RegExp(`^(Who should ${c.name} meet\\?|${c.name.split(" ")[0]}'s first date)$`) }).waitFor();
       // The date settings (PRD budget & autonomy): open them for a screenshot of the controls, and pick a
       // non-classic show format (M11) so the episode and feed carry a format badge.
       // The house cast shows six, the rest under "Show all": open it if Juniper is folded away.
