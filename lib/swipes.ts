@@ -146,12 +146,18 @@ function toCard(p: DatingProfile, why: string[], likedYou: boolean, hint: ReplyH
   };
 }
 
-/** What replyHint needs for each card: how it was made, its while-away mode and when its owner was last here. */
-async function replyHints(db: Db, cards: readonly DatingProfile[], bots: ReadonlySet<string>): Promise<Map<string, ReplyHint>> {
-  const { rows } = await db.query<{ id: string; created_via: string | null; while_away: string | null; seen: string | Date | null; adopted: boolean }>(
-    `select c.id, c.created_via, c.while_away, ${characterSeenSql("c")} as seen, c.adopted_at is not null as adopted from characters c where c.id = any($1)`,
-    [cards.map((p) => p.id)],
-  );
+/**
+ * What replyHint needs for each card: how it was made, its while-away mode and when its owner was last here. `bots` may
+ * still be on its way: the read starts beside it.
+ */
+async function replyHints(db: Db, cards: readonly DatingProfile[], botsOnTheWay: ReadonlySet<string> | Promise<ReadonlySet<string>>): Promise<Map<string, ReplyHint>> {
+  const [{ rows }, bots] = await Promise.all([
+    db.query<{ id: string; created_via: string | null; while_away: string | null; seen: string | Date | null; adopted: boolean }>(
+      `select c.id, c.created_via, c.while_away, ${characterSeenSql("c")} as seen, c.adopted_at is not null as adopted from characters c where c.id = any($1)`,
+      [cards.map((p) => p.id)],
+    ),
+    botsOnTheWay,
+  ]);
   const meta = new Map(rows.map((r) => [r.id, r]));
   return new Map(
     cards.map((p) => {
@@ -285,7 +291,13 @@ export async function deckFor(
     toProfile(r),
   );
   if (!pool.length) return { ok: true, for: { id: mine.id, name: mine.name }, cards: [], scores: {} };
-  const [ranked, likers, liked] = await Promise.all([
+  // Everything the ranking and the dealing need, read at once (2026-11-22: the deck waited on eight reads in a row, ~70 ms
+  // each from the app to the database). Each is per card, so the whole pool's answer covers the ranked ones.
+  // The house crowd (lib/house-bots.ts), with this character itself (#1523, below), and whether each card will answer
+  // a like (lib/activity.ts): a card nobody will answer for now ranks down (David, 2026-10-24: "dead characters"), unless
+  // it already liked yours.
+  const botsOnTheWay = houseBotCharacterIds(db, [...pool.map((p) => p.id), mine.id]);
+  const [ranked, likers, liked, bots, hints, memory] = await Promise.all([
     rankFor(db, userId, toProfile(mine), pool),
     db.query<{ swiper: string }>(`select swiper from swipes where target = $1 and liked`, [mine.id]),
     opts.theme === "popular"
@@ -295,13 +307,12 @@ export async function deckFor(
           [pool.map((p) => p.id)],
         )
       : Promise.resolve({ rows: [] as { target: string; n: number }[] }),
+    botsOnTheWay,
+    replyHints(db, pool, botsOnTheWay),
+    loadCharacterMemory(db, mine.id).catch(() => null),
   ]);
   const popular = new Map(liked.rows.map((r) => [r.target, r.n]));
   const likedMine = new Set(likers.rows.map((r) => r.swiper));
-  // The house crowd (lib/house-bots.ts) and whether each card will answer a like (lib/activity.ts): a card nobody will
-  // answer for now ranks down (David, 2026-10-24: "dead characters"), unless it already liked yours.
-  const bots = await houseBotCharacterIds(db, ranked.map((m) => m.id));
-  const hints = await replyHints(db, ranked, bots);
   // Drawn-to (lib/kinds.ts): a small nudge toward the kinds this character is into. Only the deck's order: rankFor also
   // decides a person's character's answer to a match and find_matches, which stay as they were. Never a filter.
   const drawnTo = toProfile(mine).extras.drawn_to ?? [];
@@ -311,10 +322,10 @@ export async function deckFor(
   const likedLately = (id: string) => Math.min(10, (popular.get(id) ?? 0) * 3);
   // The social graph's group nights (lib/group-dates.ts): someone this character met at a double date or a mixer, without
   // dating, is a known face — the card says so and ranks up a little. From its met memory: aired/public only.
-  const metAtNight = new Set(((await loadCharacterMemory(db, mine.id).catch(() => null))?.met ?? []).map((m) => m.id));
+  const metAtNight = new Set((memory?.met ?? []).map((m) => m.id));
   // #1523: a house-run bot's own deck puts whoever liked it first (its script likes them back on its pass, from one page of
   // thirty): it's the show's own script, so nobody's like is told to anyone by it.
-  const likedBoost = (await houseBotCharacterIds(db, [mine.id])).has(mine.id) ? 1000 : 2;
+  const likedBoost = bots.has(mine.id) ? 1000 : 2;
   const boost = (id: string) =>
     (likedMine.has(id) ? likedBoost : 0) + drawnToBoost(drawnTo, kindOf.get(id)) + likedLately(id) + (metAtNight.has(id) ? MET_BOOST : 0) - (away(id) ? AWAY_PENALTY : 0);
   for (const m of ranked) {
