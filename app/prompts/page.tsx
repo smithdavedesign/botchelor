@@ -215,9 +215,9 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         <h2>Where these come from</h2>
         <p>
           Every prompt is from an openly licensed dataset and keeps its licence. We only cleaned them up: one line of plain
-          words, no model weights or flags, nothing under 40 or over 400 characters, no repeats. Anything about minors,
-          anything sexual or violent, anything naming a real person, and anything describing a picture that already exists
-          rather than one to make was left out.
+          words, no model weights or flags, plain misspellings fixed, nothing under 40 or over 400 characters, no repeats.
+          Anything about minors, anything sexual or violent, anything with a real person as its subject, and anything
+          describing a picture that already exists rather than one to make was left out.
         </p>
         <p>
           The tags are the Studio&apos;s own: its framing, angle, pose, wardrobe, accessories, place, light and expression

@@ -13,10 +13,13 @@ import {
   MAX_BUBBLES,
   namesAnotherDate,
   RECENT_TURNS,
+  reachedFor,
   repeatsEarlier,
   repliesOf,
   replyBubbles,
+  stem,
   tooCloseTo,
+  worldWords,
   type PromptTurn,
 } from "@/lib/companion-prompt";
 import { companionNotice, companionOpen } from "@/lib/companion-shared";
@@ -307,6 +310,88 @@ describe("the images it leans on", () => {
     for (const extra of [{}, { yours: true }, { call: true }, { scene: { name: "The diner", prompt: "a late-night diner" } }]) {
       expect(companionMessages({ ...base, character: character(), ...extra })[0].content).toContain(HABITS_RULE);
     }
+  });
+});
+
+describe("resting its own world", () => {
+  // A clockmaker's sheet as it is on the show, and his first replies to a new thread (2026-11-22).
+  const clockmaker = character({
+    name: "Barnaby Thorne",
+    bio: "A master clockmaker who talks to grandfather clocks to keep them from getting homesick. He once missed his own birthday because he got distracted fixing the town hall chime.",
+    extras: {
+      occupation: "Clockmaker",
+      hobbies: ["restoring antique music boxes", "stargazing", "tea blending"],
+      quirk: "Always checks his pulse against the nearest second hand.",
+      catchphrase: "Let's wind this back a bit.",
+      tells: { bored: "trace the edge of his watch crystal", annoyed: "check the time with an exaggerated sigh", nervous: "wind his pocket watch repeatedly" },
+      lines: { dodge: "That question is running a bit fast, let's slow the pendulum.", hello: "Well now, you've arrived precisely on time." },
+      prompts: [
+        { id: "unpopular_opinion", answer: "Digital clocks have no souls and shouldn't be trusted." },
+        { id: "together_we_could", answer: "Synchronize our watches and get lost in a medieval village." },
+      ],
+    } as Character["extras"],
+  });
+  const asked = ["Hi Barnaby! How was your last date?", "My sister's wedding toast ran three minutes, mostly one story. Is that too long? Be honest.", "What are you doing this weekend?"];
+  const replies = [
+    "Well, it was like trying to listen to a pocket watch in a thunderstorm. Cosmo's energy is... constant. But he has a good heart beneath all that glitter.",
+    "Three minutes is the perfect length for a toast, long enough to feel substantial, but not so long that guests start checking their watches.",
+    "This weekend I'm restoring a 19th-century music box with a slightly stubborn mainspring. And you?",
+  ];
+  const thread = (upTo: number, next: string): PromptTurn[] => [
+    ...replies.slice(0, upTo).flatMap((r, i) => [
+      { role: "user" as const, text: asked[i] },
+      { role: "character" as const, text: r },
+    ]),
+    { role: "user", text: next },
+  ];
+
+  it("counts a word and its other forms as one", () => {
+    expect(stem("watches")).toBe(stem("watch"));
+    expect(stem("clocks")).toBe(stem("clock"));
+    expect(stem("ticking")).toBe(stem("tick"));
+    expect(stem("boxes")).toBe(stem("box"));
+    expect(stem("archival")).toBe(stem("archive"));
+    expect(stem("archives")).toBe(stem("archive"));
+  });
+
+  it("finds the world its sheet keeps coming back to, not its everyday words, its name or a one-off", () => {
+    const world = worldWords(clockmaker);
+    // In his work and his bio; in three of his tells and answers ("watch", "watches").
+    expect([...world]).toEqual(expect.arrayContaining(["clockmaker", "clock", "watch"]));
+    // Everyday in every form, or only said once.
+    for (const w of ["time", "check", "pendulum", "music", "pulse"]) expect(world.has(stem(w))).toBe(false);
+    // Its own name, and a word that's in many sheets' worlds, never count, however often the sheet says them.
+    const nell = worldWords(
+      character({ name: "Nell Okafor", bio: "Nell Okafor pilots the night ferry, a quiet job.", extras: { occupation: "Quiet ferry pilot", lines: { hello: "Nell Okafor, ferry pilot." } } as Character["extras"] }),
+    );
+    expect([...nell].sort()).toEqual([stem("ferry"), stem("pilot")].sort());
+  });
+
+  it("names what a reply reached for, unless they or the scene brought it up", () => {
+    const world = worldWords(clockmaker);
+    expect(reachedFor(replies[0], world, [asked[0]])).toEqual(["watch"]);
+    expect(reachedFor(replies[1], world, [asked[1]])).toEqual(["watches"]);
+    expect(reachedFor(replies[2], world, [asked[2]])).toEqual([]);
+    expect(reachedFor(replies[0], world, ["Did you watch the storm last night?"])).toEqual([]);
+    expect(reachedFor("Clocks, of course. Three of them.", world, ["Tell me about your work", "the top of an old clock tower"])).toEqual([]);
+  });
+
+  it("asks the next reply to rest it, and leaves the sample lines out of that one sheet", () => {
+    const after = (upTo: number, next: string, extra = {}) => companionMessages({ ...base, character: clockmaker, turns: thread(upTo, next), ...extra })[0].content;
+    const rested = after(1, "Ha. What did you two talk about?");
+    expect(rested).toContain('Your last reply reached for your own world ("watch"). This one rests it: no images, comparisons or jokes from your work, your hobbies or your sayings.');
+    expect(rested).toContain("if they ask about your work or your week, just tell them");
+    expect(rested).not.toContain("voice_examples");
+    expect(rested).toContain("Clockmaker");
+    // Its last reply stayed on their thing: nothing to rest, the sample lines are back.
+    const free = after(3, "Nothing much. Any advice for a nervous first date?");
+    expect(free).not.toContain("reached for your own world");
+    expect(free).toContain("voice_examples");
+    // They asked about the clocks, or the scene is in a clock tower: that's the topic, not a habit.
+    expect(after(1, "Wait, do you fix pocket watches too?")).not.toContain("reached for your own world");
+    expect(after(1, "Ha.", { scene: { name: "The tower", prompt: "the top of an old watch tower" } })).not.toContain("reached for your own world");
+    // The first reply has nothing before it to rest.
+    expect(companionMessages({ ...base, character: clockmaker, turns: [{ role: "user", text: "Hi!" }] })[0].content).not.toContain("reached for your own world");
   });
 });
 

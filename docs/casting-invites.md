@@ -42,7 +42,7 @@ An invite never touches points, odds, pairings or endings: the date's ending is 
 
 ## The page: `/casting/invite/<code>`
 
-Public and PG, no 18+ wall (middleware.ts `UNGATED_PREFIXES` has `/casting/invite/`), `noindex`, never in the sitemap:
+Public and PG, no 18+ wall (proxy.ts `UNGATED_PREFIXES` has `/casting/invite/`), `noindex`, never in the sitemap:
 codes are private. Reading it changes nothing.
 
 - **Open code**: "You're invited to {Month}'s The Botchelor" (in season: "You're invited to The Botchelor"), the lead's

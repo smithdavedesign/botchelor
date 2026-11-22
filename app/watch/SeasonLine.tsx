@@ -2,16 +2,19 @@ import Link from "next/link";
 import type { RecouplingBoard } from "@/lib/recoupling";
 import { formatContrast, type SeasonFormatDef, type ThisWeekCard } from "@/lib/season-format";
 import { seasonBanner, seasonNumber } from "@/lib/season-ref";
-import { seasonIdOf } from "@/lib/season-window";
+import { daysUntil, seasonIdOf } from "@/lib/season-window";
 
-/** "tonight", "in 3 days", "in 5h": the countdown to the Recoupling, from the server's clock (the page is dynamic). */
+/**
+ * "tonight", "in 3 days", "in 5h": the countdown to the Recoupling, from the server's clock (the page is dynamic). A day
+ * or more away, in UTC days as the season's strip counts them (lib/season-window.ts daysUntil), never rounded hours.
+ */
 export function recouplingIn(iso: string, now: number): string {
   const mins = Math.round((Date.parse(iso) - now) / 60_000);
   if (mins <= 0) return "any minute";
   if (mins < 60) return `in ${mins}m`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return hours < 6 ? `tonight (in ${hours}h)` : `in ${hours}h`;
-  const days = Math.round(hours / 24);
+  const days = daysUntil(now, iso);
   return `in ${days} ${days === 1 ? "day" : "days"}`;
 }
 

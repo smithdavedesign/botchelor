@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET as carry } from "@/app/api/auth/carry/route";
 import { safeFrom } from "@/lib/age";
 import { signCarry, signSession, verifyCarry, verifySession } from "@/lib/auth";
-import { config, middleware } from "@/middleware";
+import { config, proxy as middleware } from "@/proxy";
 
-// The old address (botchelor.vercel.app) moves to the canonical one (botchelor.com): middleware.ts moveToCanonical
+// The old address (botchelor.vercel.app) moves to the canonical one (botchelor.com): proxy.ts moveToCanonical
 // and app/api/auth/carry. Built from parts so no literal secret sits in the repo (GitGuardian scans every commit).
 const SECRET = ["carry", "test", "secret", "abcdefghij0123456789"].join("-");
 const UID = "0cbfb3b3-1111-4222-8333-444455556666";
@@ -65,7 +65,7 @@ describe("the old address moves to botchelor.com (middleware)", () => {
 });
 
 // The app's own DigitalOcean address reached it without Cloudflare and served an indexable copy of every page
-// (2026-11-22 audit); staging.botchelor.com points at the app too. middleware.ts moveFromOtherHost.
+// (2026-11-22 audit); staging.botchelor.com points at the app too. proxy.ts moveFromOtherHost.
 describe("the app's other addresses: the platform's own moves to botchelor.com, and no copy is crawled", () => {
   const DO = "https://botchelor-show-t9g76.ondigitalocean.app";
   const onDigitalOcean = () => {
@@ -235,7 +235,7 @@ describe("the carry route (app/api/auth/carry)", () => {
 
 describe("a pair's page has one address, as a real 308 (2026-11-04: those pages stream a loading screen)", () => {
   it("sends the higher id first to the lower first, query kept, before the age gate; leaves the sorted one alone", async () => {
-    const { canonicalPairPath } = await import("@/middleware");
+    const { canonicalPairPath } = await import("@/proxy");
     expect(canonicalPairPath("/couples/house-sable/abc")).toBe("/couples/abc/house-sable");
     expect(canonicalPairPath("/messages/zed/amy")).toBe("/messages/amy/zed");
     expect(canonicalPairPath("/couples/abc/house-sable")).toBeNull();

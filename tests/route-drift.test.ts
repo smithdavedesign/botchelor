@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import PgStudioRedirect from "@/app/characters/[id]/studio/page";
 import { staticSitemap } from "@/lib/seo";
 import { SHOW_WORD_REDIRECTS } from "@/lib/site-redirects";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const redirectOf = async (run: () => Promise<unknown>): Promise<string> => {

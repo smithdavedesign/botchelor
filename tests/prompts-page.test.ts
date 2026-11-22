@@ -102,17 +102,21 @@ describe("/prompts", () => {
     for (const g of new Set(paged.map((t) => t.group))) expect(html).toContain(`<h3>${esc(g)}</h3>`);
   });
 
-  it("a tag's own page uses the same grid, whole texts and no buttons", async () => {
+  it("a tag's own page uses the same grid, one page of whole texts with the Copy · Save row, and the library under its intro", async () => {
     const first = indexablePromptTags()[0];
     const { default: TagPage } = await import("@/app/prompts/tag/[id]/page");
     const { prelude } = await prerender(await TagPage({ params: Promise.resolve({ id: first.id }) }));
     const html = (await new Response(prelude).text()).replace(/<!-- -->/g, "");
     expect(html).toContain('class="page-wide prompts-page"');
     expect(html).toContain('<ul class="prompts-grid">');
-    expect(items(html)).toBeGreaterThan(0);
-    expect(items(html)).toBeLessThanOrEqual(60);
+    expect(items(html)).toBe(PROMPTS_PER_PAGE);
     expect(html).not.toContain("is-clamped");
-    expect(html).not.toContain("prompt-actions");
+    expect(html.match(/<div class="prompt-actions"><button type="button" class="button-ghost small prompt-copy"[\s\S]*?<\/button><button type="button" class="button-ghost small prompt-save"/g)).toHaveLength(PROMPTS_PER_PAGE);
     expect(html).toContain('aria-current="true"');
+    // The way to all of them comes before the cards, not only after a phone's 15,000px.
+    const library = html.indexOf(`href="/prompts?tag=${encodeURIComponent(first.id)}"`);
+    expect(library).toBeGreaterThan(-1);
+    expect(library).toBeLessThan(html.indexOf('<ul class="prompts-grid">'));
+    expect(html).toContain(`Search all ${first.count.toLocaleString("en-US")} in the library`);
   });
 });

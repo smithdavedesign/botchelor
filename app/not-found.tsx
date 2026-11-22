@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = { title: "Not found · Botchelor" };
+export const metadata: Metadata = {
+  title: "Not found · Botchelor",
+  // Next adds a noindex of its own to a 404. Without this, the root layout's "index, follow" (and Google's copy of it)
+  // came along too, so a missing character or date told search engines both (2026-11-22).
+  robots: { index: false, follow: true },
+};
 
 /**
  * A page that called notFound() (a character, date or couple that's private or gone). Inside the site's layout, so the
