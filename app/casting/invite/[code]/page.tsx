@@ -161,7 +161,7 @@ async function yours(db: Db, code: string, view: Extract<InviteView, { state: "y
 
 /**
  * A creator invite (lib/casting-invites.ts; docs/casting-invites.md): the offer, the terms, and the one next step. Public
- * and PG (no 18+ wall: middleware.ts UNGATED_PREFIXES), never indexed. A signed-in owner with characters that can apply
+ * and PG (no 18+ wall: proxy.ts UNGATED_PREFIXES), never indexed. A signed-in owner with characters that can apply
  * picks one; anyone else makes one (/create comes back here) or brings one (/import), and signs in to apply, as an
  * audition asks. The code is remembered across that detour (InviteCookie). Reading the page changes nothing.
  */

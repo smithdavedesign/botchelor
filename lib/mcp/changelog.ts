@@ -31,6 +31,17 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.48.1",
+    date: "2026-11-22",
+    title: "Arguments are read as their type, and a request is JSON-RPC 2.0",
+    changes: [
+      "A number argument sent as text (\"limit\": \"10\") is read as the number, and read_arguments_as says so. Anything else for a number (\"lots\", true, a list) is refused with its type and an example, and nothing is done.",
+      "A text argument sent as a number or true/false (\"query\": 42) is read as its text, said in read_arguments_as. A list or an object for one is refused.",
+      "A request whose \"jsonrpc\" names another version than \"2.0\" is refused as an invalid request (-32600). One that leaves the field out is still served.",
+      "/agents/tools and llms-full.txt count the tools tools/list { all: true } lists, and name the older ones that answer by name only apart from them.",
+    ],
+  },
+  {
     version: "2.48.0",
     date: "2026-11-21",
     title: "An id is a name, never a key to someone else: no reply carries another owner's id",

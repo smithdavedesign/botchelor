@@ -270,7 +270,10 @@ async function seasonSuitors(db: Db, seasonId: string): Promise<SuitorCard[]> {
 
 export type ScheduleLine = {
   key: "start" | "pilot" | "dates" | "vote" | "premiere" | "ceremony" | "finale";
-  /** When: words ("Every day"), or a moment the viewer's own clock shows (app/When.tsx, lib/when.ts). */
+  /**
+   * When: words ("Every day"), or a moment, which the page says in the show's zone with the US's beside it, as the
+   * premiere's line does (lib/premiere-clock.ts premiereTimeWords; "weekly": "Sundays, 20:20 UTC (…)").
+   */
   when: { words: string } | { iso: string; style: "day-time" | "weekly" };
   what: string;
 };

@@ -73,11 +73,11 @@ changing the landing page or the price.
    tool's path. If the gate's bounce turns out to eat the search traffic, exempting `/tools` and `/ship` is the
    experiment to propose next.
    - **Proposed and taken, 2026-11-11 (David's call):** every Google visitor of the month (4 of 4) met the gate
-     first. `/tools/*`, `/ship/*` and `/alternatives/*` now open without it (middleware.ts `UNGATED_PREFIXES`); a
+     first. `/tools/*`, `/ship/*` and `/alternatives/*` now open without it (proxy.ts `UNGATED_PREFIXES`); a
      date, a character or the builder from those pages still meets the gate. Read the by-channel table for
      `google` visitors who go on to make a character.
    - **Taken further, 2026-11-14 (David's call, the core plan's Phase 0):** the whole PG show opens without the gate
-     (home, Watch, episodes, seasons, couples, characters, creators, /import, /create, /agents; `middleware.ts`
+     (home, Watch, episodes, seasons, couples, characters, creators, /import, /create, /agents; `proxy.ts`
      `UNGATED_PAGES` and `UNGATED_PREFIXES`). The gate stays in front of the swipe deck, matches, messages,
      companions, a step-in date once it's started, the shop, accounts, notifications, mixers, double-date links and
      every After Dark page; a creator attests in the builder instead (saving a character with its 18+ box ticked sets

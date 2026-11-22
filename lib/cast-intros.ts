@@ -18,6 +18,7 @@ import { keepBytes, readBytes } from "./object-store";
 import { approvedPortraitSelect } from "./portrait-sql";
 import { characterPortrait } from "./portraits";
 import { showCastIds } from "./season-cast";
+import { escapeRegExp } from "./text";
 
 type Env = Record<string, string | undefined>;
 
@@ -58,7 +59,7 @@ const COLS = `id, character_id, line, voice, renderer, status, audio_key, audio_
 export function introLineFor(c: Pick<Character, "name" | "bio">): string {
   const first = c.name.split(/\s+/)[0];
   const bio = c.bio.replace(/\s+/g, " ").trim();
-  const opensWithName = new RegExp(`^(hi|hey|hello)?[,!. ]*(i'?m|i am|it'?s|this is)?\\s*${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(bio);
+  const opensWithName = new RegExp(`^(hi|hey|hello)?[,!. ]*(i'?m|i am|it'?s|this is)?\\s*${escapeRegExp(first)}\\b`, "i").test(bio);
   const lead = opensWithName ? "" : `Hi, I'm ${first}. `;
   const room = INTRO_MAX_CHARS - lead.length;
   // Whole sentences while they fit; else the first sentence cut at a word.

@@ -112,30 +112,52 @@ describe("nothing yet: a character with no date", () => {
 });
 
 describe("never opted in: a finished date and no texts", () => {
-  it("offers 'Hear from {first}' for the date whose ending stands, and names who the date was with", async () => {
+  it("a date that hasn't aired yet is the main button, 'Watch Mira × …', with 'Hear from Mira' the quiet second (the 2026-11-22 audit)", async () => {
     const { creator, episode } = await setupEpisode("second_date");
+    const partner = firstOf(H0.name);
+    const phone = (await phoneFor(creator))!;
+    expect(phone.action).toEqual({ kind: "watch", label: `Watch Mira × ${partner}`, href: `/episodes/${episode.id}?play=1` });
+    expect(phone.secondary).toEqual({ kind: "hear", label: "Hear from Mira", episodeId: episode.id });
+    expect(phone).toMatchObject({ threadHref: null, optedIn: false, texts: [], chips: [] });
+    expect(phone.empty).toBe(`Mira's date with ${partner} is ready. Watch it, or hear Mira's side first.`);
+    // Not a line of small print under the buttons as well.
+    expect(phone.next.map((n) => n.text).join(" | ")).not.toContain("ready to watch");
+    const html = render(phone);
+    expect(html).toContain(`Watch Mira × ${partner}`);
+    expect(html).toContain('data-track="home-phone-watch"');
+    expect(html).toMatch(/<button type="button" class="button-ghost"[^>]*data-track="home-phone-hear">Hear from Mira<\/button>/);
+    expect(html).not.toContain('class="primary"');
+    expect(html).not.toContain("Open Mira's texts");
+  });
+
+  it("once it has aired, offers 'Hear from {first}' for the date whose ending stands, and names who the date was with", async () => {
+    const { creator, episode } = await setupEpisode("second_date");
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
     const phone = (await phoneFor(creator))!;
     expect(phone.action).toEqual({ kind: "hear", label: "Hear from Mira", episodeId: episode.id });
     expect(phone).toMatchObject({ threadHref: null, optedIn: false, texts: [], chips: [], secondary: null });
     expect(phone.empty).toBe(`Mira hasn't texted you yet. Tap "Hear from Mira" and they'll tell you how the date with ${firstOf(H0.name)} went.`);
-    // The date hasn't aired: it's the next thing to watch.
-    expect(phone.next[0]).toMatchObject({ key: "ready", href: `/episodes/${episode.id}` });
     const html = render(phone);
     expect(html).toContain("Hear from Mira");
     expect(html).toContain('data-track="home-phone-hear"');
     expect(html).not.toContain("Open Mira's texts");
   });
 
-  it("a thread opened from Talk (never opted in) keeps 'Hear from' as the action, with the thread as the second", async () => {
+  it("a thread opened from Talk (never opted in): the date, then 'Hear from'; once it aired, 'Hear from' with the thread as the second", async () => {
     const { creator, character, episode } = await setupEpisode("friends");
     const o = await openThread(t.db, userIdOf(creator), character.id, NOW);
     if (!o.ok) throw new Error(o.error);
     const phone = (await phoneFor(creator))!;
     expect(phone.optedIn).toBe(false);
-    expect(phone.action).toEqual({ kind: "hear", label: "Hear from Mira", episodeId: episode.id });
-    expect(phone.secondary).toEqual({ label: "Open Mira's texts", href: `/companion/${o.thread_id}` });
-    // What it said when the thread opened is on the screen.
+    expect(phone.action).toMatchObject({ kind: "watch", href: `/episodes/${episode.id}?play=1` });
+    expect(phone.secondary).toEqual({ kind: "hear", label: "Hear from Mira", episodeId: episode.id });
+    // What it said when the thread opened is on the screen, a tap into the thread.
     expect(phone.texts.map((x) => x.text)).toEqual(["Noted."]);
+    expect(phone.threadHref).toBe(`/companion/${o.thread_id}`);
+    await t.db.query(`update episodes set revealed_at = now() where id = $1`, [episode.id]);
+    const aired = (await phoneFor(creator))!;
+    expect(aired.action).toEqual({ kind: "hear", label: "Hear from Mira", episodeId: episode.id });
+    expect(aired.secondary).toEqual({ kind: "open", label: "Open Mira's texts", href: `/companion/${o.thread_id}` });
   });
 
   it("a date still being filmed: watch it, nothing to hear yet; once the early verdict is in, 'Hear from' goes", async () => {
@@ -156,8 +178,10 @@ describe("texts waiting: an opted-in thread with an unread text", () => {
     const r = await heard(creator, episode.id);
     const phone = (await phoneFor(creator))!;
     const thread = `/companion/${r.thread_id}`;
-    expect(phone).toMatchObject({ threadHref: thread, optedIn: true, unread: true, empty: null, secondary: null });
-    expect(phone.action).toEqual({ kind: "open", label: "Open Mira's texts", href: thread });
+    expect(phone).toMatchObject({ threadHref: thread, optedIn: true, unread: true, empty: null });
+    // The date hasn't aired yet: watching it is the main button (the 2026-11-22 audit), the texts the second.
+    expect(phone.action).toMatchObject({ kind: "watch", href: `/episodes/${episode.id}?play=1` });
+    expect(phone.secondary).toEqual({ kind: "open", label: "Open Mira's texts", href: thread });
     // The last three of the text: its photo, what it thought, the question.
     expect(phone.texts).toHaveLength(PHONE_TEXTS);
     expect(phone.texts.map((x) => x.photo)).toEqual([true, false, false]);

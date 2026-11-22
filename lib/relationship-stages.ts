@@ -130,7 +130,6 @@ export const TOGETHER_STAGES: readonly Stage[] = ["dating", "casual", "going_ste
 export const STEADY_STAGES: readonly Stage[] = ["going_steady", "official", "moved_in", "engaged", "married"];
 /** No longer a couple, having been one. */
 export const APART_STAGES: readonly Stage[] = ["exes", "broke_up", "divorced"];
-export const isTogether = (s: Stage | null | undefined): boolean => !!s && TOGETHER_STAGES.includes(s);
 /**
  * Whether a couple's page shows the Closeness meter beside this stage. The tie it draws counts how often and how
  * recently they met, so one recent date reads "Growing" even when it ended badly: beside "Didn't click", bad blood or
