@@ -215,7 +215,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}
         <section id="scenes" className="ad-home-section">
           <h2>Scenes</h2>
-          <PairPicker cast={cast} nights={withCovers} firstScene={firstScene} stepIn={stepIn} preselect={preselect} />
+          <PairPicker cast={cast} nights={withCovers} firstScene={firstScene} stepIn={stepIn} preselect={preselect} featured={latest?.path ?? null} />
         </section>
         {/* Episodes (lib/adult/shorts.ts): the house cast's nights, published. Its own page keeps all of them and the board. */}
         <section id="episodes" className="ad-home-section" aria-labelledby="ad-episodes" data-ad-episodes>
@@ -240,11 +240,16 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
               {made.map((m) => (
                 <li key={m.id} data-latest-item={m.id}>
                   <Link href={`/after-dark/gallery?tab=${m.kind === "video" ? "videos" : "pictures"}`} title={m.kind === "video" ? "Your videos, in the Gallery" : "Your pictures, in the Gallery"}>
+                    {/* At a tile's size (the full picture is 1 MB or more), and a video by its picture (the 2026-11-22 audit). */}
                     {m.kind === "video" ? (
-                      <video src={`/api/admin/after-dark/media/${m.id}#t=0.1`} preload="metadata" muted playsInline aria-label="One of your latest videos" />
+                      m.poster ? (
+                        <video src={`/api/admin/after-dark/media/${m.id}`} poster={`/api/admin/after-dark/media/${m.poster}?w=640`} preload="none" muted playsInline aria-label="One of your latest videos" />
+                      ) : (
+                        <video src={`/api/admin/after-dark/media/${m.id}#t=0.1`} preload="metadata" muted playsInline aria-label="One of your latest videos" />
+                      )
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element -- a private file from the media route
-                      <img src={`/api/admin/after-dark/media/${m.id}`} alt="One of your latest pictures" loading="lazy" />
+                      <img src={`/api/admin/after-dark/media/${m.id}?w=640`} alt="One of your latest pictures" loading="lazy" />
                     )}
                   </Link>
                   {Date.now() - Date.parse(m.created_at) < NEW_FOR_MS && <span className="ad-new-badge small">{m.kind === "video" ? "New video" : "New"}</span>}

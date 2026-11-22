@@ -14,7 +14,8 @@ import { releaseEpisode, type Reservation } from "./allowance";
 import { narrateDate, showNarrator } from "./narrate-date";
 import { NARRATE_BATCH } from "./narration";
 import { summarizeUsage } from "./pricing";
-import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
+import { track, trackDateQuality } from "./analytics";
+import { trackEpisodeCostKept, trackKept } from "./ops-log";
 import { ConversationError } from "./conversation";
 import { generationPaused } from "./compute";
 import { isConversationEnabled } from "./conversation";
@@ -392,7 +393,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       },
     });
     if (gen.conversationError) {
-      track("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });
+      trackKept("conversation_failed", { episode_id: episodeId, where: "job", reason: failureReason(gen.conversationError) });
     }
     if (gen.quality) trackDateQuality(episodeId, "job", gen.plan?.source ?? null, gen.quality);
     // The morning-after texts are best effort, and why they came out short or not at all was kept nowhere: one line,
@@ -488,7 +489,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);
       await notifyIfAsked(db, episodeId, row.a_name, row.b_name).catch(() => {});
-      trackEpisodeCost({
+      trackEpisodeCostKept({
         episode_id: episodeId,
         where: "job",
         model: row.use_frontier ? "frontier" : "free",
@@ -504,7 +505,8 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
   } catch (err) {
     const reason = err instanceof ShowrunnerError ? err.reasons.join(", ") : err instanceof Error ? err.message : "unknown";
     console.warn("[jobs] generation failed for", episodeId, reason);
-    track("generation_failed", { reason: "job", episode_id: episodeId });
+    // Kept past the next deploy (lib/ops-log.ts) with why: the episode is deleted below, so this row is all that's left.
+    trackKept("generation_failed", { where: "job", reason, episode_id: episodeId });
     // A caught failure is terminal: narrateEpisode already retried internally, so a deterministic bad
     // output won't improve on another run. A failed date stores nothing and costs nothing — give the date
     // back, then delete the episode (which cascades its job). The poller sees it gone and offers a retry.

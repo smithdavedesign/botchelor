@@ -67,13 +67,14 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
               <li key={m.id} data-media={m.id}>
                 {m.kind === "video" ? (
                   m.status === "ready" ? (
-                    <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim={false} label={`A clip of ${who}`} autoplay />
+                    <TrimmableClip id={m.id} src={mediaUrl(m.id)} trim={m.trim ?? null} canTrim={false} label={`A clip of ${who}`} autoplay poster={m.poster} />
                   ) : (
                     <p className="muted small">{m.status === "failed" ? "The clip failed." : "Clip on its way…"}</p>
                   )
                 ) : (
+                  // At a tile's size, as the Studio's: the full pictures are 1-5 MB each, and 53 of them made one desktop load 62 MB (the 2026-11-22 audit).
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={mediaUrl(m.id)} alt={`A picture of ${who}`} loading="lazy" style={{ aspectRatio: tileRatio(m.aspect) }} />
+                  <img src={`${mediaUrl(m.id)}?w=640`} alt={`A picture of ${who}`} loading="lazy" style={{ aspectRatio: tileRatio(m.aspect) }} />
                 )}
                 <TileTags m={m} />
                 <span className="small">
