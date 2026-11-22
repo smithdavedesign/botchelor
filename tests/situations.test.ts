@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as getSituation, POST as postSituation } from "@/app/api/situation/route";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { VOTE_LIMITS } from "@/lib/limits";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { playVotedSituation, situationBoard, situationChoices, situationPair, utcDay, voteSituation, winnerOf } from "@/lib/situations";
 import { episodeJson, jsonRequest, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf } from "./helpers";
@@ -64,6 +65,20 @@ describe("tonight's situation: the ballot", () => {
     const board = await (await getSituation(new Request("http://localhost:3000/api/situation", { headers: { cookie } }))).json();
     expect(board.my_pick).toBe(pick);
     expect((await postSituation(jsonRequest("/api/situation", { pick: "nope" }, { cookie }))).status).toBe(400);
+  });
+
+  it("holds one address to a few votes, so fresh cookies can't stuff the ballot (2026-11-22 audit)", async () => {
+    const pick = situationChoices(utcDay(new Date()))[0].id;
+    const from = (ip: string) => {
+      const req = jsonRequest("/api/situation", { pick }, { cookie: newUserCookie() });
+      req.headers.set("do-connecting-ip", ip);
+      return postSituation(req);
+    };
+    for (let i = 0; i < VOTE_LIMITS.perHour; i++) expect((await from("203.0.113.30")).status).toBe(201);
+    const stuffed = await from("203.0.113.30");
+    expect(stuffed.status).toBe(429);
+    expect((await stuffed.json()).error).toBe("too_many_votes");
+    expect((await from("198.51.100.30")).status).toBe(201);
   });
 });
 

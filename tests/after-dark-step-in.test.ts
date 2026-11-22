@@ -82,7 +82,8 @@ import { setPersona } from "@/lib/persona";
 import { premiseForYou } from "@/lib/roleplays";
 import { CUTOUT_OPTIONS, setCutoutsForTests } from "@/lib/cutout";
 import { checkAdultText } from "@/lib/safety";
-import { adultCardTextIssue, CARD_EXPLICIT, cardForYou, cardTexts, GENERIC_OPENINGS } from "@/lib/scene-cards";
+import { CARD_EXPLICIT, cardForYou, cardTexts, GENERIC_OPENINGS } from "@/lib/scene-cards";
+import { adultCardTextIssue } from "@/lib/scene-card-check";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { maybeCrisis } from "@/lib/step-in";
 import { api, BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
@@ -295,7 +296,8 @@ describe("closed by default", () => {
     );
     page = await html(await StepInScenePage({ params: Promise.resolve({ id: made.id }) }));
     expect(page).toContain('data-figure="portrait"');
-    expect(page).toContain(`src="/api/assets/asset-${WHO}"`);
+    // A house file is named as itself, not sent through the image route (2026-11-22 audit: lib/portrait-sql.ts).
+    expect(page).toContain('src="/cast/house-juniper-v3.webp"');
     expect(page).not.toContain("/cdn-cgi/image/");
     expect(page).toContain("data-step-in-figure-toggle");
 
@@ -303,7 +305,7 @@ describe("closed by default", () => {
     setCutoutsForTests(true);
     page = await html(await StepInScenePage({ params: Promise.resolve({ id: made.id }) }));
     expect(page).toContain('data-figure="cutout"');
-    expect(page).toContain(`https://botchelor.com/cdn-cgi/image/${CUTOUT_OPTIONS}/api/assets/asset-${WHO}`);
+    expect(page).toContain(`https://botchelor.com/cdn-cgi/image/${CUTOUT_OPTIONS}/cast/house-juniper-v3.webp`);
     // The show's own PG portrait: discreet mode's blur leaves it alone (.avatar).
     expect(page).toMatch(/class="avatar character-figure-img"/);
   });

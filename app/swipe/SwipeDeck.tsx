@@ -78,11 +78,12 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
   const top = cards[0] ?? null;
   const next = cards[1] ?? null;
 
+  const filterQuery = deckFilterQuery(filters);
   const refill = useCallback(async () => {
     if (refilling.current) return;
     refilling.current = true;
     try {
-      const res = await fetch(`/api/swipes?character_id=${encodeURIComponent(character.id)}${deckFilterQuery(filters)}`, { headers: { accept: "application/json" } });
+      const res = await fetch(`/api/swipes?character_id=${encodeURIComponent(character.id)}${filterQuery}`, { headers: { accept: "application/json" } });
       if (!res.ok) return;
       const data = (await res.json()) as { cards: DeckCard[] };
       if (!data.cards.length) setExhausted(true);
@@ -95,7 +96,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
     } finally {
       refilling.current = false;
     }
-  }, [character.id]);
+  }, [character.id, filterQuery]);
 
   useEffect(() => {
     if (!exhausted && cards.length <= REFILL_AT) void refill();

@@ -10,12 +10,12 @@
  * says or implies how the night ends: the show's engine alone decides that, and After Dark's own writer and stage rules
  * decide how far a night goes. Every card is two adults who both want to be there. The show's are PG. After Dark's are
  * story cards (stakes, wants, banter, what's in the way) with no explicit word in them. tests/scene-cards.test.ts holds
- * every card to the function for its side below (showCardIssue, adultCardIssue).
+ * every card to the function for its side (lib/scene-card-check.ts showCardIssue, adultCardIssue).
  *
- * Pure and client-safe, like lib/roleplays.ts.
+ * Pure and client-safe, like lib/roleplays.ts. Holding a text to the content filter is the server's
+ * (lib/scene-card-check.ts), so its word lists stay out of the pickers' code in the browser (2026-11-22 audit).
  */
-import { DATE_ROLEPLAY_NEVER, dateRoleplayById, premiseForYou, suggestiveIn, type RoleplayTerms } from "./roleplays";
-import { checkAdultText, checkFields, checkShowText, excludedTheme } from "./safety";
+import { dateRoleplayById, premiseForYou, type RoleplayTerms } from "./roleplays";
 
 export type SceneCard = {
   /** How it starts: the first minute, one or two sentences, with {a} and {b} like a premise. */
@@ -142,22 +142,6 @@ export const CARD_ENDING =
   /\b(end(?:s|ed|ing)? up|by the end|in the end|happily ever after|(?:fall|falls|falling|fell) in love|(?:fall|falls|falling|fell) for each other|(?:go|goes|going|went) home together|(?:leave|leaves|leaving|left) together|walks? away for good|never see(?:s)? each other again|(?:get|gets|getting|got) together|lives? happily)\b/i;
 
 /**
- * Why one text can't be on a show card, or null: exactly what a roleplay someone writes must pass (lib/roleplays.ts
- * checkCustomRoleplay: the show's check, the suggestive list, the excluded themes and the never-list). An opening a
- * person writes for the show or a companion's scene answers to this too.
- */
-export function showCardTextIssue(text: string): string | null {
-  const r = checkShowText({ text });
-  if (!r.ok) return r.reason;
-  const suggestive = suggestiveIn(text);
-  if (suggestive) return `suggestive ("${suggestive}")`;
-  const theme = excludedTheme(text);
-  if (theme) return `theme (${theme})`;
-  const never = DATE_ROLEPLAY_NEVER.exec(text)?.[0];
-  return never ? `never ("${never}")` : null;
-}
-
-/**
  * The never-list for an After Dark card: the one its roleplays answer to (lib/studio/library.ts ROLEPLAY_NEVER and
  * tests/after-dark-roleplays.test.ts: no family or step-family, no babysitter, teacher or school, nobody young, paid,
  * drunk, trapped or kept from saying no).
@@ -171,24 +155,6 @@ export const ADULT_CARD_NEVER =
  */
 export const CARD_EXPLICIT =
   /\b(fuck\w*|cock|cocks|dick|dicks|pussy|cunt|clit\w*|tits?|titties|nipples?|cum|cumming|blow ?jobs?|hand ?jobs?|orgasm\w*|climax\w*|moan\w*|thrust\w*|grind(?:s|ing)?|straddl\w*|grop(?:e|es|ed|ing)|fondl(?:e|es|ed|ing)|lick\w*|suck\w*|penetrat\w*|erect\w*|hard-on|aroused?|arousal|horny|naked|nude|nudity|bare skin|crotch|groin|genital\w*|sex|sexual\w*|sexy|kink\w*|bondage|bdsm|fetish\w*|panties|unbutton\w*|unzip\w*|strip(?:s|ped|ping)?)\b/i;
-
-/**
- * Why one text can't be on an After Dark card, or null: After Dark's own lines (checkAdultText, with its excluded
- * themes), its roleplays' never-list, and, because a card is a story card, nothing explicit and nothing that names the
- * bedroom either (the show's word check and suggestive list, and CARD_EXPLICIT).
- */
-export function adultCardTextIssue(text: string): string | null {
-  const r = checkAdultText({ text });
-  if (!r.ok) return r.theme ?? r.reason;
-  const plain = checkFields({ text });
-  if (!plain.ok) return `explicit (${plain.reason})`;
-  const never = ADULT_CARD_NEVER.exec(text)?.[0];
-  if (never) return `never ("${never}")`;
-  const explicit = CARD_EXPLICIT.exec(text)?.[0];
-  if (explicit) return `explicit ("${explicit}")`;
-  const suggestive = suggestiveIn(text);
-  return suggestive ? `suggestive ("${suggestive}")` : null;
-}
 
 const STRAY_BRACE = /\{(?![ab]\})|(?<!\{[ab])\}/;
 
@@ -214,27 +180,5 @@ export function cardShapeIssue(card: SceneCard): string | null {
   if (/[{}]/.test(card.tone)) return "tone: no names in the tone";
   if (card.openings.some((o) => !/\{[ab]\}/.test(o))) return "openings: each needs {a} or {b}";
   if (new Set(card.openings).size !== 3) return "openings: three different ones";
-  return null;
-}
-
-/** Why a card isn't fit for the show (a date, a companion's scene), as "field: reason", or null when it is. */
-export function showCardIssue(card: SceneCard): string | null {
-  const shape = cardShapeIssue(card);
-  if (shape) return shape;
-  for (const { field, text } of cardTexts(card)) {
-    const issue = showCardTextIssue(text);
-    if (issue) return `${field}: ${issue}`;
-  }
-  return null;
-}
-
-/** Why a card isn't fit for After Dark, as "field: reason", or null when it is. */
-export function adultCardIssue(card: SceneCard): string | null {
-  const shape = cardShapeIssue(card);
-  if (shape) return shape;
-  for (const { field, text } of cardTexts(card)) {
-    const issue = adultCardTextIssue(text);
-    if (issue) return `${field}: ${issue}`;
-  }
   return null;
 }

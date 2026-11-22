@@ -10,14 +10,14 @@ export default function ShipForm({ a = "", b = "", submit = "Make ship names", s
     <form action="/ship" method="get" className="ship-form">
       <label>
         First name
-        <input type="text" name="a" required maxLength={SHIP_NAME_MAX} autoComplete="off" spellCheck={false} placeholder="Juniper" defaultValue={a} />
+        <input type="text" name="a" required maxLength={SHIP_NAME_MAX} autoComplete="off" spellCheck={false} placeholder="e.g. Juniper" defaultValue={a} />
       </label>
       <span className="ship-x" aria-hidden="true">
         ×
       </span>
       <label>
         Second name
-        <input type="text" name="b" required maxLength={SHIP_NAME_MAX} autoComplete="off" spellCheck={false} placeholder="Dex" defaultValue={b} />
+        <input type="text" name="b" required maxLength={SHIP_NAME_MAX} autoComplete="off" spellCheck={false} placeholder="e.g. Dex" defaultValue={b} />
       </label>
       <button type="submit" className={secondary ? "secondary" : undefined}>
         {submit}

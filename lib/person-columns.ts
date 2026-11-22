@@ -57,7 +57,7 @@ export const PERSON_ID_NAMES: readonly string[] = [
   "user_id", "owner_id", "agent_id", "reporter_id", "creator_id", "proposed_by", "voter_id", "visitor", "viewer_id", "used_by",
   "reviewer_id", "recipient_id", "rater_id", "proposer_id", "host_id", "holder", "follower_id", "by_user", "booker", "blocker_id",
   "blocked_id", "answerer_user", "from_user", "to_user", "proposer_user", "actor", "created_by", "taken_by", "granted_by",
-  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer",
+  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer", "banned_by",
 ];
 
 /**
@@ -210,6 +210,7 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "house_scene_reports", column: "reporter_id", export: at("reports.house_scenes"), delete: ROWS, move: SAID_AS },
   { table: "content_reports", column: "reporter_id", export: at("content_reports"), delete: cleared("null"), move: SAID_AS },
   { table: "content_reports", column: "decided_by", export: ADMINS_ID, delete: kept("the admin who decided it: the record of what was done stays"), move: ADMIN_ACT },
+  { table: "bans", column: "banned_by", export: ADMINS_ID, delete: kept("the admin who banned: the moderation record stays"), move: ADMIN_ACT },
 
   // One a person: votes, calls, ratings. They stay where they were cast.
   { table: "predictions", column: "user_id", export: at("predictions"), delete: ROWS, move: POINTS },

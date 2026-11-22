@@ -158,6 +158,10 @@ describe("retention (lib/retention.ts)", () => {
         when,
       ]);
     }
+    // MCP sessions: one unused for 400 days goes, unless it's its agent's last.
+    for (const [id, agent, when] of [["s-old", "agent-a", old], ["s-new", "agent-a", recent], ["s-lone", "agent-b", old]]) {
+      await t.db.query(`insert into mcp_sessions (id, agent_id, created_at, last_seen) values ($1, $2, $3, $3)`, [id, agent, when]);
+    }
     const monday = new Date(old);
     while (monday.getUTCDay() !== 1) monday.setUTCDate(monday.getUTCDate() - 1);
     const tuesday = new Date(monday.getTime() - 6 * 86_400_000);
@@ -175,7 +179,9 @@ describe("retention (lib/retention.ts)", () => {
       plus_interest: 1,
       social_suggestion_log: 1,
       social_metrics: 1,
+      mcp_sessions: 1,
     });
+    expect((await t.db.query(`select id from mcp_sessions order by id`)).rows.map((r) => r.id)).toEqual(["s-lone", "s-new"]);
     expect((await t.db.query(`select to_char(day, 'YYYY-MM-DD') as day from social_metrics order by day`)).rows.map((r) => r.day)).toEqual([
       monday.toISOString().slice(0, 10),
       recent.slice(0, 10),

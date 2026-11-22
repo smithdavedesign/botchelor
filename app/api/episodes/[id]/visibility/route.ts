@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { TAKEN_DOWN, takenDownSql } from "@/lib/moderation";
 import { DATE_VISIBILITIES } from "@/lib/rules";
 import { updateCharacterMemory } from "@/lib/memory";
 import { afterAired } from "@/lib/story-state";
@@ -15,7 +16,8 @@ const VisibilityInput = z.object({ visibility: z.enum(DATE_VISIBILITIES) });
 /**
  * The host changes who can see their date (M16). Host-only (the user who asked for the date). A private
  * date drops out of the feed and every public total at once; making it public again puts it back. A date
- * with a live watch party can't be made private (the room is a public viewing); close it first.
+ * with a live watch party can't be made private (the room is a public viewing); close it first. A date an admin took
+ * down after a report stays private (lib/moderation.ts takenDownSql).
  */
 export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
@@ -39,12 +41,13 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
   const { rows } = await db.query<{ id: string }>(
     `update episodes set visibility = $3
       where id = $1 and creator_id = $2
-        and ($3 = 'private' or (setup->>'people_only_you') is distinct from 'true')
+        and ($3 = 'private' or ((setup->>'people_only_you') is distinct from 'true' and not ${takenDownSql("$1")}))
      returning id`,
     [id, sess.userId, visibility],
   );
   if (!rows.length) {
-    const kept = await db.query(`select 1 from episodes where id = $1 and creator_id = $2`, [id, sess.userId]);
+    const kept = await db.query<{ down: boolean }>(`select ${takenDownSql("$1")} as down from episodes where id = $1 and creator_id = $2`, [id, sess.userId]);
+    if (kept.rows[0]?.down) return json(TAKEN_DOWN, 409, sess);
     if (kept.rows.length) {
       return json(
         { error: "only_you", message: "This date may mention people or ties you keep to yourself (\"only you\" on their People tab), so it stays private." },

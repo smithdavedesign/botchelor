@@ -227,6 +227,9 @@
     "moderation",
     "settings"
   ],
+  "lib/studio/library-limits.ts": [
+    "scene-catalog"
+  ],
   "lib/studio/library.ts": [
     "acts",
     "scene-catalog"

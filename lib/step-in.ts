@@ -40,6 +40,7 @@ import type { CharacterRef, StepInSetup } from "./game";
 import { invalidateGraph } from "./graph-cache";
 import { innerOf, outerLine, type LineInner, type StoredInner } from "./inner-life";
 import { isLogistics, updateCharacterMemory } from "./memory";
+import { TAKEN_DOWN, takenDown } from "./moderation";
 import { afterAired } from "./story-state";
 import { countingModel, PROMPT_VERSION, qualityContext } from "./pipeline";
 import { getDirectorModel, getModel, type Model } from "./model";
@@ -928,6 +929,8 @@ export async function airStepIn(db: Db, userId: string, episodeId: string): Prom
     track("step_in_air_refused", { episode_id: episodeId });
     return fail(409, "not_airable", "This date can't air: a line in it goes past what the show is (PG). It stays yours, private.");
   }
+  // A date an admin took down after a report stays private (lib/moderation.ts).
+  if (row.visibility !== "public" && (await takenDown(db, episodeId))) return fail(409, TAKEN_DOWN.error, TAKEN_DOWN.message);
   if (row.visibility !== "public") {
     await db.query(`update episodes set visibility = 'public' where id = $1 and creator_id = $2`, [episodeId, userId]);
     await refreshEpisodePair(db, episodeId).catch(() => {});

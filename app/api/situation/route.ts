@@ -2,6 +2,7 @@ import { z } from "zod";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { TOO_MANY_VOTES, voteLimited } from "@/lib/limits";
 import { situationBoard, voteSituation } from "@/lib/situations";
 
 const VoteInput = z.object({ pick: z.string().min(1).max(64) });
@@ -19,6 +20,7 @@ export const POST = handle(async (req) => {
   const sess = session(req);
   const input = parseBody(VoteInput, await readJson(req), "invalid_vote");
   const db = await getDb();
+  if (await voteLimited(db, "situation_vote", req.headers)) return json(TOO_MANY_VOTES, 429, sess);
   const result = await voteSituation(db, sess.userId, input.pick);
   if (!result.ok) return json({ error: result.error, message: result.message }, result.status, sess);
   track("situation_vote", { pick: result.pick });

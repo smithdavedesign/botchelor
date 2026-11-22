@@ -6,4 +6,4 @@ export const ENOUGH_PER_ARM: number;
 export function buildReport(opts: { ledger: any[]; server: any | null; engagement?: any | null; now?: Date; rng?: () => number }): string;
 
 /** The "By channel" section lines from an engagement report (its `sources` rows); [] when there is none. */
-export function channelLines(engagement: any): string[];
+export function channelLines(engagement: unknown): string[];

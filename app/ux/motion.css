@@ -101,8 +101,12 @@
       animation-timeline: view();
       animation-range: entry 20% cover 40%;
     }
+    /* forwards, not both: below the fold a card is simply itself, at full strength, and only takes the faded start
+       once it begins to come into view (no backwards fill). With both, every card under the fold sat at a quarter
+       opacity, so a contrast check, a full-page picture or a reader's tool met it faded (2026-11-22 audit: /tools,
+       an episode's lines). On screen it looks the same: the start lands as the card's top edge crosses the screen's. */
     .rise-in {
-      animation: rise-in linear both;
+      animation: rise-in linear forwards;
       animation-timeline: view();
       animation-range: entry 0% entry 80%;
     }

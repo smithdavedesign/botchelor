@@ -24,6 +24,8 @@ export const ORIGINALITY_CHECK_LIMITS = { perHour: 60, perDay: 300 };
  * that quota is the live show's. Labelled fields and character cards are read in the browser and never count.
  */
 export const IMPORT_READ_LIMITS = { perHour: 6, perDay: 20 };
+/** And across everyone, as one-sentence create is (2026-11-22 audit): fresh cookies and addresses still stop here. */
+export const IMPORT_READ_ALL_LIMITS = { perHour: 60, perDay: 300 };
 /**
  * One-sentence create (POST /api/characters/draft, lib/express-create.ts): one call on the show's free model each, about
  * 330 tokens in and at most 700 out, so $0 on the free tier and under 0.2 cents at gemini-3.5-flash-lite's list price.
@@ -146,7 +148,12 @@ export function visitorAddress(ip: string): string {
 /** A stable, non-reversible key for the visitor behind a request (an HMAC of the address), or null without one. */
 export function visitorKey(headers: Headers, secret = process.env.SESSION_SECRET || "botchelor-visitor"): string | null {
   const ip = clientIp(headers);
-  return ip ? createHmac("sha256", secret).update(visitorAddress(ip)).digest("hex").slice(0, 32) : null;
+  return ip ? addressKey(ip, secret) : null;
+}
+
+/** visitorKey for an address given as text (an admin banning one: lib/bans.ts). */
+export function addressKey(ip: string, secret = process.env.SESSION_SECRET || "botchelor-visitor"): string {
+  return createHmac("sha256", secret).update(visitorAddress(ip)).digest("hex").slice(0, 32);
 }
 
 /**
@@ -171,6 +178,20 @@ export async function overLimit(
   if (used.hour >= limits.perHour || used.day >= limits.perDay) return true;
   await db.query("insert into rate_hits (bucket, key, at) values ($1, $2, $3)", [bucket, key, now.toISOString()]);
   return false;
+}
+
+/**
+ * The show's ballots (tonight's situation, the dare, recoupling, the ceremony, next season's format, the weekly reveal;
+ * casting has its own of the same size) from one address: enough to change your mind a few times, not enough to stuff a
+ * ballot with fresh cookies (2026-11-22 audit; the address is the edge's, which a client can't write since then).
+ */
+export const VOTE_LIMITS = { perHour: 10, perDay: 30 };
+export const TOO_MANY_VOTES = { error: "too_many_votes", message: "That's a lot of votes from one connection. Try again within the hour." } as const;
+
+/** Whether this address is over VOTE_LIMITS on `bucket` (counting this vote when it isn't); never without an address. */
+export async function voteLimited(db: Db, bucket: string, headers: Headers): Promise<boolean> {
+  const visitor = visitorKey(headers);
+  return visitor !== null && (await overLimit(db, bucket, visitor, VOTE_LIMITS));
 }
 
 /** Drops rate-limit rows older than the longest window (the daily job). */

@@ -145,7 +145,7 @@ export default function ReelFeed(props: Props) {
       })
       .catch(() => setMore(false))
       .finally(() => setLoading(false));
-  }, [active, feed.length, more, loading, page, props.query]);
+  }, [active, feed.length, more, loading, page, props.query, props.asOf]);
 
   // The clip on screen plays; the rest wait at their start.
   useEffect(() => {
@@ -367,6 +367,7 @@ function Slide({
   return (
     <section className={styles.slide} data-i={i} role="article" aria-label={who} aria-current={active ? "true" : undefined}>
       {/* The same picture, blurred, filling a wide screen's sides. */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, decorative backdrop */}
       {!video && near && <img className={styles.backdrop} src={still("tile")} alt="" aria-hidden="true" onError={failed} />}
       <div className={`${styles.frame}${veiled ? ` ${styles.veiled}` : ""}`}>
         {video ? (
