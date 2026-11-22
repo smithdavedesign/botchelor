@@ -69,7 +69,8 @@ The same code runs in both places. Two settings decide what each deployment does
   internal address (`lib/site.ts` `requestBase`).
 - Its media comes from Bunny when the `MEDIA_BUNNY_*` settings are there (`lib/object-store.ts`): new pictures and
   clips are stored in Bunny's storage zone, and every view is a redirect to a token-signed CDN link that expires,
-  the same link all through a six-hour window so the browser keeps its copy (`LINK_WINDOW_MS`, as with the bucket).
+  the same link all through an hour's window, living two hours at most (`BUNNY_LINK_WINDOW_MS`; the bucket's window is
+  six hours, `LINK_WINDOW_MS`).
 - The show's app has the same five `MEDIA_BUNNY_*` settings (2026-11-04), next to its own `MEDIA_S3_*`: an After Dark
   file it makes (an admin's showcase run, say) goes to Bunny, where every link to it is read, and the show's own files
   stay in its bucket (`byArea` in `lib/object-store.ts`). Without them, such a file is kept in Postgres instead.
