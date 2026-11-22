@@ -238,7 +238,7 @@ describe("writing a candidate", () => {
     const asked: string[] = [];
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) !== "https://images.worker.test/draw") return new Response("?", { status: 500 });
-      asked.push(String((init?.body as FormData).get("prompt")));
+      asked.push(String((init!.body as FormData).get("prompt")));
       return Response.json({ image: photo, model: "@cf/black-forest-labs/flux-2-klein-4b", neurons: 109.6, used: 109.6, limit: 9000 });
     });
     try {

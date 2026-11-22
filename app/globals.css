@@ -866,16 +866,21 @@ h2 {
 .nav a.token-pill--dates .token-pip.icon {
   font-size: var(--icon-xs);
 }
-/* The one call to action in the bar: the site's button; between 900 and 1180px an icon-only plus. */
+/* The one call to action in the bar, drawn as the outline button (.secondary); between 900 and 1180px an icon-only
+   plus. Never filled: a page's own next step is its one filled button, and the bar's sat beside it on every page a
+   newcomer reads (2026-11-22 audit: home's "Meet them", /shop's Buy, /pricing's upgrade each had it as a twin). The
+   border comes out of the padding, so the pill is the size it was. */
 .nav a.nav-cta,
 .nav a.nav-cta:hover {
-  color: var(--accent-ink);
-  background: var(--grad);
   margin-top: 0;
-  padding: 0.4rem 0.9rem;
+  padding: calc(0.4rem - 1.5px) calc(0.9rem - 1.5px);
+  border: 1.5px solid var(--accent);
+  color: var(--accent-text);
+  background: transparent;
   font-size: var(--text-sm);
   box-shadow: none;
 }
+.nav a.nav-cta:hover,
 .nav a.nav-cta[aria-current="page"] {
   color: var(--accent-text);
   background: var(--soft);
@@ -961,8 +966,18 @@ h2 {
     padding: 0.6rem var(--gutter);
     gap: 0.5rem;
   }
+  /* The meter's word out of sight, not out of a screen reader's reach (2026-11-22 audit: display: none left the pill
+     saying only "3"): the .sr-only rule, as the door's word on a phone. */
   .nav .token-word {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
   .nav a.nav-cta-full {
     display: none;
@@ -1001,6 +1016,16 @@ h2 {
   .nav-links a.nav-create {
     display: inline-flex;
     justify-content: center;
+  }
+  /* With the links folded into the menu there's room for the meter's word again. A newcomer, with no face in the bar,
+     sees what the number counts ("3 free dates", not a bare "3"); an owner's bar keeps it for the face. */
+  .nav:not(:has(.char-picker)) a.token-pill--dates .token-word {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
   }
   .nav-links {
     display: none;
@@ -4132,6 +4157,11 @@ button.swipe-btn-nope:hover:not(:disabled) {
 }
 .swipe-match-buttons > * {
   margin-top: 0;
+}
+/* The "tell me when they text" row under the buttons reads left to right, as it does everywhere else. */
+.swipe-match-card .push-prompt {
+  margin: var(--space-3) 0 0;
+  text-align: left;
 }
 /* Where a match stands on its couple page: the yes (or why not), then the booking. */
 .match-state {
@@ -10079,6 +10109,21 @@ body:has(.ad-discreet) {
   color: var(--ad-ink, var(--ink));
   padding: var(--space-2) var(--space-3);
 }
+/* A desktop: the six tabs fit the column (the 2026-11-22 audit found "✨ Cr…" cut off, with no way to see it was a
+   row that scrolls), and where a longer Gallery count still tips it over, a mouse gets a thin scrollbar to say so. */
+@media (min-width: 601px) {
+  .ad-studio-tabs {
+    gap: 0;
+  }
+  .ad-studio-tabs button {
+    padding: var(--space-2);
+  }
+}
+@media (min-width: 601px) and (pointer: fine) {
+  .ad-studio-tabs.scroll-row {
+    scrollbar-width: thin;
+  }
+}
 .ad-studio-tabs button.on {
   border-bottom-color: var(--night-hot);
   font-weight: 700;
@@ -11136,9 +11181,17 @@ html.ad-studio-locked {
   background: var(--grad);
 }
 @media (max-width: 520px) {
+  /* Above the card's words on a phone, across its width: beside them, in a 7rem column, the longer names and ship names
+     ran out of their boxes (2026-11-22). */
   .tool-preview {
-    width: 7rem;
-    margin-left: var(--space-3);
+    float: none;
+    width: auto;
+    margin: 0 0 var(--space-3);
+  }
+  .tool-names {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .tool-fan {
     height: 6rem;
@@ -11155,7 +11208,7 @@ html.ad-studio-locked {
     translate: 1rem 0.3rem;
   }
   .tool-names li:nth-child(2) {
-    margin-right: var(--space-2);
+    margin-right: 0;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -11352,6 +11405,17 @@ html.ad-studio-locked {
 /* Three to a row in half a card: less padding, so a word like "restless" still shows whole. */
 .chem-traits input {
   padding-inline: 0.6rem;
+}
+/* An example reads as one, not as an answer already given (2026-11-22, as /create's wizard): every field's starts "e.g."
+   in italics, and the traits' three share one line under their heading. */
+.chem-form ::placeholder,
+.ship-form ::placeholder {
+  font-style: italic;
+}
+.chem-eg {
+  grid-column: 1 / -1;
+  margin-top: calc(-1 * var(--space-1));
+  font-style: italic;
 }
 .chem-form button {
   grid-column: 1 / -1;
@@ -12104,11 +12168,12 @@ main:has(> .episode-page) {
 .episode-read > h2 {
   margin: 0 0 0.2rem;
 }
-/* "Read it line by line": each line rises in as it scrolls into view (app/ux/motion.css rise-in, view timelines only). */
+/* "Read it line by line": each line rises in as it scrolls into view (app/ux/motion.css rise-in, view timelines only;
+   forwards, not both, for the reason given there). */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .episode-read .chat-row {
-      animation: rise-in linear both;
+      animation: rise-in linear forwards;
       animation-timeline: view();
       animation-range: entry 0% entry 70%;
     }
@@ -13226,7 +13291,8 @@ html.constellation-locked body {
 .ad-graph-svg {
   display: block;
   width: 100%;
-  max-width: 34rem;
+  /* The box has room round the ring for the names (lib/adult/graph.ts labelAt), so it's a little wider. */
+  max-width: 40rem;
   margin: var(--space-3) auto;
   aspect-ratio: 1;
 }
@@ -13247,6 +13313,11 @@ a:hover > .ad-edge,
 .ad-label {
   font-size: 3px;
   fill: var(--ink);
+  /* A thin edge of the page's colour, so a name stays readable where a pair's line runs under it. */
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 0.6px;
+  stroke-linejoin: round;
 }
 .ad-pairs {
   width: 100%;
@@ -13261,6 +13332,11 @@ a:hover > .ad-edge,
 }
 .ad-pairs tr.picked td {
   background: var(--soft);
+}
+/* A job kind with a failure or a stuck job in the last day (app/admin/after-dark/providers Jobs): it stands out. */
+.ad-job-health tr.ad-job-trouble th,
+.ad-job-health tr.ad-job-trouble td {
+  background: color-mix(in srgb, var(--bad-text) 12%, transparent);
 }
 section:has(> .ad-pairs) {
   overflow-x: auto;
@@ -13326,14 +13402,31 @@ section:has(> .ad-pairs) {
   align-items: center;
   gap: var(--space-2);
 }
+.ad-stars [role="radiogroup"] {
+  display: inline-flex;
+}
+/* Each star a target of its own (the 2026-11-22 audit: they were 13 px wide, 121 of them on a page): 28 px with a
+   mouse, a finger's 40 px on a touch screen. */
 .ad-star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  margin: 0;
   border: 0;
   background: none;
-  padding: 0 0.1rem;
+  padding: 0;
   font-size: var(--icon-sm);
   line-height: 1;
   cursor: pointer;
   color: var(--muted);
+}
+@media (pointer: coarse) {
+  .ad-star {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
 }
 .ad-star.on {
   color: #f5b301;
@@ -14204,6 +14297,13 @@ button.pg-group-head:hover {
   gap: var(--space-2);
   padding: 0.5rem 0.65rem;
 }
+/* Delete, asked in place (PgStudio's Pictures, in the tile's ⋯): the question and its two answers together. */
+.pg-picture-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
 
 /* ---------- The Create library (app/studio/CreateLibrary.tsx), in both Studios, and Your prompts on /prompts ---------- */
 .create-library {
@@ -14400,14 +14500,16 @@ button.pg-group-head:hover {
   display: grid;
   gap: 0.15rem;
 }
-.invite-row > button {
+/* Its one action is a button or a link (PushToggle's "Email me"): a link left out of these rules took the icon's
+   column on a phone and stretched it (2026-11-22 audit, the match overlay). */
+.invite-row > :is(button, a) {
   margin: 0;
 }
 @media (max-width: 480px) {
   .invite-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .invite-row > button {
+  .invite-row > :is(button, a) {
     grid-column: 2;
     justify-self: start;
   }

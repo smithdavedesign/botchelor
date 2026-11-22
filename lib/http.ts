@@ -20,10 +20,13 @@ import { requestHost, siteUrl } from "./site";
 export const USER_COOKIE = "bz_uid";
 export const SESSION_COOKIE = "bz_sess";
 export const MAX_BODY_BYTES = 10_000;
-/** The address MCP tools call an API route on, in-process (lib/mcp/dispatcher.ts callRoute). */
-export const MCP_CALL_URL = "https://botchelor.vercel.app/api/_mcp";
+/**
+ * The path MCP tools call an API route on, in-process (lib/mcp/dispatcher.ts callRoute), on the site's own address
+ * (siteUrl): a link a route builds from its request's address (requestBase) names this site, never the old Vercel one.
+ */
+export const MCP_CALL_PATH = "/api/_mcp";
 /** Whether a route is being called by an MCP tool (an agent) rather than by someone's browser. */
-export const isMcpCall = (req: Request): boolean => new URL(req.url).pathname === new URL(MCP_CALL_URL).pathname;
+export const isMcpCall = (req: Request): boolean => new URL(req.url).pathname === MCP_CALL_PATH;
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -76,7 +79,7 @@ export function internalRequest(userId: string | null | undefined, opts: { metho
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (userId) headers.cookie = `${USER_COOKIE}=${userId}`;
   const query = opts.query && Object.keys(opts.query).length ? `?${new URLSearchParams(opts.query)}` : "";
-  const req = new Request(`${MCP_CALL_URL}${query}`, {
+  const req = new Request(`${siteUrl()}${MCP_CALL_PATH}${query}`, {
     method: opts.method ?? "POST",
     headers,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
@@ -357,8 +360,12 @@ export function withRenewedSession(req: Request, res: Response, now = Date.now()
  * identity minted: crossSiteBrowserRequest), and so is a body declared over `maxBodyBytes` (413; DEFAULT_MAX_BODY_BYTES
  * unless the route needs more, an admin upload). The handler gets the very request that came in (in-process bookings
  * are marked by the object itself, lib/cast-date-request.ts), and reads its body through the capped readers above.
- * A signed-in session in use is signed again once a day (withRenewedSession).
+ * A signed-in session in use is signed again once a day (withRenewedSession). A change from a banned or suspended
+ * account, agent or address is refused (403 "suspended": lib/bans.ts).
  */
+/** The methods that only read: a ban (lib/bans.ts) never stops them. */
+const READS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"]);
+
 export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Promise<Response>, opts: { maxBodyBytes?: number } = {}) {
   const maxBodyBytes = opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   return async (req: Request, ...ctx: C): Promise<Response> => {
@@ -366,6 +373,11 @@ export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Pro
     try {
       if (crossSiteBrowserRequest(req)) throw new ApiError(403, CROSS_SITE_REFUSED);
       if (declaredLength(req) > maxBodyBytes) throw tooLarge();
+      // A banned or suspended account, agent or address changes nothing (lib/bans.ts; read from memory, no database).
+      if (!READS.has(req.method)) {
+        const ban = (await import("./bans")).banOn(req);
+        if (ban) throw new ApiError(403, ban);
+      }
       return withRenewedSession(req, await withDbLabel(label, () => fn(req, ...ctx)));
     } catch (err) {
       if (err instanceof ApiError) return json(err.body, err.status);

@@ -13,7 +13,8 @@ export const dynamicParams = false;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const alt = alternativeBySlug((await params).slug);
-  if (!alt) return { title: "Botchelor", robots: { index: false, follow: false } };
+  // Not one of ours: the not-found page's title and robots, as the page itself turns it away (app/not-found.tsx).
+  if (!alt) notFound();
   return pageMetadata({ title: alt.title, description: alt.description, path: alternativePath(alt.slug) });
 }
 

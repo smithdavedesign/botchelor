@@ -44,9 +44,12 @@ describe("the tool reference's data", () => {
   it("holds every tool the server serves, once, in the server's groups", () => {
     expect(tools.map((t) => t.name).sort()).toEqual(MCP_TOOLS.map((t) => t.name).sort());
     expect(new Set(tools.map((t) => t.name)).size).toBe(tools.length);
-    // The groups are /agents' and /llms.txt's, in their order; what no list shows comes last.
+    // The groups are /agents' and /llms.txt's, in their order; what no list shows comes last. A group none of whose tools
+    // is listed just now (companions while COMPANION_OPEN is unset, as here) has no place of its own.
     const titles = groups.map((g) => g.title);
-    expect(titles.filter((x) => x !== BY_NAME_GROUP)).toEqual(AGENT_TOOL_GROUPS.map((g) => g.title));
+    const listed = new Set(PUBLIC_MCP_TOOLS.map((t) => t.name as string));
+    const shown = AGENT_TOOL_GROUPS.filter((g) => g.tools.some((n) => listed.has(n)));
+    expect(titles.filter((x) => x !== BY_NAME_GROUP)).toEqual(shown.map((g) => g.title));
     expect(titles[titles.length - 1]).toBe(BY_NAME_GROUP);
     expect(new Set(groups.map((g) => g.id)).size).toBe(groups.length);
     for (const g of groups) expect(g.id, g.title).toMatch(/^[a-z0-9-]+$/);
@@ -184,6 +187,26 @@ describe("/agents/tools", () => {
     expect(agents).not.toContain("lists all {MCP_TOOLS.length}");
     expect(llmsFullText("https://botchelor.com")).toContain(`?tools=all for all ${listed}, and any tool works by name (the ones marked "by name only" are in no list)`);
   });
+
+  // The live show lists the companion tool (COMPANION_OPEN=1, read once when the server starts), and no group named it:
+  // the page filed a listed tool under "by name only" and said 8 older ones where 7 are in no list.
+  it("with companions open, as on the live show, every listed tool has a group and none is by name only", async () => {
+    vi.resetModules();
+    vi.stubEnv("COMPANION_OPEN", "1");
+    try {
+      const live = await import("@/lib/mcp");
+      const ref = await import("@/lib/mcp/reference");
+      const listed = live.PUBLIC_MCP_TOOLS.map((t) => t.name as string);
+      expect(listed).toContain("companion");
+      const groups = ref.toolReference();
+      const byName = groups.find((g) => g.title === ref.BY_NAME_GROUP)!.tools.map((t) => t.name);
+      for (const name of listed) expect(byName, name).not.toContain(name);
+      expect(byName).toHaveLength(live.MCP_TOOLS.length - listed.length);
+      expect(groups.find((g) => g.tools.some((t) => t.name === "companion"))?.title).toBe("Companions (talk one to one with a character, as yourself)");
+    } finally {
+      vi.resetModules();
+    }
+  }, 60_000);
 });
 
 describe("the changelog", () => {

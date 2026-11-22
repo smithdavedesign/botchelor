@@ -186,6 +186,21 @@ describe("#1136: a steer only partly followed", () => {
     expect(steerFollowed(null, lines, names)).toBeNull();
     expect(steerFollowed("Nell, now", lines, names)).toBeNull();
   });
+  // The 2026-11-22 audit: a Direct steer that was played (the dare, two wrong guesses on purpose) read "Only partly
+  // followed". "On purpose" and "gets" say how, and the writer spelt it "favorite".
+  it("a steer played as asked, in other spellings and without its how-words, is followed", () => {
+    const pair = ["Marisol Pine", "Orin Fletcher"];
+    const played = [
+      { text: "*Leans forward, elbows on the table* Alright, fact-checker. Bet you can't guess my favorite flower." },
+      { text: "Petunias. For the narrative symmetry." },
+      { text: "*Snorts* Absolutely not. Try again." },
+      { text: "*Slight quirk of his mouth* Nightshade. For the obituary potential." },
+    ];
+    expect(steerFollowed("She dares him to guess her favourite flower, and he gets it wrong on purpose.", played, pair)).toBe("yes");
+    expect(steerFollowed("guess her favourite colour", [{ text: "My favorite color? Guess." }], pair)).toBe("yes");
+    // Still only partly when the heart of it isn't there.
+    expect(steerFollowed("She dares him to guess her favourite flower, and he gets it wrong on purpose.", [{ text: "Nice night for it." }, { text: "Flower shops close early here." }], pair)).toBe("partly");
+  });
   it("a Direct steer's quotes have to be said too", () => {
     expect(steerFollowed("dance", [{ text: "*they dance*" }], names, { all: 2, kept: 1 })).toBe("partly");
     expect(steerFollowed(null, [], names, { all: 1, kept: 1 })).toBeNull();

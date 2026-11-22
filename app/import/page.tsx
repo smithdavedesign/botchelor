@@ -7,7 +7,6 @@ import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
 import { WRITE_TIME_SPEED } from "@/lib/rules";
 import FaceRibbon from "@/app/FaceRibbon";
 import SetHero from "@/app/SetHero";
-import ShowClip from "@/app/ShowClip";
 import ImportForm from "./ImportForm";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -50,7 +49,9 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
   const history = importMemoriesOn();
   return (
     <>
-      {/* The heading on the booth set, the show in a phone beside it (the visual pop audit, 2026-11-20); the tool under it. */}
+      {/* The heading on the booth set (the visual pop audit, 2026-11-20), the tool right under it. The show's clip stood
+          beside the heading until the 2026-11-22 audit: on a phone it and a 60-word lede put the paste box on the second
+          screen, and a visitor from /alternatives/* has already seen it there. */}
       <SetHero
         set="booth"
         kicker={cai ? "Leaving Character.AI?" : "Bring your character"}
@@ -64,14 +65,11 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
             </>
           ) : (
             <>
-              Paste what you have from Character.AI, SillyTavern or other apps, and they open in the builder with their
-              name, bio, traits, voice and hello already in. Check it over, fill in what&apos;s missing, and they&apos;re
-              ready.
-              {history && " Their history can come too: paste a chat log or a lorebook in the second box and choose what they keep."}
+              Paste what you have from Character.AI, SillyTavern or other apps, and they open in the builder, filled in.
+              {history && " Their history can come too, in the second box."}
             </>
           )
         }
-        media={<ShowClip track="import-clip" />}
       />
       <section className="card import-tool">
         {cai && (

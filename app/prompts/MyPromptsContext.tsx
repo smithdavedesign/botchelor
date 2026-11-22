@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { requestJson } from "@/app/request";
-import { PROMPT_MAX, type MyPrompt } from "@/lib/studio/library";
+import { PROMPT_MAX, type MyPrompt } from "@/lib/studio/library-limits";
 import { okJson } from "@/lib/ok-json";
 
 /** What saving one said: kept, or why not (`signIn`: they need an account first). */

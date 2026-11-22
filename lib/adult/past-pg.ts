@@ -24,8 +24,8 @@
  */
 import type { AfterDarkMode } from "../jurisdiction";
 
-/** The refusals that open the door (lib/safety.ts, where the show's reasons live): past PG, and nothing else. */
-export { isPastPg } from "../safety";
+/** The refusals that open the door (lib/safety-reasons.ts, where the show's reasons live): past PG, and nothing else. */
+export { isPastPg } from "../safety-reasons";
 
 type Env = Record<string, string | undefined>;
 
