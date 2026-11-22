@@ -509,6 +509,8 @@ export default function CreateWizard({
   const expressExample = useRef<string | null>(null);
   // What the draft was, said where it matters: on the form when it fell short or failed, on Look and Review when it came.
   const [expressNote, setExpressNote] = useState<ExpressNote | null>(null);
+  // Picked by hand since the draft suggested one: the Look note stops calling it "already picked" (2026-11-22 audit).
+  const [lookChanged, setLookChanged] = useState(false);
   // The save's refusal when it was for going past PG (lib/adult/past-pg.ts): the door shows under that error, and only that one.
   const [savePastPg, setSavePastPg] = useState<string | null>(null);
 
@@ -697,6 +699,7 @@ export default function CreateWizard({
       setVoice(str(d.voice));
       const extra: CharacterExtras = d.extras && typeof d.extras === "object" ? d.extras : {};
       setExtrasState(extra);
+      setLookChanged(false);
       // Their own words about the look stay theirs; otherwise the line is the suggested look's, replaced as picks change.
       const looksLine = extra.looks?.gender ? looksAppearance(extra.looks) : "";
       autoAppearance.current = looksLine || null;
@@ -1532,7 +1535,9 @@ export default function CreateWizard({
               <p className="notice wizard-sample-note" data-track="express-look">
                 <strong>{`Meet ${shortName(sheet.name) || "them"}.`}</strong>{" "}
                 {extras.looks?.gender
-                  ? "A look that fits your words is already picked: change it, or go on."
+                  ? lookChanged
+                    ? "Their look is picked: change it any time, or go on."
+                    : "A look that fits your words is already picked: change it, or go on."
                   : "Pick a look, or go on: it's optional."}
               </p>
             )}
@@ -1542,7 +1547,8 @@ export default function CreateWizard({
               <Avatar seed={avatarSeed} name={sheet.name || "?"} hue={hue} size={56} portraitSrc={portrait} />
               <div className="looks-card-meta">
                 <strong>{extras.looks?.gender ? "Their look" : "Not picked yet"}</strong>
-                <span className="muted small">{looksAppearance(extras.looks ?? {}) || "Pick from pictures: style, eyes, hair, build and an outfit. Optional, but their free portrait is drawn from it (without one they get a colour tile)."}</span>
+                {/* Without picks they still get a free portrait, drawn from their bio (lib/default-portraits.ts). */}
+                <span className="muted small">{looksAppearance(extras.looks ?? {}) || "Pick from pictures: style, eyes, hair, build and an outfit. Optional: their free portrait is drawn from it, or from their bio if you skip it."}</span>
               </div>
               <button type="button" className="secondary" onClick={() => setLooksOpen(true)}>
                 {extras.looks?.gender ? "Change their look" : "Pick their look"}
@@ -1551,7 +1557,10 @@ export default function CreateWizard({
             <ModalSheet open={looksOpen} onClose={() => setLooksOpen(false)} title="Their look" wide>
               <LooksBuilder
                 looks={extras.looks ?? {}}
-                setLooks={(l) => setExtras((p) => ({ ...p, looks: l }))}
+                setLooks={(l) => {
+                  setLookChanged(true);
+                  setExtras((p) => ({ ...p, looks: l }));
+                }}
                 age={sheet.age}
                 tiles={lookTiles}
                 afterDark={afterDark}

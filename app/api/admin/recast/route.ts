@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { franchiseHits, franchiseRefusal } from "@/lib/franchises";
 import { handle, json, parseBody, readJson, sessionCookies } from "@/lib/http";
 import { drawRecastBody, drawRecastPortrait, PROPS_MAX, RECAST_LOOK_MAX, recastOwner, ROLE_MAX, SCENE_MAX, KIND_MAX, type RecastRole } from "@/lib/recast";
+import { changesFilmedName, firstNameOf } from "@/lib/filmed-as";
 import { DELETED_OWNER } from "@/lib/rules";
 import { answerMatch, swipe } from "@/lib/swipes";
 
@@ -79,6 +80,27 @@ export const POST = handle(async (req: Request) => {
 
   switch (input.action) {
     case "update": {
+      // A character with dates keeps the name and pronouns its dates were filmed with (lib/filmed-as.ts; 2026-11-22
+      // audit: the 2026-11-02 recast renamed characters whose aired dates still call them by the old name). A new role
+      // under a new name is a new character.
+      if ("name" in input.patch || "pronouns" in input.patch) {
+        const now = (
+          await db.query<{ name: string; pronouns: string | null; dates: number }>(
+            `select c.name, c.pronouns, (select count(*)::int from episodes e where e.character_a = c.id or e.character_b = c.id) as dates
+               from characters c where c.id = $1`,
+            [input.character_id],
+          )
+        ).rows[0];
+        if (now && now.dates > 0 && changesFilmedName(now, input.patch)) {
+          return json(
+            {
+              error: "has_dates",
+              message: `${now.name} has ${now.dates} ${now.dates === 1 ? "date" : "dates"} whose lines call them ${firstNameOf(now.name)}${now.pronouns ? ` (${now.pronouns})` : ""}. A character with dates keeps its first name and pronouns: make a new character for the new role.`,
+            },
+            409,
+          );
+        }
+      }
       let patch = input.patch;
       if (input.merge_extras && patch.extras && typeof patch.extras === "object" && !Array.isArray(patch.extras)) {
         const saved = (await db.query<{ extras: Record<string, unknown> | null }>(`select extras from characters where id = $1`, [input.character_id])).rows[0]?.extras ?? {};

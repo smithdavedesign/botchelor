@@ -113,7 +113,10 @@ describe("the catalog", () => {
 
   it("turns the picks into an appearance line the sheet can hold, and drops picks that don't fit", () => {
     const line = looksAppearance({ gender: "woman", ethnicity: "latina", hair_style: "curly", hair_color: "red", eyes: "green", body: "curvy" });
-    expect(line).toBe("Latina, long voluminous curly copper-red hair, vivid green eyes, a curvy hourglass figure with full hips");
+    expect(line).toBe("Latina woman, long voluminous curly copper-red hair, vivid green eyes, a curvy hourglass figure with full hips");
+    // The ethnicity names who it is, so it never reads as a hair colour beside the hair words (2026-11-22 audit).
+    expect(looksAppearance({ gender: "woman", ethnicity: "black", hair_style: "straight", hair_color: "red" })).toMatch(/^Black woman, .*copper-red hair$/);
+    expect(looksAppearance({ gender: "man", ethnicity: "black" })).toBe("Black man");
     expect(line.length).toBeLessThanOrEqual(140);
     expect(normaliseLooks({ gender: "woman", facial_hair: "full_beard", hair_style: "buzz", eyes: "blue" })).toEqual({ gender: "woman", eyes: "blue" });
     expect(normaliseLooks({ gender: "man", after_dark: { butt: "large", outfit: "towel" } })).toEqual({ gender: "man", after_dark: { outfit: "towel" } });
@@ -142,7 +145,7 @@ describe("the catalog", () => {
 
   it("puts the details in the appearance line while it fits, in the portrait, and in After Dark's pictures, never in a tile", () => {
     const l = { gender: "woman" as const, ethnicity: "latina", skin_tone: "lighter", eyes: "green", marks: "freckles", glasses: "thick", tattoos: "small", after_dark: { grooming: "trimmed" } };
-    expect(looksAppearance(l)).toBe("Latina, a lighter skin tone, vivid green eyes, a light dusting of freckles across the nose and cheeks, thick black-framed glasses");
+    expect(looksAppearance(l)).toBe("Latina woman, a lighter skin tone, vivid green eyes, a light dusting of freckles across the nose and cheeks, thick black-framed glasses");
     const portrait = looksPortraitPrompt(l, 30)!;
     expect(portrait).toContain("Latin American woman with warm tan skin and Latin features, a lighter skin tone");
     expect(portrait).toContain("one small fine-line tattoo on the inner wrist");

@@ -12020,6 +12020,13 @@ main:has(> .episode-page) {
   color: rgba(255, 255, 255, 0.92);
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
 }
+/* "… was called … when this date was filmed" (lib/filmed-as.ts): a quiet note under the setting. */
+.episode-hero-filmed {
+  margin: 0;
+  max-width: 38rem;
+  font-size: var(--text-sm);
+  opacity: 0.86;
+}
 .episode-hero-cta {
   display: flex;
   flex-wrap: wrap;

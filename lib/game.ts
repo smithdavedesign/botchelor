@@ -50,6 +50,7 @@ import { isDefaultFormat, type FormatId } from "./formats";
 import { featurableFlag, featurableSql, storyPassedSql } from "./story-check-gate";
 import { shotsJsonSql, shotUrlsOf } from "./show-shots-sql";
 import type { ShotUrls } from "./show-shots-shared";
+import { filmedAs, type FilmedAs } from "./filmed-as";
 
 // The rules moved to lib/rules.ts (client-safe); M1 code and tests import them from here.
 export { ENDING_LABELS, ENDINGS, POINTS_PER_CORRECT_PICK, pointsFor, type Ending };
@@ -81,6 +82,11 @@ export type CharacterRef = {
    * episode-cut.mjs). It is a public persona, not the person: their profile name still needs every owner's consent.
    */
   credit?: { handle: string; name: string };
+  /**
+   * Who they were when this date was filmed, when their name or pronouns have changed since (lib/filmed-as.ts): the
+   * lines keep the old ones, and the page says so. Only where the viewer reads the lines.
+   */
+  filmed_as?: FilmedAs;
 };
 export type CreatorRef = { character_id: string; name: string };
 
@@ -684,9 +690,15 @@ function creditOf(handle: string | null | undefined, name: string | null | undef
 }
 
 function toView(row: EpisodeRow): EpisodeView {
+  const full = row.revealed || row.is_creator;
+  // Renamed since it was filmed (lib/filmed-as.ts): said where the lines are read, which keep the old name.
+  const filmed = (sheet: CharacterSheet | undefined, name: string, pronouns: string | null | undefined) => {
+    const was = full ? filmedAs(sheet, { name, pronouns }) : null;
+    return was ? { filmed_as: was } : {};
+  };
   const characters: [CharacterRef, CharacterRef] = [
-    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent, pronouns: row.a_pronouns ?? null, ...(row.a_private ? { private: true } : {}), ...creditOf(row.a_credit_handle, row.a_credit_name) },
-    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent, pronouns: row.b_pronouns ?? null, ...(row.b_private ? { private: true } : {}), ...creditOf(row.b_credit_handle, row.b_credit_name) },
+    { id: row.a_id, name: row.a_name, house: row.a_house, hue: row.a_hue, portrait: row.a_portrait, agent: row.a_agent, pronouns: row.a_pronouns ?? null, ...(row.a_private ? { private: true } : {}), ...creditOf(row.a_credit_handle, row.a_credit_name), ...filmed(row.setup?.sheet_a, row.a_name, row.a_pronouns) },
+    { id: row.b_id, name: row.b_name, house: row.b_house, hue: row.b_hue, portrait: row.b_portrait, agent: row.b_agent, pronouns: row.b_pronouns ?? null, ...(row.b_private ? { private: true } : {}), ...creditOf(row.b_credit_handle, row.b_credit_name), ...filmed(row.setup?.sheet_b, row.b_name, row.b_pronouns) },
   ];
   const identityRevealed = row.needed > 0 && row.consents >= row.needed;
   const creators = identityRevealed
@@ -698,7 +710,6 @@ function toView(row: EpisodeRow): EpisodeView {
         .map((c) => ({ character_id: c.character_id, name: c.name ?? ANONYMOUS_CREATOR }))
     : undefined;
 
-  const full = row.revealed || row.is_creator;
   const episode = toEpisodeJson(
     {
       id: row.id,
