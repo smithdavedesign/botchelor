@@ -9,6 +9,7 @@ import { balancedColumns } from "@/lib/grid-balance";
 import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
 import JsonLd from "@/app/JsonLd";
+import Tilt from "@/app/motion/Tilt";
 import OriginBadge from "@/app/OriginBadge";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { crowdLine, isInsider } from "@/lib/crowd-threshold";
@@ -118,7 +119,7 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
   // card without them (off-season house, next season's candidates) goes by what anyone may text.
   const text = actions ? actions.text : textVerb(talk ? "open" : "closed", { id: e.id, name: e.name, textable: e.companion });
   return (
-    <li className="card tap-card dir-card">
+    <Tilt as="li" className="card tap-card dir-card" max={5}>
       {/* The name below says who it is: the face is decorative, and the card's link covers it. */}
       <div className="dir-portrait">
         {/* The show's cast move while on screen (app/FaceLoop.tsx); everyone else is their portrait, as before. */}
@@ -208,7 +209,7 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
           </div>
         )}
       </div>
-    </li>
+    </Tilt>
   );
 }
 
