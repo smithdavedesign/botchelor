@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
 import type { Model } from "./model";
-import type { CompanionFactView } from "./companion-shared";
+import { COMPANION_GUEST_REPLIES, type CompanionFactView } from "./companion-shared";
 import { checkFamilyTalk } from "./safety";
 import { crisisIntent } from "./crisis";
 import { maybeCrisis } from "./step-in";
@@ -16,6 +16,11 @@ import { getPersona, type ScenePersona } from "./persona";
 
 /** Facts are drawn after this many new messages from the person. */
 export const FACTS_EVERY = 6;
+/**
+ * A guest's (no account yet) are drawn sooner, inside their few replies (companion-shared.ts COMPANION_GUEST_REPLIES):
+ * their memory panel always read "(0)" while the sign-up line said the character remembers all of it (2026-11-21).
+ */
+export const GUEST_FACTS_EVERY = Math.max(2, Math.min(FACTS_EVERY, COMPANION_GUEST_REPLIES - 1));
 /** The most facts a thread keeps (unpinned, unedited, least-used ones make room). */
 export const FACTS_PER_THREAD = 60;
 /**
@@ -62,7 +67,7 @@ const FACTS_PROMPT = (name: string) =>
  * Draws new facts from the person's recent messages when FACTS_EVERY have come in since the last draw. One model call;
  * a failed or unreadable one changes nothing. Returns how many facts were added.
  */
-export async function updateFacts(db: Db, threadId: string, name: string, model: Model, now: Date = new Date()): Promise<number> {
+export async function updateFacts(db: Db, threadId: string, name: string, model: Model, now: Date = new Date(), every: number = FACTS_EVERY): Promise<number> {
   const t = (await db.query<{ facts_upto: string | null; user_id: string }>(`select facts_upto, user_id from companion_threads where id = $1`, [threadId])).rows[0];
   if (!t) return 0;
   const { rows: msgs } = await db.query<{ role: string; text: string; created_at: string; roleplay: string | null }>(
@@ -74,7 +79,7 @@ export async function updateFacts(db: Db, threadId: string, name: string, model:
   // A roleplay's lines are make-believe (their character's, not their life): they count toward the draw and show as such,
   // and the prompt says never to take a fact from them.
   const fromThem = msgs.filter((m) => m.role === "user");
-  if (fromThem.length < FACTS_EVERY) return 0;
+  if (fromThem.length < every) return 0;
   const known = (await db.query<{ text: string }>(`select text from companion_facts where thread_id = $1 order by created_at desc limit $2`, [threadId, FACTS_PER_THREAD])).rows.map((r) => r.text);
   const convo = msgs
     .reverse()

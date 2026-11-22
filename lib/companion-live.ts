@@ -14,7 +14,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { Character } from "./character";
-import { minutesDue } from "./companion-live-shared";
+import { LIVE_CONNECT_MS, minutesDue } from "./companion-live-shared";
 import { extraState, giveBackExtra, takeExtra, type ExtraRefusal, type ExtraTicket } from "./companion-extras";
 import type { Db } from "./db";
 import { LIVE_AUDIO_RATE } from "./companion-live-shared";
@@ -31,8 +31,11 @@ export const TOKEN_TTL_SECONDS = 30;
 export const LIVE_MAX_MINUTES = 60;
 /** Live calls started an hour and a day per person (each mints a token). */
 export const LIVE_START_LIMITS = { perHour: 20, perDay: 60 };
-/** A call that ends this soon with nothing said gives its first minute back. */
-export const LIVE_REFUND_WITHIN_MS = 20_000;
+/**
+ * A call that ends this soon with nothing said gives its first minute back: longer than a call may spend connecting
+ * (LIVE_CONNECT_MS), so one that timed out connecting is never charged for it.
+ */
+export const LIVE_REFUND_WITHIN_MS = LIVE_CONNECT_MS + 10_000;
 
 let fetchForTests: Fetch | null = null;
 /** Tests stand in for Deepgram (no key, no network). */

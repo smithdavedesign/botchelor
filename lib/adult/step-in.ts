@@ -196,7 +196,9 @@ const limitsOf = (s: Pick<SceneRow, "intensity" | "hard_nos">): PairLimits => ({
 export async function stepInCast(db: Db, viewer: string): Promise<StepInCharacter[]> {
   const ids = [...(await eligibleIds(db, viewer))];
   if (!ids.length) return [];
-  return (await db.query<StepInCharacter>(`select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue as hue from characters c where c.id = any($1) order by c.name`, [ids])).rows;
+  return (
+    await db.query<StepInCharacter>(`select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue as hue, coalesce(c.is_house, false) as house from characters c where c.id = any($1) order by c.name`, [ids])
+  ).rows;
 }
 
 async function characterRef(db: Db, id: string): Promise<StepInCharacter | null> {

@@ -19,11 +19,11 @@ const COPY: Record<PreviewKind, { title: string; lead: string }> = {
   },
   studio: {
     title: "Studio",
-    lead: "Private photo shoots of your own characters: the face and body every picture keeps, pictures you compose from menus, and clips that move. Your characters start Out, and nothing of theirs comes here until you switch them In. Here's some of what's been made in it, blurred until you're in.",
+    lead: "Private photo shoots of your own characters: the face and body every picture keeps, pictures you compose from menus, and clips that move. Your own characters aren't in it until you add them, and nothing of theirs comes here before that. Here's some of what's been made in it, blurred until you're in.",
   },
   characters: {
     title: "Characters",
-    lead: "Everyone you can have a night with: the house cast, the agent cast, and any of your own characters you switch In. Each has a page with their nights and what's been made of them. It's for members: here's some of it, blurred until you're in.",
+    lead: "Everyone you can have a night with: the house cast, the agent cast, and any of your own characters you add. Each has a page with their nights and what's been made of them. It's for members: here's some of it, blurred until you're in.",
   },
 };
 

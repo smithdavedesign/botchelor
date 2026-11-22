@@ -16,6 +16,7 @@ import OverlayClose from "@/app/OverlayClose";
 import { useOverlay } from "@/app/useOverlay";
 import { openingField, type OpeningChoice } from "@/lib/scene-opening";
 import { storyParagraphs, storySegments, storySpeech } from "@/lib/story-reply";
+import { withoutStageDirections } from "@/lib/companion-live-shared";
 import { useSpeech } from "@/app/stage/useSpeech";
 import type { CrisisResources } from "@/lib/crisis";
 import type { CompanionAllowance } from "@/lib/companion-plan";
@@ -63,8 +64,11 @@ const YOU: CharacterRef = { id: "you", name: "You", house: false, hue: 210, port
 
 const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", string> = { scene: "🎭", texting: "📱", notice: "🤖" };
 
-/** What a reply says out loud: of a story reply (lib/narration.ts story mode) only the quoted speech, never the narration. */
-const saidIn = (m: Pick<CompanionMessageView, "text" | "form">): string => (m.form === "story" ? storySpeech(m.text).join(" ") : m.text);
+/**
+ * What a reply says out loud: of a story reply (lib/narration.ts story mode) only the quoted speech, never the narration,
+ * and never a stage direction ("(slides his phone across the bar)"): the bubble keeps it, the voice doesn't say it.
+ */
+const saidIn = (m: Pick<CompanionMessageView, "text" | "form">): string => withoutStageDirections(m.form === "story" ? storySpeech(m.text).join(" ") : m.text);
 
 /**
  * A companion thread (lib/companion.ts) as a phone-style chat: the character on the left, you on the right, the AI
@@ -319,7 +323,8 @@ export default function CompanionChat({
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text || busy) return;
+    // Over the limit it isn't sent (the count under the box says by how much), never cut short.
+    if (!text || busy || text.length > lineMax) return;
     if (forNextTime && nextTime) return leaveNote(text);
     setPending(text);
     setDraft("");
@@ -500,6 +505,10 @@ export default function CompanionChat({
   }
 
   const paused = view.paused || Boolean(crisis);
+  // The box takes any length (2026-11-21: a 1,170-character paste was cut to 1,000 mid-word without a word); past the
+  // limit, the count says by how much and Send waits until it's shorter.
+  const lineMax = forNextTime ? COMPANION_NEXT_TIME_MAX : COMPANION_MESSAGE_MAX;
+  const overBy = draft.trim().length - lineMax;
   const voicePrice = extraPrice("voice", extras?.voice);
   const outOfReplies = !allowance.unlimited && allowance.left === 0;
   const typing = busy && (pending !== null || waitingOnThem || opening || continuing);
@@ -1062,7 +1071,8 @@ export default function CompanionChat({
                 void send();
               }
             }}
-            maxLength={forNextTime ? COMPANION_NEXT_TIME_MAX : COMPANION_MESSAGE_MAX}
+            aria-invalid={overBy > 0 || undefined}
+            aria-describedby="companion-count"
             rows={2}
             placeholder={
               forNextTime
@@ -1077,7 +1087,10 @@ export default function CompanionChat({
           />
           <div className="companion-send">
             <span className="muted small">
-              {draft.length}/{forNextTime ? COMPANION_NEXT_TIME_MAX : COMPANION_MESSAGE_MAX}
+              <span id="companion-count" className={overBy > 0 ? "companion-over" : undefined}>
+                {draft.trim().length}/{lineMax}
+                {overBy > 0 && ` · ${overBy} over the limit: shorten it to send`}
+              </span>
               {forNextTime && " · a nudge, not a message: it costs no reply"}
               {!forNextTime && allowance.guest && allowance.left !== null && (
                 <>
@@ -1099,7 +1112,7 @@ export default function CompanionChat({
                 </>
               )}
             </span>
-            <button type="submit" className="button" disabled={busy || !draft.trim()} data-track={forNextTime ? "companion-next-time-send" : "companion-send"}>
+            <button type="submit" className="button" disabled={busy || !draft.trim() || overBy > 0} data-track={forNextTime ? "companion-next-time-send" : "companion-send"}>
               {forNextTime ? "Leave the note" : editing ? "Send again" : view.scene ? "Say it" : "Send"}
             </button>
           </div>

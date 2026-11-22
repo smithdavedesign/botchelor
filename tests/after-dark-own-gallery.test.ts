@@ -209,10 +209,12 @@ describe("living portraits stay on the show", () => {
 });
 
 describe("the Gallery's pure rules", () => {
-  it("opens on the tab asked for, else Videos when there are any, else Pictures", () => {
-    expect(galleryTab("faces", { videos: 3 })).toBe("faces");
-    expect(galleryTab("nonsense", { videos: 3 })).toBe("videos");
-    expect(galleryTab(undefined, { videos: 0 })).toBe("pictures");
+  it("opens on the tab asked for, else the fuller of Videos and Pictures (Videos on a tie), else Pictures", () => {
+    expect(galleryTab("faces", { videos: 3, pictures: 9 })).toBe("faces");
+    expect(galleryTab("nonsense", { videos: 3, pictures: 1 })).toBe("videos");
+    expect(galleryTab(undefined, { videos: 3, pictures: 3 })).toBe("videos");
+    expect(galleryTab(undefined, { videos: 1, pictures: 90 })).toBe("pictures");
+    expect(galleryTab(undefined, { videos: 0, pictures: 0 })).toBe("pictures");
   });
 
   it("shows whole pages, one at least and GALLERY_MAX at most", () => {

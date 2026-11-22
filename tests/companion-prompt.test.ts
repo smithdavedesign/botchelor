@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Character } from "@/lib/character";
-import { BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, type PromptTurn } from "@/lib/companion-prompt";
+import { BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, tooCloseTo, type PromptTurn } from "@/lib/companion-prompt";
 import { companionNotice, companionOpen } from "@/lib/companion-shared";
 
 /** A character as loadCharacter returns it, with only what the prompt reads filled in. */
@@ -90,6 +90,15 @@ describe("the companion's prompt", () => {
     expect(bare).not.toContain("What you know about them");
     expect(bare).not.toContain("Earlier in your conversation");
     expect(bare).not.toContain("Lines you've already sent");
+  });
+
+  it("a regenerate names every reply they passed on and asks for another angle, not a rewording", () => {
+    const s = companionMessages({ ...base, character: character(), passedOn: ["That message felt like a mainspring wound a few turns too many.", "Breathe, friend."] })[0].content;
+    expect(s).toContain("They asked for a different reply to this. Don't send any of these again, or a reworded version of one");
+    expect(s).toContain("take a different angle, and use different images and words");
+    expect(s).toContain("- That message felt like a mainspring wound a few turns too many.");
+    expect(s).toContain("- Breathe, friend.");
+    expect(companionMessages({ ...base, character: character(), passedOn: [] })[0].content).not.toContain("They asked for a different reply");
   });
 
   it("tells them about their life on the show from the aired record", () => {
@@ -205,6 +214,22 @@ describe("the switch and the notice", () => {
   });
   it("names the character by first name", () => {
     expect(companionNotice("Nell Okafor")).toBe("Nell is an AI character, not a real person.");
+  });
+});
+
+describe("tooCloseTo", () => {
+  const passed = ["That message felt like a mainspring wound a few turns too many…"];
+  it("catches the reply they passed on, reworded", () => {
+    // The live case (2026-11-21), which repeatsEarlier lets through.
+    const copy = "Well now, that message arrived like a mainspring wound a few turns too many. Let's find a quieter rhythm again…";
+    expect(repeatsEarlier(copy, passed)).toBe(false);
+    expect(tooCloseTo(copy, passed)).toBe(true);
+    expect(tooCloseTo("That message felt like a spring wound too tight, a few turns too many.", passed)).toBe(true);
+  });
+  it("lets a genuinely different reply through, and short ones", () => {
+    expect(tooCloseTo("Long days earn soup. What did yours throw at you?", passed)).toBe(false);
+    expect(tooCloseTo("Ha.", passed)).toBe(false);
+    expect(tooCloseTo("Anything", [])).toBe(false);
   });
 });
 

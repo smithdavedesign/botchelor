@@ -298,6 +298,37 @@ button.ad-capture-item:disabled {
   color: var(--night-ink);
   border: 1px solid var(--night-line);
 }
+/* A phone at 390 px: the select as narrow as "Nudge" (it took 8.5rem, leaving the steer box about 140 px), and the three
+   moves beside Autoplay without the fade over the last one, which read as a clipped Spicy when nothing more was there
+   (audit 2026-11-22). Tighter chips fit from 360 px; below that the row still scrolls. */
+@media (max-width: 600px) {
+  /* (The bar's own background above leaves the select no arrow, so no room is kept for one.) */
+  .ad-theater-steer .ad-steer-how {
+    max-width: 5.75rem;
+    padding-inline: 0.6rem;
+    text-overflow: ellipsis;
+  }
+  .ad-theater-options > .ad-suggestions {
+    gap: 0.3rem;
+    padding-right: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .ad-theater-options .ad-suggestion {
+    padding: 0.2rem 0.5rem;
+  }
+  .ad-theater-options .ad-heat {
+    letter-spacing: 0.02em;
+  }
+}
+/* A disabled filled button at night: the site's rule paints it --ink, which at night is near white, so a white label
+   (the light theme's) vanished on Step in's Send and the Start buttons (audit 2026-11-22). A dim night solid with night's
+   ink instead: about 4:1 under the 55% fade. */
+.after-dark-mode button:disabled:not(.chosen, [aria-pressed="true"]),
+body.ad-host button:disabled:not(.chosen, [aria-pressed="true"]) {
+  --grad: #4a3a66;
+  --accent-ink: var(--night-ink);
+}
 @media (max-width: 600px) {
   .theater-after-dark .theater-tools {
     flex-wrap: nowrap;
@@ -2037,9 +2068,12 @@ button.ad-studio-fold-head:active:not(:disabled) {
   margin-top: var(--space-3);
 }
 /* On the Gallery's own page, the whole screen wide (.page-full, 2026-11-18): bigger tiles, as many columns as fit. A
-   night's gallery keeps the reading column's smaller ones. */
-.ad-gallery-page .after-dark-gallery {
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+   night's gallery keeps the reading column's smaller ones. Above a phone only: on a phone a 16rem tile left one column,
+   so the page keeps the two-a-row rule above (audit 2026-11-22). */
+@media (min-width: 601px) {
+  .ad-gallery-page .after-dark-gallery {
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  }
 }
 .ad-gallery-section > h2 {
   margin: var(--space-4) 0 var(--space-1);
@@ -2108,10 +2142,16 @@ button.ad-studio-fold-head:active:not(:disabled) {
   pointer-events: none;
 }
 /* The cast stands above the steer bar laid over the stage's foot (--ad-bottom: its measured height, AfterDarkTheater),
-   so their names are never under it (2026-11-04). On a phone the bar is below the stage, and nothing moves. */
+   so their names are never under it (2026-11-04). The action line has its own strip on top of the bar, and the cast
+   stands on that: at a fixed height the line was drawn inside the steer box (audit 2026-11-22). The strip is kept with
+   or without a line, so the cast doesn't jump as lines come and go. On a phone the bar is below the stage, and nothing
+   moves (the action line isn't shown there). */
 @media (min-width: 761px) {
+  .theater-after-dark .theater-stage {
+    --ad-action-bottom: max(clamp(6.5rem, 13vh, 9.5rem), calc(var(--ad-bottom, 0px) + var(--space-2)));
+  }
   .theater-after-dark .theater-stage .scene-cast {
-    bottom: max(clamp(5rem, 12vh, 9rem), calc(var(--ad-bottom, 0px) + var(--space-3)));
+    bottom: max(clamp(5rem, 12vh, 9rem), calc(var(--ad-bottom, 0px) + var(--space-3)), calc(var(--ad-action-bottom) + 3.5rem));
   }
 }
 .theater-after-dark .scene-cast :is(img, video, button, a) {
@@ -3422,6 +3462,25 @@ fieldset.ad-si-step {
 }
 .ad-si-step .ad-cast-chips {
   margin-bottom: var(--space-2);
+}
+/* Who: the hub picker's search and faces (.ad-pp-*), and once someone is picked, them and a way back. */
+.ad-si-step .ad-si-search {
+  width: 100%;
+  margin: 0 0 var(--space-2);
+}
+.ad-si-step .ad-si-panel {
+  max-height: min(22rem, 52vh);
+  margin-bottom: var(--space-2);
+}
+.ad-si-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-2);
+}
+.ad-si-who .link-button {
+  margin: 0;
 }
 .ad-si-place-picture {
   width: 100%;

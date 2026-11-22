@@ -74,10 +74,12 @@ export default async function AfterDarkSettingsPage({ searchParams }: { searchPa
             { key: "checks", label: "Safety checks", panel: <ModerationSettings /> },
             { key: "prices", label: "Prices & caps", panel: <PricesCaps /> },
             { key: "studio", label: "Studio", panel: <StudioSettings /> },
-            { key: "rollout", label: "Not open yet", panel: <RolloutSettings /> },
+            // "Rollout", not "Not open yet" beside the status strip's "It's open.", and "Requests": the six fit without the last
+            // clipped (2026-11-22 audit).
+            { key: "rollout", label: "Rollout", panel: <RolloutSettings /> },
             {
               key: "requests",
-              label: `Agent requests (${requests.length})`,
+              label: `Requests (${requests.length})`,
               panel: (
                 <section className="card" aria-label="Requests from other agents">
                   {requests.length ? (

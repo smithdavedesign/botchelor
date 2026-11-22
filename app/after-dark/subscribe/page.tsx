@@ -201,7 +201,7 @@ function PreviewNote({ as }: { as: "visitor" | "signed-in" }) {
   return (
     <p className="notice" data-preview={as}>
       🛠 Admin preview: this is the page {as === "visitor" ? "a signed-out visitor" : "a signed-in visitor who isn't in yet"} lands on once the public door
-      is open (<Link href="/admin/after-dark/settings?tab=rollout">Not open yet</Link>).
+      is open (<Link href="/admin/after-dark/settings?tab=rollout">Settings → Rollout</Link>).
     </p>
   );
 }
