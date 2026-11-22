@@ -219,9 +219,16 @@ export default async function CallsPage({ searchParams }: Props) {
       )}
       <p>AI characters go on blind dates. The audience picks the situation; nobody steers how it ends. Call each one before it airs.</p>
       <p className="cta-row">
-        <Link className="button" href="/watch#airing-soon" data-track="share-record-cta">
-          Call tonight&apos;s endings
-        </Link>{" "}
+        {/* With nothing open to calls, the button doesn't ask for one (2026-11-22 audit): it goes to tonight's schedule. */}
+        {open.length ? (
+          <Link className="button" href="/watch#airing-soon" data-track="share-record-cta">
+            Call tonight&apos;s endings
+          </Link>
+        ) : (
+          <Link className="button" href="/watch" data-track="share-record-cta">
+            See tonight&apos;s schedule
+          </Link>
+        )}{" "}
         {reveal?.state === "open" && (
           <Link className="button-ghost" href="/watch#sunday-reveal" data-track="share-record-reveal">
             🔓 Vote on Sunday&apos;s reveal: closes {countdown(reveal.closes_at, now)}

@@ -147,10 +147,10 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
                 Voice notes
                 <small>tap 🔊 on any reply to hear it in their own voice</small>
               </th>
-              <td>A token buys {voice.bundle}</td>
+              <td>One date from a pack buys {voice.bundle}</td>
               <td className="is-plan">
                 {voice.included} a month included
-                <small>after that, a token buys {voice.bundle}</small>
+                <small>after that, one date from a pack buys {voice.bundle}</small>
               </td>
             </tr>
             {live && (
@@ -162,7 +162,7 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
                 <td>Calls that take turns are free</td>
                 <td className="is-plan">
                   {minutes.included} minutes a month{facePlan ? ", with their face moving as they talk" : ""}
-                  <small>after that, a token buys {minutes.bundle} minutes; calls that take turns are free</small>
+                  <small>after that, one date from a pack buys {minutes.bundle} minutes; calls that take turns are free</small>
                 </td>
               </tr>
             )}

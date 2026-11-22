@@ -49,6 +49,12 @@ describe("/about, the stack as layers", () => {
     expect(html).toContain("Checks every picture and video after it&#x27;s made");
   });
 
+  it("says the adult card processors aren't live yet (2026-11-22 audit)", async () => {
+    const html = await render();
+    expect(html).toContain("through an adult card processor once one approves us: not live yet.");
+    expect(html).not.toContain("through adult card processors.");
+  });
+
   it("closes with the costs and the way to write in", async () => {
     const html = await render();
     expect(html).toContain('href="/costs"');

@@ -522,6 +522,26 @@
 .account-connections li.is-error .muted {
   color: var(--bad-text);
 }
+/* Deleting the account (app/account/DeleteAccount.tsx): a quiet fold at the foot of the page, set apart by a rule. */
+.account-delete {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+}
+.account-delete > summary {
+  color: var(--muted);
+}
+.account-delete-body {
+  max-width: 42rem;
+}
+.account-delete-body form {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 24rem;
+}
+.account-delete-body form button {
+  justify-self: start;
+}
 
 /* ---------------- /account/keys: Connections (docs/PRDs/connections.md) ---------------- */
 /* One card per job (app/account/keys/ConnectionCard.tsx), two across where there's room, one on a phone. The admin's

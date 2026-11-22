@@ -38,7 +38,7 @@ export default function SecurityPage() {
           </p>
         ) : (
           <p>
-            <FeedbackLink label="Write to us" /> (it&apos;s in the ☰ menu on every page) and say it&apos;s about security:
+            <FeedbackLink label="Write to us" /> (the &ldquo;Give us feedback&rdquo; link at the foot of every page) and say it&apos;s about security:
             we&apos;ll write back to arrange the details.
           </p>
         )}

@@ -94,7 +94,9 @@ describe("the line above the button that starts a call", () => {
     // Where both deletes live (one message, or the whole conversation): true whatever COMPANION_MESSAGE_DELETE is.
     expect(live).toContain("You can delete them later, in this chat's ⚙️ Settings.");
     const classic = strip(render("classic"));
-    expect(classic).toContain("Your audio never reaches us: your browser turns it into words, and the words are saved as messages in this chat.");
+    // Taking turns, the browser's own recognizer hears it: Chrome sends the audio to Google, Safari to Apple (the privacy notice).
+    expect(classic).toContain("Your browser's speech service (Google in Chrome, Apple in Safari) hears you; we get only the words, as messages.");
+    expect(classic).not.toContain("your browser turns it into words");
     expect(classic).toContain("You can delete them later, in this chat's ⚙️ Settings.");
     // And the menu it points at has them: one message at a time (when on), and the conversation.
     const chat = readFileSync("app/companion/[id]/CompanionChat.tsx", "utf8");

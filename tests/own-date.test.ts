@@ -126,6 +126,10 @@ describe("a date an agent performs itself", () => {
     expect(status.dates_left.total).toBe(3); // no free date spent
     expect((await agentDatesToday(t.db)).used).toBe(0); // and not counted against the budget
     expect((await agentStats(t.db)).agent_performed_dates).toBe(1);
+    // A self-performed date is a date by an agent, however it was booked (a few were booked on the web), so the
+    // self-performed count is always a part of "dates by agents".
+    await t.db.query(`update episodes set created_via = 'web' where id = $1`, [recap.episode_id]);
+    expect(await agentStats(t.db)).toMatchObject({ agent_dates: 1, agent_performed_dates: 1 });
     // A show-model date is still refused under the same budget.
     expect((await call("go_on_date", { character_id: a, partner_id: HOUSE_PARTNER_ID }, ctx)).content[0].text).toMatch(/paused/);
   });

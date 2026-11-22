@@ -33,6 +33,7 @@ import {
   addSignUp,
   catchUpConfirmations,
   checkDeliveries,
+  confirmationEmail,
   confirmSubscription,
   DELIVERY_CHECK_DAYS,
   leaveNewsletter,
@@ -271,6 +272,32 @@ describe("signing up", () => {
       }
     } finally {
       nav.pathname = "/";
+    }
+  });
+
+  it("promises a weekly email only once a letter can go out: until it has its postal address, it says it hasn't started", async () => {
+    const footer = async () => {
+      const html = renderToStaticMarkup(await RootLayout({ children: null }));
+      return html.slice(html.indexOf('<footer class="site-footer"'));
+    };
+    const { default: NewsletterPage } = await import("@/app/newsletter/page");
+    const page = () => renderToStaticMarkup(NewsletterPage());
+    const ask = async () => renderToStaticMarkup(await ConfirmNewsletterPage("a-token"));
+    // ON has the address: one email a week, after Sunday's reveal.
+    expect(await footer()).toContain("One email a week, after Sunday&#x27;s reveal");
+    expect(page()).toContain("Every Sunday");
+    expect(await ask()).toContain("One email a week, after Sunday&#x27;s reveal.");
+    // No address yet, so no letter has gone out (2026-11-22 audit: the footer promised one every week): it says so.
+    for (const unset of ["", "CHANGE_ME"]) {
+      vi.stubEnv("NEWSLETTER_POSTAL_ADDRESS", unset);
+      expect(await footer()).not.toContain("One email a week");
+      expect(await footer()).toContain("It hasn&#x27;t started yet: sign up to get an email when it does");
+      expect(await footer()).toContain('<input id="newsletter-footer-email" type="email"');
+      expect(page()).not.toContain("One email a week");
+      expect(page()).toContain("Not started yet");
+      expect(page()).not.toContain("Every Sunday");
+      expect(await ask()).not.toContain("One email a week");
+      expect(await ask()).toContain("It hasn&#x27;t started yet: the first one comes when it does");
     }
   });
 });
@@ -549,6 +576,11 @@ describe("the weekly letter", () => {
     expect(await runNewsletter(t.db, SUN_AIR, { env, pauseMs: 0 })).toBe("waiting for NEWSLETTER_POSTAL_ADDRESS");
     expect(sent.map((m) => [m.to, m.subject])).toEqual([["waiting@example.com", "Confirm the Sunday letter from Botchelor"]]);
     expect(sent[0].text).not.toContain("Botchelor · ");
+    // Nor does the confirmation promise a weekly email before the first one can go out (2026-11-22 audit).
+    expect(sent[0].text).toContain("It hasn't started yet: once it does, it's one email a week from Botchelor");
+    expect(confirmationEmail("on@example.com", { apiKey: KEY, from: "Botchelor <x@botchelor.com>" }, SUN_AIR, ON)?.text).toContain(
+      "Someone asked for the Sunday letter at this address: one email a week from Botchelor",
+    );
     expect(await t.count("newsletter_issues")).toBe(0);
     expect(letterEmail({ subject: "s", html: "h", text: "t" }, "one@example.com", { apiKey: KEY, from: "Botchelor <x@botchelor.com>" }, env)).toBeNull();
     // The confirmation page doesn't promise this Sunday's letter while it waits.

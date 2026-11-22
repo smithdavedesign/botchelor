@@ -4,8 +4,8 @@
  * starts the production build on a throwaway local database with every model variable removed (the test never calls a
  * model). It checks over HTTP that the tool answers 200 with "Chemistry Test" in its <title>, sitemap.xml lists it, a
  * result shows the same score on every load with both names in its og:title and a PNG share card, a refused name gets
- * no score and noindex, and "Watch the real date" opens /create with both characters in. Then it drives Chromium like a
- * visitor: the tool with two sample characters typed in, their result, and "Watch the real date" into /create.
+ * no score and noindex, and "Send {first} on a real date" opens /create with both characters in. Then it drives Chromium like a
+ * visitor: the tool with two sample characters typed in, their result, and "Send {first} on a real date" into /create.
  * Desktop (1280×800) and iPhone 13, viewport only, into docs/screenshots/chemistry-*.png.
  *
  * Sample characters only, no key, no real infrastructure. Chromium comes from CHROMIUM_PATH; no browser is downloaded.
@@ -86,9 +86,9 @@ async function check(base) {
   const card = await fetch(`${base}${imageUrl.pathname}${imageUrl.search}`);
   assert(card.status === 200 && card.headers.get("content-type") === "image/png", `the share card answered ${card.status}`);
 
-  // "Watch the real date" opens /create with Juniper in the builder and Dex alongside.
-  const watch = html.match(/<a[^>]*href="(\/create\?[^"]+)"[^>]*>Watch the real date<\/a>/)?.[1];
-  assert(watch, "no 'Watch the real date' link to /create");
+  // "Send Juniper on a real date" opens /create with Juniper in the builder and Dex alongside.
+  const watch = html.match(/<a[^>]*href="(\/create\?[^"]+)"[^>]*>Send [^<]+ on a real date<\/a>/)?.[1];
+  assert(watch, "no 'Send … on a real date' link to /create");
   const create = unescape(await (await fetch(`${base}${watch}`, { headers: ADULT })).text());
   assert(/<input[^>]*name="name"[^>]*value="Juniper"/.test(create), "/create didn't open with Juniper's name in");
   assert(create.includes(DEX.want), "/create doesn't show Dex's fields");
@@ -144,8 +144,8 @@ async function shoot(base) {
       assert((await page.locator("[data-reason]").count()) === 3, "the result page doesn't show 3 reasons");
       await page.screenshot({ path: join(OUT_DIR, `chemistry-result-${label}.png`) });
 
-      // "Watch the real date" opens the builder with Juniper's fields in and Dex's alongside.
-      await Promise.all([page.waitForURL(/\/create\?a_name=Juniper/), page.getByRole("link", { name: "Watch the real date" }).click()]);
+      // "Send Juniper on a real date" opens the builder with Juniper's fields in and Dex's alongside.
+      await Promise.all([page.waitForURL(/\/create\?a_name=Juniper/), page.getByRole("link", { name: "Send Juniper on a real date" }).click()]);
       const name = page.locator('input[name="name"]');
       await name.waitFor();
       await page.waitForLoadState("networkidle");

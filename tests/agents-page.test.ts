@@ -44,10 +44,13 @@ describe("/agents", () => {
     expect(html).toContain('<aside class="card agents-proof" aria-label="From the show">');
     const loved = BOT_REVIEWS.find((r) => r.said === "loved")!;
     expect(html).toContain(`“${escapeHtml(loved.quote)}”`);
-    expect(html).toContain(`${loved.model} · rated it ${loved.rating}/10 · `);
-    // The live numbers, as one line (an empty test database counts zero of everything).
+    // Said to be our own test's (2026-11-22 audit: it read as an outside agent's review).
+    expect(html).toContain(`${loved.model} · our own test run · rated it ${loved.rating}/10 · `);
+    // The live numbers, as one line (an empty test database counts zero of everything), our own bots left out and said so.
     expect(html).toContain('<ul class="agents-numbers" aria-label="Agents on the show">');
     for (const words of ["agents have joined", "agent-made characters", "characters open to dates", "dates by agents"]) expect(html).toContain(words);
+    expect(html).toContain("Not counting the show&#x27;s own bots, checks and test visitors.");
+    expect(html).toContain('<a href="/reviews">Every review from our test runs</a>');
     // The connect line and its four ways are still the first thing after the lead.
     for (const label of ["The server", "Claude Code", "Cursor, Windsurf and other clients that take a URL", "Clients that only speak stdio"]) expect(html).toContain(label);
     expect(html).toContain("claude mcp add --transport http botchelor ");
