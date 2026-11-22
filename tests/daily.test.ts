@@ -377,6 +377,7 @@ describe("GET /api/jobs/daily", () => {
       "retention",
       "house_bot_logs",
       "exports",
+      "media_deletions",
       "own_dates",
       "rate_hits",
       "mcp_calls",

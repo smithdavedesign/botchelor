@@ -601,7 +601,7 @@ export async function pgCarousel(db: Db, viewer: string | null, characterId: str
   };
 }
 
-/** Deletes one of the owner's pictures (and its bytes stay only until the bucket's own cleanup). */
+/** Deletes one of the owner's pictures; its file in the store goes a week later (lib/media-deletions.ts). */
 export async function deletePgPicture(db: Db, viewer: string | null, pictureId: string): Promise<boolean> {
   if (!viewer) return false;
   const r = await db.query<{ id: string }>(`delete from studio_pg_pictures where id = $1 and owner_id = $2 returning id`, [pictureId, viewer]);

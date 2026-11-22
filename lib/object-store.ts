@@ -285,6 +285,20 @@ export function objectStore(env: Record<string, string | undefined> = process.en
 }
 
 /**
+ * Every store this server has settings for, each marked whether it's Bunny: a file is deleted from all of them
+ * (lib/media-deletions.ts), since the host that made it chose where it went. Tests: the test store alone.
+ */
+export function mediaStores(env: Record<string, string | undefined> = process.env): { store: ObjectStore; bunny: boolean }[] {
+  if (testStore !== undefined) return testStore ? [{ store: testStore, bunny: true }] : [];
+  const out: { store: ObjectStore; bunny: boolean }[] = [];
+  const bunny = bunnyConfig(env);
+  if (bunny) out.push({ store: bunnyStore(bunny), bunny: true });
+  const cfg = storeConfig(env);
+  if (cfg) out.push({ store: s3Store(cfg), bunny: false });
+  return out;
+}
+
+/**
  * A signed link straight to a file on Bunny's CDN, for a route to redirect to (it answers byte ranges, from the edge),
  * or null: Bunny isn't set here, or the file is one Bunny doesn't hold (an area outside BUNNY_AREAS, kept in the bucket
  * or Postgres), and the route sends the bytes itself, as before.

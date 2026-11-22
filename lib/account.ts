@@ -1134,7 +1134,9 @@ const AFTER_DARK_UNLINKED: readonly string[] = ["adult_billing_orders", "adult_b
  * After Dark's part of deleting an account (2026-10-24, the privacy notice's promise): everything the person made, chose
  * or rated there, their subscription record, their last-seen place and any chargeback flag; their billing orders and
  * postbacks are kept unlinked (AFTER_DARK_UNLINKED). The tables point at one another in places, so a
- * delete a reference still blocks is tried again on the next pass; a table that doesn't exist yet is skipped.
+ * delete a reference still blocks is tried again on the next pass; a table that doesn't exist yet is skipped. Their
+ * files in Bunny and the bucket go with the rows: each row's trigger queues its file, deleted a week later
+ * (lib/media-deletions.ts).
  */
 export async function deleteAfterDarkData(db: Db, userId: string): Promise<void> {
   // Their exports' files in the bucket first (lib/media-tools/export.ts): the rows below are all that points at them.
