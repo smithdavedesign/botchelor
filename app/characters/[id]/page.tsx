@@ -103,7 +103,7 @@ import { shotsFor } from "@/lib/show-shots-sql";
 import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { pronounForms, verb } from "@/lib/pronoun-forms";
+import { pronounForms, verb as pronounVerb } from "@/lib/pronoun-forms";
 import { wholeSentences } from "@/lib/whole-sentences";
 import { APPEARANCE_MAX, BIO_MAX, WANT_MAX } from "@/lib/field-limits";
 
@@ -458,9 +458,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     { mine: goes ? { id: goes.id, name: goes.name } : null, stepIn: stepIn?.kind === "member" || stepIn?.kind === "guest" },
     { id: c.id, name: c.name, own: ratings.is_owner, private: c.private, dateable: cta.kind === "send" || cta.kind === "make", ready: goes?.mode === "book", mineTaken: Boolean(goes?.taken), steppable: stepIn !== null },
   );
-  // Text, the small second action in the header (lib/character-verb.ts): anyone they may text, their own included.
   // Their own pronouns, for the page's running text ("How he talks"; lib/pronoun-forms.ts).
   const own = pronounForms(c.pronouns);
+  // Text, the small second action in the header (lib/character-verb.ts): anyone they may text, their own included.
   const text = textVerb(companion === "talk" ? "open" : companion === "signin" ? "sign_in" : "closed", { id: c.id, name: c.name, textable: Boolean(companion) });
   // Follow (lib/character-follows.ts): anyone but its owner, on a public character whose creator is still here. An
   // owner already hears everything, so their own page shows no control.
@@ -957,7 +957,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </p>
         {c.voice && (
           <p className="muted">
-            <strong>How {own.subj} {verb(own, "talks", "talk")}:</strong> {wholeSentences(c.voice, VOICE_MAX)}
+            <strong>How {own.subj} {pronounVerb(own, "talks", "talk")}:</strong> {wholeSentences(c.voice, VOICE_MAX)}
           </p>
         )}
       </section>
