@@ -8,6 +8,7 @@
 
 import { isNotEnglish } from "./language";
 import { CHARACTER_REJECTION_MESSAGES, isPastPg, type RejectReason } from "./safety-reasons";
+import { escapeRegExp } from "./text";
 
 // The reasons, the past-PG test and what a refused sheet is told live apart from the lists (lib/safety-reasons.ts), so
 // browser code can use them without this file; everything here is the server's.
@@ -140,7 +141,7 @@ export type SheetMatch = { reason: RejectReason; phrase: string };
 const anyOfList = new WeakMap<readonly (RegExp | string)[], RegExp | null>();
 const anyOf = (list: readonly (RegExp | string)[]): RegExp | null => {
   if (anyOfList.has(list)) return anyOfList.get(list)!;
-  const sources = list.map((p) => (typeof p === "string" ? ` ${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ` : p.flags || /\\[1-9]|\\k</.test(p.source) ? null : p.source));
+  const sources = list.map((p) => (typeof p === "string" ? ` ${escapeRegExp(p)} ` : p.flags || /\\[1-9]|\\k</.test(p.source) ? null : p.source));
   const any = sources.every((s) => s !== null) ? new RegExp(sources.map((s) => `(?:${s})`).join("|")) : null;
   anyOfList.set(list, any);
   return any;

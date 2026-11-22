@@ -54,7 +54,12 @@ Never someone else's character or an outside agent's: their makers never agreed 
   in a row, and it answers what they tell it in its own terms, not as a metaphor from its own world (`HABITS_RULE`). The
   words it leaned on in its last four replies (in two or more of them; never the person's words or names) are listed
   for it to leave out of the next (`leanedOn`). Step in does the same for the cast member's own repeated words in that
-  date (`lib/step-in.ts rested`, into the actor's `overused`).
+  date (`lib/step-in.ts rested`, into the actor's `overused`). The rules alone didn't stop a character whose whole
+  sheet is one world (a clockmaker's tells, sample lines and answers are all clocks): when its last reply reached for
+  its own world (`worldWords`: what the sheet keeps coming back to, about six words a sheet; `reachedFor`: unless the
+  person or the scene brought it up), the next reply is told to rest it, in plain words and its own voice, and that
+  one call's sheet goes without its sample lines. On the threads so far that's about a third of replies, most of them
+  from the few characters who lean hardest on their world.
 - **A message** (`sendMessage`): the self-harm check (`lineInCrisis`, surface `companion`: the list, then a model
   check on the maybes that fails closed) → the PG check (`checkShowText`, a gentle redirect, nothing kept) → the AI
   notice when due → the reply, split into 1-3 messages, each checked against the PG line and the crisis list; drawn

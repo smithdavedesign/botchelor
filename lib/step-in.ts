@@ -125,8 +125,6 @@ export type StepInWho = { guest?: boolean; ip?: string | null };
 
 /* ---------------------------------------------- the safeguards ---------------------------------------------- */
 
-/** The show pays the first a UTC day; the rest are the person's own dates. */
-export const STEP_IN_FREE_PER_DAY = 1;
 /** However many dates someone holds, this many a UTC day (admins: STEP_IN_ADMIN_MAX_PER_DAY). */
 export const STEP_IN_MAX_PER_DAY = 5;
 export const STEP_IN_ADMIN_MAX_PER_DAY = 20;

@@ -16,7 +16,7 @@ import { CROWD_MIN_DEFAULT, crowdLine, crowdMin, showCrowd, tallyLine } from "@/
 import type { CastingBoard as AuditionBoard } from "@/lib/auditions";
 import type { BackingBoard } from "@/lib/backing";
 import type { PoolBoard, PoolStanding } from "@/lib/season-pool";
-import type { CallersBoard } from "@/lib/streaks";
+import { BOARD_NAMED_MIN, type CallersBoard } from "@/lib/streaks";
 import type { LobbyEntry } from "@/lib/watch";
 import type { SituationBoard } from "@/lib/situations";
 
@@ -127,17 +127,31 @@ describe("the counts on the way in", () => {
   });
 
   it("the best-callers board becomes the invitation to call an ending below the threshold", () => {
-    const board: CallersBoard = { top: [{ name: "Sam", right: 3, called: 4, mine: false }, { name: null, right: 1, called: 1, mine: false }], callers: 2, my_rank: null };
+    // The real threshold, so 6 callers with 5 names up is below it for a stranger and a list for an insider.
+    vi.stubEnv("CROWD_MIN", String(CROWD_MIN_DEFAULT));
+    const board: CallersBoard = { top: [{ name: "Sam", right: 3, called: 4, mine: false }, { name: null, right: 1, called: 1, mine: false }], callers: 6, named: BOARD_NAMED_MIN, my_rank: null };
     const stranger = renderToStaticMarkup(createElement(CallersBoardPanel, { board }));
     expect(stranger).toContain("Best callers this week");
     expect(stranger).not.toContain('class="callers-board"');
     expect(stranger).toContain("Call the ending before a date airs");
-    expect(stranger).toContain('href="/calls"');
+    expect(stranger).toContain('href="/calls#open-calls"');
     const insider = renderToStaticMarkup(createElement(CallersBoardPanel, { board, insider: true }));
     expect(insider).toContain('class="callers-board"');
-    expect(insider).toContain("(2 callers)");
-    const crowd = renderToStaticMarkup(createElement(CallersBoardPanel, { board: { ...board, callers: 9 } }));
+    expect(insider).toContain("(6 callers)");
+    const crowd = renderToStaticMarkup(createElement(CallersBoardPanel, { board: { ...board, callers: 12 } }));
     expect(crowd).toContain('class="callers-board"');
+  });
+
+  it("waits for names, for an insider too: never a list of 'A viewer' rows (the 2026-11-22 audit)", () => {
+    const anon = { name: null, right: 1, called: 1, mine: false };
+    const board: CallersBoard = { top: [anon, anon, anon, { ...anon, mine: true }], callers: 12, named: BOARD_NAMED_MIN - 1, my_rank: 4 };
+    const html = renderToStaticMarkup(createElement(CallersBoardPanel, { board, insider: true }));
+    expect(html).not.toContain('class="callers-board"');
+    expect(html).not.toContain("A viewer");
+    expect(html).toContain("Call the ending before a date airs");
+    expect(html).toContain(`You&#x27;re number 4 this week. The list shows once ${BOARD_NAMED_MIN} callers have put a name up.`);
+    const named = renderToStaticMarkup(createElement(CallersBoardPanel, { board: { ...board, named: BOARD_NAMED_MIN }, insider: true }));
+    expect(named).toContain('class="callers-board"');
   });
 });
 

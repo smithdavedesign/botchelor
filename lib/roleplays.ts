@@ -20,21 +20,9 @@
  */
 import type { SceneCard } from "./scene-cards";
 import type { TagId } from "./tags";
+import { escapeRegExp } from "./text";
 
 export type RoleplayTag = "strangers" | "mystery" | "adventure" | "scifi" | "fantasy" | "period" | "funny" | "romance" | "cozy" | "couples";
-
-export const ROLEPLAY_TAGS: readonly { id: RoleplayTag; label: string; icon: string }[] = [
-  { id: "strangers", label: "Strangers", icon: "🎭" },
-  { id: "mystery", label: "Mystery", icon: "🕵️" },
-  { id: "adventure", label: "Adventure", icon: "🧭" },
-  { id: "scifi", label: "Sci-fi", icon: "🚀" },
-  { id: "fantasy", label: "Fantasy", icon: "🐉" },
-  { id: "period", label: "Period", icon: "🕯️" },
-  { id: "funny", label: "Funny", icon: "😄" },
-  { id: "romance", label: "Slow burn", icon: "💞" },
-  { id: "cozy", label: "Cozy", icon: "☕" },
-  { id: "couples", label: "For couples", icon: "🔁" },
-];
 
 export type DateRoleplayDef = {
   id: string;
@@ -1244,7 +1232,6 @@ export const DATE_ROLEPLAYS: readonly DateRoleplayDef[] = [
   },
 ];
 
-export const DATE_ROLEPLAY_IDS = DATE_ROLEPLAYS.map((r) => r.id) as [string, ...string[]];
 export const dateRoleplayById = (id: string | null | undefined): DateRoleplayDef | null => DATE_ROLEPLAYS.find((r) => r.id === id) ?? null;
 
 /** What one written for a date can be (a person's "Write your own", an agent's custom terms). */
@@ -1448,7 +1435,7 @@ export function premiseForYou(premise: string, youAre: "a" | "b", them: string):
   let out = premise.replaceAll(other, firstName(them));
   // Possessive first, then "you" as the subject with its verb (and a second verb joined by "and" in the same clause).
   out = out.replaceAll(`${you}'s`, "your");
-  out = out.replace(new RegExp(`${escapeRe(you)} (\\w+)((?:[^,.;:!?]*?\\band )(\\w+))?`, "g"), (_m, verb: string, tail?: string, verb2?: string) => {
+  out = out.replace(new RegExp(`${escapeRegExp(you)} (\\w+)((?:[^,.;:!?]*?\\band )(\\w+))?`, "g"), (_m, verb: string, tail?: string, verb2?: string) => {
     // "{a} and {b} are…": "you and Mara are", nothing to change.
     if (verb === "and" || verb === "or") return `you ${verb}${tail ?? ""}`;
     const first = verbForYou(verb);
@@ -1463,8 +1450,4 @@ export function premiseForYou(premise: string, youAre: "a" | "b", them: string):
   out = out.replaceAll(`${firstName(them)} and you `, `you and ${firstName(them)} `);
   // "you" at the start of a sentence.
   return out.replace(/(^|[.!?]\s+)you\b/g, (_m, lead: string) => `${lead}You`).replace(/(^|[.!?]\s+)your\b/g, (_m, lead: string) => `${lead}Your`);
-}
-
-function escapeRe(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

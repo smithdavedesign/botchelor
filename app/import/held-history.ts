@@ -49,10 +49,6 @@ export function heldUsFor(characterId: string): string[] {
   return h && h.characterId === characterId ? h.items : [];
 }
 
-export function clearHeldUs(): void {
-  write(null);
-}
-
 export type ImportMemoryNote =
   | { kind: "kept"; kept: number; dropped: number; href: string | null }
   | { kind: "held"; count: number; message: string };

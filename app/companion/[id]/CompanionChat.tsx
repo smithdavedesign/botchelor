@@ -150,6 +150,8 @@ export default function CompanionChat({
   const [crisis, setCrisis] = useState<CrisisResources | null>(initialCrisis);
   const [editing, setEditing] = useState(false);
   const [reporting, setReporting] = useState<string | null>(null);
+  // An earlier reply whose ⋯ is open: its voice note and Report (the newest reply shows them without it).
+  const [actionsFor, setActionsFor] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   // ⚙️ Settings: a menu on the overlay primitive (app/useOverlay.ts): Escape, its ✕ or a tap outside closes it, and the
   // thread behind is inert and still while it's open.
@@ -199,6 +201,10 @@ export default function CompanionChat({
     return { them: here.findLast((m) => m.role === "character") ?? null, you: here.findLast((m) => m.role === "user") ?? null };
   }, [shown, since]);
   const newest = shown.findLast((m) => m.role === "character") ?? null;
+  // Whether a reply shows its voice note and Report: the newest that can have them (a photo has neither) always, an
+  // earlier one once its ⋯ is open (or while it's being recorded or reported).
+  const newestSaid = shown.findLast((m) => m.role === "character" && !m.photo) ?? null;
+  const footOpen = (m: CompanionMessageView) => newestSaid?.id === m.id || actionsFor === m.id || voicing === m.id || reporting === m.id;
   const spoken = useRef(newest?.id ?? null);
 
   useLayoutEffect(() => {
@@ -523,6 +529,8 @@ export default function CompanionChat({
       style={portrait ? ({ "--companion-portrait": `url("${portrait}")` } as React.CSSProperties) : undefined}
       data-companion-chat
     >
+      {/* The page's heading, for screen readers (the name on screen is in the header bar and the panel beside it). */}
+      <h1 className="sr-only">{view.scene ? `In a scene with ${c.name}` : `Texting ${c.name}`}</h1>
       {/* Who you're talking with, beside the thread on a wide screen (2026-11-13 design lift: the chat was a bare box in a
           page of white). The same links the Settings menu has, so nothing is only here. */}
       <aside className="companion-side" aria-label={`About ${first}`}>
@@ -856,12 +864,31 @@ export default function CompanionChat({
                       </p>
                     )}
                     {m.role === "character" && !m.photo && (
+                      // A voice note and Report under the newest reply; an earlier one keeps a voice note it has and opens
+                      // the rest from its ⋯ (2026-11-22: a pill and a link under every reply, 28 pills on one thread).
                       <div className="companion-foot">
+                        {newestSaid?.id !== m.id && (
+                          <button
+                            type="button"
+                            className="linklike small muted companion-more"
+                            onClick={() => {
+                              if (footOpen(m)) {
+                                setActionsFor(null);
+                                if (reporting === m.id) setReporting(null);
+                              } else setActionsFor(m.id);
+                            }}
+                            aria-expanded={footOpen(m)}
+                            aria-label={`More for ${first}'s message`}
+                            title="More"
+                          >
+                            ⋯
+                          </button>
+                        )}
                         {m.voice ? (
                           <button type="button" className="button-ghost small companion-voice-note" onClick={() => play(m.id, m.voice!)} aria-pressed={playing === m.id} data-track="companion-voice-play">
                             {playing === m.id ? "⏸ Playing" : "▶ Voice note"}
                           </button>
-                        ) : extras ? (
+                        ) : !footOpen(m) ? null : extras ? (
                           !paused && (
                             <button
                               type="button"
@@ -876,7 +903,7 @@ export default function CompanionChat({
                           )
                         ) : (
                           // A guest: asked once, on the newest reply, to sign in for them.
-                          newest?.id === m.id && (
+                          newestSaid?.id === m.id && (
                             <Link className="button-ghost small companion-voice-note" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} title="Voice notes come with a free account" data-track="companion-voice-signin">
                               🔊 Voice notes with a free account
                             </Link>
@@ -884,7 +911,7 @@ export default function CompanionChat({
                         )}
                         {m.reported ? (
                           <span className="muted small">Reported</span>
-                        ) : reporting === m.id ? (
+                        ) : !footOpen(m) ? null : reporting === m.id ? (
                           <span className="companion-report">
                             {COMPANION_REPORT_REASONS.map((r) => (
                               <button key={r} type="button" className="button-ghost small" onClick={() => void report(m, r)} disabled={busy}>
