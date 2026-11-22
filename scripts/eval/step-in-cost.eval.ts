@@ -98,6 +98,8 @@ it.skipIf(!KEY)("plays step-in dates on a real model and reports what each cost"
         r = await sayStepIn(t.db, userId, s.episode_id, { dialogue: said, ...(r.view.last_line ? { see_again: true } : {}) });
         if (r.ok && r.refused) throw new Error(`refused: ${r.refused}`);
       }
+      // As the page does: the last line comes back on its own, then it asks for the write-up.
+      if (r.ok && r.view.state === "finishing") r = await advanceStepIn(t.db, userId, s.episode_id);
       if (!r.ok) throw new Error(r.message);
       const used = spent.slice(from);
       const row = (await t.db.query<{ setup: { step_in: { cost: unknown } }; ending: string; ending_detail: string | null; confessionals: unknown }>(`select setup, ending, ending_detail, confessionals from episodes where id = $1`, [s.episode_id])).rows[0];
