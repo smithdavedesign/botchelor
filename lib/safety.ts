@@ -149,15 +149,37 @@ const hasPhrase = (haystack: string, phrase: string) => haystack.includes(` ${ph
 /** Why a text was refused, and the words (normalised: lower case, no punctuation) that did it. */
 export type SheetMatch = { reason: RejectReason; phrase: string };
 
+/**
+ * One regex per list that matches wherever any of its patterns (or terms, as whole phrases) would: an exact "any of
+ * them?" asked before the ordered search, which then runs only on a hit and so still names the same first match. Every
+ * public sheet is checked again each time it's shown (lib/pg-public.ts, about 25 texts a character), nearly all of them
+ * pass, and one at a time the lists cost ~3.5 ms a character: 300 swipe-deck cards took a second of CPU (2026-11-22).
+ * A list with flags or a backreference keeps the plain search (none has either; combined, they'd mean something else).
+ */
+const anyOfList = new WeakMap<readonly (RegExp | string)[], RegExp | null>();
+const anyOf = (list: readonly (RegExp | string)[]): RegExp | null => {
+  if (anyOfList.has(list)) return anyOfList.get(list)!;
+  const sources = list.map((p) => (typeof p === "string" ? ` ${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ` : p.flags || /\\[1-9]|\\k</.test(p.source) ? null : p.source));
+  const any = sources.every((s) => s !== null) ? new RegExp(sources.map((s) => `(?:${s})`).join("|")) : null;
+  anyOfList.set(list, any);
+  return any;
+};
+const noneOf = (list: readonly (RegExp | string)[], texts: readonly string[]): boolean => {
+  const any = anyOf(list);
+  return any !== null && !texts.some((t) => any.test(t));
+};
+
 /** The first pattern that matches one of the texts, as the words it matched. */
 const firstMatch = (patterns: readonly RegExp[], texts: readonly string[]): string | null => {
+  if (noneOf(patterns, texts)) return null;
   for (const re of patterns) for (const t of texts) {
     const m = re.exec(t);
     if (m) return m[0].trim();
   }
   return null;
 };
-const firstTerm = (terms: readonly string[], texts: readonly string[]): string | null => terms.find((t) => texts.some((v) => hasPhrase(v, t))) ?? null;
+const firstTerm = (terms: readonly string[], texts: readonly string[]): string | null =>
+  noneOf(terms, texts) ? null : (terms.find((t) => texts.some((v) => hasPhrase(v, t))) ?? null);
 
 function classifyMatch(text: string): SheetMatch | null {
   const folded = fold(text);
