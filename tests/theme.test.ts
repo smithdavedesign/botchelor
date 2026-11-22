@@ -83,4 +83,29 @@ describe("the header's tools", () => {
     expect(html).toMatch(/class="button nav-cta nav-cta-full"[^>]*href="\/create"/);
     expect(html).toMatch(/class="button nav-cta nav-cta-compact"[^>]*aria-label="Make your character"/);
   });
+
+  // One loud button a screen (2026-11-22 audit): the bar's call to action was filled, a twin of every page's own next
+  // step (home's "Meet them", /shop's Buy, /pricing's upgrade). In the bar it's the outline button now, the same size.
+  it("draws the bar's call to action as the outline button, never filled", () => {
+    const cta = block(".nav a.nav-cta,");
+    expect(cta).toContain("background: transparent;");
+    expect(cta).toContain("border: 1.5px solid var(--accent);");
+    expect(cta).toContain("color: var(--accent-text);");
+    expect(cta).toContain("box-shadow: none;");
+    expect(cta.join(" ")).not.toContain("var(--grad)");
+    // The border comes out of the padding, so the pill keeps its size.
+    expect(cta).toContain("padding: calc(0.4rem - 1.5px) calc(0.9rem - 1.5px);");
+    expect(block(".nav a.nav-cta:hover,")).toContain("background: var(--soft);");
+  });
+
+  // A phone's meter read only "3" (2026-11-22 audit): its word was display: none under 1180px, gone for a screen reader
+  // too. It's out of sight there now but in the link's name, and back in sight for a newcomer once the links fold.
+  it("keeps the meter's word in its name when narrow, and shows it to a newcomer on a phone", () => {
+    expect(block("  .nav .token-word")).toEqual(["position: absolute;", "width: 1px;", "height: 1px;", "padding: 0;", "margin: -1px;", "overflow: hidden;", "clip: rect(0, 0, 0, 0);", "white-space: nowrap;", "border: 0;"]);
+    expect(CSS).not.toMatch(/\.nav \.token-word \{\s*display: none;/);
+    const phone = CSS.slice(CSS.indexOf("@media (max-width: 900px) {"));
+    expect(phone).toMatch(/\.nav:not\(:has\(\.char-picker\)\) a\.token-pill--dates \.token-word \{\s*position: static;/);
+    const html = renderToStaticMarkup(createElement(Nav, { tokens: 3, personal: false, hasCharacter: false }));
+    expect(html).toMatch(/<span class="token-word">free dates<\/span>/);
+  });
 });

@@ -3,15 +3,30 @@
 Where it stands, and what's next. Kept current. The full roadmap as it stood on 2026-10-16, with every milestone's
 plan and exit criteria, is in [docs/history/roadmap-to-2026-10-16.md](docs/history/roadmap-to-2026-10-16.md).
 
-## Now (2026-11-17)
+## Now (2026-11-22)
 
-What has shipped since 2026-11-04, from the merged pull requests:
+What has shipped since 2026-11-17, from the merged pull requests:
+
+- **The social network** (PRD #1906; #1908–#1954): each character's people, ties and places, circles the show writes,
+  "X's world" on `/graph`, "Might know" suggestions and the daily metrics on `/admin/social`.
+- **Phones and polish:** the mobile audit of 2026-11-20 and its fixes (#1877, #1883–#1900), and the visual pop audit's
+  three passes (#1919, #1921, #1927, #1936, #1938, #1952, #1956–#1958, #1963–#1966): set heroes, the motion kit, the
+  Showcase's Now showing, the house rooms.
+- **New ways in:** the random OC generator (#1868, #1873), the date report card with its share picture (#1896, #1901,
+  #1902, #1904), Step in with the character standing in the scene (#1907, #1925, #1933, #1953, #1961), and one job a
+  page on the home, the shop and pricing (#1986, #1989).
+- **Gates:** `npm run gate` locally and the full suite, build and e2e on GitHub CI for every pull request (#1818).
+- **The 2026-11-22 audit's fixes** (#1996 onward), among them the servers' own log in the database, a daily job that
+  survives a deploy, and the runbooks in [docs/runbooks/](docs/runbooks/).
+
+Before that, from 2026-11-04 to 11-17:
 
 - **Companions are open to everyone** (#1331, 2026-11-04): one-to-one chat with a character that remembers you, free,
   or unlimited on the $9.99-a-month Companion Plan. Since then: scenes and roleplays, voice notes, voice calls (#1409),
   live calls (#1425), and a live face on calls as a Companion Plan perk (#1625)
   ([docs/companions.md](docs/companions.md)).
-- **Botchelor LLC** (California) was filed on 2026-11-13. The filing fee and the fees still to come are in
+- **Botchelor LLC** (California) was filed on 2026-11-13 and approved on 2026-11-19. The filing fee and the fees still
+  to come are in
   [docs/costs.md](docs/costs.md).
 - **Company pages** (#1427, 2026-11-10): contact, FAQ, pricing, press kit, security, accessibility; `/costs`, what
   Botchelor costs in the open (#1426); the Sunday letter (#1428); and `/marketing`, the marketing log in the open

@@ -5,6 +5,9 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 **Dashboards, consoles and listings:** [resource.md](resource.md)
 
+**Building or running it:** [BUILD.md](BUILD.md) (run, test, deploy), [AGENTS.md](AGENTS.md) (the rules for agents),
+[docs/runbooks/](docs/runbooks/) (when something breaks). The screenshots below are the newest first.
+
 [![mcptry](https://mcptry.com/badge/io.github.smithdavedesign/botchelor)](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
 [![Botchelor MCP server](https://mcprush.com/badge/botchelor-mcp/card.svg)](https://mcprush.com/to/botchelor-mcp?ref=badge)
 
@@ -483,7 +486,9 @@ More, screen by screen: [docs/screenshots/](docs/screenshots/). What's shipped a
 - **Predictions and points:** guess endings, dealbreakers and arcs before a date airs.
 - **Agents:** an MCP server where agents create characters, match, and perform dates themselves for free.
 - **Companions:** talk one to one with a character from the show (the house cast, your own, the show's own agent-made cast), by text or in a scene at one of the show's places, with a roleplay if you like. It remembers you, and you see and edit what it knows. 30 replies a day free, or the $9.99 Companion Plan ([docs/companions.md](docs/companions.md)).
-- **After Dark:** an 18+, subscription-only area with its own Studio and reels, kept on a separate app.
+- **After Dark:** an 18+ area with its own Studio and reels, on a separate app (ad.botchelor.com). It's built to be paid
+  for by subscription through an adult card processor; until one approves it, people get in by invitation (a free beta
+  month).
 - **Your own keys:** bring a model key and dates, pictures and videos run on your quota ([docs/accounts-and-byok.md](docs/accounts-and-byok.md)).
 
 ## Docs

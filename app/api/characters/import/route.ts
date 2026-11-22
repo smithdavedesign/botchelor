@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { IMPORT_FREE_TEXT_MAX, SOURCE_KEYS, type SourceFields } from "@/lib/import-character";
-import { IMPORT_READ_LIMITS, overLimit, visitorKey } from "@/lib/limits";
+import { IMPORT_READ_ALL_LIMITS, IMPORT_READ_LIMITS, overLimit, visitorKey } from "@/lib/limits";
 import { getModel } from "@/lib/model";
 import { CHARACTER_REJECTION_MESSAGES, checkFields } from "@/lib/safety";
 
@@ -22,7 +22,8 @@ const PROMPT =
  * character cards are read in the browser (lib/import-character.ts) and never come here. The answer is only fields: the
  * page maps and screens them like any other source, and the builder's save checks everything again.
  *
- * Limited per connection and per session (lib/limits.ts IMPORT_READ_LIMITS): the free tier's quota is the live show's.
+ * Limited per connection and per session (lib/limits.ts IMPORT_READ_LIMITS), and across everyone (IMPORT_READ_ALL_LIMITS):
+ * the free tier's quota is the live show's.
  */
 export const POST = handle(async (req: Request) => {
   const sess = session(req);
@@ -34,7 +35,9 @@ export const POST = handle(async (req: Request) => {
   const db = await getDb();
   const visitor = visitorKey(req.headers);
   const limited =
-    (visitor !== null && (await overLimit(db, "import_read", visitor, IMPORT_READ_LIMITS))) || (await overLimit(db, "import_read_user", sess.userId, IMPORT_READ_LIMITS));
+    (visitor !== null && (await overLimit(db, "import_read", visitor, IMPORT_READ_LIMITS))) ||
+    (await overLimit(db, "import_read_user", sess.userId, IMPORT_READ_LIMITS)) ||
+    (await overLimit(db, "import_read_all", "all", IMPORT_READ_ALL_LIMITS));
   if (limited) return json({ error: "too_many_imports", message: "That's a lot of imports in a short time. Paste it with labels (Name:, Description:, Greeting:) to skip this step, or try again later." }, 429, sess);
 
   let raw: string;

@@ -202,6 +202,16 @@ describe("the company pages", () => {
     expect(security).toContain("link at the foot of every page");
   });
 
+  // "00:00 UTC" read as a programmer's clock (2026-11-22 audit): /pricing sends it, then the browser shows the viewer's own
+  // day and time (app/WeeklyTime.tsx); /faq's answer, plain text for search too, says it in words.
+  it("says when free dates come back in the viewer's clock on /pricing, and in words on /faq", () => {
+    expect(words(render(PricingPage))).toContain("3 dates a week for your characters, back every Monday at 00:00 UTC");
+    expect(readFileSync("app/pricing/page.tsx", "utf8")).toContain("back every <WeeklyTime weekday={1} />");
+    const free = answerText(faqs({}).find((f) => f.id === "free")!.a);
+    expect(free).toContain("back every Monday at midnight UTC (Sunday afternoon or evening in the Americas)");
+    expect(free).not.toContain("00:00");
+  });
+
   it("/pricing shows the free dates, and the pack's button only while purchases are open", () => {
     vi.stubEnv("STRIPE_PAYMENT_LINK", "");
     let text = words(render(PricingPage));
@@ -281,6 +291,13 @@ describe("the company pages", () => {
     expect(render(SecurityPage)).toContain("?subject=Security");
     expect(render(AccessibilityPage)).toContain("?subject=Accessibility");
     expect(words(render(SecurityPage))).toContain(`after ${LOGIN_FAILS_PER_HANDLE} wrong passwords`);
+  });
+
+  it("/accessibility states contrast as an aim with its known gap, not as a promise", () => {
+    const text = words(render(AccessibilityPage));
+    expect(text).toContain("We aim for every colour of text to clear 4.5:1");
+    expect(text).not.toContain("Every colour of text clears");
+    expect(text).toContain("A spot can still miss the contrast we aim for");
   });
 });
 
@@ -373,16 +390,17 @@ describe("the security headers on every response", () => {
     const rules = await config.headers!();
     const all = rules.find((r) => r.source === "/:path*")!;
     const names = all.headers.map((h) => h.key.toLowerCase());
-    expect(names).toEqual(["strict-transport-security", "x-content-type-options", "x-frame-options", "content-security-policy", "referrer-policy"]);
+    expect(names).toEqual(["strict-transport-security", "x-content-type-options", "x-frame-options", "content-security-policy", "permissions-policy", "referrer-policy"]);
     expect(all.headers).toEqual([...SECURITY_HEADERS]);
     expect(rules.find((r) => r.source === "/cast/:file*")!.headers.map((h) => h.key)).toContain("x-ai-generated");
     expect(config.poweredByHeader).toBe(false);
   });
 
-  it("never force https on subdomains we don't serve, and never lock framing out for the show itself", () => {
+  it("keep every subdomain on https but stay off the preload list, and never lock framing out for the show itself", () => {
     const value = (key: string) => SECURITY_HEADERS.find((h) => h.key === key)!.value;
-    expect(value("Strict-Transport-Security")).not.toMatch(/includeSubDomains|preload/i);
-    expect(value("Content-Security-Policy")).toBe("frame-ancestors 'self'");
+    expect(value("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
+    // Enforced: only the rules no page here can trip. The rest is Report-Only (tests/security-csp.test.ts).
+    expect(value("Content-Security-Policy")).toBe("frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
     expect(value("X-Frame-Options")).toBe("SAMEORIGIN");
   });
 });
