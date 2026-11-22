@@ -96,7 +96,7 @@ services:
       # Never set here: ADULT_MODE, NEXT_PUBLIC_GA_ID, NEXT_PUBLIC_GTM_ID, the site-verification tokens, MEDIA_S3_*.
 # The scheduled jobs run from here: one small container calls the show's (lobby, daily) on botchelor.com, so that work
 # runs on the show's own app (.do/show.yaml), and After Dark's (after-dark-daily, showcase-check) on ad.botchelor.com,
-# where After Dark's media is (#1009). About $5 a month at most.
+# where After Dark's media is (#1009). Billed by the second it runs: a few minutes an hour, well under $1 a month.
 jobs:
   - name: lobby  # runs both hourly jobs; renaming a component needs a delete, so it keeps its first name
     kind: SCHEDULED
@@ -108,16 +108,25 @@ jobs:
       registry: library
       repository: alpine
       tag: "3.20"
-    # The lobby every hour at :20, the daily job at 16:20 UTC, and the showcase check about twenty minutes later.
-    # The daily job goes one part per request with a pause between (app/api/jobs/daily PARTS): run whole, it held the
-    # show's only instance for minutes and 504'd botchelor.com twice on 2026-11-11.
+    # Every hour at :20 the lobby on botchelor.com, then:
+    # - at 16:20 UTC the daily job, one part per request with a pause between (app/api/jobs/daily; run whole, it held
+    #   the show's only instance for minutes and 504'd botchelor.com twice on 2026-11-11), then After Dark's daily job;
+    # - in the other hours, the showcase check on ad.botchelor.com, and before it, from 17:20 to 23:20, the daily job's
+    #   resume pass: a part a deploy cut off, or one that failed, runs again (lib/daily-parts.ts), up to two a run, until
+    #   it answers resumed: null.
+    # DigitalOcean ends a run at 30 minutes, so nothing waits idle (a 20-minute sleep before the showcase check took the
+    # 16:20 run to the limit on 2026-11-20). Each answer streams and ends ok: true once the work finished; a call
+    # without it prints FAILED and fails the run (exit 1), where an echo used to hide it. tests/scheduled-job.test.ts
+    # runs this command against a stand-in wget.
     run_command: >-
-      sh -c 'call() { wget -q -O - -T 290 -U "botchelor-cron/1.0 (DigitalOcean)"
-      --header "Authorization: Bearer $CRON_SECRET" "https://$1/api/jobs/$2"; echo; };
-      call botchelor.com lobby; if [ "$(date -u +%H)" = "16" ]; then
-      for p in upkeep show people growth; do call botchelor.com "daily?part=$p"; sleep 45; done;
-      call ad.botchelor.com after-dark-daily; fi;
-      sleep 1200; call ad.botchelor.com showcase-check'
+      sh -c 'fail=0; call() { r=$(wget -q -O - -T 290 -U "botchelor-cron/1.0 (DigitalOcean)"
+      --header "Authorization: Bearer $CRON_SECRET" "https://$1/api/jobs/$2"); echo "$r";
+      case "$r" in *\"ok\":true*) return 0;; esac; echo "FAILED: $1 $2"; fail=1; return 1; };
+      call botchelor.com lobby; h=$(date -u +%H); if [ "$h" = "16" ]; then
+      for p in upkeep show people growth; do [ "$p" = upkeep ] || sleep 45; call botchelor.com "daily?part=$p"; done;
+      call ad.botchelor.com after-dark-daily; else case "$h" in 17|18|19|20|21|22|23)
+      for i in 1 2; do call botchelor.com "daily?part=resume" || break; case "$r" in *\"resumed\":null*) break;; esac;
+      sleep 45; done;; esac; call ad.botchelor.com showcase-check; fi; exit $fail'
     instance_size_slug: apps-s-1vcpu-0.5gb
     instance_count: 1
     envs:

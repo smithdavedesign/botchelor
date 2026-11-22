@@ -1,7 +1,7 @@
 // The admin analytics page's data (lib/agent-analytics.ts): every MCP call logged, each connection classified.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as adminAnalytics } from "@/app/api/admin/analytics/route";
-import { agentAnalytics, isOurs, pruneMcpCalls, WRITE_TOOLS } from "@/lib/agent-analytics";
+import { agentAnalytics, isOurs, pruneMcpCalls, pruneMcpSessions, WRITE_TOOLS } from "@/lib/agent-analytics";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { BASE_URL, startTestDb, validCharacter } from "./helpers";
 
@@ -80,5 +80,31 @@ describe("agent analytics", () => {
     await pruneMcpCalls(t.db);
     // The 500-day-old call goes; the 200-day-old one stays for the year view.
     expect((await t.db.query<Any>(`select count(*)::int as n from mcp_calls`)).rows[0].n).toBe(2);
+  });
+
+  it("sessions go with the calls, but an agent that did something keeps its latest, so it's still known for an agent", async () => {
+    const session = (id: string, agent: string, calls: number, daysAgo: number) =>
+      t.db.query(
+        `insert into mcp_sessions (id, agent_id, client_name, calls, created_at, last_seen)
+         values ($1, $2, 'glama', $3, now() - make_interval(days => $4), now() - make_interval(days => $4))`,
+        [id, agent, calls, daysAgo],
+      );
+    // A directory's probe a year and more ago (no tool called, nothing owned), and one last week.
+    await session("probe-old", "agent-probe-old", 0, 500);
+    await session("probe-new", "agent-probe-new", 0, 7);
+    // An agent that played long ago: its older session goes, its latest stays however old.
+    await session("player-1", "agent-player", 4, 520);
+    await session("player-2", "agent-player", 2, 450);
+    // An agent that never called a tool but owns a character (made on the site and claimed): its latest stays too.
+    await session("owner-1", "agent-owner", 0, 480);
+    await t.db.query(
+      `insert into characters (id, owner_id, name, age, bio, traits, want, dealbreaker) values ('owned-1', 'agent-owner', 'Sam', 30, 'Me.', '[]'::jsonb, 'x', 'y')`,
+    );
+    // Within the calls' 400 days, nothing goes, whatever it did.
+    await session("recent-1", "agent-recent", 0, 300);
+    await session("recent-2", "agent-recent", 0, 200);
+    await pruneMcpSessions(t.db);
+    const left = (await t.db.query<{ id: string }>(`select id from mcp_sessions order by id`)).rows.map((r) => r.id);
+    expect(left).toEqual(["owner-1", "player-2", "probe-new", "recent-1", "recent-2"]);
   });
 });

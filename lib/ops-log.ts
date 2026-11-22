@@ -16,8 +16,8 @@ import { cleanMessage } from "./errors";
  * gone slow loses rows, not requests). /admin shows them (opsSummary); the daily job keeps KEEP_DAYS.
  */
 
-/** What the log keeps: a server starting, and the failures and costs of the dates. */
-export type OpsEvent = "boot" | Extract<AnalyticsEvent, "generation_failed" | "conversation_failed" | "episode_generated">;
+/** What the log keeps: a server starting, the daily job's parts (lib/daily-parts.ts), and the failures and costs of the dates. */
+export type OpsEvent = "boot" | "daily_part" | Extract<AnalyticsEvent, "generation_failed" | "conversation_failed" | "episode_generated">;
 
 const KEEP_DAYS = 30;
 const MAX_IN_FLIGHT = 20;
@@ -46,6 +46,26 @@ let inFlight = 0;
 let dropped = 0;
 
 /**
+ * Writes one row and waits for it, for a caller whose next step reads it (the daily job's parts): never throws, and says
+ * whether the row was kept. A write that fails is left with a line in the container's log. The row's time is the
+ * server's clock, the one the daily job's resume pass reads it by (lib/daily-parts.ts).
+ */
+export async function writeOps(event: OpsEvent, props: Props, db?: Db): Promise<boolean> {
+  try {
+    await (db ?? (await getDb())).query("insert into ops_log (at, host, event, props) values ($1, $2, $3, $4::jsonb)", [
+      new Date().toISOString(),
+      opsHost(),
+      event,
+      JSON.stringify(cleanProps(props)),
+    ]);
+    return true;
+  } catch (err) {
+    console.error(`[ops] ${event} not kept: ${dbFailure(err)}`);
+    return false;
+  }
+}
+
+/**
  * Keeps one row. The caller doesn't wait (`void keepOps(…)`); the promise is for tests. A write that fails, or one
  * past MAX_IN_FLIGHT, is dropped with a line in the container's log.
  */
@@ -56,20 +76,14 @@ export async function keepOps(event: OpsEvent, props: Props, db?: Db): Promise<v
   }
   inFlight++;
   try {
-    await (db ?? (await getDb())).query("insert into ops_log (host, event, props) values ($1, $2, $3::jsonb)", [
-      opsHost(),
-      event,
-      JSON.stringify(cleanProps(props)),
-    ]);
-  } catch (err) {
-    console.error(`[ops] ${event} not kept: ${dbFailure(err)}`);
+    await writeOps(event, props, db);
   } finally {
     inFlight--;
   }
 }
 
 /** track() and keep it: the analytics line in the container's log, and a row here that outlives the next deploy. */
-export function trackKept(event: Exclude<OpsEvent, "boot" | "episode_generated">, props: Props): void {
+export function trackKept(event: Exclude<OpsEvent, "boot" | "daily_part" | "episode_generated">, props: Props): void {
   track(event, props);
   void keepOps(event, props);
 }
@@ -141,6 +155,13 @@ export function opsDetail(event: string, p: Record<string, unknown>): string {
     return [p.where, p.model, `${num(p.model_calls) ?? "?"} calls`, ms !== null ? `${Math.round(ms / 1000)} s` : null, cost !== null ? `$${cost.toFixed(4)}` : null]
       .filter(Boolean)
       .join(" · ");
+  }
+  if (event === "daily_part") {
+    const ms = num(p.ms);
+    const took = ms !== null ? ` after ${Math.round(ms / 1000)} s` : "";
+    const again = typeof p.resumed === "string" && p.resumed ? ` (again: ${p.resumed})` : "";
+    const why = typeof p.reason === "string" && p.reason ? `: ${p.reason}` : "";
+    return `${p.part ?? "?"} ${p.state ?? "?"}${took}${again}${why}`;
   }
   return [p.where, p.reason].filter((x) => typeof x === "string" && x).join(": ") || event;
 }
