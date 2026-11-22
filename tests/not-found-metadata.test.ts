@@ -14,13 +14,15 @@ vi.mock("next/headers", () => ({
   headers: async () => req.headers,
   cookies: async () => ({ get: () => undefined }),
 }));
-const known = vi.hoisted(() => ({ answer: true as boolean | Error, calls: [] as string[] }));
-const answer = (name: string) =>
-  vi.fn(async (_db: unknown, ...ids: string[]) => {
+const { known, answer } = vi.hoisted(() => {
+  const known = { answer: true as boolean | Error, calls: [] as string[] };
+  const answer = (name: string) => async (_db: unknown, ...ids: string[]) => {
     known.calls.push(`${name}:${ids.join("/")}`);
     if (known.answer instanceof Error) throw known.answer;
     return known.answer;
-  });
+  };
+  return { known, answer };
+});
 vi.mock("@/lib/known-ids", () => ({
   knownCharacter: answer("character"),
   knownEpisode: answer("episode"),
