@@ -88,6 +88,9 @@ describe("OC name generator (lib/oc-names.ts)", () => {
     expect(String(fantasy.title)).toContain("Fantasy OC name generator");
     expect(fantasy.alternates?.canonical).toBe("/tools/oc-name-generator/fantasy");
     expect(fantasy.robots).toBeUndefined();
+    // A style that doesn't exist is the site's 404, metadata and all (2026-11-22: a browser showed the home page's title
+    // and its index, follow over the not-found page).
+    await expect(styleMetadata({ params: Promise.resolve({ style: "not-a-style" }), ...sp() })).rejects.toThrow();
   });
 
   it("puts the tools and every style page in the sitemap", async () => {
