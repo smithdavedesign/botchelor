@@ -7,6 +7,7 @@
  */
 
 import { isNotEnglish } from "./language";
+import { escapeRegExp } from "./text";
 
 /**
  * `unread`: text in another language the show's model couldn't translate for the check just now (lib/language-check.ts;
@@ -159,7 +160,7 @@ export type SheetMatch = { reason: RejectReason; phrase: string };
 const anyOfList = new WeakMap<readonly (RegExp | string)[], RegExp | null>();
 const anyOf = (list: readonly (RegExp | string)[]): RegExp | null => {
   if (anyOfList.has(list)) return anyOfList.get(list)!;
-  const sources = list.map((p) => (typeof p === "string" ? ` ${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ` : p.flags || /\\[1-9]|\\k</.test(p.source) ? null : p.source));
+  const sources = list.map((p) => (typeof p === "string" ? ` ${escapeRegExp(p)} ` : p.flags || /\\[1-9]|\\k</.test(p.source) ? null : p.source));
   const any = sources.every((s) => s !== null) ? new RegExp(sources.map((s) => `(?:${s})`).join("|")) : null;
   anyOfList.set(list, any);
   return any;

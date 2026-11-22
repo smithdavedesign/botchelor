@@ -21,6 +21,7 @@ import ShopPage from "@/app/shop/page";
 import sitemap from "@/app/sitemap";
 import TermsPage from "@/app/terms/page";
 import { setDbForTests, type Db } from "@/lib/db";
+import { LEAGUE_PATH } from "@/lib/model-family";
 import { landingPaths, SHARE_IMAGE, siteJsonLd, siteOffers } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
 
@@ -40,6 +41,23 @@ const meta = (load: () => Promise<PageModule>, search: Record<string, string> = 
   return page.generateMetadata!({ searchParams: Promise.resolve(search) } as never);
 };
 
+/** A database that can't be reached: what the sitemap and a page's metadata do without it. */
+const DOWN: Db = {
+  async query() {
+    throw new Error("connection refused");
+  },
+  async exec() {},
+};
+/** A page whose metadata reads the database (the model league's, lib/model-league.ts leagueShown), here unreachable. */
+const metaDbDown = (load: () => Promise<PageModule>) => async (): Promise<Metadata> => {
+  setDbForTests(DOWN);
+  try {
+    return await meta(load)();
+  } finally {
+    setDbForTests(null);
+  }
+};
+
 /** Every public page (the sitemap's static part, and /legal) and where its metadata comes from. */
 const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Metadata>> = {
   "/": meta(() => import("@/app/page")),
@@ -56,7 +74,6 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/characters?tab=agents": meta(() => import("@/app/characters/(list)/page"), { tab: "agents" }),
   "/agents": meta(() => import("@/app/agents/page")),
   "/reviews": meta(() => import("@/app/reviews/page")),
-  "/shop": meta(() => import("@/app/shop/page")),
   "/terms": meta(() => import("@/app/terms/page")),
   "/privacy": meta(() => import("@/app/privacy/page")),
   "/content-policy": meta(() => import("@/app/content-policy/page")),
@@ -69,13 +86,12 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/tools/oc-chemistry-test": meta(() => import("@/app/tools/oc-chemistry-test/page")),
   "/tools/oc-name-generator": meta(() => import("@/app/tools/oc-name-generator/page")),
   "/tools/oc-questions": meta(() => import("@/app/tools/oc-questions/page")),
-  "/prompts": meta(() => import("@/app/prompts/page")),
   "/about": meta(() => import("@/app/about/page")),
   "/costs": meta(() => import("@/app/costs/page")),
   "/marketing": meta(() => import("@/app/marketing/page")),
   "/safety": meta(() => import("@/app/safety/page")),
   "/agents/pricing": meta(() => import("@/app/agents/pricing/page")),
-  "/agents/league": meta(() => import("@/app/agents/league/page")),
+  "/agents/league": metaDbDown(() => import("@/app/agents/league/page")),
   "/agents/tools": meta(() => import("@/app/agents/tools/page")),
   "/agents/changelog": meta(() => import("@/app/agents/changelog/page")),
   "/showcase": meta(() => import("@/app/showcase/page")),
@@ -136,6 +152,28 @@ describe("search and sharing: every public page", () => {
     expect(SHARE_IMAGE).toMatchObject({ url: "/opengraph-image", width: 1200, height: 630, alt: ogImage.alt });
   });
 
+  it("keeps the pages behind the 18+ gate (a result there landed people on the gate) and /legal out of search, links followed", async () => {
+    const { indexablePromptTags, promptTagPath } = await import("@/lib/prompts-library");
+    const tag = indexablePromptTags()[0];
+    const tagPage = await import("@/app/prompts/tag/[id]/page");
+    for (const [path, m] of [
+      // And /legal: the terms and the privacy notice together, each listed on its own page.
+      ["/legal", (await import("@/app/legal/page")).metadata],
+      ["/shop", (await import("@/app/shop/page")).metadata],
+      ["/companion/plan", (await import("@/app/companion/plan/page")).metadata],
+      ["/prompts", (await import("@/app/prompts/page")).metadata],
+      [promptTagPath(tag.id), await tagPage.generateMetadata({ params: Promise.resolve({ id: tag.id }) })],
+    ] as [string, Metadata][]) {
+      expect(m.robots, path).toEqual({ index: false, follow: true });
+      expect(m.alternates?.canonical, path).toBe(path);
+      expect([...PUBLIC_PATHS, ...landingPaths()], path).not.toContain(path);
+    }
+  });
+
+  it("opens /shop on its prices: no loading screen in front of them (its HTML began with a loading line)", () => {
+    expect(existsSync(new URL("../app/shop/loading.tsx", import.meta.url))).toBe(false);
+  });
+
   it("leaves og:title and twitter:title to each page, so a page that sets neither never borrows the home page's", () => {
     expect(rootMetadata.openGraph).toEqual({ type: "website", siteName: "Botchelor", locale: "en_US" });
     expect(rootMetadata.twitter).toEqual({ card: "summary_large_image" });
@@ -152,7 +190,8 @@ describe("JSON-LD: the show as a SoftwareApplication with its price", () => {
     const { offers } = app({ STRIPE_PAYMENT_LINK: "https://example.com/pay" });
     expect(offers).toEqual([
       expect.objectContaining({ "@type": "Offer", price: "0", priceCurrency: "USD" }),
-      expect.objectContaining({ "@type": "Offer", name: "5 more dates", price: "4.00", priceCurrency: "USD", url: "https://botchelor.com/shop" }),
+      // The open price page: /shop is behind the 18+ gate for people.
+      expect.objectContaining({ "@type": "Offer", name: "5 more dates", price: "4.00", priceCurrency: "USD", url: "https://botchelor.com/pricing" }),
     ]);
     expect(String(offers[1].description)).toMatch(/\$4, paid once\. Not a subscription\./);
   });
@@ -189,19 +228,17 @@ describe("robots.txt and sitemap.xml", () => {
   it("sitemap.xml lists the public pages, the policy pages among them, even when the database is down", async () => {
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
     vi.stubEnv("SITE_URL", "https://botchelor.com");
-    const down: Db = {
-      async query() {
-        throw new Error("connection refused");
-      },
-      async exec() {},
-    };
-    setDbForTests(down);
+    setDbForTests(DOWN);
     try {
       const urls = (await sitemap()).map((entry) => entry.url);
-      // Plus the show's own page beside /shows, the search landings (lib/seo.ts landingPaths) and the RSS feed
-      // (app/feed.xml/route.ts, a route, not a page).
-      expect(urls).toEqual([...PUBLIC_PATHS, "/shows/botchelor", ...landingPaths(), "/feed.xml"].map((path) => `https://botchelor.com${path}`));
-      expect(urls).toEqual(expect.arrayContaining(["https://botchelor.com/privacy", "https://botchelor.com/terms", "https://botchelor.com/shop"]));
+      // Plus the show's own page beside /shows and the search landings (lib/seo.ts landingPaths). Not the RSS feed: a
+      // feed, not a page (every page's head names it). Not the pages behind the 18+ gate (/shop, the prompts library).
+      // Not the model league until a family has its rates (lib/model-league.ts leagueShown): with the database down
+      // that can't be counted, so it stays out.
+      const listed = PUBLIC_PATHS.filter((path) => path !== LEAGUE_PATH);
+      expect(urls).toEqual([...listed, "/shows/botchelor", ...landingPaths()].map((path) => `https://botchelor.com${path}`));
+      expect(urls).toEqual(expect.arrayContaining(["https://botchelor.com/privacy", "https://botchelor.com/terms", "https://botchelor.com/pricing"]));
+      for (const path of ["/feed.xml", "/shop", "/prompts", LEAGUE_PATH]) expect(urls, path).not.toContain(`https://botchelor.com${path}`);
     } finally {
       setDbForTests(null);
     }

@@ -20,6 +20,9 @@ import { PlanCheckout, PlanWait } from "./PlanCheckout";
 export const metadata: Metadata = {
   title: "Companion Plan · Botchelor",
   description: "Talk with every Botchelor companion without a daily limit.",
+  // Behind the 18+ gate for people, so out of search with its one address (2026-11-22 audit: indexable, no canonical).
+  alternates: { canonical: "/companion/plan" },
+  robots: { index: false, follow: true },
 };
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });

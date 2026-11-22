@@ -16,6 +16,17 @@ const WEEK_MS = 7 * DAY_MS;
 /** The first monthly season starts here (UTC). */
 export const MONTHLY_FROM = Date.UTC(2026, 9, 19);
 
+/**
+ * Whole days from `now`'s day to `at`'s, both UTC days, as the show keeps them (0: the same day, 1: tomorrow). Every
+ * "N days to …" counts this way: the season's arc (lib/season-format.ts seasonArc, the strip under the header) and the
+ * Recoupling's countdown (app/watch/SeasonLine.tsx). The 2026-11-22 audit found "8 days to the finale" beside "the
+ * Recoupling in 9 days": one counted days, the other rounded hours.
+ */
+export function daysUntil(now: Date | number, at: Date | number | string): number {
+  const ms = (t: Date | number | string) => (typeof t === "string" ? Date.parse(t) : typeof t === "number" ? t : t.getTime());
+  return Math.floor(ms(at) / DAY_MS) - Math.floor(ms(now) / DAY_MS);
+}
+
 /** The week containing `now`: Monday 00:00 UTC to the next Monday. */
 export function weekWindow(now: Date): { start: Date; end: Date } {
   const midnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());

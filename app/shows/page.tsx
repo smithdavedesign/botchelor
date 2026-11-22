@@ -27,7 +27,7 @@ export const metadata: Metadata = pageMetadata({
 /**
  * Shows (lib/show-ideas.ts, docs/show-ideas.md; David 2026-11-16): the one on air, then the ideas for what could come
  * next, each with three answers, and a way to propose one. A feeler, and it says so: nothing under "could come next"
- * is scheduled. Open to everyone, PG, no 18+ wall (middleware.ts UNGATED_PAGES).
+ * is scheduled. Open to everyone, PG, no 18+ wall (proxy.ts UNGATED_PAGES).
  */
 export default async function ShowsPage() {
   if (!showIdeasOn()) notFound();

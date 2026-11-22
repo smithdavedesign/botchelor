@@ -9,6 +9,8 @@
  *    do (send a turn, stop their voice, drop the reply in flight) out.
  *  - minutesDue: how many of a call's minutes have started; LIVE_CONNECT_MS: how long one may take to connect.
  */
+import { escapeRegExp } from "./text";
+
 
 /** A first piece this long may end at a comma: the sooner the first words are said, the sooner the call feels live. */
 export const FIRST_CLAUSE_MIN = 28;
@@ -76,7 +78,6 @@ export class ClauseSplitter {
   }
 }
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** ":(", ";)", ":-P" and the like: not brackets, and nothing to say. */
 const EMOTICON = /(^|\s)[:;=][-^o']?[()DPp/\\|](?=[\s.,!?]|$)/g;
@@ -140,7 +141,7 @@ export function withoutStageDirections(text: string): string {
 export function spokenClause(text: string, name: string, first = true): string {
   const firstName = name.trim().split(/\s+/)[0] || name;
   let s = text.replace(/\r/g, "").replace(/\n+/g, " ");
-  if (first) s = s.replace(new RegExp(`^\\s*(${escape(name)}|${escape(firstName)})\\s*:\\s*`, "i"), "");
+  if (first) s = s.replace(new RegExp(`^\\s*(${escapeRegExp(name)}|${escapeRegExp(firstName)})\\s*:\\s*`, "i"), "");
   s = withoutStageDirections(s)
     .replace(/[*_#`~]/g, " ")
     .replace(/\p{Extended_Pictographic}️?/gu, " ")
