@@ -23,6 +23,7 @@ import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { placeFromEdge } from "@/lib/place";
 import { AFTER_DARK_DESCRIPTION, SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
+import { NONCE_HEADER } from "@/lib/security-headers";
 import { showHome, siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
@@ -195,19 +196,22 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const afterDark = door.door;
   // Google tags wait for consent in the EEA/UK/CH (Consent Mode v2); Vercel sets the visitor's country header.
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
-  const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(await headers())?.country);
+  const requestHeaders = await headers();
+  const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(requestHeaders)?.country);
+  // This load's nonce (proxy.ts, lib/security-headers.ts): Next puts it on its own scripts, these get it by hand.
+  const nonce = requestHeaders.get(NONCE_HEADER) ?? undefined;
 
   return (
     <html lang="en" data-theme={themeAttribute(theme)}>
       {google && (
         <head>
           {/* Before the Google tags load: GA stays off on After Dark's pages, and in a tab after it (lib/ga-guard.ts). */}
-          <script dangerouslySetInnerHTML={{ __html: gaGuardScript(TRACKING.gaId) }} />
-          <script dangerouslySetInnerHTML={{ __html: consentDefaultScript(consent.granted) }} />
+          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: gaGuardScript(TRACKING.gaId) }} />
+          <script nonce={nonce} dangerouslySetInnerHTML={{ __html: consentDefaultScript(consent.granted) }} />
         </head>
       )}
-      {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} />}
-      {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} />}
+      {TRACKING.gtmId && <GoogleTagManager gtmId={TRACKING.gtmId} nonce={nonce} />}
+      {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} nonce={nonce} />}
       {/* After Dark's own host is night from edge to edge (the design kit's After Dark frame): app/ux/after-dark.css body.ad-host. */}
       <body className={adHost ? "ad-host" : undefined}>
         {/* Search params need a Suspense boundary, or a static page would render on the client only. */}
