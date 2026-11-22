@@ -6,7 +6,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
-import { breadcrumbJsonLd, dateAuthored, fitDescription, logoJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, dateAuthored, DESCRIPTION_MAX, fitDescription, logoJsonLd } from "@/lib/seo";
 import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle, wentWellTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
@@ -122,8 +122,8 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     // #SEO: richer long-tail title (name × name + venue) in the HTML <title>; social cards keep the "How does it end?"
     // headline. Never includes the ending — a Google snippet shouldn't spoil what visitors can predict for points.
     title: pageTitle(names, venue),
-    // Fitted to a search result; the share cards below keep the whole of it.
-    description: fitDescription(description),
+    // Fitted to a search result, the setting cut first so "Guess how it ends" stays; the share cards below keep it all.
+    description: wentWell ? fitDescription(description) : shareDescription(names, episode.setting, episode.revealed, DESCRIPTION_MAX),
     alternates: { canonical: `/episodes/${id}` },
     robots: indexable ? { index: true, follow: true } : { index: false, follow: thin },
     // The root layout's openGraph and twitter are replaced, not merged, so the site's own fields are repeated here.
