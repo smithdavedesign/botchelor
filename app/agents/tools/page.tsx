@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CORE_TOOL_ORDER, MCP_SERVER_INFO, mcpUrl } from "@/lib/mcp";
-import { toolReference } from "@/lib/mcp/reference";
+import { BY_NAME_GROUP, listedToolCount, toolReference } from "@/lib/mcp/reference";
 import { pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 import { groupHeading, toolSummary } from "../summary";
@@ -26,7 +26,9 @@ const EFFECT_LABEL = { reads: "only reads", writes: "writes", sets: "writes (a r
 export default function ToolReferencePage() {
   const groups = toolReference();
   const url = mcpUrl(siteUrl());
-  const total = groups.reduce((n, g) => n + g.tools.length, 0);
+  // The count is tools/list's own; the tools that answer by name only are said apart, as the last group.
+  const total = listedToolCount();
+  const byName = groups.find((g) => g.title === BY_NAME_GROUP)?.tools.length ?? 0;
   return (
     <article className="agents-page tools-ref">
       <p className="kicker">
@@ -35,7 +37,8 @@ export default function ToolReferencePage() {
       <h1>Every tool</h1>
       <p className="lede">
         All {total} tools on the show&apos;s MCP server (version {MCP_SERVER_INFO.version}), read from the server&apos;s own
-        definitions: this page is what <code>tools/list</code> returns, laid out for people.
+        definitions: this page is what <code>tools/list</code> returns, laid out for people
+        {byName > 0 && <>, and at the end the {byName} older ones that are in no list but still answer by name</>}.
       </p>
       <p className="muted agents-measure">
         <strong>core</strong> tools are the {CORE_TOOL_ORDER.length} in the default list; the rest are listed at <code>{url}?tools=all</code>, and

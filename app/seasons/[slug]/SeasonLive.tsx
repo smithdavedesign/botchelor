@@ -4,7 +4,6 @@ import FaceLoop from "@/app/FaceLoop";
 import Icon from "@/app/Icon";
 import SetHero from "@/app/SetHero";
 import VenuePhoto from "@/app/VenuePhoto";
-import When from "@/app/When";
 import { premiereTimeWords } from "@/lib/premiere-clock";
 import { countWord } from "@/lib/season-format";
 import { SEASON_PREMISE, type ScheduleLine, type SeasonLiveData, type Starter, type SuitorCard } from "@/lib/season-page";
@@ -66,8 +65,9 @@ function suitorsHeading(suitors: SuitorCard[] | null): string {
   return `${n.charAt(0).toUpperCase()}${n.slice(1)} still in`;
 }
 
+/** A schedule line's time in the show's zone with the US's beside it, as the premiere's own line says it (lib/premiere-clock.ts). */
 function ScheduleWhen({ line }: { line: ScheduleLine }) {
-  return "words" in line.when ? <>{line.when.words}</> : <When iso={line.when.iso} style={line.when.style} />;
+  return <>{"words" in line.when ? line.when.words : premiereTimeWords(line.when.iso, line.when.style === "weekly" ? { weekly: true } : { day: true })}</>;
 }
 
 /**
@@ -97,9 +97,7 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
               {arc.to === "end" ? `${days(arc.left)} left in the season` : arc.left === 0 ? "the finale is tonight" : `${days(arc.left)} to the finale`}
             </>
           ) : (
-            <>
-              Starts <When iso={data.starts_at} style="day-time" />
-            </>
+            <>Starts {premiereTimeWords(data.starts_at, { day: true })}</>
           )}
         </p>
         {premiere && (

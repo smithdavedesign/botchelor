@@ -5,6 +5,8 @@
  * out (`?artists=hide`), so the choice is the reader's. The list is the names that recur in these datasets, checked as
  * whole words, case-insensitive; a name that is also a common word (a single surname) is listed with its first name.
  */
+import { escapeRegExp } from "./text";
+
 const ARTISTS = [
   "greg rutkowski",
   "rutkowski",
@@ -135,9 +137,8 @@ const ARTISTS = [
   "roger deakins",
 ] as const;
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Longest first, so "greg rutkowski" is found as itself before "rutkowski" would be.
-const PATTERN = new RegExp(`(?<![\\p{L}\\p{N}])(?:${[...ARTISTS].sort((a, b) => b.length - a.length).map(escape).join("|")})(?![\\p{L}\\p{N}])`, "iu");
+const PATTERN = new RegExp(`(?<![\\p{L}\\p{N}])(?:${[...ARTISTS].sort((a, b) => b.length - a.length).map(escapeRegExp).join("|")})(?![\\p{L}\\p{N}])`, "iu");
 
 /** Whether a prompt names one of the artists above. */
 export function namesArtist(text: string): boolean {

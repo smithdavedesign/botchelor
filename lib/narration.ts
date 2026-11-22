@@ -23,6 +23,7 @@
 import type { ChatMessage, Model, ModelOptions } from "./model";
 import { checkAdultText, checkShowText } from "./safety";
 import { storySpeech } from "./story-reply";
+import { escapeRegExp } from "./text";
 
 export * from "./story-reply";
 
@@ -211,7 +212,7 @@ export function tidyPart(raw: unknown, max = BEAT_PART_MAX): string {
 /** Whether a sentence uses one of the worn phrases (WORN_PHRASES). */
 export function hasWornPhrase(sentence: string): boolean {
   const low = sentence.toLowerCase().replace(/[’]/g, "'");
-  return WORN_PHRASES.some((p) => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(low));
+  return WORN_PHRASES.some((p) => new RegExp(`\\b${escapeRegExp(p)}\\b`).test(low));
 }
 
 /** A part without the sentences that use a worn phrase (WORN_PHRASES); how many went. */

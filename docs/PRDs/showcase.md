@@ -101,7 +101,7 @@ or automatically preferably, and the page should be full width".
   | ad.botchelor.com (explicit) | Gallery → Showcase `/after-dark/showcase`, reels `/after-dark/showcase/reels` | Gallery → Yours `/after-dark/gallery` |
 
 - **Old `?side=after_dark` addresses** (shared reels, bookmarks, the reels' own side tabs) move there in
-  `middleware.ts`; `/creators/<h>?side=after_dark` becomes `/after-dark/showcase?creator=<h>`.
+  `proxy.ts`; `/creators/<h>?side=after_dark` becomes `/after-dark/showcase?creator=<h>`.
 - **The reels page is unchanged**: one body for both routes (`app/showcase/reels/feed.tsx`).
 - **📣 Publish's "See it on the showcase"** opens an explicit post on After Dark's showcase.
 - **Living portraits** are no longer listed in After Dark's galleries; they stay here.

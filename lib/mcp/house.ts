@@ -26,6 +26,7 @@ import { siteUrl } from "../site";
 import { storyStateOn, storyView } from "../story-state";
 import { HOUSE_TALK_DEFAULT, HOUSE_TALK_MAX } from "./constants";
 import { mcpHouseOn } from "./schemas";
+import { escapeRegExp } from "../text";
 
 export const HOUSE_TOOL_NAMES = ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] as const;
 export type HouseToolName = (typeof HOUSE_TOOL_NAMES)[number];
@@ -89,7 +90,7 @@ export async function getHouseScene(db: Db, args: Record<string, unknown>, now: 
 }
 
 /** Whether `text` says `name` as a word ("Nell", not "Nelly"). */
-const says = (text: string, name: string): boolean => new RegExp(`(^|[^\\p{L}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}]|$)`, "iu").test(text);
+const says = (text: string, name: string): boolean => new RegExp(`(^|[^\\p{L}])${escapeRegExp(name)}([^\\p{L}]|$)`, "iu").test(text);
 
 /**
  * get_house_talk: the public scenes that name one character, newest first. A scene is found by the stored row (who was
