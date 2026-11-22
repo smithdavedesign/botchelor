@@ -19,7 +19,8 @@ import { getDb, type Db } from "./db";
 import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { introductionFor, type Introduction } from "./social/introductions";
-import { track, trackDateQuality, trackEpisodeCost } from "./analytics";
+import { track, trackDateQuality } from "./analytics";
+import { trackEpisodeCostKept, trackKept } from "./ops-log";
 import { failureReason } from "./jobs";
 import { houseRoomTextsOn, isAfterglowEnabled } from "./afterglow";
 import { firstPickOn, showCastIds, suitorInTurn } from "./season-cast";
@@ -955,7 +956,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
     throw err;
   }
   if (gen.conversationError) {
-    track("conversation_failed", { episode_id: episodeId, where: "template", reason: failureReason(gen.conversationError) });
+    trackKept("conversation_failed", { episode_id: episodeId, where: "template", reason: failureReason(gen.conversationError) });
   }
   // The lobby is the show's shop window: a conversation that scores under the showcase bar gets one more take
   // (the same engine outcome, so nothing that's predicted changes) and the better take airs. Free metrics only.
@@ -968,7 +969,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
     }
   }
   if (gen.quality) trackDateQuality(episodeId, retaken ? "template_retake" : "template", gen.plan?.source ?? null, gen.quality);
-  trackEpisodeCost({
+  trackEpisodeCostKept({
     episode_id: episodeId,
     where: retaken ? "template_retake" : "template",
     model: "free",
