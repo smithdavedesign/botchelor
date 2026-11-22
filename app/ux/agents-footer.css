@@ -170,9 +170,9 @@
 }
 /* "↑ Contents": at the end of the page in the markup, sticky to the foot of the screen while the page is read. It sat
    in the text column and hid a line (2026-11-22 audit), so it rides beside the text. On a wide screen it's the pill
-   with its word in the left margin; with no margin, a 44px circle at the column's right edge, its word clipped (not
-   hidden, so a screen reader still hears it): above the floating Feedback button where that shows, above the phone's
-   tab bar where that does. */
+   with its word in the left margin; from 800px a 44px circle fits that margin (the column starts 52px in), its word
+   clipped (not hidden, so a screen reader still hears it); with no margin, that circle at the column's right edge,
+   above the floating Feedback button where that shows and above the phone's tab bar where that does. */
 .legal-top {
   position: sticky;
   bottom: var(--space-4);
@@ -201,9 +201,15 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
-@media (min-width: 721px) and (max-width: 1023px) {
+@media (min-width: 721px) and (max-width: 799px) {
   .legal-top {
     bottom: calc(var(--space-4) + 2.75rem + var(--space-3));
+  }
+}
+@media (min-width: 800px) and (max-width: 1023px) {
+  .legal-top {
+    margin-left: 0;
+    translate: calc(-100% - var(--space-1)) 0;
   }
 }
 @media (min-width: 1024px) {

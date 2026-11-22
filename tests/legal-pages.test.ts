@@ -188,11 +188,12 @@ describe("the privacy notice", () => {
     expect(privacy).toContain("only if you opt in, and even then only dates that aired publicly");
   });
 
-  it("keeps ↑ Contents beside the text: the left margin on a wide screen, a circle at the right edge below that", () => {
+  it("keeps ↑ Contents beside the text: the left margin where there is one, a circle at the right edge below that", () => {
     const css = readFileSync("app/ux/agents-footer.css", "utf8");
     expect(css).toMatch(/\.legal-top \{[^}]*position: sticky;[^}]*width: 2\.75rem;[^}]*margin: var\(--space-4\) 0 0 auto;/);
     expect(css).toMatch(/@media \(min-width: 1024px\) \{\s*\.legal-top \{[^}]*translate: calc\(-100% - var\(--space-4\)\) 0;/);
-    expect(css).toMatch(/@media \(min-width: 721px\) and \(max-width: 1023px\) \{\s*\.legal-top \{\s*bottom: calc\(var\(--space-4\) \+ 2\.75rem \+ var\(--space-3\)\);/);
+    expect(css).toMatch(/@media \(min-width: 800px\) and \(max-width: 1023px\) \{\s*\.legal-top \{\s*margin-left: 0;\s*translate: calc\(-100% - var\(--space-1\)\) 0;/);
+    expect(css).toMatch(/@media \(min-width: 721px\) and \(max-width: 799px\) \{\s*\.legal-top \{\s*bottom: calc\(var\(--space-4\) \+ 2\.75rem \+ var\(--space-3\)\);/);
     // /safety's helplines keep the card's edge on a phone: the legal lists' indent leaves them out.
     expect(css).toContain(".legal-page ul:not(.legal-toc ul, .safety-help-lines) {");
   });
