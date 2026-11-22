@@ -75,7 +75,8 @@ describe("the app's other addresses: the platform's own moves to botchelor.com, 
 
   it("moves the DigitalOcean address's pages there for good, path and query kept, for anyone", () => {
     onDigitalOcean();
-    for (const headers of [{}, { cookie: `bz_adult=1; bz_uid=${UID}` }, { "user-agent": GOOGLEBOT }]) {
+    const visitors: Record<string, string>[] = [{}, { cookie: `bz_adult=1; bz_uid=${UID}` }, { "user-agent": GOOGLEBOT }];
+    for (const headers of visitors) {
       const res = page(`${DO}/characters/house-nell?utm_source=x`, headers);
       expect(res.status).toBe(308);
       expect(res.headers.get("location")).toBe("https://botchelor.com/characters/house-nell?utm_source=x");
