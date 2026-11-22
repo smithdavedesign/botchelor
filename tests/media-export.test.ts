@@ -14,8 +14,9 @@ import { savePrivacy } from "@/lib/adult/privacy";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { pruneExports } from "@/lib/media-tools/export";
-import { setModelForTests } from "@/lib/model";
+import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { setSeasonCastForTests } from "@/lib/season-cast";
+import { pgTagShows } from "@/lib/studio/pg-captions";
 import { api, BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
 
 // The export pack and captions (lib/media-tools/export.ts, lib/adult/captions.ts, lib/studio/pg-captions.ts): no live
@@ -203,6 +204,34 @@ describe("the PG Studio's export and captions", () => {
     const c = (await (await post(pgCaptionsPost, "/api/studio/captions", { picture_id: pid }, cookie)).json()).captions as { options: string[]; hashtags: string[] };
     expect(c.options).toHaveLength(3);
     expect(c.hashtags).toContain("#AIgenerated");
+  });
+
+  it("tells the captions what an identity view or a carousel shows, and to add nothing it doesn't name", async () => {
+    const uid = crypto.randomUUID();
+    const cookie = signedInCookie(uid);
+    const char = (await (await api.createCharacter(validCharacter({ name: `Pia ${uid.slice(0, 6)}` }), cookie)).json()).id as string;
+    const pid = crypto.randomUUID();
+    await t.db.query(`insert into studio_pg_pictures (id, owner_id, character_id, mime, data, content_rating, tags) values ($1, $2, $3, 'image/png', $4, 'pg', $5::jsonb)`, [
+      pid,
+      uid,
+      char,
+      PNG,
+      JSON.stringify([{ kind: "made", value: "identity" }, { kind: "view", value: "front" }]),
+    ]);
+    const asked: string[] = [];
+    setModelForTests({
+      complete: async (messages: ChatMessage[]) => {
+        asked.push(messages.map((m) => m.content).join("\n"));
+        return CAPTIONS;
+      },
+    } as never);
+    expect((await post(pgCaptionsPost, "/api/studio/captions", { picture_id: pid }, cookie)).status).toBe(200);
+    expect(asked[0]).toContain("The photo: a studio portrait on a plain light-grey backdrop: a tight head-and-shoulders close-up, looking straight at the camera");
+    expect(asked[0]).toContain("don't add a place, an activity, an expression, a time or anything else it doesn't name");
+    // A carousel keeps its shoot's picks on its tags, and only the backdrop of a view (its angles are its own).
+    expect(pgTagShows([{ kind: "made", value: "carousel" }, { kind: "view", value: "front" }])).toBe("a studio portrait on a plain light-grey backdrop");
+    expect(pgTagShows([{ kind: "made", value: "carousel" }, { kind: "place", value: "beach" }, { kind: "place", value: "own" }])).toBe("Beach");
+    expect(pgTagShows([])).toBe("");
   });
 });
 

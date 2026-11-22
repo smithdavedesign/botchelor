@@ -14247,9 +14247,6 @@ button.pg-group-head:hover {
   gap: var(--space-2);
   padding: 0.5rem 0.65rem;
 }
-.pg-picture-meta button {
-  margin: 0 0 0 auto;
-}
 
 /* ---------- The Create library (app/studio/CreateLibrary.tsx), in both Studios, and Your prompts on /prompts ---------- */
 .create-library {

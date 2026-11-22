@@ -179,10 +179,10 @@ describe("the page: /prompts", () => {
     expect(html).toMatch(/CC0 1\.0[\s\S]*Apache 2\.0[\s\S]*MIT/);
   });
 
-  it("is indexable and listed for search engines", () => {
+  it("stays out of search while it's behind the 18+ gate (a result there landed people on the gate), links followed", () => {
     expect(metadata.alternates?.canonical).toBe("/prompts");
-    expect(metadata.robots).toBeUndefined();
-    expect(PUBLIC_PATHS).toContain("/prompts");
+    expect(metadata.robots).toEqual({ index: false, follow: true });
+    expect(PUBLIC_PATHS).not.toContain("/prompts");
   });
 });
 
