@@ -94,9 +94,10 @@ describe("a reply's voice note and Report, without one under every reply", () =>
   const count = (needle: string) => html.split(needle).length - 1;
 
   it("offers a new voice note and Report under the newest reply only", () => {
-    expect(count("🔊 Voice note")).toBe(1);
+    // The record button (data-track="companion-voice"; the play one is companion-voice-play).
+    expect(count('data-track="companion-voice"')).toBe(1);
     expect(count(">Report</button>")).toBe(1);
-    expect(html.lastIndexOf("🔊 Voice note")).toBeGreaterThan(html.indexOf("I only lie about books."));
+    expect(html.indexOf('data-track="companion-voice"')).toBeGreaterThan(html.indexOf("I only lie about books."));
   });
 
   it("keeps a voice note an earlier reply already has, playable where it is", () => {
