@@ -18,6 +18,8 @@ import { sinceYouWereHere } from "@/lib/since";
 import { characterPhone } from "@/lib/character-phone";
 import { showIdeasOn } from "@/lib/show-ideas-switch";
 import CharacterPhone from "./CharacterPhone";
+import RememberCharacter from "./RememberCharacter";
+import { rememberedCharacter } from "@/lib/current-character";
 import When from "@/app/When";
 import { skyCounts } from "@/lib/graph";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
@@ -111,7 +113,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     if (refSlug) q.set("ref", refSlug);
     redirect(`/reviews?${q}`);
   }
-  const viewerId = userIdFromCookieStore(await cookies());
+  const cookieStore = await cookies();
+  const viewerId = userIdFromCookieStore(cookieStore);
   const db = viewerId ? await getDb() : null;
   const conn = db ?? (await getDb());
   // Open casting (lib/casting.ts): who a new character's first date goes to while a Botchelor lead is taking walk-ons.
@@ -128,7 +131,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       : [[], 0],
   );
   // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
-  const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine).catch(() => null) : null));
+  // It leads with the character the header shows (lib/current-character.ts); with none remembered, its own pick becomes
+  // the remembered one (RememberCharacter below), so the header and every page that follows it agree.
+  const picked = rememberedCharacter(cookieStore);
+  const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine, undefined, undefined, picked).catch(() => null) : null));
   // A stranger's first screen (lib/home-open.ts): tonight's story (who steps forward on the stage), read only for someone
   // with no character while HOME_OPEN is on; the same few seconds' shared copy for everyone.
   const openP: Promise<{ story: OpenTonight | null } | null> = myCharactersP.then((mine) =>
@@ -234,6 +240,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {/* An owner's home has no hero any more (B10), so its one h1 is for screen readers. */}
       {creator && <h1 className="sr-only">Your characters and the show</h1>}
       {phone && <CharacterPhone phone={phone} />}
+      {phone && <RememberCharacter id={phone.character.id} />}
       {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
       {creator && (
@@ -365,9 +372,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           heroB && (
             <div className="hero-art">
               <div className="matchup">
-                <Avatar seed={heroA.id} name={heroA.name} house size={64} />
+                <Avatar seed={heroA.id} name={heroA.name} house portraitSrc={heroA.portrait} size={64} />
                 <span className="vs">×</span>
-                <Avatar seed={heroB.id} name={heroB.name} house size={64} />
+                <Avatar seed={heroB.id} name={heroB.name} house portraitSrc={heroB.portrait} size={64} />
               </div>
               <p className="muted mini-cap">An engine decides how every date ends; friends guess it first.</p>
             </div>

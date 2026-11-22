@@ -231,3 +231,26 @@ describe("the phone's tab bar", () => {
     expect(source("app/layout.tsx")).toContain('import "./ux/chrome.css";\nimport "./ux/catalog.css";');
   });
 });
+
+// UX audit 2026-11-22: axe's link-name on every phone page with the header. The After Dark door hid its word with
+// display: none, which a screen reader skips too, so the link had no name; out of sight is the .sr-only rule instead.
+// A long name in a heading's switch wraps inside its button, its "'s" still kept with it (/studio was 32 px too wide).
+describe("the header and headings on a phone", () => {
+  it("keeps the After Dark door's name for a screen reader", () => {
+    const css = source("app/globals.css");
+    const rule = /\.nav a\.nav-ad-link span,\s*\.moon-badge span \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/position: absolute;/);
+    expect(rule).toMatch(/clip: rect\(0, 0, 0, 0\);/);
+    expect(rule).not.toMatch(/display: none/);
+    expect(source("app/Nav.tsx")).toMatch(/<Icon name="moon" \/>\s*<span>After Dark<\/span>/);
+  });
+
+  it("lets a long name wrap inside a heading's switch", () => {
+    const css = source("app/ux/chrome.css");
+    expect(css).toMatch(/\.heading-switch-keep \{\s*white-space: nowrap;\s*\}/);
+    const inner = /\.heading-switch-keep \.heading-switch \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(inner).toMatch(/max-width: calc\(100% - 1em\);/);
+    expect(inner).toMatch(/white-space: normal;/);
+    expect(inner).toMatch(/overflow-wrap: anywhere;/);
+  });
+});

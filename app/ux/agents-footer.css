@@ -485,6 +485,10 @@
 }
 .account-character-name {
   display: block;
+  /* Room for a round first letter's overhang, which overflow: hidden cut off (UX audit 2026-11-22: "Orrin" lost the
+     left of its O), taken back by the margin so the name still lines up with the links under it. */
+  padding-inline: 0.12em;
+  margin-inline: -0.12em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

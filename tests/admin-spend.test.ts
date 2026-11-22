@@ -1,7 +1,22 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/admin/spend/route";
+import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
-import { amountIn, KNOWN_COSTS, planPriceUsd, providerReadings, recordedIncome, summarize, type MoneyEntry } from "@/lib/spend";
+import { setEmailSenderForTests } from "@/lib/email";
+import {
+  alertLowBalances,
+  amountIn,
+  daysLeft,
+  forgetReadingsForTests,
+  isLowBalance,
+  KNOWN_COSTS,
+  lowBalanceLine,
+  planPriceUsd,
+  providerReadings,
+  recordedIncome,
+  summarize,
+  type MoneyEntry,
+} from "@/lib/spend";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -125,10 +140,89 @@ describe("the provider readings", () => {
   });
 });
 
+// UX audit 2026-11-22: OpenRouter sat at $3.78, about two days left at its pace, and the page said nothing.
+describe("a balance about to run out", () => {
+  const day = 86_400_000;
+  const now = new Date("2026-11-22T06:00:00Z");
+
+  it("lasts as long as the pace it went down at says, over the days it really spans; a top-up or a bill says nothing", () => {
+    expect(daysLeft("openrouter", 3.78, { balance: 17.25, at: new Date(now.getTime() - 8 * day) }, now)).toBeCloseTo(2.245, 2);
+    // A reading 16 days back paces it over 16 days, not 7.
+    expect(daysLeft("openrouter", 3.78, { balance: 17.25, at: new Date(now.getTime() - 16 * day) }, now)).toBeCloseTo(4.49, 1);
+    expect(daysLeft("openrouter", 30, { balance: 10, at: new Date(now.getTime() - 8 * day) }, now)).toBeNull(); // topped up
+    expect(daysLeft("openrouter", 3, { balance: 9, at: new Date(now.getTime() - 3_600_000) }, now)).toBeNull(); // under a day
+    expect(daysLeft("digitalocean", 7, { balance: 2, at: new Date(now.getTime() - 8 * day) }, now)).toBeNull(); // what's owed
+    expect(daysLeft("openrouter", null, { balance: 2, at: new Date(now.getTime() - 8 * day) }, now)).toBeNull();
+  });
+
+  it("is flagged under a week unless the provider tops itself up, in words with the pace's start", () => {
+    const r = { label: "OpenRouter (After Dark's writer, companions)", balance_usd: 3.78, days_left: 4.49, auto_top_up: false, pace_since: "2026-11-06" };
+    expect(isLowBalance(r)).toBe(true);
+    expect(lowBalanceLine(r)).toBe("OpenRouter: $3.78 left, about 4 days at the pace since Nov 6.");
+    expect(isLowBalance({ ...r, auto_top_up: true })).toBe(false);
+    expect(isLowBalance({ ...r, days_left: 9 })).toBe(false);
+    expect(isLowBalance({ ...r, days_left: null })).toBe(false);
+    expect(lowBalanceLine({ ...r, days_left: 0.4 })).toContain("less than a day");
+  });
+
+  it("reads OpenRouter's pace from a snapshot a week or more old, and the daily job emails the admins once a day", async () => {
+    await saveAdultSettings(t.db, { openrouter_key: ["test", "key", "not", "real", "or", "5678"].join("-") });
+    await t.db.query(`insert into spend_snapshots (day, provider, balance_usd, read_at) values ('2026-11-14', 'openrouter', 17.25, '2026-11-14T06:00:00Z')`);
+    const fake = (async (url: string) =>
+      new Response(JSON.stringify({ data: url.endsWith("/credits") ? { total_credits: 100, total_usage: 96.22 } : { usage: 6, usage_monthly: 6 } }), {
+        status: 200,
+      })) as unknown as typeof fetch;
+    const env = { SESSION_SECRET: TEST_SESSION_SECRET, RESEND_API_KEY: "re_test_not_real", CONTACT_EMAIL: "owner@example.com" };
+    const or = (await providerReadings(t.db, env, fake, now)).find((r) => r.provider === "openrouter")!;
+    expect(or).toMatchObject({ state: "live", balance_usd: 3.78, balance_week_ago: 17.25, pace_since: "2026-11-14", auto_top_up: false });
+    expect(or.days_left).toBeCloseTo(2.245, 2);
+
+    const sent: { to: string; subject: string }[] = [];
+    setEmailSenderForTests(async (msg) => {
+      sent.push({ to: String(msg.to), subject: msg.subject });
+      return "id";
+    });
+    try {
+      expect(await alertLowBalances(t.db, env, fake, now)).toBe(1);
+      expect(sent).toEqual([{ to: "owner@example.com", subject: "Low balance: OpenRouter: $3.78 left, about 2 days at the pace since Nov 14." }]);
+      // Again the same day (a manual run): flagged, not emailed twice.
+      expect(await alertLowBalances(t.db, env, fake, new Date(now.getTime() + 3_600_000))).toBe(1);
+      expect(sent).toHaveLength(1);
+    } finally {
+      setEmailSenderForTests(null);
+    }
+  });
+});
+
 describe("/api/admin/spend", () => {
   it("is for admins only", async () => {
     expect((await get(newUserCookie())).status).toBe(403);
+    expect((await GET(new Request(`${BASE_URL}/api/admin/spend?part=balances`, { headers: { cookie: newUserCookie() } }))).status).toBe(403);
     expect((await post(newUserCookie(), { action: "add_known" })).status).toBe(403);
+  });
+
+  it("hands the ledger without waiting on a billing API, and the balances on their own, kept a few minutes", async () => {
+    forgetReadingsForTests();
+    const cookie = await admin();
+    const view = await (await get(cookie)).json();
+    expect(view).not.toHaveProperty("readings");
+    let reads = 0;
+    vi.stubGlobal("fetch", (async () => {
+      reads++;
+      return new Response(JSON.stringify({ month_to_date_usage: "1", month_to_date_balance: "1" }), { status: 200 });
+    }) as unknown as typeof fetch);
+    vi.stubEnv("DO_BILLING_TOKEN", "do-read-only");
+    try {
+      const balances = async () => (await GET(new Request(`${BASE_URL}/api/admin/spend?part=balances`, { headers: { cookie } }))).json();
+      const first = await balances();
+      expect(first.readings.find((r: { provider: string }) => r.provider === "digitalocean")).toMatchObject({ state: "live" });
+      expect(typeof first.read_at).toBe("string");
+      expect((await balances()).read_at).toBe(first.read_at);
+      expect(reads).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+      forgetReadingsForTests();
+    }
   });
 
   it("adds an entry, shows it in its month, fills in the documented costs once, and deletes", async () => {

@@ -29,6 +29,18 @@ describe("/account's jump links", () => {
     expect(read("app/account/PersonaCard.tsx")).toContain('id="persona"');
     expect(panel).toContain('<nav className="account-jumps scroll-row" aria-label="On this page">');
   });
+
+  // UX audit 2026-11-22: on desktop the hidden scrollbar left the last chips cut off at the right; a character's name
+  // lost the left of its first letter to overflow: hidden.
+  it("wraps on a wide screen, and gives a name's first letter room", () => {
+    const wide = /@media \(min-width: 721px\) \{\s*\.account-jumps\.scroll-row \{([^}]*)\}/.exec(read("app/ux/catalog.css"))?.[1] ?? "";
+    expect(wide).toMatch(/flex-wrap: wrap;/);
+    expect(wide).toMatch(/overflow-x: visible;/);
+    expect(wide).toMatch(/mask-image: none;/);
+    const name = /\.account-character-name \{([^}]*)\}/.exec(read("app/ux/agents-footer.css"))?.[1] ?? "";
+    expect(name).toMatch(/padding-inline: 0\.12em;\s*margin-inline: -0\.12em;/);
+    expect(name).toMatch(/overflow: hidden;/);
+  });
 });
 
 describe("Connections (/account/keys)", () => {

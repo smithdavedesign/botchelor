@@ -790,9 +790,15 @@ body:has(.feedback-fab) .site-footer {
   text-underline-offset: 0.14em;
   cursor: pointer;
 }
-/* The name and its "'s" on one line (app/SwitchCharacter.tsx `suffix`, B2). */
+/* The name and its "'s" on one line (app/SwitchCharacter.tsx `suffix`, B2), while a long name still wraps inside its
+   button (UX audit 2026-11-22: "Teodor Abalos-Ferreira's Studio" made a phone's page 32 px too wide). */
 .heading-switch-keep {
   white-space: nowrap;
+}
+.heading-switch-keep .heading-switch {
+  max-width: calc(100% - 1em);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .heading-switch:hover:not(:disabled) {
   transform: none;

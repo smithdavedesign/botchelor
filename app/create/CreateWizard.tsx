@@ -114,6 +114,8 @@ export type Partner = {
   archetype?: string;
   hue?: number | null;
   premium?: boolean;
+  /** An approved portrait from the ledger (/api/assets/<id>), for a house character whose face isn't a committed file. */
+  portrait?: string | null;
 };
 
 /** Tokens left for this viewer: free ones this week, plus any topped up. One token = one date. */
@@ -2366,9 +2368,9 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   const SHOWN = 6;
   const houseRow = (p: Partner) => (
     <li className={closed(p.id) ? "send-row is-closed" : "send-row"} key={p.id}>
-      <Avatar seed={p.id} name={p.name} hue={p.hue ?? null} house size={44} />
+      <Avatar seed={p.id} name={p.name} hue={p.hue ?? null} house portraitSrc={p.portrait ?? null} size={44} />
       <div className="send-row-meta">
-        <CharacterName character={{ id: p.id, name: p.name, hue: p.hue ?? null, house: true }} avatar={false} strong />
+        <CharacterName character={{ id: p.id, name: p.name, hue: p.hue ?? null, house: true, portrait: p.portrait ?? null }} avatar={false} strong />
         <span className="send-row-sub">
           {p.age}
           {p.archetype && ` · ${p.archetype}`}
@@ -2490,7 +2492,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   );
 
   // Who the instant first date is with: the season's lead while casting is open, else the house cast member picked.
-  const date = instant ? (casting ? { id: casting.lead.id, name: casting.lead.name, hue: casting.lead.hue, portrait: casting.lead.portrait } : { id: instant.id, name: instant.name, hue: instant.hue ?? null, portrait: null }) : null;
+  const date = instant ? (casting ? { id: casting.lead.id, name: casting.lead.name, hue: casting.lead.hue, portrait: casting.lead.portrait } : { id: instant.id, name: instant.name, hue: instant.hue ?? null, portrait: instant.portrait ?? null }) : null;
   const dateFirst = date ? shortName(date.name) : "";
 
   return (

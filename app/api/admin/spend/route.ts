@@ -2,14 +2,19 @@ import { z } from "zod";
 import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
-import { addEntry, addKnownCosts, CATEGORIES, deleteEntry, EVERY, isMonth, KINDS, monthOf, spendView } from "@/lib/spend";
+import { addEntry, addKnownCosts, cachedProviderReadings, CATEGORIES, deleteEntry, EVERY, isMonth, KINDS, monthOf, spendView } from "@/lib/spend";
 
 export const dynamic = "force-dynamic";
 
-/** Admin: the spend tracker's month (lib/spend.ts): costs, income, each provider's live balance and the entries. */
+/**
+ * Admin: the spend tracker's month (lib/spend.ts): costs, income and the entries. ?part=balances is each provider's
+ * balance instead, read live and kept a few minutes, which the page asks for once the ledger is up.
+ */
 export const GET = handle(async (req: Request) => {
   if (!(await adminAuthorized(req))) return json(NOT_AUTHORIZED, 403);
-  const m = new URL(req.url).searchParams.get("month");
+  const params = new URL(req.url).searchParams;
+  if (params.get("part") === "balances") return json(await cachedProviderReadings(await getDb()));
+  const m = params.get("month");
   return json(await spendView(await getDb(), isMonth(m) ? m : monthOf(new Date())));
 });
 

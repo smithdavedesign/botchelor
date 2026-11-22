@@ -183,7 +183,8 @@ describe("the row's coverage (docs/data-plan.md)", () => {
     const out = await exportAccount(t.db, user);
     expect(out.plus_interest).toEqual([expect.objectContaining({ place: "shop", with_email: false }), expect.objectContaining({ place: "out_of_dates", with_email: true })]);
 
-    const view = await spendView(t.db, "2026-11", {}, async () => new Response("{}", { status: 404 }));
+    // The ledger reads no billing API now (the balances are their own request), so it takes no fetch.
+    const view = await spendView(t.db, "2026-11", {});
     expect(view.plus_interest).toEqual({ people: 2, with_email: 1, taps: 3 });
 
     await deleteAccount(t.db, user);
