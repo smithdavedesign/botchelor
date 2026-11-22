@@ -14,11 +14,11 @@
  *                       the 18+ gate, the sign-in hop and the APIs its pages call, and sends everything else to the show.
  *
  * Unset (the default), nothing here does anything: every function answers what the code did before the split existed
- * (tests/after-dark-host.test.ts pins that). Pages are routed in middleware.ts and APIs by next.config.ts redirects:
+ * (tests/after-dark-host.test.ts pins that). Pages are routed in proxy.ts and APIs by next.config.ts redirects:
  * the middleware never runs on /api, and making it run there would put it in front of every API call on the show. Both
  * read these at build time as well as at run time, so set them for both (Vercel does; on DigitalOcean, "Build and run").
  *
- * Edge-safe and dependency-free: middleware.ts, next.config.ts and client code (app/Nav.tsx) all import it.
+ * Edge-safe and dependency-free: proxy.ts, next.config.ts and client code (app/Nav.tsx) all import it.
  */
 
 type Env = Record<string, string | undefined>;

@@ -16,7 +16,7 @@ import { NOTRACK_COOKIE } from "@/lib/tracking";
  * keep the old property verified; /.well-known/glama.json proves www is ours). That's why www isn't a domain-level
  * redirect on Vercel: that would move /api too. Preview deployments have other hosts and never move.
  */
-/** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here to keep node:crypto out of middleware. */
+/** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here so every request doesn't load lib/http. */
 const IDENTITY_COOKIES = ["bz_sess", "bz_uid"];
 
 /** A page visit on the old host: a cookieless visitor (or crawler) moves for good; a player carries their identity. */
@@ -260,7 +260,7 @@ function renewPlace(req: NextRequest): NextResponse | null {
   return NextResponse.redirect(url, 307);
 }
 
-export function middleware(req: NextRequest): NextResponse {
+export function proxy(req: NextRequest): NextResponse {
   const moved = moveToCanonical(req) ?? moveFromOtherHost(req) ?? moveShowcaseSide(req) ?? moveForAfterDark(req) ?? renewPlace(req);
   if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
