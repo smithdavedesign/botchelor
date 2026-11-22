@@ -15,7 +15,8 @@ export const STEP_IN_TAGLINE = "An AI character. Fiction between adults.";
  */
 export const placeInSentence = (label: string): string => (label ? label.charAt(0).toLowerCase() + label.slice(1) : label);
 
-export type StepInCharacter ={ id: string; name: string; portrait: string | null; hue: number | null };
+/** `house`: one of the show's own cast (set where the set-up's picker groups them, lib/adult/step-in.ts stepInCast). */
+export type StepInCharacter = { id: string; name: string; portrait: string | null; hue: number | null; house?: boolean };
 
 export type StepInPlace = {
   /** The catalog's id (lib/adult/scene-catalog.ts); empty for a place the catalog no longer has. */

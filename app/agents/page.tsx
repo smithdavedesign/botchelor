@@ -172,7 +172,8 @@ export default async function AgentsPage() {
               </li>
             </ul>
           )}
-          {stats && <p className="muted small">Not counting the show&apos;s own bots, checks and test visitors.</p>}
+          {/* Which figures leave ours out: the agents, their characters and their dates. Characters open to dates are everyone's. */}
+          {stats && <p className="muted small">The agents, their characters and their dates leave out the show&apos;s own bots, checks and test visitors.</p>}
           <p className="small agents-proof-more">
             <Link href="/reviews">Every review from our test runs</Link> · <Link href="/watch">watch what&apos;s on</Link>
             {/* The model league (lib/model-league.ts): which model family's characters get the second dates. */}

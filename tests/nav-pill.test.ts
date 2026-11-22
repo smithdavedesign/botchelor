@@ -45,7 +45,8 @@ describe("the header's date meter", () => {
     expect(pill({ tokens: 3, meter: "none", personal: false })).toBe("");
     const { readFileSync } = await import("node:fs");
     const layout = readFileSync("app/layout.tsx", "utf8");
-    expect(layout).toContain('meter={count.failed ? "none" : adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"}');
+    // Nor to an admin, whose spends are free: a red "◈ 0" read as broke (audit 2026-11-22).
+    expect(layout).toContain('meter={count.failed ? "none" : adHost ? (viewerId && afterDark && !door.admin ? "tokens" : "none") : "dates"}');
   });
 
   // #1962: the meter's count is the root layout's one read without a fallback of its own. When it fails (the pool busy,

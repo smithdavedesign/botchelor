@@ -472,10 +472,12 @@ export default function SceneWriter({
     const held = Number(res.data.held ?? 0);
     const repeats = Number(res.data.repeats ?? 0);
     const dropped = Number(res.data.dropped ?? 0);
+    // The writer's repeats and slips the checks took out are an admin's to see: to a viewer, "1 line repeating what was
+    // already said was dropped" read as the machinery (audit 2026-11-22). A line held at their own limits still says so.
     const parts = [
       held ? `${held} line${held === 1 ? "" : "s"} crossed one of the two lines and ${held === 1 ? "was" : "were"} dropped.` : "",
-      repeats ? `${repeats} line${repeats === 1 ? "" : "s"} repeating what was already said ${repeats === 1 ? "was" : "were"} dropped.` : "",
-      dropped ? `${dropped} line${dropped === 1 ? "" : "s"} that named someone else, broke the turn-taking or stepped out of the scene ${dropped === 1 ? "was" : "were"} dropped.` : "",
+      admin && repeats ? `${repeats} line${repeats === 1 ? "" : "s"} repeating what was already said ${repeats === 1 ? "was" : "were"} dropped.` : "",
+      admin && dropped ? `${dropped} line${dropped === 1 ? "" : "s"} that named someone else, broke the turn-taking or stepped out of the scene ${dropped === 1 ? "was" : "were"} dropped.` : "",
       pictures.length ? `${pictures.length} new picture${pictures.length === 1 ? "" : "s"} below.` : "",
       typeof res.data.picture_note === "string" ? `Picture: ${res.data.picture_note}` : "",
       // #1053: "GLM-4.6 sent nothing back: DeepSeek V3.1 wrote this one", so which writer wrote the lines is never a guess.

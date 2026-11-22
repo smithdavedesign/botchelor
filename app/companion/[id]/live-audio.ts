@@ -31,9 +31,16 @@ export function newAudioContext(): AudioContext | null {
 export class Mic {
   private stream: MediaStream | null = null;
   private nodes: AudioNode[] = [];
+  private stopped = false;
 
   async start(ctx: AudioContext, onPcm: (pcm: ArrayBuffer) => void): Promise<void> {
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    // Stopped while the browser was still asking (the call paused, timed out or ended): the microphone goes straight off.
+    if (this.stopped) {
+      stream.getTracks().forEach((t) => t.stop());
+      throw new Error("stopped");
+    }
+    this.stream = stream;
     const source = ctx.createMediaStreamSource(this.stream);
     // ScriptProcessor rather than a worklet: it needs no module file and runs everywhere a call does.
     const proc = ctx.createScriptProcessor(4096, 1, 1);
@@ -47,6 +54,7 @@ export class Mic {
   }
 
   stop(): void {
+    this.stopped = true;
     for (const n of this.nodes) {
       try {
         n.disconnect();

@@ -6,7 +6,7 @@ import { GET as verotelGet } from "@/app/api/after-dark/billing/verotel/route";
 import { POST as subscribePost } from "@/app/api/after-dark/subscribe/route";
 import { deleteAfterDarkData } from "@/lib/account";
 import { claimAdmin } from "@/lib/admins";
-import { configuredProcessors, sendRenewalReminders, subscriptionState } from "@/lib/adult/billing";
+import { configuredProcessors, sendRenewalReminders, shownStatus, subscriptionState } from "@/lib/adult/billing";
 import { parseSegpayPostback, segpayPayPageUrl } from "@/lib/adult/billing-segpay";
 import { verotelSignature, verotelSignatureValid, verotelStartOrderUrl } from "@/lib/adult/billing-verotel";
 import { canAfterDark } from "@/lib/adult/entitlement";
@@ -95,6 +95,17 @@ const entitlement = async (id: string) =>
     [id],
   )).rows[0];
 const access = (id: string, now?: Date) => canAfterDark(t.db, { userId: id, authenticated: true }, now);
+
+describe("the admin's view of a subscription", () => {
+  // The 2026-11-22 audit: a pass that ran until 11-07 read "active" on the providers page.
+  it("says lapsed for one still marked active whose period has ended", () => {
+    const now = new Date("2026-11-22T00:00:00Z");
+    expect(shownStatus("active", "2026-11-07T00:00:00.000Z", now)).toBe("lapsed");
+    expect(shownStatus("active", "2026-11-30T00:00:00.000Z", now)).toBe("active");
+    expect(shownStatus("active", null, now)).toBe("active");
+    expect(shownStatus("canceled", "2026-11-07T00:00:00.000Z", now)).toBe("canceled");
+  });
+});
 
 describe("off until a processor is configured", () => {
   it("offers nothing: no processors, the routes are not found, no reminders", async () => {
