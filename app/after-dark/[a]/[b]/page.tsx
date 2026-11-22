@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import { adultNarratedOpen } from "@/lib/adult/narrate-scene";
 import Icon from "@/app/Icon";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { writerOptions } from "@/lib/adult/writer";
-import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { isAdmin } from "@/lib/admins";
 import { listMedia } from "@/lib/adult/media";
 import { facesFor, steerSummary } from "@/lib/adult/steering";
@@ -33,7 +31,7 @@ import { seasonMonth } from "@/lib/season-cast";
 import { shortName } from "@/lib/names";
 import { pairKey } from "@/lib/relationships";
 import CharacterName from "@/app/CharacterName";
-import { currentHere } from "../../view";
+import { currentHere, currentViewer } from "../../view";
 import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +57,7 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
   const { a, b } = await params;
   const sp = (await searchParams) ?? {};
   const db = await getDb();
-  const admin = await adultViewerFromCookies(db, await cookies());
+  const admin = await currentViewer();
   if (!admin) notFound();
   const here = await currentHere();
   // Where only the scenes are allowed (lib/jurisdiction.ts) there are no pictures to set them up for.

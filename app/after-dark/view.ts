@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
+import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { accessHere } from "@/lib/adult/place";
 import { afterDarkView, UNLOCK_COOKIE } from "@/lib/adult/privacy";
 import { getDb } from "@/lib/db";
@@ -16,3 +17,9 @@ export const currentView = cache(async () => {
 
 /** This request's After Dark access here (lib/adult/place.ts accessHere): the regional rules, admins exempt. */
 export const currentHere = cache(async () => accessHere(await getDb(), authFromCookieStore(await cookies())));
+
+/**
+ * Who is looking, when After Dark's pages are theirs to see (lib/adult/mode.ts adultViewerFromCookies), else null. Worked
+ * out once per request and shared by a pair's layout (its early not-found) and its page.
+ */
+export const currentViewer = cache(async () => adultViewerFromCookies(await getDb(), await cookies()));

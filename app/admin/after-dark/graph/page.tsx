@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fallbackNote } from "@/lib/adult/fallback";
-import { afterDarkGraph, layout, pairContent, pairKey, splitPair, type PairContent } from "@/lib/adult/graph";
+import { afterDarkGraph, labelAt, layout, nodeRadius, pairContent, pairKey, splitPair, type PairContent } from "@/lib/adult/graph";
 import { writtenByLabel } from "@/lib/adult/model-log";
 import { signedInAdmin } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
@@ -35,6 +35,8 @@ export default async function AfterDarkGraphPage({ searchParams }: { searchParam
   const picked = typeof raw === "string" ? splitPair(raw) : null;
   const content = picked ? await pairContent(db, picked[0], picked[1]) : null;
   const at = layout(graph.nodes);
+  const r = nodeRadius(graph.nodes.length);
+  const n2 = (v: number) => Number(v.toFixed(2));
   const max = Math.max(1, ...graph.edges.map((e) => e.lines));
   const nameOf = new Map(graph.nodes.map((n) => [n.id, n.name]));
   const pickedKey = picked ? pairKey(picked[0], picked[1]) : null;
@@ -50,7 +52,7 @@ export default async function AfterDarkGraphPage({ searchParams }: { searchParam
         scene lines. Pick a pair to see all of it.
       </p>
       {graph.edges.length ? (
-        <svg className="ad-graph-svg" viewBox="0 0 100 100" role="img" aria-label="Characters and the pairs they've been in">
+        <svg className="ad-graph-svg" viewBox="-12 -12 124 124" role="img" aria-label="Characters and the pairs they've been in">
           {graph.edges.map((e) => {
             const p = at.get(e.a)!;
             const q = at.get(e.b)!;
@@ -75,14 +77,30 @@ export default async function AfterDarkGraphPage({ searchParams }: { searchParam
               <g key={n.id}>
                 <title>{`${n.name}: ${n.pairs} pairs, ${n.lines} lines`}</title>
                 <clipPath id={clip}>
-                  <circle cx={p.x} cy={p.y} r={4.2} />
+                  <circle cx={n2(p.x)} cy={n2(p.y)} r={n2(r * 0.91)} />
                 </clipPath>
-                <circle cx={p.x} cy={p.y} r={4.6} className="ad-node" />
-                {n.portrait && <image href={media(n.portrait)} x={p.x - 4.2} y={p.y - 4.2} width={8.4} height={8.4} clipPath={`url(#${clip})`} preserveAspectRatio="xMidYMid slice" />}
-                <text x={p.x} y={p.y + 7.5} textAnchor="middle" className="ad-label">
-                  {n.name.split(/\s+/)[0]}
-                </text>
+                <circle cx={n2(p.x)} cy={n2(p.y)} r={n2(r)} className="ad-node" />
+                {n.portrait && (
+                  <image href={media(n.portrait)} x={n2(p.x - r * 0.91)} y={n2(p.y - r * 0.91)} width={n2(r * 1.82)} height={n2(r * 1.82)} clipPath={`url(#${clip})`} preserveAspectRatio="xMidYMid slice" />
+                )}
               </g>
+            );
+          })}
+          {/* The names last, outside the ring along each node's radius (lib/adult/graph.ts labelAt): none under a circle. */}
+          {graph.nodes.map((n) => {
+            const l = labelAt(at.get(n.id)!, r);
+            return (
+              <text
+                key={`label-${n.id}`}
+                x={n2(l.x)}
+                y={n2(l.y)}
+                textAnchor={l.anchor}
+                dominantBaseline="middle"
+                transform={l.rotate ? `rotate(${n2(l.rotate)} ${n2(l.x)} ${n2(l.y)})` : undefined}
+                className="ad-label"
+              >
+                {n.name.split(/\s+/)[0]}
+              </text>
             );
           })}
         </svg>
