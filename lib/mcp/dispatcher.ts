@@ -3658,8 +3658,6 @@ function typeProblem(tool: string, args: Record<string, unknown>, sentAs: Record
     }
     const shape = Array.isArray(p.enum) && p.enum.every((x) => typeof x === "string") && typeof v !== "string" ? argShape(p) : null;
     if (shape) return { args, read, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: ${shape.type}, not ${JSON.stringify(v)} (e.g. "${k}": ${JSON.stringify(shape.example)}). Nothing was done.` };
-    // #1213 (the 2026-11-01-1105 run: update_character's soul sent as a string came back "expected object, received string",
-    // naming none of its keys): an object argument given as anything else is refused here, with the keys it takes.
     if ((p.type === "integer" || p.type === "number") && typeof v !== "number") {
       const n = typeof v === "string" && v.trim() ? Number(v.trim()) : NaN;
       if (Number.isFinite(n)) {
@@ -3679,6 +3677,8 @@ function typeProblem(tool: string, args: Record<string, unknown>, sentAs: Record
       const what = Array.isArray(v) ? "a list" : "an object";
       return { args, read, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: text, not ${what} (e.g. "${k}": "…"). Nothing was done.` };
     }
+    // #1213 (the 2026-11-01-1105 run: update_character's soul sent as a string came back "expected object, received string",
+    // naming none of its keys): an object argument given as anything else is refused here, with the keys it takes.
     if (p.type === "object" && (typeof v !== "object" || Array.isArray(v))) {
       const keys = objectKeys(k, p);
       const example = Object.fromEntries(keys.filter((x) => x !== "local_only").slice(0, 2).map((x) => [x, exampleValue(objectProps(k, p)[x])]));
