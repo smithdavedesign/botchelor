@@ -82,6 +82,23 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+/**
+ * A route with a loading screen (its loading.tsx, app/PageLoading.tsx) streams: the load event can come before the page
+ * replaces that screen, since React reveals streamed content in batches. This page's goto and reload also wait for the
+ * screen to go, so the checks after them see the page itself, not its outline.
+ */
+function settled(p) {
+  for (const name of ["goto", "reload"]) {
+    const plain = p[name].bind(p);
+    p[name] = async (...args) => {
+      const res = await plain(...args);
+      await p.locator(".page-skeleton").first().waitFor({ state: "detached", timeout: 10_000 }).catch(() => {});
+      return res;
+    };
+  }
+  return p;
+}
+
 async function main() {
   if (!process.env.CHROMIUM_PATH) throw new Error("Set CHROMIUM_PATH to a local Chromium; this script never downloads one.");
   rmSync(DATA_DIR, { recursive: true, force: true });
@@ -119,7 +136,7 @@ async function main() {
       // known bots (HeadlessChrome among them) skip the gate on purpose (lib/bots.ts), so a headless test browser would
       // never see it.
       const visitor = await browser.newContext({ userAgent: HUMAN_UA });
-      const gatePage = await visitor.newPage();
+      const gatePage = settled(await visitor.newPage());
       await gatePage.goto(`${base}/watch`);
       assert(new URL(gatePage.url()).pathname === "/watch", `expected /watch to open without the gate, got ${gatePage.url()}`);
       assert((await gatePage.getByText("Are you 18 or older?").count()) === 0, "the gate showed on a PG page");
@@ -136,7 +153,7 @@ async function main() {
     });
 
     const creator = await adultContext();
-    const page = await creator.newPage();
+    const page = settled(await creator.newPage());
 
     await step("the conversion landing page loads: hero, CTA, features, cast, FAQ and the builder", async () => {
       await page.goto(base);
@@ -295,7 +312,7 @@ async function main() {
 
     // A spectator, in a separate browser session.
     const spectator = await adultContext();
-    const spage = await spectator.newPage();
+    const spage = settled(await spectator.newPage());
 
     await step("facts: the owner sees the public and the 🔒 private one on the card; a spectator sees only the public one", async () => {
       await page.goto(`${base}/characters/${characterId}`);
@@ -342,7 +359,7 @@ async function main() {
 
     await step("a viewer joins the room and reacts, chats and predicts live", async () => {
       const fan = await adultContext();
-      const fpage = await fan.newPage();
+      const fpage = settled(await fan.newPage());
       try {
         await fpage.goto(roomUrl);
         await standardView(fpage);
@@ -391,7 +408,7 @@ async function main() {
 
     await step("an always-on template date can be joined from the lobby", async () => {
       const guest = await adultContext();
-      const gpage = await guest.newPage();
+      const gpage = settled(await guest.newPage());
       try {
         await gpage.goto(`${base}/watch`);
         await gpage.getByRole("heading", { name: "Watch a date" }).waitFor();
@@ -454,7 +471,11 @@ async function main() {
       // public to show, it's a locked phone. Never a morning after: those are texts.
       const res = await spage.goto(`${base}${couplePath}`);
       assert(res?.status() === 200, `the couple page should be public once a date airs (${res?.status()})`);
-      assert(await spage.locator(".couple-texts-locked").getByText(/Their texts are private/).first().isVisible(), "a spectator should see the texts locked");
+      // A 200 alone doesn't say it: a page that streams answers 200 even when it turns out not to be there.
+      assert((await spage.getByRole("heading", { level: 1, name: "This page isn't on the show" }).count()) === 0, "a spectator got the not-found page for an aired couple");
+      const locked = spage.locator(".couple-texts-locked").getByText(/Their texts are private/).first();
+      await locked.waitFor({ timeout: 10_000 }).catch(() => {});
+      assert(await locked.isVisible(), "a spectator should see the texts locked");
       assert((await spage.locator(".couple-texts-locked .phone-note", { hasText: "The morning after" }).count()) === 0, "a spectator should see no texts");
       const texts = await spage.evaluate(async (path) => (await fetch(`/api${path}/texts`)).status, couplePath);
       assert(texts === 403, `the texts route should refuse a spectator (${texts})`);
@@ -555,7 +576,7 @@ async function main() {
       assert(new URL(page.url()).pathname === "/watch", `/feed should redirect to /watch, got ${page.url()}`);
       assert(await page.getByRole("heading", { name: "Recent episodes" }).isVisible(), "Watch should list the latest episodes");
       const phone = await browser.newContext({ ...devices["iPhone 13"], storageState: await page.context().storageState() });
-      const ppage = await phone.newPage();
+      const ppage = settled(await phone.newPage());
       await ppage.goto(`${base}/swipe?character=${mine}`);
       await ppage.locator(".swipe-topbar").waitFor();
       assert(!(await ppage.locator(".site-header").isVisible()), "the phone deck should hide the site header");
@@ -754,7 +775,7 @@ async function main() {
       const voted = await mcp("vote_feedback", { item_id: item, vote: "up" });
       assert(voted.structuredContent?.item?.up === 1, `vote_feedback failed: ${JSON.stringify(voted).slice(0, 200)}`);
       const admin = await adultContext();
-      const apage = await admin.newPage();
+      const apage = settled(await admin.newPage());
       try {
         await apage.goto(`${base}/admin/feedback`);
         await apage.getByLabel("Admin password").fill(ADMIN_PASSWORD);
