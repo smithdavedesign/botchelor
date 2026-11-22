@@ -430,12 +430,17 @@ function listItems(list: string | undefined, max: number, each: number): string[
   ].slice(0, max);
 }
 
-/** The age a source states, as a number; null when it doesn't say or says something that isn't one. */
+/**
+ * The age a source states, as a number; null when it doesn't say or says something that isn't one. Zero or below is a
+ * blank, not an age: the free-text reader answered "asdf" and a cut-off card with age "0", and both were refused as a
+ * minor (2026-11-21) when there was no character to read at all.
+ */
 export function statedAge(attr: string | undefined, prose: string): number | null {
-  const fromAttr = attr ? /\d{1,4}/.exec(attr)?.[0] : undefined;
-  if (fromAttr) return Number(fromAttr);
+  const fromAttr = attr ? Number(/-?\d{1,4}/.exec(attr)?.[0] ?? NaN) : NaN;
+  if (fromAttr > 0) return fromAttr;
   const m = /\b(\d{1,4})[ -]?(?:years?[ -]old|yrs?[ -]old|y\/o|yo)\b/i.exec(prose) ?? /\b(?:aged?|age of)\s+(\d{1,4})\b/i.exec(prose);
-  return m ? Number(m[1]) : null;
+  const fromProse = m ? Number(m[1]) : NaN;
+  return fromProse > 0 ? fromProse : null;
 }
 
 function pronounsFrom(gender: string | undefined, prose: string): string {
