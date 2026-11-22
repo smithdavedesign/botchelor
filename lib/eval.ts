@@ -361,11 +361,3 @@ function stepContinuity(built: BuiltDate, transcript: Turn[]): Continuity {
   const [a, b] = built.characters;
   return continuity(transcript, lastTimeText(built), { a: a.memory?.memorable_lines ?? [], b: b.memory?.memorable_lines ?? [] });
 }
-
-/**
- * Re-scores a saved saga run's continuity with today's lib/continuity.ts (like rescoreResult for the metrics): the
- * steps rebuild exactly from the saved transcripts, so runs measured by different versions compare like for like.
- */
-export function sagaContinuity(saga: EvalSaga, transcripts: Turn[][]): Continuity[] {
-  return transcripts.map((tr, k) => stepContinuity(buildSagaStep(saga, k, transcripts.slice(0, k)).built, tr));
-}

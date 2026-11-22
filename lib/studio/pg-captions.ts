@@ -10,7 +10,8 @@ import { getModel } from "../model";
 import { checkPgPictureText } from "../safety";
 import { sceneCharacter, voiceKitLines } from "../adult/voice";
 import { captionMessages, holdCaptions, parseCaptions, type CaptionResult, type Captions } from "./captions";
-import { PG_GROUPS, type PgChoices } from "./pg-catalog";
+import { IDENTITY_VIEWS } from "./identity-views";
+import { PG_GROUPS, type PgChoices, type PgTag } from "./pg-catalog";
 
 const fail = (status: number, error: string, message: string): CaptionResult => ({ ok: false, status, error, message });
 
@@ -28,10 +29,27 @@ export function pgShows(choices: PgChoices | null | undefined): string {
   return labels.slice(0, 8).join(" · ");
 }
 
+/**
+ * What a picture's own tags say it shows, for one no menu picks were kept with: an identity view (the angle it was drawn
+ * at, on the plain studio backdrop) or a carousel's angle of a shoot (the shoot's picks, carried on its tags).
+ */
+export function pgTagShows(tags: readonly PgTag[] | null | undefined): string {
+  const labels: string[] = [];
+  // A carousel's angles aren't the view's own, so only its backdrop carries over.
+  const carousel = (tags ?? []).some((t) => t.kind === "made" && t.value === "carousel");
+  for (const t of tags ?? []) {
+    const view = t.kind === "view" ? IDENTITY_VIEWS.find((v) => v.id === t.value) : undefined;
+    if (view) labels.push(`a studio portrait on a plain light-grey backdrop${carousel ? "" : `: ${view.words}`}`);
+    const label = PG_GROUPS.find((g) => g.id === t.kind)?.options.find((o) => o.id === t.value)?.label;
+    if (label) labels.push(label);
+  }
+  return labels.slice(0, 8).join(" · ");
+}
+
 export async function pgCaptions(db: Db, ownerId: string, pictureId: string, opts: { fresh?: boolean } = {}): Promise<CaptionResult> {
   const row = (
-    await db.query<{ id: string; character_id: string; captions: Captions | null; choices: PgChoices | null }>(
-      `select p.id, p.character_id, p.captions, s.choices from studio_pg_pictures p left join studio_pg_shoots s on s.id = p.shoot_id
+    await db.query<{ id: string; character_id: string; captions: Captions | null; choices: PgChoices | null; tags: PgTag[] | null }>(
+      `select p.id, p.character_id, p.captions, s.choices, p.tags from studio_pg_pictures p left join studio_pg_shoots s on s.id = p.shoot_id
         where p.id = $1 and p.owner_id = $2`,
       [pictureId, ownerId],
     )
@@ -43,7 +61,9 @@ export async function pgCaptions(db: Db, ownerId: string, pictureId: string, opt
   if (!c) return fail(404, "not_found", "That picture's character isn't there any more.");
   const ok = (t: string) => checkPgPictureText({ t }).ok;
   const custom = typeof row.choices?.custom === "string" && ok(row.choices.custom) ? `, ${row.choices.custom.slice(0, 160)}` : "";
-  const shows = `${pgShows(row.choices) || "a photo of them"}${custom}`;
+  // An identity view or a carousel keeps no menu picks of its own: its tags say what it shows. Nothing known, and the
+  // captions are told so rather than left to invent a scene.
+  const shows = `${pgShows(row.choices) || pgTagShows(row.tags) || "a photo of them (nothing more is known about it)"}${custom}`;
   const model = getModel(undefined, false);
   let held: ReturnType<typeof holdCaptions> = null;
   for (const note of [undefined, "The last reply couldn't be used: reply with the JSON object only, every caption within the rules."]) {

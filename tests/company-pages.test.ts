@@ -23,7 +23,7 @@ import { LOGIN_FAILS_PER_HANDLE, LOGIN_FAILS_PER_VISITOR, LOGIN_WINDOW_MINUTES, 
 import { SECURITY_TXT_DAYS, securityTxt } from "@/lib/security-policy";
 import { organizationJsonLd } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import config from "@/next.config";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { BASE_URL, startTestDb } from "./helpers";

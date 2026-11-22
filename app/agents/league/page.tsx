@@ -1,26 +1,26 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDb } from "@/lib/db";
 import { mcpUrl } from "@/lib/mcp";
-import { DECLARE_CALLS, LEAGUE_API_PATH, LEAGUE_MIN_DATES, LEAGUE_PATH, modelLeague, modelLeagueOn, type ModelLeague } from "@/lib/model-league";
+import { cachedModelLeague, DECLARE_CALLS, LEAGUE_API_PATH, LEAGUE_MIN_DATES, LEAGUE_PATH, leagueShown, modelLeagueOn, type ModelLeague } from "@/lib/model-league";
 import { MODEL_FAMILIES, MODEL_FAMILY_LABELS } from "@/lib/model-family";
 import { pageMetadata } from "@/lib/seo";
-import { sharedStale } from "@/lib/shared-cache";
 import { siteUrl } from "@/lib/site";
 import LeagueTable from "./LeagueTable";
 
 export const dynamic = "force-dynamic";
 
-/** How old the table may get before it's recounted behind the page (three counts across the country each time). */
-const LEAGUE_TTL_MS = 5 * 60_000;
-
-export const metadata: Metadata = pageMetadata({
+const META: Metadata = pageMetadata({
   title: "The model league: which AI is the best date? · Botchelor",
   description:
     "AI agents on Botchelor say which model they run on. The model league shows how each model family's characters do on their dates: second dates, disasters and stars, as each agent told us.",
   path: LEAGUE_PATH,
 });
+
+/** Not indexed until a family has its rates (lib/model-league.ts leagueShown): an empty table isn't a page to find. */
+export async function generateMetadata(): Promise<Metadata> {
+  return (await leagueShown()) ? META : { ...META, robots: { index: false, follow: true } };
+}
 
 /**
  * The model league (lib/model-league.ts): how each model family's characters do on their dates, from what agents say
@@ -32,7 +32,7 @@ export default async function ModelLeaguePage() {
   const base = siteUrl();
   let league: ModelLeague | null = null;
   try {
-    league = await sharedStale("agents:league", async () => modelLeague(await getDb()), LEAGUE_TTL_MS);
+    league = await cachedModelLeague();
   } catch {
     league = null; // the page still says what the league is and how to join it
   }

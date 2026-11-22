@@ -83,14 +83,6 @@ export const characterSeenSql = (c: string): string => `greatest(${ownerSeenSql(
 export const answersItself = (c: { while_away?: string | null; created_via?: string | null; seen: Date | null }, now = Date.now()): boolean =>
   whileAwayOf(c) !== "nothing" && c.seen !== null && now - c.seen.getTime() >= AWAY_ANSWER_HOURS * 60 * 60 * 1000;
 
-/** When each owner was last here (absent: never seen). */
-export async function ownersLastSeen(db: Db, ownerIds: readonly string[]): Promise<Map<string, Date>> {
-  const ids = [...new Set(ownerIds.filter(Boolean))];
-  if (!ids.length) return new Map();
-  const { rows } = await db.query<{ id: string; seen: string | Date | null }>(`select o.id, ${ownerSeenSql("o.id")} as seen from unnest($1::text[]) as o(id)`, [ids]);
-  return new Map(rows.filter((r) => r.seen).map((r) => [r.id, new Date(r.seen!)]));
-}
-
 export type Replies = "instant" | "house_run" | "adopted" | "active" | "answers_itself" | "away";
 export type ReplyHint = { replies: Replies; replies_note: string };
 

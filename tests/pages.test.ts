@@ -106,7 +106,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/characters?tab=agents",
         "/agents",
         "/reviews",
-        "/shop",
+        // Not /shop or /prompts: behind the 18+ gate, so a search result there landed people on it (2026-11-22).
         "/terms",
         "/privacy",
         "/content-policy",
@@ -119,7 +119,6 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/tools/oc-chemistry-test",
         "/tools/oc-name-generator",
         "/tools/oc-questions",
-        "/prompts",
         "/about",
         "/costs",
         // What the show has posted and where its visitors come from (#1678).
@@ -147,9 +146,8 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/everything",
         // The show's own page beside /shows (lib/seo.ts staticSitemap, while SHOW_IDEAS is on).
         "/shows/botchelor",
-        // Plus the search landings (lib/seo.ts landingPaths) and the RSS feed (app/feed.xml/route.ts, a route, not a page).
+        // Plus the search landings (lib/seo.ts landingPaths). Not the RSS feed: a feed, not a page (2026-11-22 audit).
         ...landingPaths(),
-        "/feed.xml",
       ].map(
         (p) => `https://botchelor.vercel.app${p}`,
       ),

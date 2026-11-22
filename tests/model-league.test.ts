@@ -14,8 +14,9 @@ import type { Db } from "@/lib/db";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { CORE_MCP_TOOLS, handleMcpMessage, MCP_SERVER_INFO, PUBLIC_MCP_TOOLS, type McpContext } from "@/lib/mcp";
 import { cleanModel, LEAGUE_PATH, MODEL_FAMILIES, MODEL_MAX, modelFamilyOf, modelLeagueOn, normalizeModel } from "@/lib/model-family";
-import { declareModel, declaredModel, DECLARE_CALLS, LEAGUE_MIN_DATES, leagueJson, modelLeague, stampDateModels, type ModelLeague } from "@/lib/model-league";
+import { declareModel, declaredModel, DECLARE_CALLS, LEAGUE_MIN_DATES, leagueHasData, leagueJson, leagueShown, modelLeague, stampDateModels, type ModelLeague } from "@/lib/model-league";
 import { staticSitemap } from "@/lib/seo";
+import { siteUrl } from "@/lib/site";
 import { BASE_URL, episodeJson, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -422,7 +423,7 @@ describe("where the league is read", () => {
   });
 
   it("the page says it's self-declared, what the engine decides and who's left out; off, it's a 404", async () => {
-    const { default: ModelLeaguePage, metadata } = await import("@/app/agents/league/page");
+    const { default: ModelLeaguePage, generateMetadata } = await import("@/app/agents/league/page");
     const html = renderToStaticMarkup(await ModelLeaguePage()).replace(/&#x27;/g, "'");
     expect(html).toContain("<h1>Which AI is the best date?</h1>");
     expect(html).toContain("as each agent told us");
@@ -430,9 +431,35 @@ describe("where the league is read", () => {
     expect(html).toContain("The show's engine decides how every date ends");
     expect(html).toContain("The show's own bots, checks and test visitors don't count");
     expect(html).toContain('href="/api/league/models"');
-    expect(metadata.alternates?.canonical).toBe(LEAGUE_PATH);
+    expect((await generateMetadata()).alternates?.canonical).toBe(LEAGUE_PATH);
     vi.stubEnv("MODEL_LEAGUE", "0");
     await expect(ModelLeaguePage()).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/);
+  });
+
+  it("stays out of sight until a family has its rates: not indexed, not in the sitemap, not linked from /agents or /everything", async () => {
+    const { generateMetadata } = await import("@/app/agents/league/page");
+    const { default: sitemap } = await import("@/app/sitemap");
+    const { default: EverythingPage } = await import("@/app/everything/page");
+    const league = `${siteUrl()}${LEAGUE_PATH}`;
+    const everything = async () => renderToStaticMarkup(await EverythingPage());
+    expect(leagueHasData(await modelLeague(db))).toBe(false);
+    expect(await leagueShown()).toBe(false);
+    expect((await generateMetadata()).robots).toEqual({ index: false, follow: true });
+    expect((await sitemap()).map((e) => e.url)).not.toContain(league);
+    expect(await everything()).not.toContain('href="/agents/league"');
+    // Four dates aren't enough for a rate; the fifth is.
+    const ctx = await connect();
+    const c = await character(ctx, "claude-sonnet-5-5");
+    for (let i = 0; i < 4; i++) await airedDate(c.id, "friends");
+    expect(await leagueShown()).toBe(false);
+    await airedDate(c.id, "second_date");
+    expect(await leagueShown()).toBe(true);
+    expect((await generateMetadata()).robots).toBeUndefined();
+    expect((await sitemap()).map((e) => e.url)).toContain(league);
+    expect(await everything()).toContain('href="/agents/league"');
+    // The switch still wins.
+    vi.stubEnv("MODEL_LEAGUE", "0");
+    expect(await leagueShown()).toBe(false);
   });
 
   it("is in the sitemap, in llms.txt and linked from /agents, and all three follow the switch", async () => {
@@ -441,7 +468,8 @@ describe("where the league is read", () => {
     expect(llmsText("https://b.test")).toMatch(/\[The model league\]\(https:\/\/b\.test\/agents\/league\?[^)]*\): which model family's characters get the most second dates, as each agent told us/);
     expect(llmsText("https://b.test")).toContain("https://b.test/api/league/models");
     const agentsPage = readFileSync(join(__dirname, "..", "app", "agents", "page.tsx"), "utf8");
-    expect(agentsPage).toContain("{modelLeagueOn() && (");
+    expect(agentsPage).toContain("const league = await leagueShown();");
+    expect(agentsPage).toContain("{league && (");
     expect(agentsPage).toContain("<Link href={LEAGUE_PATH}>which AI is the best date?</Link>");
     vi.stubEnv("MODEL_LEAGUE", "0");
     expect(urls()).not.toContain(`https://b.test${LEAGUE_PATH}`);
