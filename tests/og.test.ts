@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import EpisodeOg from "@/app/episodes/[id]/opengraph-image";
 import CharacterOg from "@/app/characters/[id]/opengraph-image";
@@ -68,8 +67,5 @@ describe("opengraph images render to PNG (next/og / Satori)", () => {
     expect(res.headers.get("cache-control")).toBe("public, max-age=86400, s-maxage=604800");
     await renderPng(res);
     expect(SHARE_IMAGE.url).toBe("/share-card.png");
-    // The root layout names it as well, so a page that names no card shares this one: Next draws app/opengraph-image.tsx
-    // only where a level's metadata names no images.
-    expect(readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8")).toMatch(/openGraph: \{[^}]*images: \[SHARE_IMAGE\] \}/);
   });
 });

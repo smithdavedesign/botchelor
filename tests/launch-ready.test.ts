@@ -176,7 +176,9 @@ describe("search and sharing: every public page", () => {
   });
 
   it("leaves og:title and twitter:title to each page, so a page that sets neither never borrows the home page's", () => {
-    expect(rootMetadata.openGraph).toEqual({ type: "website", siteName: "Botchelor", locale: "en_US" });
+    // The share card is named, though: the .png the CDN keeps, so no page falls back to /opengraph-image, which it
+    // doesn't (app/opengraph-image.tsx, 2026-11-22 audit).
+    expect(rootMetadata.openGraph).toEqual({ type: "website", siteName: "Botchelor", locale: "en_US", images: [SHARE_IMAGE] });
     expect(rootMetadata.twitter).toEqual({ card: "summary_large_image" });
   });
 });
