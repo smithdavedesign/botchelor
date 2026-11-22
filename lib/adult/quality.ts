@@ -51,6 +51,7 @@ import { givenName, strangerIn } from "./guards";
 import { STAGES } from "./stages";
 // observer.ts reads the drift from here too: each side only calls the other inside functions, so the cycle is harmless.
 import { memoryFounded, observeNight, type ObservedSide } from "./observer";
+import { escapeRegExp } from "../text";
 
 /**
  * Stock romance phrasing: banned in prompt v2 (lib/adult/scenes.ts), counted by cliche_rate, and never a remembered fact
@@ -69,9 +70,8 @@ export const STOCK_PHRASES: readonly string[] = [
   "ravish", "ravishing", "lost in you", "lose ourselves", "make you mine", "claim you as mine", "as old as time",
 ];
 
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Longest first, so a phrase inside a longer one isn't counted twice. */
-const PATTERNS = [...STOCK_PHRASES].sort((x, y) => y.length - x.length).map((p) => ({ p, re: new RegExp(`\\b${escape(p).replace(/\s+/g, "\\s+")}\\b`, "gi") }));
+const PATTERNS = [...STOCK_PHRASES].sort((x, y) => y.length - x.length).map((p) => ({ p, re: new RegExp(`\\b${escapeRegExp(p).replace(/\s+/g, "\\s+")}\\b`, "gi") }));
 
 /** The stock phrases a text uses, each counted once per use, without counting one inside another. */
 export function stockPhrasesIn(text: string, except: ReadonlySet<string> = new Set()): string[] {

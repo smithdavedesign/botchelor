@@ -24,7 +24,7 @@ import ToolPage, { metadata as toolMetadata } from "@/app/tools/ship-name-genera
 import { setModelForTests } from "@/lib/model";
 import { staticSitemap } from "@/lib/seo";
 import { readName, SHIP_ERRORS, SHIP_NAME_MAX, shipNames, shipPair } from "@/lib/ship-names";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { startTestDb } from "./helpers";
 
 const TOOL = "/tools/ship-name-generator";

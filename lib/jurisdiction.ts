@@ -102,7 +102,7 @@ export const mediaAllowed = (access: Pick<Access, "mode">): boolean => access.mo
 
 /** The cookie After Dark's own host keeps the visitor's signed place in (lib/place.ts signs and verifies it). */
 export const PLACE_COOKIE = "bz_place";
-/** Set for a minute when the hop for a place has run, so a host that can't sign one never loops (middleware.ts). */
+/** Set for a minute when the hop for a place has run, so a host that can't sign one never loops (proxy.ts). */
 export const PLACE_TRIED_COOKIE = "bz_place_tried";
 
 /** Just the expiry of a place cookie, unverified: the middleware's cheap "renew it?" check (pages verify it properly). */
