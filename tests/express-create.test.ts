@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -347,7 +349,8 @@ describe("the builder's first screen", () => {
       expect(screenExpressText(ex.text, "")).toEqual({ ok: true });
     }
     expect(html).toContain('name="express_name"');
-    expect(html).toMatch(/<button type="submit"[^>]*>Meet them<\/button>/);
+    // Grey and saying why until there's a sentence; "Meet them" once there is (the next test).
+    expect(html).toMatch(/<button type="submit"[^>]*>Type a sentence to meet them<\/button>/);
     // The ways out are one tap away, and the same three steps are on the rail.
     expect(html).toContain("Fill it in myself");
     expect(html).toContain("Use a sample character");
@@ -355,6 +358,24 @@ describe("the builder's first screen", () => {
     // Not the eight fields.
     expect(html).not.toContain('name="dealbreaker"');
     expect(html).not.toContain('name="trait1"');
+  });
+
+  it("says why Meet them is grey, in the button, and that it's free, in the intro, in a visitor's words (2026-11-22 audit)", async () => {
+    const html = await render({ express: true });
+    const button = /<button type="submit"[^>]*>Type a sentence to meet them<\/button>/.exec(html)?.[0] ?? "";
+    expect(button).toContain('disabled=""');
+    expect(button).toContain('data-track="express-meet"');
+    // Once there's a sentence the same button is "Meet them", and drafting, "Drafting them…".
+    const wizard = readFileSync(join(__dirname, "..", "app/create/CreateWizard.tsx"), "utf8");
+    expect(wizard).toContain('{expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to meet them" : "Meet them"}');
+    // No line under it: on a phone the bar is stuck to the bottom of the screen, and taller it covers the examples.
+    expect(html).not.toContain("express-note");
+    expect(html).toContain('<p class="muted wizard-intro">An original fictional adult, from a sentence. It&#x27;s free, and you can change anything after.</p>');
+    expect(html).toContain("Import one from another app");
+    expect(html).not.toContain("bring one from another app");
+    // The ways out sit under the button at every width, so they don't jump a row when the label shortens.
+    const css = readFileSync(join(__dirname, "..", "app/ux/create.css"), "utf8");
+    expect(css).toMatch(/\n\.wizard \.express-actions \.express-alt \{\s*flex: 1 0 100%;\s*margin: 0;\s*\}/);
   });
 
   it("stays today's form with the switch off, for a second character, and for anyone who arrives with something in hand", async () => {
