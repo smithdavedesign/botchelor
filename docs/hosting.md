@@ -354,7 +354,7 @@ the container. Ways to cut the restarts themselves, each David's call because it
 - **Logs:** each app's Runtime Logs in the dashboard (Apps → the app → Runtime Logs). Everything that used to go to
   Vercel's runtime logs (`episode_generated` with `cost_usd`, the `"log":"analytics"` lines) goes there now, and lasts
   only until the next deploy or restart. What has to outlive that is kept in the database for 30 days: `ops_log`
-  (`lib/ops-log.ts`: each server start with its commit and memory limit, failed dates and conversations with their
+  (`lib/ops-log.ts`: each server start with its commit and memory, failed dates and conversations with their
   reason, each date's cost, the daily job's parts), shown on /admin → Servers; route failures go to `server_errors`
   (7 days). No paid log service ([runbooks/incident.md](runbooks/incident.md), "Where the logs are").
 

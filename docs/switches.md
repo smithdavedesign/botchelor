@@ -12,8 +12,9 @@ apps: the show (`botchelor.com`, [`.do/show.yaml`](../.do/show.yaml)) and After 
 
 - **The commit each host runs**: /admin → Servers. Each host's commit (linked to GitHub) and since when, how often it
   started in the last day (a start on the same commit as the one before is a restart, not a deploy), and the latest
-  daily job part by part. Each start is a row in `ops_log` (`lib/ops-log.ts`) with the commit, the container's memory
-  limit and the heap limit. DigitalOcean fills the commit in: `COMMIT_SHA` is `${_self.COMMIT_HASH}` in both specs.
+  daily job part by part. Each start is a row in `ops_log` (`lib/ops-log.ts`) with the commit, the memory the container
+  sees, its limit when it shows one (DigitalOcean's don't: the size is the spec's) and the heap limit. DigitalOcean
+  fills the commit in: `COMMIT_SHA` is `${_self.COMMIT_HASH}` in both specs.
 - **The deploy**: DigitalOcean → Apps → the app → Activity, or the API (`GET /v2/apps/<id>/deployments`). Rolling one
   back: [runbooks/rollback.md](runbooks/rollback.md).
 - **Environment values**: DigitalOcean → Apps → the app → Settings → the component's Environment Variables, or the app
