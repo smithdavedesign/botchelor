@@ -7,8 +7,12 @@ import { takenNote } from "@/lib/partners-shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import AirChoice from "../AirChoice";
 import Avatar from "../Avatar";
 import DateConfirm from "../DateConfirm";
+import RememberCharacter from "../RememberCharacter";
+import { saySpent } from "../spent";
+import { useWeeklyWords } from "../weekly-time";
 import OutOfDates, { outOfDatesFrom, type OutOfDatesData } from "../OutOfDates";
 import ModalSheet from "../Sheet";
 import CrisisNotice, { crisisFrom } from "../CrisisNotice";
@@ -1211,6 +1215,7 @@ export default function CreateWizard({
         onSend={(sharePath) => router.push(sharePath)}
         returnTo={returnTo}
         signedIn={signedIn}
+        justMade={created.id !== startCharacterId}
         afterDarkOpen={afterDarkOpen}
         // Their first character (none before this page): the date step leads with a date that plays at once (lib/first-date.ts).
         firstCharacter={firstCharacter}
@@ -2239,14 +2244,18 @@ type SendProps = {
   meet?: string | null;
   /** The format that first date plays in (lib/first-date.ts firstDateFormat): the speed date unless FIRST_DATE_FORMAT says otherwise. */
   firstFormat?: FormatId;
+  /** Saved on this page a moment ago ("… is ready"), not an older one sent on a date from its page (?character=). */
+  justMade?: boolean;
 };
 
 /** How often, and how many times, the first-date card asks whether the new character's face is drawn: about 48 s. */
 const FACE_EVERY_MS = 4000;
 const FACE_TRIES = 12;
 
-export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false, meet = null, firstFormat = DEFAULT_FIRST_DATE_FORMAT }: SendProps) {
+export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false, meet = null, firstFormat = DEFAULT_FIRST_DATE_FORMAT, justMade = false }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
+  // Dates air by default (David's call); one tick keeps this one private (app/AirChoice.tsx), on the card and in the sheet.
+  const [keepPrivate, setKeepPrivate] = useState(false);
   // How much of a mind of its own, per date (B6): it rides on each send, so it's set here, not on the character.
   const [autonomy, setAutonomy] = useState<Autonomy>(startAutonomy);
   const [strategy, setStrategy] = useState<Strategy>("genuine_chemistry");
@@ -2300,12 +2309,15 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         character_id: character.id,
         ...(partnerId ? { partner_id: partnerId } : { blind: true }),
         ...dateFields,
+        ...(keepPrivate ? { visibility: "private" } : {}),
       });
       // The note read as wanting to hurt themselves (lib/crisis.ts): the help first, the date one tap away.
       const help = crisisFrom(data);
       if (help) setCrisis(help);
       if (status === 200) {
         trackConversion("date_started", { mode: partnerId ? "partner" : "blind", format: chosenFormat });
+        // The header's "dates left" counts it now, not on the next visit (2026-11-22 audit: it still said 3).
+        saySpent();
         // The theater reads it back as date_watched's ms_since_start (lib/engagement-keys.ts).
         stampDateStarted();
         if (help) {
@@ -2339,11 +2351,12 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // The card then sends a blind date in the first-date format, and the booking route seats the lead.
   const castingNow = useCasting();
   const casting = instant && castingNow && !(meet && instant.id === meet) ? castingNow : null;
-  // Their own face on the first-date card: every new character's headshot is drawn after the save
-  // (lib/default-portraits.ts; 2026-11-21: half within 13 s, most of the rest much later), so the card asks a few times
-  // (GET /api/characters/[id]/portrait) and swaps it in for the drawn avatar; after that it stops asking.
+  // Their own face on the first-date card and the heading: every new character's headshot is drawn after the save
+  // (lib/default-portraits.ts; 2026-11-21: half within 13 s, most of the rest much later), so the page asks a few times
+  // (GET /api/characters/[id]/portrait) and swaps it in for the drawn avatar; after that it stops asking. Asked on the
+  // full menu too (2026-11-22 audit: "portrait is being drawn" stayed up after it had arrived).
   const [face, setFace] = useState<string | null>(character.portrait ?? null);
-  const watchFace = Boolean(instant) && !face;
+  const watchFace = !face;
   useEffect(() => {
     if (!watchFace) return;
     let tries = 0;
@@ -2509,17 +2522,25 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // Who the instant first date is with: the season's lead while casting is open, else the house cast member picked.
   const date = instant ? (casting ? { id: casting.lead.id, name: casting.lead.name, hue: casting.lead.hue, portrait: casting.lead.portrait } : { id: instant.id, name: instant.name, hue: instant.hue ?? null, portrait: instant.portrait ?? null }) : null;
   const dateFirst = date ? shortName(date.name) : "";
+  // The show's weekly times in the viewer's own clock once the page is up (app/weekly-time.ts): free dates come back on
+  // Monday 00:00 UTC, and the lead hands out roses on Sunday.
+  const datesBack = useWeeklyWords(1, 0, 0);
+  const rosesAt = useWeeklyWords(0, casting?.hour ?? 0, casting?.minute ?? 0);
 
   return (
     <article className="send-phase">
-      <p className="kicker">{character.name} is ready</p>
+      {/* The header's face follows the character this page is about (app/RememberCharacter.tsx; 2026-11-22 audit: it
+          showed another of theirs while this one was sent on its date). */}
+      <RememberCharacter id={character.id} />
+      {/* "Is ready" only for the one just made here; an older one sent on a date from its page is simply that. */}
+      <p className="kicker">{justMade ? `${character.name} is ready` : "Send on a date"}</p>
       {/* With the first date on offer, nothing is left to choose (2026-11-21: a first creator read "Who should … meet?" as
           a question, opened the fold and left without a date), so the heading names the date instead. */}
       {date ? (
         <h1 className="send-title heading-face">{`${first}'s first date`}</h1>
       ) : (
         <h1 className="send-title heading-face">
-          <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={character.portrait ?? null} size={40} decorative round />
+          <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={face} size={40} decorative round />
           <span>Who should {character.name} meet?</span>
         </h1>
       )}
@@ -2549,7 +2570,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       {!date && (
         <p className="muted">
           {/* In the nav's words (app/Nav.tsx: "1 date left"). */}
-          {tokens.left} {tokens.left === 1 ? "date" : "dates"} left · free dates come back Monday 00:00 UTC.{" "}
+          {tokens.left} {tokens.left === 1 ? "date" : "dates"} left · free dates come back {datesBack}.{" "}
           {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
         </p>
       )}
@@ -2596,6 +2617,8 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
               ? `, for a speed date: ${firstLines} lines, ${WRITE_TIME_SPEED}. It plays as you watch.`
               : `, for a ${showFormat(firstFormat).label.toLowerCase()}: ${firstLines} lines. It plays as you watch.`}
           </p>
+          {/* Said before the date is spent: it airs, unless they keep it private (2026-11-22 audit). */}
+          <AirChoice keepPrivate={keepPrivate} onChange={setKeepPrivate} disabled={busy !== null} />
           <button
             type="button"
             className="primary send-first-go"
@@ -2619,9 +2642,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
           )}
           <p className="muted small send-first-fine">
             Nobody can steer how it ends, not even you. Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}.
-            {casting
-              ? ` On Sunday at ${String(casting.hour).padStart(2, "0")}:${String(casting.minute).padStart(2, "0")} UTC ${dateFirst} hands out roses, and you hear whether ${first} got one.`
-              : ""}
+            {casting ? ` On ${rosesAt} ${dateFirst} hands out roses, and you hear whether ${first} got one.` : ""}
           </p>
         </section>
       )}
@@ -2661,6 +2682,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         error={error ? { text: error, shop: outOfTokens, link: watchLink ? { href: watchLink, label: "Watch it" } : undefined, wall, first } : null}
         onSend={() => pending && void sendOnDate(pending.partnerId, pending.house)}
       >
+        <AirChoice keepPrivate={keepPrivate} onChange={setKeepPrivate} disabled={busy === "episode"} />
         <details className="ux-fold send-settings-fold">
           <summary>
             Date settings <span className="muted small">optional</span>
@@ -2757,7 +2779,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
 
       {/* Their picture in a line, last (2026-10-31 UX audit: a "✨ Pro Portrait" card here contradicted the free portrait
           being drawn). The portrait on your own key stays on their edit page. */}
-      {!character.portrait && (
+      {!face && (
         <p className="muted send-portrait">📸 {first}&apos;s portrait is being drawn, free. It shows on their card when it&apos;s ready.</p>
       )}
     </article>

@@ -100,7 +100,7 @@ describe("the phone at rest", () => {
 });
 
 describe("the wiring", () => {
-  const page = read("app", "companion", "page.tsx");
+  const page = read("app", "companion", "(list)", "page.tsx");
 
   it("reads the opener on the server, kept for minutes, and never fails the page over it", () => {
     expect(page).toContain('sharedStale("companion:phone", () => companionPreview(db), 10 * 60_000).catch(() => null)');

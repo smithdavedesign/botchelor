@@ -13958,7 +13958,7 @@ details > summary.small {
   padding: 0.4rem 0.6rem;
 }
 
-/* The basics on a directory card (app/characters/page.tsx Entry). */
+/* The basics on a directory card (app/characters/(list)/page.tsx Entry). */
 .dir-basics,
 .dir-job {
   margin: 0.35rem 0 0;
@@ -14044,7 +14044,7 @@ details > summary.small {
   }
 }
 
-/* Find a character (app/characters/page.tsx SearchForm): a box, the type and love-life menus (docs/tags.md) and the
+/* Find a character (app/characters/(list)/page.tsx SearchForm): a box, the type and love-life menus (docs/tags.md) and the
    button on one row; on a phone the box takes the first row and the menus and button share the second. */
 .characters-search {
   display: flex;
@@ -16086,6 +16086,12 @@ button.thread-menu-item:hover:not(:disabled) {
 .report-subjects th {
   text-align: left;
   font-weight: 700;
+}
+/* What a grade means, over the grades (app/episodes/[id]/report-card/page.tsx). */
+.report-subjects .report-subjects-note {
+  caption-side: top;
+  text-align: left;
+  padding-bottom: var(--space-1);
 }
 .report-subjects td:last-child {
   text-align: right;

@@ -11,7 +11,7 @@ import RememberCharacter from "@/app/RememberCharacter";
 import SwitchCharacter from "@/app/SwitchCharacter";
 import { pickCharacter, rememberedCharacter } from "@/lib/current-character";
 import { unreadTexts } from "@/lib/inbox";
-import { pickerCharacters } from "@/lib/my-characters";
+import { pickerCharacters, type PickerCharacter } from "@/lib/my-characters";
 import { deckFor, demoDeck, UNDO_MINUTES } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import { twinsLast, twinsOfCharacter } from "@/lib/twins";
@@ -45,8 +45,8 @@ type Props = { searchParams: Promise<{ character?: string; made_by?: string; sty
  * page, in their order (2026-11-14: a card worded like the swiper's own sat second in the deck). Never a filter: they are
  * someone else's characters all the same, and the agents' deck keeps them where the ranking put them.
  */
-async function withTwins<T extends { id: string }>(db: Awaited<ReturnType<typeof getDb>>, characterId: string, cards: T[]): Promise<(T & { reads_like_yours?: string | null })[]> {
-  return twinsLast(cards, await twinsOfCharacter(db, characterId).catch(() => new Map<string, string>()));
+function withTwins(db: Awaited<ReturnType<typeof getDb>>, characterId: string): Promise<Map<string, string>> {
+  return twinsOfCharacter(db, characterId).catch(() => new Map<string, string>());
 }
 
 export default async function SwipePage({ searchParams }: Props) {
@@ -86,12 +86,21 @@ export default async function SwipePage({ searchParams }: Props) {
   // A taken one (lib/partners.ts: with someone and wanting one partner) is out of the deck (lib/swipes.ts cantSwipe).
   // With one character there's nobody to switch to, so neither the bar's picker nor who's taken is needed.
   const several = mine.length > 1;
-  const [faces, texts] = await Promise.all([several ? pickerCharacters(db, viewerId).catch(() => []) : [], unreadTexts(db, viewerId).catch(() => 0)]);
-  const taken = new Set(faces.filter((c) => c.taken.length).map((c) => c.id));
+  const facesOnTheWay: Promise<PickerCharacter[]> = several ? pickerCharacters(db, viewerId).catch(() => []) : Promise.resolve([]);
+  const textsOnTheWay = unreadTexts(db, viewerId).catch(() => 0);
   // The address first; then the one they're working with (the header's face), taken or not, so the deck never swaps
-  // characters behind the header's back; with neither, the newest that can swipe.
-  const me = pickCharacter(mine, character, rememberedCharacter(store), mine.find((c) => !taken.has(c.id)))!;
-  const deck = await deckFor(db, viewerId, me.id, undefined, { filters });
+  // characters behind the header's back; with neither, the newest that can swipe. Only that last needs the picker's read
+  // (who's taken), so the deck and its twins usually start beside it (2026-11-22: they waited for it, one after another).
+  const remembered = rememberedCharacter(store);
+  const named = mine.find((c) => c.id === character) ?? mine.find((c) => c.id === remembered);
+  const newestFree = async () => {
+    const taken = new Set((await facesOnTheWay).filter((c) => c.taken.length).map((c) => c.id));
+    return mine.find((c) => !taken.has(c.id));
+  };
+  const me = named ?? pickCharacter(mine, null, null, await newestFree())!;
+  const twinsOnTheWay = withTwins(db, me.id);
+  const [faces, texts, deck] = await Promise.all([facesOnTheWay, textsOnTheWay, deckFor(db, viewerId, me.id, undefined, { filters })]);
+  const initial = deck.ok ? twinsLast(await withOrigins(db, deck.cards), await twinsOnTheWay) : [];
   const filtersSaid = hasDeckFilters(filters) ? deckFiltersSaid(filters, (t) => tagById(t)?.label) : "";
   // Dealing isn't seeing: the deck reports each card as it comes on top, under this visit's id (lib/swipes.ts logShownCard).
   const serveId = crypto.randomUUID();
@@ -137,7 +146,7 @@ export default async function SwipePage({ searchParams }: Props) {
       {deck.ok ? (
         // Keyed by the character and the filters: a pick in the header (or a filter) reads the page again, and a deck kept
         // from before would deal the last one's cards.
-        <SwipeDeck key={`${me.id}${deckFilterQuery(filters)}`} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={await withTwins(db, me.id, await withOrigins(db, deck.cards))} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} filters={filters} filtersSaid={filtersSaid} />
+        <SwipeDeck key={`${me.id}${deckFilterQuery(filters)}`} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={initial} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} filters={filters} filtersSaid={filtersSaid} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>

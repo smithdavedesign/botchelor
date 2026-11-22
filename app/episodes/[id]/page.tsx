@@ -50,6 +50,7 @@ import { previouslyOn } from "@/lib/previously-on";
 import { venueBackdrop } from "@/lib/portraits";
 import { showSetBackground, showSetPath, type ShowSet } from "@/lib/show-sets";
 import Avatar from "@/app/Avatar";
+import RememberCharacter from "@/app/RememberCharacter";
 import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
 import EndingSeen from "./EndingSeen";
@@ -250,7 +251,7 @@ export default async function EpisodePage({
   // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
   await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
-  // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).
+  // Hidden after reports: a 404 for everyone except its creators (see app/episodes/not-found.tsx).
   if (!episode || (episode.hidden && !episode.is_creator)) notFound();
   const cookieStore = await cookies();
   // Everything below starts at once (2026-11-04 performance audit: one after another, the owner's date page waited on
@@ -349,9 +350,10 @@ export default async function EpisodePage({
     ready ? mixerNightOf(db, episode.id).catch(() => null) : null,
     // The cold open, for a pair with history: their last aired date, told in one line (lib/previously-on.ts).
     ready && (dateNumberOf(episode) ?? 0) > 1 ? previouslyOn(db, episode.id).catch(() => null) : null,
-    // The creator arriving from sending the date (?play=1): which side is theirs, that side's reflection (the preview of
-    // the first text on the verdict card, VerdictCard.tsx) and whether this is that character's first date.
-    play && episode.is_creator && viewerId
+    // The creator's own side: which one is theirs (the header's face follows it, below) and, arriving from sending the
+    // date (?play=1), that side's reflection (the preview of the first text on the verdict card, VerdictCard.tsx) and
+    // whether this is that character's first date.
+    episode.is_creator && viewerId
       ? db
           .query<{ side: 0 | 1 | null; reflection: string | null; dates: number }>(
             `select case when a.owner_id = $2 then 0 when b.owner_id = $2 then 1 end as side,
@@ -412,11 +414,16 @@ export default async function EpisodePage({
   const confessionalShot = (id: string) => episode.characters.find((x) => x.id === id)?.shots?.confessional ?? null;
   // A creator of a house date has nobody to block; everyone else blocks "whoever made this".
   const canBlock = !episode.is_creator || episode.characters.every((c) => !c.house);
+  // The header's face follows the creator's own character in this date (app/RememberCharacter.tsx; 2026-11-22 audit: it
+  // showed another of theirs while they watched this one's date).
+  const mine = creatorSide && creatorSide.side !== null ? episode.characters[creatorSide.side]?.id ?? null : null;
+  const remember = mine ? <RememberCharacter id={mine} /> : null;
 
   // M10: the date is generated in the background. Until it's ready, show a waiting state that polls.
   if (episode.status !== "ready") {
     return (
       <article className="episode-page">
+        {remember}
         <EpisodeHero characters={episode.characters} venue={episode.venue ?? null} setting={null} set="booth" chips={["🎬 Being filmed", "AI-generated"]}>
           {!episode.is_creator && (
             <div className="episode-hero-cta">
@@ -535,6 +542,7 @@ export default async function EpisodePage({
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
   return (
     <article className="episode-page">
+      {remember}
       {episode.visibility === "public" && !episode.hidden && (
         <JsonLd
           data={[{

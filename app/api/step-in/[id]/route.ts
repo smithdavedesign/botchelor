@@ -1,6 +1,8 @@
 import { z } from "zod";
+import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { timedDb, timeRequest } from "@/lib/request-timing";
 import { advanceStepIn, airStepIn, continueStepIn, getStepIn, leaveStepIn, sayStepIn, type StepInResult } from "@/lib/step-in";
 import { TURN_DIALOGUE_MAX } from "@/lib/rules";
 import { AGE_REFUSAL, passedAgeGate, stepInWho } from "../access";
@@ -22,6 +24,16 @@ const reply = (r: StepInResult, sess: ReturnType<typeof session>) => {
   }
   return json({ view: r.view, ...(r.refused ? { refused: r.refused } : {}), ...(r.crisis_resources ? { crisis_resources: r.crisis_resources } : {}) }, 200, sess);
 };
+
+/**
+ * A move that can wait on the show's side (its line, the verdict, the recap), timed (lib/request-timing.ts): one
+ * step_in_timing line says how long it took and how much of that was the database and the model. Numbers only.
+ */
+async function timed(action: "line" | "advance" | "continue", episodeId: string, fn: () => Promise<StepInResult>): Promise<StepInResult> {
+  const { result, timing } = await timeRequest(fn);
+  track("step_in_timing", { episode_id: episodeId, action, state: result.ok ? result.view.state : result.error, ...timing });
+  return result;
+}
 
 /** Where your step-in date stands (lib/step-in.ts): the lines so far, whose line it is, and once it's done, how it ended. */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
@@ -47,12 +59,18 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (!passedAgeGate(req)) return json(AGE_REFUSAL, 403, sess);
   const input = parseBody(Action, await readJson(req), "invalid_request");
   switch (input.action) {
-    case "line":
-      return reply(await sayStepIn(db, sess.userId, id, { dialogue: input.dialogue, action: input.action_text, see_again: input.see_again }, access.who), sess);
-    case "advance":
-      return reply(await advanceStepIn(db, sess.userId, id), sess);
-    case "continue":
-      return reply(await continueStepIn(db, sess.userId, id), sess);
+    case "line": {
+      const counted = timedDb(db);
+      return reply(await timed("line", id, () => sayStepIn(counted, sess.userId, id, { dialogue: input.dialogue, action: input.action_text, see_again: input.see_again }, access.who)), sess);
+    }
+    case "advance": {
+      const counted = timedDb(db);
+      return reply(await timed("advance", id, () => advanceStepIn(counted, sess.userId, id)), sess);
+    }
+    case "continue": {
+      const counted = timedDb(db);
+      return reply(await timed("continue", id, () => continueStepIn(counted, sess.userId, id)), sess);
+    }
     case "air":
       return reply(await airStepIn(db, sess.userId, id), sess);
     case "leave": {
