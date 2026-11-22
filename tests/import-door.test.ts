@@ -198,7 +198,9 @@ describe("how search engines hear of the door", () => {
     expect(map.get("https://botchelor.com/import")).toBe(0.8);
     expect(map.get("https://botchelor.com/alternatives/character-ai")).toBe(0.8);
     expect(map.get("https://botchelor.com/agents")).toBe(0.8);
-    expect(map.get("https://botchelor.com/shop")).toBe(0.5);
+    // Not /shop: behind the 18+ gate, so a result there landed people on the gate (2026-11-22; /pricing is the open one).
+    expect(map.has("https://botchelor.com/shop")).toBe(false);
+    expect(map.get("https://botchelor.com/pricing")).toBe(0.5);
   });
 
   it("IndexNow hears of a rewritten landing once: in the daily window that covers its date, not before or after", async () => {

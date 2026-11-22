@@ -115,7 +115,8 @@ describe("the Gallery's Videos", () => {
     expect(tags("studio-clip")).toEqual(["Studio", "Clip"]);
     expect(tags("studio-boomerang")).toEqual(["Studio", "Boomerang"]);
     // The night's video plays its first shot by itself like a clip, from its keyframe, and ▶ plays the whole reel.
-    expect(tile("reel-1")).toMatch(/<video[^>]*src="\/api\/admin\/after-dark\/media\/shot-1"[^>]*poster="\/api\/admin\/after-dark\/media\/frame-1"[^>]*data-autoplay=""/);
+    // Its keyframe at a tile's size, and nothing of the shot loaded before it plays (the 2026-11-22 audit).
+    expect(tile("reel-1")).toMatch(/<video[^>]*src="\/api\/admin\/after-dark\/media\/shot-1"[^>]*poster="\/api\/admin\/after-dark\/media\/frame-1\?w=640"[^>]*preload="none"[^>]*data-autoplay=""/);
     expect(tile("reel-1")).toContain("▶ Play the reel");
     expect(tile("reel-1")).toContain('href="/after-dark/' + A.id + "/" + B.id + '"');
     expect(tile("studio-clip")).toContain('href="/after-dark/studio/' + A.id + '"');

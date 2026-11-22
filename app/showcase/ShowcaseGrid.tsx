@@ -110,7 +110,9 @@ export default function ShowcaseGrid({
         muted
         loop
         playsInline
-        preload="metadata"
+        // A tile with its still loads nothing of the clip until it plays (on screen, or hovered): a page of 36 clips made
+        // about 108 range requests and 36 redirects before anyone watched one (the 2026-11-22 audit).
+        preload={!big && p.poster ? "none" : "metadata"}
         controls={big}
         // Its own control's mute button is the same switch.
         onVolumeChange={

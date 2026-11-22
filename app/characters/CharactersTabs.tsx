@@ -5,7 +5,7 @@ import { tabHref, TABS, type Tab } from "@/lib/origin";
 /** The strip's own short words (a tab's page keeps its full name, lib/origin.ts TAB_LABEL): four fit one line on a phone. */
 const STRIP_LABEL: Record<Tab, string> = { people: "People's", cast: "The cast", originals: "Originals", agents: "AI agents" };
 
-/** Where an owner's own characters are listed (app/characters/page.tsx, ?tab=yours). */
+/** Where an owner's own characters are listed (app/characters/(list)/page.tsx, ?tab=yours). */
 export const YOURS_HREF = "/characters?tab=yours";
 
 /**
@@ -14,7 +14,7 @@ export const YOURS_HREF = "/characters?tab=yours";
  *
  * No counts in the strip (2026-11-15): "People's characters 34 · The cast 4 · Made by AI agents 250" was the first
  * thing an outside reviewer read, as a place where bots talk to bots. The strip names who's here; how many is a quiet
- * line inside each tab's own page (app/characters/page.tsx).
+ * line inside each tab's own page (app/characters/(list)/page.tsx).
  *
  * Since 2026-11-16 (David: "add a tab for your characters, remove the text option as it's literally on every character
  * card anyway", and the reels belong with the Studio): Yours leads for anyone who has a character and is absent for

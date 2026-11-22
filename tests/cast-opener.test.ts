@@ -9,6 +9,7 @@ import { runCompanionTool } from "@/lib/companion-mcp";
 import { companionDateOpener, watchLinkEpisode } from "@/lib/companion-shared";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { lastAiredDateOf, lastDateOf, type LastDate } from "@/lib/last-date";
+import { updateCharacterMemory } from "@/lib/memory";
 import type { ChatMessage } from "@/lib/model";
 import { api, setupEpisode, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
@@ -239,6 +240,39 @@ describe("opening a thread with a cast character that isn't yours", () => {
     expect(system).toContain("Photos you sent them");
     expect(replies[0].slice(1).map((m) => m.content).join("\n")).toContain(`Hey, I'm ${castFirst}.`);
     expect(replies[0].slice(1).map((m) => m.content).join("\n")).not.toContain("A photo from the date");
+  });
+
+  it("asked about its last date, a reply that names someone else it dated is drawn once more, told which date it was", async () => {
+    // 2026-11-21: Barnaby's opener said Cosmo; asked about his last date, he said Sable (an earlier partner).
+    const earlier = await airedDate("second_date");
+    await t.db.query(`update characters set name = 'Sable Quist' where id = $1`, [earlier.character.id]);
+    const last = await airedDate("friends");
+    await updateCharacterMemory(t.db, CAST.id);
+    const me = stranger();
+    const o = await openThread(t.db, me, CAST.id);
+    if (!o.ok) throw new Error(o.error);
+    const lastFirst = last.character.name.split(" ")[0];
+    const draws = [["That would be Sable. We went to a horology museum downtown."], [`${lastFirst}, at the place from the photo. Friends, and the right size for us.`]];
+    setCompanionModelForTests({
+      async complete(messages) {
+        const system = messages[0]?.content ?? "";
+        if (system.startsWith("You check one message")) return `{"risk": false}`;
+        if (system.startsWith("You are ")) replies.push(messages);
+        return JSON.stringify({ messages: draws.shift() ?? ["Fair question."] });
+      },
+    });
+    const sent = await sendMessage(t.db, me, o.thread_id, "Tell me about the last date you went on. Who was it with?");
+    expect(sent.ok).toBe(true);
+    expect(replies).toHaveLength(2);
+    expect(replies[1][0].content).toContain(`(that wasn't your last date: it was with ${last.character.name}, at `);
+    const said = (await rows(o.thread_id)).filter((m) => m.role === "character" && m.via === "text").map((m) => m.text);
+    expect(said.at(-1)).toBe(`${lastFirst}, at the place from the photo. Friends, and the right size for us.`);
+    expect(said.join(" ")).not.toContain("horology");
+    // Asked about Sable by name, a reply about Sable is the answer: no second draw.
+    replies = [];
+    draws.push(["Sable? A yes to a second date, and a lot of laughing."]);
+    await sendMessage(t.db, me, o.thread_id, "And your last date with Sable, before that?");
+    expect(replies).toHaveLength(1);
   });
 
   it("an agent over MCP gets the opener with links it can open: the photo and the date", async () => {

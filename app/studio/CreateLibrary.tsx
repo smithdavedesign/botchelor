@@ -23,6 +23,16 @@ const CATEGORY_LABEL = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, `${
 type Section = "prompts" | "places" | "roleplays";
 
 /**
+ * What the tab lists: the PG Studio's (`safe`) only the safe ones, so an After Dark venue, prompt or roleplay of theirs
+ * never shows on the show's side.
+ */
+export function listedIn(scope: LibraryMode, lib: Library): Library {
+  if (scope !== "safe") return lib;
+  const safe = (x: { mode: LibraryMode }) => x.mode === "safe";
+  return { places: lib.places.filter(safe), prompts: lib.prompts.filter(safe), roleplays: lib.roleplays.filter(safe) };
+}
+
+/**
  * The Create tab (lib/studio/library.ts): the viewer's own prompts, venues and roleplays, in either Studio. `scope`:
  * the PG Studio's is `safe` (safe ones only; a safe roleplay plays on show dates); After Dark's Studio is `after_dark`
  * (each can be safe, usable everywhere, or After Dark only; its roleplays start on After Dark only, as they always
@@ -74,10 +84,11 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
   const remove = (kind: "prompt" | "place" | "roleplay", id: string) => send({ action: "delete", kind, id }, "Deleted.", () => {});
 
   if (!lib) return <p className="muted">Loading your library…</p>;
+  const shown = listedIn(scope, lib);
   const sections: [Section, string][] = [
-    ["places", `📍 Venues (${lib.places.length})`],
-    ["prompts", `✍️ Prompts (${lib.prompts.length})`],
-    ["roleplays", `🎭 Roleplays (${lib.roleplays.length})`],
+    ["places", `📍 Venues (${shown.places.length})`],
+    ["prompts", `✍️ Prompts (${shown.prompts.length})`],
+    ["roleplays", `🎭 Roleplays (${shown.roleplays.length})`],
   ];
   const pickFor = (value: LibraryMode, set: (m: LibraryMode) => void, name: string, safeLabel: string) =>
     ad && (
@@ -141,7 +152,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
             </button>
           </form>
           <ul className="create-list">
-            {lib.places.map((x) => (
+            {shown.places.map((x) => (
               <li key={x.id} className="card">
                 <strong>{x.name}</strong> {modeBadge(x.mode)}
                 {x.description && <span className="muted small">{x.description}</span>}
@@ -187,7 +198,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
             </button>
           </form>
           <ul className="create-list">
-            {lib.prompts.map((x) => (
+            {shown.prompts.map((x) => (
               <li key={x.id} className="card">
                 <strong>{x.title ?? x.text.slice(0, 40)}</strong> {modeBadge(x.mode)}
                 <span className="muted small">{x.text}</span>
@@ -259,7 +270,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
             </button>
           </form>
           <ul className="create-list">
-            {lib.roleplays.map((x) => (
+            {shown.roleplays.map((x) => (
               <li key={x.id} className="card">
                 <strong>✨ {x.title}</strong> {ad && <span className="badge">{CATEGORY_LABEL[x.category] ?? x.category}</span>} {modeBadge(x.mode)}
                 <span className="muted small">{x.premise}</span>
