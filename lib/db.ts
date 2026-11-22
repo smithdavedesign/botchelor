@@ -4956,9 +4956,9 @@ async function withSeasonCast(db: Db): Promise<Db> {
 function openShared(): Promise<Db> {
   if (!cache.__botchelorDb) {
     const opening = openDb().then(async (db) => {
-      // The apply this server started with (prepareDb) may still be running: wait for it rather than race it.
-      await cache.__botchelorStartupApply;
-      await ensureSchemaCurrent(db);
+      // The apply this server started with (prepareDb) may still be running: wait for it rather than race it. Once it
+      // has brought the schema up to date there is nothing to check again (and no second log line).
+      if (!(await cache.__botchelorStartupApply)) await ensureSchemaCurrent(db);
       return db;
     });
     // A failed open (e.g. the database is briefly unreachable) must not poison every later request.

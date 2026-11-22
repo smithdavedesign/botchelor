@@ -262,6 +262,31 @@ describe("prepareDb: the schema at server start", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("spares the first request its own check once the server's start brought the schema up to date", async () => {
+    const out = quiet();
+    // The real pool, on a port nothing listens on: any schema check would fail and say so.
+    setDbForTests(null);
+    vi.stubEnv("DATABASE_URL", "postgres://user@127.0.0.1:1/none");
+    const cache = globalThis as { __botchelorDb?: unknown };
+    const before = cache.__botchelorDb;
+    try {
+      cache.__botchelorDb = undefined;
+      startup.__botchelorStartupApply = Promise.resolve(true);
+      await expect(getDb()).resolves.toBeDefined();
+      expect([...out.log.mock.calls, ...out.error.mock.calls].flat().join("\n")).not.toContain("[db] schema apply");
+
+      // A start that couldn't apply leaves it to the first request, as before.
+      cache.__botchelorDb = undefined;
+      startup.__botchelorStartupApply = Promise.resolve(false);
+      await expect(getDb()).rejects.toThrow();
+      expect(out.error).toHaveBeenCalledWith(expect.stringMatching(/^\[db\] schema apply failed after \d+ ms: /));
+    } finally {
+      vi.unstubAllEnvs();
+      setDbForTests(t.db);
+      cache.__botchelorDb = before;
+    }
+  });
+
   it("starts nothing with a test database or without a DATABASE_URL (a local run opens its file database on first use)", async () => {
     const out = quiet();
     await prepareDb();
