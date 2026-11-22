@@ -47,7 +47,9 @@ export default function PasswordSettings({ handle }: { handle: string | null }) 
     setBusy(false);
     if (r?.ok) {
       formEl.reset();
-      setNote({ form: "password", text: email ? "Password changed. We've let your recovery email know." : "Password changed." });
+      // The change signs every other device out (app/api/auth/password); this one stays signed in.
+      const others = "Your other devices are signed out.";
+      setNote({ form: "password", text: email ? `Password changed. ${others} We've let your recovery email know.` : `Password changed. ${others}` });
     } else setNote({ form: "password", text: r?.message ?? "Network error. Try again.", error: true });
   }
 

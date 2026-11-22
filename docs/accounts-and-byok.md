@@ -27,6 +27,17 @@ to that id are the account's from the first moment.
 A user id is written in rows, logs and replies, so it is a name and never a password: what makes it yours is the
 signature. A session is an **HMAC-signed token** (`lib/auth`, read in `lib/http`).
 
+**Sessions end** (the 2026-11-22 audit: a session outlived its sign-out, a password change and the account's deletion).
+Nothing is stored per session, so an account has a **session version** (`session_versions`, `lib/session-versions.ts`):
+each token carries the version it was signed with (none: 0) and one below the account's is refused. A new password (the
+account page or a reset link), **Sign out everywhere** on `/account` and deleting the account move it up, so every
+session already handed out ends; the browser that changed the password is signed in again. An ordinary sign-out ends
+that browser's session only. Checking costs no query: each process keeps the versions in memory, loaded with `getDb` at
+most once a minute and moved at once by the process that moves one, so another process notices within the minute;
+signing in reads the account's version first. A **signed-in** session also runs out 60 days after it was signed, and
+one in use is signed again once a day (`handle()` adds it to an API reply that no cache keeps), so only a session
+nobody used for 60 days ends. An anonymous session never runs out: nothing else leads back to what it made.
+
 **A bare `bz_uid` cookie is nobody in production** (the 2026-11-21 audit; `lib/http` `bareIdsAllowed`). It was how
 identity began, and until then a bare cookie naming any user id was taken as that user: their private soul, an edit,
 a delete. It is read in three cases only:
@@ -51,7 +62,8 @@ since 2026-10-30 (`docs/hosting.md`), on Vercel production before.
 
 **An account is only used signed in** (security review, 2026-10-20). An anonymous identity (a legacy `bz_uid`, an
 unsigned-in `bz_sess`, an MCP `agent_id`) that names an account's user id gets nothing account-wide: exporting,
-deleting and the email settings answer 401 `sign_in_required` (`lib/auth` `needsSignIn`), MCP refuses that `agent_id`,
+deleting and the email settings answer 401 `sign_in_required` (`lib/auth` `needsSignIn`), the account page's lists of
+characters and dates come back empty, After Dark's teasers see no one, MCP refuses that `agent_id`,
 and an admin only counts signed in (`lib/admins` `isSignedInAdmin`; claiming admin needs a signed-in account too). So
 a user id that got out, or one planted on someone before they signed up, can't be used to read or wipe their account.
 
@@ -63,9 +75,9 @@ Server components read identity with `userIdFromCookieStore`; routes use `sessio
 |---|---|
 | `POST /api/auth/register` | Create a handle+password account that **adopts the current anonymous id**. Seeds a display name from the handle. |
 | `POST /api/auth/login` | Verify handle+password; the session id becomes that account's id (its characters and dates). |
-| `POST /api/auth/logout` | Clear the session, drop back to a fresh anonymous identity. |
+| `POST /api/auth/logout` | Clear the session, drop back to a fresh anonymous identity. `{ "everywhere": true }` from a signed-in session ends every session the account handed out. |
 | `GET /api/auth/google/start` → `…/callback` | Google OAuth: a signed `state` cookie (CSRF), code exchanged server-side, the `id_token` read from Google's TLS response. Links Google to the current anonymous id, or logs into the existing account for that Google sub. |
-| `POST /api/auth/password` | Change the password: the current one first (wrong tries count as failed sign-ins). |
+| `POST /api/auth/password` | Change the password: the current one first (wrong tries count as failed sign-ins). Every other session ends; this browser's is signed again. |
 | `GET/POST/DELETE /api/auth/recovery` | The recovery email: read it, add or change it (current password, then a confirmation link), remove it. |
 | `POST /api/auth/recovery/confirm?t=` | The confirmation page's button (`/email/confirm-recovery`) puts the address on the account. |
 | `POST /api/auth/forgot` | "Forgot your password?": `{ who }` is a handle or a recovery email. Always the same answer. |
@@ -179,15 +191,16 @@ A handle needs no email, so a forgotten password used to lose the account for go
   email emails the address that was on the account.
 - After Dark's PIN reset (`lib/adult/privacy.ts`) sends its code to the account's email first, so a confirmed recovery
   email works there too.
-- **Not yet: signing other browsers out.** Sessions are signed cookies with no server-side store, so a new password
-  doesn't end a session someone else already has. That needs a session store or a per-account "sessions since" check on
-  every request.
+- **A new password signs other browsers out** (the session version, above): from the account page or a reset link, every
+  session the account had handed out ends, and the browser that set it is signed in again.
 
 Emails go through `sendAccountEmail` (lib/email.ts): inside `EMAIL_DAILY_CAP`, logged in `email_sends` as
 `password_reset`, `recovery_confirm`, `password_changed` and `recovery_changed`. Tests: `tests/account-recovery.test.ts`.
 
 `/api/me` reports `{ authenticated, account: { handle, has_password, has_google } | null, accounts_available,
-google_available }`. `deleteAccount` (unchanged privacy flow) removes the account row too, cascading its keys.
+google_available }`; `authenticated` is a signed-in session whose account still exists. `deleteAccount` (unchanged
+privacy flow) removes the account row too, cascading its keys; `DELETE /api/me` then ends the account's sessions and
+clears this browser's cookie.
 
 ## Ownership: your characters are yours (`app/api/characters/[id]`)
 
