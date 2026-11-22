@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { NO_DECK_FILTERS } from "@/lib/deck-filters";
 
 // The owner's controls route after a change; a static render only needs a stub router.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push() {}, refresh() {} }) }));
@@ -74,7 +75,7 @@ describe("Share is a popover, not a modal", () => {
 describe("swipes and texts", () => {
   it("every deck filter has a name a screen reader says (a label for each select, in both places it shows)", () => {
     for (const variant of ["intro", "bar"] as const) {
-      const html = renderToStaticMarkup(createElement(DeckFilterForm, { characterId: "char-ira-1", filters: {}, variant }));
+      const html = renderToStaticMarkup(createElement(DeckFilterForm, { characterId: "char-ira-1", filters: NO_DECK_FILTERS, variant }));
       const ids = [...html.matchAll(/<select id="([^"]+)"/g)].map((m) => m[1]);
       expect(ids.length).toBe(4);
       for (const id of ids) expect(html, id).toMatch(new RegExp(`<label class="sr-only" for="${id}">[^<]+</label>`));
