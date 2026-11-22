@@ -11,7 +11,7 @@ import { moveLineFeedback } from "../line-feedback";
 import type { ChatMessage, Model, ModelOptions, Usage } from "../model";
 import { pairKey } from "../relationships";
 import { checkAdultText, type SafetyResult } from "../safety";
-import { eligibleIds, keptPairs } from "./characters";
+import { eligibleIds, keptPairs, pairAbsence } from "./characters";
 import { pictureKeyReady, ensureBaseline, makePicture, outputCheckReady, PICTURES_OFF_NOTE, recentActions, scenePrompt, type Media } from "./media";
 import { countUse, overCap } from "./usage";
 import { adultModel, adultModelId } from "./mode";
@@ -314,6 +314,16 @@ export async function eligiblePair(db: Db, ownerId: string, x: string, y: string
   const pair = pairKey(x, y);
   if (ok.has(x) && ok.has(y)) return pair;
   return (await keptPairs(db, ownerId, { eligible: ok, pair })).length ? pair : null;
+}
+
+/**
+ * Whether a pair's page is there for this person at all: a pair they can play (eligiblePair), or one the page explains
+ * (pairAbsence: a house character who has left the cast, one of their own switched out). Read only, unlike openScene;
+ * app/after-dark/[a]/[b]/layout.tsx asks it before the page's loading screen answers, so the rest are a real 404.
+ */
+export async function pairPageThere(db: Db, ownerId: string, x: string, y: string): Promise<boolean> {
+  if (await eligiblePair(db, ownerId, x, y)) return true;
+  return (await pairAbsence(db, ownerId, x, y)) !== null;
 }
 
 /** Every pair of the characters who can be in after dark, with how far each pair's scene has gone for this admin. */

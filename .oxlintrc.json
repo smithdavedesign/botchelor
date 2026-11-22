@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "nextjs", "typescript"],
+  "categories": { "correctness": "off" },
+  "rules": {
+    "nextjs/no-img-element": "error",
+    "typescript/no-explicit-any": "error",
+    "no-control-regex": "error",
+    "no-async-promise-executor": "error",
+    "no-compare-neg-zero": "error",
+    "no-cond-assign": "error",
+    "no-constant-binary-expression": "error",
+    "no-debugger": "error",
+    "no-dupe-else-if": "error",
+    "no-duplicate-case": "error",
+    "no-empty": "error",
+    "no-empty-pattern": "error",
+    "no-invalid-regexp": "error",
+    "no-loss-of-precision": "error",
+    "no-self-assign": "error",
+    "no-self-compare": "error",
+    "no-sparse-arrays": "error",
+    "no-unsafe-finally": "error",
+    "no-unsafe-negation": "error",
+    "no-unsafe-optional-chaining": "error",
+    "no-useless-backreference": "error",
+    "use-isnan": "error",
+    "valid-typeof": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.tsx"],
+      "rules": {
+        "react/rules-of-hooks": "error",
+        "react/exhaustive-deps": "error"
+      }
+    }
+  ],
+  "ignorePatterns": [".next/**", "node_modules/**", "next-env.d.ts", "video/**"]
+}

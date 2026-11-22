@@ -24,9 +24,13 @@ import { SHOW_ID } from "./show-id";
 import { showIdeasOn } from "./show-ideas-switch";
 import { stepInOpen } from "./step-in-switch";
 import { paymentLinkFromEnv } from "./stripe";
+import { FREE_TOOLS, TOOLS_PATH } from "./tools";
 
-/** The home page's title and description, and the fallback for any page that doesn't set its own. */
-export const SITE_TITLE = "Botchelor: a blind-date show for original characters";
+/**
+ * The home page's title and description, and the fallback for any page that doesn't set its own. "AI" is in it: it's the
+ * word in every search in this space (2026-11-22 audit), and the title never said it.
+ */
+export const SITE_TITLE = "Botchelor: an AI blind-date show for original characters";
 export const SITE_DESCRIPTION =
   "Give your original character a love life: AI-written blind dates nobody steers. They text you how it went and take your advice into the next one. Free, no sign-up.";
 /** After Dark's own host says what it is instead (the 2026-11-22 audit: it carried the show's "Free, no sign-up"). */
@@ -42,11 +46,37 @@ export const SHARE_IMAGE = { url: "/share-card.png", width: 1200, height: 630, a
 
 type ShareImage = { url: string; width: number; height: number; alt: string; type?: string };
 
+/** The feeds every page of the show names in its head (app/layout.tsx): the RSS feed and the agents' guide. */
+export const SITE_FEEDS: Readonly<Record<string, string>> = { "application/rss+xml": "/feed.xml", "text/plain": "/llms.txt" };
+
+/** About as much of a description as a search result shows; past it, the words are cut wherever they fall. */
+export const DESCRIPTION_MAX = 155;
+
+/**
+ * A page's description as a search result shows it (DESCRIPTION_MAX; the 2026-11-22 audit found them up to 254
+ * characters): whole sentences when the first ones say enough, else cut at a word with an ellipsis. One that fits is
+ * left as it is.
+ */
+export function fitDescription(text: string, max: number = DESCRIPTION_MAX): string {
+  const s = text.replace(/\s+/g, " ").trim();
+  if (s.length <= max) return s;
+  let end = 0;
+  for (const m of s.matchAll(/[.!?](?= )/g)) {
+    const at = (m.index ?? 0) + 1;
+    if (at > max) break;
+    end = at;
+  }
+  if (end >= max * 0.6) return s.slice(0, end);
+  const cut = s.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 1)).replace(/[\s,;:(—–-]+$/, "")}…`;
+}
+
 /**
  * One public page's search and share tags: its own title and description, its canonical address, and Open Graph and
  * Twitter tags that say the same. Next replaces the root layout's openGraph and twitter whole when a page sets them, so
  * the site's fields and the share card are repeated here. A page that draws its own card (an opengraph-image file
- * beside it) passes `image: null`, so that file is the one used.
+ * beside it) passes `image: null`, so that file is the one used. The search description fits a result
+ * (fitDescription); the share cards keep the whole of it.
  */
 export function pageMetadata({
   title,
@@ -61,7 +91,7 @@ export function pageMetadata({
 }): Metadata {
   return {
     title,
-    description,
+    description: fitDescription(description),
     alternates: { canonical: path },
     openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: path, title, description, ...(image ? { images: [image] } : {}) },
     // twitter:image follows og:image when it isn't set here (Next fills it in), the page's own card included.
@@ -288,7 +318,7 @@ export function organizationJsonLd(base: string = siteUrl(), env: Record<string,
     legalName: COMPANY,
     url: base,
     // A raster logo of at least 112px is what Google's logo guidance asks for; the SVG stays the favicon.
-    logo: { "@type": "ImageObject", url: `${base}/icons/icon-512.png`, width: 512, height: 512 },
+    logo: logoJsonLd(base),
     description: BOILERPLATE.oneLine,
     founder: { "@type": "Person", name: FOUNDER },
     sameAs: socialLinks(env).map((s) => s.url),
@@ -310,7 +340,7 @@ export function siteJsonLd(base: string = siteUrl(), env: Record<string, string 
           "@type": "WebSite",
           "@id": `${base}/#website`,
           name: "Botchelor",
-          alternateName: "Botchelor — a blind-date show for original characters",
+          alternateName: "Botchelor — an AI blind-date show for original characters",
           url: base,
           publisher: { "@id": `${base}/#org` },
           inLanguage: "en",
@@ -347,6 +377,43 @@ export function breadcrumbJsonLd(trail: { name: string; path: string }[], base: 
   };
 }
 
+/**
+ * A free tool's page (lib/tools.ts): a web app anyone can use for free, and its place under the tools hub (the
+ * 2026-11-22 audit found four of the five with no page-level data at all).
+ */
+export function toolJsonLd(path: string, base: string = siteUrl()): Record<string, unknown>[] {
+  const tool = FREE_TOOLS.find((t) => t.path === path);
+  if (!tool) return [];
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      name: tool.name,
+      url: `${base}${tool.path}`,
+      description: tool.blurb,
+      applicationCategory: "EntertainmentApplication",
+      operatingSystem: "Any",
+      isAccessibleForFree: true,
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      isPartOf: { "@id": `${base}/#website` },
+      publisher: { "@id": `${base}/#org` },
+    },
+    breadcrumbJsonLd(
+      [
+        { name: "Botchelor", path: "/" },
+        { name: "Free OC tools", path: TOOLS_PATH },
+        { name: tool.name, path: tool.path },
+      ],
+      base,
+    ),
+  ];
+}
+
+/** The show's logo as structured data wants it: the raster one (Google's logo guidance), not the SVG favicon. */
+export function logoJsonLd(base: string = siteUrl()): Record<string, unknown> {
+  return { "@type": "ImageObject", url: `${base}/icons/icon-512.png`, width: 512, height: 512 };
+}
+
 /** An ordered list of pages (the cast, the feed): lets search engines and AI crawlers see the collection. */
 export function itemListJsonLd(name: string, items: { name: string; path: string }[], base: string = siteUrl()): Record<string, unknown> {
   return {
@@ -362,6 +429,8 @@ export function itemListJsonLd(name: string, items: { name: string; path: string
 export function characterJsonLd(
   c: { id: string; name: string; bio: string; house: boolean },
   base: string = siteUrl(),
+  /** Their portrait, as the page shows it (site-relative), when they have one. */
+  image: string | null = null,
 ): Record<string, unknown> {
   const url = `${base}/characters/${c.id}`;
   return {
@@ -376,6 +445,7 @@ export function characterJsonLd(
       name: c.name,
       url,
       description: c.bio,
+      ...(image ? { image: image.startsWith("/") ? `${base}${image}` : image } : {}),
       // Every character is fictional: say so in the data, not just the page.
       disambiguatingDescription: `A fictional ${c.house ? "house character" : "original character"} on the AI blind-date show Botchelor.`,
     },

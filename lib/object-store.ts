@@ -68,6 +68,13 @@ export function storeConfig(env: Record<string, string | undefined> = process.en
  */
 export const LINK_WINDOW_MS = 6 * 60 * 60 * 1000;
 const LINK_LIFE_S = (2 * LINK_WINDOW_MS) / 1000;
+/**
+ * After Dark's files (Bunny) get a one-hour window, so a link lives two hours at most rather than twelve (2026-11-22
+ * audit: a copied link isn't tied to its viewer). Pages link to our own routes, which hand out the current link, so a
+ * shorter life costs a redirect, never a dead picture.
+ */
+export const BUNNY_LINK_WINDOW_MS = 60 * 60 * 1000;
+const BUNNY_LINK_LIFE_S = (2 * BUNNY_LINK_WINDOW_MS) / 1000;
 /** A stored file's bytes never change (its key holds their hash), so whoever may read it may keep it. */
 const KEEP = "private, max-age=31536000, immutable";
 
@@ -186,7 +193,7 @@ export function bunnyConfig(env: Record<string, string | undefined> = process.en
  * (Unix seconds), then the extra parameters sorted by name as name=value&…. The signed path is the URL's path, or
  * `token_path` when that's one of the parameters (a token for everything under it). No IP is signed: IP-locked tokens
  * need the zone's Token IP Validation on (which also turns its IPv6 off), and a viewer's address moves between
- * networks within the twelve hours a link lives. Checked against Bunny's own test vectors
+ * networks within the two hours a link lives. Checked against Bunny's own test vectors
  * (github.com/BunnyWay/BunnyCDN.TokenAuthentication e2e/vectors.json) in tests/bunny-store.test.ts.
  */
 export function bunnyToken(tokenKey: string, path: string, expires: number, params: Record<string, string> = {}): string {
@@ -224,13 +231,14 @@ export function bunnyStore(cfg: BunnyConfig): ObjectStore {
       if (!res.ok && res.status !== 404) throw new Error(`object store couldn't delete ${key} (${res.status})`);
     },
     async presign(key, now = Date.now()) {
-      // As for S3: one link for the whole window (its expiry counted from the window's start), living two windows. The
-      // pull zone sets how long a browser keeps the file (docs/after-dark-hosting.md: browser cache time, 12 hours).
-      const start = Math.floor(now / LINK_WINDOW_MS) * LINK_WINDOW_MS;
-      const expires = Math.floor(start / 1000) + LINK_LIFE_S;
+      // As for S3: one link for the whole window (its expiry counted from the window's start), living two windows, but
+      // the window is an hour (BUNNY_LINK_WINDOW_MS). The pull zone sets how long a browser keeps a file it has fetched
+      // (docs/after-dark-hosting.md: browser cache time).
+      const start = Math.floor(now / BUNNY_LINK_WINDOW_MS) * BUNNY_LINK_WINDOW_MS;
+      const expires = Math.floor(start / 1000) + BUNNY_LINK_LIFE_S;
       const path = keyPath(key);
       const q = new URLSearchParams({ token: bunnyToken(cfg.tokenKey, path, expires), expires: String(expires) });
-      return { url: `https://${cfg.cdnHost}${path}?${q}`, maxAge: Math.max(1, Math.ceil((start + LINK_WINDOW_MS - now) / 1000)) };
+      return { url: `https://${cfg.cdnHost}${path}?${q}`, maxAge: Math.max(1, Math.ceil((start + BUNNY_LINK_WINDOW_MS - now) / 1000)) };
     },
   };
 }

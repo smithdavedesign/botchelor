@@ -48,6 +48,12 @@ export function operatorPassOffered(env: Env = process.env): boolean {
   return env.OPERATOR_PASS_SALE === "1" && operatorPassLink(env) !== null;
 }
 
+/** The pass's price in cents (OPERATOR_PASS_PRICE_USD, $9 by default): what its first checkout must pay at least. */
+export function operatorPassPriceCents(env: Env = process.env): number {
+  const n = Number(env.OPERATOR_PASS_PRICE_USD?.trim());
+  return Math.round((Number.isFinite(n) && n > 0 ? n : 9) * 100);
+}
+
 /** "YYYY-MM" in UTC: the month a reserved date belongs to (reserved dates reset on the UTC month). */
 export const monthKey = (now: Date = new Date()): string => now.toISOString().slice(0, 7);
 

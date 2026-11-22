@@ -12,7 +12,7 @@ export type PauseLine = { what: string; text: string; active: boolean; reason: s
  * paused right now, and the way to each provider's live status. The switch was a small checkbox in the second card,
  * apart from the paused card.
  */
-export default function StatusStrip({ pauses }: { pauses: PauseLine[] }) {
+export default function StatusStrip({ pauses, trouble = { failed: 0, stuck: 0 } }: { pauses: PauseLine[]; trouble?: { failed: number; stuck: number } }) {
   const { s, save, status } = useSettings();
   const [confirming, setConfirming] = useState(false);
   const saving = status.enabled?.state === "saving";
@@ -58,6 +58,20 @@ export default function StatusStrip({ pauses }: { pauses: PauseLine[] }) {
         ) : (
           <span className="muted">Nothing is paused.</span>
         )}{" "}
+        {/* The day's failed and stuck jobs (lib/adult/job-health.ts): "Nothing is paused" alone read as all well. */}
+        {trouble.failed || trouble.stuck ? (
+          <>
+            ·{" "}
+            <Link href="/admin/after-dark/providers#jobs" className="error" data-job-trouble>
+              {[trouble.failed ? `${trouble.failed} failed` : "", trouble.stuck ? `${trouble.stuck} stuck` : ""].filter(Boolean).join(" and ")} in the
+              last 24 hours
+            </Link>{" "}
+          </>
+        ) : (
+          <>
+            · <span className="muted">no job failed in the last 24 hours</span>{" "}
+          </>
+        )}
         · <Link href="/admin/after-dark/providers">Providers</Link>
       </p>
       {pauses.length > 0 && (

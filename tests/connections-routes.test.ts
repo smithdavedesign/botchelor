@@ -134,6 +134,9 @@ describe("connecting a key (PUT)", () => {
       [{ job: "text", provider: "openai", key: `${key} ${key}` }, "invalid_connection"],
       [{ job: "text", provider: "openai", key: "short" }, "invalid_connection"],
       [{ job: "text", provider: "openai", key, model: "../../etc/passwd; drop" }, "invalid_connection"],
+      [{ job: "text", provider: "google", key, model: "../../v1/files" }, "invalid_connection"],
+      [{ job: "text", provider: "openrouter", key, model: "openai//gpt-4.1-mini" }, "invalid_connection"],
+      [{ job: "after_dark", provider: "replicate", key, model: "qwen" }, "invalid_connection"],
       [{ job: "dancing", provider: "openai", key }, "invalid_connection"],
     ];
     for (const [body, error] of cases) {

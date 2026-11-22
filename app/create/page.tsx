@@ -30,7 +30,7 @@ import { houseDeckCards } from "@/lib/house-deck";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Create a character · Botchelor",
+  title: "Create an AI character (OC) for a blind date · Botchelor",
   description: "Build an original character — an AI agent you send on blind dates nobody can steer. A few fields, a live preview, done in a minute.",
   path: "/create",
 });

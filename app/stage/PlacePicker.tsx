@@ -44,6 +44,7 @@ export default function PlacePicker({
                 aria-pressed={current === id}
                 data-place={id}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element -- the show's own reviewed backdrops */}
                 {photo && <img src={photo} alt="" loading="lazy" decoding="async" />}
                 <span>{venue(id).name}</span>
               </button>

@@ -1257,17 +1257,22 @@ export async function postMessage(
   return { ok: true, id };
 }
 
-/** Reports a chat message; it is hidden once REPORT_HIDE_THRESHOLD distinct viewers have reported it. */
+/**
+ * Reports a chat message; it is hidden once REPORT_HIDE_THRESHOLD distinct viewers have reported it. A report that
+ * doesn't count (lib/report-trust.ts: a brand-new identity) is taken and left out of that count.
+ */
 export async function reportMessage(
   db: Db,
   partyId: string,
   messageId: string,
   reporterId: string,
+  opts: { counts?: boolean } = {},
 ): Promise<{ ok: true; hidden: boolean } | { ok: false; status: number; error: string }> {
   const message = (
-    await db.query<{ n: number }>(`select 1 as n from watch_messages where id = $1 and party_id = $2`, [messageId, partyId])
+    await db.query<{ hidden: boolean }>(`select hidden from watch_messages where id = $1 and party_id = $2`, [messageId, partyId])
   ).rows[0];
   if (!message) return { ok: false, status: 404, error: "message_not_found" };
+  if (opts.counts === false) return { ok: true, hidden: Boolean(message.hidden) };
   await db.query(
     `insert into watch_message_reports (message_id, reporter_id) values ($1, $2) on conflict do nothing`,
     [messageId, reporterId],

@@ -110,7 +110,7 @@ describe("home's first screen", () => {
     await arcNight();
     const html = await home();
     expect(html).toContain('class="home-open home-open--one home-open--arc"');
-    expect(html).toContain("A blind-date show where nobody steers.");
+    expect(html).toContain("An AI blind-date show where nobody steers.");
     // Plain words where the season's number and night stood, and tonight's two step forward on the stage without their
     // story being told: a stranger has no season yet (the growth plan's "assumed context").
     expect(html).toContain('<p class="kicker home-open-kicker">A new blind date every night</p>');

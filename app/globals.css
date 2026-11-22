@@ -4158,6 +4158,11 @@ button.swipe-btn-nope:hover:not(:disabled) {
 .swipe-match-buttons > * {
   margin-top: 0;
 }
+/* The "tell me when they text" row under the buttons reads left to right, as it does everywhere else. */
+.swipe-match-card .push-prompt {
+  margin: var(--space-3) 0 0;
+  text-align: left;
+}
 /* Where a match stands on its couple page: the yes (or why not), then the booking. */
 .match-state {
   display: grid;
@@ -10104,6 +10109,21 @@ body:has(.ad-discreet) {
   color: var(--ad-ink, var(--ink));
   padding: var(--space-2) var(--space-3);
 }
+/* A desktop: the six tabs fit the column (the 2026-11-22 audit found "✨ Cr…" cut off, with no way to see it was a
+   row that scrolls), and where a longer Gallery count still tips it over, a mouse gets a thin scrollbar to say so. */
+@media (min-width: 601px) {
+  .ad-studio-tabs {
+    gap: 0;
+  }
+  .ad-studio-tabs button {
+    padding: var(--space-2);
+  }
+}
+@media (min-width: 601px) and (pointer: fine) {
+  .ad-studio-tabs.scroll-row {
+    scrollbar-width: thin;
+  }
+}
 .ad-studio-tabs button.on {
   border-bottom-color: var(--night-hot);
   font-weight: 700;
@@ -13271,7 +13291,8 @@ html.constellation-locked body {
 .ad-graph-svg {
   display: block;
   width: 100%;
-  max-width: 34rem;
+  /* The box has room round the ring for the names (lib/adult/graph.ts labelAt), so it's a little wider. */
+  max-width: 40rem;
   margin: var(--space-3) auto;
   aspect-ratio: 1;
 }
@@ -13292,6 +13313,11 @@ a:hover > .ad-edge,
 .ad-label {
   font-size: 3px;
   fill: var(--ink);
+  /* A thin edge of the page's colour, so a name stays readable where a pair's line runs under it. */
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 0.6px;
+  stroke-linejoin: round;
 }
 .ad-pairs {
   width: 100%;
@@ -13306,6 +13332,11 @@ a:hover > .ad-edge,
 }
 .ad-pairs tr.picked td {
   background: var(--soft);
+}
+/* A job kind with a failure or a stuck job in the last day (app/admin/after-dark/providers Jobs): it stands out. */
+.ad-job-health tr.ad-job-trouble th,
+.ad-job-health tr.ad-job-trouble td {
+  background: color-mix(in srgb, var(--bad-text) 12%, transparent);
 }
 section:has(> .ad-pairs) {
   overflow-x: auto;
@@ -13371,14 +13402,31 @@ section:has(> .ad-pairs) {
   align-items: center;
   gap: var(--space-2);
 }
+.ad-stars [role="radiogroup"] {
+  display: inline-flex;
+}
+/* Each star a target of its own (the 2026-11-22 audit: they were 13 px wide, 121 of them on a page): 28 px with a
+   mouse, a finger's 40 px on a touch screen. */
 .ad-star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  margin: 0;
   border: 0;
   background: none;
-  padding: 0 0.1rem;
+  padding: 0;
   font-size: var(--icon-sm);
   line-height: 1;
   cursor: pointer;
   color: var(--muted);
+}
+@media (pointer: coarse) {
+  .ad-star {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
 }
 .ad-star.on {
   color: #f5b301;
@@ -14249,6 +14297,13 @@ button.pg-group-head:hover {
   gap: var(--space-2);
   padding: 0.5rem 0.65rem;
 }
+/* Delete, asked in place (PgStudio's Pictures, in the tile's ⋯): the question and its two answers together. */
+.pg-picture-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
 
 /* ---------- The Create library (app/studio/CreateLibrary.tsx), in both Studios, and Your prompts on /prompts ---------- */
 .create-library {
@@ -14445,14 +14500,16 @@ button.pg-group-head:hover {
   display: grid;
   gap: 0.15rem;
 }
-.invite-row > button {
+/* Its one action is a button or a link (PushToggle's "Email me"): a link left out of these rules took the icon's
+   column on a phone and stretched it (2026-11-22 audit, the match overlay). */
+.invite-row > :is(button, a) {
   margin: 0;
 }
 @media (max-width: 480px) {
   .invite-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .invite-row > button {
+  .invite-row > :is(button, a) {
     grid-column: 2;
     justify-self: start;
   }

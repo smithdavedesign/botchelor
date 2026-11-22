@@ -166,7 +166,9 @@ describe("the Replicate client", () => {
     expect(predictionRequest("qwen/qwen-image-edit-2511", { a: 1 })).toEqual({ url: "https://api.replicate.com/v1/models/qwen/qwen-image-edit-2511/predictions", body: { input: { a: 1 } } });
     expect(predictionRequest(DEFAULT_REPLICATE_VOICE_MODEL, { text: "hi" })).toEqual({ url: "https://api.replicate.com/v1/predictions", body: { version: VOICE_VERSION, input: { text: "hi" } } });
     expect(predictionRequest(VOICE_VERSION, {}).body).toEqual({ version: VOICE_VERSION, input: {} });
-    for (const bad of ["", "qwen", "https://evil.example/x", "a/b/c", "a/b:short"]) expect(() => predictionRequest(bad, {})).toThrow(ReplicateError);
+    for (const bad of ["", "qwen", "https://evil.example/x", "a/b/c", "a/b:short", "../..", "./x", "qwen/..", "../predictions"]) expect(() => predictionRequest(bad, {})).toThrow(ReplicateError);
+    // A dot inside a name is fine (owners and names have them); only a name that is all dots, or starts with one, isn't.
+    expect(predictionRequest("black-forest-labs/flux-1.1-pro", {}).url).toBe("https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro/predictions");
   });
 
   it("waits up to a minute, polls past it, and downloads what it made at once; a model that never finishes is stopped", async () => {

@@ -733,8 +733,15 @@ export function othersAction(
   return (them === "she" ? ["she", "her"] : ["he", "his"]).includes(lead) ? words[0] : null;
 }
 
-/** Steer words that say how, not what ("stop", "plainly", "actually"): never what a line has to show to follow it. */
-const STEER_GLUE = new Set("stop start please plainly actually finally instead".split(" "));
+/**
+ * Steer words that say how, not what ("stop", "plainly", "actually", "on purpose"), and "get" (gets it wrong, gets
+ * closer), which says nothing of its own: never what a line has to show to follow it. The 2026-11-22 audit's Direct
+ * steer "She dares him to guess her favourite flower, and he gets it wrong on purpose" was played (a dare, two wrong
+ * guesses) and still read "Only partly followed".
+ */
+const STEER_GLUE = new Set("stop start please plainly actually finally instead purpose purposely deliberately intentionally get gets got getting".split(" "));
+/** One spelling for both sides: "favourite" meets "favorite", "colour" meets "color" (the writer may spell either way). */
+const steerStem = (word: string): string => stem(word).replace(/our/g, "or");
 /** A steer's key words (as stems) at this share or more in the step's lines is followed; fewer is partly. */
 const STEER_FOLLOWED = 0.5;
 
@@ -759,11 +766,11 @@ export function steerFollowed(
     tokens(steer)
       .map((w) => w.replace(/'s$/, ""))
       .filter((w) => w.length >= 3 && !GLUE.has(w) && !STEER_GLUE.has(w) && !skip.has(w) && !/^\d+$/.test(w))
-      .map(stem),
+      .map(steerStem),
   );
   const quoted = quotes?.all ? (quotes.kept >= quotes.all ? "yes" : quotes.kept ? "partly" : "no") : null;
   if (!keys.size) return quoted;
-  const said = new Set(lines.flatMap((l) => tokens(l.text.replace(/\*/g, " "))).map(stem));
+  const said = new Set(lines.flatMap((l) => tokens(l.text.replace(/\*/g, " "))).map(steerStem));
   const share = [...keys].filter((k) => said.has(k)).length / keys.size;
   const acted = share >= STEER_FOLLOWED ? "yes" : share > 0 ? "partly" : "no";
   if (!quoted) return acted;

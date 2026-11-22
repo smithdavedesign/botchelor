@@ -33,8 +33,9 @@ export default function ShareButton({
   useEffect(() => setShown(window.location.origin + path), [path]);
   const [copied, setCopied] = useState(false);
   const box = useRef<HTMLSpanElement>(null);
-  // Escape, its ✕ or a press outside closes it; while it's open the page behind is inert and still (app/useOverlay.ts).
-  useOverlay(open, { root: box, onClose: () => setOpen(false) });
+  // Escape, its ✕ or a press outside closes it (app/useOverlay.ts). A popover, not a modal: the page behind stays live,
+  // so that press outside still does what it pressed (2026-11-22 audit: it swallowed the next click).
+  useOverlay(open, { root: box, onClose: () => setOpen(false), modal: false });
 
   const url = () => new URL(path, window.location.origin).toString();
   async function share() {
