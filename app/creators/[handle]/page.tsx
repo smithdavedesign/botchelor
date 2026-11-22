@@ -11,6 +11,8 @@ import { characterCredits, characterCreditsOn, creditLine } from "@/lib/profile/
 import { parseFilters } from "@/lib/showcase";
 import ShowcaseBrowser from "@/app/showcase/ShowcaseBrowser";
 import { pageViewer } from "@/app/showcase/viewer";
+import { knownCreatorOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,10 @@ async function creator(handle: string) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const c = await creator((await params).handle);
+  const { handle } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownCreatorOnce(handle));
+  const c = await creator(handle);
   if (!c) return { title: "Creator not found · Botchelor", robots: { index: false, follow: false } };
   // The show's own profile is named Botchelor: "Botchelor (@botchelor) on Botchelor" said it twice (2026-11-22 audit).
   return { title: /botchelor/i.test(c.display_name) ? `${c.display_name} (@${c.handle}): pictures and clips` : `${c.display_name} (@${c.handle}) on Botchelor`, description: fitDescription(c.bio ?? `Pictures and clips by @${c.handle}.`), alternates: { canonical: `/creators/${c.handle}` } };

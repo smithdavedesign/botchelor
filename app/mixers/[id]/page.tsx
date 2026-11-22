@@ -11,11 +11,15 @@ import { mixerNightView } from "@/lib/mixer-night";
 import { venueBackdrop } from "@/lib/portraits";
 import { venueBackdropCss, venueName, venuePhrase } from "@/lib/venues";
 import MixerNight from "./MixerNight";
+import { knownMixerOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownMixerOnce(id));
   const view = await mixerNightView(await getDb(), id, null).catch(() => null);
   if (!view) return { title: "A mixer · Botchelor", robots: { index: false, follow: false } };
   const recoupling = view.theme === "recoupling";

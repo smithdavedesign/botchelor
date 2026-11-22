@@ -17,13 +17,17 @@ import DoublePicker from "./DoublePicker";
 import ThreadNext from "./ThreadNext";
 import ThreadSwitcher from "./ThreadSwitcher";
 import Unmatch from "./Unmatch";
+import { knownPairOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Messages · Botchelor",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { a, b } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownPairOnce(a, b));
+  return { title: "Messages · Botchelor", robots: { index: false, follow: false } };
+}
 
 type Props = { params: Promise<{ a: string; b: string }>; searchParams: Promise<{ as?: string }> };
 

@@ -45,6 +45,8 @@ import { closedSeasons } from "@/lib/season-ref";
 import { cachedPairTies } from "@/lib/social/cache";
 import { socialLensesOn } from "@/lib/social/lens-sky";
 import CoupleMain from "./CoupleMain";
+import { knownCoupleOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +166,8 @@ const refOf = (c: PublicCharacter): CharacterRef => ({
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { a, b } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownCoupleOnce(a, b));
   const [lo, hi] = pairKey(a, b);
   // Worth a place in search, as the sitemap lists couples (lib/seo.ts): read beside the names; a failed read keeps it listed.
   const worthP = orElse("whether search lists them", getDb().then((db) => coupleIndexable(db, lo, hi)), true);

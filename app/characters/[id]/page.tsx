@@ -104,6 +104,8 @@ import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { soft } from "@/lib/soft";
+import { knownCharacterOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +120,8 @@ const RELATIONSHIPS_PAGE = 8;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownCharacterOnce(id));
   const c = await getPublicCharacter(await getDb(), id);
   if (!c) return { title: "Character not found · Botchelor", robots: { index: false, follow: false } };
   if (c.private) return { title: `${c.name} · Botchelor`, robots: { index: false, follow: false } };

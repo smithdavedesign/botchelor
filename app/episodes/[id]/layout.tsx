@@ -1,22 +1,12 @@
-import type { Metadata } from "next";
-import { cache, type ReactNode } from "react";
-import NotFoundBeforeLoading, { notFoundMetadata } from "@/app/NotFoundBeforeLoading";
-import { getDb } from "@/lib/db";
-import { knownEpisode } from "@/lib/known-ids";
-
-/** One read a request for the check and the metadata alike (React's cache): app/NotFoundBeforeLoading.tsx. */
-const known = cache(async (id: string) => knownEpisode(await getDb(), id));
-
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  return notFoundMetadata(() => known(id));
-}
+import type { ReactNode } from "react";
+import { knownEpisodeOnce } from "@/app/known-once";
+import NotFoundBeforeLoading from "@/app/NotFoundBeforeLoading";
 
 /** An unknown date (and its report card) is a real 404, decided before ./loading.tsx answers (app/NotFoundBeforeLoading.tsx). */
 export default function EpisodeLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   return (
     <>
-      <NotFoundBeforeLoading known={async () => known((await params).id)} />
+      <NotFoundBeforeLoading known={async () => knownEpisodeOnce((await params).id)} />
       {children}
     </>
   );

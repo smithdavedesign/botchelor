@@ -78,6 +78,8 @@ import { withoutLeadName } from "./lead-name";
 import UpNext from "./UpNext";
 import { upNextFor, type UpNextEpisode } from "@/lib/up-next";
 import { escapeRegExp } from "@/lib/text";
+import { knownEpisodeOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +96,8 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
  */
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownEpisodeOnce(id));
   const db = await getDb();
   const [episode, clip, listed, authored] = await Promise.all([
     getEpisodeView(db, id, null),
