@@ -262,6 +262,65 @@ export function checkShowText(fields: Record<string, string | readonly string[] 
   return { ok: true };
 }
 
+// Step in (lib/step-in.ts): a real person types one side of a PG date, so it meets the pick-up lines the show's own
+// writers never try. "Come back to my place and take that dress off for me" passed checkShowText (its undress rule needs
+// "her"/"your"), and so did the cast's "nobody's taking anything off before the tacos!" (2026-11-21). Whole phrases, so
+// ordinary flirting passes: "you look great in that dress", "you really pull off that dress", "take off your coat",
+// "come back to mine for a nightcap?", "I'm not taking anything off the table", "breakfast in bed".
+const STEP_IN_GARMENT = "clothes|clothing|shirt|blouse|dress|gown|pants|trousers|jeans|skirt|underwear|undies|boxers|briefs|knickers|stockings|tights|robe|towel|bikini|swimsuit|corset";
+/** "…off the rack", "…off your hands", "…off the table": things come off something other than a body. */
+const OFF_A_THING = "(?!(?:the|a|an|of|from|its|it|(?:my|your|his|her|their|our) hands|ebay|amazon) )";
+const STEP_IN_TERMS = ["underwear", "undies", "cleavage", "crotch", "buttocks", "strip tease", "lapdance", "skinny dipping"];
+const STEP_IN_UNDRESS = [
+  new RegExp(` (?:take|takes|took|taking|taken|get|gets|got|getting|slip|slips|slipped|slipping|slide|slides|slid|sliding|peel|peels|peeled|peeling|rip|rips|ripped|ripping|tear|tears|tore|tearing) (?:that|this|those|these|the) (?:[a-z]+ ){0,2}?(?:${STEP_IN_GARMENT}) off ${OFF_A_THING}`),
+  new RegExp(` (?:take|takes|took|taking|taken|slip|slips|slipped|slipping|peel|peels|peeled|peeling) off (?:that|this|those|these|the) (?:[a-z]+ ){0,2}?(?:${STEP_IN_GARMENT}) (?!code )`),
+  / (?:take|takes|took|taking) (?:it all|everything|anything|all of it) off (?!(?:the|a|an|of|from|its|it|this|that|these|those|my|your|his|her|their|our|list|plate|table|menu|agenda|ebay|amazon) )/,
+  / (?:take|takes|taking|took) (?:it|them) off for (?:me|you|us) /,
+  new RegExp(` (?:unbutton|unbuttons|unbuttoned|unbuttoning|unzip|unzips|unzipped|unzipping|unhook|unhooks|unhooked|unhooking) (?:that|this|those|these|the) (?:[a-z]+ ){0,2}?(?:${STEP_IN_GARMENT}|fly) `),
+  / (?:strip|strips|stripped|stripping) (?:down |off )?for (?:me|you|us|him|her|them) /,
+  new RegExp(` (?:get|gets|getting|got|help|helps|helping|helped) (?:you|her|him|me|them) out of (?:that|this|those|these|the|your|her|his|my|their) (?:[a-z]+ ){0,2}?(?:${STEP_IN_GARMENT}|outfit|suit|uniform) `),
+  / slip into something (?:more |a little more |a bit more )?comfortable /,
+  / (?:lose|ditch) (?:the|that|those) (?:clothes|dress(?! code)|pants|trousers|jeans|skirt|underwear) /,
+  new RegExp(` (?:what s|whats|what is) (?:under|underneath|beneath) (?:that|this|the|your|her|his) (?:[a-z]+ )?(?:${STEP_IN_GARMENT}|kilt) `),
+  / show (?:me |us )?(?:some|a little|a bit of|more) skin /,
+  / (?:wearing|wear|wore) (?:anything|nothing) (?:at all )?(?:under|underneath|beneath) /,
+  / (?:get|getting) (?:you|me) (?:naked|undressed) /,
+];
+const STEP_IN_PROPOSITIONS = [
+  / (?:your|my) place or (?:mine|yours) /,
+  / (?:stay|stays|staying|stayed|spend|spends|spending|spent) the night (?:with|at|in) (?:me|mine|my|you|yours|your) /,
+  / (?:stay|spend) the night together /,
+  / (?:you|we) (?:could|can|should|might|will|would) stay the night /,
+  / stay over (?:tonight|at mine|at my place|with me) /,
+  / (?:good|great|amazing|wild|incredible|fantastic|better|any good|naughty|kinky|adventurous) in bed /,
+  / (?:what are you|what s (?:she|he)|whats (?:she|he)|what is (?:she|he)) like in bed /,
+  / (?:take|takes|taking|took) (?:me|you|her|him|them) to bed /,
+  / (?:let s|lets|let us) (?:go|head|get) to bed /,
+  / (?:come|go|get) to bed with (?:me|you) /,
+  / come to bed /,
+  / hook(?:s|ed|ing)? up (?:tonight|later|with me|with you|after) /,
+  / (?:make|makes|making|made) out with (?:me|you) /,
+  / (?:let s|lets|wanna|want to) make out /,
+];
+
+/**
+ * checkShowText, plus the undressing and the propositions above: for Step in, where a person writes one side of a
+ * date. Their line, the cast's answer to it, and every line again before the date can air.
+ */
+export function checkStepInText(fields: Record<string, string | readonly string[] | undefined>): SafetyResult {
+  const show = checkShowText(fields);
+  if (!show.ok) return show;
+  for (const [field, value] of Object.entries(fields)) {
+    const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
+    for (const text of texts) {
+      const plain = spaced(fold(text));
+      if (STEP_IN_TERMS.some((t) => hasPhrase(plain, t)) || STEP_IN_UNDRESS.some((re) => re.test(plain))) return { ok: false, reason: "sexual", field };
+      if (STEP_IN_PROPOSITIONS.some((re) => re.test(plain))) return { ok: false, reason: "innuendo", field };
+    }
+  }
+  return { ok: true };
+}
+
 // A person's family in a one-to-one companion chat (2026-11-08, the companion quality sim): "a six-year-old dino
 // expert", "what does a nine-year-old want for her birthday?" and "a little boy ordered a croissant" fell to the show's
 // age rule, and a parent got the PG deflection for talking about their kid. The words that only name a child or an age;
