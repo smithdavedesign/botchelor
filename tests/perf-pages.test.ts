@@ -62,6 +62,8 @@ const timed = async (sql: string, params?: unknown[]) => {
 };
 
 let owner = "";
+/** Someone whose character has a full dating profile, so /swipe deals a real deck (the owner's stops at "finish the profile"). */
+let swiper = "";
 let character = "";
 let partner = "";
 let episode = "";
@@ -70,6 +72,9 @@ beforeAll(async () => {
   vi.spyOn(console, "log").mockImplementation(() => {});
   owner = newUserCookie();
   character = (await (await api.createCharacter(validCharacter({ name: "Perf Tester", open_to_dates: true }), owner)).json()).id;
+  swiper = newUserCookie();
+  const profile = { prompts: [{ id: "simple_pleasures", answer: "A window seat and nowhere to be." }, { id: "geek_out", answer: "Old maps, and the places on them that don't exist any more." }], hobbies: ["Hiking", "Old maps"] };
+  expect((await api.createCharacter(validCharacter({ name: "Perf Swiper", open_to_dates: true, extras: profile }), swiper)).status).toBe(201);
   // A character with a real history: eight dates (a bought pack past the free ones), each aired.
   const { userIdOf } = await import("./helpers");
   await t.db.query(
@@ -170,6 +175,9 @@ const BUDGET: Record<string, number> = {
   "matches (owner)": 8,
   "chat (owner)": 7,
   "swipe (owner)": 5,
+  // The deck itself (2026-11-22: it waited on 17 reads in a row, ~1.2 s on prod before any CPU): the character, then its
+  // deck, twins and the header's reads at once, the pool, everything the ranking needs at once, then the cards' origins.
+  "swipe deck (owner)": 6,
   "account (owner)": 4,
   "notifications (owner)": 6,
   // The scenes and this week's story map (lib/story-map.ts) side by side: the map's uncached build is the deeper one
@@ -207,13 +215,14 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
     ["home (owner)", "owner", async () => withEnv("COMPANION_OPEN", "1", async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never }))],
     // A stranger's home: the day's clip (lib/home-clip.ts) rides in the same Promise.all as the boards, so it adds no depth.
     ["home (visitor)", null, async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never })],
-    ["characters", null, async () => (await import("@/app/characters/page")).default({ searchParams: Promise.resolve({}) as never })],
+    ["characters", null, async () => (await import("@/app/characters/(list)/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["watch", null, async () => (await import("@/app/watch/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["matches (owner)", "owner", async () => (await import("@/app/matches/page")).default({ searchParams: Promise.resolve({}) })],
     // Chat (lib/chat-inbox.ts) with companions open, as on prod: the threads with them ride the round trip that reads
     // their characters, then each character's own threads at once.
     ["chat (owner)", "owner", async () => withEnv("COMPANION_OPEN", "1", async () => (await import("@/app/chat/page")).default({ searchParams: Promise.resolve({}) }))],
     ["swipe (owner)", "owner", async () => (await import("@/app/swipe/page")).default({ searchParams: Promise.resolve({}) as never })],
+    ["swipe deck (owner)", "swiper", async () => (await import("@/app/swipe/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["account (owner)", "owner", async () => (await import("@/app/account/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["notifications (owner)", "owner", async () => (await import("@/app/notifications/page")).default({ searchParams: Promise.resolve({}) })],
     ["house", null, async () => (await import("@/app/house/page")).default({ searchParams: Promise.resolve({}) })],
@@ -230,7 +239,7 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
   ];
   for (const [name, who, run] of pages) {
     it(name, async () => {
-      as(who === "owner" ? owner : null);
+      as(who === "owner" ? owner : who === "swiper" ? swiper : null);
       tracing = process.env.PERF_TRACE === name;
       report[name] = await measure(run);
       if (tracing) console.info(`\n${name}:\n` + trace.map((q) => `  ${String(q.at).padStart(3)}  ${q.from.padEnd(70)} ${q.sql}`).join("\n"));

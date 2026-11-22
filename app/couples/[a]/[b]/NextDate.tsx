@@ -6,6 +6,7 @@ import { useState } from "react";
 import { trackConversion } from "@/app/conversion";
 import DateConfirm from "@/app/DateConfirm";
 import { requestJson } from "@/app/request";
+import { saySpent } from "@/app/spent";
 import { SecondDate } from "@/app/episodes/[id]/Afterglow";
 import type { NextDate as NextDateData } from "@/lib/date-proposals";
 import { shortName } from "@/lib/names";
@@ -42,6 +43,7 @@ export default function NextDate({ pair, next, hasNudge }: { pair: [string, stri
         if (typeof data.id !== "string") return router.refresh();
         // A date started from here counts like one from /create, RepoHQ's activation included (app/conversion.ts).
         trackConversion("date_started", { mode: "partner" });
+        saySpent();
         router.push(`/episodes/${data.id}?play=1`);
       },
     );
