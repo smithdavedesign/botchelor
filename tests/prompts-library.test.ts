@@ -179,9 +179,9 @@ describe("the 2026-11-22 pass: a hand-picked first page and tidier words", () =>
     const html = await render();
     expect(html).toContain('class="muted small my-prompts-signin"');
     expect(html).toContain("to save prompts of your own");
-    // The library is asked only for a signed-in viewer (app/prompts/MyPrompts.tsx).
-    const source = readFileSync(new URL("../app/prompts/MyPrompts.tsx", import.meta.url), "utf8");
-    expect(source).toContain("if (signedIn) void load();");
+    // The library is asked only for a signed-in viewer (app/prompts/MyPromptsContext.tsx; tests/prompts-mine.test.ts).
+    const source = readFileSync(new URL("../app/prompts/MyPromptsContext.tsx", import.meta.url), "utf8");
+    expect(source).toContain("if (!signedIn) return;");
   });
 });
 
@@ -239,10 +239,10 @@ describe("the page: /prompts", () => {
     expect(html).toMatch(/CC0 1\.0[\s\S]*Apache 2\.0[\s\S]*MIT/);
   });
 
-  it("is indexable and listed for search engines", () => {
+  it("stays out of search while it's behind the 18+ gate (a result there landed people on the gate), links followed", () => {
     expect(metadata.alternates?.canonical).toBe("/prompts");
-    expect(metadata.robots).toBeUndefined();
-    expect(PUBLIC_PATHS).toContain("/prompts");
+    expect(metadata.robots).toEqual({ index: false, follow: true });
+    expect(PUBLIC_PATHS).not.toContain("/prompts");
   });
 });
 

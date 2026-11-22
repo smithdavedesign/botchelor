@@ -24,6 +24,7 @@ import {
 import { SHARE_IMAGE } from "@/lib/seo";
 import CopyPrompt from "./CopyPrompt";
 import MyPrompts from "./MyPrompts";
+import { MyPromptsArticle } from "./MyPromptsContext";
 import PromptCard from "./PromptCard";
 import PromptExamples from "./PromptExamples";
 import { examplesFor } from "@/lib/prompt-examples";
@@ -37,6 +38,9 @@ export const metadata: Metadata = {
   title: `${TITLE}: portrait prompts for drawing your character · Botchelor`,
   description: DESCRIPTION,
   alternates: { canonical: PATH },
+  // Behind the 18+ gate (its words are an open dataset's, kept for grown-ups), so a search result landed people on the
+  // gate: kept out of search and the sitemap, links still followed (2026-11-22 audit).
+  robots: { index: false, follow: true },
   // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
   openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", title: TITLE, description: DESCRIPTION, url: PATH, images: [SHARE_IMAGE] },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
@@ -61,11 +65,7 @@ async function showsNsfw(): Promise<boolean> {
   }
 }
 
-/**
- * Whether the viewer has an account: your own prompts need one (app/api/library). A visitor without one gets the sign-in
- * line from the server, and the page never asks the library for them (2026-11-22: that ask was a 401 on every
- * signed-out visit).
- */
+/** An account's session (lib/http.ts, as /api/library reads it): only then does the page ask for their own prompts. */
 async function hasAccount(): Promise<boolean> {
   try {
     return authFromCookieStore(await cookies())?.authenticated === true;
@@ -91,8 +91,9 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
   const tags = tagCounts(showNsfw);
   const groups = [...new Set(tags.map((t) => t.group))];
 
+  // The article holds the viewer's own prompts for Your prompts and every card's Save (app/prompts/MyPromptsContext.tsx).
   return (
-    <article className="page-wide prompts-page">
+    <MyPromptsArticle className="page-wide prompts-page" signedIn={signedIn}>
       <section className="card prompts-intro">
         <p className="kicker">A free library for drawing your character</p>
         <h1>{TITLE}</h1>
@@ -144,7 +145,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         </form>
       </section>
 
-      <MyPrompts signedIn={signedIn} />
+      <MyPrompts />
 
       {/* A tag picked: pictures people made in the Studio with it (lib/prompt-examples.ts), over the prompts. */}
       {tag && tagById(tag) && <PromptExamples tag={tagById(tag)!} examples={await examplesFor(tag)} />}
@@ -219,6 +220,6 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
           Make your character
         </Link>
       </section>
-    </article>
+    </MyPromptsArticle>
   );
 }

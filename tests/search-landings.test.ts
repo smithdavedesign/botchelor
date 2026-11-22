@@ -71,6 +71,8 @@ describe("prompt tag pages", () => {
     const first = tags[0];
     const meta = await generateMetadata({ params: Promise.resolve({ id: first.id }) });
     expect(meta.alternates?.canonical).toBe(promptTagPath(first.id));
+    // Behind the 18+ gate like the library: out of search, links followed.
+    expect(meta.robots).toEqual({ index: false, follow: true });
     const heading = promptTagHeading(first);
     expect(String(meta.title)).toContain(`${first.count.toLocaleString("en-US")} ${heading[0].toLowerCase()}${heading.slice(1)}`);
     const html = text(renderToStaticMarkup(await Page({ params: Promise.resolve({ id: first.id }) })));
@@ -81,7 +83,7 @@ describe("prompt tag pages", () => {
     const nsfwMeta = await generateMetadata({ params: Promise.resolve({ id: small.id }) });
     expect(nsfwMeta.robots).toEqual({ index: false, follow: false });
     await expect(Page({ params: Promise.resolve({ id: small.id }) })).rejects.toThrow();
-    // All in the sitemap.
-    expect(landingPaths()).toEqual(expect.arrayContaining(tags.map((t) => promptTagPath(t.id))));
+    // None in the sitemap (2026-11-22: the library sits behind the 18+ gate).
+    for (const t of tags) expect(landingPaths()).not.toContain(promptTagPath(t.id));
   });
 });

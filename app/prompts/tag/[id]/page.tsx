@@ -30,11 +30,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const tag = pageTag((await params).id);
   if (!tag) return { title: "Prompts · Botchelor", robots: { index: false, follow: false } };
   const heading = promptTagHeading(tag);
-  return pageMetadata({
-    title: `${tag.count.toLocaleString("en-US")} ${heading[0].toLowerCase()}${heading.slice(1)} · Botchelor`,
-    description: `${tag.count.toLocaleString("en-US")} openly licensed character-portrait prompts tagged "${tag.label}" (${tag.group.toLowerCase()}), each with its source and licence, ready to copy or save for a character of your own.`,
-    path: promptTagPath(tag.id),
-  });
+  // Behind the 18+ gate like the library, so out of search too (app/prompts/page.tsx).
+  return {
+    ...pageMetadata({
+      title: `${tag.count.toLocaleString("en-US")} ${heading[0].toLowerCase()}${heading.slice(1)} · Botchelor`,
+      description: `${tag.count.toLocaleString("en-US")} openly licensed character-portrait prompts tagged "${tag.label}" (${tag.group.toLowerCase()}), each with its source and licence, ready to copy or save for a character of your own.`,
+      path: promptTagPath(tag.id),
+    }),
+    robots: { index: false, follow: true },
+  };
 }
 
 /**
