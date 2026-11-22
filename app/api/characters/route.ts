@@ -83,6 +83,9 @@ const CharacterInput = z.object({
   // show reads them from the traits.
   tags: z.array(z.string()).max(CHARACTER_TAGS_MAX, `At most ${CHARACTER_TAGS_MAX} tags.`).optional(),
   attest: z.literal(true, "Confirm you are 18+ and this is your own original character."),
+  // The person saving says they're 18 or older (the builder's box): only true lets a save set the 18+ gate's cookie
+  // below. `attest` is about the character; this is about the person. An agent's call has no use for it.
+  over_18: z.boolean().optional(),
   // #519: run every check a save makes (the schema, the content filter, the soul) and save nothing.
   check_only: z.boolean().optional(),
   // Names are unique on the show (#249; lib/name-check.ts): a taken one is refused with free ones, unless this is true.
@@ -196,15 +199,19 @@ export const POST = handle(async (req) => {
   // Its hometown in the social network's world (lib/social/derive.ts), after the response.
   await socialHook("character", (d, deadline) => d.onCharacter(db, id, { deadline }), { key: `character:${id}` });
 
-  const { attest: _attest, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, hiding: _hiding, tags: _tags, ...character } = input;
+  const { attest: _attest, over_18: _over18, keep_name: _keep, check_only: _check, soul: _soul, image_signals: _sig, temperament: _temp, extras: _extras, this_week: _week, hiding: _hiding, tags: _tags, ...character } = input;
   const res = json(
     { id, ...character, extras, ...(hiding.length ? { hiding } : {}), tags: tags?.ok ? tags.tags : ((await characterTags(db, [id])).get(id)?.tags ?? []), this_week: thisWeek(id, input.this_week?.trim() ? stampThisWeek(input.this_week) : null), house: false, has_soul: hasSoul, hue, image_trained: Boolean(signals), ...(soulKeys.unknown.length ? { ignored_soul_keys: soulKeys.unknown } : {}) },
     201,
     sess,
   );
-  // The builder's "I'm 18+ and this is my own character" box is the 18+ attestation for a creator (2026-11-14: the PG
-  // show pages open without the gate, middleware.ts): a saved character remembers it with the gate's own cookie, so
-  // /swipe and the chat open afterwards without asking again. A person's browser only; an agent's call carries no cookies.
-  if (!isMcpCall(req) && !hasAdultCookie(req.headers.get("cookie"))) res.headers.append("set-cookie", adultCookie(new URL(req.url).protocol === "https:"));
+  // The builder's "I'm 18 or older, and this is my own original character" box is the 18+ attestation for a creator
+  // (2026-11-14: the PG show pages open without the gate, middleware.ts): ticked, it sends `over_18`, and the save
+  // remembers that answer with the gate's own cookie, so /swipe and the chat open afterwards without asking again. Only
+  // `over_18` does it, never `attest` alone (2026-11-22 audit: the box had stopped asking the person's age while every
+  // save still set the cookie). A person's browser only; an agent's call carries no cookies.
+  if (input.over_18 === true && !isMcpCall(req) && !hasAdultCookie(req.headers.get("cookie"))) {
+    res.headers.append("set-cookie", adultCookie(new URL(req.url).protocol === "https:"));
+  }
   return res;
 });

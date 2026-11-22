@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { POST as confirmAge } from "@/app/api/age/route";
@@ -149,32 +151,63 @@ describe("the builder's 18+ box is the creator's attestation (POST /api/characte
     await t.reset();
   });
 
-  it("sets the gate's cookie on a successful save from a browser that has none, next to the new session cookie", async () => {
-    const res = await api.createCharacter(validCharacter());
+  const setsAdult = (res: Response) => res.headers.getSetCookie().some((c) => c.startsWith(`${ADULT_COOKIE}=`));
+  const cookieOf = (res: Response) => res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+
+  it("sets the gate's cookie on a save that carries the person's own 18+ answer, next to the new session cookie", async () => {
+    const res = await api.createCharacter({ ...validCharacter(), over_18: true });
     expect(res.status).toBe(201);
     const cookies = res.headers.getSetCookie();
     expect(cookies).toContain(adultCookie(false));
     expect(cookies.some((c) => c.startsWith("bz_uid=") || c.startsWith("bz_sess="))).toBe(true);
     // From there the swipe deck opens without the interstitial.
-    expect(passes(page("/swipe", cookies.map((c) => c.split(";")[0]).join("; ")))).toBe(true);
+    expect(passes(page("/swipe", cookieOf(res)))).toBe(true);
+    // The answer is the person's, not part of the character.
+    expect(await res.json()).not.toHaveProperty("over_18");
   });
 
-  it("leaves the cookie alone when the browser already has it", async () => {
-    const res = await api.createCharacter(validCharacter(), `${ADULT_COOKIE}=1`);
-    expect(res.status).toBe(201);
-    expect(res.headers.getSetCookie().some((c) => c.startsWith(`${ADULT_COOKIE}=`))).toBe(false);
+  // 2026-11-22 audit: the box had stopped asking the person's age while every save still set the cookie. `attest` is
+  // about the character (an original fictional adult); only the person's own answer opens the dating pages.
+  it("sets nothing on a save without that answer (attest alone, or over_18 false): the swipe deck still meets the gate", async () => {
+    for (const body of [validCharacter(), validCharacter({ over_18: false })]) {
+      const res = await api.createCharacter(body);
+      expect(res.status).toBe(201);
+      expect(setsAdult(res)).toBe(false);
+      expect(gateFrom(page("/swipe", cookieOf(res)))).toBe("/swipe");
+    }
+  });
+
+  it("leaves the cookie alone when the browser already has it: someone the gate asked keeps going straight to the deck", async () => {
+    for (const body of [{ ...validCharacter(), over_18: true }, validCharacter()]) {
+      const res = await api.createCharacter(body, `${ADULT_COOKIE}=1`);
+      expect(res.status).toBe(201);
+      expect(setsAdult(res)).toBe(false);
+      expect(passes(page("/swipe", `${cookieOf(res)}; ${ADULT_COOKIE}=1`))).toBe(true);
+    }
   });
 
   it("sets nothing when the save is refused, on a check, or for an agent's call", async () => {
-    const refused = await api.createCharacter({ ...validCharacter(), attest: false });
+    const refused = await api.createCharacter({ ...validCharacter(), attest: false, over_18: true });
     expect(refused.status).toBeGreaterThanOrEqual(400);
-    expect(refused.headers.getSetCookie().some((c) => c.startsWith(`${ADULT_COOKIE}=`))).toBe(false);
-    const checked = await api.createCharacter({ ...validCharacter(), check_only: true });
+    expect(setsAdult(refused)).toBe(false);
+    const checked = await api.createCharacter({ ...validCharacter(), check_only: true, over_18: true });
     expect(checked.status).toBe(200);
-    expect(checked.headers.getSetCookie().some((c) => c.startsWith(`${ADULT_COOKIE}=`))).toBe(false);
+    expect(setsAdult(checked)).toBe(false);
     // An MCP tool call (lib/http isMcpCall) runs the same handler; an agent carries no cookies, so it gets none.
-    const mcp = await postCharacter(new Request(MCP_CALL_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ keep_name: true, ...validCharacter() }) }));
+    const mcp = await postCharacter(new Request(MCP_CALL_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ keep_name: true, ...validCharacter(), over_18: true }) }));
     expect(mcp.status).toBe(201);
-    expect(mcp.headers.getSetCookie().some((c) => c.startsWith(`${ADULT_COOKIE}=`))).toBe(false);
+    expect(setsAdult(mcp)).toBe(false);
+  });
+
+  it("the builder's one box asks the person's age, and only a ticked box sends the answer", () => {
+    const wizard = readFileSync(join(__dirname, "..", "app/create/CreateWizard.tsx"), "utf8");
+    // Both places it's drawn: a first character's Create on top, and above the bar for everyone else.
+    const box = "<span aria-hidden>✍️ </span>I&apos;m 18 or older, and this is my own original character: a fictional adult, not a real person.";
+    expect(wizard.split(box)).toHaveLength(3);
+    expect(wizard).not.toContain("</span>This is my own original character");
+    expect(wizard).toContain("...(attest ? { over_18: true } : {}),");
+    // Create stays greyed out until it's ticked, and says so.
+    expect(wizard.match(/disabled=\{busy !== null \|\| !attest \|\| !identityOk \|\| !profileOk\}/g)).toHaveLength(2);
+    expect(wizard).toContain("&ldquo;I&apos;m 18 or older&rdquo;");
   });
 });
