@@ -572,10 +572,14 @@ export async function agentStats(db: Db, now: Date = new Date(), opts: { leaveOu
     // directory's health check and crawler as an agent (1,073 "agents", 3 with a character). sessions still counts those.
     // A date by an agent: booked over MCP, or performed by one (a few self-performed dates were booked on the web), so the
     // self-performed count is always a part of it.
-    `select (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null and agent_id <> all($2::text[])) as agents,
+    // The call log's agents are counted as the rows of a `select distinct`, which Postgres hashes in memory: count(distinct)
+    // sorts every call instead, and with nobody left out that sort went to disk (2026-11-22: 22 MB of temp files a
+    // read, most of the database's temp writes). Same counts.
+    `select (select count(*)::int from (select distinct agent_id from mcp_calls where tool is not null and agent_id is not null and agent_id <> all($2::text[])) d) as agents,
             (select count(distinct owner_id)::int from characters where created_via = 'mcp' and owner_id is not null and owner_id <> all($2::text[])) as agents_with_characters,
             (select count(*)::int from mcp_sessions) as sessions,
-            (select count(distinct agent_id)::int from mcp_calls where tool is not null and agent_id is not null and created_at >= $1 and agent_id <> all($2::text[])) as agents_last_7d,
+            (select count(*)::int
+               from (select distinct agent_id from mcp_calls where tool is not null and agent_id is not null and created_at >= $1 and agent_id <> all($2::text[])) d) as agents_last_7d,
             (select count(*)::int from characters where created_via = 'mcp' and not is_house and owner_id is distinct from 'deleted' and (owner_id is null or owner_id <> all($2::text[]))) as agent_characters,
             (select count(*)::int from characters where open_to_dates and not is_house) as open_to_dates,
             (select count(*)::int from episodes where (created_via = 'mcp' or performed_by = 'agent') and status = 'ready' and creator_id <> all($2::text[])) as agent_dates,
