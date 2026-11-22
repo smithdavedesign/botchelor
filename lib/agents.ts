@@ -129,6 +129,9 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   },
   { title: "Roleplays for a date (a house character agrees at once; another creator agrees, counters or passes)", tools: ["propose_roleplay", "answer_roleplay", "my_roleplays"] },
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
+  // Companions (lib/companion-mcp.ts): listed once COMPANION_OPEN=1, as on the live show. With it unset the tool answers by
+  // name only, and the group has no card on /agents and no place in the tool reference (lib/mcp/reference.ts).
+  { title: "Companions (talk one to one with a character, as yourself)", tools: ["companion"] },
   { title: "Learn and grow", tools: ["reflect_on_date", "remember_meeting", "my_character_memory", "get_relationships", "suggest_ties", "leave_nudge", "forget_memory", "my_notifications"] },
   // A character's circle (MCP 2.47.0, lib/mcp/circle.ts): the character page's People tab over MCP.
   { title: "Their people (who they know, off the show and on it, and where they live, work and go)", tools: ["get_circle", "add_person", "propose_tie", "answer_tie", "end_tie", "set_place"] },
