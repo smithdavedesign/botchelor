@@ -74,7 +74,8 @@ export function seasonLiveMeta(season: SeasonRef, def: SeasonFormatDef, phase: S
   return {
     // A format named for the show ("The Botchelor") already says it: no second "· Botchelor" (2026-11-22 audit).
     title: `Season ${season.number}, ${season.label}: ${def.title}${/botchelor/i.test(def.title) ? "" : " · Botchelor"}`,
-    description: `${SEASON_PREMISE} ${def.pitch} ${phase === "preseason" ? `It starts ${starts}, and casting is open now.` : "On now: three dates to start with, the suitors, and when the roses are handed out."}`,
+    // When it starts comes before the pitch, so a search result cut to fit keeps it (the share cards keep it all).
+    description: `${SEASON_PREMISE} ${phase === "preseason" ? `It starts ${starts}, and casting is open now.` : "On now: three dates to start with, the suitors, and when the roses are handed out."} ${def.pitch}`,
   };
 }
 

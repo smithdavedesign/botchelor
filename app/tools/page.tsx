@@ -12,8 +12,8 @@ const LIST_NAME = "Free tools for original characters";
 export const metadata = pageMetadata({
   title: "Free OC tools: random OCs, names, questions, ship names and chemistry · Botchelor",
   description:
-    "Free tools for original characters: a random OC generator, an OC name generator, questions to ask your OC, a ship " +
-    "name generator and an OC chemistry test. No sign-up, no AI.",
+    "Free tools for original characters: a random OC generator, OC names, questions to ask your OC, ship names and a " +
+    "chemistry test. No sign-up, no AI.",
   path: TOOLS_PATH,
   // Its own card beside it (app/tools/opengraph-image.tsx).
   image: null,

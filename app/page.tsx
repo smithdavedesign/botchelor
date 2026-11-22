@@ -562,7 +562,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               </Fragment>
             ))}
             {" · "}
-            <Link href="/import">Bring your character</Link>
+            <Link href="/import">import your character</Link>
           </p>
           <p className="muted small home-sky-line">
             The show: <Link href="/seasons">every season so far</Link> · <Link href="/casting">casting for next month</Link>
