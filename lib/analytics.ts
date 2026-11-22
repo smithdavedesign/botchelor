@@ -86,6 +86,7 @@ export type AnalyticsEvent =
   | "step_in_air_refused" // a step-in date that couldn't air: a line in it failed Step in's PG check (lib/safety.ts checkStepInText); the episode only
   | "step_in_refused" // a start that a cap turned away (lib/step-in.ts): which cap, and whether a guest; never who
   | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm, or failed the PG check): the episode and why
+  | "step_in_timing" // one move on a step-in date (lib/request-timing.ts): its wall time and how much of it waited on the database and on the model, with counts; never the words
   | "data_pruned" // the daily job's retention prune (lib/retention.ts): rows removed per table
   | "house_bot_logs_pruned" // the daily job's prune of the house crowd's own impressions and MCP calls (lib/retention.ts)
   | "story_check" // one pass of the story check (lib/story-check.ts): verdict counts, repairs, tokens and cost; never a date or its words
