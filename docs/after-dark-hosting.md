@@ -154,8 +154,8 @@ the account after four days negative (files are deleted after 60 days disabled).
 5. **Token Authentication:** Security → **Token Authentication** on. Copy the **URL Token Authentication Key**. Leave
    **Token IP Validation off** (it turns the zone's IPv6 off and breaks links when a phone changes network; the app
    doesn't sign IPs).
-6. **Browser caching:** Caching → Browser Cache Expiration → **12 hours** (43,200 s, the life of a link), so a browser keeps a
-   file for as long as its link is handed out. Leave the edge cache at its default; storage-to-CDN traffic is free.
+6. **Browser caching:** Caching → Browser Cache Expiration → **12 hours** (43,200 s), so a browser keeps a file it has
+   fetched. A link itself lives at most two hours (lib/object-store.ts `BUNNY_LINK_WINDOW_MS`). Leave the edge cache at its default; storage-to-CDN traffic is free.
 7. **CORS** (the reel player preloads shots): Headers → **Add CORS headers** on, for `mp4, png, jpg, jpeg, webp`.
 8. **Spend cap:** Limits → **Monthly bandwidth limit: 500 GB**. The zone stops serving past it, at most $5 of traffic.
    Raise it when subscribers need more.

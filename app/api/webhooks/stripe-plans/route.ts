@@ -2,10 +2,11 @@ import { z } from "zod";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, readBodyText } from "@/lib/http";
-import { checkoutOwner, grantPlan, plansOn, sendPlanEmail, subscriptionOwner, type PlanOwner } from "@/lib/paid-plans";
+import { checkoutOwner, grantPlan, planPriceCents, plansOn, sendPlanEmail, subscriptionOwner, type PlanOwner } from "@/lib/paid-plans";
 import {
   invoicePeriodEnd,
   invoiceSubscription,
+  paidAtLeast,
   subscriptionEnding,
   subscriptionPeriodEnd,
   testEventsGrant,
@@ -30,7 +31,8 @@ const str = (v: unknown): string | null => (typeof v === "string" && v ? v : nul
 /**
  * The plans' Stripe subscription webhook (lib/paid-plans.ts): its own endpoint and secret (STRIPE_PLANS_WEBHOOK_SECRET),
  * apart from the token packs' and the operator pass's. It 404s until a plan is on sale. The signature is checked over
- * the raw text and each event is applied once (plan_events). A subscription checkout starts the plan (and sends the
+ * the raw text and each event is applied once (plan_events). A subscription checkout that paid at least the plan's price
+ * (planPriceCents; anything less is recorded as `underpaid` and granted by hand if it should be) starts the plan (and sends the
  * confirmation with how to cancel, to the address they paid with); a renewal invoice extends it; a cancel keeps it to the period's end, a resume undoes
  * that, and a deleted subscription ends it. Payloads from before and after Stripe's 2025-03-31 API both read.
  */
@@ -85,7 +87,11 @@ export const POST = handle(async (req) => {
     if (o.mode === "subscription" && o.payment_status === "paid" && checkout) {
       owner = await checkoutOwner(db, checkout);
       subId = str(o.subscription);
-      if (owner) {
+      if (owner && !paidAtLeast(o, planPriceCents(owner.plan))) {
+        // Another Payment Link (a cheaper one) carrying this checkout id: what it paid isn't the plan's price.
+        console.error(`[plans] checkout ${str(o.id) ?? "?"} paid less than the ${owner.plan} plan's price: not granted (event ${event.data.id})`);
+        outcome = "underpaid";
+      } else if (owner) {
         const email = str((o.customer_details as Record<string, unknown> | undefined)?.email);
         await grantPlan(db, owner.userId, owner.plan, "initial", { subscriptionId: subId, email });
         track("purchase_completed", { product: `${owner.plan}_plan` });

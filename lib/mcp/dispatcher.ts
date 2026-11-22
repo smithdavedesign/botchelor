@@ -38,6 +38,7 @@ import { declareModel, MODEL_NOT_RECORDED, modelEcho } from "../model-league";
 import { normalizeModel } from "../model-family";
 import { proseArguments, recordLanguage } from "../language-seen";
 import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
+import { ModelId } from "../connections-http";
 import { hasJobKey, removeConnection } from "../connections";
 import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
 import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "../mcp-subscriptions";
@@ -6499,9 +6500,15 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         return { error: `provider must be one of: ${Object.keys(TEXT_PROVIDERS).join(", ")}. Got ${provider || "(empty)"}.` };
       }
       if (apiKey.length < 8) return { error: 'api_key is required and must be at least 8 characters. Try set_model again with the key as "api_key".' };
+      if (model !== null && !ModelId.safeParse(model).success) {
+        return { error: `model "${model.slice(0, 80)}" isn't a model id (like "gemini-3.5-flash" or "openai/gpt-4.1-mini"). Nothing was saved.` };
+      }
       // Optional pre-save ping: on failure, nothing is saved and the provider's error is returned.
       let test: Awaited<ReturnType<typeof pingKey>> | undefined;
       if (args.test === true) {
+        // Each test is a live call to the provider: the same limit as the site's key checks (rate-limit.ts key_check).
+        const gate = checkRateLimit(who.id, "key_check");
+        if (!gate.ok) return { error: `Too many key tests in a few minutes: try again in ${Math.max(1, Math.ceil(gate.retry_after_seconds / 60))} minutes. Nothing was saved.` };
         test = await pingKey(provider, apiKey, model);
         if (!test.ok) return { error: `The key didn't work: ${test.error}. Nothing was saved.` };
       }

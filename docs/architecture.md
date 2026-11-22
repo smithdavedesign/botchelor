@@ -260,8 +260,9 @@ Secrets come from the keychain, never from a file in the repo.
 | Launch checks | `npm run check:launch` | every public page's search and share tags, robots.txt, the sitemap, the footer's legal links and the Buy button, on the production build |
 
 Tests never call a real model or Stripe: `setModelForTests`, `setEngineForTests` and a local stub
-showrunner (`scripts/harness.mjs`) stand in, and the harness strips real credentials from the app's
-environment.
+showrunner (`scripts/harness.mjs`) stand in, and the harness hands the app and its build only what a process needs
+from the shell (`shellEnv`: the path, home, temp and locale) plus the stand-ins it names, so no key in the shell reaches
+a run (`HARNESS_PASS_ENV=A,B` passes others on purpose).
 
 ## Where to add things
 

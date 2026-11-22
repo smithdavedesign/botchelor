@@ -9,7 +9,7 @@ import {
   bunnyStore,
   bunnyToken,
   keepBytes,
-  LINK_WINDOW_MS,
+  BUNNY_LINK_WINDOW_MS as LINK_WINDOW_MS,
   mediaKey,
   objectStore,
   readBytes,
@@ -157,7 +157,8 @@ describe("the Bunny store", () => {
     expect(a.maxAge).toBe(LINK_WINDOW_MS / 1000 - 1);
     expect(b.maxAge).toBe(1);
     const u = new URL(a.url);
-    const expires = (start + 2 * LINK_WINDOW_MS) / 1000; // a link lives two windows, as the bucket's do
+    const expires = (start + 2 * LINK_WINDOW_MS) / 1000; // a link lives two windows, as the bucket's do, of an hour each
+    expect(expires - Date.UTC(2026, 9, 22, 13) / 1000).toBeLessThanOrEqual(2 * 60 * 60);
     expect(`${u.origin}${u.pathname}`).toBe("https://media.botchelor.com/after-dark/x.mp4");
     expect([...u.searchParams.keys()]).toEqual(["token", "expires"]);
     expect(u.searchParams.get("expires")).toBe(String(expires));

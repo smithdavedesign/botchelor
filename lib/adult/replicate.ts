@@ -61,8 +61,11 @@ export function retryAfterMs(header: string | null | undefined, now = Date.now()
 }
 
 const VERSION_ID = /^[0-9a-f]{64}$/;
-/** A model as a setting holds it: `owner/name`, optionally with `:` and a version id, or a bare version id. */
-export const MODEL_ID = /^(?:[\w.-]+\/[\w.-]+(?::[0-9a-f]{64})?|[0-9a-f]{64})$/;
+/**
+ * A model as a setting holds it: `owner/name`, optionally with `:` and a version id, or a bare version id. The owner and
+ * name go in the request's path, so neither starts with a dot ("." and ".." aren't names).
+ */
+export const MODEL_ID = /^(?:[\w-][\w.-]*\/[\w-][\w.-]*(?::[0-9a-f]{64})?|[0-9a-f]{64})$/;
 
 /** Where a prediction for `model` is created, and its body. */
 export function predictionRequest(model: string, input: Record<string, unknown>): { url: string; body: Record<string, unknown> } {
