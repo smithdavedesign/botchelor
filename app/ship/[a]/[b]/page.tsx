@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
-import { nameFromSegment, SHIP_ERRORS, shipMerge, shipPair, shipPath, type ShipBlend, type ShipMerge, type ShipPair } from "@/lib/ship-names";
+import { canonicalShipPath, nameFromSegment, SHIP_ERRORS, shipMerge, shipPair, shipPath, type ShipBlend, type ShipMerge, type ShipPair } from "@/lib/ship-names";
 import ShipForm from "../../ShipForm";
 import MoreTools from "@/app/tools/MoreTools";
 import { SHIP_TOOL_PATH } from "@/lib/tools";
@@ -47,7 +47,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const top = names.slice(0, 2).map((n) => n.name);
   const title = top.length ? `${pairName} ship names: ${top.join(", ")}${names.length > top.length ? " and more" : ""}` : `${pairName} ship names`;
   const description = `Ship names for ${a.display} and ${b.display}${names.length ? `: ${names.slice(0, 4).map((n) => n.name).join(", ")}` : ""}. From Botchelor's free OC ship name generator.`;
-  const path = shipPath(a, b);
+  // One address for search whichever order the names were typed in (lib/ship-names.ts canonicalShipPath).
+  const path = canonicalShipPath(a, b);
   return {
     title: `${title} · Botchelor`,
     description,

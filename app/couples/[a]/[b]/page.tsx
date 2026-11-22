@@ -15,7 +15,7 @@ import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
 import { showsCloseness } from "@/lib/relationship-stages";
-import { SHARE_IMAGE } from "@/lib/seo";
+import { SHARE_IMAGE, coupleIndexable } from "@/lib/seo";
 import { datesCount, DELETED_OWNER, yesesTail } from "@/lib/rules";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
@@ -164,6 +164,8 @@ const refOf = (c: PublicCharacter): CharacterRef => ({
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { a, b } = await params;
   const [lo, hi] = pairKey(a, b);
+  // Worth a place in search, as the sitemap lists couples (lib/seo.ts): read beside the names; a failed read keeps it listed.
+  const worthP = orElse("whether search lists them", getDb().then((db) => coupleIndexable(db, lo, hi)), true);
   // A failed read (the pool busy: on 2026-11-21 this one broke the page, #1948) titles the page without their names.
   const pair = await orElse("the title's names", getDb().then((db) => Promise.all([getPublicCharacter(db, a), getPublicCharacter(db, b)])), null);
   if (!pair) return { title: "Their blind dates and how it's going · Botchelor", alternates: { canonical: `/couples/${lo}/${hi}` } };
@@ -175,8 +177,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${ca.name} and ${cb.name}: their blind dates and how it's going · Botchelor`,
     description: `${ca.name} and ${cb.name} on Botchelor: every blind date they've been on, where they stand now, their inside jokes and the plans they made in the morning-after texts.`,
     alternates: { canonical: `/couples/${lo}/${hi}` },
-    // With a private character or a deleted account's (lib/public-cast.ts), the page stays up but out of search (and the sitemap).
-    ...([ca, cb].some((c) => c.private || c.owner_id === DELETED_OWNER) ? { robots: { index: false, follow: true } } : {}),
+    // With a private character or a deleted account's (lib/public-cast.ts), the page stays up but out of search (and the
+    // sitemap), as does a couple short of the sitemap's bar: one date so far, or two machine-made characters.
+    ...([ca, cb].some((c) => c.private || c.owner_id === DELETED_OWNER) || !(await worthP) ? { robots: { index: false, follow: true } } : {}),
     // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
     openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/couples/${lo}/${hi}`, title: `${ca.name} and ${cb.name} on Botchelor`, images: [SHARE_IMAGE] },
   };

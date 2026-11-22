@@ -4,7 +4,7 @@ import Link from "next/link";
 import SetHero from "@/app/SetHero";
 import Icon from "@/app/Icon";
 import PackVenues from "@/app/PackVenues";
-import { episodeAllowance, freshAllowance } from "@/lib/allowance";
+import { episodeAllowance, freshAllowance, type Allowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
 import { CATALOG, formatPrice, frameClass, onSale, PACK_15, PACK_5, PACKS, type ItemKind } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
@@ -22,11 +22,16 @@ import PlusInterest from "./PlusInterest";
 import SignInToBuy from "./SignInToBuy";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = pageMetadata({
-  title: "Shop · Botchelor",
-  description: `Top up when your free dates run out: "${PACK_5.name}" for ${formatPrice(PACK_5.price_cents)}, or "${PACK_15.name}" for ${formatPrice(PACK_15.price_cents)}, paid once on Stripe's own page. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week, and nothing you buy changes points or rank.`,
-  path: "/shop",
-});
+// Behind the 18+ gate, so a search result here landed people on the gate: /pricing is the open page with these prices
+// (2026-11-22 audit). Out of the sitemap too (lib/site.ts).
+export const metadata: Metadata = {
+  ...pageMetadata({
+    title: "Shop · Botchelor",
+    description: `Top up when your free dates run out: "${PACK_5.name}" for ${formatPrice(PACK_5.price_cents)}, or "${PACK_15.name}" for ${formatPrice(PACK_15.price_cents)}, paid once on Stripe's own page. Everyone gets ${FREE_EPISODES_PER_SEASON} free dates a week, and nothing you buy changes points or rank.`,
+    path: "/shop",
+  }),
+  robots: { index: false, follow: true },
+};
 
 const KIND_LABELS: Record<ItemKind, string> = {
   house_character: "Premium house character",
@@ -78,9 +83,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   const { checkout } = await searchParams;
   const viewer = authFromCookieStore(await cookies());
   const viewerId = viewer?.userId ?? null;
+  // No loading screen (2026-11-22 audit: the first thing in its HTML was "Loading the shop…", the prices only later in a
+  // hidden streamed block): the page goes out whole, the prices in the first screen. A visitor's reads run at once.
   const db = viewerId ? await getDb() : null;
-  const owned = db && viewerId ? await ownedSkus(db, viewerId) : [];
-  const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
+  const [owned, dates]: [string[], Allowance] = db && viewerId ? await Promise.all([ownedSkus(db, viewerId), episodeAllowance(db, viewerId)]) : [[], freshAllowance()];
   const env = process.env;
   const open = paymentLinkFromEnv(env) !== null;
   // The pack the page leads with: the bigger one when it's on sale. It comes first and its button is the loud one.
