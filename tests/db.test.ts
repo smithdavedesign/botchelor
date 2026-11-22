@@ -1,6 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPool, ensureSchema, ensureSchemaCurrent, getDb, isDroppedConnection, pgliteDb, pgPoolDb, schemaVersion, setDbForTests, withVerifyFullSsl } from "@/lib/db";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { createPool, dbFailure, ensureSchema, ensureSchemaCurrent, getDb, isDroppedConnection, pgliteDb, pgPoolDb, prepareDb, schemaVersion, setDbForTests, withVerifyFullSsl, type Db } from "@/lib/db";
 import { ENDINGS, getEpisodeView, getPoints } from "@/lib/game";
 import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { CATALOG, ITEM_KINDS } from "@/lib/catalog";
@@ -126,6 +126,147 @@ describe("schema on a cold start", () => {
     } finally {
       await pg.close();
     }
+  });
+});
+
+// 2026-11-21 audit: the apply held the site with no limit on its lock waits, and nothing said how long it took.
+describe("schema apply: limits and its log line", () => {
+  it("says in one line how it went and how long it took: applied (with the version), then skipped", async () => {
+    const pg = new PGlite();
+    try {
+      const db = pgliteDb(pg);
+      const log = vi.fn();
+      await ensureSchemaCurrent(db, log);
+      await ensureSchemaCurrent(db, log);
+      expect(log.mock.calls).toEqual([
+        [expect.stringMatching(new RegExp(`^\\[db\\] schema apply ok \\d+ ms \\(version ${schemaVersion()}\\)$`)), false],
+        [expect.stringMatching(/^\[db\] schema apply skipped \(unchanged\) \d+ ms$/), false],
+      ]);
+    } finally {
+      await pg.close();
+    }
+  });
+
+  it("runs under a lock timeout and a statement timeout set inside its transaction, so they end with it", async () => {
+    const pg = new PGlite();
+    try {
+      const db = pgliteDb(pg);
+      const exec = vi.spyOn(db, "exec");
+      await ensureSchema(db);
+      const sql = String(exec.mock.calls[0][0]);
+      const lock = sql.indexOf("pg_advisory_xact_lock(");
+      expect(sql.indexOf("set local lock_timeout = '5s';")).toBeGreaterThan(-1);
+      expect(sql.indexOf("set local lock_timeout = '5s';")).toBeLessThan(lock);
+      expect(sql.indexOf("set local statement_timeout = '120s';")).toBeGreaterThan(-1);
+      expect(sql.indexOf("set local statement_timeout = '120s';")).toBeLessThan(lock);
+      const { rows } = await db.query<{ lock: string; statement: string }>(
+        "select current_setting('lock_timeout') as lock, current_setting('statement_timeout') as statement",
+      );
+      expect(rows[0]).toEqual({ lock: "0", statement: "0" });
+    } finally {
+      await pg.close();
+    }
+  });
+
+  it("a blocked apply fails fast: one line with its reason, the error thrown, no new version recorded", async () => {
+    const blocked = Object.assign(new Error("canceling statement due to lock timeout"), { code: "55P03" });
+    const query = vi.fn(async () => ({ rows: [{ version: "older" }] }));
+    const db = { query, exec: vi.fn(async () => Promise.reject(blocked)) } as unknown as Db;
+    const log = vi.fn();
+    await expect(ensureSchemaCurrent(db, log)).rejects.toBe(blocked);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[db\] schema apply failed after \d+ ms: canceling statement due to lock timeout \(55P03\)$/), true);
+    expect(query).toHaveBeenCalledTimes(1); // only the version check
+  });
+
+  it("never puts a connection string in a log line, and keeps it to one short line", () => {
+    expect(dbFailure(new Error("no route to postgres://user:pw@host/db?sslmode=require\nretrying"))).toBe("no route to postgres://… retrying");
+    expect(dbFailure(Object.assign(new Error("x".repeat(500)), { code: "57014" }))).toBe(`${"x".repeat(199)}… (57014)`);
+  });
+});
+
+describe("prepareDb: the schema at server start", () => {
+  const startup = globalThis as typeof globalThis & { __botchelorStartupApply?: Promise<boolean> };
+  const quiet = () => ({
+    log: vi.spyOn(console, "log").mockImplementation(() => {}),
+    warn: vi.spyOn(console, "warn").mockImplementation(() => {}),
+    error: vi.spyOn(console, "error").mockImplementation(() => {}),
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    startup.__botchelorStartupApply = undefined;
+  });
+
+  it("applies on a connection of its own and closes it before the server serves anything", async () => {
+    const out = quiet();
+    const pg = new PGlite();
+    try {
+      const db = pgliteDb(pg);
+      const close = vi.fn(async () => {});
+      await prepareDb({ connect: async () => ({ db, close }) });
+      expect((await db.query<{ version: string }>("select version from schema_meta")).rows[0].version).toBe(schemaVersion());
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(out.log).toHaveBeenCalledWith(expect.stringMatching(/^\[db\] schema apply ok \d+ ms/));
+      expect(await startup.__botchelorStartupApply).toBe(true);
+    } finally {
+      await pg.close();
+    }
+  });
+
+  it("tries an apply that hit a lock timeout again (the other host was applying), then finishes", async () => {
+    const out = quiet();
+    const blocked = Object.assign(new Error("canceling statement due to lock timeout"), { code: "55P03" });
+    const exec = vi.fn().mockRejectedValueOnce(blocked).mockResolvedValue(undefined);
+    const db = { query: vi.fn(async () => ({ rows: [] })), exec } as unknown as Db;
+    const close = vi.fn(async () => {});
+    await prepareDb({ connect: async () => ({ db, close }) });
+    expect(exec).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(out.error).toHaveBeenCalledWith(expect.stringContaining("schema apply failed after"));
+    expect(out.log).toHaveBeenCalledWith(expect.stringMatching(/^\[db\] schema apply ok \d+ ms/));
+    expect(out.error).not.toHaveBeenCalledWith(expect.stringContaining("not ready at startup"));
+  });
+
+  it("gives up quietly when time runs out or the error won't pass: the server starts, the first request tries again", async () => {
+    const out = quiet();
+    const blocked = Object.assign(new Error("canceling statement due to lock timeout"), { code: "55P03" });
+    const db = { query: vi.fn(async () => ({ rows: [] })), exec: vi.fn(async () => Promise.reject(blocked)) } as unknown as Db;
+    await expect(prepareDb({ waitMs: 200, connect: async () => ({ db, close: async () => {} }) })).resolves.toBeUndefined();
+    expect(db.exec).toHaveBeenCalledTimes(1); // no time for another try
+    expect(out.error).toHaveBeenCalledWith(expect.stringMatching(/^\[db\] database not ready at startup \(canceling statement due to lock timeout \(55P03\)\); the first request tries again$/));
+    expect(await startup.__botchelorStartupApply).toBe(false);
+
+    // A database that isn't there at all: the real pool, a port nothing listens on.
+    setDbForTests(null);
+    vi.stubEnv("DATABASE_URL", "postgres://user@127.0.0.1:1/none");
+    try {
+      await expect(prepareDb({ waitMs: 5_000 })).resolves.toBeUndefined();
+      expect(out.error).toHaveBeenLastCalledWith(expect.stringContaining("database not ready at startup"));
+    } finally {
+      vi.unstubAllEnvs();
+      setDbForTests(t.db);
+    }
+  });
+
+  it("stops waiting at its limit and lets the requests wait for the apply still running", async () => {
+    const out = quiet();
+    let finish = () => {};
+    const exec = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const db = { query: vi.fn(async () => ({ rows: [] })), exec } as unknown as Db;
+    const close = vi.fn(async () => {});
+    await prepareDb({ waitMs: 50, connect: async () => ({ db, close }) });
+    expect(out.warn).toHaveBeenCalledWith("[db] schema apply still running after 0 s at startup; requests wait for it");
+    expect(close).not.toHaveBeenCalled();
+    finish();
+    expect(await startup.__botchelorStartupApply).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts nothing with a test database or without a DATABASE_URL (a local run opens its file database on first use)", async () => {
+    const out = quiet();
+    await prepareDb();
+    expect(startup.__botchelorStartupApply).toBeUndefined();
+    expect(out.log).not.toHaveBeenCalled();
   });
 });
 
