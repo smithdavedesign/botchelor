@@ -23,7 +23,8 @@
  */
 import { judgePlay, type StepInPlay } from "./step-in-play";
 import { isAdmin } from "./admins";
-import { track, trackEpisodeCost } from "./analytics";
+import { track } from "./analytics";
+import { trackEpisodeCostKept } from "./ops-log";
 import { portraitPathSql } from "./assets";
 import { reserveEpisode, releaseEpisode, type Reservation } from "./allowance";
 import { CHOICE_ENGINE_VERSION } from "./choices";
@@ -723,7 +724,7 @@ async function finish(db: Db, row: StepRow): Promise<boolean> {
   await logSceneRequests(db, row.id, built.setup, transcript).catch(() => {});
   trackMoves(row.id, transcript, "show");
   const cost = (await db.query<{ cost: StepInSetup["cost"] | null }>(`select setup #> '{step_in,cost}' as cost from episodes where id = $1`, [row.id])).rows[0]?.cost ?? null;
-  trackEpisodeCost({
+  trackEpisodeCostKept({
     episode_id: row.id,
     where: "step_in",
     model: "free",

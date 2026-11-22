@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import { AUDITION_BLOCKS, auditionSeasonId } from "@/lib/auditions";
 import { hasAccount } from "@/lib/auth";
@@ -169,7 +170,10 @@ export default async function CastingInvitePage({ params }: Props) {
   const db = await getDb();
   const auth = authFromCookieStore(await cookies());
   // Whose it is (and its retry) only on a signed-in session: an account applied it.
-  const view = inviteView(await loadInvite(db, code).catch(() => null), auth?.authenticated ? auth.userId : null);
+  const read = await loadInvite(db, code).then((row) => ({ row }), () => null);
+  const view = inviteView(read?.row ?? null, auth?.authenticated ? auth.userId : null);
+  // A code we've never made is a real 404 (2026-11-22 audit); a read that failed keeps the friendly page.
+  if (view.state === "invalid" && read) notFound();
   if (view.state === "yours" && auth) return await yours(db, code, view, auth);
   if (view.state !== "open") return <Gone code={code} state={view.state === "yours" ? "used" : view.state} />;
 

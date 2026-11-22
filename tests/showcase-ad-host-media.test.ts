@@ -148,6 +148,9 @@ describe("a clip's tile", () => {
     const html = renderToStaticMarkup(createElement(ShowcaseGrid, { posts }));
     expect(html).toContain(`src="/api/showcase/${w.ids["clip-pg"]}/media#t=0.1"`);
     expect(html).toMatch(new RegExp(`<video[^>]*src="/api/showcase/${w.ids["clip-poster"]}/media"[^>]*poster="/api/showcase/${w.ids["clip-poster"]}/media\\?size=tile"`));
+    // With its picture, nothing of the clip loads before it plays; without one, its start, for the first frame.
+    expect(html).toMatch(new RegExp(`<video[^>]*src="/api/showcase/${w.ids["clip-poster"]}/media"[^>]*preload="none"`));
+    expect(html).toMatch(new RegExp(`<video[^>]*src="/api/showcase/${w.ids["clip-pg"]}/media#t=0.1"[^>]*preload="metadata"`));
   });
 });
 

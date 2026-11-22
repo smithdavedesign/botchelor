@@ -87,6 +87,18 @@ export function pairOf(cast: readonly CastMember[], nights: readonly CastPair[],
   return { a: one, b: two, lines: 0, path: pairPath(a.id, b.id) };
 }
 
+/**
+ * How many faces each of the panel's groups shows before its "Show all" (the 2026-11-22 audit: the hub drew all 227 of
+ * the cast, and a desktop loaded every one of them, 4 MB of faces, for a box that shows about twenty at once). Search
+ * still looks through everyone.
+ */
+export const FACES_SHOWN = 12;
+
+/** Each group cut to `n` faces (all of them when `n` is Infinity), with how many it leaves out. */
+export function capGroups(groups: readonly PickGroup[], n: number): (PickGroup & { hidden: number })[] {
+  return groups.map((g) => (g.faces.length > n ? { ...g, faces: g.faces.slice(0, n), hidden: g.faces.length - n } : { ...g, hidden: 0 }));
+}
+
 /** How many of the cast each filter holds. */
 export const whoseCounts = (cast: readonly CastMember[]): Record<Whose, number> => ({
   all: cast.length,
@@ -102,10 +114,11 @@ export function whoseFilters(counts: Record<Whose, number>): Whose[] {
 }
 
 /**
- * What the panel shows. Nothing picked: with nothing typed, the faces from their nights (the latest played first) and then
- * everyone else A to Z; with something typed, the matches, a name that starts with it (any of its words) first. One
- * picked: everyone they can be with, theirs under way first (each saying how far it's got), then someone new. Empty
- * groups are left out.
+ * What the panel shows. Nothing picked: with nothing typed, the faces from their nights (the latest played first), then
+ * the house cast (when they're only some of the rest), then everyone else, A to Z; with something typed, the matches, a
+ * name that starts with it (any of its words) first. One picked: everyone they can be with, theirs under way first (each
+ * saying how far it's got), then someone new, the house cast first. Empty groups are left out. The panel shows the first
+ * FACES_SHOWN of each (capGroups) until "Show all".
  */
 export function pickGroups(cast: readonly CastMember[], nights: readonly CastPair[], pick: { one: string | null; query: string; whose: Whose }): PickGroup[] {
   const q = fold(pick.query.trim());
@@ -121,14 +134,19 @@ export function pickGroups(cast: readonly CastMember[], nights: readonly CastPai
     for (const p of nights) for (const c of [p.a, p.b]) if (!regular.includes(c.id)) regular.push(c.id);
     const recent = regular.map((id) => pool.find((c) => c.id === id)).filter((c): c is CastMember => Boolean(c));
     const rest = pool.filter((c) => !regular.includes(c.id));
+    const house = rest.filter((c) => c.house);
     if (recent.length) out.push({ label: "From your nights", faces: recent.map((c) => ({ c })) });
-    out.push({ label: recent.length ? "Everyone else" : `Everyone · ${rest.length}`, faces: rest.map((c) => ({ c })) });
+    // The house cast before the rest: with each group cut short, they're the faces people know (16 of 227 on 11-22).
+    if (house.length && house.length < rest.length) {
+      out.push({ label: "House cast", faces: house.map((c) => ({ c })) });
+      out.push({ label: "Everyone else", faces: rest.filter((c) => !c.house).map((c) => ({ c })) });
+    } else out.push({ label: recent.length ? "Everyone else" : `Everyone · ${rest.length}`, faces: rest.map((c) => ({ c })) });
     return out.filter((g) => g.faces.length);
   }
   const night = (c: CastMember) => nights.find((p) => !p.earlier && ((p.a.id === picked.id && p.b.id === c.id) || (p.a.id === c.id && p.b.id === picked.id))) ?? null;
   const partners = cast.filter((c) => c.id !== picked.id && fits(c));
   const theirs = partners.filter((c) => night(c)).sort((x, y) => (night(y)?.updated_at ?? "").localeCompare(night(x)?.updated_at ?? ""));
-  const fresh = partners.filter((c) => !night(c)).sort(q ? byMatch : (x, y) => x.name.localeCompare(y.name));
+  const fresh = partners.filter((c) => !night(c)).sort(q ? byMatch : (x, y) => Number(Boolean(y.house)) - Number(Boolean(x.house)) || x.name.localeCompare(y.name));
   const how = (p: CastPair) => (p.chapter && p.chapter > 1 ? `Chapter ${p.chapter}` : `${p.lines} lines`);
   if (theirs.length) out.push({ label: `Their nights with ${first(picked.name)}`, faces: theirs.map((c) => ({ c, meta: how(night(c)!) })) });
   out.push({ label: theirs.length ? "Someone new" : `Who ${first(picked.name)} can be with · ${fresh.length}`, faces: fresh.map((c) => ({ c })) });
