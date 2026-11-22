@@ -77,16 +77,55 @@ export const PROMPTS_PER_PAGE = 24;
 export const PROMPT_QUERY_MAX = 80;
 
 /**
- * The seed, with every tag checked against the catalog on the way in: an unknown id is dropped, and so is an NSFW tag
- * on anything youth-coded (the seed never keeps such a prompt; this holds even if a hand edit slipped one in).
+ * The library's first page, picked by hand (2026-11-22: in the seed's order it opened on raw dataset lines, an onion man
+ * and a snake-face lady three times over): 24 prompts that name no artist, a couple first, then women and men in turn,
+ * across the Studio's framings, light, places and styles. They lead the list in this order, and lead any filter they
+ * match (a tag page, a search); every other prompt keeps its place after them. tests/prompts-library.test.ts holds each
+ * one to the seed, so a rebuilt seed that loses one fails there.
  */
-export const ALL_PROMPTS: readonly LibraryPrompt[] = (LIBRARY as LibraryPrompt[]).map((p) => ({
-  ...p,
-  tags: p.tags.filter((id) => {
-    const tag = TAG_BY_ID.get(id);
-    return tag && !(tag.nsfw && YOUNG.test(p.prompt));
-  }),
-}));
+export const LEAD_PROMPTS: readonly string[] = [
+  "A still from a modern black and white French art house movie 1960’s. City street, car, man and woman in love, Cinematic lighting, highly detailed, close-up",
+  "DSLR Photo of a woman with messy bun red hair and green eyes, choker, soft focus, Cinematic photography, high detailed skin, highly detailed face, 4k high quality",
+  "Portrait of a mysterious man in a bar, leather jacket, long beard, blond hair, stylish, neck tattoo, 50mm lens, soft light, piano, Music, guitar",
+  "A detailed and realistic portrait photography of a woman wearing a yellow raincoat with hoodie. Cinematic. Red neon lights and glow in the background. Lens flare. Portra 800 film. Helios 44m",
+  "Blonde man with black eye-patch, close-up, enchanted forest background, volumetric lighting, fantasy cover art, digital painting, sharp focus.",
+  "portrait of a woman, symmetrical face, brown hair, she has the beautiful calm face of her mother, slightly smiling, ambient light",
+  "closeup photo of a man with smug smile who has dark green unkempt hair and brown eyes, wearing a casual blue suit, lush, 4k uhd, ambient light",
+  "oil painting of a tall woman with a black sunhat in the desert, black and red jacket, beautiful face, pretty face, very detailed eyes, full body",
+  "a romantic portrait of an old man, bathed in soft, golden light, with a backdrop of rolling hills and a setting sun, his weathered face and wise eyes conveying a lifetime of stories and serene wisdom",
+  "a portrait photo of a woman in a dining room. soft lighting, photo, movie still, cinematic, detailed",
+  "photo of a 50-year old white man, silver hair, neat beard, wearing a red gilet, thick-rimmed glasses, professional corporate portrait, from investor prospectus",
+  "full portrait of lovely steampunk woman mechanic with dark hair in boiler suit",
+  "a highly detailed portrait of a man, with a brown beard and hair, blue eyes, wearing a tuxedo, photo, hyperrealism, digital art",
+  "a black and white photo of a woman with long, flowing hair. she has a serious expression on her face, and her eyes seem to follow you as you move.",
+  "An old man taking a selfie with a loaf of bread, sharp details, natural light, vibrant colors.",
+  "A woman with beautiful, long red hair wearing an ashen gray, full-length cloak with a large hood covering part of her face.",
+  "Impressionist portrait of a dapper Indian gentleman with lilies, soft light, gentle brushstrokes, matte finish.",
+  "close-up photo portrait of a Stunning mature lady wearing red dress, in forest, detailed eyes",
+  "A high angle dramatic portrait of a man wearing red coat, walking in a black and white street. Cinematic lighting",
+  "Highly detailed portrait of one extra happy adult brunette woman giggling, 40 years old, medium hair, wearing glasses, perfect face details, ultra realistic, cinematic, soft lights, unreal engine render, 30 mm, front facing",
+  "3D portrait of a Victorian man in a suit, cinematic, intricate textures, dynamic lighting.",
+  "portrait of a beautiful woman with sunlight streaming through her blinds, volumetric light, hyper realistic photograph",
+  "Majestic fantasy portrait of a man in an ornate astronaut helmet, translucent visor reflecting a celestial event, intricate nebulae in the background, close-up, 8k, fantasy art, cinematic.",
+  "close up portrait of a 20 year old man, his hair is brown and short, his eyes are green, his face is symmetric and friendly, he's proud to be where he is in life, ambient light, outdoor in a forest, 50 mm, f/1.8",
+];
+const LEAD_PLACE = new Map(LEAD_PROMPTS.map((p, i) => [p, i]));
+const leadPlace = (p: LibraryPrompt): number => LEAD_PLACE.get(p.prompt) ?? LEAD_PROMPTS.length;
+
+/**
+ * The seed, with every tag checked against the catalog on the way in: an unknown id is dropped, and so is an NSFW tag
+ * on anything youth-coded (the seed never keeps such a prompt; this holds even if a hand edit slipped one in). The
+ * hand-picked LEAD_PROMPTS come first; the sort is stable, so the rest keep the seed's order.
+ */
+export const ALL_PROMPTS: readonly LibraryPrompt[] = (LIBRARY as LibraryPrompt[])
+  .map((p) => ({
+    ...p,
+    tags: p.tags.filter((id) => {
+      const tag = TAG_BY_ID.get(id);
+      return tag && !(tag.nsfw && YOUNG.test(p.prompt));
+    }),
+  }))
+  .sort((a, b) => leadPlace(a) - leadPlace(b));
 
 /** Whether any prompt has an NSFW tag at all: when none does, the page never needs to ask who's looking. */
 export const HAS_NSFW_TAGS = ALL_PROMPTS.some((p) => p.tags.some((id) => TAG_BY_ID.get(id)?.nsfw));
@@ -150,6 +189,27 @@ export function findPrompts({ query = "", source = null, tag = null, showNsfw = 
 export const TAG_PAGE_MIN = 50;
 /** The tag page's address. */
 export const promptTagPath = (id: string): string => `/prompts/tag/${encodeURIComponent(id)}`;
+
+/**
+ * A tag page's heading, where "{label} portrait prompts" reads badly ("Close portrait prompts", "Man portrait prompts",
+ * 2026-11-22). The rest keep the plain form. The title says it in lower case after the count.
+ */
+const TAG_HEADINGS: Record<string, string> = {
+  "framing.close": "Close-up portrait prompts",
+  "framing.medium": "Medium-shot portrait prompts",
+  "framing.full": "Full-body portrait prompts",
+  "accessories.glasses": "Portrait prompts with glasses",
+  "light.warm": "Warm, moody portrait prompts",
+  "light.studio": "Soft studio-light portrait prompts",
+  "light.golden": "Golden-hour portrait prompts",
+  "style:painting": "Painted portrait prompts",
+  "style:3d": "3D-render portrait prompts",
+  "style:illustration": "Illustrated portrait prompts",
+  "subject:woman": "Portrait prompts of women",
+  "subject:man": "Portrait prompts of men",
+  "subject:couple": "Portrait prompts of couples",
+};
+export const promptTagHeading = (tag: Pick<PromptTag, "id" | "label">): string => TAG_HEADINGS[tag.id] ?? `${tag.label} portrait prompts`;
 /**
  * The tags that get a page of their own (the 2026-11-11 growth plan: 2,000 prompts sat on one address): the PG ones
  * with at least TAG_PAGE_MIN prompts, in catalog order. Pure.

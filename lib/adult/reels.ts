@@ -78,13 +78,12 @@ import { giveBackIncludedClip } from "./usage";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
 import { replicateVoice, voiceFor } from "../voice";
 import { logShotFailures } from "./video-failures";
+import { escapeRegExp } from "../text";
 
 // A character's stock voice lives in the shared voice kit (lib/voice.ts) now; reels and their callers still import it from here.
 export { replicateVoice, voiceFor };
 
 export const VENICE = "https://api.venice.ai/api/v1";
-/** Shots in a reel, and how many words a shot can carry (people say about 2.5 words a second). */
-export const REEL_SHOTS = 6;
 const WORDS_5S = 12;
 const WORDS_MAX = 24;
 const SHOTS_PER_POLL = 2;
@@ -365,7 +364,6 @@ const nounOf = (pronouns: string | null): ReelPerson["noun"] => (pronouns?.start
 const HAIR = /\b(?:hair|bob|curls|braids|bun|ponytail|locks|afro|dreadlocks|buzz cut|crew cut|undercut|mohawk|bald|shaved head)\b/i;
 const NAME_SKIP = new Set(["the", "and", "of", "von", "van", "der", "de", "del", "la", "le", "da"]);
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * What tells someone apart at a glance: their hair, as the look words it ("in her late twenties with pale freckled skin
@@ -481,9 +479,9 @@ export function reelCast(a: Character, b: Character, viewer?: string | null): [R
 export function withoutNames(text: string, cast: readonly ReelPerson[]): string {
   // The whole name first, however it's cased ("Chud the crusher" left "the man the crusher"), then each word of it, then
   // a tag said twice in a row ("Star Dust" was "the woman the woman"; 2026-11-10: 29 of a week's 78 pictures).
-  const whole = cast.reduce((t, p) => (p.full && p.full.includes(" ") ? t.replace(new RegExp(`\\b${escapeRe(p.full)}\\b`, "gi"), p.tag) : t), text);
-  const words = cast.reduce((t, p) => p.names.reduce((u, w) => u.replace(new RegExp(`\\b${escapeRe(w)}\\b`, "g"), p.tag), t), whole);
-  return cast.reduce((t, p) => t.replace(new RegExp(`\\b(${escapeRe(p.tag)})(?:\\s+${escapeRe(p.tag)}\\b)+`, "gi"), "$1"), words);
+  const whole = cast.reduce((t, p) => (p.full && p.full.includes(" ") ? t.replace(new RegExp(`\\b${escapeRegExp(p.full)}\\b`, "gi"), p.tag) : t), text);
+  const words = cast.reduce((t, p) => p.names.reduce((u, w) => u.replace(new RegExp(`\\b${escapeRegExp(w)}\\b`, "g"), p.tag), t), whole);
+  return cast.reduce((t, p) => t.replace(new RegExp(`\\b(${escapeRegExp(p.tag)})(?:\\s+${escapeRegExp(p.tag)}\\b)+`, "gi"), "$1"), words);
 }
 
 const POSSESSIVE = { woman: "her", man: "his", person: "their" } as const;
@@ -491,7 +489,7 @@ const POSSESSIVE = { woman: "her", man: "his", person: "their" } as const;
 export function placeWords(place: string, cast: readonly ReelPerson[]): string {
   let out = place.replace(/’/g, "'");
   // As written, capitalised: a Rose's name never touches "the rose garden".
-  for (const p of cast) for (const w of p.names) out = out.replace(new RegExp(`\\b${escapeRe(w)}(?:'s|s)?\\b`, "g"), POSSESSIVE[p.noun]);
+  for (const p of cast) for (const w of p.names) out = out.replace(new RegExp(`\\b${escapeRegExp(w)}(?:'s|s)?\\b`, "g"), POSSESSIVE[p.noun]);
   return out.trim();
 }
 
@@ -915,7 +913,7 @@ export function povPrompt(
   // One person in the picture, the one shown (2026-11-10 audit: 3 of 18 rated first-person pictures of two were liked;
   // the Studio's of one, 23 of 23 on the uncensored models). The viewer is never "the man" or "the woman" here: named
   // that way, the picture model drew them in full, face and all, often twice. They're "the viewer", seen at the edge.
-  const asViewer = (t: string) => t.replace(new RegExp(`\\b${escapeRe(viewer.tag)}\\b`, "gi"), "the viewer");
+  const asViewer = (t: string) => t.replace(new RegExp(`\\b${escapeRegExp(viewer.tag)}\\b`, "gi"), "the viewer");
   // Kept going (lib/adult/clips.ts): Picture 2 is the shot before, at its very moment or a few seconds on.
   const head = opts.continueFrom
     ? `Make one first-person photograph of ${shown.tag} from Picture 1, seen through the viewer's eyes, ${opts.continueFrom === "same" ? "at the very moment in Picture 2" : "a few seconds after the moment in Picture 2"}: keep its place, its light, its camera angle and framing, and what ${shown.tag} is wearing or not.`
@@ -942,7 +940,7 @@ export function shownClothes(words: string, shown: Pick<ReelPerson, "tag">, view
   let w = words.replace(/[.\s]+$/, "");
   const parts = w.split(/;\s*/);
   if (parts.length > 1) {
-    const mine = parts.filter((p) => new RegExp(`\\b${escapeRe(shown.tag)}\\b`, "i").test(p) && !new RegExp(`^${escapeRe(viewer.tag)}\\b`, "i").test(p));
+    const mine = parts.filter((p) => new RegExp(`\\b${escapeRegExp(shown.tag)}\\b`, "i").test(p) && !new RegExp(`^${escapeRegExp(viewer.tag)}\\b`, "i").test(p));
     if (mine.length) {
       const tail = parts.at(-1)!.match(/,\s*(both [^;]*)$/i)?.[1];
       w = mine.map((p) => p.replace(/,\s*both [^;]*$/i, "")).join("; ") + (tail ? `, ${tail}` : "");

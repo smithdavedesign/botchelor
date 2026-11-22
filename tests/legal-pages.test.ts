@@ -17,7 +17,7 @@ import { PRIVACY_HEADINGS, TERMS_HEADINGS } from "@/app/legal/sections";
 import PrivacyPage from "@/app/privacy/page";
 import ReportPage from "@/app/report/page";
 import TermsPage from "@/app/terms/page";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { deleteAccount, exportAccount } from "@/lib/account";
 import { MCP_CALLS_KEEP_DAYS } from "@/lib/agent-analytics";
 import { CONTENT_REPORT_LIMITS, dueAt, reportRecipients } from "@/lib/content-reports";

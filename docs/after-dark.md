@@ -3215,7 +3215,7 @@ showcase pages, videos should play on hover or automatically preferably, and the
   Gallery has two rooms (`app/after-dark/GalleryTabs.tsx`): Yours (`/after-dark/gallery`) and Showcase, the second
   only for whoever may see that side (an admin until `explicit_open`). The hub's 🌟 Showcase button went with the
   header's door.
-- **Old addresses move** (`middleware.ts` `moveShowcaseSide`): `/showcase`, its reels and a creator's page asked with
+- **Old addresses move** (`proxy.ts` `moveShowcaseSide`): `/showcase`, its reels and a creator's page asked with
   `?side=after_dark` go to After Dark's page with their filters (a creator's page becomes `?creator=`), through the
   sign-in hop from the show. The show's deployment never lists an explicit post (`seenFilters`).
 - **The reels are the same page** (`app/showcase/reels/feed.tsx` renders both; `ReelFeed` unchanged). On After Dark

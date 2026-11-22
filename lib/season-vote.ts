@@ -114,9 +114,6 @@ export async function seasonBallot(db: Db, viewerId: string | null, current: Sea
   };
 }
 
-/** The title a slug goes by on the ballot. */
-export const ballotTitle = (slug: SeasonFormatSlug): string => seasonFormat(slug).title;
-
 export type BallotResult = { season_id: string; winner: SeasonFormatSlug | null; votes: number; total: number };
 
 /** A season's announced ballot result (null until the hourly job announces it, or when nobody voted). */

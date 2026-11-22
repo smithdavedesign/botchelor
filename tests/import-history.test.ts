@@ -176,7 +176,7 @@ describe("what is read", () => {
     expect(fields.book).not.toMatch(/switched off/);
 
     const card = cardHistory(CARD, "Marisol Vane");
-    expect(card.has).toEqual(["a scenario", "example dialogue", "a lorebook"]);
+    expect(card.has).toEqual(["scenario", "example dialogue", "lorebook"]);
     // {{char}} is their name and {{user}} the person, so the reader knows who is who.
     expect(card.scenario).toBe("User washed up at the Cape Wren light during the autumn gales and stayed on to help Marisol Vane mend the lamp.");
     expect(card.examples).toContain('Marisol Vane: "Once a year, for licorice.');
@@ -190,7 +190,7 @@ describe("what is read", () => {
 
   it("reads labelled sections too, and finds nothing in a card without them", () => {
     const labelled = cardHistory("Name: Ada Lane\nDescription: A baker.\nScenario: You run the stall next to hers at the night market.\nExample dialogue: Ada: Flour first, feelings later.", "Ada Lane");
-    expect(labelled.has).toEqual(["a scenario", "example dialogue"]);
+    expect(labelled.has).toEqual(["scenario", "example dialogue"]);
     expect(cardHistory('{"name":"Ada Lane","description":"A baker who sings.","personality":"warm"}').has).toEqual([]);
     expect(cardHistory("just a description of someone").has).toEqual([]);
     // A lorebook on its own is not a character.
@@ -233,7 +233,7 @@ describe("what is read", () => {
     expect(trimNote(s)).toBe(`That was long: ${s.read.toLocaleString("en-US")} of its ${long.length.toLocaleString("en-US")} characters were read (the start and the most recent part).`);
 
     // A big lorebook can't crowd the paste out: the card's share stops at its own cap.
-    const bigBook = { scenario: "", examples: "", book: "An entry about the cape. ".repeat(2000), has: ["a lorebook"] };
+    const bigBook = { scenario: "", examples: "", book: "An entry about the cape. ".repeat(2000), has: ["lorebook"] };
     const both = historySource(long, bigBook);
     expect(both.text.length).toBeLessThanOrEqual(HISTORY_READ_MAX);
     expect(both.text.indexOf("[Pasted by the person]")).toBeLessThanOrEqual(HISTORY_CARD_MAX + 2);

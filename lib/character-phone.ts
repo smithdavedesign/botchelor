@@ -39,7 +39,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
 export type PhoneText = { id: string; text: string; at: string; /** A photo from a date (lib/date-photo.ts): `text` is its alt text. */ photo: boolean };
 export type PhoneChip = { label: string; href: string };
 export type PhoneNext = {
-  key: "on_date" | "ready" | "scheduled" | "roses" | "weekly" | "recap" | "first_date";
+  key: "on_date" | "scheduled" | "roses" | "weekly" | "recap" | "first_date";
   text: string;
   href: string | null;
   /** A moment to show by the viewer's clock (a scheduled date), or null. */
@@ -50,6 +50,8 @@ export type PhoneAction =
   | { kind: "open"; label: string; href: string }
   /** They never opted in and a date's ending stands: the character texts them about it (POST /api/companion/after-date). */
   | { kind: "hear"; label: string; episodeId: string }
+  /** A finished date that hasn't aired yet: "Watch Vesper × Sable", in the theater. */
+  | { kind: "watch"; label: string; href: string }
   /** No ending to hear about yet: the date being filmed, or the first date. */
   | { kind: "link"; label: string; href: string };
 
@@ -70,8 +72,8 @@ export type CharacterPhoneView = {
   chips: PhoneChip[];
   next: PhoneNext[];
   action: PhoneAction;
-  /** The thread, when the main action is something else. */
-  secondary: { label: string; href: string } | null;
+  /** The quieter second button: the thread when the main action is something else, or "Hear from" beside "Watch". */
+  secondary: PhoneAction | null;
   others: { character: CharacterRef; href: string; unread: boolean }[];
 };
 
@@ -215,8 +217,11 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
   }
 
   const next: PhoneNext[] = [];
+  // A finished date that hasn't aired yet is the first thing to do (the 2026-11-22 audit: "Hear from Vesper" was the
+  // one big button while "The date with Sable is ready to watch" sat in small print under it): watching it is the main
+  // button, and hearing from them, or their texts, the second. It is no longer a line here as well.
+  const unwatched = Boolean(date && date.status === "ready" && !date.aired);
   if (date && filming && !stands) next.push({ key: "on_date", text: `On a date with ${partner} right now`, href: `${episode}?play=1`, at: null });
-  else if (date && date.status === "ready" && !date.aired) next.push({ key: "ready", text: `The date with ${partner} is ready to watch`, href: episode, at: null });
   if (d?.scheduled_at) next.push({ key: "scheduled", text: "A date is booked for", href: `/characters/${encodeURIComponent(character.id)}`, at: iso(d.scheduled_at) });
   if (!date) next.push({ key: "first_date", text: "A first date is a speed date: about a minute, and free", href: `/create?character=${encodeURIComponent(character.id)}`, at: null });
   // Open casting (lib/casting.ts): a walk-on's finished date with the season's lead is judged at the next Sunday pass.
@@ -240,24 +245,32 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
   const busy = (date?.created_at && new Date(date.created_at).getTime() > weekAgo) || all.some((m) => new Date(m.created_at).getTime() > weekAgo);
   if (busy) next.push({ key: "recap", text: now.getUTCDay() === 0 ? `${first}'s week on the show comes today` : `Sunday: ${first}'s week on the show`, href: now.getUTCDay() === 0 ? "/notifications" : null, at: null });
 
+  const thread: PhoneAction | null = threadHref ? { kind: "open", label: `Open ${first}'s texts`, href: threadHref } : null;
+  const hear: PhoneAction | null = date && stands && !(threadHref && optedIn) ? { kind: "hear", label: `Hear from ${first}`, episodeId: date.episode_id! } : null;
+  const watch: PhoneAction | null = unwatched ? { kind: "watch", label: partner ? `Watch ${first} × ${partner}` : `Watch ${first}'s date`, href: `${episode}?play=1` } : null;
   const action: PhoneAction =
-    threadHref && optedIn
-      ? { kind: "open", label: `Open ${first}'s texts`, href: threadHref }
-      : date && stands
-        ? { kind: "hear", label: `Hear from ${first}`, episodeId: date.episode_id! }
-        : date
+    watch ??
+    (threadHref && optedIn
+      ? thread!
+      : (hear ??
+        (date
           ? { kind: "link", label: `Watch ${first}'s date`, href: `${episode}?play=1` }
-          : { kind: "link", label: `Send ${first} on a first date`, href: `/create?character=${encodeURIComponent(character.id)}` };
+          : { kind: "link", label: `Send ${first} on a first date`, href: `/create?character=${encodeURIComponent(character.id)}` })));
+  const secondary: PhoneAction | null = watch ? (hear ?? thread) : action.kind !== "open" ? thread : null;
 
   const empty = texts.length
     ? null
-    : action.kind === "hear"
-      ? `${first} hasn't texted you yet. Tap "Hear from ${first}" and they'll tell you how the date with ${partner} went.`
-      : action.kind === "open"
-        ? `Nothing new from ${first}.`
-        : date
-          ? `${first} is on a date with ${partner}. They can text you once it's over.`
-          : `${first} hasn't been on a date yet. Send them on one and they'll text you how it went.`;
+    : watch
+      ? hear
+        ? `${first}'s date with ${partner} is ready. Watch it, or hear ${first}'s side first.`
+        : `${first}'s date with ${partner} is ready to watch.`
+      : action.kind === "hear"
+        ? `${first} hasn't texted you yet. Tap "Hear from ${first}" and they'll tell you how the date with ${partner} went.`
+        : action.kind === "open"
+          ? `Nothing new from ${first}.`
+          : date
+            ? `${first} is on a date with ${partner}. They can text you once it's over.`
+            : `${first} hasn't been on a date yet. Send them on one and they'll text you how it went.`;
 
   return {
     character,
@@ -270,6 +283,6 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
     chips,
     next: next.slice(0, PHONE_NEXT),
     action,
-    secondary: threadHref && action.kind !== "open" ? { label: `Open ${first}'s texts`, href: threadHref } : null,
+    secondary,
   };
 }

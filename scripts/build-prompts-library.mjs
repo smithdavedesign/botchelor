@@ -85,6 +85,69 @@ const people = readFileSync(PEOPLE_FILE, "utf8").split("\n").map((l) => l.trim()
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const PEOPLE = people.length ? new RegExp(`\\b(?:${people.map(escape).join("|")})\\b`, "i") : null;
 
+// Prompts read and dropped by hand (2026-11-22): no portrait to draw in them, only a scene and a swear word.
+const HAND_DROPS = ["his final words:'fuck art.'"];
+
+// A last pass over the picked prompts' words (2026-11-22: the library's first page opened on "an beautiful", "award
+// wining" and "portrait panting"). It runs after the pick, so no prompt moves in line: Midjourney flags typed with a
+// dash (" —ar 9:16"), weights left without brackets ("friendly:0.8"), DiffusionDB's spaced f-stops ("f 1. 8" →
+// "f/1.8"), wrapping quotes and " _ " separators, a wrong "a"/"an", and misspellings the datasets carry. Every entry
+// was read in its prompt by hand; artists' names are left as the datasets spelled them.
+const SPELLING = {
+  foccus: "focus", ilustration: "illustration", illutration: "illustration", upflifting: "uplifting",
+  beautifull: "beautiful", beatifull: "beautiful", beutiful: "beautiful", beutifull: "beautiful", beuatiful: "beautiful",
+  googles: "goggles", vaporware: "vaporwave", powerfull: "powerful", acrilic: "acrylic", psychodelic: "psychedelic",
+  jewerly: "jewelry", potrait: "portrait", portait: "portrait", protrait: "portrait", illuminaition: "illumination",
+  tatooes: "tattoos", arstation: "artstation", artgermm: "artgerm", intrincate: "intricate", symetrical: "symmetrical",
+  symettrical: "symmetrical", fashonista: "fashionista", gteen: "green", transhumaninsm: "transhumanism",
+  gatheing: "gathering", mowhawk: "mohawk", prety: "pretty", oill: "oil", boken: "bokeh", loght: "light",
+  ligthing: "lighting", puppils: "pupils", ultrashar: "ultrasharp", vanishhing: "vanishing", relistic: "realistic",
+  reallistic: "realistic", hyperarealistic: "hyperrealistic", hyperaralistic: "hyperrealistic",
+  confortable: "comfortable", backgroung: "background", straigh: "straight", misterious: "mysterious",
+  chairof: "chair of", teathre: "theatre", forboding: "foreboding", cinematogrophy: "cinematography",
+  noveau: "nouveau", novuea: "nouveau", aetheral: "ethereal", vilage: "village", metamorphasis: "metamorphosis",
+  heterochomia: "heterochromia", colorfull: "colorful", excelent: "excellent", deatiled: "detailed",
+  ambitius: "ambitious", sillouete: "silhouette", wiht: "with", turqouise: "turquoise", infront: "in front",
+  ablack: "a black", shortbluehair: "short blue hair", extremelydetailed: "extremely detailed",
+  awardwinning: "award winning", costumedesign: "costume design", nineteenthcentury: "nineteenth century",
+  velvetcloak: "velvet cloak", bioluminiscent: "bioluminescent", ovle: "oval", stres: "stress", beeing: "being",
+  cloting: "clothing", forrest: "forest", lillies: "lilies", cantered: "centered", hight: "high",
+  kodakchrome: "kodachrome", antropomorphe: "anthropomorphic", githic: "gothic", freckels: "freckles", hiper: "hyper",
+};
+const PHRASES = {
+  "award wining": "award winning", "portrait panting": "portrait painting", "sit an be": "sit and be", "a a": "a",
+  "an beautiful": "a beautiful", "an woman": "a woman", "an man": "a man", "an pub": "a pub", "an photo": "a photo",
+  "an moody": "a moody", "an bald": "a bald", "an smoke": "a smoke", "an dragonfly": "a dragonfly",
+  "an leather": "a leather", "an delightfully": "a delightfully", "an watercolor": "a watercolor",
+  "an cinematic": "a cinematic", "an red": "a red", "a ultradetailed": "an ultradetailed", "a award": "an award",
+  "a asian": "an asian", "a australopithecus": "an australopithecus", "a old": "an old", "a intricately": "an intricately",
+  "a escher": "an escher", "a action": "an action", "a expressionless": "an expressionless", "a ombre": "an ombre",
+  "a eye": "an eye", "a angry": "an angry", "a elven": "an elven", "a apartment": "an apartment", "a ice": "an ice",
+  "a ancient": "an ancient", "a anthropomorphic": "an anthropomorphic", "a extremely": "an extremely",
+  "a igbo": "an igbo", "a elegant": "an elegant", "a arcana": "an arcana", "a women": "a woman",
+  "a beautiful women": "a beautiful woman", "three woman": "three women",
+};
+const wordsRe = (keys) => new RegExp(`\\b(?:${keys.map(escape).join("|")})\\b`, "gi");
+const SPELLING_RE = wordsRe(Object.keys(SPELLING));
+const PHRASES_RE = wordsRe(Object.keys(PHRASES).sort((a, b) => b.length - a.length));
+/** The fix in the found word's case: "Beutiful" → "Beautiful". */
+const asFound = (found, fix) => (found[0] === found[0].toUpperCase() ? fix[0].toUpperCase() + fix.slice(1) : fix);
+function tidy(prompt) {
+  return prompt
+    .replace(/^[“"](.*)[”"]$/s, "$1")
+    .replace(/\s[—–](?:no\s+\w+|[a-z]+(?:\s+[\d:.]+)?)/gi, "")
+    .replace(/\b([a-z]+):\s?\d*\.\d+\b/gi, "$1")
+    .replace(/\bf ?\/? ?(\d+)\. (\d)\b/gi, "f/$1.$2")
+    .replace(/ _ /g, ", ")
+    .replace(PHRASES_RE, (m) => asFound(m, PHRASES[m.toLowerCase()]))
+    .replace(SPELLING_RE, (m) => asFound(m, SPELLING[m.toLowerCase()]))
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/(,\s*){2,}/g, ", ")
+    .replace(/[\s,;:]+$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 const [header, ...rows] = parseCsv(readFileSync(SRC, "utf8"));
 const col = (name) => header.indexOf(name);
 const [iSource, iPrompt] = [col("source"), col("prompt")];
@@ -101,6 +164,7 @@ for (const r of rows) {
   if (prompt.length < 40 || prompt.length > 400) { drop("length"); continue; }
   if (YOUNG.test(prompt) || SENSITIVE.test(prompt) || !checkShowText({ prompt }).ok || !checkAdultText({ prompt }).ok) { drop("safety"); continue; }
   if (PEOPLE?.test(prompt)) { drop("real person"); continue; }
+  if (HAND_DROPS.some((d) => prompt.includes(d))) { drop("by hand"); continue; }
   const ref = imageReference(prompt);
   if (ref) { drop("image reference"); if (imageRefs.length < 400) imageRefs.push(`[${ref}] ${prompt}`); continue; }
   const key = prompt.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -116,7 +180,12 @@ const isDiffusionDb = (p) => p.source.startsWith("diffusiondb");
 const small = kept.filter((p) => !isDiffusionDb(p));
 const ddb = inLine(kept.filter(isDiffusionDb));
 const room = Math.max(0, SAMPLE - small.length);
-const picked = inLine([...small, ...ddb.slice(0, room)]).slice(0, SAMPLE);
+const picked = inLine([...small, ...ddb.slice(0, room)])
+  .slice(0, SAMPLE)
+  .map((p) => {
+    const prompt = tidy(p.prompt);
+    return prompt === p.prompt ? p : { ...p, prompt, tags: tagPrompt(prompt) };
+  });
 // The prompts next in line, for scripts/vet-prompt-people.mjs: every small-set prompt, then DiffusionDB in pick order.
 if (process.env.VET_OUT) writeFileSync(process.env.VET_OUT, JSON.stringify([...small, ...ddb.slice(0, room + 1500)].map((p) => p.prompt)));
 writeFileSync(OUT, JSON.stringify(picked) + "\n");

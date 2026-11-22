@@ -303,7 +303,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.48.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.48.1" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -1765,12 +1765,6 @@ export async function dateShareFor(db: Db, episodeId: string, ownerId: string) {
   if (!r) return null;
   return r.first ? firstDateShare(episodeId, r) : dateShare(episodeId, r, r.date_number);
 }
-
-/** The first-date share only (kept for callers that want nothing after the first). */
-export const firstDateShareFor = async (db: Db, episodeId: string, ownerId: string) => {
-  const share = await dateShareFor(db, episodeId, ownerId);
-  return share && new URL(share.url).searchParams.get("utm_campaign") === "first_date" ? share : null;
-};
 
 /**
  * Waits (up to `seconds`, capped at WAIT_MAX_SECONDS) for a date on the show's model to be written, then returns it like
@@ -3616,7 +3610,7 @@ const PREVIEW_SKIPS: Record<string, readonly string[]> = { answer_match: ["yes"]
  * Arguments a tool reads in more than one type on purpose (a swipe's "right", #313; a vote given as up: true, #416), or
  * doesn't use: left out of the type check.
  */
-const BOOLEAN_WORDS_OK: Record<string, readonly string[]> = { swipe: ["like"], check_originality: ["attest", "open_to_dates"], vote_feedback: ["vote"] };
+const BOOLEAN_WORDS_OK: Record<string, readonly string[]> = { swipe: ["like"], check_originality: ["attest", "open_to_dates", "age"], vote_feedback: ["vote"] };
 
 /**
  * #1880 (the 2026-11-20-0610 run: "predict accepted ending as an alias but its error says pick, and the docs say pick"):
@@ -3634,6 +3628,9 @@ const sentAsWords = (sentAs: Record<string, string>, k: string): string => (sent
  * 2.7.0 (#642): a boolean or enum argument given as the wrong type. "true"/"false" as text read as the boolean (said in
  * read_arguments_as); anything else is refused with the type and an example, so nothing is done on a guess (answer_match
  * read yes: "yes" as a no, and a no is final). A wrong word for an enum is left to the tool, which reads synonyms.
+ * 2.48.1 (search_characters took limit: "lots" and query: 42, and answered as if neither was sent): a number given as text
+ * ("10") is read as the number, anything else for a number is refused the same way; a text argument given a number or
+ * true/false is read as its text, and given a list or an object is refused.
  */
 function typeProblem(tool: string, args: Record<string, unknown>, sentAs: Record<string, string> = {}): { args: Record<string, unknown>; read: string[]; error?: string } {
   const props = toolProps(tool);
@@ -3655,6 +3652,25 @@ function typeProblem(tool: string, args: Record<string, unknown>, sentAs: Record
     }
     const shape = Array.isArray(p.enum) && p.enum.every((x) => typeof x === "string") && typeof v !== "string" ? argShape(p) : null;
     if (shape) return { args, read, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: ${shape.type}, not ${JSON.stringify(v)} (e.g. "${k}": ${JSON.stringify(shape.example)}). Nothing was done.` };
+    if ((p.type === "integer" || p.type === "number") && typeof v !== "number") {
+      const n = typeof v === "string" && v.trim() ? Number(v.trim()) : NaN;
+      if (Number.isFinite(n)) {
+        out = { ...out, [k]: n };
+        read.push(`${k}: ${JSON.stringify(v)} → ${n}`);
+        continue;
+      }
+      const number = argShape(p)!;
+      return { args, read, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: ${number.type}, not ${JSON.stringify(v)} (e.g. "${k}": ${JSON.stringify(number.example)}). Nothing was done.` };
+    }
+    if (p.type === "string" && !p.enum && !p.anyOf && p.const === undefined && typeof v !== "string") {
+      if (typeof v === "number" || typeof v === "boolean") {
+        out = { ...out, [k]: String(v) };
+        read.push(`${k}: ${JSON.stringify(v)} → ${JSON.stringify(String(v))}`);
+        continue;
+      }
+      const what = Array.isArray(v) ? "a list" : "an object";
+      return { args, read, error: `Not valid — ${k}${sentAsWords(sentAs, k)}: text, not ${what} (e.g. "${k}": "…"). Nothing was done.` };
+    }
     // #1213 (the 2026-11-01-1105 run: update_character's soul sent as a string came back "expected object, received string",
     // naming none of its keys): an object argument given as anything else is refused here, with the keys it takes.
     if (p.type === "object" && (typeof v !== "object" || Array.isArray(v))) {
@@ -9940,6 +9956,12 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
   if (msg && !msg.method && msg.id !== undefined && msg.id !== null) {
     const resolved = resolveServerRequest(msg.id, (msg as unknown as { result?: unknown }).result, (msg as unknown as { error?: unknown }).error);
     if (resolved) return null; // 202 Accepted, no body.
+  }
+
+  // 2.48.1: JSON-RPC 2.0 only. A request naming another version ("1.0" was served) is an invalid request; one that
+  // leaves the field out is still served, as hand-written calls often do.
+  if (msg?.jsonrpc !== undefined && msg.jsonrpc !== "2.0") {
+    return isNotification ? null : fail(-32600, `invalid request: "jsonrpc" must be "2.0", not ${JSON.stringify(msg.jsonrpc)}. Nothing was done.`);
   }
 
   switch (msg?.method) {
