@@ -825,3 +825,58 @@ li.picked {
   width: 100%;
   resize: vertical;
 }
+
+/* The PG Studio's picture tile (app/characters/[id]/studio/PgStudio.tsx): everything but the picture in one ⋯, in the
+   After Dark Studio's labelled rows (.ad-tile-more there), on the show's light card; Delete apart, in the danger colour. */
+.studio-tile-more {
+  padding: 0 0.65rem 0.65rem;
+}
+.studio-tile-more > summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.2rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: var(--icon-xs);
+  line-height: 1;
+}
+.studio-tile-more > summary::-webkit-details-marker {
+  display: none;
+}
+.studio-tile-more[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.studio-tile-groups {
+  display: grid;
+  gap: var(--space-3);
+}
+.studio-tile-group {
+  display: grid;
+  gap: var(--space-1);
+}
+.studio-tile-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+.studio-tile-menu button,
+.studio-tile-delete button {
+  margin: 0;
+}
+.studio-tile-delete {
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+button.button-ghost.danger {
+  color: var(--bad-text);
+  border-color: color-mix(in srgb, var(--bad) 55%, var(--line));
+}
+button.button-ghost.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 8%, var(--card));
+}
