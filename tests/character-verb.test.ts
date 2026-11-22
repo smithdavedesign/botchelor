@@ -67,7 +67,7 @@ const profile = async (id: string, cookie: string | null, sp: Record<string, str
 /** One card's HTML on /characters, by the character's id. */
 const cardOf = (html: string, id: string) => {
   const name = html.indexOf(`href="/characters/${id}"`);
-  const start = html.lastIndexOf('<li class="card tap-card dir-card">', name);
+  const start = html.lastIndexOf('<li class="card tap-card dir-card tilt">', name);
   return name < 0 || start < 0 ? "" : html.slice(start, html.indexOf("</li></ul>", start) < 0 ? undefined : html.indexOf("</div></li>", name) + 11);
 };
 /** The top of a character page: everything before its bio card. */

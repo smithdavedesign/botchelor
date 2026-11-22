@@ -407,7 +407,7 @@ describe("finding a character on /characters (lib/directory.ts searchDirectory)"
     const found = await render({ q: "mira" });
     expect(found).toContain("1 character matches “mira”");
     expect(found).toContain('value="mira"');
-    expect(found).toContain('<li class="card tap-card dir-card">');
+    expect(found).toContain('<li class="card tap-card dir-card tilt">');
     expect(found).toContain(`href="/characters/${mira.id}"`);
     // No Characters tab is current during a search (the Cards | Map switch still says Cards).
     expect(found.replace(/<nav class="segmented view-switch"[\s\S]*?<\/nav>/, "")).not.toMatch(/class="segmented-tab" aria-current="page"/);
@@ -420,9 +420,9 @@ describe("finding a character on /characters (lib/directory.ts searchDirectory)"
   it("draws each card photo-forward: a square portrait on top, the name a link over the whole card, Talk its own target", async () => {
     setSeasonCastForTests(["house-juniper"]);
     const html = await render({ tab: "cast" });
-    const card = html.slice(html.indexOf('<li class="card tap-card dir-card">'), html.indexOf("</li>", html.indexOf('<li class="card tap-card dir-card">')));
+    const card = html.slice(html.indexOf('<li class="card tap-card dir-card tilt">'), html.indexOf("</li>", html.indexOf('<li class="card tap-card dir-card tilt">')));
     // The show's cast with a face loop (lib/face-loops.ts, Juniper among them) have it around the portrait.
-    expect(card).toMatch(/^<li class="card tap-card dir-card"><div class="dir-portrait">(<span[^>]*>)?<(img|svg)[^>]*class="avatar[^"]* avatar-fill"/);
+    expect(card).toMatch(/^<li class="card tap-card dir-card tilt"><div class="dir-portrait">(<span[^>]*>)?<(img|svg)[^>]*class="avatar[^"]* avatar-fill"/);
     expect(card).toMatch(/width="320" height="320"/);
     expect(card).toMatch(/<a class="char-name stretch dir-name char-name-link" href="\/characters\/house-juniper">/);
     expect(card.indexOf("dir-portrait")).toBeLessThan(card.indexOf("dir-name"));
