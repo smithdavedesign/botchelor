@@ -15003,6 +15003,49 @@ button.thread-menu-item:hover:not(:disabled) {
 .situation-last {
   margin: var(--space-3) 0 0;
 }
+/* Tonight's two votes as one card on home (app/TonightVotes.tsx): the situation and the dare under one heading and in
+   one frame, side by side on a wide screen and one after the other on a phone. Each part keeps its own question, its
+   choices (one under another here: a part is half the card's width) and its last result. */
+.tonight-votes-head .kicker {
+  margin: 0;
+  color: var(--accent-text);
+}
+.tonight-votes-head h2 {
+  margin: 0;
+}
+.tonight-votes-parts {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+.tonight-part {
+  min-width: 0;
+  margin-top: 0;
+}
+.tonight-part + .tonight-part {
+  padding-top: var(--space-4);
+  border-top: var(--control-border) solid var(--line);
+}
+.tonight-part .situation-head h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+.tonight-part .situation-choices {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  .tonight-votes-parts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-5);
+  }
+  .tonight-part + .tonight-part {
+    padding-top: 0;
+    padding-left: var(--space-5);
+    border-top: 0;
+    border-left: var(--control-border) solid var(--line);
+  }
+}
 
 /* Your calls (app/YourCalls.tsx, lib/streaks.ts): the record line on home and /watch, and this week's best callers. */
 .calls-line {

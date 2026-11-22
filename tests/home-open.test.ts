@@ -16,7 +16,7 @@ vi.mock("next/navigation", async (original) => ({
 }));
 import { renderToStaticMarkup } from "react-dom/server";
 import { addLink } from "@/lib/character-links";
-import { homeOpenOn, hookOf, linkLabel, nextSeasonLine, openKicker, openLine, openTonight, openWatch, OPEN_HOOK_MAX, type OpenFace } from "@/lib/home-open";
+import { homeOpenOn, hookOf, linkLabel, openKicker, openLine, openTonight, OPEN_HOOK_MAX, type OpenFace } from "@/lib/home-open";
 import { dayOf } from "@/lib/producer";
 import { seasonIdOf } from "@/lib/season-window";
 import { api, newUserCookie, startTestDb, validCharacter } from "./helpers";
@@ -45,15 +45,6 @@ describe("the first screen's words", () => {
     expect(linkLabel("best friends")).toBe("Best friends");
   });
 
-  it("only says tonight about tonight's date; then a live one, the week's best, the newest, the show", () => {
-    const featured = { share_path: "/episodes/e9" };
-    expect(openWatch({ tonight: { episode: "e1" }, live: { room_path: "/watch/r1" }, featured, best: true })).toEqual({ href: "/episodes/e1?play=1", label: "Watch tonight's date" });
-    expect(openWatch({ tonight: { episode: null }, live: { room_path: "/watch/r1" }, featured, best: true })).toEqual({ href: "/watch/r1", label: "Watch a date live" });
-    expect(openWatch({ tonight: null, live: null, featured, best: true })).toEqual({ href: "/episodes/e9?play=1", label: "Watch this week's best date" });
-    expect(openWatch({ tonight: null, live: null, featured, best: false }).label).toBe("Watch the latest date");
-    expect(openWatch({ tonight: null, live: null, featured: null, best: false })).toEqual({ href: "/watch", label: "Watch the show" });
-  });
-
   it("puts tonight's people in the middle of the cast, never twice, and leaves a phone room for them", () => {
     const cast = ["a", "b", "c", "d", "e"].map((id) => face(id));
     const two = openLine(cast, [face("c"), face("x")]);
@@ -63,14 +54,11 @@ describe("the first screen's words", () => {
     expect(openLine([], [face("x"), face("y")]).every((s) => s.lead)).toBe(true);
   });
 
-  it("says where in the season tonight is, and next month's format with its lead when known", () => {
+  it("says where in the season tonight is (the strip under the header, which the screen stands in for)", () => {
     const k = openKicker(new Date("2026-11-18T20:00:00Z"), null);
     expect(k?.head).toBe("Season 2 · Night 18");
     expect(k?.long).toMatch(/^\d+ days to the finale$/);
     expect(k?.short).toMatch(/^\d+ days left$/);
-    expect(nextSeasonLine("December", "The Botchelor", { month: "December", name: "Nell Abiodun" })).toBe("December: The Botchelor, with Nell.");
-    expect(nextSeasonLine("December", "The Botchelor", { month: "November", name: "Nell Abiodun" })).toBe("December: The Botchelor.");
-    expect(nextSeasonLine("December", null, null)).toBeNull();
   });
 
   it("is on unless HOME_OPEN=0", () => {
@@ -118,19 +106,39 @@ describe("home's first screen", () => {
     expect(tonight?.who.map((w) => w.id)).toEqual(["house-sable", "house-teo"]);
   });
 
-  it("opens a stranger's home on the stage, with the hero a level down under it", async () => {
+  it("opens a stranger's home as one screen: the stage, the promise, the box and the clip (2026-11-21)", async () => {
     await arcNight();
     const html = await home();
-    expect(html).toContain('class="home-open home-open--arc"');
+    expect(html).toContain('class="home-open home-open--one home-open--arc"');
     expect(html).toContain("A blind-date show where nobody steers.");
-    expect(html).toContain("Sable × Teo. ");
-    expect(html).toContain(">Exes<");
-    expect(html).toContain("He took the ring box home and never opened it.");
+    // Plain words where the season's number and night stood, and tonight's two step forward on the stage without their
+    // story being told: a stranger has no season yet (the growth plan's "assumed context").
+    expect(html).toContain('<p class="kicker home-open-kicker">A new blind date every night</p>');
+    expect(html.match(/class="home-open-lead"/g)?.length).toBe(2);
+    expect(html).not.toContain(">Exes<");
+    expect(html).not.toContain("He took the ring box home and never opened it.");
+    expect(html).not.toMatch(/Season \d+ · Night/);
+    expect(html).toContain("Describe a character in a sentence.");
+    expect(html).toContain("You watch it air. Free, no sign-up.");
     expect(html).toContain("Fictional characters only, no real people. Every date is written by AI.");
-    // One h1 on the page: the first screen's. The hero's is an h2 now.
+    // One h1 on the page, and no second hero under the screen.
     expect(html.match(/<h1\b/g)?.length).toBe(1);
-    expect(html).toMatch(/<h2 class="hero-title">Give your character a love life\.<\/h2>/);
-    expect(html).toContain('data-track="open-create"');
+    expect(html).not.toContain("hero-title");
+    expect(html).not.toContain('class="hero');
+    // The one action and the clip are inside the screen, in that order; nothing else in it asks for a click.
+    const screen = html.slice(html.indexOf('class="home-open home-open--one'), html.indexOf('class="home-open-tail"'));
+    expect(screen.indexOf('class="home-express"')).toBeGreaterThan(screen.indexOf("home-open-title"));
+    expect(screen.indexOf('class="home-open-clip"')).toBeGreaterThan(screen.indexOf('class="home-express"'));
+    expect(screen.match(/<a\b/g)?.length).toBe(1); // the clip's own way to watch
+    expect(screen).not.toContain('data-track="open-watch"');
+  });
+
+  it("with one-sentence create off, the screen's one action is a plain button", async () => {
+    vi.stubEnv("HOME_EXPRESS_BOX", "0");
+    const html = await home();
+    expect(html).not.toContain("home-express");
+    expect(html).toContain('<a class="button" data-track="open-create" href="/create">Make your character</a>');
+    expect(html).toContain("Make a character in a minute.");
   });
 
   it("is gone with HOME_OPEN=0, and for someone with a character", async () => {
