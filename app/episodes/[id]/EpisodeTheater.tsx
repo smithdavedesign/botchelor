@@ -21,6 +21,7 @@ import { latestFace } from "@/lib/show-shots-shared";
 import type { ColdOpen } from "@/lib/cold-open";
 import ColdOpenCard, { cutButtonLabel, type CutLink } from "./ColdOpenCard";
 import CutPlayer, { type CutPlace } from "./CutPlayer";
+import TheaterUpNext, { type TheaterNext } from "./TheaterUpNext";
 
 /** What the verdict card needs beyond the theater's own props (app/episodes/[id]/page.tsx hands it over for a creator). */
 export type TheaterVerdict = {
@@ -62,6 +63,8 @@ type Props = {
   cut?: CutLink | null;
   /** The date's report card (lib/report-card.ts), once it has aired for everyone: a link on the end screen. */
   reportCard?: string | null;
+  /** What to watch next (the page's "Up next", lib/up-next.ts): offered on a viewer's end screen, or null. */
+  upNext?: TheaterNext | null;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -119,7 +122,7 @@ function playMsOf(transcript: Turn[]): number {
   return ms;
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, reportCard, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, reportCard, upNext, onExit }: Props & { onExit: () => void }) {
   // The cold open comes first for anyone starting from the top (never the creator just filmed, nor picking up live).
   const intro = Boolean(coldOpen) && !justFilmed && !(startAt && startAt > 0);
   const [card, setCard] = useState<"first" | "again" | null>(intro ? "first" : null);
@@ -299,6 +302,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
                   </Link>
                 </p>
               )}
+              {upNext && <TheaterUpNext next={upNext} />}
             </div>
           ))}
       </div>
