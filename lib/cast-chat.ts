@@ -34,6 +34,7 @@ import { dateLabel, REPORT_HIDE_THRESHOLD, type Ending } from "./rules";
 import { checkSheetText, checkShowText } from "./safety";
 import { showCastIds } from "./season-cast";
 import { venueName, venuePhrase } from "./venues";
+import { escapeRegExp } from "./text";
 
 export const CHAT_MIN = 3;
 export const CHAT_MAX = 6;
@@ -201,8 +202,7 @@ const MEME =
 
 export const isMemeSpeak = (text: string): boolean => MEME.test(text);
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRe(word)}(?![\\p{L}])`, "u").test(text);
+const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRegExp(word)}(?![\\p{L}])`, "u").test(text);
 /** A venue's name as a gossip would say it, or null when it's a long one-off place nobody would quote. */
 const venueWords = (v: string | null): string | null => {
   if (!v) return null;

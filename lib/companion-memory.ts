@@ -7,6 +7,7 @@ import { crisisIntent } from "./crisis";
 import { maybeCrisis } from "./step-in";
 import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
 import { getPersona, type ScenePersona } from "./persona";
+import { escapeRegExp } from "./text";
 
 /**
  * What a companion remembers about the person (docs/companions.md): short facts drawn from their own words every few
@@ -139,7 +140,7 @@ export async function updateFacts(db: Db, threadId: string, name: string, model:
 export function fromPersona(fact: string, persona: ScenePersona, ownWords: string): boolean {
   const said = ownWords.toLowerCase();
   const name = persona.name.trim().toLowerCase();
-  if (name && new RegExp(`(^|[^\\p{L}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\p{L}]|$)`, "u").test(fact.toLowerCase()) && !said.includes(name)) return true;
+  if (name && new RegExp(`(^|[^\\p{L}])${escapeRegExp(name)}([^\\p{L}]|$)`, "u").test(fact.toLowerCase()) && !said.includes(name)) return true;
   const f = words(fact);
   const theirs = words(ownWords);
   return [persona.look, persona.about].some((part) => part && overlap(words(part), f) >= 0.6 && overlap(words(part), theirs) < 0.6);

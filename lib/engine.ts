@@ -11,7 +11,6 @@
  * reproducible. Same input + same seed => same outcome, always. No Date.now, no Math.random, no I/O.
  */
 import {
-  AGENDAS,
   agenda,
   DATE_VARIABLES,
   ENDINGS,
@@ -764,5 +763,4 @@ export function fixedEngine(partial: Partial<Outcome> & { ending: Ending }, opts
   };
 }
 
-export const ALL_AGENDA_IDS = AGENDAS.map((a) => a.id);
 export { DATE_VARIABLES };

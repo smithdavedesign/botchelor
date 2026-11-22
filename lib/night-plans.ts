@@ -57,6 +57,7 @@ import { summarizeUsage } from "./pricing";
 import { beatFor, dayOf, producedDay, producerOn, type Beat } from "./producer";
 import type { BuiltDate } from "./simulation";
 import { bringable, TRUST_LABELS } from "./story-state";
+import { soft } from "./soft";
 
 type Env = Record<string, string | undefined>;
 
@@ -138,7 +139,7 @@ export async function claimNightPlan(db: Db, aId: string, bId: string, now: Date
 export async function planIfFits(db: Db, claimed: ClaimedPlan | null, built: BuiltDate, decided: Outcome): Promise<DatePlan | null> {
   if (!claimed) return null;
   const fit = claimed.fit_key === fitKey(built, decided) && claimed.plan?.acts?.length === 3;
-  await db.query(`update date_plans set fit = $2 where id = $1`, [claimed.id, fit]).catch(() => {});
+  await db.query(`update date_plans set fit = $2 where id = $1`, [claimed.id, fit]).catch(soft("night plans: store the fit"));
   track("night_plan_read", { slot: claimed.slot, fit });
   return fit ? { ...claimed.plan, source: "producer" } : null;
 }
@@ -213,13 +214,13 @@ export async function writeNightPlans(db: Db, now: Date = new Date(), opts: { mo
   // The date the vote is staging is made on the first pass of the produced day, from the vote of the day before.
   const voteDay = dayOf(new Date(Date.parse(`${day}T00:00:00Z`) - 24 * 60 * 60 * 1000));
   const made = await db.query(`select 1 from situation_nights where day = $1`, [voteDay]);
-  const deal = made.rows.length ? null : await situationDeal(db, voteDay).catch(() => null);
+  const deal = made.rows.length ? null : await situationDeal(db, voteDay).catch(soft("night plans: the situation vote", null));
   if (deal?.ok) due.push({ slot: "situation", a: deal.first, b: deal.second, opts: deal.opts, beatDay: voteDay });
   // Otherwise the lobby's room for the day, which the day is sure to get (the daily job makes one when the day has no
   // room yet, lib/watch.ts refreshLobby). On a day with a voted date the lobby only makes a room once somebody has
   // started that one, so no plan is spent on it. The round it is dealt as is how many of the day's rooms come before it.
   if (!due.length && !made.rows.length) {
-    const lobby = await lobbyDeal(db, new Date(`${day}T12:00:00Z`), 2 * (await templateRoomsOn(db, day))).catch(() => null);
+    const lobby = await lobbyDeal(db, new Date(`${day}T12:00:00Z`), 2 * (await templateRoomsOn(db, day))).catch(soft("night plans: the lobby", null));
     if (lobby) due.push({ slot: "lobby", a: lobby.a, b: lobby.b, opts: lobby.thumbs, beatDay: day });
   }
   if (!due.length) return { day, skipped: "nothing_due" };
@@ -241,7 +242,7 @@ export async function writeNightPlans(db: Db, now: Date = new Date(), opts: { mo
       const usage: Usage[] = [];
       const served = new Set<string>();
       const t0 = Date.now();
-      const beat = await beatFor(db, d.beatDay, opts.env).catch(() => null);
+      const beat = await beatFor(db, d.beatDay, opts.env).catch(soft("night plans: the day's beat", null));
       const plan = await writeNightPlan(model, built.built, built.decided, beat, (u) => usage.push(u), (m) => served.add(m));
       const ms = Date.now() - t0;
       const sum = summarizeUsage(usage, usage.length);
