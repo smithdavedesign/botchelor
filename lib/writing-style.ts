@@ -25,7 +25,6 @@ import { planState } from "./paid-plans";
 
 export const STYLE_SIDES = ["show", "adult"] as const;
 export type StyleSide = (typeof STYLE_SIDES)[number];
-export const isStyleSide = (x: unknown): x is StyleSide => typeof x === "string" && (STYLE_SIDES as readonly string[]).includes(x);
 
 /** What a story of a show date costs someone without the plan, in bought dates (once a date; then free to read). */
 export const STORY_TOKENS = 1;

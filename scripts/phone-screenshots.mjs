@@ -5,7 +5,8 @@
  * database with the harness's stand-in showrunner (no key), companions open as on prod.
  *
  * A sample creator makes Mira Quell in the browser's own session and sends her on a date with Rafe Calloway. Then:
- *  1. the home page opens on Mira's phone, never opted in: "Hear from Mira" is the one action;
+ *  1. the home page opens on Mira's phone, never opted in: "Watch Mira × Rafe" first while the date hasn't aired, and
+ *     "Hear from Mira" beside it;
  *  2. the tap opens her thread with the text about the date and its photo: the photo holds a 4:5 box, has alt text, is
  *     one link to the date, and nothing scrolls sideways;
  *  3. back home: her last texts, the chips into the thread, "Open Mira's texts";

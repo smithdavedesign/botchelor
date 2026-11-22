@@ -44,7 +44,6 @@ export type LookStepId = (typeof LOOK_STEP_IDS)[number];
 export const LOOK_MIN_AGE = 18;
 export const LOOK_MAX_AGE = 60;
 export const IMAGE_MIN_AGE = 21;
-export const LOOK_AGES: readonly number[] = Array.from({ length: LOOK_MAX_AGE - LOOK_MIN_AGE + 1 }, (_, i) => LOOK_MIN_AGE + i);
 
 /**
  * "Work clothes": dressed for their job. The occupation is typed, and nothing typed reaches the image model, so it only
