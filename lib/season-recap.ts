@@ -32,6 +32,7 @@ import { computeFinale, type FinaleNews } from "./season-finale";
 import { isMonthlySeason, seasonNumber, seasonRef, type SeasonRef } from "./season-ref";
 import { seasonWindow } from "./season-window";
 import { venuePhrase } from "./venues";
+import { escapeRegExp } from "./text";
 
 /**
  * The stored recap's version. A row written by an older one is computed and frozen again on its next read (the one way
@@ -167,7 +168,7 @@ const BROKEN: readonly Stage[] = [...APART_STAGES, "bad_blood"];
 
 const dayOf = (at: Date | string, start: Date) => Math.floor((new Date(at).getTime() - start.getTime()) / DAY_MS) + 1;
 /** A confessional sometimes starts with its speaker's name ("Rafe: He asked..."): the goodbye drops it. */
-const unlabelled = (line: string, name: string) => line.replace(new RegExp(`^\\s*${shortName(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*`, "i"), "").trim();
+const unlabelled = (line: string, name: string) => line.replace(new RegExp(`^\\s*${escapeRegExp(shortName(name))}\\s*:\\s*`, "i"), "").trim();
 
 /** The season's cast (season_casts), whether each is on the next season's, and each leaver's last confessional. */
 async function castOf(db: Db, seasonId: string, nextId: string, start: Date, end: Date): Promise<RecapCastMember[]> {

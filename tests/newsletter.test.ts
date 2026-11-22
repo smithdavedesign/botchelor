@@ -26,6 +26,7 @@ import { POST as optoutRoute } from "@/app/api/newsletter/optout/route";
 import { POST as signUpRoute } from "@/app/api/newsletter/route";
 import ConfirmPage from "@/app/newsletter/confirm/page";
 import UnsubscribePage from "@/app/newsletter/unsubscribe/page";
+import { issueWords } from "@/app/request";
 import { SECRET_POOL } from "@/lib/cast-secrets";
 import { setEmailLookupForTests, setEmailSenderForTests, signEmailToken, verifyEmailToken, type EmailMessage } from "@/lib/email";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -52,8 +53,9 @@ import {
 } from "@/lib/newsletter";
 import { ensureIssue, isoWeekId, letterWeek, runNewsletter } from "@/lib/newsletter-issue";
 import { setSeasonCastForTests } from "@/lib/season-cast";
+import { EMAIL_MAX } from "@/lib/waitlist";
 import { ensureRevealVote, runDueReveal, voteReveal } from "@/lib/weekly-reveal";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { BASE_URL, episodeJson, scriptedModel, startTestDb } from "./helpers";
 
 // Built from parts so no literal secret sits in the repo (GitGuardian scans every commit).
@@ -228,6 +230,12 @@ describe("signing up", () => {
     for (const body of [{ email: "not-an-email", attest: true }, { email: "a@example.com" }, { email: "a@example.com", attest: false }, { email: `${"a".repeat(250)}@example.com`, attest: true }]) {
       expect((await signUp(body)).status, JSON.stringify(body)).toBe(422);
     }
+    // The form says each refusal in people's words, no field name before it (2026-11-22 audit: "email: Enter a valid…").
+    const said = async (body: unknown) => issueWords(await (await signUp(body)).json());
+    expect(await said({ email: "not-an-email", attest: true })).toBe("Enter a valid email address.");
+    expect(await said({ email: `${"a".repeat(250)}@example.com`, attest: true })).toBe(`An email address is at most ${EMAIL_MAX} characters.`);
+    expect(await said({ email: "a@example.com" })).toBe("Confirm you are 18 or older.");
+    expect(readFileSync(new URL("../app/NewsletterForm.tsx", import.meta.url), "utf8")).toContain("setError(issueWords(data) ?? message);");
     expect((await signUp({ email: "a@example.com", attest: true }, { ua: "Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)" })).status).toBe(403);
     expect(await t.count("newsletter_subscribers")).toBe(0);
     expect(sent).toHaveLength(0);

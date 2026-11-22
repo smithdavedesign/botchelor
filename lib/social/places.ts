@@ -124,12 +124,6 @@ export async function ensurePlaces(db: Db, inputs: readonly PlaceInput[], o: { r
   return rows.length;
 }
 
-/** One place by id, or null. */
-export async function getPlace(db: Db, id: string): Promise<SocialPlace | null> {
-  const r = (await db.query<PlaceRow>(`select ${PLACE_COLUMNS} from social_places where id = $1`, [id])).rows[0];
-  return r ? placeOf(r) : null;
-}
-
 /** One place by key, or null. */
 export async function getPlaceByKey(db: Db, key: string): Promise<SocialPlace | null> {
   const r = (await db.query<PlaceRow>(`select ${PLACE_COLUMNS} from social_places where key = $1`, [key])).rows[0];

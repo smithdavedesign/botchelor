@@ -16,7 +16,6 @@ export type { TieKindId };
 /** The layers of the multiplex graph: every kind is on one (PRD section 5.1). */
 export const LAYERS = ["kin", "romance", "friendship", "work", "place", "conflict", "acquaintance", "communication"] as const;
 export type Layer = (typeof LAYERS)[number];
-export const isLayer = (x: unknown): x is Layer => typeof x === "string" && (LAYERS as readonly string[]).includes(x);
 
 /** How a tie feels, signed: -2 (hostile) .. 2 (devoted). 0 is neutral (exes, people who just met). */
 export type Valence = -2 | -1 | 0 | 1 | 2;

@@ -18,7 +18,6 @@ export const CAMERA_MOVES = [
 ] as const;
 export type CameraMoveId = (typeof CAMERA_MOVES)[number]["id"];
 export const CAMERA_MOVE_IDS: CameraMoveId[] = CAMERA_MOVES.map((m) => m.id);
-export const isCameraMove = (v: unknown): v is CameraMoveId => typeof v === "string" && (CAMERA_MOVE_IDS as string[]).includes(v);
 
 /** A move's words for a video prompt; the steady camera for none or one that isn't on the list. */
 export function cameraWords(id: string | null | undefined): string {

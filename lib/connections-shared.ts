@@ -369,7 +369,6 @@ export function ago(iso: string, now: number = Date.now()): string {
  */
 export const ERROR_KINDS = ["invalid_key", "no_credit", "rate_limited", "model_unavailable", "provider_down", "unreachable", "unreadable", "over_cap", "unknown"] as const;
 export type ErrorKind = (typeof ERROR_KINDS)[number];
-export const isErrorKind = (v: unknown): v is ErrorKind => typeof v === "string" && (ERROR_KINDS as readonly string[]).includes(v);
 
 /** An error as the card shows it: what happened, and the one thing to do about it (a link when it's on the provider's site). */
 export type PlainError = { kind: ErrorKind; message: string; fix: { label: string; href: string | null } | null };

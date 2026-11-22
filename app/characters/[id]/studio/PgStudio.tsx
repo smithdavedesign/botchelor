@@ -152,14 +152,14 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setNote({ text: as === "portrait" ? `That's ${c.name.split(/\s+/)[0]}'s profile picture now.` : `That's ${c.name.split(/\s+/)[0]}'s After Dark face now.` });
   }
 
-  // 📌 On their profile, or off it (lib/studio/profile-photos.ts): pg pictures only.
+  // 📌 In the Photos on their page, or out of them (lib/studio/profile-photos.ts): pg pictures only.
   async function pin(id: string, on: boolean) {
     const res = await requestJson(`/api/characters/${c.id}/photos`, { action: on ? "pin" : "unpin", picture_id: id }).catch(() => null);
     if (!res || !res.ok) return setNote({ text: res ? res.message : "That didn't reach the server.", error: true });
     const mark = (p: PgPicture) => (p.id === id ? { ...p, pinned: on } : p);
     setState((s) => ({ ...s, pictures: s.pictures.map(mark) }));
     setFresh((f) => f.map(mark));
-    setNote({ text: on ? `It's on ${c.name.split(/\s+/)[0]}'s profile.` : "It's off their profile." });
+    setNote({ text: on ? `It's in the Photos on ${c.name.split(/\s+/)[0]}'s page.` : "It's out of their Photos." });
   }
   // 💬 A photo in the texts with someone they've dated.
   async function send(id: string, to: string) {
@@ -280,7 +280,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
               {note.text}
             </p>
           )}
-          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} onPin={pin} onSend={send} partners={state.partners} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />}
+          {fresh.length > 0 && <Pictures items={fresh} onDelete={remove} onUse={usePicture} onPin={pin} onSend={send} partners={state.partners} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} hidden={c.private} />}
         </>
       ) : tab === "create" ? (
         <CreateLibrary scope="safe" onLibrary={onLibrary} />
@@ -320,7 +320,7 @@ export default function PgStudio({ initial }: { initial: PgState }) {
             </p>
           )}
           <PgFilterBar items={state.pictures} value={filter} onChange={setFilter} shown={shown.length} />
-          <Pictures items={shown} onDelete={remove} onUse={usePicture} onPin={pin} onSend={send} partners={state.partners} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} />
+          <Pictures items={shown} onDelete={remove} onUse={usePicture} onPin={pin} onSend={send} partners={state.partners} afterDark={afterDark} sel={sel} onCarousel={busy ? undefined : carousel} carouselPrice={carouselPrice} hidden={c.private} />
           {sel.selecting && (
             <SelectBar count={sel.ids.length} total={shown.length} onAll={() => sel.set(shown.map((p) => p.id))} onExport={() => setExporting(sel.ids)} onDone={sel.done} />
           )}
@@ -344,9 +344,10 @@ function Pictures({
   onPin,
   onSend,
   partners = [],
+  hidden = false,
 }: {
   items: PgPicture[];
-  /** 📌 On their profile, or off it. */
+  /** 📌 In their profile's Photos, or out of them. */
   onPin?: (id: string, on: boolean) => void;
   /** 💬 As a photo in their texts with one of `partners`. */
   onSend?: (id: string, to: string) => void;
@@ -358,62 +359,105 @@ function Pictures({
   /** A carousel of this picture (six angles of its moment), and what one costs; absent while something's being drawn. */
   onCarousel?: (id: string) => void;
   carouselPrice?: string;
+  /** A private character: only its owner sees it, so a picture of it isn't offered for the showcase. */
+  hidden?: boolean;
 }) {
   return (
     <ul className="pg-pictures">
-      {items.map((p) => (
-        <li key={p.id} className={`card${sel?.has(p.id) ? " picked" : ""}`}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- the owner's private picture, from its own route */}
-          <img src={pictureUrl(p.id)} alt="A Studio picture" loading="lazy" style={{ aspectRatio: tileRatio(p.aspect) }} />
-          <span className="pg-picture-meta">
-            <AiTag />
-            {p.rating === "suggestive" && <span className="badge" title="Signed-in people only">Suggestive</span>}
-            {/* Their profile picture (pg only) or their After Dark face (lib/studio/picture-choice.ts). */}
-            {onUse && p.rating === "pg" && (
-              <button type="button" className="button-ghost small" onClick={() => onUse(p.id, "portrait")}>
-                Profile picture
-              </button>
+      {items.map((p) => {
+        const pg = p.rating === "pg";
+        const useIt = Boolean(onUse && (pg || afterDark)) || Boolean(onPin && pg);
+        return (
+          <li key={p.id} className={`card${sel?.has(p.id) ? " picked" : ""}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- the owner's private picture, from its own route */}
+            <img src={pictureUrl(p.id)} alt="A Studio picture" loading="lazy" style={{ aspectRatio: tileRatio(p.aspect) }} />
+            <span className="pg-picture-meta">
+              <AiTag />
+              {p.rating === "suggestive" && <span className="badge" title="Signed-in people only">Suggestive</span>}
+              {p.pinned && <span className="badge">📌 In their Photos</span>}
+            </span>
+            {/* Picking pictures to export: only the tick on the tile (app/studio/TileTools.tsx). */}
+            {sel?.selecting ? (
+              <TileTools id={p.id} api={PG_API} selecting selected={sel.has(p.id)} onToggle={() => sel.toggle(p.id)} />
+            ) : (
+              // Everything else in one ⋯, in labelled rows (the After Dark Studio's way): seven buttons under every picture
+              // were taller than it, and Delete looked like the rest. Delete sits apart, in the danger colour.
+              <details className="studio-tile-more">
+                <summary title="Use it, share it, make more, or delete it">⋯</summary>
+                <div className="studio-tile-groups">
+                  {useIt && (
+                    <div className="studio-tile-group" role="group" aria-label="Use it">
+                      <span className="muted small">Use it</span>
+                      <div className="studio-tile-menu">
+                        {/* Their profile picture (pg only) or their After Dark face (lib/studio/picture-choice.ts). */}
+                        {onUse && pg && (
+                          <button type="button" className="button-ghost small" onClick={() => onUse(p.id, "portrait")}>
+                            Use as profile picture
+                          </button>
+                        )}
+                        {onUse && afterDark && (
+                          <button type="button" className="button-ghost small" onClick={() => onUse(p.id, "face")}>
+                            🌙 Use as After Dark face
+                          </button>
+                        )}
+                        {/* The Photos on their page (lib/studio/profile-photos.ts): pg only. */}
+                        {onPin && pg && (
+                          <button type="button" className="button-ghost small" aria-pressed={Boolean(p.pinned)} onClick={() => onPin(p.id, !p.pinned)} title="The Photos on their page: what other people and agents see">
+                            {p.pinned ? "📌 In their Photos ✓" : "📌 Add to their Photos"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className="studio-tile-group" role="group" aria-label="Share it">
+                    <span className="muted small">Share it</span>
+                    <div className="studio-tile-menu">
+                      {/* 📣 On the creator showcase (lib/showcase.ts), under their handle; a post already up can still be taken down. */}
+                      {hidden && !p.post ? (
+                        <span className="muted small">Private character: make them public to publish their pictures.</span>
+                      ) : (
+                        <PublishButton source="pg" mediaId={p.id} post={p.post ?? null} />
+                      )}
+                      {onSend && pg && partners.length > 0 && (
+                        <select
+                          className="small"
+                          aria-label="Send in texts"
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) onSend(p.id, e.target.value);
+                          }}
+                        >
+                          <option value="">💬 Send to…</option>
+                          {partners.map((m) => (
+                            <option key={m.character_id} value={m.character_id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    {/* ⬇ Download and ✍️ captions in their voice (app/studio/TileTools.tsx). */}
+                    <TileTools id={p.id} api={PG_API} selecting={false} selected={false} onToggle={() => sel?.toggle(p.id)} />
+                  </div>
+                  <div className="studio-tile-group" role="group" aria-label="Make more">
+                    <span className="muted small">Make more</span>
+                    <div className="studio-tile-menu">
+                      <button type="button" className="button-ghost small" disabled={!onCarousel} onClick={() => onCarousel?.(p.id)} title={`This very moment from six angles, a set to post together: ${carouselPrice}`}>
+                        🎠 Carousel · {carouselPrice}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="studio-tile-delete">
+                    <button type="button" className="button-ghost small danger" onClick={() => onDelete(p.id)}>
+                      Delete
+                    </button>
+                  </p>
+                </div>
+              </details>
             )}
-            {onUse && afterDark && (
-              <button type="button" className="button-ghost small" onClick={() => onUse(p.id, "face")}>
-                🌙 After Dark face
-              </button>
-            )}
-            {onPin && p.rating === "pg" && (
-              <button type="button" className="button-ghost small" aria-pressed={Boolean(p.pinned)} onClick={() => onPin(p.id, !p.pinned)} title="On their profile: what other people and agents see">
-                {p.pinned ? "📌 On profile ✓" : "📌 Profile"}
-              </button>
-            )}
-            {onSend && p.rating === "pg" && partners.length > 0 && (
-              <select
-                className="small"
-                aria-label="Send in texts"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) onSend(p.id, e.target.value);
-                }}
-              >
-                <option value="">💬 Send to…</option>
-                {partners.map((m) => (
-                  <option key={m.character_id} value={m.character_id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button type="button" className="button-ghost small" disabled={!onCarousel} onClick={() => onCarousel?.(p.id)} title={`This very moment from six angles, a set to post together: ${carouselPrice}`}>
-              🎠 Carousel
-            </button>
-            <button type="button" className="button-ghost small" onClick={() => onDelete(p.id)}>
-              Delete
-            </button>
-          </span>
-          {/* 📣 On the creator showcase (lib/showcase.ts), under their handle. */}
-          <PublishButton source="pg" mediaId={p.id} post={p.post ?? null} />
-          {/* ⬇ Download and ✍️ captions in their voice; a tick while picking pictures to export (app/studio/TileTools.tsx). */}
-          <TileTools id={p.id} api={PG_API} selecting={sel?.selecting} selected={sel?.has(p.id)} onToggle={() => sel?.toggle(p.id)} />
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }

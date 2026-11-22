@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { BETA_DAYS, getInvite, inviteSourceCounts, sourceLabel, verifyReviewToken } from "@/lib/adult/invites";
 import { getDb } from "@/lib/db";
 
@@ -25,6 +26,11 @@ export default async function InviteReview({ searchParams }: { searchParams: Sea
           That link doesn&apos;t work: it&apos;s expired or wasn&apos;t for a request we have.
         </p>
         <p className="muted small">The newest request email has a working link; nothing was approved or declined.</p>
+        <p>
+          <Link className="button" href="/">
+            Back to the show
+          </Link>
+        </p>
       </>
     );
   }

@@ -76,6 +76,15 @@ export function shipPath(a: ShipName, b: ShipName): string {
 }
 
 /**
+ * The pair's one address for search, the names in alphabetical order: /ship/dex/juniper and /ship/juniper/dex are the
+ * same two people, and both were indexable on their own (2026-11-22 audit). Each page names this as its canonical, and
+ * the sitemap lists it. The page itself still answers in the order typed.
+ */
+export function canonicalShipPath(a: ShipName, b: ShipName): string {
+  return a.slug <= b.slug ? shipPath(a, b) : shipPath(b, a);
+}
+
+/**
  * Where the form sends two typed names. A name it can't read still goes to the result page, which says why, and
  * an empty segment is "-", which reads as no name.
  */

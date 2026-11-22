@@ -16,7 +16,7 @@ import { NOTRACK_COOKIE } from "@/lib/tracking";
  * keep the old property verified; /.well-known/glama.json proves www is ours). That's why www isn't a domain-level
  * redirect on Vercel: that would move /api too. Preview deployments have other hosts and never move.
  */
-/** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here to keep node:crypto out of middleware. */
+/** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here so every request doesn't load lib/http. */
 const IDENTITY_COOKIES = ["bz_sess", "bz_uid"];
 
 /** A page visit on the old host: a cookieless visitor (or crawler) moves for good; a player carries their identity. */
@@ -260,7 +260,7 @@ function renewPlace(req: NextRequest): NextResponse | null {
   return NextResponse.redirect(url, 307);
 }
 
-export function middleware(req: NextRequest): NextResponse {
+export function proxy(req: NextRequest): NextResponse {
   const moved = moveToCanonical(req) ?? moveFromOtherHost(req) ?? moveShowcaseSide(req) ?? moveForAfterDark(req) ?? renewPlace(req);
   if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
@@ -349,9 +349,12 @@ function route(req: NextRequest): NextResponse {
 
 export const config = {
   // Run on pages only: skip /api, Next internals, files with an extension, and the metadata image routes.
-  // Plus the agent docs and crawler files, matched by exact path so they can be counted (never gated).
+  // Plus the agent docs and crawler files, matched by exact path so they can be counted (never gated). The prompt
+  // library's tag pages are named too: tag ids like "light.golden" have a dot, which the first rule takes for a file,
+  // so those pages skipped the 18+ gate and the bot count (2026-11-22 audit).
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\..*|.*opengraph-image|.*icon|apple-icon).*)",
+    "/prompts/tag/:path*",
     "/llms.txt",
     "/llm.txt",
     "/llms-full.txt",
