@@ -68,6 +68,7 @@ import { buildDate, rememberDate, type CharacterForDate, type DateRequest } from
 import { ShowrunnerError } from "./showrunner";
 import type { DateSetup } from "./game";
 import { logTurnDraft } from "./turn-drafts";
+import { soft } from "./soft";
 
 /**
  * Production defers generation to after(); tests (and anywhere without the request lifecycle) run it
@@ -234,7 +235,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // A fast date (lib/fast-date.ts) waits only so long for them: past that it plays this one date on the fallback takes
     // while the derivation finishes behind it and is stored for the next.
     const fast = fastStartOn(formatId);
-    const takes = ensureHotTakes(db, [row.a_id, row.b_id], getModel("minimal", false)).catch(() => {});
+    const takes = ensureHotTakes(db, [row.a_id, row.b_id], getModel("minimal", false)).catch(soft("date job: hot takes"));
     let takesInTime = true;
     if (fast) takesInTime = await settledWithin(takes, hotTakesWaitMs());
     else await takes;
@@ -279,7 +280,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // key isn't set up — and the fall-through logs show_date_free so prod can alert.
     const useFrontier = Boolean(row.use_frontier) || frontierConfigured();
     const frontier = useFrontier ? getFrontierModel() : null;
-    if (frontier && !row.use_frontier) await claimPaidDate(db).catch(() => false);
+    if (frontier && !row.use_frontier) await claimPaidDate(db).catch(soft("date job: count a paid date", false));
     // SPEED_DATE_MODEL / SPEED_DATE_REASONING (lib/fast-date.ts; both unset by default): a speed date's lines, answers,
     // texts and reflections on a faster model, the recap still on the show's. Never on an admin's A/B run.
     const speedActor = frontier && !row.use_frontier ? speedDateActor(formatId, frontier) : null;
@@ -350,7 +351,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       onOutcome: (outcome, lines) => {
         endingStands = true;
         timing.verdict_ms = Date.now() - t0;
-        void renewLease(db, episodeId, row!.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(() => {});
+        void renewLease(db, episodeId, row!.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(soft("date job: renew lease"));
         return db
           .query(
             `update episodes
@@ -382,7 +383,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
         const to = lines[lines.length - 1]?.move?.to;
         if (to) void ensureSet(db, to);
         // The heartbeat: this line renews the lease (a dead writer is retaken soon after its last line).
-        void renewLease(db, episodeId, row!.attempts, endingStands ? AFTER_OUTCOME_LEASE_SECONDS : TURN_LEASE_SECONDS).catch(() => {});
+        void renewLease(db, episodeId, row!.attempts, endingStands ? AFTER_OUTCOME_LEASE_SECONDS : TURN_LEASE_SECONDS).catch(soft("date job: renew lease"));
         return db
           .query(`update episodes set transcript = $2::jsonb, turn_meta = $3::jsonb where id = $1 and status = 'generating'`, [
             episodeId,
@@ -412,13 +413,13 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
       const used: Usage[] = [];
       const n0 = Date.now();
       // A few more calls before the date is saved: the lease covers them.
-      void renewLease(db, episodeId, row.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(() => {});
+      void renewLease(db, episodeId, row.attempts, AFTER_OUTCOME_LEASE_SECONDS).catch(soft("date job: renew lease"));
       // The show's narrator (lib/narrate-date.ts): the frontier with its thinking off when this date ran on it, else the director.
       // Which models wrote the prose (generated_with.narration.models): the lines' own writers are in turn_meta.
       const narrator = frontier ? showNarrator() : models.director;
       const narratedBy = new Set<string>();
       const recordingNarrator: typeof narrator = { complete: (m, o) => narrator.complete(m, { ...o, onModel: (id) => (narratedBy.add(id), o?.onModel?.(id)) }) };
-      const done = await narrateDate(recordingNarrator, kept, built.characters, built.setup.venue, (u) => void used.push(u)).catch(() => null);
+      const done = await narrateDate(recordingNarrator, kept, built.characters, built.setup.venue, (u) => void used.push(u)).catch(soft("date job: narration", null));
       if (done) {
         kept = done.turns;
         narration = {
@@ -479,16 +480,16 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     );
     if (saved.rows.length) {
       for (const d of drafts) await logTurnDraft(db, { episodeId, turnIndex: d.turn_index, side: d.side, source: "critic", reason: d.reason, rejected: d.rejected });
-      await rememberDate(db, row.a_id, row.b_id).catch(() => {});
+      await rememberDate(db, row.a_id, row.b_id).catch(soft("date job: remember the date"));
       // A cast secret a line let slip (living dates): out once this date airs publicly (lib/cast-secrets.ts).
-      if (!partial && gen.slips.length) await recordSlips(db, episodeId, gen.slips).catch(() => {});
+      if (!partial && gen.slips.length) await recordSlips(db, episodeId, gen.slips).catch(soft("date job: record slips"));
       await logSceneRequests(db, episodeId, built.setup, transcript);
       await settleSuggestions(db, episodeId, transcript);
       trackMoves(episodeId, transcript, "show");
       // M14: learned memory is recomputed when a date AIRS (the reveal route / the watch room), not here —
       // a generated date is not yet revealed, and its arc is public, so counting it would spoil predictions.
       await db.query(`update generation_jobs set status = 'succeeded', error = null, updated_at = now() where episode_id = $1`, [episodeId]);
-      await notifyIfAsked(db, episodeId, row.a_name, row.b_name).catch(() => {});
+      await notifyIfAsked(db, episodeId, row.a_name, row.b_name).catch(soft("date job: notify the owners"));
       trackEpisodeCostKept({
         episode_id: episodeId,
         where: "job",
@@ -511,7 +512,7 @@ export async function runGenerationJob(db: Db, episodeId: string, now: Date = ne
     // output won't improve on another run. A failed date stores nothing and costs nothing — give the date
     // back, then delete the episode (which cascades its job). The poller sees it gone and offers a retry.
     // (Only a process crash *before* this catch leaves the job 'running'; the cron re-runs that once.)
-    if (row.reservation) await releaseEpisode(db, row.creator_id, row.reservation).catch(() => {});
+    if (row.reservation) await releaseEpisode(db, row.creator_id, row.reservation).catch(soft("date job: give the date back"));
     // A scene they set and never reached: its token back before the episode (and the suggestion with it) goes.
     await settleSuggestions(db, episodeId, []);
     await db.query(`delete from episodes where id = $1 and status = 'generating'`, [episodeId]);
@@ -584,7 +585,7 @@ export async function rescueStuckJob(db: Db, episodeId: string, now: Date = new 
     )
   ).rows.length > 0;
   if (!stuck) return false;
-  const run = () => runGenerationJob(db, episodeId).catch(() => {});
+  const run = () => runGenerationJob(db, episodeId).catch(soft("date job: rerun a stuck date"));
   try {
     const { after } = await import("next/server");
     after(run);

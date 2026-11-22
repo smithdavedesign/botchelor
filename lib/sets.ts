@@ -56,8 +56,6 @@ const RATE_LIMITED = /\b429\b/;
 /** A failure worth trying again soon: no verdict, a rate limit, a provider outage, or a draw cut off with no reason. */
 export const retryableReason = (reason: string | null): boolean =>
   !reason || UNCHECKED.test(reason) || RATE_LIMITED.test(reason) || /fal\.ai 5\d\d|timed? ?out|fetch failed|network|cut off/i.test(reason);
-/** The wait before the next try, after `attempts` tries: 10 minutes, doubling, at most 6 hours. */
-export const retryDelayMs = (attempts: number): number => Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempts));
 
 export type SetStatus = "drawing" | "ready" | "refused" | "failed";
 
