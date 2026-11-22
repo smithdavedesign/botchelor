@@ -2224,6 +2224,10 @@ type SendProps = {
   firstFormat?: FormatId;
 };
 
+/** How often, and how many times, the first-date card asks whether the new character's face is drawn: about 48 s. */
+const FACE_EVERY_MS = 4000;
+const FACE_TRIES = 12;
+
 export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false, meet = null, firstFormat = DEFAULT_FIRST_DATE_FORMAT }: SendProps) {
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   // How much of a mind of its own, per date (B6): it rides on each send, so it's set here, not on the character.
@@ -2318,6 +2322,34 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // The card then sends a blind date in the first-date format, and the booking route seats the lead.
   const castingNow = useCasting();
   const casting = instant && castingNow && !(meet && instant.id === meet) ? castingNow : null;
+  // Their own face on the first-date card: every new character's headshot is drawn after the save
+  // (lib/default-portraits.ts; 2026-11-21: half within 13 s, most of the rest much later), so the card asks a few times
+  // (GET /api/characters/[id]/portrait) and swaps it in for the drawn avatar; after that it stops asking.
+  const [face, setFace] = useState<string | null>(character.portrait ?? null);
+  const watchFace = Boolean(instant) && !face;
+  useEffect(() => {
+    if (!watchFace) return;
+    let tries = 0;
+    let done = false;
+    const timer = setInterval(async () => {
+      if (++tries > FACE_TRIES) return clearInterval(timer);
+      try {
+        const res = await fetch(`/api/characters/${encodeURIComponent(character.id)}/portrait`, { cache: "no-store" });
+        if (!res.ok) return clearInterval(timer);
+        const data = (await res.json()) as { portrait?: unknown };
+        if (!done && typeof data.portrait === "string" && data.portrait) {
+          setFace(data.portrait);
+          clearInterval(timer);
+        }
+      } catch {
+        // A dropped request: the next try asks again.
+      }
+    }, FACE_EVERY_MS);
+    return () => {
+      done = true;
+      clearInterval(timer);
+    };
+  }, [watchFace, character.id]);
   // How many lines that first date has: the format's own length (a speed date is 6), else the classic 12.
   const firstLines = showFormat(firstFormat).turns ?? CONVERSATION_TURNS;
   const closed = (id: string) => Boolean(taken) && id !== taken?.id;
@@ -2531,7 +2563,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             {/* eslint-disable-next-line @next/next/no-img-element -- a static public asset (the home stage, 1024×576) */}
             <img src={showSetPath("stage")} alt="" width={1024} height={576} decoding="async" />
             <div className="send-first-faces slide-pair" aria-hidden="true">
-              <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={character.portrait ?? null} size={88} decorative round eager />
+              <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={face} size={88} decorative round eager />
               <Avatar seed={date.id} name={date.name} hue={date.hue} portraitSrc={date.portrait} house size={88} decorative round eager />
             </div>
           </div>

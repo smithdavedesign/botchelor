@@ -2,13 +2,29 @@ import { recordAsset, reviewAsset } from "@/lib/assets";
 import { jobUsability, recordJobFailure, recordJobSpend } from "@/lib/connections";
 import { PORTRAIT_ESTIMATE_USD } from "@/lib/connections-shared";
 import { getDb } from "@/lib/db";
-import { handle, json, readJson, session } from "@/lib/http";
+import { handle, json, readJson, session, userIdFromRequest } from "@/lib/http";
 import { DEFAULT_PORTRAIT_STYLE, imageModelFor, isPortraitStyle, PROMPT_VERSION, generatePortrait } from "@/lib/image";
 import { IMAGE_PROVIDERS, userImageKey } from "@/lib/keys";
+import { withPortraits } from "@/lib/portrait-sql";
 import { ownsCharacter } from "@/lib/souls";
 
 type Ctx = { params: Promise<{ id: string }> };
 type Row = { name: string; age: number; bio: string; traits: string[]; appearance: string | null; pronouns: string | null };
+
+/**
+ * The owner asks whether their character's face is ready: its newest approved portrait's served path, or null. The
+ * first-date card (app/create/CreateWizard.tsx SendPhase) asks for a little while after a save, because every new
+ * character's headshot is drawn after the response (lib/default-portraits.ts; 2026-11-21: half arrive within 13 s).
+ * Owner-only, so a private character's face is never told to anyone else; a read, so it writes nothing.
+ */
+export const GET = handle(async (req: Request, ctx: Ctx) => {
+  const { id } = await ctx.params;
+  const userId = userIdFromRequest(req);
+  const db = await getDb();
+  if (!userId || !(await ownsCharacter(db, id, userId))) return json({ error: "character_not_found" }, 404);
+  const [row] = await withPortraits(db, [{ id }], { private: true });
+  return json({ character_id: id, portrait: row?.portrait ?? null });
+});
 
 /**
  * Generate a portrait for your own character on your own image key (BYOK, M16). Owner-only. Needs a saved
