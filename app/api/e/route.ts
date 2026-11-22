@@ -1,8 +1,9 @@
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { detectBot } from "@/lib/bots";
 import { getDb } from "@/lib/db";
-import { cleanBeacon, deviceOf, overBudget, recordBeacon } from "@/lib/engagement";
+import { addressOverBudget, cleanBeacon, deviceOf, overBudget, recordBeacon } from "@/lib/engagement";
 import { authFromRequest, handle, readBodyText } from "@/lib/http";
+import { visitorKey } from "@/lib/limits";
 import { requestPlace } from "@/lib/place";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ export const POST = handle(async (req: Request) => {
   }
   const beacon = cleanBeacon(raw);
   if (!beacon || overBudget(beacon.visitor, beacon.events.length)) return noContent();
+  // The visitor id is the browser's own: the address it comes from is held to a few browsers' worth too.
+  const address = visitorKey(req.headers);
+  if (address && addressOverBudget(address, beacon.visitor, beacon.events.length)) return noContent();
   await recordBeacon(await getDb(), beacon, {
     userId: authFromRequest(req)?.userId ?? null,
     country: requestPlace(req.headers).country,

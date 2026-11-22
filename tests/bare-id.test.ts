@@ -7,7 +7,7 @@ import { POST as proposeRoute } from "@/app/api/couples/[a]/[b]/proposal/route";
 import { signSession, verifySession } from "@/lib/auth";
 import { proposalView } from "@/lib/date-proposals";
 import { doubleView, type GroupNight } from "@/lib/group-dates";
-import { authFromCookieStore, authFromRequest, bareIdsAllowed, internalRequest, isInternalRequest, MCP_CALL_URL, passOn } from "@/lib/http";
+import { authFromCookieStore, authFromRequest, bareIdsAllowed, internalRequest, isInternalRequest, MCP_CALL_PATH, passOn } from "@/lib/http";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { hideOtherOwners, OTHER_OWNER } from "@/lib/mcp/owner-ids";
 import { api, BASE_URL, HOUSE_PARTNER_ID, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
@@ -92,10 +92,10 @@ describe("when a bare id counts", () => {
     const id = crypto.randomUUID();
     const own = internalRequest(id, { body: { a: 1 } });
     expect(isInternalRequest(own)).toBe(true);
-    expect(new URL(own.url).pathname).toBe(new URL(MCP_CALL_URL).pathname);
+    expect(new URL(own.url).pathname).toBe(MCP_CALL_PATH);
     expect(authFromRequest(own)).toEqual({ userId: id, authenticated: false });
     // Same address, same cookie, made outside lib/http.ts: a stranger.
-    const forged = new Request(MCP_CALL_URL, { method: "POST", headers: { "content-type": "application/json", cookie: `bz_uid=${id}` }, body: "{}" });
+    const forged = new Request(`${BASE_URL}${MCP_CALL_PATH}`, { method: "POST", headers: { "content-type": "application/json", cookie: `bz_uid=${id}` }, body: "{}" });
     expect(isInternalRequest(forged)).toBe(false);
     expect(authFromRequest(forged)).toBeNull();
   });
@@ -284,11 +284,11 @@ describe("only lib/http.ts makes the server's own request", () => {
 
   /**
    * The rest of the suite runs with LEGACY_BARE_UID=1, so a route or job that writes a bare id cookie by hand, or
-   * builds a request to MCP_CALL_URL itself, passes every other test and then acts as a stranger in production (its
+   * builds a request to MCP_CALL_PATH itself, passes every other test and then acts as a stranger in production (its
    * request isn't one internalRequest made). This is the test that catches it.
    */
-  it("no other file writes a bare id cookie or builds a request to MCP_CALL_URL by hand", () => {
-    const BY_HAND = [/\$\{USER_COOKIE\}=/, /bz_uid=\$\{/, /["'`]bz_uid=["'`]\s*\+/, /new Request\(\s*MCP_CALL_URL/];
+  it("no other file writes a bare id cookie or builds a request to MCP_CALL_PATH by hand", () => {
+    const BY_HAND = [/\$\{USER_COOKIE\}=/, /bz_uid=\$\{/, /["'`]bz_uid=["'`]\s*\+/, /new Request\([^;]*MCP_CALL_PATH/];
     const offenders = [...sources(join(root, "app")), ...sources(join(root, "lib"))]
       .map((p) => relative(root, p))
       .filter((p) => p !== join("lib", "http.ts"))

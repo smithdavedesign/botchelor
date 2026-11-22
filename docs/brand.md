@@ -225,7 +225,8 @@ call to action's place is a newcomer's; someone with a character has their chara
   tokens are ◈ on a night pill (`.token-pill--tokens`). Never the same pill with a different word, so no page has
   to explain that "the show's dates aren't spent here".
 - **One call to action** (`.nav-cta`), for a newcomer only: in words above 1180px, an icon-only plus from 900 to
-  1180px, and in the menu under 900px.
+  1180px, and in the menu under 900px. In the bar it's the outline button, never filled: a page's own next step is
+  the one filled button on screen (2026-11-22 audit: home, /shop and /pricing each showed two).
 - **The links** are the header doors (`app/Nav.tsx`; `lib/nav-chat.ts`, on unless `NAV_CHAT=0`): Watch · Chat ·
   Characters · Studio · Account. Studio, the fifth door since 2026-11-16, opens on an owner's own studio (`/studio`)
   and on the Gallery (`/showcase`) for anyone without a character. Chat's count (`.nav-count`) is unread texts of both
@@ -237,9 +238,10 @@ call to action's place is a newcomer's; someone with a character has their chara
   tagged 💍), their page and "Make another character". A pick switches every page that's about one character (My
   studio, Matches, the deck, the cards' "Send {mine}"), which no longer carry a switcher of their own; a page's
   heading names its character, and that name (`.heading-switch`) opens the same panel. Not on After Dark's host.
-- **Breakpoints.** Under 1180px the bar tightens (the meter drops its word, the door keeps its words, your character
-  is its face). Under 900px the links fold behind the menu button and the tools stay, your character's face just
-  before the button. Under 560px the door and the badge are marks.
+- **Breakpoints.** Under 1180px the bar tightens (the meter's word goes out of sight but stays in its name for a
+  screen reader, the door keeps its words, your character is its face). Under 900px the links fold behind the menu
+  button and the tools stay, your character's face just before the button; a newcomer, with no face there, sees the
+  meter's word again ("3 free dates"). Under 560px the door and the badge are marks.
 
 ## Themes
 

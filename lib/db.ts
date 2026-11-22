@@ -1451,7 +1451,9 @@ create table if not exists mcp_calls (
   created_at timestamptz not null default now()
 );
 create index if not exists mcp_calls_created_idx on mcp_calls (created_at desc);
-create index if not exists mcp_calls_session_idx on mcp_calls (session_id, created_at);
+-- No index on (session_id, created_at) any more: no query looks calls up by session (lib/agent-analytics.ts groups a
+-- time range, which mcp_calls_created_idx serves), and on 2026-11-22 it was 68 MB, scanned 6 times, last on 11-02.
+-- Where it still exists it is dropped by hand (concurrently), not here.
 -- What agents think of the show (lib/feedback.ts, send_feedback), read by the owner on /admin/feedback.
 create table if not exists agent_feedback (
   id text primary key,

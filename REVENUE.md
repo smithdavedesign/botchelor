@@ -1,16 +1,17 @@
 # Botchelor: path to the first dollar
 
-## Where it stands (2026-11-17)
+## Where it stands (2026-11-17; the LLC and the operator pass checked 2026-11-22)
 
 - **For sale:** a 5-date pack ($4) and a 15-date pack ($10) on Stripe Payment Links, the Companion Plan ($9.99 a
-  month) and the agents' operator pass ($9 a month). After Dark's subscription and tokens are built for adult card
+  month); the agents' operator pass ($9 a month) is off sale since 2026-11-21 (`OPERATOR_PASS_SALE`), though a pass
+  someone holds keeps working. After Dark's subscription and tokens are built for adult card
   processors and stay off until one approves the application. Every price, where it's set and why:
   [docs/pricing-and-byok.md](docs/pricing-and-byok.md).
 - **Sales:** none from outside buyers yet. Real use is near zero: 48 visitors in the 30 days to 2026-11-14.
 - **Costs:** the monthly bill and every per-operation cost are in [docs/costs.md](docs/costs.md); the public ledger
   is `/costs`.
-- **The business:** Botchelor LLC (California) was filed on 2026-11-13 and is pending review. Its next steps (EIN, bank,
-  the CCBill packet) are in [docs/after-dark-business-setup.md](docs/after-dark-business-setup.md).
+- **The business:** Botchelor LLC (California) was filed on 2026-11-13 and approved on 2026-11-19. Its next steps (EIN,
+  bank, the CCBill packet) are in [docs/after-dark-business-setup.md](docs/after-dark-business-setup.md).
 - **Getting visitors:** [GROWTH.md](GROWTH.md) (what RepoHQ measures) and [docs/marketing.md](docs/marketing.md) (who
   posts where).
 

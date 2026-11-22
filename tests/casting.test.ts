@@ -662,7 +662,7 @@ describe("the surfaces", () => {
     const stranger = renderToStaticMarkup(await Home({ searchParams: Promise.resolve({}) }));
     // The one screen's line (app/HomeOpen.tsx, 2026-11-21): who the first date is with, in plain words. A stranger has
     // no season yet, so no month and no "Botchelor"; the old page's longer line is HOME_OPEN=0's.
-    expect(stranger).toContain(`Describe a character in a sentence. Their first date is with ${LEAD_FIRST}, next season&#x27;s lead. You watch it air. Free, no sign-up.`);
+    expect(stranger).toContain(`Describe a character in a sentence. Their first date is with ${LEAD_FIRST}, who leads next month&#x27;s season. You watch it air. Free, no sign-up.`);
     expect(stranger).not.toContain(`${month}&#x27;s Botchelor`);
     expect(stranger).not.toContain("They go on a blind date an AI writes.");
     vi.stubEnv("HOME_OPEN", "0");

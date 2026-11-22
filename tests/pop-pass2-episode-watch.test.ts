@@ -17,7 +17,8 @@ describe("the episode page (pass 2 of the visual pop audit)", () => {
   });
 
   it("raises each line of the read-through as it scrolls in, only where view timelines exist", () => {
-    expect(css).toMatch(/@supports \(animation-timeline: view\(\)\) \{\s*@media \(prefers-reduced-motion: no-preference\) \{\s*\.episode-read \.chat-row \{\s*animation: rise-in linear both;/);
+    // Forwards, not both (2026-11-22 audit): a line further down sits at full strength until it starts to come in.
+    expect(css).toMatch(/@supports \(animation-timeline: view\(\)\) \{\s*@media \(prefers-reduced-motion: no-preference\) \{\s*\.episode-read \.chat-row \{\s*animation: rise-in linear forwards;/);
   });
 
   it("puts the diary cam on the confessional set with the camera rolling", () => {

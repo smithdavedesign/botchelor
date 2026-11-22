@@ -82,6 +82,8 @@ describe("1. the tool page: /tools/ship-name-generator", () => {
     for (const input of inputs) {
       expect(input).toContain("required");
       expect(input).toContain(`maxLength="${SHIP_NAME_MAX}"`);
+      // An example reads as one (2026-11-22): "e.g. Juniper", in italics (globals.css .ship-form ::placeholder).
+      expect(input).toMatch(/placeholder="e\.g\. [A-Z][a-z]+"/);
     }
     expect(html).toMatch(/<form[^>]*action="\/ship"[^>]*method="get"|<form[^>]*method="get"[^>]*action="\/ship"/);
     // Each input has a visible label.
