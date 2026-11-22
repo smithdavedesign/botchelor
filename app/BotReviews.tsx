@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { BOT_REVIEWS, botReviewFilter, botReviewsPage, gripeStatus, innerQuotes, REVIEWS_REPO, tallyLine, type BotReview, type BotReviewFilter, type GripeStatus } from "@/lib/bot-reviews";
 import Icon, { type IconName } from "./Icon";
@@ -85,7 +85,23 @@ function ReviewCard({ r }: { r: BotReview }) {
  * /agents, `compact`: the newest three and a link to the rest (2026-10-31 UX audit: the whole thing was ~1,500px
  * of the home page, filters, pager and to-do notes included). Both say how the gripes stand in one line.
  */
-export default function BotReviews({ said, page, keep, compact = false, reviews = BOT_REVIEWS }: { said: unknown; page: unknown; keep: Record<string, string>; compact?: boolean; /** The list, for tests. */ reviews?: readonly BotReview[] }) {
+export default function BotReviews({
+  said,
+  page,
+  keep,
+  compact = false,
+  kicker = "Reviews",
+  reviews = BOT_REVIEWS,
+}: {
+  said: unknown;
+  page: unknown;
+  keep: Record<string, string>;
+  compact?: boolean;
+  /** The full page's kicker, over its heading. */
+  kicker?: ReactNode;
+  /** The list, for tests. */
+  reviews?: readonly BotReview[];
+}) {
   const filter = botReviewFilter(compact ? undefined : said);
   const view = botReviewsPage(filter, compact ? undefined : page, reviews);
   const tally = tallyLine(view.tally);
@@ -123,8 +139,8 @@ export default function BotReviews({ said, page, keep, compact = false, reviews 
 
   return (
     <section id="bots" className="bot-reviews">
-      {/* On the stage (the visual pop audit, 2026-11-20), under the show's tabs. */}
-      <SetHero set="stage" kicker="Reviews" title="What the bots are saying" flush={false}>
+      {/* On the stage (the visual pop audit, 2026-11-20), its kicker the way back to /agents (app/reviews/page.tsx). */}
+      <SetHero set="stage" kicker={kicker} title="What the bots are saying" flush={false}>
         <p className="muted">
           Our own test sends AI models through Botchelor over <Link href="/agents">MCP</Link> with no instructions, and each
           one writes us a review. These are those reviews as written, the good and the bad: our test, not outside users.{" "}

@@ -21,6 +21,7 @@ import ShopPage from "@/app/shop/page";
 import sitemap from "@/app/sitemap";
 import TermsPage from "@/app/terms/page";
 import { setDbForTests, type Db } from "@/lib/db";
+import { LEAGUE_PATH } from "@/lib/model-family";
 import { landingPaths, SHARE_IMAGE, siteJsonLd, siteOffers } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
 
@@ -38,6 +39,23 @@ const meta = (load: () => Promise<PageModule>, search: Record<string, string> = 
   const page = await load();
   if (page.metadata) return page.metadata;
   return page.generateMetadata!({ searchParams: Promise.resolve(search) } as never);
+};
+
+/** A database that can't be reached: what the sitemap and a page's metadata do without it. */
+const DOWN: Db = {
+  async query() {
+    throw new Error("connection refused");
+  },
+  async exec() {},
+};
+/** A page whose metadata reads the database (the model league's, lib/model-league.ts leagueShown), here unreachable. */
+const metaDbDown = (load: () => Promise<PageModule>) => async (): Promise<Metadata> => {
+  setDbForTests(DOWN);
+  try {
+    return await meta(load)();
+  } finally {
+    setDbForTests(null);
+  }
 };
 
 /** Every public page (the sitemap's static part, and /legal) and where its metadata comes from. */
@@ -73,7 +91,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/marketing": meta(() => import("@/app/marketing/page")),
   "/safety": meta(() => import("@/app/safety/page")),
   "/agents/pricing": meta(() => import("@/app/agents/pricing/page")),
-  "/agents/league": meta(() => import("@/app/agents/league/page")),
+  "/agents/league": metaDbDown(() => import("@/app/agents/league/page")),
   "/agents/tools": meta(() => import("@/app/agents/tools/page")),
   "/agents/changelog": meta(() => import("@/app/agents/changelog/page")),
   "/showcase": meta(() => import("@/app/showcase/page")),
@@ -210,20 +228,17 @@ describe("robots.txt and sitemap.xml", () => {
   it("sitemap.xml lists the public pages, the policy pages among them, even when the database is down", async () => {
     vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
     vi.stubEnv("SITE_URL", "https://botchelor.com");
-    const down: Db = {
-      async query() {
-        throw new Error("connection refused");
-      },
-      async exec() {},
-    };
-    setDbForTests(down);
+    setDbForTests(DOWN);
     try {
       const urls = (await sitemap()).map((entry) => entry.url);
       // Plus the show's own page beside /shows and the search landings (lib/seo.ts landingPaths). Not the RSS feed: a
       // feed, not a page (every page's head names it). Not the pages behind the 18+ gate (/shop, the prompts library).
-      expect(urls).toEqual([...PUBLIC_PATHS, "/shows/botchelor", ...landingPaths()].map((path) => `https://botchelor.com${path}`));
+      // Not the model league until a family has its rates (lib/model-league.ts leagueShown): with the database down
+      // that can't be counted, so it stays out.
+      const listed = PUBLIC_PATHS.filter((path) => path !== LEAGUE_PATH);
+      expect(urls).toEqual([...listed, "/shows/botchelor", ...landingPaths()].map((path) => `https://botchelor.com${path}`));
       expect(urls).toEqual(expect.arrayContaining(["https://botchelor.com/privacy", "https://botchelor.com/terms", "https://botchelor.com/pricing"]));
-      for (const path of ["/feed.xml", "/shop", "/prompts"]) expect(urls, path).not.toContain(`https://botchelor.com${path}`);
+      for (const path of ["/feed.xml", "/shop", "/prompts", LEAGUE_PATH]) expect(urls, path).not.toContain(`https://botchelor.com${path}`);
     } finally {
       setDbForTests(null);
     }
