@@ -99,12 +99,16 @@ export default function AccountPanel({ next = null, emailConfirmed = null, perso
     setForgot(false);
     try {
       localStorage.setItem(AUTH_MODE_KEY, m);
-    } catch {}
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
   };
   useEffect(() => {
     try {
       if (localStorage.getItem(AUTH_MODE_KEY) === "login") setModeState("login");
-    } catch {}
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
   }, []);
 
   const load = useCallback(async () => {
@@ -140,7 +144,9 @@ export default function AccountPanel({ next = null, emailConfirmed = null, perso
       // Whoever has an account signs in next time.
       try {
         localStorage.setItem(AUTH_MODE_KEY, "login");
-      } catch {}
+      } catch {
+        /* storage blocked (a private window): not remembered */
+      }
     }
     if (ok && mode === "register") trackConversion("sign_up", { method: "password" });
     if (ok && next) window.location.assign(next); // back where they were going (the shop, to buy)

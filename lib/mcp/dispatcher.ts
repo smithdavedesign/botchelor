@@ -9945,7 +9945,7 @@ async function logCall(msg: RpcMessage, ctx: McpContext, out: Record<string, unk
   // Which language the agent wrote in (lib/language-seen.ts), refused calls too: the call's prose arguments, never the words.
   const prose = tool ? proseArguments(msg.params?.arguments) : [];
   if (prose.length) {
-    const given = clip((msg.params?.arguments as Record<string, unknown>).agent_id, 64);
+    const given = clip((msg.params?.arguments as Record<string, unknown> | undefined)?.agent_id, 64);
     const actor = given ?? (await db.query<{ agent_id: string | null }>(`select agent_id from mcp_sessions where id = $1`, [sessionId])).rows[0]?.agent_id;
     await recordLanguage(db, actor, "mcp", prose);
   }

@@ -31,6 +31,7 @@ export function hasAdultCookie(cookieHeader: string | null | undefined): boolean
  * backslash or control character is refused too: browsers read "/\evil.example" as "//evil.example".
  */
 export function safeFrom(from: string | null | undefined): string {
+  // eslint-disable-next-line no-control-regex -- control characters are what it refuses
   if (!from || !from.startsWith("/") || from.startsWith("//") || from.startsWith("/gate") || /[\\\u0000-\u001f]/.test(from)) return "/";
   return from;
 }

@@ -551,6 +551,8 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
           hangUp();
         },
       }),
+      // Made once: everything it calls reads refs, so the first copies stay current.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       [],
     );
 
@@ -620,7 +622,6 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     // Clips are dropped with their session.
     useEffect(() => {
       if (!clipMode) dropClips();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [clipMode]);
 
     // Still until it's known it can move: the server's markup has no video, and reduced motion keeps the loop off.

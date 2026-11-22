@@ -403,7 +403,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
   };
 
   /** "Use this face": the existing face route (lib/adult/steering.ts), with the others it was picked from. */
-  async function useFace(imageId: string, rivals: string[] = []) {
+  async function pickFace(imageId: string, rivals: string[] = []) {
     setBusy(`face:${imageId}`);
     const res = await requestJson("/api/admin/after-dark/face", { character_id: c.id, image_id: imageId, rivals }).catch(() => null);
     setBusy(null);
@@ -643,7 +643,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                     <span className="muted small">Use it</span>
                     <div className="ad-tile-menu">
                       {solo && s.identity.face !== p.id && (
-                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(p.id, opts.rivals?.filter((r) => r !== p.id) ?? [])}>
+                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void pickFace(p.id, opts.rivals?.filter((r) => r !== p.id) ?? [])}>
                           Use this face
                         </button>
                       )}
@@ -1334,7 +1334,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                       <span className="ad-ready-face">
                         {/* eslint-disable-next-line @next/next/no-img-element -- private, presigned media */}
                         <img className="ad-setup-thumb" src={`${media(s.identity.face)}?w=160`} alt={`${c.name}'s face, drawn already`} />
-                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(s.identity.face!)}>
+                        <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void pickFace(s.identity.face!)}>
                           Use this face
                         </button>{" "}
                         <span className="muted small">
