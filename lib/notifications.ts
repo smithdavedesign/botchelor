@@ -8,8 +8,9 @@
  */
 import type { Db } from "./db";
 import { emailNow } from "./email";
-import { notificationTypeOf } from "./notification-types";
+import { notificationTypeOf, withoutRawIds } from "./notification-types";
 import { pushToUser } from "./push";
+import { DELETED_OWNER } from "./rules";
 
 export type NotificationKind =
   | "texted" // a couple's text: the show's daily one, or one they sent themselves (one unread per couple)
@@ -95,6 +96,8 @@ export type Notification = {
    * called off or lapsed, or the show's model plays their side now. The notice says so and is read.
    */
   resolved?: { episode_id: string; why: TurnResolution };
+  /** A matched or date_agreed notice whose match has ended since (unmatched, or a character deleted): nothing to book. */
+  ended?: true;
 };
 
 /** The notices that ask an owner to book a pair's date, and so go stale once one is booked. */
@@ -122,6 +125,47 @@ export async function markPairNotices(db: Db, userId: string, x: string, y: stri
   await db
     .query(`update notifications set read_at = now() where user_id = $1 and kind = any($2) and read_at is null and link = any($3)`, [userId, [...kinds], pairNoticeLinks(x, y)])
     .catch(() => {});
+}
+
+/**
+ * The pairs ("lo/hi") of `items`' matched / date_agreed notices that can't date any more, in one read (null when none
+ * asks): they unmatched (lib/unmatch.ts keeps that), or one of them is gone or kept only for the dates it aired in
+ * (DELETED_OWNER). A pair that never needed a match row (a house partner) isn't one.
+ */
+async function endedPairs(db: Db, items: Notification[]): Promise<Set<string> | null> {
+  const asked = items.map((n) => pairOfNotice(n)).filter((p): p is [string, string] => p !== null);
+  if (!asked.length) return null;
+  const { rows } = await db.query<{ lo: string; hi: string }>(
+    `select p.lo, p.hi from unnest($1::text[], $2::text[]) as p(lo, hi)
+      where exists (select 1 from unmatches um where um.character_lo = p.lo and um.character_hi = p.hi)
+         or (select count(*) from characters c where c.id in (p.lo, p.hi) and c.owner_id is distinct from $3) < 2`,
+    [asked.map((p) => p[0]), asked.map((p) => p[1]), DELETED_OWNER],
+  );
+  return new Set(rows.map((r) => `${r.lo}/${r.hi}`));
+}
+
+/** What a "Book it" notice says once its match has ended (withEndedMatches). */
+export const ENDED_MATCH_BODY = "This match has ended, so there's nothing to book.";
+
+/**
+ * The render-time half for a match that ended (UX audit 2026-11-22: old "Book it" prompts read as still waiting): a
+ * matched or date_agreed notice with no date booked since (withBookings) whose pair can't date any more (endedPairs: one
+ * of them unmatched, or a character was deleted) says so instead, and is read. A live match, however old, still asks:
+ * its date can still be booked.
+ */
+export async function withEndedMatches(db: Db, userId: string, items: Notification[], known?: Set<string> | null): Promise<Notification[]> {
+  const ended = known === undefined ? await endedPairs(db, items) : known;
+  if (!ended) return items;
+  const pairs = items.map((n) => (n.booked ? null : pairOfNotice(n)));
+  const stale: string[] = [];
+  const out = items.map((n, i): Notification => {
+    const pair = pairs[i];
+    if (!pair || !ended.has(`${pair[0]}/${pair[1]}`)) return n;
+    if (!n.read) stale.push(n.id);
+    return { ...n, body: ENDED_MATCH_BODY, read: true, ended: true };
+  });
+  if (stale.length) await markRead(db, userId, stale).catch(() => 0);
+  return out;
 }
 
 /**
@@ -344,7 +388,7 @@ export async function notify(
       muted ? new Date() : null,
     ]);
     if (muted) return;
-    await pushToUser(db, userId, { title: n.title, body: n.body ?? "", url: n.link ?? "/notifications" });
+    await pushToUser(db, userId, { title: n.title, body: withoutRawIds(n.body ?? ""), url: n.link ?? "/notifications" });
     // Email only for what's waiting on them, if they turned it on (lib/email.ts); the rest is in the daily digest.
     await emailNow(db, userId, { ...n, id }).catch(() => false);
   } catch (err) {
@@ -363,10 +407,21 @@ export async function ownersOf(db: Db, ids: string[]): Promise<Map<string, strin
   return new Map(rows.map((r) => [r.id, r.owner_id]));
 }
 
+/**
+ * Kinds where only the newest notice says anything: a later "likes waiting" counts every like an earlier one did (UX
+ * audit 2026-11-22: four near-identical rows on /notifications). The older ones stay stored but are left out of the
+ * inbox, its counts and my_notifications.
+ */
+export const LATEST_ONLY_KINDS = ["likes_waiting"] as const;
+/** SQL on the notifications row: not one a newer notice of the same LATEST_ONLY_KINDS kind replaced. */
+const NOT_SUPERSEDED = `not (notifications.kind in (${LATEST_ONLY_KINDS.map((k) => `'${k}'`).join(", ")}) and exists (
+  select 1 from notifications newer where newer.user_id = notifications.user_id and newer.kind = notifications.kind
+     and (newer.created_at, newer.id) > (notifications.created_at, notifications.id)))`;
+
 /** How many notifications someone has (or how many unread), for the /notifications pager. */
 export async function countNotifications(db: Db, userId: string, opts: { unread?: boolean; kinds?: readonly string[] } = {}): Promise<number> {
   const { rows } = await db.query<{ n: number }>(
-    `select count(*)::int as n from notifications where user_id = $1${opts.unread ? " and read_at is null" : ""}${opts.kinds ? " and kind = any($2)" : ""}`,
+    `select count(*)::int as n from notifications where user_id = $1${opts.unread ? " and read_at is null" : ""}${opts.kinds ? " and kind = any($2)" : ""} and ${NOT_SUPERSEDED}`,
     opts.kinds ? [userId, [...opts.kinds]] : [userId],
   );
   return rows[0]?.n ?? 0;
@@ -375,7 +430,7 @@ export async function countNotifications(db: Db, userId: string, opts: { unread?
 /** How many notifications, and how many unread, someone has of each kind (the /notifications type filter's counts). */
 export async function countNotificationsByKind(db: Db, userId: string): Promise<{ kind: string; n: number; unread: number }[]> {
   const { rows } = await db.query<{ kind: string; n: number; unread: number }>(
-    `select kind, count(*)::int as n, count(*) filter (where read_at is null)::int as unread from notifications where user_id = $1 group by kind`,
+    `select kind, count(*)::int as n, count(*) filter (where read_at is null)::int as unread from notifications where user_id = $1 and ${NOT_SUPERSEDED} group by kind`,
     [userId],
   );
   return rows;
@@ -387,12 +442,14 @@ export async function countNotificationsByKind(db: Db, userId: string): Promise<
  */
 export async function listNotifications(db: Db, userId: string, limit = 50, offset = 0, opts: { kinds?: readonly string[] } = {}): Promise<Notification[]> {
   const { rows } = await db.query<{ id: string; kind: NotificationKind; title: string; body: string | null; link: string | null; created_at: Date | string; read_at: Date | string | null }>(
-    `select id, kind, title, body, link, created_at, read_at from notifications where user_id = $1${opts.kinds ? " and kind = any($4)" : ""}
+    `select id, kind, title, body, link, created_at, read_at from notifications where user_id = $1${opts.kinds ? " and kind = any($4)" : ""} and ${NOT_SUPERSEDED}
       order by created_at desc, id desc limit $2 offset $3`,
     opts.kinds ? [userId, limit, Math.max(0, offset), [...opts.kinds]] : [userId, limit, Math.max(0, offset)],
   );
   const items: Notification[] = rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, link: r.link, created_at: new Date(r.created_at).toISOString(), read: r.read_at !== null }));
-  return withTurnState(db, userId, await withBookings(db, userId, items));
+  // Whether each pair still has a match is read alongside its bookings, not after them.
+  const [booked, ended] = await Promise.all([withBookings(db, userId, items), endedPairs(db, items)]);
+  return withTurnState(db, userId, await withEndedMatches(db, userId, booked, ended));
 }
 
 /**
@@ -452,7 +509,7 @@ export async function withBookings(db: Db, userId: string, items: Notification[]
 
 export async function unreadCount(db: Db, userId: string): Promise<number> {
   await sweepStaleTurnNotices(db, userId).catch(() => {});
-  const { rows } = await db.query<{ n: number }>(`select count(*)::int as n from notifications where user_id = $1 and read_at is null`, [userId]);
+  const { rows } = await db.query<{ n: number }>(`select count(*)::int as n from notifications where user_id = $1 and read_at is null and ${NOT_SUPERSEDED}`, [userId]);
   return rows[0]?.n ?? 0;
 }
 

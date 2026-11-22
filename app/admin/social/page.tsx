@@ -91,7 +91,7 @@ export default async function AdminSocialPage() {
       {history.length ? (
         <div className="table-scroll" tabIndex={0} role="region" aria-label="The network, day by day">
           <table className="board">
-            <caption>The last {history.length} days, newest first</caption>
+            <caption>{history.length === 1 ? "The last day" : `The last ${history.length} days`}, newest first</caption>
             <thead>
               <tr>
                 <th scope="col">Day</th>
@@ -196,7 +196,7 @@ export default async function AdminSocialPage() {
       {hits && hits.shown ? (
         <>
           <p className="muted">
-            The last {hits.days} days: {hits.shown} suggestions shown to owners, {hits.accepted} became a tie ({percent(hits.hit_rate)}),{" "}
+            {hits.days === 1 ? "The last day" : `The last ${hits.days} days`}: {hits.shown} suggestions shown to owners, {hits.accepted} became a tie ({percent(hits.hit_rate)}),{" "}
             {hits.dismissed} dismissed, {hits.ignored} ignored, {hits.open} not answered yet.
           </p>
           <div className="table-scroll" tabIndex={0} role="region" aria-label="Suggestions by reason">

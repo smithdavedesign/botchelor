@@ -34,6 +34,8 @@ export const SHRINK = 30;
 export const RAW_CAP = 3;
 /** How far back a pick counts. */
 export const DEMAND_DAYS = 90;
+/** Under this many picks a tag's own number is mostly noise: the admin tables grey the row (the blend leans on the census). */
+export const FEW_PICKS = 10;
 
 export type DemandRow = {
   tag: string;
@@ -281,4 +283,29 @@ export async function pickerDemand(db: Db, now = Date.now()): Promise<{ roleplay
 }
 export const forgetPickerDemandForTests = () => {
   cache = null;
+  adminCache = null;
 };
+
+/** What /admin/tags shows: the show's roleplays, the character types talked to, art styles and the lineup. */
+export type AdminTagDemand = { roleplays: Demand; types: Demand; styles: Demand & { sources: FacetSources }; lineup: Demand & { sources: FacetSources } };
+/** How long /admin/tags keeps its tables: 90 days of picks took about 4 s to read on every load (UX audit 2026-11-22). */
+export const ADMIN_DEMAND_CACHE_MS = 10 * 60 * 1000;
+let adminCache: { at: number; value: Promise<AdminTagDemand> } | null = null;
+
+/** The admin page's four demands, kept ADMIN_DEMAND_CACHE_MS; a read that fails isn't kept. `at` says when they were read. */
+export async function adminTagDemand(db: Db, now = Date.now()): Promise<AdminTagDemand & { at: number }> {
+  if (!adminCache || now - adminCache.at >= ADMIN_DEMAND_CACHE_MS || now < adminCache.at) {
+    const value = Promise.all([showRoleplayDemand(db), characterTypeDemand(db), artStyleDemand(db), lineupDemand(db)]).then(([roleplays, types, styles, lineup]) => ({
+      roleplays,
+      types,
+      styles,
+      lineup,
+    }));
+    adminCache = { at: now, value };
+    value.catch(() => {
+      if (adminCache?.value === value) adminCache = null;
+    });
+  }
+  const { at, value } = adminCache;
+  return { ...(await value), at };
+}

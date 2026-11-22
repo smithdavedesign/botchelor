@@ -514,6 +514,10 @@ describe("what came of it", () => {
     expect(settled.outcome.settled).toBe(1);
     const view = await producerView(t.db, new Date("2026-11-15T12:00:00Z"));
     expect(view.beats.find((b) => b.day === TODAY)!.came).toContain('aired and ended "disaster"');
+    // A logline stored as the model's JSON answer (before 2026-11-20) reads as its words on the season page too (UX audit
+    // 2026-11-22: it showed {"logline": "…"}).
+    await t.db.query(`update story_beats set logline = $2 where day = $1`, [TODAY, '{"logline": "Dex and Sable finally talk."}']);
+    expect((await producerView(t.db, new Date("2026-11-15T12:00:00Z"))).beats.find((b) => b.day === TODAY)!.logline).toBe("Dex and Sable finally talk.");
   });
 
   it("an unaired date's ending never reaches the outcome", async () => {

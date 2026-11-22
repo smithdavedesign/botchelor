@@ -11,6 +11,7 @@ import {
   isNotificationType,
   kindsOfType,
   notificationTypeOf,
+  withoutRawIds,
   type NotificationType,
 } from "@/lib/notification-types";
 import { notificationFaces } from "@/lib/notification-faces";
@@ -158,6 +159,9 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           <ul className="list" aria-label="Notifications">
             {items.map((n) => {
               const [emoji, title] = splitEmoji(n.title);
+              // A stored body can end on its date's id, for agents (lib/notification-types.ts withoutRawIds): not for
+              // people, nor their screen readers.
+              const body = n.body ? withoutRawIds(n.body) : "";
               const who = faces.get(n.id) ?? [];
               const kind = notificationTypeOf(n.kind);
               return (
@@ -191,7 +195,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                       ✓ {n.body} <Link href={`/episodes/${n.booked.episode_id}`}>{n.booked.status === "ready" ? "Watch it" : n.booked.performed === "show" ? "Watch it being filmed" : "See the date"}</Link>
                     </span>
                   ) : (
-                    n.body && <span className="notif-body">{n.body}</span>
+                    body && <span className="notif-body">{body}</span>
                   )}
                   {(() => {
                     const p = proposals.get(n.id);
