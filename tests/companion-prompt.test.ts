@@ -1,6 +1,27 @@
 import { describe, expect, it } from "vitest";
 import type { Character } from "@/lib/character";
-import { BUBBLE_MAX, companionMessages, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, tooCloseTo, type PromptTurn } from "@/lib/companion-prompt";
+import {
+  asksAboutLastDate,
+  BUBBLE_MAX,
+  chapterLine,
+  companionMessages,
+  HABITS_RULE,
+  HONEST_RULE,
+  LAST_DATE_RULE,
+  lastDateLine,
+  leanedOn,
+  MAX_BUBBLES,
+  namesAnotherDate,
+  RECENT_TURNS,
+  reachedFor,
+  repeatsEarlier,
+  repliesOf,
+  replyBubbles,
+  stem,
+  tooCloseTo,
+  worldWords,
+  type PromptTurn,
+} from "@/lib/companion-prompt";
 import { companionNotice, companionOpen } from "@/lib/companion-shared";
 
 /** A character as loadCharacter returns it, with only what the prompt reads filled in. */
@@ -119,8 +140,9 @@ describe("the companion's prompt", () => {
     const s = companionMessages({ ...base, character: character({ memory }) })[0].content;
     expect(s).toContain("Your life on the show lately");
     expect(s).toContain("braver about saying what she wants");
-    expect(s).toContain("October: a second date with Otto");
-    expect(s).toContain('Otto Fenn: 2 dates, seeing (last date 2026-11-02). They said: "You steer like a pirate."');
+    // A chapter names each date by how it ended: "a second date with Otto" is a yes to one, not which one it was.
+    expect(s).toContain("October, by how each date ended: a yes to a second date with Otto");
+    expect(s).toContain('Otto Fenn: 2 dates, seeing (last date November 2). They said: "You steer like a pirate."');
     expect(companionMessages({ ...base, character: character() })[0].content).not.toContain("Your life on the show lately");
   });
 
@@ -173,6 +195,213 @@ describe("the companion's prompt", () => {
     expect(withPhoto).toContain("- A photo from the date: Nell and Otto at the night market, Saturday, November 14.");
     expect(companionMessages({ ...base, character: character() })[0].content).not.toContain("Photos you sent them");
     expect(companionMessages({ ...base, character: character(), photos: [] })[0].content).not.toContain("Photos you sent them");
+  });
+});
+
+describe("its last date, one date", () => {
+  // 2026-11-21: Claudia's opener said goat yoga with Bogart; asked about it later, "the second date with Bogart" at an
+  // archive (the prompt said "How it ended: A second date."). Barnaby's said Cosmo; asked, he named Sable.
+  const goatYoga = {
+    partner: "Bogart Underbridge",
+    venue: "goat yoga (one goat has a favourite)",
+    endingLabel: "A second date",
+    reflection: "Reading that signature himself, on his knees, in the rain, was the detail that got me.",
+    ending: "second_date" as const,
+    dateNumber: 1,
+    at: "2026-11-19T20:20:00.000Z",
+  };
+
+  it("says when it was, which date it was for the two of them, and how it ended in words that can't be read as its number", () => {
+    expect(lastDateLine(goatYoga)).toBe(
+      "- With Bogart Underbridge, at goat yoga (one goat has a favourite), on Thursday, November 19 (your first date together). How it ended: you both said yes to a second date.",
+    );
+    expect(lastDateLine({ ...goatYoga, partner: "Sable Quist", venue: "the late-night bookshop", dateNumber: 8 })).toContain("(your eighth date together). How it ended: you both said yes to a ninth date.");
+    expect(lastDateLine({ ...goatYoga, dateNumber: 12 })).toContain("(your 12th date together). How it ended: you both said yes to a 13th date.");
+    expect(lastDateLine({ ...goatYoga, ending: "friends", endingLabel: "Just friends" })).toContain("How it ended: you left it as friends.");
+    expect(lastDateLine({ ...goatYoga, ending: "disaster", endingLabel: "A disaster" })).toContain("How it ended: it was a disaster.");
+    // Without the date's number, day or ending (an older caller): who, where and the label, as before.
+    expect(lastDateLine({ partner: "Otto Fenn", venue: null, endingLabel: "Just friends", reflection: null })).toBe("- With Otto Fenn. How it ended: Just friends.");
+  });
+
+  it("is the most recent date, told from what's there, for its owner and for anyone else", () => {
+    for (const yours of [true, false]) {
+      const s = companionMessages({ ...base, character: character({ ownerId: yours ? "u1" : null }), yours, lastDate: goatYoga })[0].content;
+      expect(s).toContain("on Thursday, November 19 (your first date together). How it ended: you both said yes to a second date.");
+      expect(s).not.toContain("How it ended: A second date");
+      expect(s).toContain(LAST_DATE_RULE);
+      expect(LAST_DATE_RULE).toContain("When they ask about your last date, it's this one");
+      expect(LAST_DATE_RULE).toContain("don't give it another partner or another place, and don't add events to it");
+    }
+    expect(companionMessages({ ...base, character: character() })[0].content).not.toContain(LAST_DATE_RULE);
+  });
+
+  it("reads the season's chapters by how each date ended, not as which date it was", () => {
+    expect(chapterLine("6 dates: just friends with Carson, just friends with Juniper, a ninth date with Sable, and 3 more.")).toBe(
+      "6 dates: just friends with Carson, just friends with Juniper, a yes to a ninth date with Sable, and 3 more.",
+    );
+    expect(chapterLine("20 dates: a sixth date with Sable, an 11th date with Kieran, a disaster with Nell, and 17 more.")).toBe(
+      "20 dates: a yes to a sixth date with Sable, a yes to an 11th date with Kieran, a disaster with Nell, and 17 more.",
+    );
+    expect(chapterLine("1 date: just friends with Otto.")).toBe("1 date: just friends with Otto.");
+  });
+
+  it("knows a question about its last date, and a reply that names someone else it has dated instead", () => {
+    expect(asksAboutLastDate("Tell me about the last date you went on. Who was it with and how did it go?")).toBe(true);
+    expect(asksAboutLastDate("What happened on your last date on the show?")).toBe(true);
+    expect(asksAboutLastDate("how was your latest date")).toBe(true);
+    expect(asksAboutLastDate("Long week. How was yours?")).toBe(false);
+    const dated = ["Cosmo Glitterwing", "Juniper Vale", "Sable Quist"];
+    const asked = "Tell me about the last date you went on.";
+    // The live case: Sable named, Cosmo (the last date) not.
+    expect(namesAnotherDate("That would be Sable, our ninth date. We went to that little horology museum downtown.", "Cosmo Glitterwing", dated, asked)).toBe(true);
+    // The right one, or both: fine. Nobody named: fine.
+    expect(namesAnotherDate("Cosmo, at the night market. Friends, and the right size for us.", "Cosmo Glitterwing", dated, asked)).toBe(false);
+    expect(namesAnotherDate("Cosmo. After nine dates with Sable it was a change of pace.", "Cosmo Glitterwing", dated, asked)).toBe(false);
+    expect(namesAnotherDate("Lanterns, steam and too much talking. Good fun.", "Cosmo Glitterwing", dated, asked)).toBe(false);
+    // They asked about that someone by name: that's the date they mean.
+    expect(namesAnotherDate("Sable? The bookshop, and a yes to a ninth.", "Cosmo Glitterwing", dated, "And your last date with Sable?")).toBe(false);
+  });
+});
+
+describe("the images it leans on", () => {
+  // Barnaby's first four replies to Jonah (2026-11-21), and what Jonah said.
+  const barnaby = [
+    "Jonah, that's a fine trade. The patience of restoring wood grain feels akin to polishing brass movements. My week had its own rhythm. Six dates, one of them a ninth with Sable.",
+    "That would be Sable, our ninth date. We went to that little horology museum downtown. I made him stop at a 17th-century longcase clock. Its tick was melancholic.",
+    "March 3rd. A solid date, not too close to the equinox. The dread is just the pendulum swinging before it finds its center. Tell me about Ruth.",
+    "Jonah. That toast is perfect. The pivot is flawless: it's the escapement wheel of the whole piece. It's the weight that makes the clock keep time. If you need to pause and let the pendulum swing for a moment, do it.",
+  ];
+  const jonah = [
+    "Hey Barnaby. I'm Jonah, I restore old wooden sailboats up in Maine. Long week. How was yours?",
+    "Tell me about the last date you went on. Who was it with and how did it go?",
+    "Need advice. My sister Ruth is getting married on March 3rd and I have to give the toast. I'm dreading it.",
+    "Okay so here's my draft toast, tell me honestly if it's terrible. It runs about three minutes.",
+  ];
+
+  it("finds a word in two of its last four replies, one form or another, unless they said it too", () => {
+    const words = leanedOn(barnaby, jonah);
+    expect(words).toEqual(expect.arrayContaining(["pendulum", "clock"]));
+    // "toast" and "Ruth" are Jonah's: the topic. Sable is in two replies too, but who it talks about is a topic, not an image.
+    expect(words).not.toContain("toast");
+    expect(words).not.toContain("ruth");
+    expect(words).not.toContain("sable");
+    // "clocks" and "clock", "ticking" and "tick", each counted once a reply.
+    expect(leanedOn(["Three clocks ticking.", "One clock left, still ticking."], [])).toEqual(expect.arrayContaining(["clocks", "ticking"]));
+    // One reply so far, or nothing it keeps reaching for: nothing to rest.
+    expect(leanedOn(barnaby.slice(0, 1), [])).toEqual([]);
+    expect(leanedOn(["Long days earn soup.", "The ferry was late again, so I read."], [])).toEqual([]);
+  });
+
+  it("tells it which words to rest this time, from the turns it already carries", () => {
+    const turns: PromptTurn[] = barnaby.flatMap((b, i) => [
+      { role: "user" as const, text: jonah[i] },
+      { role: "character" as const, text: b },
+    ]);
+    const s = companionMessages({ ...base, character: character(), turns })[0].content;
+    expect(s).toMatch(/Words you've leaned on in your last few replies: .*"pendulum".*\. Leave them out of this one, and the images they come from: say it another way\./);
+    // A character's bubbles in a row are one reply; what it did in a scene counts as its own.
+    expect(repliesOf([{ role: "character", text: "a" }, { role: "character", text: "b", action: "winds the clock" }, { role: "user", text: "c" }])).toEqual({ replies: ["a winds the clock b"], theirs: ["c"] });
+    expect(companionMessages({ ...base, character: character(), turns: turns.slice(0, 2) })[0].content).not.toContain("Words you've leaned on");
+  });
+
+  it("keeps its habits to one a reply, and answers their thing in its own terms", () => {
+    expect(HABITS_RULE).toContain("at most one in a reply");
+    expect(HABITS_RULE).toContain("Don't turn what they tell you into a metaphor from your own world");
+    for (const extra of [{}, { yours: true }, { call: true }, { scene: { name: "The diner", prompt: "a late-night diner" } }]) {
+      expect(companionMessages({ ...base, character: character(), ...extra })[0].content).toContain(HABITS_RULE);
+    }
+  });
+});
+
+describe("resting its own world", () => {
+  // A clockmaker's sheet as it is on the show, and his first replies to a new thread (2026-11-22).
+  const clockmaker = character({
+    name: "Barnaby Thorne",
+    bio: "A master clockmaker who talks to grandfather clocks to keep them from getting homesick. He once missed his own birthday because he got distracted fixing the town hall chime.",
+    extras: {
+      occupation: "Clockmaker",
+      hobbies: ["restoring antique music boxes", "stargazing", "tea blending"],
+      quirk: "Always checks his pulse against the nearest second hand.",
+      catchphrase: "Let's wind this back a bit.",
+      tells: { bored: "trace the edge of his watch crystal", annoyed: "check the time with an exaggerated sigh", nervous: "wind his pocket watch repeatedly" },
+      lines: { dodge: "That question is running a bit fast, let's slow the pendulum.", hello: "Well now, you've arrived precisely on time." },
+      prompts: [
+        { id: "unpopular_opinion", answer: "Digital clocks have no souls and shouldn't be trusted." },
+        { id: "together_we_could", answer: "Synchronize our watches and get lost in a medieval village." },
+      ],
+    } as Character["extras"],
+  });
+  const asked = ["Hi Barnaby! How was your last date?", "My sister's wedding toast ran three minutes, mostly one story. Is that too long? Be honest.", "What are you doing this weekend?"];
+  const replies = [
+    "Well, it was like trying to listen to a pocket watch in a thunderstorm. Cosmo's energy is... constant. But he has a good heart beneath all that glitter.",
+    "Three minutes is the perfect length for a toast, long enough to feel substantial, but not so long that guests start checking their watches.",
+    "This weekend I'm restoring a 19th-century music box with a slightly stubborn mainspring. And you?",
+  ];
+  const thread = (upTo: number, next: string): PromptTurn[] => [
+    ...replies.slice(0, upTo).flatMap((r, i) => [
+      { role: "user" as const, text: asked[i] },
+      { role: "character" as const, text: r },
+    ]),
+    { role: "user", text: next },
+  ];
+
+  it("counts a word and its other forms as one", () => {
+    expect(stem("watches")).toBe(stem("watch"));
+    expect(stem("clocks")).toBe(stem("clock"));
+    expect(stem("ticking")).toBe(stem("tick"));
+    expect(stem("boxes")).toBe(stem("box"));
+    expect(stem("archival")).toBe(stem("archive"));
+    expect(stem("archives")).toBe(stem("archive"));
+  });
+
+  it("finds the world its sheet keeps coming back to, not its everyday words, its name or a one-off", () => {
+    const world = worldWords(clockmaker);
+    // In his work and his bio; in three of his tells and answers ("watch", "watches").
+    expect([...world]).toEqual(expect.arrayContaining(["clockmaker", "clock", "watch"]));
+    // Everyday in every form, or only said once.
+    for (const w of ["time", "check", "pendulum", "music", "pulse"]) expect(world.has(stem(w))).toBe(false);
+    // Its own name, and a word that's in many sheets' worlds, never count, however often the sheet says them.
+    const nell = worldWords(
+      character({ name: "Nell Okafor", bio: "Nell Okafor pilots the night ferry, a quiet job.", extras: { occupation: "Quiet ferry pilot", lines: { hello: "Nell Okafor, ferry pilot." } } as Character["extras"] }),
+    );
+    expect([...nell].sort()).toEqual([stem("ferry"), stem("pilot")].sort());
+  });
+
+  it("names what a reply reached for, unless they or the scene brought it up", () => {
+    const world = worldWords(clockmaker);
+    expect(reachedFor(replies[0], world, [asked[0]])).toEqual(["watch"]);
+    expect(reachedFor(replies[1], world, [asked[1]])).toEqual(["watches"]);
+    expect(reachedFor(replies[2], world, [asked[2]])).toEqual([]);
+    expect(reachedFor(replies[0], world, ["Did you watch the storm last night?"])).toEqual([]);
+    expect(reachedFor("Clocks, of course. Three of them.", world, ["Tell me about your work", "the top of an old clock tower"])).toEqual([]);
+  });
+
+  it("asks the next reply to rest it, and leaves the sample lines out of that one sheet", () => {
+    const after = (upTo: number, next: string, extra = {}) => companionMessages({ ...base, character: clockmaker, turns: thread(upTo, next), ...extra })[0].content;
+    const rested = after(1, "Ha. What did you two talk about?");
+    expect(rested).toContain('Your last reply reached for your own world ("watch"). This one rests it: no images, comparisons or jokes from your work, your hobbies or your sayings.');
+    expect(rested).toContain("if they ask about your work or your week, just tell them");
+    expect(rested).not.toContain("voice_examples");
+    expect(rested).toContain("Clockmaker");
+    // Its last reply stayed on their thing: nothing to rest, the sample lines are back.
+    const free = after(3, "Nothing much. Any advice for a nervous first date?");
+    expect(free).not.toContain("reached for your own world");
+    expect(free).toContain("voice_examples");
+    // They asked about the clocks, or the scene is in a clock tower: that's the topic, not a habit.
+    expect(after(1, "Wait, do you fix pocket watches too?")).not.toContain("reached for your own world");
+    expect(after(1, "Ha.", { scene: { name: "The tower", prompt: "the top of an old watch tower" } })).not.toContain("reached for your own world");
+    // The first reply has nothing before it to rest.
+    expect(companionMessages({ ...base, character: clockmaker, turns: [{ role: "user", text: "Hi!" }] })[0].content).not.toContain("reached for your own world");
+  });
+});
+
+describe("an honest opinion when it's asked for", () => {
+  it("says what works, what doesn't and what it would change, and never flatters, texting, on a call or in a scene, theirs or not", () => {
+    expect(HONEST_RULE).toContain("what works, what doesn't, and what you'd change, with a kind no when it's a no");
+    expect(HONEST_RULE).toContain("Don't flatter");
+    for (const extra of [{}, { yours: true }, { call: true }, { call: true, live: true }, { scene: { name: "The diner", prompt: "a late-night diner" } }]) {
+      expect(companionMessages({ ...base, character: character(), ...extra })[0].content).toContain(HONEST_RULE);
+    }
   });
 });
 

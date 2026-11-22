@@ -322,13 +322,3 @@ export function startEngagement(opts: { afterDarkHost: boolean }): void {
     flush();
   });
 }
-
-export function resetEngagementForTests(): void {
-  queue = [];
-  page = null;
-  started = false;
-  memorySession = null;
-  memoryVisitor = null;
-  if (timer) clearTimeout(timer);
-  timer = null;
-}

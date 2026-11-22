@@ -58,6 +58,13 @@
   overflow: hidden;
   margin: var(--space-1) 0 0;
 }
+/* A phone: one tile a row. Two side by side left each name about 70px beside its face, wrapped over three lines, and its
+   hook cut to a word (2026-11-22 audit). */
+@media (max-width: 560px) {
+  .agent-cast.grid-balanced {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 /* A private character stays a name (the directory's rule), with a lock, under the tiles. */
 .agent-private {
   list-style: none;

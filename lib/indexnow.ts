@@ -11,7 +11,7 @@ import type { Db } from "./db";
 import { closedSeasons } from "./season-ref";
 import { seasonWindow } from "./season-window";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
-import { SITEMAP_MIN_COUPLE_DATES } from "./seo";
+import { SITEMAP_MIN_COUPLE_DATES, authoredCharacterSql, authoredDateSql } from "./seo";
 import { siteUrl } from "./site";
 import { isProductionDeploy } from "./deploy";
 import { listedCharacterSql, listedDateSql } from "./public-cast";
@@ -44,7 +44,8 @@ export function changedLandingUrls(since: Date, base: string = siteUrl(), now = 
 /**
  * Public pages that became indexable since `since`: aired public episodes, characters newly open to dates, couples
  * whose latest public date aired since (their /couples page changed), a season whose finale closed since, and a
- * landing page rewritten since (LANDING_CHANGES). Never one with a deleted account's character (lib/public-cast.ts).
+ * landing page rewritten since (LANDING_CHANGES). Never one with a deleted account's character (lib/public-cast.ts),
+ * nor a date or couple between two machine-made characters (lib/seo.ts authoredDateSql): the sitemap's bar.
  */
 export async function recentPublicUrls(db: Db, since: Date, base: string = siteUrl(), now = new Date()): Promise<string[]> {
   const seasons = closedSeasons(now).filter((s) => seasonWindow(new Date(`${s.id}T00:00:00Z`)).end >= since);
@@ -53,7 +54,7 @@ export async function recentPublicUrls(db: Db, since: Date, base: string = siteU
       `select e.id from episodes e
         where e.visibility = 'public' and e.status = 'ready' and e.revealed_at >= $1
           and (select count(*) from reports r where r.episode_id = e.id) < $2
-          and ${listedDateSql("e")}
+          and ${listedDateSql("e")} and ${authoredDateSql("e")}
         limit 5000`,
       [since.toISOString(), REPORT_HIDE_THRESHOLD],
     ),
@@ -63,6 +64,7 @@ export async function recentPublicUrls(db: Db, since: Date, base: string = siteU
       `select distinct c.id from characters c
          join episodes e on e.character_a = c.id or e.character_b = c.id
         where c.visibility = 'public' and ${listedCharacterSql("c")} and e.visibility = 'public' and e.status = 'ready' and e.revealed_at >= $1
+          and ${authoredDateSql("e")}
         limit 5000`,
       [since.toISOString()],
     ),
@@ -70,7 +72,8 @@ export async function recentPublicUrls(db: Db, since: Date, base: string = siteU
       `select r.character_a as a, r.character_b as b from relationships r
          join characters ca on ca.id = r.character_a join characters cb on cb.id = r.character_b
         where r.public_dates >= $2 and r.public_last_at >= $1 and ca.visibility = 'public' and cb.visibility = 'public'
-          and ${listedCharacterSql("ca")} and ${listedCharacterSql("cb")} limit 5000`,
+          and ${listedCharacterSql("ca")} and ${listedCharacterSql("cb")}
+          and (${authoredCharacterSql("ca")} or ${authoredCharacterSql("cb")}) limit 5000`,
       [since.toISOString(), SITEMAP_MIN_COUPLE_DATES],
     ),
   ]);

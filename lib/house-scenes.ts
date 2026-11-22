@@ -59,6 +59,7 @@ import { socialHook } from "./social/hook";
 import { seasonIdOf } from "./season-window";
 import { airedClaim, ATTRACTION_LABELS, CLAIM_MAX, hear, stateFor, tensions, TRUST_LABELS, type Tension } from "./story-state";
 import { venueName, venuePhrase } from "./venues";
+import { escapeRegExp } from "./text";
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
 
@@ -184,8 +185,7 @@ export type ChallengeResult = {
 export type SceneResult = ConfrontResult | ChallengeResult;
 
 const first = (name: string) => shortName(name);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRe(word)}(?![\\p{L}])`, "iu").test(text);
+const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRegExp(word)}(?![\\p{L}])`, "iu").test(text);
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 /** A venue's name as a gossip would say it ("goat yoga"), or null for a long one-off place nobody would quote. */
 function venueWords(v: string | null): string | null {

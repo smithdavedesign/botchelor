@@ -49,6 +49,7 @@ import { producerOn } from "./producer";
 import type { Ending } from "./rules";
 import { inFlight, shared } from "./shared-cache";
 import { hear, HOUSE_WORD_SOURCE, storyStateOn } from "./story-state";
+import { escapeRegExp } from "./text";
 
 type Env = Record<string, string | undefined>;
 
@@ -75,8 +76,7 @@ const dayOf = (d: Date): string => d.toISOString().slice(0, 10);
 const startOf = (day: string): Date => new Date(`${day}T00:00:00.000Z`);
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRe(word)}(?![\\p{L}])`, "iu").test(text);
+const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRegExp(word)}(?![\\p{L}])`, "iu").test(text);
 const cut = (s: string, max: number): string => (s.length <= max ? s : `${s.slice(0, max - 1).replace(/\s+\S*$/, "")}…`);
 
 /* ------------------------------------------------ what happened ------------------------------------------------ */

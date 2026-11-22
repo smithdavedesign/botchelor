@@ -15,7 +15,7 @@
  */
 import { seasonAtSql, seasonKeysOn } from "./show-seasons";
 import { isInsider, showCrowd } from "./crowd-threshold";
-import { getDb, type Db } from "./db";
+import type { Db } from "./db";
 import { dateNumberSql } from "./date-number";
 import { decideTraced, seedFrom } from "./engine";
 import { introductionFor, type Introduction } from "./social/introductions";
@@ -1286,11 +1286,6 @@ export async function reportMessage(
     )
   ).rows[0];
   return { ok: true, hidden: Boolean(hidden) };
-}
-
-/** Convenience for pages/routes that already hold the db. */
-export async function roomState(partyId: string, viewerId: string | null, now?: Date): Promise<RoomState | null> {
-  return getRoomState(await getDb(), partyId, viewerId, now);
 }
 
 /** The watch party for an episode, if one has been created (the episode page links to it). */

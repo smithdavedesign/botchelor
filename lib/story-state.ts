@@ -68,6 +68,7 @@ import { leadAndSuitors, showCastIds } from "./season-cast";
 import { seasonIdOf, seasonWindow, weekIdOf } from "./season-window";
 import { unbalancedTriangles } from "./social/dynamics";
 import { venuePhrase } from "./venues";
+import { escapeRegExp } from "./text";
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
 
@@ -409,7 +410,7 @@ const saidWords = (t: string): Set<string> =>
 export function broughtUp(line: string, heard: Pick<Heard, "claim" | "told_by_name">): boolean {
   if (slipped(line, heard.claim)) return true;
   const teller = heard.told_by_name ? shortName(heard.told_by_name).toLowerCase() : null;
-  if (!teller || !new RegExp(`(?<![\\p{L}])${teller.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}])`, "iu").test(line)) return false;
+  if (!teller || !new RegExp(`(?<![\\p{L}])${escapeRegExp(teller)}(?![\\p{L}])`, "iu").test(line)) return false;
   const want = saidWords(heard.claim);
   const have = saidWords(line);
   return [...want].some((w) => have.has(w));

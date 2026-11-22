@@ -24,7 +24,7 @@ The questions for counsel at the end are still open, and one of them (age) matte
   that anyone could type in to read someone else's date; guests off → "sign in first"; closed → not found. An account
   adopts the visitor's id on sign-up, so a guest's dates and their count come along.
 - **18+:** `/step-in` (the picker and the start screen) is open without the 18+ interstitial, as the builder is
-  (`middleware.ts` `UNGATED_PAGES`). A visitor the gate hasn't asked answers on the start screen: an "I'm 18 or over"
+  (`proxy.ts` `UNGATED_PAGES`). A visitor the gate hasn't asked answers on the start screen: an "I'm 18 or over"
   checkbox in the form (`attest: true` on `POST /api/step-in`), and a date that starts sets the gate's own cookie
   (`bz_adult`), exactly as saving a character does. Without the cookie or the box the start is refused (403). The date
   itself (`/step-in/<id>` and its API) stays behind the gate's cookie. A "you" must still be 18+.
@@ -54,6 +54,11 @@ The questions for counsel at the end are still open, and one of them (age) matte
   `simulateConversation` with `stopAfter: 1` (the critic, inner life, secret slips and walk-outs all apply) → after the last
   line the recap on the director, the ending's kind, best line, diary cams and memory, as on any date. The person's private
   "would you see them again?" on their last line is private, and a no rules out a second date.
+- **Speed (2026-11-22).** The date's last line comes back on its own (`finishing`: "The show is writing it up…"), and the
+  page's next ask runs the verdict and the recap, so the line that ends it shows as fast as any other instead of after
+  ~25 s. Within one move the date is dealt once (`lib/own-date.ts` `shareRebuilds`): a line rebuilt it six or seven times,
+  about 35 database reads each (measured live: 303 reads, 3.4–5.6 s of a 10–11 s line; its two model calls, the cast's
+  line and a redraw, the critic's or a retry, were 5–6.5 s).
 - **The end:** "Air it" makes it public (the pair's graph and memories update) or "Keep it private and read it". The
   episode page says "🎬 A viewer stepped in". Under it: **Share how it went** (see "The share card"), and the way on:
   someone who came as themselves is offered the builder with this cast member as the new character's first date
@@ -136,7 +141,7 @@ full, not only to what the rest of the site does ([safety-protocol.md](safety-pr
 
 **Someone signed in** (unchanged since it was built):
 
-- **1 free a day** (`STEP_IN_FREE_PER_DAY`), then one of their dates (the week's free dates first, then pack dates:
+- **1 free a day** (`step_in_usage.free_used`), then one of their dates (the week's free dates first, then pack dates:
   `reserveEpisode`, as for any date). Leaving before saying anything gives it back.
 - **At most 5 a day** (`STEP_IN_MAX_PER_DAY`; admins 20). Counted in `step_in_usage (user_id, day)`.
 
