@@ -92,8 +92,9 @@ describe("the links on every page prefetch on intent only", () => {
     const layout = source("app/layout.tsx");
     const footer = layout.slice(layout.indexOf('<footer className="site-footer">'), layout.indexOf("</footer>"));
     const links = footer.match(/<Link [^>]*>/g) ?? [];
-    // 24 in the source: the free tools are one <Link> mapped over lib/tools.ts FREE_TOOLS (five on the page).
-    expect(links.length).toBe(24);
+    // 23 in the source: the free tools are one <Link> mapped over lib/tools.ts FREE_TOOLS (five on the page), and terms
+    // and privacy are one entry each, the page with both (/legal) being on /everything (tests/site-chrome.test.ts).
+    expect(links.length).toBe(23);
     for (const link of links) expect(link).toContain("prefetch={false}");
     expect(source("app/NewsletterSignup.tsx")).toContain('<Link href="/newsletter" prefetch={false}>');
     // The wordmark is the header's: intent only on the show, never on After Dark's host (showPrefetch is false there).

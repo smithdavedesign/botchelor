@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { pageMetadata } from "@/lib/seo";
-import { BackToContents, CONTACT_HEADING, Contact, OnThisPage, PolicyLinks, TERMS_HEADINGS, TERMS_PRIVACY_UPDATED, TermsSections } from "../legal/sections";
+import { BackToContents, CONTACT_HEADING, Contact, OnThisPage, PolicyLinks, TERMS_HEADINGS, TERMS_PRIVACY_UPDATED, TermsInShort, TermsSections } from "../legal/sections";
 
 export const metadata: Metadata = pageMetadata({
   title: "Terms · Botchelor",
@@ -17,6 +17,7 @@ export default function TermsPage() {
     <article className="legal-page">
       <h1>Terms</h1>
       <p className="muted">{TERMS_PRIVACY_UPDATED}</p>
+      <TermsInShort />
       <OnThisPage headings={[...TERMS_HEADINGS, CONTACT_HEADING]} />
       <TermsSections />
       <Contact />

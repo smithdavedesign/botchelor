@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
-import { BackToContents, CONTACT_HEADING, Contact, LastChanged, OnThisPage, PolicyLinks, PRIVACY_HEADINGS, PrivacySections } from "../legal/sections";
+import { BackToContents, CONTACT_HEADING, Contact, LastChanged, OnThisPage, PolicyLinks, PRIVACY_HEADINGS, PrivacyInShort, PrivacySections } from "../legal/sections";
 
 export const metadata: Metadata = pageMetadata({
   title: "Privacy · Botchelor",
@@ -17,6 +17,7 @@ export default function PrivacyPage() {
     <article className="legal-page">
       <h1>Privacy</h1>
       <LastChanged />
+      <PrivacyInShort />
       <OnThisPage headings={[...PRIVACY_HEADINGS, CONTACT_HEADING]} />
       <PrivacySections />
       <Contact />

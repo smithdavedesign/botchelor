@@ -45,7 +45,8 @@ describe("the footer", () => {
     expect(hrefs("Tools")).toEqual(["/import", "/tools", "/agents", "/llms.txt"]);
     expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={false} href="/import">Bring a character from another app</Link></li>}');
     expect(hrefs("Company")).toEqual(["/about", "/costs", "/faq", "/press", "/contact", "/security", "/accessibility"]);
-    expect(hrefs("Help and legal")).toEqual(["/report", "/content-policy", "/safety", "/terms", "/privacy", "/legal", "/2257", "/cancel"]);
+    // Terms and privacy once each: the page with both (/legal) is on /everything (the 2026-11-22 audit: three entries for two documents).
+    expect(hrefs("Help and legal")).toEqual(["/report", "/content-policy", "/safety", "/terms", "/privacy", "/2257", "/cancel"]);
     expect(group("Help and legal")).toContain("<FeedbackLink />");
     // The prompts library stays on /everything (design review 2026-11-16, D-15), not in every page's footer.
     expect(groups).not.toContain('href="/prompts"');
