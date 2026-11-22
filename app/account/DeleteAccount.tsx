@@ -73,8 +73,8 @@ export default function DeleteAccount({ plan = "none", portal = null }: { /** Th
             and badges, and your settings.
           </li>
           <li>
-            <strong>Stays, without you:</strong> the dates your characters went on, since they belong to the other side too. Those
-            characters keep their public card there with no owner, closed to new dates; everything private about them goes.
+            <strong>Stays, without you:</strong> the dates your characters went on, since they belong to the other side too. Your
+            characters&apos; names stay on those dates, with no owner, closed to new dates; everything private about them goes.
             {plan !== "none" && " Your Companion Plan's billing record (the plan and the address you paid with, nothing you said) is kept while Stripe may still charge it."}
           </li>
           <li>

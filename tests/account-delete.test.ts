@@ -16,9 +16,9 @@ describe("Delete my account, at the foot of /account", () => {
     expect(html).not.toContain("<details open");
     expect(html).toContain("There&#x27;s no undo.");
     for (const part of ["Goes:", "Stays, without you:", "Not refunded:"]) expect(html).toContain(`<strong>${part}</strong>`);
-    // What lib/account.ts deleteIdentity does: a dated character keeps its public card, closed to dates, with no owner.
+    // What lib/account.ts deleteIdentity does: a character that went on a date stays on it, with no owner, closed to dates.
     expect(html).toContain("the characters that never went on a date (with their pictures)");
-    expect(html).toContain("keep their public card there with no owner, closed to new dates");
+    expect(html).toContain("characters&#x27; names stay on those dates, with no owner, closed to new dates");
     expect(html).toContain('href="/terms#refunds"');
     expect(html).toContain('href="/api/me/export"');
   });
