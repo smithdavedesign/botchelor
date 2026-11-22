@@ -98,6 +98,12 @@ export default function StepInStage({ initial, initialCrisis, guest = false }: {
       if (data?.refused || !data?.view) {
         setDraft(line);
         if (data?.refused) setNote(data.refused);
+      } else if (data.view.state === "finishing" && !data.view.paused) {
+        // The date's last line is on screen; the show writes it up (the verdict, the recap) on its own ask, still busy so
+        // the ask on arrival below doesn't send a second one.
+        setPending(null);
+        const after = await post({ action: "advance" });
+        if (after?.refused) setNote(after.refused);
       }
     } catch {
       setDraft(line);
