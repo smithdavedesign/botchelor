@@ -235,7 +235,7 @@ export default async function CouplePage({ params, searchParams }: Props) {
           data={breadcrumbJsonLd([
             { name: "Botchelor", path: "/" },
             { name: "Characters", path: "/characters" },
-            { name: `${ca.name} and ${cb.name}`, path: `/couples/${ca.id}/${cb.id}` },
+            { name: `${ca.name} and ${cb.name}`, path: `/couples/${lo}/${hi}` },
           ])}
         />
       )}
