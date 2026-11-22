@@ -138,17 +138,18 @@ afterEach(() => {
 });
 
 describe("1. the tool page: /tools/oc-chemistry-test", () => {
-  it("has a <title> with 'Chemistry Test', a description and a canonical link to itself, and is indexable", () => {
-    expect(String(toolMetadata.title)).toContain("Chemistry Test");
+  it("has a <title> naming the chemistry test, a description and a canonical link to itself, and is indexable", () => {
+    // In sentence case, as the footer names the tools (the 2026-11-22 audit).
+    expect(String(toolMetadata.title)).toMatch(/chemistry test/i);
     expect(toolMetadata.description).toBeTruthy();
     expect(toolMetadata.alternates?.canonical).toBe(TOOL);
-    expect(String(toolMetadata.openGraph?.title)).toContain("Chemistry Test");
+    expect(String(toolMetadata.openGraph?.title)).toMatch(/chemistry test/i);
     expect(toolMetadata.robots).toBeUndefined();
   });
 
   it("renders an h1 and one GET form for two characters, each with a name, three traits, a want and a dealbreaker", () => {
     const html = renderTool();
-    expect(html).toMatch(/<h1[^>]*>[^<]*Chemistry Test[^<]*<\/h1>/);
+    expect(html).toMatch(/<h1[^>]*>[^<]*chemistry test[^<]*<\/h1>/i);
     const forms = [...html.matchAll(/<form[^>]*>/g)].map((m) => m[0]);
     expect(forms).toHaveLength(1);
     expect(attr(forms[0], "action")).toBe(CHEMISTRY_RESULT_PATH);
@@ -325,7 +326,7 @@ describe("3. the result: a shareable, server-rendered address", () => {
     expect(og).toContain("Juniper");
     expect(og).toContain("Dex");
     expect(String(meta.twitter?.title ?? "")).toContain("Dex");
-    expect(String(meta.title)).toContain("Chemistry Test");
+    expect(String(meta.title)).toMatch(/chemistry test/i);
     expect(meta.alternates?.canonical).toBe(chemistryResultHref(JUNIPER, DEX));
     expect(meta.robots).toMatchObject({ index: false, follow: true });
     const images = JSON.stringify(meta.openGraph?.images ?? "");

@@ -195,7 +195,7 @@ describe("a mixer night's card (Watch) and tile (home)", () => {
     const shelf = html(createElement(EpisodeShelf, { items: [mixer([t1, t2, t3]), single(t4)] }));
     expect(shelf.match(/class="episode-shelf-card tap-card"/g)).toHaveLength(2);
     expect(shelf).toContain('href="/mixers/n1"');
-    expect(shelf).toContain("3 tables at");
+    expect(shelf).toContain("3 dates at");
     expect(shelf).toContain('href="/episodes/t4?play=1"');
     expect(shelf.match(/class="venue-photo episode-shelf-photo"/g)).toHaveLength(2);
   });
