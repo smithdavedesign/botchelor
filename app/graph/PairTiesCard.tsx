@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { evidenceLink, evidenceLinks, type EvidenceLink } from "@/lib/social/evidence";
 import { pairDate, pairHistory, pairRows, sharedWords } from "@/lib/social/pair-words";
@@ -16,21 +17,29 @@ type Props = {
   className?: string;
 };
 
+/** "22 Nov": the day a piece of evidence is from, for telling two of a kind apart. */
+const dayMonth = (iso: string): string => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
 function Evidence({ links }: { links: EvidenceLink[] }) {
   if (!links.length) return null;
+  // Two links with the same words read as a stutter, "the scene the scene" (the 2026-11-22 audit): each says its day,
+  // and a dot sits between them.
+  const twice = new Set(links.map((e) => e.label).filter((label, i, all) => all.indexOf(label) !== i));
+  const words = (e: EvidenceLink) => (twice.has(e.label) ? `${e.label}, ${dayMonth(e.at)}` : e.label);
   return (
     <span className="pair-ties-links">
-      {links.map((e) =>
-        e.href ? (
-          <Link key={e.href} href={e.href} className="tap-link">
-            {e.label}
-          </Link>
-        ) : (
-          <span key={`${e.label}:${e.at}`} className="muted">
-            {e.label}
-          </span>
-        ),
-      )}
+      {links.map((e, i) => (
+        <Fragment key={e.href ?? `${e.label}:${e.at}`}>
+          {i > 0 && <span aria-hidden="true">·</span>}
+          {e.href ? (
+            <Link href={e.href} className="tap-link">
+              {words(e)}
+            </Link>
+          ) : (
+            <span className="muted">{words(e)}</span>
+          )}
+        </Fragment>
+      ))}
     </span>
   );
 }

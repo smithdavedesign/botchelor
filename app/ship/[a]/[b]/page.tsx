@@ -44,7 +44,7 @@ async function load(params: Props["params"]): Promise<ShipPair> {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const pair = await load(params);
   // Refused or unreadable: the generator's title, nothing of what was typed, and kept out of search.
-  if (!pair.ok) return { title: "OC Ship Name Generator · Botchelor", robots: { index: false, follow: false } };
+  if (!pair.ok) return { title: "OC ship name generator · Botchelor", robots: { index: false, follow: false } };
   const { a, b, names } = pair;
   const pairName = `${a.display} × ${b.display}`;
   const top = names.slice(0, 2).map((n) => n.name);
@@ -70,7 +70,7 @@ export default async function ShipPage({ params }: Props) {
     return (
       <section className="card ship-tool">
         <p className="kicker">
-          <Link href="/tools/ship-name-generator">OC Ship Name Generator</Link>
+          <Link href="/tools/ship-name-generator">OC ship name generator</Link>
         </p>
         <h1>No ship names for that pair</h1>
         <p className="error" role="alert">
@@ -92,7 +92,7 @@ export default async function ShipPage({ params }: Props) {
     <>
       <section className="card ship-tool">
         <p className="kicker">
-          <Link href="/tools/ship-name-generator">OC Ship Name Generator</Link>
+          <Link href="/tools/ship-name-generator">OC ship name generator</Link>
         </p>
         <h1>{`${a.display} × ${b.display} ship names`}</h1>
         {couple && (

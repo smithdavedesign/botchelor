@@ -5,7 +5,7 @@ import ShipForm from "../../ship/ShipForm";
 import MoreTools from "../MoreTools";
 
 const PATH = SHIP_TOOL_PATH;
-const TITLE = "OC Ship Name Generator";
+const TITLE = "OC ship name generator";
 const DESCRIPTION =
   "A free ship name generator for original characters: type two names and get the ship names that blend them, best first, on a link you can share. No sign-up.";
 

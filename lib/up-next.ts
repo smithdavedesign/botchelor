@@ -16,6 +16,7 @@ import { dateNumberSql } from "./date-number";
 import { NOT_THE_VIEWERS, PUBLIC_FEED_WHERE, type EpisodeView } from "./game";
 import { portraitPathSql } from "./portrait-sql";
 import { REPORT_HIDE_THRESHOLD } from "./rules";
+import { sentenceCase } from "./sentence-case";
 import type { PlaceId } from "./venues";
 
 /** How many cards: a row of three on a wide screen (app/EpisodeShelf.tsx). */
@@ -106,7 +107,7 @@ export async function upNextFor(db: Db, episodeId: string, viewerId: string | nu
     share_path: `/episodes/${r.id}`,
     revealed: true,
     setting: r.setting,
-    ...(r.title ? { title: r.title } : {}),
+    ...(r.title ? { title: sentenceCase(r.title, [r.a_name, r.b_name], r.setting) } : {}),
     ...(r.venue ? { venue: r.venue as PlaceId } : {}),
     ...(r.date_number && r.date_number > 1 ? { date_number: r.date_number } : {}),
     next_of_couple: r.next_of_couple,

@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 const page = readFileSync(new URL("../app/watch/page.tsx", import.meta.url), "utf8");
 
 describe("Watch stays short", () => {
-  it("links the Reunion in one line, never the whole special", () => {
+  it("links the season so far in one line, never the whole special", () => {
     expect(page).not.toContain("ReunionPanel");
-    expect(page).toContain('<Link href="/reunion">The Reunion</Link>');
+    expect(page).toContain('<Link href="/reunion">This season so far</Link>');
   });
 
   it("is three blocks: on now, vote before it airs, recent episodes (the 2026-11-14 design audit)", () => {

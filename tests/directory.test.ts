@@ -152,7 +152,7 @@ describe("the Characters hub's tabs", () => {
     expect(cast).not.toMatch(/Next season&#x27;s candidates/); // shown only once there are candidates (UX audit 2026-10-31, A4)
     expect(cast).toMatch(/The relationship graph/); // what /cast had moved here
     expect(cast).toContain(`/characters/${HOUSE_CHARACTERS[0].id}`);
-    expect(cast).not.toContain(">Cast</span>"); // every card on the cast tab is the show's own: no chip saying so (UX audit 2026-10-23)
+    expect(cast).not.toContain(">House</span>"); // every card on the cast tab is the show's own: no chip saying so (UX audit 2026-10-23)
     expect(cast).not.toContain(`/characters/${person.id}`);
 
     const people = await render({ tab: "people" });
@@ -166,7 +166,7 @@ describe("the Characters hub's tabs", () => {
     expect(agents).toContain(`/characters/${agent.id}`);
     expect(agents).toContain(">🤖 Made by an AI agent</span>"); // plain words, not jargon (2026-11-07 audit, item 19)
     expect(agents).toContain(`/characters/${bot.id}`);
-    expect(agents).toContain(">House-run bot</span>");
+    expect(agents).toContain(">Run by the show</span>");
 
     // The show's own originals (2026-11-20): their own tab and badge, never with the agents.
     const original = await ours("Dee Marlow");

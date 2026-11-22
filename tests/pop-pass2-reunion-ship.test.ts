@@ -17,7 +17,7 @@ describe("award title cards (app/AwardCard.tsx)", () => {
   const golden: ReunionAward = {
     title: "🏆 The golden couple",
     name: "Barnaby Thorne × Sable Quist",
-    detail: "9 second dates out of 9.",
+    detail: "9 of 9 dates ended in a yes to another.",
     chars: [
       { id: "house-barnaby", name: "Barnaby Thorne", house: true, hue: 20, portrait: null },
       { id: "house-sable", name: "Sable Quist", house: true, hue: 300, portrait: null },
@@ -25,7 +25,7 @@ describe("award title cards (app/AwardCard.tsx)", () => {
   };
 
   it("finds the figure a line opens on, and only that", () => {
-    expect(leadingFigure("9 second dates out of 9.")).toEqual({ n: 9, rest: " second dates out of 9." });
+    expect(leadingFigure("9 of 9 dates ended in a yes to another.")).toEqual({ n: 9, rest: " of 9 dates ended in a yes to another." });
     expect(leadingFigure("10 viewers called them the most likable.")).toEqual({ n: 10, rest: " viewers called them the most likable." });
     expect(leadingFigure("The date that went most wrong this season.")).toBeNull();
     expect(leadingFigure("2026")).toBeNull();
@@ -36,8 +36,8 @@ describe("award title cards (app/AwardCard.tsx)", () => {
     expect(html).toContain('class="card award award-card sheen-once tilt"');
     expect(html).toContain('class="award-faces is-pair"');
     expect(html.match(/href="\/characters\/house-(barnaby|sable)"/g)).toHaveLength(2);
-    expect(html).toMatch(/<span class="count-up" data-final="9"><span>9<\/span><\/span> second dates out of 9\./);
-    expect(html.replace(/<[^>]+>/g, "")).toContain("9 second dates out of 9.");
+    expect(html).toMatch(/<span class="count-up" data-final="9"><span>9<\/span><\/span> of 9 dates ended in a yes to another\./);
+    expect(html.replace(/<[^>]+>/g, "")).toContain("9 of 9 dates ended in a yes to another.");
   });
 
   it("is the same card on the season pages, faces unlinked", () => {

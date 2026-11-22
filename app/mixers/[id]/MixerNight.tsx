@@ -127,7 +127,7 @@ export default function MixerNight({ tables, rounds, closing }: { tables: MixerT
         <span className="mixer-strip-tools">
           {pos === null || done ? (
             <button type="button" className="primary small" onClick={() => { setPaused(false); setPos(0); }} disabled={!steps.length}>
-              {done ? "↻ Again" : "▶ Play the night"}
+              {done ? "↻ Again" : "▶ Watch the mixer"}
             </button>
           ) : (
             <>

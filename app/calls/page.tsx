@@ -282,7 +282,7 @@ export default async function CallsPage({ searchParams }: Props) {
       </section>
 
       <p className="muted small">
-        Every right call counts toward the season pool: one score for the month, and the board is revealed when the season closes.
+        Every right call counts toward your season score: one score for the month, and the scoreboard is revealed when the season closes.
       </p>
     </article>
   );

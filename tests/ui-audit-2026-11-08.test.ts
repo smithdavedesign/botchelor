@@ -164,8 +164,8 @@ describe("a mixer night's card (Watch) and tile (home)", () => {
     const card = html(createElement(FeedEntry, { item: mixer([t1, t2, t3, t4]) }));
     expect(card).toContain('<li class="card episode-item night-item tap-card">');
     expect(card).toContain('href="/mixers/n1"');
-    expect(card).toContain("Speed-dating night");
-    expect(card).toContain("4 singles · 4 tables aired");
+    expect(card).toContain("Speed-dating mixer");
+    expect(card).toContain("4 singles · 4 dates aired");
     expect(card).toContain("Sable × Greta · Sigrid × Barnaby · Sable × Barnaby and 1 more");
     expect(card.match(/class="avatar/g)).toHaveLength(4);
     expect(card).not.toContain("/episodes/t1"); // the night's page lists its tables

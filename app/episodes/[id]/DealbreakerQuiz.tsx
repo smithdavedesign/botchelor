@@ -4,6 +4,7 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { POINTS_PER_DEALBREAKER_PICK } from "@/lib/rules";
+import { midSentence } from "@/lib/sentence-case";
 
 type Props = {
   episodeId: string;
@@ -40,7 +41,7 @@ export default function DealbreakerQuiz({ episodeId, characterName, options, myP
       <section className="card quiz">
         <h2>Guess the dealbreaker</h2>
         <p className={correct ? "notice" : undefined}>
-          {characterName}&apos;s real dealbreaker was <strong>{answer}</strong>
+          {characterName}&apos;s real dealbreaker was <strong>{midSentence(answer ?? "")}</strong>
           {stop} You picked {picked === answer ? "it" : `“${picked}”`}:{" "}
           {correct ? `+${POINTS_PER_DEALBREAKER_PICK} points.` : "0 points."}
         </p>

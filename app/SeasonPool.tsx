@@ -51,12 +51,12 @@ export default function SeasonPoolPanel({ standing, revealed, now, insider = fal
   return (
     <section className="watch-section season-pool" id="season-pool" aria-labelledby="season-pool-head">
       <h2 id="season-pool-head">
-        <Icon name="trophy" /> The season pool
+        <Icon name="trophy" /> Season scoreboard
       </h2>
       {revealed && (
         <>
           <p className="small">
-            <strong>The {revealed.label} pool is out.</strong>
+            <strong>The {revealed.label} scoreboard is out.</strong>
           </p>
           <PoolBoardList board={revealed} insider={insider} />
         </>
@@ -77,8 +77,8 @@ export default function SeasonPoolPanel({ standing, revealed, now, insider = fal
             </>
           )}
           <span className="muted">
-            Every right call, drama pick, dealbreaker guess, arc, dare and backing this month adds up to one score. The board, with names, is
-            revealed when the season closes {countdown(lastNightOf(standing.reveals_at), now)}.
+            Every right call, drama pick, dealbreaker guess, arc, dare and backing this month adds up to one score. The scoreboard, with names,
+            is revealed when the season closes {countdown(lastNightOf(standing.reveals_at), now)}.
           </span>
         </p>
       )}

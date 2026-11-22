@@ -152,7 +152,8 @@ export async function seasonAwards(db: Db, span: SeasonSpan): Promise<ReunionAwa
     out.push({
       title: "🏆 The golden couple",
       name: `${golden.a_name} × ${golden.b_name}`,
-      detail: `${golden.second_dates} second ${golden.second_dates === 1 ? "date" : "dates"} out of ${golden.dates}.`,
+      // The figure first, for the card's count-up (app/AwardCard.tsx); said as the couple boards say it (lib/rules.ts yesesTail).
+      detail: `${golden.second_dates} of ${golden.dates} ${golden.dates === 1 ? "date" : "dates"} ended in a yes to another.`,
       chars: [charA(golden), charB(golden)],
     });
   }

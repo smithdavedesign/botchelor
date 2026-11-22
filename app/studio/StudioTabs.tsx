@@ -6,8 +6,10 @@ import Link from "next/link";
  * owner shoots one of their own characters (/studio). A visitor lands on the Gallery, so the door is never empty.
  * Plain links: crawlable, no script.
  */
+// "Showcase", the one word for what creators share (docs/glossary.md: the page, the publish button, After Dark's room);
+// "Gallery" is After Dark's door. The id stays "gallery".
 const TABS = [
-  { id: "gallery", href: "/showcase", label: "Gallery" },
+  { id: "gallery", href: "/showcase", label: "Showcase" },
   { id: "studio", href: "/studio", label: "My studio" },
 ] as const;
 

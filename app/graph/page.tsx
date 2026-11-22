@@ -20,6 +20,7 @@ import { parseStages, stagesParam } from "./stages";
 import ViewSwitch from "@/app/characters/ViewSwitch";
 import { lensParam, parseLens } from "@/lib/social/lenses";
 import { cachedLensSky, socialLensesOn } from "@/lib/social/lens-sky";
+import { datesCount, yesesTail } from "@/lib/rules";
 
 // Rendered per request (the site chrome reads the session), but the graph itself comes from a 60-second cache that a
 // visibility change, a report or moderation drops at once (lib/graph-cache.ts): crawlers no longer rebuild it each hit.
@@ -216,8 +217,8 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
                   {e.stage && <span className="badge">{e.stage}</span>}{" "}
                   {/* No endings here: like the episode page, the canvas keeps them behind "Show what happened". */}
                   <span className="muted">
-                    {e.dates} {e.dates === 1 ? "date" : "dates"}
-                    {e.second_dates > 0 && `, ${e.second_dates} second`}
+                    {datesCount(e.dates)}
+                    {yesesTail(e.dates, e.second_dates)}
                   </span>
                 </li>
               );

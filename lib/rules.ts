@@ -262,12 +262,38 @@ export const MOVE_SEGMENT_LINES = 12;
 export const AFTERGLOW_TURNS = 4;
 
 const DATE_ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth"];
-/** A date's place in a couple's run of dates, as a badge: "Second date", "Third date", ... "12th date". */
+/**
+ * A date's place in a couple's run of dates, in words: "Second date", "Third date", ... "12th date". For running text
+ * ("their seventh date", "a 12th date"): spelled out to tenth, figures after (docs/glossary.md). A badge says dateBadge.
+ */
 export function dateLabel(n: number): string {
   if (n >= 1 && n <= DATE_ORDINALS.length) return `${DATE_ORDINALS[n - 1]} date`;
   const tens = n % 100;
   const suffix = tens >= 11 && tens <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
   return `${n}${suffix} date`;
+}
+
+/**
+ * A date's place in a couple's run as a badge or a chip: "Date 2", "Date 7", "Date 11". One style at every number
+ * (2026-11-22: "SEVENTH DATE" sat beside "11TH DATE" in one list, and the long words were cut off on a phone's thumbnail).
+ */
+export function dateBadge(n: number): string {
+  return `Date ${Math.max(1, Math.floor(n))}`;
+}
+
+/** "1 date", "9 dates". */
+export const datesCount = (n: number): string => `${n} ${n === 1 ? "date" : "dates"}`;
+
+/**
+ * How many of a couple's dates ended with both wanting another (the "second_date" ending), after their count: ", all
+ * ending in a yes to another", ", 5 ending in a yes to another", or nothing when none did. The 2026-11-22 audit found
+ * "9 dates, 9 second", "all ended in a second date · none booked yet" and "9 second dates out of 9" for the same fact,
+ * and a ninth date's yes isn't to a second date anyway (endingLabel: "A tenth date").
+ */
+export function yesesTail(dates: number, yeses: number): string {
+  if (yeses <= 0) return "";
+  if (dates <= 1) return ", ending in a yes to another";
+  return `, ${yeses >= dates ? "all" : yeses} ending in a yes to another`;
 }
 
 /** "an" before a sound that starts with a vowel: "eighth", and the numbers read "eight…", "eleven…" or "eighteen…". */

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { OC_NAMES_PATH, readBatch, readKind } from "@/lib/oc-names";
 import NamesView from "./NamesView";
 
-const TITLE = "OC Name Generator";
+const TITLE = "OC name generator";
 const DESCRIPTION =
   "A free name generator for original characters: fantasy, modern, sci-fi, gothic and cozy names, feminine, masculine or neutral, twelve at a time. No sign-up, no AI.";
 

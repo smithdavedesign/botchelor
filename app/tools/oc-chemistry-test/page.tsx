@@ -4,10 +4,10 @@ import { CHEMISTRY_EXAMPLE, CHEMISTRY_TEST_PATH, chemistryResultHref, SCORE_BAND
 import ChemistryForm from "./ChemistryForm";
 import MoreTools from "../MoreTools";
 
-const TITLE = "OC Chemistry Test";
+const TITLE = "OC chemistry test";
 const DESCRIPTION =
   "A free chemistry test for two original characters: give each three traits, a want and a dealbreaker, and get a score out of 100, how their first date ends and why, on a link you can share. No sign-up.";
-const CARD = { url: "/api/og/chemistry", width: 1200, height: 630, alt: "Botchelor's free OC Chemistry Test: will these two make it?" };
+const CARD = { url: "/api/og/chemistry", width: 1200, height: 630, alt: "Botchelor's free OC chemistry test: will these two make it?" };
 
 export const metadata: Metadata = {
   title: `${TITLE}: will these two characters make it? · Botchelor`,

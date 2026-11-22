@@ -45,7 +45,7 @@ import { getCharacterRatings } from "@/lib/ratings";
 import { loadOvernightMarks, OvernightMarksList } from "./OvernightMarks";
 import { relationshipsOf, viewRelationship } from "@/lib/relationships";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
-import { DELETED_OWNER, endingLabel } from "@/lib/rules";
+import { DELETED_OWNER, endingLabel, VOICE_MAX } from "@/lib/rules";
 import RatingButtons from "./RatingButtons";
 import Reviews from "./Reviews";
 import { reviewableNow, reviewSummary } from "@/lib/reviews";
@@ -57,7 +57,7 @@ import { INVITE_COOKIE, inviteFromCookie, invitePath } from "@/lib/casting-invit
 import { inviteView, loadInvite } from "@/lib/casting-invites";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
-import { whileAwayOf } from "@/lib/activity";
+import { adoptedLine, whileAwayOf } from "@/lib/activity";
 import { backingBoard } from "@/lib/backing";
 import { BackThem } from "@/app/BackCast";
 import { isFanCast, isOnSeasonCast, seasonIdAt, seasonMonth, showCastIds } from "@/lib/season-cast";
@@ -103,6 +103,9 @@ import { shotsFor } from "@/lib/show-shots-sql";
 import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
+import { pronounForms, verb } from "@/lib/pronoun-forms";
+import { wholeSentences } from "@/lib/whole-sentences";
+import { APPEARANCE_MAX, BIO_MAX, WANT_MAX } from "@/lib/field-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -456,6 +459,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     { id: c.id, name: c.name, own: ratings.is_owner, private: c.private, dateable: cta.kind === "send" || cta.kind === "make", ready: goes?.mode === "book", mineTaken: Boolean(goes?.taken), steppable: stepIn !== null },
   );
   // Text, the small second action in the header (lib/character-verb.ts): anyone they may text, their own included.
+  // Their own pronouns, for the page's running text ("How he talks"; lib/pronoun-forms.ts).
+  const own = pronounForms(c.pronouns);
   const text = textVerb(companion === "talk" ? "open" : companion === "signin" ? "sign_in" : "closed", { id: c.id, name: c.name, textable: Boolean(companion) });
   // Follow (lib/character-follows.ts): anyone but its owner, on a public character whose creator is still here. An
   // owner already hears everything, so their own page shows no control.
@@ -634,7 +639,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
       )}
       {/* Adopted while its agent is away (lib/away.ts): said to everyone, so nobody takes the show's answers for its agent's. */}
-      {away?.adopted && <p className="muted small character-adopted">🎭 House cast while its agent is away: played by the show, it always likes back and texts back. Its agent gets it back the moment they return.</p>}
+      {away?.adopted && <p className="muted small character-adopted">🎭 {adoptedLine(shortName(c.name), c.pronouns)}</p>}
       {ratings.is_owner && !c.house && <OwnerControls id={c.id} name={c.name} private={c.private} openToDates={dating?.open_to_dates ?? false} companionOpen={companionOpen() ? (away?.companion_open ?? false) : undefined} audience={dating?.open_to} clip={clip ?? undefined} talk={talk ?? undefined} partners={partnerStyle ?? undefined} whileAway={away ? { mode: whileAwayOf(away), adopted: away.adopted } : undefined} />}
       {inviteLine && (
         <p className="casting-invite-nudge">
@@ -815,23 +820,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
       {backing && <BackThem characterId={c.id} name={shortName(c.name)} board={backing} />}
       {!stepInLeads && stepInEntry}
-      {companion && (
-        <section className="card stepin-entry" aria-labelledby="companion-entry-title">
-          <div>
-            <h2 id="companion-entry-title">💬 Talk with {shortName(c.name)}</h2>
-            <p className="muted small">
-              Just the two of you, off the show: {shortName(c.name)} remembers what you tell them, and only you see it. {shortName(c.name)} is an AI character.
-            </p>
-          </div>
-          {companion === "signin" ? (
-            <Link className="button secondary" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
-              Sign in to talk with {shortName(c.name)}
-            </Link>
-          ) : (
-            <TalkButton characterId={c.id} name={shortName(c.name)} label={`Talk to ${shortName(c.name)}`} />
-          )}
-        </section>
-      )}
+      {/* No "Talk with them" card here any more (2026-11-22 audit): its button opened the same chat as Text in the
+          header, under a second name. Text is the one way in (lib/character-verb.ts, docs/glossary.md). */}
 
       {ratings.is_owner && c.pg_flags.length > 0 && (
         // A public field saved before the sheet's PG check (lib/pg-public.ts): everyone sees it hidden until it's edited.
@@ -919,7 +909,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
 
       <section className="card" id="profile">
-        <p>{c.bio}</p>
+        <p>{wholeSentences(c.bio, BIO_MAX)}</p>
         {/* The basics at a glance (David, 2026-10-25): from the profile, only what's filled in. */}
         {(() => {
           const e = c.extras;
@@ -952,7 +942,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         )}
         {c.appearance && (
           <p className="muted">
-            <strong>Looks:</strong> {c.appearance}
+            <strong>Looks:</strong> {wholeSentences(c.appearance, APPEARANCE_MAX)}
           </p>
         )}
         <ul className="chips">
@@ -963,16 +953,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           ))}
         </ul>
         <p>
-          <strong>Wants:</strong> {c.want}
+          <strong>Wants:</strong> {wholeSentences(c.want, WANT_MAX)}
         </p>
         {c.voice && (
           <p className="muted">
-            <strong>How they talk:</strong> {c.voice}
+            <strong>How {own.subj} {verb(own, "talks", "talk")}:</strong> {wholeSentences(c.voice, VOICE_MAX)}
           </p>
         )}
       </section>
 
-      {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} />}
+      {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} name={c.name} pronouns={c.pronouns} />}
 
       {photos.length > 0 && (
         <section className="card profile-photos" aria-label="Photos">
@@ -1191,7 +1181,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {(cta.kind === "send" || cta.kind === "make") && (
         <section className="card">
           <h2>Date {shortName(c.name)}</h2>
-          <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} roleplays={c.house} signedIn={signedIn} />
+          {stepInLeads && cta.kind === "make" ? (
+            // The page's one filled button again after the profile: stepping in, as at the top. It was "Make a
+            // character to date them" here, a second filled button for what the top says quietly (2026-11-22 audit).
+            <Link className="button" href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character-end">
+              Step into a date with {shortName(c.name)}
+            </Link>
+          ) : (
+            <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} roleplays={c.house} signedIn={signedIn} />
+          )}
         </section>
       )}
 

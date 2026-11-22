@@ -1,5 +1,6 @@
-import { promptLabel, SAMPLE_LINES, TELLS, type CharacterExtras } from "@/lib/extras";
+import { promptLabel, SAMPLE_LINES, type CharacterExtras } from "@/lib/extras";
 import { kindLabel, kindName } from "@/lib/kinds";
+import { tellRows } from "@/lib/tell-lines";
 
 function Facts({ rows }: { rows: [string, string | undefined][] }) {
   const shown = rows.filter((r): r is [string, string] => Boolean(r[1]));
@@ -16,8 +17,21 @@ function Facts({ rows }: { rows: [string, string | undefined][] }) {
   );
 }
 
-/** A character's optional details, laid out like a dating profile (lib/extras.ts). Only what was filled in. */
-export default function ProfileDetails({ extras: e, owner = false }: { extras: CharacterExtras; owner?: boolean }) {
+/**
+ * A character's optional details, laid out like a dating profile (lib/extras.ts). Only what was filled in. `name` and
+ * `pronouns` are the character's, for their tells ("When he's nervous", lib/tell-lines.ts).
+ */
+export default function ProfileDetails({
+  extras: e,
+  owner = false,
+  name = "",
+  pronouns = null,
+}: {
+  extras: CharacterExtras;
+  owner?: boolean;
+  name?: string;
+  pronouns?: string | null;
+}) {
   const facts = (e.facts ?? []).filter((f) => owner || !f.private);
   // What they're here for, their type, sign, love language and interests are the basics on the card above (page.tsx).
   const chips = [kindLabel(e), e.drawn_to?.length ? `💘 Into ${e.drawn_to.map((k) => kindName(k, "many").toLowerCase()).join(", ")}` : null].filter(
@@ -84,7 +98,7 @@ export default function ProfileDetails({ extras: e, owner = false }: { extras: C
       {e.tells && Object.keys(e.tells).length > 0 && (
         <>
           <h3 className="section">Their tells</h3>
-          <Facts rows={TELLS.map((t) => [t.label.replace(/…$/, ""), e.tells?.[t.id]] as [string, string | undefined])} />
+          <Facts rows={tellRows(e.tells, pronouns, name)} />
         </>
       )}
 

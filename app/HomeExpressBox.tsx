@@ -51,8 +51,9 @@ export default function HomeExpressBox() {
           enterKeyHint="go"
           placeholder="A lighthouse keeper who repairs old radios"
         />
+        {/* "Make", the one verb for making a character (docs/glossary.md); the data-track name stays. */}
         <button type="submit" data-track="home-express">
-          Meet them
+          Make them
         </button>
       </div>
       <div className="express-examples home-express-examples" role="group" aria-label="Examples that fill the box">

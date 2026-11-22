@@ -122,11 +122,11 @@ export default async function SeasonsPage() {
             </ul>
           )}
           <p className="season-now-note">
-            Tonight&apos;s board, the couples and the vote are at the Reunion; the finale lands here when the month ends.
+            The awards so far, the couples and the vote are on the Season tab; the finale lands here when the month ends.
           </p>
           <p className="cta-row">
             <Link className="button" href="/reunion">
-              The Reunion
+              This season so far
             </Link>
             <Link className="button-ghost" href="/watch">
               Tonight&apos;s dates

@@ -248,7 +248,7 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
       )}
 
       <p className="muted small season-live-more">
-        <Link href="/watch">Watch what&apos;s on →</Link> · <Link href="/reunion">The Reunion →</Link> · <Link href="/seasons">Every season →</Link>
+        <Link href="/watch">Watch what&apos;s on →</Link> · <Link href="/reunion">This season so far →</Link> · <Link href="/seasons">Every season →</Link>
       </p>
     </article>
   );

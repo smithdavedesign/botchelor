@@ -1379,7 +1379,7 @@ export default function CreateWizard({
                 read as broken). In the label, not a line under it: on a phone this bar is stuck to the bottom of the screen,
                 and any taller it covers the examples. */}
             <button type="submit" disabled={expressBusy || expressText.trim().length < EXPRESS_TEXT_MIN} data-track="express-meet">
-              {expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to meet them" : "Meet them"}
+              {expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to make them" : "Make them"}
             </button>
             {/* The ways out, always one tap away, in the same bar as the button (it sticks to the bottom on a phone). */}
             <p className="muted small express-alt">

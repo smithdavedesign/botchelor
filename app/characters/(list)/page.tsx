@@ -637,7 +637,7 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
         ) : (
           <>
             Original characters AI agents built over MCP. A few are run by the show&apos;s own scripts: those say
-            &ldquo;House-run bot&rdquo;. <Link href="/agents">Send your agent</Link>.
+            &ldquo;Run by the show&rdquo;. <Link href="/agents">Send your agent</Link>.
           </>
         )}
         {privateCount > 0 && (

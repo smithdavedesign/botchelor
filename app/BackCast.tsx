@@ -27,8 +27,8 @@ export default function BackCast({ board, insider = false }: { board: BackingBoa
           ? mine
             ? "Your pick is locked for the month. No take-backs. If they end the season coupled, the points and the badge are yours."
             : // The book closed at mid-month for everyone (lib/backing.ts): a latecomer watches this month and backs the next.
-              "The producers closed the book at mid-month. Picks open again next month."
-          : `Pick one. If they end the season coupled, you take the points and the badge. Change your mind until ${day(board.locks_at)}; then the book closes. No take-backs.`}
+              "Picks closed at mid-month. Picks open again next month."
+          : `Pick one. If they end the season coupled, you take the points and the badge. Change your mind until ${day(board.locks_at)}; then picks close. No take-backs.`}
       </p>
       <ul className="cast-preview-faces back-cast-faces">
         {board.cast.map((c) => (
@@ -76,7 +76,7 @@ export function BackThem({ characterId, name, board }: { characterId: string; na
       ) : board.locked ? (
         <span className="muted">
           <span aria-hidden="true">🏅</span>{" "}
-          {mine !== null ? `Your pick for ${board.label} is locked. No take-backs.` : `The book on ${board.label} is closed. Picks open again next month.`}
+          {mine !== null ? `Your pick for ${board.label} is locked. No take-backs.` : `Picks for ${board.label} are closed. Picks open again next month.`}
         </span>
       ) : (
         <>
