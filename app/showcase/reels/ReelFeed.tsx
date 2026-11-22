@@ -31,6 +31,8 @@ type Props = {
   place?: "show" | "after_dark";
   /** After Dark's: who a night can start with for this viewer (their After Dark cast), whose button opens their page there. */
   nights?: string[];
+  /** After Dark takes an invite for now (no payment set up, lib/adult/billing.ts billingOn): its teaser says so. */
+  inviteOnly?: boolean;
 };
 
 /** The show's own media route: always works, one redirect more than `p.media` for a file After Dark keeps. */
@@ -200,7 +202,9 @@ export default function ReelFeed(props: Props) {
   };
 
   return (
-    <div className={styles.reels}>
+    // .page-full, as the showcase's loading screen has it: main keeps the whole width, so nothing under the feed moves
+    // when the feed replaces that screen (2026-11-22: a layout shift of 0.2 on every desktop load).
+    <div className={`${styles.reels} page-full`}>
       {/* The page's heading, for a screen reader: the feed itself is all pictures (audit 2026-11-22: no h1). */}
       <h1 className="sr-only">{place === "after_dark" ? "After Dark reels" : "Showcase reels"}</h1>
       <div className={styles.top}>
@@ -244,6 +248,7 @@ export default function ReelFeed(props: Props) {
               moving={i === active && shown && !reduced}
               veiled={!shown}
               locked={props.explicit ? 0 : (locked[x.post.character.id] ?? 0)}
+              inviteOnly={props.inviteOnly ?? false}
               side={props.side}
               place={place}
               nights={nights}
@@ -313,6 +318,7 @@ function Slide({
   moving,
   veiled,
   locked,
+  inviteOnly,
   side,
   place,
   nights,
@@ -329,6 +335,7 @@ function Slide({
   moving: boolean;
   veiled: boolean;
   locked: number;
+  inviteOnly: boolean;
   /** The side being watched: "See all of" opens the same one. */
   side: "pg" | "after_dark";
   /** Whose reels: on After Dark's, its links stay on After Dark (lib/showcase-paths.ts). */
@@ -422,7 +429,7 @@ function Slide({
           </p>
           {locked > 0 && (
             <Link href="/after-dark/subscribe" className={styles.lock} onClick={cta("after_dark")}>
-              🌙 {locked} more of {first} after dark
+              🌙 {locked} more of {first} after dark{inviteOnly ? " · invite only" : ""}
             </Link>
           )}
         </div>

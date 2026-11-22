@@ -265,7 +265,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
       <div className="swipe-deck" tabIndex={0} onKeyDown={onKey} aria-label={`${first}'s swipe deck. Right arrow likes, left arrow passes.`}>
         {top ? (
           <div className="swipe-stack">
-            {next && <Card card={next} className="swipe-card swipe-next" />}
+            {next && <Card card={next} className="swipe-card swipe-next" behind />}
             <Card
               key={top.id}
               card={top}
@@ -375,6 +375,8 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
 type CardProps = {
   card: DeckCard;
   className: string;
+  /** The next card, peeking out behind the top one: only a shape until it comes up, so nothing in it is read or reached. */
+  behind?: boolean;
   style?: CSSProperties;
   children?: ReactNode;
   onPointerDown?: (e: ReactPointerEvent<HTMLElement>) => void;
@@ -387,7 +389,7 @@ type CardProps = {
  * One dating-profile card: the look, who they are, two or three prompts, interests, what they're after, and why. Also the
  * demo deck's card (app/swipe/DemoDeck.tsx), so a visitor without a character swipes the real thing.
  */
-export function Card({ card, className, style, children, ...pointer }: CardProps) {
+export function Card({ card, className, behind, style, children, ...pointer }: CardProps) {
   // A long profile scrolls inside the card. With a mouse nothing said so (it faded out mid-sentence), so while there's
   // more below, a "More" button sits on the fade and scrolls it on.
   const body = useRef<HTMLDivElement>(null);
@@ -405,7 +407,14 @@ export function Card({ card, className, style, children, ...pointer }: CardProps
     return () => ro.disconnect();
   }, [measure, card.id]);
   return (
-    <article className={more ? `${className ?? ""} swipe-has-more`.trim() : className} style={style} aria-label={`${card.name}, ${card.age}`} {...pointer}>
+    <article
+      className={more ? `${className ?? ""} swipe-has-more`.trim() : className}
+      style={style}
+      aria-label={`${card.name}, ${card.age}`}
+      aria-hidden={behind || undefined}
+      inert={behind || undefined}
+      {...pointer}
+    >
       {children}
       {more && (
         <button
@@ -422,7 +431,8 @@ export function Card({ card, className, style, children, ...pointer }: CardProps
       <div className="swipe-photo">
         <Avatar seed={card.id} name={card.name} hue={card.hue} house={card.house} portraitSrc={card.portrait} size={140} />
       </div>
-      <div className="swipe-body" ref={body} onScroll={measure}>
+      {/* The profile scrolls inside the card, so a keyboard can reach it too: Tab, then up and down (left and right still swipe). */}
+      <div className="swipe-body" ref={body} onScroll={measure} role="region" aria-label={`${card.name}'s profile`} tabIndex={0}>
         <h2 className="swipe-name">
           {card.name}
           <span className="swipe-age">, {card.age}</span>

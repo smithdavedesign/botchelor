@@ -214,6 +214,11 @@ describe("the reels' page", () => {
     expect(html).toContain(`href="/showcase?character=${w.mara}"`);
     expect(html).toContain("🌙 2 more of Mara after dark");
     expect(html).toContain('href="/after-dark/subscribe"');
+    // While After Dark takes an invite (no payment set up), the teaser says so rather than reading as something to buy.
+    expect(html).not.toContain("invite only");
+    expect(render({ initial: posts, locked: { [w.mara]: 2 }, inviteOnly: true })).toContain("🌙 2 more of Mara after dark · invite only");
+    // The feed keeps main as wide as the showcase's loading screen had it, so nothing moves when it arrives.
+    expect(html).toMatch(/^<div class="[^"]*\bpage-full\b/);
     expect(html).toContain("Make your own character");
     // The end, for now: start again, or make one.
     expect(html).toContain("That&#x27;s everything here, for now");

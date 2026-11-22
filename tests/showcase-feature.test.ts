@@ -136,6 +136,15 @@ describe("the page and its styles", () => {
     expect(page).toContain('isUnfiltered(filters) ? await shared("showcase:feature", () => showcaseFeature(db)) : null');
   });
 
+  it("opens the gallery's own Watch full screen on it too, so the reels start where the page does (2026-11-22)", () => {
+    expect(page).toContain("href={`/showcase/reels${feature ? `?start=${encodeURIComponent(feature.id)}` : reelsQuery(sp)}`}");
+  });
+
+  it("fills the active chip with the button pink, whose white label passes contrast (2026-11-22)", () => {
+    expect(css).toMatch(/a\.showcase-side\.on \{\s*background: var\(--accent-btn\);/);
+    expect(css).not.toMatch(/a\.showcase-side\.on \.showcase-count \{[^}]*opacity/);
+  });
+
   it("only twinkles where motion is welcome", () => {
     const parts = css.split("@media (prefers-reduced-motion: no-preference)");
     const outside = parts[0] + parts.slice(1).map((b) => b.slice(b.indexOf("\n}") + 2)).join("");

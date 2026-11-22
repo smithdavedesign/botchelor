@@ -46,6 +46,12 @@ describe("the motion kit (app/ux/motion.css, pass 2 of the visual pop audit)", (
   it("is loaded on every page", () => {
     expect(readFileSync(join(ROOT, "app/layout.tsx"), "utf8")).toContain('import "./ux/motion.css";');
   });
+
+  it("rises without fading: a scroll-tied fade held a card half-faded, its text below contrast, wherever scrolling stopped", () => {
+    const rise = css.match(/@keyframes rise-in \{[^]*?\n\}/)?.[0] ?? "";
+    expect(rise).toContain("translate:");
+    expect(rise).not.toContain("opacity");
+  });
 });
 
 describe("CountUp", () => {

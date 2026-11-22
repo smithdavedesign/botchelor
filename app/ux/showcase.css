@@ -84,13 +84,13 @@ a.showcase-side {
   font-weight: 600;
   font-size: var(--text-sm);
 }
+/* The button fill, not the decoration pink: white on --accent is 4.15:1, on --accent-btn 5.2:1, count and all. */
 a.showcase-side.on {
-  background: var(--accent);
+  background: var(--accent-btn);
   color: var(--accent-ink);
 }
 a.showcase-side.on .showcase-count {
   color: inherit;
-  opacity: 0.8;
 }
 /* What's picked, each with its ×. */
 .showcase-picked {

@@ -63,8 +63,9 @@ export default async function ShowcasePage({ searchParams }: Props) {
       <div className="showcase-head">
         {/* "Gallery" on the tab; /reels still comes here, and the full-screen view keeps that word. */}
         <h1>Gallery</h1>
-        {/* The same posts and filters, one a screen (app/showcase/reels). */}
-        <Link href={`/showcase/reels${reelsQuery(sp)}`} className="button secondary small showcase-reels-link">
+        {/* The same posts and filters, one a screen (app/showcase/reels). Opened as it is, they start on "Now showing", as
+            its own button does (2026-11-22: they opened on whatever was liked most, the same picture as the newest tile). */}
+        <Link href={`/showcase/reels${feature ? `?start=${encodeURIComponent(feature.id)}` : reelsQuery(sp)}`} className="button secondary small showcase-reels-link">
           <Icon name="play" /> Watch full screen
         </Link>
       </div>

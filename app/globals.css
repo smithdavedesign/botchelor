@@ -3960,6 +3960,10 @@ html.phone-open body {
      drag on the profile (most of the card) was the browser's pan, cancelled, and never a swipe. */
   touch-action: pan-y;
 }
+.swipe-body:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
 .swipe-name {
   margin: 0;
   font-size: var(--text-xl);
