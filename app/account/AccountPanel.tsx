@@ -239,8 +239,9 @@ export default function AccountPanel({ next = null, emailConfirmed = null, perso
           <p className="notice">Sign in or create an account to buy. Your characters and dates come with you, and you&apos;ll go straight back to the shop.</p>
         )}
         <p className="muted" hidden={next === "/shop" || mode === "login"}>
-          Optional. Anonymous play already works. An account keeps your characters across devices, lets you keep dates
-          private, and bring your own model key. No email needed — a handle is anonymous.
+          {/* Not "keep dates private": anyone can, signed in or not (2026-11-22 audit). */}
+          Optional. Anonymous play already works. An account keeps your characters across devices and lets you bring your
+          own model key. No email needed — a handle is anonymous.
         </p>
         {forgot && mode === "login" ? (
           <ForgotPassword onBack={() => setForgot(false)} />
