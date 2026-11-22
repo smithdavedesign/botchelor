@@ -285,6 +285,42 @@ export type ExpressDraft = {
 };
 export type ExpressRefusal = { ok: false; reason: ExpressFailure; message: string };
 
+/** Surname particles that stay lower case inside a name ("Anouk van der Berg"), longest first. */
+const NAME_PARTICLES = ["della", "van", "von", "der", "den", "del", "ter", "ten", "de", "di", "da", "du", "le", "la"];
+const GLUED_PARTICLES = new RegExp(`^((?:${NAME_PARTICLES.join("|")})+)(\\p{Lu}.*)$`, "u");
+
+/** "vanden" → ["van", "den"], or the run whole when it doesn't split into particles. */
+function splitParticles(run: string): string[] {
+  const out: string[] = [];
+  let rest = run;
+  while (rest) {
+    const p = NAME_PARTICLES.find((x) => rest.startsWith(x));
+    if (!p) return [run];
+    out.push(p);
+    rest = rest.slice(p.length);
+  }
+  return out;
+}
+
+/**
+ * The model's invented name in a name's own casing (2026-11-22 audit: "Storm vandenBosch"): particles glued to a surname
+ * come apart ("Storm van den Bosch"), particles after the first name stay lower case, and any other word starting in lower
+ * case gets its capital ("storm" → "Storm"). A name someone typed is theirs and never passes through here. Pure.
+ */
+export function tidyNameCase(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((w, i) => {
+      const glued = i > 0 ? GLUED_PARTICLES.exec(w) : null;
+      if (glued) return [...splitParticles(glued[1]), glued[2]];
+      if (i > 0 && NAME_PARTICLES.includes(w)) return [w];
+      return [/^\p{Ll}/u.test(w) ? w[0].toUpperCase() + w.slice(1) : w];
+    })
+    .join(" ");
+}
+
 /**
  * The model's reading and the person's own words, as a draft for the builder (pure). The name they typed wins over the
  * model's; the age follows adultAge; everything then goes through the import reader's mapping and screen
@@ -298,6 +334,7 @@ export function draftFromReading(reading: SourceFields, text: string, givenName 
   const age = adultAge(text, reading.age);
   const fields: SourceFields = { ...reading, age: age ? String(age.age) : undefined };
   if (typed) fields.name = typed;
+  else if (fields.name) fields.name = tidyNameCase(fields.name);
   if (!fields.description?.trim()) fields.description = text;
   const result = importFromFields("free_text", fields, `${text}\n${typed}`);
   if (!result.ok) {

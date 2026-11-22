@@ -49,7 +49,7 @@ export default function HomeExpressBox() {
           maxLength={EXPRESS_TEXT_MAX}
           autoComplete="off"
           enterKeyHint="go"
-          placeholder="A lighthouse keeper who repairs old radios"
+          placeholder="A lighthouse keeper who fixes radios"
         />
         <button type="submit" data-track="home-express">
           Meet them

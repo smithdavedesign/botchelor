@@ -82,9 +82,9 @@ describe("/account/keys: Connections", () => {
     // The pill says where each stands; the line under it doesn't say it again (D9).
     expect(html).toContain(">Free model<");
     expect(html).not.toContain("Using: Botchelor&#x27;s free model");
-    expect(html).toContain("Portraits need your own OpenAI key.");
+    expect(html).toContain("Every character gets a free portrait; your own OpenAI key draws more.");
     expect(html).toContain("Clips need your own Google key, with billing on.");
-    expect(html).not.toContain("Not set up: portraits");
+    expect(html).not.toContain("Not set up: every character");
     // Four cards: dates & texts, portraits, clips, and the live-face card under Companion calls (2026-11-14).
     expect(html.match(/>Connect</g)).toHaveLength(4);
     expect(html).not.toContain('id="your-keys"');
