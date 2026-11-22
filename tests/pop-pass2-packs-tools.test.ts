@@ -42,10 +42,11 @@ describe("a date pack's picture (app/PackVenues.tsx)", () => {
     expect(renderToStaticMarkup(createElement(PackVenues, { dates: undefined }))).toBe("");
   });
 
-  it("is on both packs on /pricing and /shop, and never on After Dark's token shop", () => {
-    expect(src("app/pricing/page.tsx")).toContain("<PackVenues dates={pack.episodes} />");
+  it("is on /pricing's More dates card and on each pack on /shop, and never on After Dark's token shop", () => {
+    expect(src("app/pricing/page.tsx")).toContain("<PackVenues dates={PACK_5.episodes} />");
     expect(src("app/shop/page.tsx")).toContain('{unit === "date" && item.kind === "episode_pack" && <PackVenues dates={item.episodes} />}');
-    expect(src("app/shop/page.tsx")).toContain('{unit === "date" && <PlanFace />}');
+    // The shop's Companion Plan is a line since 2026-11-21 (one obvious upgrade), so its face is on /pricing alone.
+    expect(src("app/shop/page.tsx")).not.toContain("PlanFace");
   });
 });
 

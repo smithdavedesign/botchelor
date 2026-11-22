@@ -29,7 +29,7 @@ import { acceptDouble, declineDouble, doubleView, joinMixer, leaveMixer, listDou
 import { hideOtherOwners } from "./owner-ids";
 import { bookDoubleNight } from "../group-dates-run";
 import { doubleLinkPath, ensureDoubleLink } from "../double-links";
-import { operatorReserved } from "../operator-pass";
+import { operatorPassOffered, operatorReserved } from "../operator-pass";
 import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, llmsText } from "../agents";
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
 import { track } from "../analytics";
@@ -2375,9 +2375,12 @@ async function passBypassesCap(db: Db, userId: string): Promise<boolean> {
   return reserved !== null && reserved.reserved_left > 0;
 }
 
-/** What a capped agent can still do, appended to the "fully booked" refusals: its own key, or an operator pass. */
-const CAP_UPSELL =
-  " Or bring your own model key with set_model to keep going on your key, get an operator pass for dates that skip the cap (/agents/pricing), or book one for just after the reset with the scheduling tool (tools/list at ?tools=all has it).";
+/**
+ * What a capped agent can still do, appended to the "fully booked" refusals: its own key, a booking for after the reset,
+ * and the operator pass only while it is offered (lib/operator-pass.ts operatorPassOffered: off since 2026-11-21).
+ */
+const capUpsell = (): string =>
+  ` Or bring your own model key with set_model to keep going on your key, ${operatorPassOffered() ? "get an operator pass for dates that skip the cap (/agents/pricing), " : ""}or book one for just after the reset with the scheduling tool (tools/list at ?tools=all has it).`;
 
 /** The agents' shared daily budget on the show's model, as a refusal when it's spent (null while there's room, or for a pass-holder). */
 async function agentBudgetRefusal(db: Db, userId?: string): Promise<{ error: string } | null> {
@@ -2386,8 +2389,8 @@ async function agentBudgetRefusal(db: Db, userId?: string): Promise<{ error: str
   if (today.used < today.cap && !overShare) return null;
   if (today.cap > 0 && userId && (await passBypassesCap(db, userId))) return null;
   track("agent_date_capped", { used: today.used, cap: today.cap, share: Boolean(overShare && today.used < today.cap) });
-  if (today.used < today.cap && overShare) return { error: `${overShare}${CAP_UPSELL}` };
-  return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.${CAP_UPSELL}` };
+  if (today.used < today.cap && overShare) return { error: `${overShare}${capUpsell()}` };
+  return { error: `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}.${capUpsell()}` };
 }
 
 /** #1856: why booking a second date needs a show-model date even when it's your yes, and what's free instead. */
@@ -7169,7 +7172,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const overShare = today.used < today.cap ? agentShareRefusal(today) : null;
       if (overShare && !(await passBypassesCap(db, who.id))) {
         track("agent_date_capped", { used: today.used, cap: today.cap, share: true });
-        return { error: `${overShare}${CAP_UPSELL}` };
+        return { error: `${overShare}${capUpsell()}` };
       }
       if (today.used >= today.cap && !(today.cap > 0 && (await passBypassesCap(db, who.id)))) {
         track("agent_date_capped", { used: today.used, cap: today.cap });
@@ -7177,7 +7180,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           error:
             today.cap === 0
               ? "Agent dates are paused right now. Everything else is open: search, create, predict, rate."
-              : `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at} — or date two of your own characters with start_own_date, which runs on your model and is unlimited while you write the lines (autoplay_own_date would need this budget too).${CAP_UPSELL}`,
+              : `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at} — or date two of your own characters with start_own_date, which runs on your model and is unlimited while you write the lines (autoplay_own_date would need this budget too).${capUpsell()}`,
         };
       }
       const mineId = String(args.character_id ?? "");

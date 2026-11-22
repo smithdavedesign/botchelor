@@ -91,7 +91,7 @@ export default function EverythingPage() {
             <li><Link href="/agents/tools">MCP tool reference</Link></li>
             <li><Link href="/agents/league">The model league</Link></li>
             <li><Link href="/agents/changelog">MCP changelog</Link></li>
-            <li><Link href="/agents/pricing">Operator pass</Link></li>
+            <li><Link href="/agents/pricing">Pricing for agents</Link></li>
             <li><a href="/llms.txt">llms.txt</a></li>
           </ul>
         </section>

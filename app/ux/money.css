@@ -281,6 +281,10 @@
   padding: var(--space-4);
   border-radius: var(--radius-lg);
 }
+/* One plan alone (the operator pass is off the page unless it is offered): it takes the row, not half of it. */
+.money-plans > .money-plan:only-child {
+  grid-column: 1 / -1;
+}
 .money-plan h2,
 .money-plan .kicker {
   margin: 0;
@@ -373,6 +377,16 @@
   border-top: 1px solid var(--line);
   padding-top: var(--space-2);
   font-size: var(--text-sm);
+}
+/* What else there is, under the shop's packs (2026-11-21, one obvious upgrade): the Companion Plan as a line and the
+   Plus test as its small block, in the reading width, so neither sits beside the packs as an offer of its own. */
+.shop-also {
+  max-width: 40rem;
+  margin: var(--space-3) 0;
+}
+/* Its button keeps its own width there: the page's wide buttons are the packs'. */
+.shop-also .plus-tile-form > button {
+  justify-self: start;
 }
 
 /* ---------------- a date pack's picture (app/PackVenues.tsx) ---------------- */
