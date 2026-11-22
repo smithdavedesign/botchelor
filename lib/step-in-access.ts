@@ -33,6 +33,3 @@ type Store = { get(name: string): { value: string } | undefined };
 export function stepInAccessFromCookies(db: Db, auth: Auth | null, store: Store): Promise<StepInAccess> {
   return stepInAccess(db, auth, auth ? signedIdentityFromCookieStore(store) : sessionsSignable());
 }
-
-/** Whether the entry points show for this viewer: anyone it's open to, a visitor who'd be asked to sign in included. */
-export const stepInOffered = (a: StepInAccess): boolean => a !== null;

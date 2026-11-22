@@ -6,6 +6,7 @@ import { handle, json, jsonWithSession, parseBody, readJson } from "@/lib/http";
 import { visitorKey } from "@/lib/limits";
 import { LOGIN_WINDOW_MINUTES, loginHeld, recordLoginFailure } from "@/lib/login-guard";
 import { freshSessionVersion } from "@/lib/session-versions";
+import { soft } from "@/lib/soft";
 
 const LoginInput = z.object({ handle: z.string().trim().min(1).max(40), password: z.string().min(1).max(400) });
 
@@ -38,7 +39,7 @@ export const POST = handle(async (req) => {
     return jsonWithSession({ authenticated: true, handle: account?.handle_display ?? null }, { userId, authenticated: true }, 200, [await offerAtSignIn(db, req, userId)]);
   } catch (err) {
     if (err instanceof AuthError) {
-      if (err.code === "bad_credentials") await recordLoginFailure(db, input.handle, visitor).catch(() => {});
+      if (err.code === "bad_credentials") await recordLoginFailure(db, input.handle, visitor).catch(soft("auth: count a failed sign-in"));
       return json({ error: err.code, message: err.message }, err.status);
     }
     throw err;

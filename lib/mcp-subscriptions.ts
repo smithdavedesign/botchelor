@@ -84,11 +84,3 @@ export function resetSubscriptionsForTests(): void {
   SUBS.clear();
   PENDING.clear();
 }
-
-export function listSubscriptionsForTests(): { sessions: number; subscriptions: number; pending: number } {
-  let subscriptions = 0;
-  let pending = 0;
-  for (const s of SUBS.values()) subscriptions += s.size;
-  for (const p of PENDING.values()) pending += p.size;
-  return { sessions: SUBS.size, subscriptions, pending };
-}

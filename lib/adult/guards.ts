@@ -20,6 +20,7 @@
 import { shortName } from "../names";
 import { EVERYDAY_WORDS } from "../quality";
 import type { DroppedLine, SceneLine } from "./scenes";
+import { escapeRegExp } from "../text";
 
 /** Words that are never anyone's name in a line, even capitalised: everyday words, pet names, exclamations, the calendar. */
 const COMMON = new Set([
@@ -240,7 +241,7 @@ export function guardAlternation(
 export function withoutSelfAddress(text: string, own: string, other: string): string | null {
   const name = givenName(own);
   if (name.length < 2 || name.toLowerCase() === givenName(other).toLowerCase()) return text;
-  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const esc = escapeRegExp(name);
   // The name as an address: at the start, or after a pause or a comma, and closing a sentence (its punctuation with it).
   const vocative = new RegExp(`(^\\s*|[.!?…—–-]\\s*|,\\s*)${esc}(\\s*[.!?…—–-]+|\\s*$)`, "g");
   let changed = false;
