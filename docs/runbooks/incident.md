@@ -31,8 +31,8 @@ so every deploy restarts it.
 
 A start on the same commit as the one before is a restart. DigitalOcean → the app → Insights shows memory, CPU and
 restarts. The show has 2 GB since 2026-11-22, After Dark 1 GB; each start's `ops_log` row records the memory the
-container sees and the heap limit (Node sizes it from that memory; the instance's own limit isn't visible inside).
-The run log just before the restart usually says why (DigitalOcean → Runtime Logs, or
+container sees (`total_memory_mb`, the instance's size: 2048 and 1024) and the heap limit Node takes from it (1120
+and 560 MB). The run log just before the restart usually says why (DigitalOcean → Runtime Logs, or
 `doctl apps logs <app id> --type run_restarted`).
 
 ## 4. The database
