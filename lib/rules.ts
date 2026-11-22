@@ -390,8 +390,6 @@ export const RATING_CATEGORIES = [
 ] as const;
 export type RatingCategory = (typeof RATING_CATEGORIES)[number]["id"];
 export const RATING_CATEGORY_IDS = RATING_CATEGORIES.map((c) => c.id) as [RatingCategory, ...RatingCategory[]];
-export const ratingCategory = (id: RatingCategory): (typeof RATING_CATEGORIES)[number] =>
-  RATING_CATEGORIES.find((c) => c.id === id)!;
 /** The owner earns a little each time another viewer rates their OC — a side-game point, like a dealbreaker guess. */
 export const POINTS_PER_RATING_RECEIVED = 2;
 

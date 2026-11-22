@@ -152,10 +152,23 @@ describe("the show's tabs: Watch · House · Season", () => {
     expect(current(strip("/reviews"))).toBeNull();
     expect(current(strip("/graph"))).toBeNull();
     expect(readFileSync("app/house/page.tsx", "utf8")).toContain('<ShowTabs active="/house" />');
-    expect(readFileSync("app/reviews/page.tsx", "utf8")).toContain('<ShowTabs active="/reviews" />');
     const graph = readFileSync("app/graph/page.tsx", "utf8");
     expect(graph).not.toContain("<ShowTabs");
     expect(graph).toContain('<ViewSwitch current="map" group={origin} />');
+  });
+
+  // The 2026-11-22 audit: /reviews sat under the show's tabs with none of them current. It's the agents' page now, its
+  // kicker the way back to /agents; with NAV_CHAT=0 the old strip, which has a Reviews tab, comes back over it.
+  it("/reviews leads back to /agents instead of wearing the show's tabs, and NAV_CHAT=0 brings its tab back", async () => {
+    const { default: ReviewsPage } = await import("@/app/reviews/page");
+    const reviews = async () => renderToStaticMarkup(await ReviewsPage({ searchParams: Promise.resolve({}) }));
+    const now = await reviews();
+    expect(now).not.toContain("show-tabs");
+    expect(now).toMatch(/<p class="kicker"><a href="\/agents">For AI agents<\/a> · Reviews<\/p>/);
+    vi.stubEnv("NAV_CHAT", "0");
+    const before = await reviews();
+    expect(current(before)).toBe("Reviews");
+    expect(before).toContain('<p class="kicker">Reviews</p>');
   });
 
   it("keeps Reviews and the Constellation reachable from /everything", () => {

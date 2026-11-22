@@ -30,6 +30,7 @@ import { contactEmail } from "./legal-entity";
 import { LOGIN_WINDOW_MINUTES, loginHeld, recordLoginFailure } from "./login-guard";
 import { bumpSessionVersion } from "./session-versions";
 import { siteUrl } from "./site";
+import { soft } from "./soft";
 
 type Env = Record<string, string | undefined>;
 
@@ -170,7 +171,7 @@ async function tellOwner(db: Db, a: Account, to: string, change: { password: tru
           "We send this to the address that was on the account, so a change you didn't make doesn't go unseen.",
         );
   const kind = "password" in change ? RECOVERY_KINDS.passwordChanged : RECOVERY_KINDS.addressChanged;
-  await sendAccountEmail(db, a.user_id, kind, to, msg, env).catch(() => "failed");
+  await sendAccountEmail(db, a.user_id, kind, to, msg, env).catch(soft("account recovery: email", "failed"));
 }
 
 /** Emails sent to this account of one kind since `since`: for the per-account caps. */

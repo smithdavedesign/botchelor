@@ -19,7 +19,6 @@ export type Moment = (typeof MOMENTS)[number];
 
 export const SHOTS = [...EXPRESSIONS, ...MOMENTS] as const;
 export type Shot = Expression | Moment;
-export const isShot = (v: unknown): v is Shot => typeof v === "string" && (SHOTS as readonly string[]).includes(v);
 
 /** A character's ready shots, as picture addresses (/api/shots/<id>.webp). */
 export type ShotUrls = Partial<Record<Shot, string>>;

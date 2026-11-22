@@ -111,7 +111,10 @@ export type CardHistory = {
   scenario: string;
   examples: string;
   book: string;
-  /** What the card has, in words ("a scenario", "example dialogue", "a lorebook"). Empty: nothing to read. */
+  /**
+   * What the card has, in words ("scenario", "example dialogue", "lorebook"), as /import's box says them: "Read this card's
+   * own scenario and lorebook too" (2026-11-22 audit: "own a scenario"). Empty: nothing to read.
+   */
   has: string[];
 };
 
@@ -121,7 +124,7 @@ export function cardHistory(raw: string, name = ""): CardHistory {
   const scenario = named(fields.scenario, name);
   const examples = named(fields.examples, name);
   const book = named(fields.book, name);
-  const has = [scenario && "a scenario", examples && "example dialogue", book && "a lorebook"].filter((x): x is string => typeof x === "string" && x.length > 0);
+  const has = [scenario && "scenario", examples && "example dialogue", book && "lorebook"].filter((x): x is string => typeof x === "string" && x.length > 0);
   return { scenario, examples, book, has };
 }
 
