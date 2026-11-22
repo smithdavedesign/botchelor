@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { afterDarkOrigin } from "./after-dark-host";
-import { sessionsSignable, signSession, verifySession } from "./auth";
+import { readSession, SESSION_RENEW_AFTER_SECONDS, sessionsSignable, signSession, verifySession, type SessionToken } from "./auth";
 import { requestLabel, withDbLabel } from "./db-watch";
 import { requestHost, siteUrl } from "./site";
 
@@ -118,6 +118,11 @@ export function signedIdentity(req: Request): boolean {
   return verifySession(cookies(req).get(SESSION_COOKIE)) !== null;
 }
 
+/** The request's signed session in full (lib/auth readSession: with its session version and when it was signed), or null. */
+export function signedSession(req: Request): SessionToken | null {
+  return readSession(cookies(req).get(SESSION_COOKIE));
+}
+
 /** signedIdentity, from a Next.js server cookie store. */
 export function signedIdentityFromCookieStore(store: { get(name: string): { value: string } | undefined }): boolean {
   return verifySession(store.get(SESSION_COOKIE)?.value) !== null;
@@ -152,9 +157,13 @@ export function session(req: Request): Session {
 
 const secureFlag = () => (process.env.NODE_ENV === "production" ? "; Secure" : "");
 
-/** The Set-Cookie for an identity: a signed `bz_sess` when the app can sign, else the legacy `bz_uid`. */
-export function sessionCookies(claims: Auth): string[] {
-  const token = signSession({ uid: claims.userId, authenticated: claims.authenticated });
+/**
+ * The Set-Cookie for an identity: a signed `bz_sess` when the app can sign, else the legacy `bz_uid`. `version`: the
+ * session version to sign (a session signed again, or carried from another host, keeps its own); else the account's as
+ * this process knows it (lib/session-versions.ts).
+ */
+export function sessionCookies(claims: Auth & { version?: number }): string[] {
+  const token = signSession({ uid: claims.userId, authenticated: claims.authenticated, version: claims.version });
   if (token) return [`${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ONE_YEAR_SECONDS}${secureFlag()}`];
   return [`${USER_COOKIE}=${claims.userId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ONE_YEAR_SECONDS}${secureFlag()}`];
 }
@@ -323,12 +332,32 @@ export function safeEqual(a: string, b: string): boolean {
 }
 
 /**
+ * A signed-in session runs out SESSION_MAX_AGE_SECONDS after it was signed (lib/auth.ts), so one in use is signed again:
+ * once it's a day old, the next API reply carries it newly signed, for the same account and with its own session
+ * version (one its account has ended stays ended). Never on a reply a shared cache could keep, nor over a session the
+ * route sets itself (signing in or out).
+ */
+export function withRenewedSession(req: Request, res: Response, now = Date.now()): Response {
+  const current = signedSession(req);
+  if (!current?.authenticated || now / 1000 - current.issuedAt < SESSION_RENEW_AFTER_SECONDS) return res;
+  if (!/\b(no-store|private)\b/.test(res.headers.get("cache-control") ?? "")) return res;
+  if (res.headers.getSetCookie().some((c) => c.startsWith(`${SESSION_COOKIE}=`))) return res;
+  try {
+    for (const c of sessionCookies({ userId: current.uid, authenticated: true, version: current.version })) res.headers.append("set-cookie", c);
+  } catch {
+    // A reply whose headers can't change (Response.redirect): a later call renews it.
+  }
+  return res;
+}
+
+/**
  * Wraps a route handler: ApiErrors become their JSON response, anything else a generic 500. Its queries carry its
  * method and route, so the pool's lines about long waits name it (lib/db-watch.ts, #1948), and so does its error line.
  * Before the handler runs, a browser's request from another site that would change something is refused (403, no
  * identity minted: crossSiteBrowserRequest), and so is a body declared over `maxBodyBytes` (413; DEFAULT_MAX_BODY_BYTES
  * unless the route needs more, an admin upload). The handler gets the very request that came in (in-process bookings
  * are marked by the object itself, lib/cast-date-request.ts), and reads its body through the capped readers above.
+ * A signed-in session in use is signed again once a day (withRenewedSession).
  */
 export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Promise<Response>, opts: { maxBodyBytes?: number } = {}) {
   const maxBodyBytes = opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
@@ -337,7 +366,7 @@ export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Pro
     try {
       if (crossSiteBrowserRequest(req)) throw new ApiError(403, CROSS_SITE_REFUSED);
       if (declaredLength(req) > maxBodyBytes) throw tooLarge();
-      return await withDbLabel(label, () => fn(req, ...ctx));
+      return withRenewedSession(req, await withDbLabel(label, () => fn(req, ...ctx)));
     } catch (err) {
       if (err instanceof ApiError) return json(err.body, err.status);
       const message = err instanceof Error ? err.message : "unknown";

@@ -16,8 +16,8 @@
  *  - **A note to the owner** whenever the password or the recovery email changes, at the address the account had before,
  *    so a change they didn't make doesn't go unseen.
  *
- * Sessions are signed cookies with no server-side store (lib/auth.ts), so a new password doesn't sign other browsers out.
- * The emails' links open pages under /email/ (no 18+ gate there), and each page acts only on a button, so a mail
+ * A new password, from the link or from the account page, ends every session the account had handed out
+ * (lib/session-versions.ts): the browser that set it is signed in again, every other one is signed out. The emails' links open pages under /email/ (no 18+ gate there), and each page acts only on a button, so a mail
  * scanner that opens links changes nothing.
  */
 import { createHmac } from "node:crypto";
@@ -28,6 +28,7 @@ import { emailConfig, sendAccountEmail } from "./email";
 import { ApiError, safeEqual } from "./http";
 import { contactEmail } from "./legal-entity";
 import { LOGIN_WINDOW_MINUTES, loginHeld, recordLoginFailure } from "./login-guard";
+import { bumpSessionVersion } from "./session-versions";
 import { siteUrl } from "./site";
 
 type Env = Record<string, string | undefined>;
@@ -214,6 +215,8 @@ function assertNewPassword(password: string): void {
 async function setPassword(db: Db, a: Account, password: string, env: Env): Promise<void> {
   assertNewPassword(password);
   await db.query(`update accounts set password_hash = $2, updated_at = now() where user_id = $1`, [a.user_id, await hashPassword(password)]);
+  // Every session signed with the old password ends (lib/session-versions.ts); the route signs this browser in again.
+  await bumpSessionVersion(db, a.user_id);
   if (a.email) await tellOwner(db, a, a.email, { password: true }, env);
 }
 

@@ -152,9 +152,10 @@ export default function AccountPanel({ next = null, emailConfirmed = null, perso
     } else setError(message);
   }
 
-  async function signOut() {
+  // Everywhere: every device and browser this account is signed in on, not just this one (app/api/auth/logout).
+  async function signOut(everywhere = false) {
     setBusy(true);
-    await requestJson("/api/auth/logout").catch(() => {});
+    await requestJson("/api/auth/logout", everywhere ? { everywhere: true } : {}).catch(() => {});
     setBusy(false);
     await load();
     router.refresh();
@@ -174,12 +175,16 @@ export default function AccountPanel({ next = null, emailConfirmed = null, perso
           <a href="/api/me/export" className="button-ghost">
             Download your data
           </a>
-          <button type="button" className="button-ghost" onClick={signOut} disabled={busy}>
+          <button type="button" className="button-ghost" onClick={() => signOut()} disabled={busy}>
             Sign out
+          </button>
+          <button type="button" className="button-ghost" onClick={() => signOut(true)} disabled={busy}>
+            Sign out everywhere
           </button>
         </div>
         <p className="muted small">
-          Signing out returns you to anonymous play. To delete your account and all its data, use{" "}
+          Signing out returns you to anonymous play. Sign out everywhere does it on every device you&apos;ve signed in on. To
+          delete your account and all its data, use{" "}
           <a href={`#${DELETE_ACCOUNT_ID}`}>Delete my account</a> at the foot of this page.
         </p>
       </section>
