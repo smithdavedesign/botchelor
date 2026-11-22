@@ -19,7 +19,7 @@ import type { Db } from "./db";
 import { loadOurIds } from "./our-traffic";
 import { PLAN_IDS, PLANS, planPrice } from "./paid-plans";
 import { plusInterestCount, type PlusInterestCount } from "./plus-interest";
-import { addMonths, amountIn, type Category, type MoneyEntry, type Month, type NewEntry } from "./spend-shared";
+import { addMonths, amountIn, isLowBalance, lowBalanceLine, type Category, type MoneyEntry, type Month, type NewEntry } from "./spend-shared";
 
 export * from "./spend-shared";
 
@@ -211,7 +211,30 @@ export type Reading = {
   dashboard: string;
   /** The balance 7 days ago, from spend_snapshots, to show the week's burn. */
   balance_week_ago: number | null;
+  /** How long a prepaid balance lasts at the pace it went down since that reading (daysLeft); null when it can't be said. */
+  days_left: number | null;
+  /** The day of the reading that pace is measured from ("YYYY-MM-DD"), or null. */
+  pace_since: string | null;
+  /** The provider's auto-pay tops it up when it's low, so a low balance refills itself. */
+  auto_top_up: boolean;
 };
+
+/** Prepaid balances, which run out and stop a feature; DigitalOcean's is what's owed, so it can't. */
+const PREPAID: ReadonlySet<ProviderId> = new Set(["openrouter", "venice", "bunny"]);
+/** Topped up by the provider's auto-pay when low (Venice under $10; Bunny's auto-recharge). */
+const AUTO_TOP_UP: ReadonlySet<ProviderId> = new Set(["venice", "bunny"]);
+
+/**
+ * Days a prepaid balance lasts at the pace it went down since an earlier reading (pure). Null when it isn't a prepaid
+ * balance, there's no earlier reading a day or more before, or it didn't go down (a top-up reads as a rise).
+ */
+export function daysLeft(provider: ProviderId, balance: number | null, past: { balance: number; at: Date } | null, now: Date): number | null {
+  if (!PREPAID.has(provider) || balance === null || !past) return null;
+  const days = (now.getTime() - past.at.getTime()) / 86_400_000;
+  const spent = past.balance - balance;
+  if (days < 1 || spent <= 0) return null;
+  return Math.max(0, balance) / (spent / days);
+}
 
 const TIMEOUT_MS = 6_000;
 const num = (v: unknown): number | null => {
@@ -227,6 +250,7 @@ async function getJson(doFetch: Fetch, url: string, headers: Record<string, stri
 
 const base = (provider: ProviderId, label: string, category: Category, dashboard: string): Reading => ({
   provider, label, category, dashboard, balance_usd: null, used_month_usd: null, used_total_usd: null, state: "no_key", note: null, balance_week_ago: null,
+  days_left: null, pace_since: null, auto_top_up: AUTO_TOP_UP.has(provider),
 });
 
 /** Reads one provider; never throws. */
@@ -282,24 +306,89 @@ export async function providerReadings(db: Db, env: Env = process.env, doFetch: 
   ]);
 
   const today = now.toISOString().slice(0, 10);
-  for (const r of readings) {
-    if (r.state !== "live") continue;
-    await db
-      .query(
-        `insert into spend_snapshots (day, provider, balance_usd, used_total_usd, used_month_usd, read_at) values ($1, $2, $3, $4, $5, $6)
-         on conflict (day, provider) do update set balance_usd = excluded.balance_usd, used_total_usd = excluded.used_total_usd,
-           used_month_usd = excluded.used_month_usd, read_at = excluded.read_at`,
-        [today, r.provider, r.balance_usd, r.used_total_usd, r.used_month_usd, now.toISOString()],
-      )
-      .catch(() => {});
-  }
+  await Promise.all(
+    readings
+      .filter((r) => r.state === "live")
+      .map((r) =>
+        db
+          .query(
+            `insert into spend_snapshots (day, provider, balance_usd, used_total_usd, used_month_usd, read_at) values ($1, $2, $3, $4, $5, $6)
+             on conflict (day, provider) do update set balance_usd = excluded.balance_usd, used_total_usd = excluded.used_total_usd,
+               used_month_usd = excluded.used_month_usd, read_at = excluded.read_at`,
+            [today, r.provider, r.balance_usd, r.used_total_usd, r.used_month_usd, now.toISOString()],
+          )
+          .catch(() => {}),
+      ),
+  );
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString().slice(0, 10);
-  const { rows } = await db.query<{ provider: string; balance_usd: number | null }>(
-    `select distinct on (provider) provider, balance_usd from spend_snapshots where day <= $1 and balance_usd is not null order by provider, day desc`,
+  // The newest reading a week or more old: the week's burn, and the pace a balance is measured at (over the days it
+  // really spans: with no reading on the day a week ago, that's the one before).
+  const { rows } = await db.query<{ provider: string; balance_usd: number | null; day: string; at: number }>(
+    `select distinct on (provider) provider, balance_usd, day::text as day, extract(epoch from read_at)::float8 as at
+       from spend_snapshots where day <= $1 and balance_usd is not null order by provider, day desc`,
     [weekAgo],
   );
-  const past = new Map(rows.map((r) => [r.provider, r.balance_usd]));
-  return readings.map((r) => ({ ...r, balance_week_ago: past.get(r.provider) ?? null }));
+  const past = new Map(rows.map((r) => [r.provider, r]));
+  return readings.map((r) => {
+    const p = past.get(r.provider);
+    const days = r.state === "live" && p && p.balance_usd !== null ? daysLeft(r.provider, r.balance_usd, { balance: Number(p.balance_usd), at: new Date(Number(p.at) * 1000) }, now) : null;
+    return { ...r, balance_week_ago: p?.balance_usd ?? null, days_left: days, pace_since: days === null ? null : (p?.day.slice(0, 10) ?? null) };
+  });
+}
+
+/** How long the page's balances are kept between reads: four billing APIs, up to 6 s each, read on every load before. */
+export const READINGS_CACHE_MS = 3 * 60_000;
+let readingsCache: { at: number; readings: Promise<Reading[]> } | null = null;
+
+/**
+ * providerReadings for /admin/spend, kept READINGS_CACHE_MS (UX audit 2026-11-22: the page was blank for about 14 s
+ * while they answered; the ledger now draws first and asks for these after). A second ask while a read is out waits for
+ * that one; a read that fails isn't kept.
+ */
+export async function cachedProviderReadings(db: Db, env: Env = process.env, doFetch: Fetch = fetch, now: Date = new Date()): Promise<{ readings: Reading[]; read_at: string }> {
+  if (!readingsCache || now.getTime() - readingsCache.at >= READINGS_CACHE_MS || now.getTime() < readingsCache.at) {
+    const read = providerReadings(db, env, doFetch, now);
+    readingsCache = { at: now.getTime(), readings: read };
+    read.catch(() => {
+      if (readingsCache?.readings === read) readingsCache = null;
+    });
+  }
+  const { at, readings } = readingsCache;
+  return { readings: await readings, read_at: new Date(at).toISOString() };
+}
+
+/** Tests: forget the kept balances. */
+export function forgetReadingsForTests(): void {
+  readingsCache = null;
+}
+
+/** The kind of email the low-balance alert is (email_sends.kind), so it goes out once a day at most. */
+export const LOW_BALANCE_EMAIL = "low_balance";
+
+/**
+ * The daily job's low-balance alert (app/api/jobs/daily, upkeep): every provider's balance read, today's snapshot kept
+ * (so the week's pace has a reading a day even when nobody opens the page), and the admins emailed when a balance that
+ * doesn't top itself up has under LOW_BALANCE_DAYS left. The same people and the same helper as a content report's
+ * email (lib/content-reports.ts reportRecipients, lib/email.ts sendAccountEmail): no service of its own. At most one a
+ * day. Returns how many providers were flagged.
+ */
+export async function alertLowBalances(db: Db, env: Env = process.env, doFetch: Fetch = fetch, now: Date = new Date()): Promise<number> {
+  const low = (await providerReadings(db, env, doFetch, now)).filter(isLowBalance);
+  if (!low.length) return 0;
+  const sent = await db.query(`select 1 from email_sends where kind = $1 and created_at > $2::timestamptz - interval '20 hours' limit 1`, [LOW_BALANCE_EMAIL, now.toISOString()]);
+  if (sent.rows.length) return low.length;
+  const [{ reportRecipients }, { sendAccountEmail }, { siteUrl }] = await Promise.all([import("./content-reports"), import("./email"), import("./site")]);
+  const to = await reportRecipients(db, env);
+  const lines = [
+    ...low.map((r) => `${lowBalanceLine(r)} Top up: ${r.dashboard}`),
+    `Every balance: ${siteUrl()}/admin/spend`,
+  ];
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const subject = low.length === 1 ? `Low balance: ${lowBalanceLine(low[0])}` : `Low balances: ${low.map((r) => r.label.split(" (")[0]).join(", ")}`;
+  const text = lines.join("\n");
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:560px">${lines.map((l) => `<p style="margin:0 0 10px">${esc(l)}</p>`).join("")}</div>`;
+  for (const { userId, email } of to) await sendAccountEmail(db, userId, LOW_BALANCE_EMAIL, email, { subject: subject.slice(0, 140), text, html }, env);
+  return low.length;
 }
 
 /* ------------------------------------------------------ the page's data ------------------------------------------------------ */
@@ -313,7 +402,6 @@ export type SpendView = {
   entries: MoneyEntry[];
   history: MonthSummary[];
   usage: { eval_usd: number; eval_runs: number };
-  readings: Reading[];
   known_missing: number;
   /** The "Botchelor Plus" intent tile's count (lib/plus-interest.ts): people, how many left an email, every tap. */
   plus_interest: PlusInterestCount;
@@ -321,21 +409,30 @@ export type SpendView = {
 
 export const HISTORY_MONTHS = 6;
 
-export async function spendView(db: Db, month: Month, env: Env = process.env, doFetch: Fetch = fetch, now: Date = new Date()): Promise<SpendView> {
-  const entries = await listEntries(db);
+/**
+ * The month's ledger: everything on the page but the providers' balances, which the page asks for after
+ * (cachedProviderReadings), so the ledger never waits on a billing API.
+ */
+export async function spendView(db: Db, month: Month, env: Env = process.env): Promise<SpendView> {
   const months = Array.from({ length: HISTORY_MONTHS }, (_, i) => addMonths(month, i - HISTORY_MONTHS + 1));
-  const history = await Promise.all(months.map(async (m) => summarize(m, entries, await recordedIncome(db, m, env))));
-  const income = await recordedIncome(db, month, env);
+  const [entries, incomes, usage, known_missing, plus_interest] = await Promise.all([
+    listEntries(db),
+    // The month itself is the history's last, so its income is read once.
+    Promise.all(months.map((m) => recordedIncome(db, m, env))),
+    loggedUsage(db, month),
+    knownCostsMissing(db),
+    plusInterestCount(db).catch(() => ({ people: 0, with_email: 0, taps: 0 })),
+  ]);
+  const income = incomes[HISTORY_MONTHS - 1];
   return {
     month,
     summary: summarize(month, entries, income),
     income,
     month_entries: entries.map((e) => ({ ...e, in_month: amountIn(e, month) })).filter((e) => e.in_month > 0),
     entries,
-    history,
-    usage: await loggedUsage(db, month),
-    readings: await providerReadings(db, env, doFetch, now),
-    known_missing: await knownCostsMissing(db),
-    plus_interest: await plusInterestCount(db).catch(() => ({ people: 0, with_email: 0, taps: 0 })),
+    history: months.map((m, i) => summarize(m, entries, incomes[i])),
+    usage,
+    known_missing,
+    plus_interest,
   };
 }

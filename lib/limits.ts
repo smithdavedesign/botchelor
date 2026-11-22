@@ -13,6 +13,7 @@
  *    distinct bio can cost one embedding call (lib/originality-concept.ts, which also caps those calls per UTC day).
  */
 import { createHmac } from "node:crypto";
+import { BlockList, isIP } from "node:net";
 import type { Db } from "./db";
 
 export const DATE_START_LIMITS = { perHour: 10, perDay: 30 };
@@ -49,22 +50,103 @@ export const IMPORT_HISTORY_ALL_LIMITS = { perHour: 15, perDay: 60 };
  * a day per person, each one a notification (and maybe an email) to another owner. A burst is a day's worth.
  */
 export const SOCIAL_PROPOSE_LIMITS = { perHour: 20, perDay: 20 };
+/**
+ * Sign-ups (POST /api/auth/register) from one address: each runs scrypt on the server's one CPU. The busiest day so far
+ * had 5 across the whole site; a person trying a few taken handles stays well under.
+ */
+export const REGISTER_LIMITS = { perHour: 10, perDay: 20 };
 /** Paid-model dates a day unless FRONTIER_DAILY_DATE_CAP says otherwise: about $4–11 at Haiku's 4–11¢ a date. */
 export const DEFAULT_PAID_DATES_PER_DAY = 100;
 /** How long a rate-limit row is kept (the longest window plus a margin). */
 const RATE_HIT_RETENTION_MS = 2 * 24 * 60 * 60 * 1000;
 
-/** The first address in x-forwarded-for (Vercel sets it), else x-real-ip; null when there is none. */
+/**
+ * Cloudflare's own addresses (https://www.cloudflare.com/ips/, 2026-11). DigitalOcean's edge is Cloudflare, and the
+ * apex also passes through our own Cloudflare zone, so an address in here is a proxy (or a Worker), never a visitor.
+ */
+const CLOUDFLARE_RANGES = [
+  "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18",
+  "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+  "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+  "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32",
+];
+const cloudflare = new BlockList();
+for (const range of CLOUDFLARE_RANGES) {
+  const [net, bits] = range.split("/") as [string, string];
+  cloudflare.addSubnet(net, Number(bits), net.includes(":") ? "ipv6" : "ipv4");
+}
+
+/** Whether `ip` is one of Cloudflare's addresses. */
+export function isCloudflareIp(ip: string): boolean {
+  const family = isIP(ip);
+  return family !== 0 && cloudflare.check(ip, family === 6 ? "ipv6" : "ipv4");
+}
+
+/**
+ * The address an edge header holds (a port or brackets dropped), or null. Of a list, the last entry: the one the
+ * nearest proxy wrote, should it ever add to what the caller sent rather than replace it.
+ */
+function oneIp(value: string | null): string | null {
+  const raw = value?.split(",").pop()?.trim() ?? "";
+  const ip = /^\[([0-9a-f:.]+)\](?::\d+)?$/i.exec(raw)?.[1] ?? /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(raw)?.[1] ?? raw;
+  return isIP(ip) ? ip : null;
+}
+
+/**
+ * The address a request came from, as the platform saw it (2026-11-22 audit: this used to take the first
+ * x-forwarded-for entry, which the client writes, so a made-up one opened a fresh bucket in every limit):
+ *  1. `do-connecting-ip`: DigitalOcean's edge sets it to the caller's address on every host (the apex, ad, www and the
+ *     ondigitalocean.app ones), whatever the caller sent.
+ *  2. If that is a Cloudflare address (the apex's hop from our zone, a Worker), `cf-connecting-ip`, which Cloudflare
+ *     sets on everything it proxies. With no `do-connecting-ip`, that too.
+ *  3. With neither (a local server, the tests, harnesses that name a persona's address), the first x-forwarded-for
+ *     entry, else x-real-ip. The platform always sets the first two, so a caller can't reach this step there.
+ * Null when there is no address at all (the server's own in-process calls).
+ */
 export function clientIp(headers: Headers): string | null {
+  const edge = oneIp(headers.get("do-connecting-ip"));
+  if (edge && !isCloudflareIp(edge)) return edge;
+  const cf = oneIp(headers.get("cf-connecting-ip"));
+  if (cf) return cf;
+  if (edge) return edge;
   const fwd = headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0]!.trim() || null;
   return headers.get("x-real-ip")?.trim() || null;
 }
 
-/** A stable, non-reversible key for the visitor behind a request (an HMAC of the IP), or null without one. */
+/**
+ * Which header clientIp read (`do-connecting-ip`, `cf-connecting-ip`, `x-forwarded-for`, `x-real-ip`), or null: for the
+ * admin check of what the edge sends (app/api/admin/request-ip).
+ */
+export function clientIpSource(headers: Headers): string | null {
+  const edge = oneIp(headers.get("do-connecting-ip"));
+  if (edge && !isCloudflareIp(edge)) return "do-connecting-ip";
+  if (oneIp(headers.get("cf-connecting-ip"))) return "cf-connecting-ip";
+  if (edge) return "do-connecting-ip";
+  if (headers.get("x-forwarded-for")?.split(",")[0]?.trim()) return "x-forwarded-for";
+  return headers.get("x-real-ip")?.trim() ? "x-real-ip" : null;
+}
+
+/**
+ * What a visitor is keyed by: an IPv6 address's /64 (one home, phone or server is handed a whole /64 and can use any
+ * address in it), else the address as it is (an IPv4-mapped IPv6 one as plain IPv4).
+ */
+export function visitorAddress(ip: string): string {
+  if (isIP(ip) !== 6) return ip;
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip);
+  if (mapped) return mapped[1]!;
+  const halves = ip.toLowerCase().split("::");
+  const groups = (s: string | undefined) => (s ? s.split(":").flatMap((g) => (g.includes(".") ? ["0", "0"] : [g])) : []);
+  const left = groups(halves[0]);
+  const right = groups(halves[1]);
+  const all = halves.length > 1 ? [...left, ...Array<string>(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right] : left;
+  return `${all.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
+
+/** A stable, non-reversible key for the visitor behind a request (an HMAC of the address), or null without one. */
 export function visitorKey(headers: Headers, secret = process.env.SESSION_SECRET || "botchelor-visitor"): string | null {
   const ip = clientIp(headers);
-  return ip ? createHmac("sha256", secret).update(ip).digest("hex").slice(0, 32) : null;
+  return ip ? createHmac("sha256", secret).update(visitorAddress(ip)).digest("hex").slice(0, 32) : null;
 }
 
 /**

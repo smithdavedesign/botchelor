@@ -540,3 +540,14 @@ select.sr-only {
   font-size: var(--text-sm);
   text-decoration: none;
 }
+/* From a tablet's width they wrap instead (no sideways scroll on desktop, David 2026-10-22): with the scrollbar hidden,
+   a mouse saw the last chips cut off at the right (UX audit 2026-11-22). */
+@media (min-width: 721px) {
+  .account-jumps.scroll-row {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+    animation: none;
+  }
+}

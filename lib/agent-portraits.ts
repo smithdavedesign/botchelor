@@ -20,8 +20,15 @@ import { physicalLook, venicePicture } from "./adult/media";
 import { checkPgPictureText } from "./safety";
 import { portraitPrompt } from "./season-gen";
 import { DELETED_OWNER } from "./rules";
+import { overLimit } from "./limits";
 
 export const PORTRAIT_BATCH = 8;
+/**
+ * Portraits drawn across the site, whoever's character (each is a Venice picture and a PG check): the busiest day so far
+ * drew 65 (51 in one hour, the admin's batch of 2026-10-30). Past this the draw waits, and the hourly sweep
+ * (lib/default-portraits.ts) picks the character up again later.
+ */
+export const SHOW_PORTRAIT_LIMITS = { perHour: 100, perDay: 200 };
 const AT_ONCE = 4;
 export const SHOW_PORTRAIT_VERSION = "show-portrait-v1";
 
@@ -84,6 +91,7 @@ export async function drawShowPortrait(db: Db, characterId: string): Promise<Por
   if (!look) return failed("nothing written about them to draw from");
   const prompt = second ? strictPortraitPrompt(look, c.age) : portraitPrompt(look, c.age);
   if (!checkPgPictureText({ prompt }).ok) return failed("their words don't pass the show's PG word check");
+  if (await overLimit(db, "show_portrait", "all", SHOW_PORTRAIT_LIMITS)) return failed("the site's portraits for now are drawn: tried again later", true);
   let pic: { bytes: Buffer; mime: string };
   try {
     pic = await venicePicture(db, prompt, { safe: true });

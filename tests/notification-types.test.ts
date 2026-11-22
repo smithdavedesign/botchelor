@@ -1,9 +1,11 @@
 // Notification types (lib/notification-types.ts; David 2026-11-07: "add types to the notifications so you can filter by
 // the type"): every kind folds into one of six types, and /notifications filters, counts and marks read by type.
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET } from "@/app/api/notifications/route";
-import { NOTIFICATION_TYPES, kindsOfType, notificationTypeOf } from "@/lib/notification-types";
-import { countNotifications, countNotificationsByKind, listNotifications, markRead, notify } from "@/lib/notifications";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { NOTIFICATION_TYPES, kindsOfType, notificationTypeOf, withoutRawIds } from "@/lib/notification-types";
+import { ENDED_MATCH_BODY, countNotifications, countNotificationsByKind, listNotifications, markRead, notify, unreadCount } from "@/lib/notifications";
 import { POST as mutesPost } from "@/app/api/notifications/mutes/route";
 import { mutedTypes, setMuted } from "@/lib/notification-mutes";
 import { jsonRequest, newUserCookie, startTestDb, userIdOf } from "./helpers";
@@ -73,5 +75,60 @@ describe("muting a type (lib/notification-mutes.ts)", () => {
     await notify(t.db, u, { kind: "texted", title: "Cy texted Bo", body: null, link: null });
     expect(await countNotifications(t.db, u, { unread: true })).toBe(2);
     expect((await mutesPost(jsonRequest("/api/notifications/mutes", { type: "nope", muted: true }, { cookie }))).status).toBe(422);
+  });
+});
+
+// UX audit 2026-11-22: /notifications showed four near-identical "likes waiting" rows, a date's raw id read aloud, and
+// Oct 31's "Book it" prompts with no sign of whether they could still be done.
+describe("the inbox says each thing once, in words, and asks only for what can still be done", () => {
+  it("takes a date's id out of what a person reads, and leaves the rest", () => {
+    const id = "75e7bd34-4a64-4168-804d-6572a87b4795";
+    expect(withoutRawIds(`Public. Watch it to see how it ended. Episode ${id}.`)).toBe("Public. Watch it to see how it ended.");
+    expect(withoutRawIds(`Date ${id}. Nothing was shown or spent.`)).toBe("Nothing was shown or spent.");
+    expect(withoutRawIds("Episode 3 of the season.")).toBe("Episode 3 of the season.");
+  });
+
+  it("lists and counts only the newest likes-waiting notice: it counts every like the older ones did", async () => {
+    const u = `user-${randomUUID()}`;
+    for (const [n, hoursAgo] of [[5, 72], [8, 48], [11, 1]] as const) {
+      await notify(t.db, u, { kind: "likes_waiting", title: `💘 Vesper and 1 more: ${n} likes waiting`, body: null, link: "/swipe" });
+      await t.db.query(`update notifications set created_at = now() - make_interval(hours => $2) where user_id = $1 and title like $3`, [u, hoursAgo, `%: ${n} likes%`]);
+    }
+    await notify(t.db, u, { kind: "texted", title: "Bo texted Cy", body: null, link: null });
+    expect((await listNotifications(t.db, u)).map((n) => n.title)).toEqual(["Bo texted Cy", "💘 Vesper and 1 more: 11 likes waiting"]);
+    expect(await countNotifications(t.db, u)).toBe(2);
+    expect(await countNotifications(t.db, u, { unread: true, kinds: ["likes_waiting"] })).toBe(1);
+    expect(await unreadCount(t.db, u)).toBe(2);
+    expect((await countNotificationsByKind(t.db, u)).find((r) => r.kind === "likes_waiting")).toMatchObject({ n: 1, unread: 1 });
+  });
+
+  it("says a match has ended instead of asking to book it, and leaves a live match asking", async () => {
+    const u = `user-${randomUUID()}`;
+    const [lo, hi] = [HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id].sort();
+    await t.db.query(`delete from matches where character_lo = $1 and character_hi = $2`, [lo, hi]);
+    await t.db.query(`insert into matches (character_lo, character_hi) values ($1, $2)`, [lo, hi]);
+    await notify(t.db, u, { kind: "date_agreed", title: "📅 They want to go on a date", body: "Book it from their chat (📅 Book date), and the show plays them both.", link: `/messages/${lo}/${hi}` });
+    const live = (await listNotifications(t.db, u))[0];
+    expect(live).toMatchObject({ read: false, body: expect.stringMatching(/^Book it/) });
+    expect(live.ended).toBeUndefined();
+    // One of them unmatched (lib/unmatch.ts keeps that, and deletes the match).
+    await t.db.query(`insert into unmatches (character_lo, character_hi, by_character) values ($1, $2, $1) on conflict do nothing`, [lo, hi]);
+    await t.db.query(`delete from matches where character_lo = $1 and character_hi = $2`, [lo, hi]);
+    expect((await listNotifications(t.db, u))[0]).toMatchObject({ read: true, ended: true, body: ENDED_MATCH_BODY, link: `/messages/${lo}/${hi}` });
+    expect(await unreadCount(t.db, u)).toBe(0);
+    await t.db.query(`delete from unmatches where character_lo = $1 and character_hi = $2`, [lo, hi]);
+  });
+
+  it("calls a pair whose character was deleted ended too, but not a pair that never needed a match row", async () => {
+    const u = `user-${randomUUID()}`;
+    const [lo, hi] = [HOUSE_CHARACTERS[2].id, HOUSE_CHARACTERS[3].id].sort();
+    await t.db.query(`delete from matches where character_lo = $1 and character_hi = $2`, [lo, hi]);
+    // A house partner's date needs no match: the prompt still asks.
+    await notify(t.db, u, { kind: "date_agreed", title: "📅 They want to go on a date", body: "Book it from their chat.", link: `/messages/${lo}/${hi}` });
+    expect((await listNotifications(t.db, u))[0]).toMatchObject({ read: false, body: "Book it from their chat." });
+    const gone = `gone-${randomUUID()}`;
+    await notify(t.db, u, { kind: "matched", title: "💘 A match", body: "Say hi.", link: `/messages/${[lo, gone].sort().join("/")}` });
+    const [first] = await listNotifications(t.db, u);
+    expect(first).toMatchObject({ kind: "matched", ended: true, body: ENDED_MATCH_BODY });
   });
 });

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { recordAgentEvent } from "@/lib/agent-funnel";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, readBodyText } from "@/lib/http";
 import { agentForSubscription, grantOperatorPass, operatorPassOn } from "@/lib/operator-pass";
 import {
   invoicePeriodEnd,
@@ -15,6 +15,8 @@ import {
 
 /** Subscription events are a few KB; anything this big isn't one. */
 const MAX_WEBHOOK_BYTES = 256 * 1024;
+/** How long an event's claim holds before a retry may take it over (the attempt that claimed it died, or threw). */
+const CLAIM_MINUTES = 10;
 
 const StripeEvent = z.object({
   id: z.string(),
@@ -50,9 +52,7 @@ export const POST = handle(async (req) => {
     console.error("[operator-pass] OPERATOR_PASS_WEBHOOK_SECRET is not set; refusing the event so Stripe retries later");
     return json({ error: "webhook_not_configured" }, 500);
   }
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_WEBHOOK_BYTES) return json({ error: "body_too_large" }, 413);
-  const payload = await req.text();
-  if (Buffer.byteLength(payload, "utf8") > MAX_WEBHOOK_BYTES) return json({ error: "body_too_large" }, 413);
+  const payload = await readBodyText(req, MAX_WEBHOOK_BYTES);
   if (!verifyStripeSignature(payload, req.headers.get("stripe-signature"), secret)) return json({ error: "invalid_signature" }, 400);
 
   let parsed: unknown;
@@ -69,13 +69,22 @@ export const POST = handle(async (req) => {
   }
 
   const db = await getDb();
-  // Apply each Stripe event once: the event id is unique, so a retry inserts nothing and stops here.
+  // Apply each Stripe event once, and never lose one: it's claimed here ('received') and marked with what it did only
+  // once that's done (the update at the end). A grant that throws answers 500 and leaves the claim, so Stripe tries
+  // again: while the claim is fresh, a retry is told to come back later (409); ten minutes on, a retry takes it over and
+  // the grant runs again (grantOperatorPass sets the pass to what the event says, the period it paid for). 2026-11-22
+  // audit: the event was marked done before the grant, so a grant that failed was answered 200 on every retry.
   const fresh = await db.query(
     `insert into operator_pass_events (id, event_id, type, outcome, received_at) values ($1, $2, $3, 'received', now())
-     on conflict (event_id) do nothing returning id`,
+     on conflict (event_id) do update set received_at = now()
+       where operator_pass_events.outcome = 'received' and operator_pass_events.received_at < now() - interval '${CLAIM_MINUTES} minutes'
+     returning id`,
     [`ope_${event.data.id}`.slice(0, 80), event.data.id, event.data.type.slice(0, 80)],
   );
-  if (!fresh.rows.length) return json({ received: true });
+  if (!fresh.rows.length) {
+    const prior = (await db.query<{ outcome: string }>(`select outcome from operator_pass_events where event_id = $1`, [event.data.id])).rows[0];
+    return prior?.outcome === "received" ? json({ error: "in_progress", message: "This event is being applied: try again later." }, 409) : json({ received: true });
+  }
 
   const obj = event.data.data.object;
   let agentId: string | null = null;

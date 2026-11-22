@@ -44,11 +44,15 @@ export function platformOf(ua: string, maxTouchPoints = 0): Platform {
 export const inAppBrowser = (ua: string): boolean => /FBAN|FBAV|FB_IAB|Instagram|TikTok|musical_ly|Snapchat|Line\/|LinkedInApp|Pinterest|GSA\//i.test(ua);
 
 /**
- * Where it never appears: After Dark and its admin pages (lib/ga-guard.ts), the admin pages, the 18+ gate, email links,
- * and the pages people come to read or file something (the 2026-11-22 audit: on a phone it covered the 2257 statement).
+ * Where it may appear: the home page only, where an owner lands on their character (UX audit 2026-11-22: 2.5 s into any
+ * phone page it slid over the content, on /account over the character list and its main button). Never After Dark and
+ * its admin pages (lib/ga-guard.ts), the admin pages, the 18+ gate, email links, or the pages people come to read or
+ * file something (the same audit: on a phone it covered the 2257 statement), should home ever move.
  */
+export const INSTALL_HINT_PATHS: readonly string[] = ["/"];
 const NO_HINT_PAGES = new Set(["/gate", "/2257", "/content-policy", "/report"]);
 export function installHintPathBlocked(pathname: string): boolean {
+  if (!INSTALL_HINT_PATHS.includes(pathname)) return true;
   return GA_OFF_PATH.test(pathname) || /^\/admin(\/|$)/.test(pathname) || NO_HINT_PAGES.has(pathname) || pathname.startsWith("/email/");
 }
 

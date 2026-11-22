@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { handle, json, session } from "@/lib/http";
+import { handle, json, readJsonOr, session } from "@/lib/http";
 import { syncRoom } from "@/lib/watch";
 
 /**
@@ -11,7 +11,8 @@ import { syncRoom } from "@/lib/watch";
 export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params;
   const sess = session(req);
-  const body = (await req.json().catch(() => ({}))) as { start?: unknown };
+  // At most `{"start":false}`: read no further than a kilobyte.
+  const body = (await readJsonOr(req, 1024, {})) as { start?: unknown } | null;
   const state = await syncRoom(await getDb(), id, sess.userId, new Date(), { start: body?.start !== false });
   if (!state) return json({ error: "party_not_found" }, 404, sess);
   return json(state, 200, sess);

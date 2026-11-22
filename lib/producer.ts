@@ -816,7 +816,9 @@ export async function producerView(db: Db, now: Date = new Date(), env: Env = pr
       })(),
       who: (r.who ?? []).map((id) => ({ id, name: nm(id) })),
       why: r.why,
-      logline: r.logline,
+      // A line stored before loglineText unwrapped JSON answers reads as its words here too (UX audit 2026-11-22: the
+      // season page showed {"logline": "…"}).
+      logline: r.logline ? loglineText(r.logline) : r.logline,
       logline_by: r.logline_by,
       previously: r.previously,
       tonight: r.tonight,

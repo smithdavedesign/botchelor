@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, readBodyText } from "@/lib/http";
 import { grantOrder, refundForPayment } from "@/lib/payments";
 import { testEventsGrant, verifyStripeSignature } from "@/lib/stripe";
 
@@ -51,9 +51,7 @@ export const POST = handle(async (req) => {
     console.error("[stripe] STRIPE_WEBHOOK_SECRET is not set; refusing the event so Stripe retries later");
     return json({ error: "webhook_not_configured" }, 500);
   }
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_WEBHOOK_BYTES) return json({ error: "body_too_large" }, 413);
-  const payload = await req.text();
-  if (Buffer.byteLength(payload, "utf8") > MAX_WEBHOOK_BYTES) return json({ error: "body_too_large" }, 413);
+  const payload = await readBodyText(req, MAX_WEBHOOK_BYTES);
 
   if (!verifyStripeSignature(payload, req.headers.get("stripe-signature"), secret)) {
     return json({ error: "invalid_signature" }, 400);

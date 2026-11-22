@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { NAME_MAX } from "@/lib/field-limits";
-import { ApiError, handle, json, parseBody, session } from "@/lib/http";
+import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import {
   historyFailureLine,
   historyPrompt,
@@ -23,22 +23,12 @@ const Body = z.object({
 });
 
 /**
- * The body, read up to this route's own size (lib/http.ts readJson stops at 10 KB, and a history is up to
- * HISTORY_READ_MAX characters). JSON only, like every route. A parse error says nothing of what was sent: V8's message
- * quotes the text, and this text is never to reach a log.
+ * The body, read up to this route's own size (lib/http.ts readJson stops at 10 KB unless told otherwise, and a history
+ * is up to HISTORY_READ_MAX characters). JSON only, like every route. A parse error says nothing of what was sent (V8's
+ * message quotes the text, and this text is never to reach a log), and nothing past the size is read.
  */
 async function readHistoryBody(req: Request): Promise<unknown> {
-  if (!/^application\/json\b/i.test(req.headers.get("content-type") ?? "")) {
-    throw new ApiError(415, { error: "unsupported_media_type", message: "Send JSON with Content-Type: application/json." });
-  }
-  if (Number(req.headers.get("content-length") ?? 0) > HISTORY_BODY_MAX_BYTES) throw new ApiError(413, { error: "body_too_large" });
-  const body = await req.text();
-  if (new TextEncoder().encode(body).length > HISTORY_BODY_MAX_BYTES) throw new ApiError(413, { error: "body_too_large" });
-  try {
-    return JSON.parse(body);
-  } catch {
-    throw new ApiError(400, { error: "invalid_json" });
-  }
+  return readJson(req, HISTORY_BODY_MAX_BYTES);
 }
 
 

@@ -35,6 +35,17 @@ describe("the demand table", () => {
     expect(captions(two)).toEqual(["Roleplays · setup", "Roleplays · genre"]);
   });
 
+  // UX audit 2026-11-22: the intro said "capped at 3×" beside Grump at 12.44× from 2 picks.
+  it("says when the raw number is over the blend's cap, and greys a row with too few picks to mean much", () => {
+    const html = renderToStaticMarkup(
+      DemandTable({ demand: demand([{ ...row("type", "grump", 1.1), picks: 2, raw: 12.44 }, { ...row("type", "warm", 1.0), picks: 40, raw: 1.2 }]), caption: "Types" }),
+    );
+    expect(html).toContain("Ours (raw)");
+    expect(html).toContain("12.44×<span class=\"muted small\"> (3× in the blend)</span>");
+    expect(html).not.toContain("1.20×<span");
+    expect(html.match(/<tr class="demand-few">/g)).toHaveLength(1);
+  });
+
   it("starts a shown caption where the cells' words start, and leaves the hidden ones alone", () => {
     const css = readFileSync("app/globals.css", "utf8");
     const cell = css.match(/\.board th,\s*\.board td \{[^}]*padding: [^ ;]+ ([^;]+);/)?.[1];
