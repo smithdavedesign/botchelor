@@ -22,7 +22,7 @@
  */
 import type { FormatId } from "./formats";
 import type { ProducerId } from "./rules";
-import { seasonWindow } from "./season-window";
+import { daysUntil, seasonWindow } from "./season-window";
 import type { VenueId } from "./venues";
 
 export const SEASON_FORMAT_SLUGS = ["classic", "island", "last_standing", "sight_unseen", "meet_the_folks", "ex_files", "botchelor"] as const;
@@ -430,7 +430,7 @@ export function seasonArc(now: Date, def: SeasonFormatDef | null = null): Season
   const sundays = def ? ceremonySundays(def, now) : [];
   const finale = sundays[sundays.length - 1];
   if (finale) {
-    const days = Math.round((Date.parse(`${finale}T00:00:00Z`) - Date.parse(`${dayId(now)}T00:00:00Z`)) / DAY_MS);
+    const days = daysUntil(now, `${finale}T00:00:00Z`);
     if (days >= 0) return { night, nights, pct, left: days, to: "finale" };
     return { night, nights, pct, left: nights - night, to: "end" };
   }

@@ -14,7 +14,7 @@ const SignUpInput = z.object({
     .string("Enter your email address.")
     .trim()
     .toLowerCase()
-    .max(EMAIL_MAX, `At most ${EMAIL_MAX} characters.`)
+    .max(EMAIL_MAX, `An email address is at most ${EMAIL_MAX} characters.`)
     .pipe(z.email("Enter a valid email address.")),
   attest: z.literal(true, "Confirm you are 18 or older."),
 });
