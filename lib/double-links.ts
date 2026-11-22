@@ -8,7 +8,8 @@
  *
  * Rules: one open link per couple, and a link books one night (then it's used; a new one can be made). It lasts
  * LINK_DAYS. Never your own link, never across a block (with either character's owner), never a private character on
- * it, and the character you bring can't be taken by someone else or already at the table. Both bookers must have a
+ * it, and the character you bring can't be taken by someone else or already at the table. The couple is one the show
+ * knows (coupleSql: a date that aired, or a match), unless both characters are the sharer's own. Both bookers must have a
  * date on hand before anything is made, so a link that can't book spends nothing. A link whose couple can no longer
  * book (a block, a break-up) closes, and its owner hears why.
  */
@@ -46,6 +47,18 @@ async function blockedBetween(db: Db, a: string, b: string | null): Promise<bool
 type CharRow = { id: string; name: string; owner_id: string | null; is_house: boolean; visibility: string };
 
 /**
+ * SQL: the characters in `a` and `b` are a couple the show knows (2026-11-21: a link put any two public characters side
+ * by side as one): a date between them that aired (public or unlisted, or the link's maker's own private one), or a
+ * match. Either order, as each table stores its pair.
+ */
+const coupleSql = (a: string, b: string, maker: string) => `(exists (
+      select 1 from episodes ce
+       where ((ce.character_a = ${a} and ce.character_b = ${b}) or (ce.character_a = ${b} and ce.character_b = ${a}))
+         and ce.status = 'ready' and ce.revealed_at is not null and ce.varies_episode_id is null
+         and (ce.visibility <> 'private' or ce.creator_id = ${maker}))
+    or exists (select 1 from matches cm where (cm.character_lo = ${a} and cm.character_hi = ${b}) or (cm.character_lo = ${b} and cm.character_hi = ${a})))`;
+
+/**
  * The couple's link, made the first time it's asked for (one open link per couple). The owner of `characterId` only;
  * its partner is its date on the thread (another creator's character or the house cast). Neither may be private: the
  * link shows both.
@@ -69,6 +82,10 @@ export async function ensureDoubleLink(
   if (await blockedBetween(db, userId, partner.owner_id)) return refuse(404, "partner_not_found", "No character with that id to bring as the date.");
   const taken = (await db.query<{ taken: boolean }>(`select ${takenSql("c", "$2")} as taken from characters c where c.id = $1`, [mine.id, partner.id])).rows[0]?.taken;
   if (taken) return refuse(409, "taken", `${shortName(mine.name)} is with someone else and only dates them right now.`);
+  if (partner.owner_id !== userId) {
+    const couple = (await db.query<{ ok: boolean }>(`select ${coupleSql("$1", "$2", "$3")} as ok`, [mine.id, partner.id, userId])).rows[0]?.ok;
+    if (!couple) return refuse(409, "not_a_couple", `A double-date link is for a couple: ${shortName(mine.name)} and ${shortName(partner.name)} need a date that aired, or a match, first.`);
+  }
 
   const live = (
     await db.query<{ code: string; created_at: string }>(
@@ -136,7 +153,10 @@ export type DoubleLink = {
   episode_b: string | null;
 };
 
-/** A link and where it stands. Closed: turned off, or its couple can't be shown any more (made private, or its character changed hands). */
+/**
+ * A link and where it stands. Closed: turned off, or its couple can't be shown any more (made private, its character
+ * changed hands, or they're no longer a couple the show knows: coupleSql).
+ */
 export async function loadDoubleLink(db: Db, code: string, now: Date = new Date()): Promise<DoubleLink | null> {
   if (!/^[a-z0-9]{6,32}$/.test(code)) return null;
   const r = (
@@ -148,6 +168,7 @@ export async function loadDoubleLink(db: Db, code: string, now: Date = new Date(
       a_name: string;
       b_name: string;
       a_owner: string | null;
+      couple: boolean;
       a_private: boolean;
       b_private: boolean;
       b_house: boolean;
@@ -158,6 +179,7 @@ export async function loadDoubleLink(db: Db, code: string, now: Date = new Date(
       episode_b: string | null;
     }>(
       `select l.code, l.created_by, l.character_id, l.partner_id, a.name as a_name, b.name as b_name, a.owner_id as a_owner,
+              (b.owner_id is not distinct from l.created_by or ${coupleSql("l.character_id", "l.partner_id", "l.created_by")}) as couple,
               a.visibility = 'private' as a_private, b.visibility = 'private' as b_private, b.is_house as b_house,
               l.created_at, l.revoked_at, l.night_id, g.episode_a, g.episode_b
          from double_links l
@@ -173,7 +195,7 @@ export async function loadDoubleLink(db: Db, code: string, now: Date = new Date(
   const expires = new Date(created.getTime() + LINK_DAYS * DAY_MS);
   const status: DoubleLinkStatus = r.night_id
     ? "used"
-    : r.revoked_at || r.a_owner !== r.created_by || r.a_private || (!r.b_house && r.b_private)
+    : r.revoked_at || r.a_owner !== r.created_by || !r.couple || r.a_private || (!r.b_house && r.b_private)
       ? "closed"
       : expires <= now
         ? "expired"

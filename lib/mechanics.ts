@@ -220,7 +220,8 @@ export function relationshipStage(dates: number, secondDates: number, lastEnding
 
 /**
  * The relationship graph (PRD "the relationship graph"): one edge per pair whose dates have aired publicly, by name,
- * from the graph's public layer (lib/relationships.ts) — never a private date, never an ending before it airs.
+ * from the graph's public layer (lib/relationships.ts) — never a private date, never an ending before it airs, never a
+ * deleted account's character (a private one is named, by name only, as everywhere else).
  */
 export async function listRelationshipEdges(db: Db, limit = 40): Promise<RelationshipEdge[]> {
   await healRelationships(db);
@@ -230,7 +231,7 @@ export async function listRelationshipEdges(db: Db, limit = 40): Promise<Relatio
        from relationships r
        join characters ca on ca.id = r.character_a
        join characters cb on cb.id = r.character_b
-      where r.public_dates > 0
+      where r.public_dates > 0 and ca.owner_id is distinct from '${DELETED_OWNER}' and cb.owner_id is distinct from '${DELETED_OWNER}'
       order by r.public_last_at desc nulls last limit $1`,
     [limit],
   );

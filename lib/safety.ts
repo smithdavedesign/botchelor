@@ -471,6 +471,18 @@ const SHEET_SUGGESTIVE = [
   / (?:handl|grab|touch|suck|lick|ride|riding|stroke|strok)\w* (?:my|his|your) (?:sausage|meat|package|junk|rod|member|banana|eggplant) /,
   / (?:pussy|pussies|cock|cocks|tits|titties|anal|blowjobs?|handjobs?|cumming|creampie|deepthroat|69ing|dtf|get laid|getting laid|got laid|prude|prudes|prudish) /,
   / (?<!summa |magna )cum (?!laude )/,
+  // 2026-11-21: a public profile's "when they're bored" answer read "like playing with themselves discretely", and a
+  // test sheet's dealbreaker was "big ass". Touching oneself in its usual euphemisms, and a body part rated.
+  / (?:play|plays|playing|playin|played) with (?:themselves|themself|himself|herself|myself|yourself|yourselves|oneself) /,
+  / (?:touch|touches|touching|touched|pleasure|pleasures|pleasuring|pleasured) (?:themselves|themself|himself|herself|myself|yourself|oneself) /,
+  / (?:jerk|jerks|jerking|jerked|jacking|jacked|wank|wanks|wanking|wanked) (?:it |him |myself |himself |themselves |yourself )?off /,
+  / (?:wank|wanks|wanking|wanked|wanker|wankers|fap|faps|fapping|fapped) /,
+  / (?:rub|rubs|rubbing|rubbed) one out /,
+  / (?:spank|spanks|spanking|spanked) the monkey /,
+  / (?:choke|chokes|choking|choked) the chicken /,
+  / (?:flick|flicks|flicking|flicked) the bean /,
+  / self (?:pleasure|pleasuring|gratification|gratifying) /,
+  / (?:big|fat|nice|huge|thick|round|tight|juicy|plump|perky|bubble|perfect|hot|sexy) (?:ass|asses|arse|arses|butt|butts|booty|bum|breasts) /,
 ];
 
 /**

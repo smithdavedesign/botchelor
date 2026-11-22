@@ -190,6 +190,16 @@ describe("2. the episode page's head: og:image is the share card, a large Twitte
     expect(description.length).toBeLessThanOrEqual(200);
   });
 
+  it("tells crawlers to skip a date with a deleted account's character; the page stays up for the other side (2026-11-21)", async () => {
+    const { creator, character, episode } = await setupEpisode("friends");
+    await api.reveal(episode.id, creator);
+    expect((await meta(episode.id)).robots).toMatchObject({ index: true });
+    await t.db.query(`update characters set owner_id = 'deleted' where id = $1`, [character.id]);
+    const m = await meta(episode.id);
+    expect(m.robots).toMatchObject({ index: false });
+    expect(String(m.openGraph?.title)).toContain("Mira Quell");
+  });
+
   it("gives an unknown episode no share card and no description of it", async () => {
     const m = await meta("no-such-episode");
     expect(imageUrls(m.openGraph?.images).join()).not.toContain("/api/og/episode/");

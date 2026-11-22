@@ -21,7 +21,8 @@ import { runSundayPremiere } from "@/lib/sunday-premiere";
 import { runWalkOnRoses } from "@/lib/casting";
 import { ensureCastSecrets } from "@/lib/cast-secrets";
 import { ensureCastChat } from "@/lib/cast-chat";
-import { backfillShownStages } from "@/lib/relationships";
+import { backfillShownStages, healStaleRelationships } from "@/lib/relationships";
+import { invalidateGraph } from "@/lib/graph-cache";
 import { fillCharacterTags } from "@/lib/character-tags";
 import { backfillMessageEpisodes } from "@/lib/chat-date-links";
 import { seasonKeysUpkeep } from "@/lib/show-seasons";
@@ -112,6 +113,11 @@ async function run(req: Request): Promise<Response> {
   // Couples' shown stages (lib/relationship-stages.ts): fills the ones a row doesn't have yet (every row when it shipped,
   // rows refreshed while RELATIONSHIP_STAGES_V2 was 0). Stage columns only: no event, no notice. One cheap select once done.
   const stagesFilled = await backfillShownStages(db).catch(() => null);
+  // Couples still counting a date as public that no longer is (lib/relationships.ts healStaleRelationships: made private
+  // by a path that never refreshed the pair): a batch a pass is refreshed, and the public sky dropped when one was. One
+  // cheap select once none is left.
+  const staleHealed = await healStaleRelationships(db).catch(() => null);
+  if (staleHealed) invalidateGraph();
   // Character tags (lib/character-tags.ts): every character with none gets the house's hand tags or a read of its
   // traits, a batch a pass. New and edited characters refresh their own; one cheap select once everyone has some.
   const tagsFilled = await fillCharacterTags(db).catch(() => null);
@@ -208,7 +214,7 @@ async function run(req: Request): Promise<Response> {
   // The story check (lib/story-check.ts): aired dates whose lines and ending disagree are kept off the featured places,
   // a few short paid calls a pass (featured first), within its own time budget; not on a run that's already long.
   const storyCheck = Date.now() - started > LONG_RUN_MS ? null : await storyCheckSweep(db).catch(() => null);
-  return json({ ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
+  return json({ ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, stale_edges_healed: staleHealed, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away });
 }
 
 export const GET = handle(run);

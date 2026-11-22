@@ -2,8 +2,9 @@
 
 /**
  * The looks builder (lib/looks.ts): pick how they look one step at a time, from picture tiles. Two tabs, the same flow:
- * the show's, and After Dark's, whose body steps show explicit tiles and add a step. After Dark's tab is blurred and
- * locked for anyone who can't open it; they're only ever shown the show's tiles, blurred, never an explicit picture.
+ * the show's, and After Dark's, whose body steps show explicit tiles and add steps (the bust and butt sizes). After
+ * Dark's tab is there only for someone who can open it (2026-11-21 audit: the show asked strangers "Choose a bust size"
+ * beside a locked 🌙 After Dark tab); everyone else sees the show's flow alone.
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -43,9 +44,9 @@ type Props = {
 
 /**
  * The steps on a tab, without the age row (2026-10-31 UX audit, B4: it asked again for Identity's age and quietly changed
- * it). The portrait uses the sheet's age (lib/looks.ts looksPortraitPrompt).
+ * it). The portrait uses the sheet's age (lib/looks.ts looksPortraitPrompt). The bust size is After Dark's tab's alone.
  */
-const flow = (gender: Gender, adTab: boolean) => stepsFor(gender, adTab).filter((s) => s.id !== "age");
+const flow = (gender: Gender, adTab: boolean) => stepsFor(gender, adTab).filter((s) => s.id !== "age" && (adTab || s.id !== "breasts"));
 
 /** A step's current pick, wherever it's stored (After Dark's live under looks.after_dark). */
 function current(looks: Looks, step: LookStep, adTab: boolean): string | undefined {
@@ -152,14 +153,16 @@ export default function LooksBuilder({ looks, setLooks, age, tiles, afterDark, o
 
   return (
     <div className={`looks-builder${adTab ? " is-after-dark" : ""}`}>
-      <div className="looks-tabs" role="tablist" aria-label="Which looks">
-        <button type="button" role="tab" aria-selected={!adTab} className={!adTab ? "chosen" : ""} onClick={() => setTab("show")}>
-          Normal
-        </button>
-        <button type="button" role="tab" aria-selected={adTab} className={adTab ? "chosen" : ""} onClick={() => setTab("after_dark")}>
-          🌙 After Dark {afterDark ? "" : <span className="looks-lock" aria-label="locked">🔒</span>}
-        </button>
-      </div>
+      {afterDark && (
+        <div className="looks-tabs" role="tablist" aria-label="Which looks">
+          <button type="button" role="tab" aria-selected={!adTab} className={!adTab ? "chosen" : ""} onClick={() => setTab("show")}>
+            Normal
+          </button>
+          <button type="button" role="tab" aria-selected={adTab} className={adTab ? "chosen" : ""} onClick={() => setTab("after_dark")}>
+            🌙 After Dark
+          </button>
+        </div>
+      )}
 
       <ol className="looks-dots" aria-label="Looks steps">
         {[...steps, null].map((s, n) => (
