@@ -3225,16 +3225,22 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
           select 1 from date_roleplays r
            where r.status = 'pending' and r.answerer_user = $1 and r.created_at > now() - interval '${ROLEPLAY_PROPOSAL_DAYS} days'
              and notifications.link like '/couples/' || r.character_lo || '/' || r.character_hi || '%'))
+        -- Each check below also looks its row up by the key in the notice's link ('/episodes/<id>', '/messages/<lo>/<hi>';
+        -- character ids never hold a slash), so it reads that one date or match. On the link alone Postgres built every
+        -- match's dates (all episodes, two index reads each) on each call: half of all the database's reads (2026-11-22).
         -- …and "it's done" only until the date airs (sim run 6: it still counted after air_date).
-        and not (kind = 'own_date_ready' and exists (select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.revealed_at is not null))
+        and not (kind = 'own_date_ready' and exists (
+          select 1 from episodes e where e.id = substr(notifications.link, 11) and notifications.link = '/episodes/' || e.id and e.revealed_at is not null))
         -- #1517 (is it still true now?): only while its date is there, finished and unaired (a failed or declined date is deleted). Reading it
         -- any way (get_episode, get_own_date_step with or without a wait, my_dates, reflect_on_date) marks it read.
         and not (kind = 'own_date_ready' and not exists (
-          select 1 from episodes e where notifications.link = '/episodes/' || e.id and e.status = 'ready' and e.revealed_at is null))
+          select 1 from episodes e
+           where e.id = substr(notifications.link, 11) and notifications.link = '/episodes/' || e.id and e.status = 'ready' and e.revealed_at is null))
         -- #434: a match counts until this agent has acted on it (answered, or texted them); a date agreed, until a date exists.
         and not (kind = 'matched' and exists (
           select 1 from matches m join characters c on c.owner_id = $1 and c.id in (m.character_lo, m.character_hi)
-           where notifications.link = '/messages/' || m.character_lo || '/' || m.character_hi
+           where m.character_lo = split_part(notifications.link, '/', 3) and m.character_hi = split_part(notifications.link, '/', 4)
+             and notifications.link = '/messages/' || m.character_lo || '/' || m.character_hi
              and ((case when c.id = m.character_lo then m.yes_lo else m.yes_hi end) is not null
                   or exists (select 1 from couple_texts t where t.character_lo = m.character_lo and t.character_hi = m.character_hi
                               and t.who = case when c.id = m.character_lo then 'lo' else 'hi' end))))
@@ -3242,7 +3248,8 @@ async function waitingFor(db: Db, agentId: string): Promise<Record<string, unkno
           select 1 from matches m join episodes e
             on ((e.character_a = m.character_lo and e.character_b = m.character_hi) or (e.character_a = m.character_hi and e.character_b = m.character_lo))
            and e.created_at >= coalesce(m.agreed_at, m.matched_at)
-           where notifications.link = '/messages/' || m.character_lo || '/' || m.character_hi))
+           where m.character_lo = split_part(notifications.link, '/', 3) and m.character_hi = split_part(notifications.link, '/', 4)
+             and notifications.link = '/messages/' || m.character_lo || '/' || m.character_hi))
       group by kind`,
     [agentId],
   );
