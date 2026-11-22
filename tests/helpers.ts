@@ -115,6 +115,7 @@ type Table =
   | "rate_hits"
   | "paid_usage"
   | "server_errors"
+  | "ops_log"
   | "scene_requests"
   | "sim_ratings"
   | "quality_runs"
@@ -429,6 +430,8 @@ export async function startTestDb() {
         "paid_usage",
         "embed_usage",
         "server_errors",
+        // The servers' own log (lib/ops-log.ts).
+        "ops_log",
         "identity_consents",
         "afterglow_consents",
         "relationships",

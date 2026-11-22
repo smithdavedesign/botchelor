@@ -522,7 +522,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <div className="ad-studio-media">
               {video ? (
                 // Plays its trim, and ✂️ trims it (lib/adult/trim.ts).
-                <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} onMoment={() => void refresh()} />
+                <TrimmableClip id={p.id} src={media(p.id)} trim={p.trim ?? null} canTrim label={`${c.name}, a clip`} onMoment={() => void refresh()} poster={p.poster} />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media; not for next/image
                 <img src={`${media(p.id)}?w=640`} alt={`${c.name}, ${p.kind === "baseline" ? "a face to keep" : "a picture"}`} loading="lazy" style={{ aspectRatio: tileRatio(p.aspect) }} />
@@ -852,7 +852,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
           <figure key={k}>
             {img ? (
               // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
-              <img src={media(img)} alt={`${c.name}'s ${k === "face" ? "face" : "body reference"}`} />
+              <img src={`${media(img)}?w=320`} alt={`${c.name}'s ${k === "face" ? "face" : "body reference"}`} />
             ) : (
               <div className="ad-studio-empty">{k === "face" ? "No face yet" : "No body yet"}</div>
             )}
@@ -1223,7 +1223,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 // Shot like one of their pictures (From their dates, or a shoot together below): its pose, framing and place.
                 <p className="ad-studio-reference small">
                   {/* eslint-disable-next-line @next/next/no-img-element -- private media */}
-                  <img src={media(pairPick.reference)} alt="" />
+                  <img src={`${media(pairPick.reference)}?w=320`} alt="" />
                   <span>Shooting like this picture: its pose, framing and place.</span>
                   <button type="button" className="linklike" onClick={() => setPairPick((x) => ({ ...x, reference: undefined }))}>
                     Don&apos;t
@@ -1402,7 +1402,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <figure>
               {s.identity.face ? (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
-                <img src={media(s.identity.face)} alt={`${c.name}'s face`} />
+                <img src={`${media(s.identity.face)}?w=640`} alt={`${c.name}'s face`} />
               ) : (
                 <div className="ad-studio-empty">No face yet: Set up for pictures above, or Draw {s.sizes.recast} under Recast below, then “Use this face”.</div>
               )}
@@ -1411,7 +1411,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <figure>
               {s.identity.body ? (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
-                <img src={media(s.identity.body)} alt={`${c.name}'s body reference`} />
+                <img src={`${media(s.identity.body)}?w=640`} alt={`${c.name}'s body reference`} />
               ) : (
                 <div className="ad-studio-empty">No body reference yet.</div>
               )}
@@ -1433,7 +1433,7 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
             <figure className={s.identity.faceCropStale ? "stale" : undefined}>
               {s.identity.faceCrop || s.identity.faceCropStale ? (
                 // eslint-disable-next-line @next/next/no-img-element -- private, presigned media
-                <img src={media((s.identity.faceCrop ?? s.identity.faceCropStale)!)} alt={`${c.name}'s face anchor`} />
+                <img src={`${media((s.identity.faceCrop ?? s.identity.faceCropStale)!)}?w=640`} alt={`${c.name}'s face anchor`} />
               ) : (
                 <div className="ad-studio-empty">No close-up yet.</div>
               )}

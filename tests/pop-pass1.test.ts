@@ -114,7 +114,7 @@ describe("the pages", () => {
   });
 
   it("carries the house ribbon on everything, the switching landings, import, companion and the letter", () => {
-    for (const file of ["app/everything/page.tsx", "app/alternatives/AlternativePage.tsx", "app/import/page.tsx", "app/companion/page.tsx", "app/newsletter/page.tsx"]) {
+    for (const file of ["app/everything/page.tsx", "app/alternatives/AlternativePage.tsx", "app/import/page.tsx", "app/companion/(list)/page.tsx", "app/newsletter/page.tsx"]) {
       expect(source(file), file).toContain("<FaceRibbon");
     }
   });

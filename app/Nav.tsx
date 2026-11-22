@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import CharacterPicker from "@/app/CharacterPicker";
 import Icon from "@/app/Icon";
 import IntentLink from "@/app/IntentLink";
+import { SPENT_EVENT } from "@/app/spent";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { NO_AD_DOORS, studioDoorLabel, type AdDoors } from "@/lib/adult/door-links";
 import { AD_SHOWCASE } from "@/lib/showcase-paths";
@@ -188,11 +189,14 @@ export default function Nav({
     };
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("focus", refresh);
+    // A date just booked on this page (app/spent.ts): the count follows at once.
+    window.addEventListener(SPENT_EVENT, refresh);
     const spends = meter === "tokens" || pathname.startsWith("/after-dark");
     const timer = spends ? window.setInterval(refresh, 30_000) : undefined;
     return () => {
       document.removeEventListener("visibilitychange", refresh);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener(SPENT_EVENT, refresh);
       if (timer) window.clearInterval(timer);
     };
   }, [personal, meter, pathname]);

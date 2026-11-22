@@ -1,9 +1,11 @@
 /**
  * M10 — product analytics + unit economics.
  *
- * One structured JSON line per event to stdout, which Vercel captures as the system log (and a log
- * drain can ship onward to a warehouse). This is the hosted-app equivalent of the system-log emitter
- * the local runtime uses. Deliberately free of PII and character content: ids, enums and counts only —
+ * One structured JSON line per event to stdout, which DigitalOcean keeps as the app's runtime log until the next
+ * deploy replaces the container (there's no log drain). The failures and costs that matter after that (a date that
+ * failed or was written, what it cost) are also kept in the database by lib/ops-log.ts, which only server code imports:
+ * this file stays free of the database because middleware tracks through it too. Deliberately free of PII and character
+ * content: ids, enums and counts only —
  * never names, bios, dialogue, notes or soul data (PRD §14: "without placing sensitive character content
  * or personal information in analytics events").
  */
@@ -84,13 +86,14 @@ export type AnalyticsEvent =
   | "step_in_air_refused" // a step-in date that couldn't air: a line in it failed Step in's PG check (lib/safety.ts checkStepInText); the episode only
   | "step_in_refused" // a start that a cap turned away (lib/step-in.ts): which cap, and whether a guest; never who
   | "step_in_line_withheld" // a cast line on a step-in date was never said (it voiced self-harm, or failed the PG check): the episode and why
+  | "step_in_timing" // one move on a step-in date (lib/request-timing.ts): its wall time and how much of it waited on the database and on the model, with counts; never the words
   | "data_pruned" // the daily job's retention prune (lib/retention.ts): rows removed per table
   | "house_bot_logs_pruned" // the daily job's prune of the house crowd's own impressions and MCP calls (lib/retention.ts)
   | "story_check" // one pass of the story check (lib/story-check.ts): verdict counts, repairs, tokens and cost; never a date or its words
   | "plus_interest" // a tap on the "Botchelor Plus" intent tile (lib/plus-interest.ts): where, and whether an email was left
   | "identity_claimed"; // someone brought what they made before signing in into their account (lib/account-claim.ts): counts only, never who
 
-type Props = Record<string, string | number | boolean | null | undefined>;
+export type Props = Record<string, string | number | boolean | null | undefined>;
 
 /** Emit one analytics event. Never throws: logging must not break a request. */
 export function track(event: AnalyticsEvent, props: Props = {}): void {
@@ -109,7 +112,7 @@ export function track(event: AnalyticsEvent, props: Props = {}): void {
  * used. cost_usd is what the date would cost at paid-tier list prices (lib/pricing.ts): $0 in cash on the free
  * tier, and the number pricing is set against (docs/costs.md).
  */
-export function trackEpisodeCost(props: {
+export type EpisodeCost = {
   episode_id: string;
   where?: "job" | "template" | "template_retake" | "backfill" | "step_in";
   model: "free" | "frontier";
@@ -117,9 +120,12 @@ export function trackEpisodeCost(props: {
   ms: number;
   transcript_turns: number;
   usage?: DateUsage;
-}): void {
+};
+
+/** The episode_generated line's fields, flat: also what the servers' own log keeps (lib/ops-log.ts). */
+export function episodeCostProps(props: EpisodeCost): Props {
   const { usage, ...rest } = props;
-  track("episode_generated", {
+  return {
     ...rest,
     ...(usage
       ? {
@@ -131,7 +137,11 @@ export function trackEpisodeCost(props: {
           models: usage.models.join(","),
         }
       : {}),
-  });
+  };
+}
+
+export function trackEpisodeCost(props: EpisodeCost): void {
+  track("episode_generated", episodeCostProps(props));
 }
 
 /**

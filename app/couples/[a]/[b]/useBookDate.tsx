@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import DateConfirm from "@/app/DateConfirm";
 import { requestJson, watchLinkOf } from "@/app/request";
+import { saySpent } from "@/app/spent";
 import { shortName } from "@/lib/names";
 
 /**
@@ -22,7 +23,10 @@ export function useBookDate(mine: { id: string; name: string }, them: { id: stri
     const res = await requestJson("/api/episodes", { character_id: mine.id, partner_id: them.id }).catch(() => null);
     setBusy(false);
     if (!res) return setMessage({ text: "Network error. Try again." });
-    if (res.ok && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
+    if (res.ok && typeof res.data.id === "string") {
+      saySpent();
+      return router.push(`/episodes/${res.data.id}?play=1`);
+    }
     setMessage({ text: res.message, shop: res.status === 402 || res.status === 429, link: watchLinkOf(res.data) });
   }
   const a = shortName(mine.name);

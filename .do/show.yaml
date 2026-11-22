@@ -37,6 +37,11 @@ services:
       - key: DEPLOY_ENV
         value: "production"
         scope: RUN_AND_BUILD_TIME
+      # The commit this build came from (lib/deploy.ts commitSha): DigitalOcean fills it in. /admin's Servers panel and
+      # each start's row (lib/ops-log.ts) show it, so what's live is never a guess.
+      - key: COMMIT_SHA
+        value: ${_self.COMMIT_HASH}
+        scope: RUN_AND_BUILD_TIME
       - key: SITE_URL
         value: "https://botchelor.com"
         scope: RUN_AND_BUILD_TIME
