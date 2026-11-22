@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST as startRoute } from "@/app/api/step-in/route";
 import { GET as viewRoute, POST as actRoute } from "@/app/api/step-in/[id]/route";
 import { deleteAccount } from "@/lib/account";
-import { loadOwnDate, rebuildOwnDate } from "@/lib/own-date";
+import { loadOwnDate, rebuildOwnDate, shareRebuilds } from "@/lib/own-date";
+import { timedDb, timeRequest } from "@/lib/request-timing";
 import { playEnding, playShift } from "@/lib/step-in-play";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
 import { refreshEpisodePair } from "@/lib/relationships";
@@ -123,6 +124,8 @@ async function playThrough(cookie: string, id: string, seeAgain?: boolean) {
     const last = r.body.view.last_line;
     r = await act(cookie, id, { action: "line", dialogue: `My line ${i++}: I collect old maps of cities that never existed.`, ...(last && seeAgain !== undefined ? { see_again: seeAgain } : {}) });
   }
+  // As the page does: the last line comes back on its own, then it asks for the write-up.
+  if (r.body.view?.state === "finishing") r = await act(cookie, id, { action: "advance" });
   return r;
 }
 
@@ -212,19 +215,65 @@ describe("a step-in date", () => {
     log.mockClear();
     await playThrough(admin.cookie, id, true);
     const timings = log.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('"event":"step_in_timing"')).map((line) => JSON.parse(line) as Any);
-    // One a move: the opening advance, then each of their lines.
-    expect(timings.length).toBeGreaterThanOrEqual(4);
+    // One a move: the opening advance, each of their lines, and the write-up after the last.
+    expect(timings.length).toBeGreaterThanOrEqual(5);
     for (const x of timings) {
       expect(x).toMatchObject({ episode_id: id, action: expect.stringMatching(/^(advance|line)$/) });
       for (const k of ["ms", "db_queries", "db_ms", "model_calls", "model_ms", "other_ms"]) expect(typeof x[k]).toBe("number");
       expect(JSON.stringify(x)).not.toContain("old maps");
     }
-    // A line the cast answers waits on its database and its model; the last one also on the verdict and the recap.
+    // A line the cast answers waits on its database and its model. The last comes back with the cast's last line, before
+    // the write-up; the ask after it waits on the verdict and the recap.
     const lines = timings.filter((x) => x.action === "line");
     expect(lines[0].db_queries).toBeGreaterThan(0);
     expect(lines[0].model_calls).toBeGreaterThanOrEqual(1);
-    expect(lines.at(-1)).toMatchObject({ state: "done" });
-    expect(lines.at(-1).model_calls).toBeGreaterThanOrEqual(3);
+    expect(lines.at(-1)).toMatchObject({ state: "finishing" });
+    expect(timings.at(-1)).toMatchObject({ action: "advance", state: "done" });
+    expect(timings.at(-1).model_calls).toBeGreaterThanOrEqual(2);
+  });
+
+  it("sends the date's last line back on its own: the verdict and the recap come on the page's next ask", async () => {
+    const admin = await person({ admin: true });
+    const { body } = await start(admin.cookie);
+    const id = body.episode_id as string;
+    let r = await act(admin.cookie, id, { action: "advance" });
+    for (let i = 0; r.body.view?.state === "your_line" && i < 30; i++) r = await act(admin.cookie, id, { action: "line", dialogue: `My line ${i}: I collect old maps of cities that never existed.` });
+    // The cast's last line is on screen, and nothing is written up yet: no verdict, no recap, no ending.
+    expect(r.body.view.state).toBe("finishing");
+    expect(r.body.view.lines.at(-1).side).toBe("b");
+    expect(r.body.view.ending ?? null).toBeNull();
+    expect(calls.filter((c) => c.kind === "play" || c.kind === "recap")).toHaveLength(0);
+    expect((await t.db.query<Any>(`select status from episodes where id = $1`, [id])).rows[0].status).toBe("generating");
+    // The page's next ask writes it up, once.
+    const done = await act(admin.cookie, id, { action: "advance" });
+    expect(done.body.view.state).toBe("done");
+    expect(done.body.view.ending.label).toBeTruthy();
+    expect(calls.filter((c) => c.kind === "play")).toHaveLength(1);
+    expect(calls.filter((c) => c.kind === "recap")).toHaveLength(1);
+  });
+
+  it("deals the date once a move: rebuilds in one request share its build, each on its own copy of the setup", async () => {
+    const admin = await person({ admin: true });
+    const { body } = await start(admin.cookie);
+    const id = body.episode_id as string;
+    const row = (await loadOwnDate(t.db, admin.id, id))!;
+    const db = timedDb(t.db);
+    await rebuildOwnDate(t.db, row);
+    const single = await timeRequest(() => rebuildOwnDate(db, row));
+    const twice = async () => [await rebuildOwnDate(db, row), await rebuildOwnDate(db, row)] as const;
+    const apart = await timeRequest(twice);
+    const shared = await timeRequest(() => shareRebuilds(twice));
+    // Apart, the second rebuild reads it all again; shared, it reads nothing new.
+    expect(single.timing.db_queries).toBeGreaterThan(5);
+    expect(apart.timing.db_queries).toBe(2 * single.timing.db_queries);
+    expect(shared.timing.db_queries).toBe(single.timing.db_queries);
+    const [one, two] = shared.result;
+    expect(two.built.characters).toBe(one.built.characters);
+    expect(two.built.setup).not.toBe(one.built.setup);
+    expect(two.built.setup).toEqual(one.built.setup);
+    expect(two.decided).toEqual(single.result.decided);
+    one.built.setup.end_by = 3;
+    expect(two.built.setup.end_by).toBeUndefined();
   });
 
   it("says it's AI again when they come back after a while", async () => {
@@ -322,6 +371,23 @@ describe("the self-harm protocol", () => {
     expect(r.body.crisis_resources).toBeTruthy();
     expect(await t.count("episodes")).toBe(0);
     expect((await t.db.query(`select surface, n from crisis_referrals`)).rows).toEqual([{ surface: "step_in_about", n: 1 }]);
+  });
+
+  it("tells the cast member which of its own images it has leaned on tonight, unless the person brought them up", async () => {
+    // 2026-11-21: Juniper's dryer came up in all three of her lines.
+    const admin = await person({ admin: true });
+    const id = (await start(admin.cookie)).body.episode_id;
+    castNext = ["My dryer takes nine minutes to do anything, so I have opinions.", "The dryer and I have an understanding, nine minutes at a time."];
+    await playThrough(admin.cookie, id, true);
+    const turns = calls.filter((c) => c.kind === "turn").map((c) => c.messages.map((m) => m.content).join("\n"));
+    expect(turns.length).toBeGreaterThanOrEqual(3);
+    const leaned = (prompt: string) => /"words_youve_leaned_on_lately":\s*\[([^\]]*)\]/.exec(prompt)?.[1] ?? null;
+    // Its first two lines: nothing to rest yet. Its third: the dryer and the nine, not the person's maps.
+    expect(leaned(turns[0])).toBeNull();
+    expect(leaned(turns[1])).toBeNull();
+    expect(leaned(turns.at(-1)!)).toContain('"dryer"');
+    expect(leaned(turns.at(-1)!)).toContain('"nine"');
+    expect(leaned(turns.at(-1)!)).not.toContain("maps");
   });
 
   it("never lets the cast member voice self-harm: that line is drawn again", async () => {
