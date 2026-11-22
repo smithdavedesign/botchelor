@@ -209,10 +209,14 @@ export async function episodeCut(db: Db, episodeId: string): Promise<EpisodeCut 
   return row ? { id: row.id, src: `/api/home-clip/${row.id}/cut.mp4`, poster_src: `/api/home-clip/${row.id}/poster.jpg`, seconds: Number(row.cut_seconds) } : null;
 }
 
-/** The line under the clip: who, and how it ended when that is public (it is, once the date has aired). */
+/**
+ * The line under the clip: who, and how it ended when that is public (it is, once the date has aired). "How it ended: a
+ * fifth date", in a sentence's case (2026-11-22 audit: "It ended: A fifth date" read as two headings).
+ */
 export function clipCaption(clip: Pick<HomeClip, "names" | "ending">): string {
   const pair = `${clip.names[0]} × ${clip.names[1]}`;
-  return clip.ending ? `${pair} · It ended: ${clip.ending}` : pair;
+  if (!clip.ending) return pair;
+  return `${pair} · How it ended: ${clip.ending.charAt(0).toLowerCase()}${clip.ending.slice(1)}`;
 }
 
 export type ClipFile = { key: string | null; bytes: Buffer | null; mime: "video/mp4" | "image/jpeg" };

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GET as getEngagement } from "@/app/api/admin/engagement/route";
 import { POST as beacon } from "@/app/api/e/route";
 import { sourceFrom } from "@/app/engagement";
-import { cleanBeacon, cleanProps, deviceOf, loadEngagement, MAX_BATCH, MAX_PER_WINDOW, normalizePath, resetBudgetsForTests, sourceOf } from "@/lib/engagement";
+import { cleanBeacon, cleanProps, deviceOf, loadEngagement, MAX_BATCH, MAX_PER_WINDOW, MAX_VISITORS_PER_ADDRESS, normalizePath, resetBudgetsForTests, sourceOf } from "@/lib/engagement";
 import { setPlaceForTests } from "@/lib/place";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
@@ -34,11 +34,11 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const send = (body: unknown, opts: { ua?: string; cookie?: string } = {}) =>
+const send = (body: unknown, opts: { ua?: string; cookie?: string; ip?: string } = {}) =>
   beacon(
     new Request(`${BASE_URL}/api/e`, {
       method: "POST",
-      headers: { "content-type": "text/plain", "user-agent": opts.ua ?? MAC, ...(opts.cookie ? { cookie: opts.cookie } : {}) },
+      headers: { "content-type": "text/plain", "user-agent": opts.ua ?? MAC, ...(opts.cookie ? { cookie: opts.cookie } : {}), ...(opts.ip ? { "do-connecting-ip": opts.ip } : {}) },
       body: typeof body === "string" ? body : JSON.stringify(body),
     }),
   );
@@ -159,6 +159,20 @@ describe("the beacon route", () => {
     const kept = (await rows()).length;
     expect(kept).toBeLessThanOrEqual(MAX_PER_WINDOW);
     expect(kept).toBeGreaterThan(0);
+  });
+
+  it("holds one address to a few browsers' worth: made-up visitor ids from it stop counting (2026-11-22 audit)", async () => {
+    const id = (n: number) => `${String(n).padStart(8, "0")}-1111-4111-8111-111111111111`;
+    for (let n = 0; n < MAX_VISITORS_PER_ADDRESS + 10; n++) {
+      expect((await send({ v: id(n), s: S1, events: [{ e: "page_view", path: "/" }] }, { ip: "203.0.113.9" })).status).toBe(204);
+    }
+    expect(new Set((await rows()).map((r) => r.visitor)).size).toBe(MAX_VISITORS_PER_ADDRESS);
+    // A browser it already counted still gets in, and so does another address.
+    await send({ v: id(0), s: S1, events: [{ e: "page_view", path: "/watch" }] }, { ip: "203.0.113.9" });
+    await send({ v: V2, s: S2, events: [{ e: "page_view", path: "/" }] }, { ip: "198.51.100.4" });
+    const visitors = (await rows()).map((r) => r.visitor);
+    expect(visitors.filter((v) => v === id(0))).toHaveLength(2);
+    expect(visitors).toContain(V2);
   });
 });
 

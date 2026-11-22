@@ -28,9 +28,12 @@ export function showHome(env: Record<string, string | undefined> = process.env):
  */
 export const OLD_HOSTS: ReadonlySet<string> = new Set(["botchelor.vercel.app", "www.botchelor.com"]);
 
-/** The host a request came in on (Vercel's forwarded host first), lowercased. */
+/**
+ * The host a request came in on, lowercased: its Host header, which the edge routes by. Never X-Forwarded-Host:
+ * DigitalOcean's edge passes on whatever a client sends there (2026-11-22 audit; Vercel used to set it).
+ */
 export function requestHost(req: Request): string {
-  return (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host).toLowerCase();
+  return (req.headers.get("host") ?? new URL(req.url).host).toLowerCase();
 }
 
 /**

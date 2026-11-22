@@ -1,7 +1,7 @@
 /**
  * Who comes in over MCP and what they do (David, 2026-10-17: "an admin analytics page to capture all these details").
  * Owner-only, on /admin/analytics. Built from two tables:
- *  - mcp_sessions: one row per connection since launch (client name and version, user agent, call count);
+ *  - mcp_sessions: one row per connection, kept as long as the calls (client name and version, user agent, call count);
  *  - mcp_calls: every JSON-RPC call since 2026-10-18 (method or tool, whether it worked), from lib/mcp.ts logCall.
  *
  * Each connection is one of:
@@ -228,4 +228,22 @@ export const MCP_CALLS_KEEP_DAYS = 400;
 export const MCP_WINDOW_MAX_DAYS = 365;
 export async function pruneMcpCalls(db: Db): Promise<void> {
   await db.query(`delete from mcp_calls where created_at < now() - ($1 || ' days')::interval`, [String(MCP_CALLS_KEEP_DAYS)]);
+}
+
+/**
+ * Sessions go with the calls (the daily job): one last seen MCP_CALLS_KEEP_DAYS ago goes, so the analytics' longest
+ * window keeps every session it shows. Most rows are a directory's probe (a connection that called no tool, under a new
+ * identity each time: ~80% of 25,000 by 2026-11-22). An agent that called a tool or owns a character keeps its latest
+ * session however old, because "has it ever connected over MCP?" is how the site tells an agent from a person
+ * (lib/account-claim.ts, lib/our-traffic.ts, lib/real-metrics.ts and the rest), and that answer must not change.
+ */
+export async function pruneMcpSessions(db: Db): Promise<void> {
+  await db.query(
+    `delete from mcp_sessions s
+      where s.last_seen < now() - ($1 || ' days')::interval
+        and (exists (select 1 from mcp_sessions n where n.agent_id = s.agent_id and (n.last_seen, n.id) > (s.last_seen, s.id))
+             or (not exists (select 1 from mcp_sessions n where n.agent_id = s.agent_id and n.calls > 0)
+                 and not exists (select 1 from characters c where c.owner_id = s.agent_id)))`,
+    [String(MCP_CALLS_KEEP_DAYS)],
+  );
 }

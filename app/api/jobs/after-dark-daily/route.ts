@@ -1,7 +1,7 @@
 import { checkPortraits } from "@/lib/adult/agent-cast";
 import { tellShowNightsOver } from "@/lib/adult/overnight";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, jsonWhenDone } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
 import { ensureCastBaselines } from "@/lib/season-gen";
 
@@ -17,14 +17,18 @@ export const maxDuration = 300;
  */
 async function run(req: Request): Promise<Response> {
   if (!internalJobAuthorized(req)) return json({ error: "not_found" }, 404);
-  const db = await getDb();
-  const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
-  // The agent cast's portraits, 30 a day of Hive's 100 (lib/adult/agent-cast.ts): each that passes joins After Dark.
-  const portraits = await checkPortraits(db).catch(() => ({ checked: 0, opened: 0, failed: 0, stopped: "error" }));
-  // Nights that continued an overnight date and were simply left (lib/adult/overnight.ts): the show gets its one fact
-  // for each, ids and a time. One that ended is told when it's filed; this is the sweep for the rest.
-  const overnights_told = await tellShowNightsOver(db).catch(() => 0);
-  return json({ ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast: portraits, overnights_told });
+  // Streamed (lib/http.ts jsonWhenDone): two baselines and a day's portrait checks can outlast the edge's 100 s cutoff,
+  // and the scheduled job reads the answer's ok: true to know the run finished.
+  return jsonWhenDone(req, async () => {
+    const db = await getDb();
+    const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
+    // The agent cast's portraits, 30 a day of Hive's 100 (lib/adult/agent-cast.ts): each that passes joins After Dark.
+    const portraits = await checkPortraits(db).catch(() => ({ checked: 0, opened: 0, failed: 0, stopped: "error" }));
+    // Nights that continued an overnight date and were simply left (lib/adult/overnight.ts): the show gets its one fact
+    // for each, ids and a time. One that ended is told when it's filed; this is the sweep for the rest.
+    const overnights_told = await tellShowNightsOver(db).catch(() => 0);
+    return { ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast: portraits, overnights_told };
+  });
 }
 
 export const GET = handle(run);

@@ -1,8 +1,9 @@
 import { AI_HEADERS, aiBody } from "@/lib/ai-mark";
 import { PUBLIC_CACHE } from "@/lib/asset-gate";
-import { introAudio, introFile, isIntroClipFile } from "@/lib/cast-intros";
+import { introAudio, introFile, introKey, isIntroClipFile } from "@/lib/cast-intros";
 import { getDb } from "@/lib/db";
 import { handle, json } from "@/lib/http";
+import { cdnLink } from "@/lib/object-store";
 
 type Ctx = { params: Promise<{ id: string; file: string }> };
 
@@ -14,13 +15,23 @@ export const dynamic = "force-dynamic";
  * render it (a sentence of a character's voice, nothing private; the id is a UUID nobody is told).
  *
  * The clip answers byte ranges (2026-11-22 audit: a request for its first kilobyte got all 3.5 MB), which Safari needs
- * before it plays a video at all and which let a browser fetch only what it plays, as /api/home-clip's files do.
+ * before it plays a video at all and which let a browser fetch only what it plays, as /api/home-clip's files do. A clip
+ * on Bunny's CDN (intros/, lib/object-store.ts cdnLink) is a redirect to a signed link there, which answers them from
+ * the edge: sent from here, Next 16.4 streams the body without its Content-Length, so Cloudflare keeps the clip whole
+ * and answers any range with all of it. One still in the bucket or Postgres is sent from here, as before.
  */
 export const GET = handle(async (req: Request, ctx: Ctx) => {
   const { id, file } = await ctx.params;
   const db = await getDb();
   // `intro-<render time>.mp4` is the same clip under the URL of one render (lib/cast-intros.ts introUrl).
   if (isIntroClipFile(file)) {
+    const kept = await introKey(db, id);
+    if (!kept) return json({ error: "not_found" }, 404);
+    const link = kept.key ? await cdnLink(kept.key) : null;
+    if (link) {
+      // Kept (by Cloudflare too) no longer than the link is handed out for, so a kept redirect never points at a dead one.
+      return new Response(null, { status: 302, headers: { location: link.url, "cache-control": `public, max-age=${Math.min(3600, link.maxAge)}`, "referrer-policy": "no-referrer", "x-robots-tag": "noindex" } });
+    }
     const clip = await introFile(db, id);
     if (!clip) return json({ error: "not_found" }, 404);
     const body = aiBody(clip.bytes, clip.mime);

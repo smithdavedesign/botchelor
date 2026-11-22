@@ -136,9 +136,13 @@ export const leadBilling = (c: Pick<Casting, "phase" | "month">): string => (c.p
 /** The home hero's sub line for a stranger while casting is open (app/page.tsx), in place of "blind dates nobody steers". */
 export const castingHeroLine = (c: Pick<Casting, "phase" | "month" | "lead">): string =>
   `Their first date is with ${shortName(c.lead.name)}, ${leadBilling(c)}: nobody steers it, roses are handed out on Sunday, and they text you whether they got one.`;
-/** The same promise for the first screen's one line (app/HomeOpen.tsx): who the first date is with, in plain words (no "Botchelor", no month: a stranger has neither yet). */
+/**
+ * The same promise for the first screen's one line (app/HomeOpen.tsx): who the first date is with, in plain words (no
+ * "Botchelor": a stranger doesn't know the role). A name the screen doesn't otherwise show, so it says who they are
+ * (2026-11-22 audit: "Nell, next season's lead" left a stranger asking who Nell is).
+ */
 export const castingFirstDateLine = (c: Pick<Casting, "phase" | "lead">): string =>
-  `Their first date is with ${shortName(c.lead.name)}, ${c.phase === "season" ? "this season's lead" : "next season's lead"}.`;
+  `Their first date is with ${shortName(c.lead.name)}, who leads ${c.phase === "season" ? "this month's season" : "next month's season"}.`;
 
 /**
  * The lead this booking's blind date goes to, or null for the usual blind date: casting is on, the date is in the

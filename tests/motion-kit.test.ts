@@ -43,6 +43,18 @@ describe("the motion kit (app/ux/motion.css, pass 2 of the visual pop audit)", (
     for (const m of css.matchAll(/animation-timeline:\s*view\(\)/g)) expect(m.index!).toBeGreaterThan(supports);
   });
 
+  // With a backwards fill every card under the fold sat at the start's quarter opacity, so a contrast check, a
+  // full-page picture or a reader's tool met it faded (2026-11-22 audit: /tools, an episode's lines). Forwards only:
+  // below the fold a card is itself until it starts to come into view.
+  it("rises in with a forwards fill, so a card below the fold is at full strength", () => {
+    const uses = [css, readFileSync(join(ROOT, "app/globals.css"), "utf8")].flatMap((text) => [...text.matchAll(/animation:\s*rise-in\b[^;]*;/g)].map((m) => m[0]));
+    expect(uses.length).toBeGreaterThanOrEqual(2);
+    for (const use of uses) {
+      expect(use).toMatch(/\bforwards\b/);
+      expect(use).not.toMatch(/\b(both|backwards)\b/);
+    }
+  });
+
   it("is loaded on every page", () => {
     expect(readFileSync(join(ROOT, "app/layout.tsx"), "utf8")).toContain('import "./ux/motion.css";');
   });

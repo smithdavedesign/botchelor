@@ -1,5 +1,8 @@
 import { CHEMISTRY_RESULT_PATH, fieldParam, SHEET_LIMITS, SIDES, type ChemistryForm as Values, type Side } from "@/lib/chemistry-test";
 
+// Examples, and they read as examples (2026-11-22: grey words in every box looked like answers already given): each field's
+// starts "e.g." in italics (globals.css .chem-form ::placeholder, as /create's wizard does), and the three traits share one
+// "e.g." line under their heading, since three to a row leaves no room for one in each box.
 const PLACEHOLDERS: Record<Side, { name: string; traits: [string, string, string]; want: string; dealbreaker: string }> = {
   a: { name: "Juniper", traits: ["curious", "warm", "dry-witted"], want: "Someone who gets lost on purpose", dealbreaker: "People who are always on their phone" },
   b: { name: "Dex", traits: ["restless", "funny", "loyal"], want: "Someone curious enough to keep up", dealbreaker: "Cynics" },
@@ -22,7 +25,7 @@ export default function ChemistryForm({ values = {}, submit = "Test their chemis
             required
             maxLength={SHEET_LIMITS[field]}
             autoComplete="off"
-            placeholder={placeholder}
+            placeholder={`e.g. ${placeholder}`}
             defaultValue={values[fieldParam(side, field)] ?? ""}
           />
         );
@@ -35,6 +38,9 @@ export default function ChemistryForm({ values = {}, submit = "Test their chemis
             </label>
             <div className="chem-traits" role="group" aria-label={`${side === "a" ? "First" : "Second"} character's three traits`}>
               <span>Three traits</span>
+              <small className="muted chem-eg" id={`chem-eg-${side}`}>
+                {`e.g. ${hint.traits.join(", ")}`}
+              </small>
               {([1, 2, 3] as const).map((i) => (
                 <input
                   key={i}
@@ -44,7 +50,7 @@ export default function ChemistryForm({ values = {}, submit = "Test their chemis
                   maxLength={SHEET_LIMITS[`trait${i}`]}
                   autoComplete="off"
                   aria-label={`Trait ${i}`}
-                  placeholder={hint.traits[i - 1]}
+                  aria-describedby={`chem-eg-${side}`}
                   defaultValue={values[fieldParam(side, `trait${i}`)] ?? ""}
                 />
               ))}

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { hostname } from "node:os";
+import { hostname, totalmem } from "node:os";
 import { getHeapStatistics } from "node:v8";
 import { afterDarkOnly } from "./after-dark-host";
 import { episodeCostProps, track, trackEpisodeCost, type AnalyticsEvent, type EpisodeCost, type Props } from "./analytics";
@@ -16,8 +16,8 @@ import { cleanMessage } from "./errors";
  * gone slow loses rows, not requests). /admin shows them (opsSummary); the daily job keeps KEEP_DAYS.
  */
 
-/** What the log keeps: a server starting, and the failures and costs of the dates. */
-export type OpsEvent = "boot" | Extract<AnalyticsEvent, "generation_failed" | "conversation_failed" | "episode_generated">;
+/** What the log keeps: a server starting, the daily job's parts (lib/daily-parts.ts), and the failures and costs of the dates. */
+export type OpsEvent = "boot" | "daily_part" | Extract<AnalyticsEvent, "generation_failed" | "conversation_failed" | "episode_generated">;
 
 const KEEP_DAYS = 30;
 const MAX_IN_FLIGHT = 20;
@@ -46,6 +46,26 @@ let inFlight = 0;
 let dropped = 0;
 
 /**
+ * Writes one row and waits for it, for a caller whose next step reads it (the daily job's parts): never throws, and says
+ * whether the row was kept. A write that fails is left with a line in the container's log. The row's time is the
+ * server's clock, the one the daily job's resume pass reads it by (lib/daily-parts.ts).
+ */
+export async function writeOps(event: OpsEvent, props: Props, db?: Db): Promise<boolean> {
+  try {
+    await (db ?? (await getDb())).query("insert into ops_log (at, host, event, props) values ($1, $2, $3, $4::jsonb)", [
+      new Date().toISOString(),
+      opsHost(),
+      event,
+      JSON.stringify(cleanProps(props)),
+    ]);
+    return true;
+  } catch (err) {
+    console.error(`[ops] ${event} not kept: ${dbFailure(err)}`);
+    return false;
+  }
+}
+
+/**
  * Keeps one row. The caller doesn't wait (`void keepOps(…)`); the promise is for tests. A write that fails, or one
  * past MAX_IN_FLIGHT, is dropped with a line in the container's log.
  */
@@ -56,20 +76,14 @@ export async function keepOps(event: OpsEvent, props: Props, db?: Db): Promise<v
   }
   inFlight++;
   try {
-    await (db ?? (await getDb())).query("insert into ops_log (host, event, props) values ($1, $2, $3::jsonb)", [
-      opsHost(),
-      event,
-      JSON.stringify(cleanProps(props)),
-    ]);
-  } catch (err) {
-    console.error(`[ops] ${event} not kept: ${dbFailure(err)}`);
+    await writeOps(event, props, db);
   } finally {
     inFlight--;
   }
 }
 
 /** track() and keep it: the analytics line in the container's log, and a row here that outlives the next deploy. */
-export function trackKept(event: Exclude<OpsEvent, "boot" | "episode_generated">, props: Props): void {
+export function trackKept(event: Exclude<OpsEvent, "boot" | "daily_part" | "episode_generated">, props: Props): void {
   track(event, props);
   void keepOps(event, props);
 }
@@ -80,25 +94,42 @@ export function trackEpisodeCostKept(props: EpisodeCost): void {
   void keepOps("episode_generated", episodeCostProps(props));
 }
 
-/** The container's memory limit in MB (cgroup v2, else v1), or null with none (a developer's machine). */
-export function containerMemoryLimitMb(read: (path: string) => string = (p) => readFileSync(p, "utf8")): number | null {
+const isLimit = (bytes: number) => Number.isFinite(bytes) && bytes > 0 && bytes < 2 ** 50;
+
+/**
+ * The container's memory limit in MB (cgroup v2, else v1, else what Node says the process is held to, when that is
+ * below the memory the machine shows: equal or more is the machine, not a limit), or null with none (a developer's
+ * machine, and DigitalOcean's containers so far).
+ */
+export function containerMemoryLimitMb(
+  read: (path: string) => string = (p) => readFileSync(p, "utf8"),
+  constrained: () => number | undefined = () => process.constrainedMemory?.(),
+  total: () => number = totalmem,
+): number | null {
   for (const path of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
     try {
       const bytes = Number(read(path).trim());
       // "max" (v2) reads as NaN; v1 says "no limit" with a number near 2^63.
-      if (Number.isFinite(bytes) && bytes > 0 && bytes < 2 ** 50) return Math.round(bytes / MB);
+      if (isLimit(bytes)) return Math.round(bytes / MB);
     } catch {
       /* not this cgroup version */
     }
   }
-  return null;
+  const bytes = Number(constrained() ?? 0);
+  return isLimit(bytes) && bytes < total() ? Math.round(bytes / MB) : null;
 }
 
-/** What a server starts with: the commit it was built from, its memory and heap limits, Node's version, the instance. */
+/**
+ * What a server starts with: the commit it was built from, its memory and heap limits, Node's version, the instance.
+ * DigitalOcean's containers showed no cgroup limit (both hosts' first rows, 2026-11-22), so the row also keeps the
+ * whole memory the server sees (`total_memory_mb`), which Node sizes its heap from. It isn't shown as a limit: the
+ * instance size in the app's spec is.
+ */
 export function bootFacts(env: Record<string, string | undefined> = process.env): Props {
   return {
     sha: commitSha(env),
     memory_limit_mb: containerMemoryLimitMb(),
+    total_memory_mb: Math.round(totalmem() / MB),
     heap_limit_mb: Math.round(getHeapStatistics().heap_size_limit / MB),
     node: process.version,
     instance: hostname().slice(0, 40),
@@ -141,6 +172,13 @@ export function opsDetail(event: string, p: Record<string, unknown>): string {
     return [p.where, p.model, `${num(p.model_calls) ?? "?"} calls`, ms !== null ? `${Math.round(ms / 1000)} s` : null, cost !== null ? `$${cost.toFixed(4)}` : null]
       .filter(Boolean)
       .join(" · ");
+  }
+  if (event === "daily_part") {
+    const ms = num(p.ms);
+    const took = ms !== null ? ` after ${Math.round(ms / 1000)} s` : "";
+    const again = typeof p.resumed === "string" && p.resumed ? ` (again: ${p.resumed})` : "";
+    const why = typeof p.reason === "string" && p.reason ? `: ${p.reason}` : "";
+    return `${p.part ?? "?"} ${p.state ?? "?"}${took}${again}${why}`;
   }
   return [p.where, p.reason].filter((x) => typeof x === "string" && x).join(": ") || event;
 }

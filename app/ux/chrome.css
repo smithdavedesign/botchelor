@@ -143,6 +143,16 @@ body:has(.feedback-fab) .site-footer {
   color: var(--accent-text);
   text-decoration: underline;
 }
+/* Every link in the groups is a 24px target (WCAG 2.5.8). Their boxes were the text's 17px, and "Content policy", under
+   the feedback button's taller box, failed the check on every desktop page (2026-11-22 audit). Each row is a
+   touch taller than its 23px line; the coarse-pointer rule below makes them 44px on a touchscreen. */
+.site-footer .footer-groups .footer-links li > :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  margin-block: 0;
+  padding-block: 0;
+}
 .site-footer .footer-groups a.footer-all {
   /* Over the quiet links' muted colour, so the way to every other page reads as the group's end. */
   color: var(--ink);

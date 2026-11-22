@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -162,6 +164,26 @@ describe("1. the tool page: /tools/oc-chemistry-test", () => {
     for (const label of ["Name", "Three traits", "What they want from a date", "Their dealbreaker"]) {
       expect(html.split(label).length - 1, label).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it("shows its examples as examples, never as answers already given (2026-11-22)", () => {
+    const html = renderTool();
+    // Each box's own example starts "e.g."; the three traits share one "e.g." line, which each trait box points to.
+    const shown = inputs(html).map((i) => attr(i, "placeholder"));
+    expect(shown.filter(Boolean)).toHaveLength(6);
+    for (const p of shown.filter(Boolean)) expect(p).toMatch(/^e\.g\. /);
+    for (const side of ["a", "b"]) {
+      expect(html).toMatch(new RegExp(`<small class="muted chem-eg" id="chem-eg-${side}">e\\.g\\. [^<,]+, [^<,]+, [^<,]+</small>`));
+      const traits = inputs(html).filter((i) => /name="[ab]_trait\d"/.test(i) && i.includes(`name="${side}_trait`));
+      expect(traits).toHaveLength(3);
+      for (const t of traits) {
+        expect(attr(t, "aria-describedby")).toBe(`chem-eg-${side}`);
+        expect(attr(t, "placeholder")).toBeUndefined();
+      }
+    }
+    // In italics, as /create's wizard shows its examples.
+    const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
+    expect(css).toMatch(/\.chem-form ::placeholder,\s*\.ship-form ::placeholder \{\s*font-style: italic;/);
   });
 
   it("takes each field with the same limit /create's builder does", async () => {

@@ -38,7 +38,8 @@ async function queryOf(searchParams: Props["searchParams"]): Promise<string> {
 // From the slug and the season's format alone, so the metadata never races the page to freeze the season (lib/season-recap.ts).
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const id = seasonIdFromSlug((await params).slug);
-  if (!id) return { title: "Season not found · Botchelor", robots: { index: false, follow: false } };
+  // Not a season: the not-found page's title and robots, as the page itself turns it away (app/not-found.tsx).
+  if (!id) notFound();
   const s = seasonRef(id);
   // A season not closed yet: a lead season's live page (lib/season-page.ts) is indexed while it's this season or the
   // next; any other (this month's classic season, or one further ahead) is the Reunion's for now, so it only says its name.
