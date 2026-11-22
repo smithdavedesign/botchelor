@@ -1,6 +1,8 @@
 import type { z } from "zod";
-import { sessionsSignable, signSession, verifySession } from "./auth";
+import { afterDarkOrigin } from "./after-dark-host";
+import { readSession, SESSION_RENEW_AFTER_SECONDS, sessionsSignable, signSession, verifySession, type SessionToken } from "./auth";
 import { requestLabel, withDbLabel } from "./db-watch";
+import { requestHost, siteUrl } from "./site";
 
 /**
  * Identity. A browser's identity is a SIGNED token in `bz_sess` (lib/auth): anonymous for a visitor, authenticated once
@@ -116,6 +118,11 @@ export function signedIdentity(req: Request): boolean {
   return verifySession(cookies(req).get(SESSION_COOKIE)) !== null;
 }
 
+/** The request's signed session in full (lib/auth readSession: with its session version and when it was signed), or null. */
+export function signedSession(req: Request): SessionToken | null {
+  return readSession(cookies(req).get(SESSION_COOKIE));
+}
+
 /** signedIdentity, from a Next.js server cookie store. */
 export function signedIdentityFromCookieStore(store: { get(name: string): { value: string } | undefined }): boolean {
   return verifySession(store.get(SESSION_COOKIE)?.value) !== null;
@@ -150,9 +157,13 @@ export function session(req: Request): Session {
 
 const secureFlag = () => (process.env.NODE_ENV === "production" ? "; Secure" : "");
 
-/** The Set-Cookie for an identity: a signed `bz_sess` when the app can sign, else the legacy `bz_uid`. */
-export function sessionCookies(claims: Auth): string[] {
-  const token = signSession({ uid: claims.userId, authenticated: claims.authenticated });
+/**
+ * The Set-Cookie for an identity: a signed `bz_sess` when the app can sign, else the legacy `bz_uid`. `version`: the
+ * session version to sign (a session signed again, or carried from another host, keeps its own); else the account's as
+ * this process knows it (lib/session-versions.ts).
+ */
+export function sessionCookies(claims: Auth & { version?: number }): string[] {
+  const token = signSession({ uid: claims.userId, authenticated: claims.authenticated, version: claims.version });
   if (token) return [`${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ONE_YEAR_SECONDS}${secureFlag()}`];
   return [`${USER_COOKIE}=${claims.userId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${ONE_YEAR_SECONDS}${secureFlag()}`];
 }
@@ -176,22 +187,127 @@ export function jsonWithSession(body: unknown, claims: Auth, status = 200, extra
   return new Response(JSON.stringify(body), { status, headers });
 }
 
-/** JSON only (blocks cross-site form posts together with the SameSite=Lax cookie), and small. */
-export async function readJson(req: Request): Promise<unknown> {
+/**
+ * The most body handle() lets a route be sent unless the route says otherwise (`maxBodyBytes`: an admin upload). The
+ * readers below each stop at their own, smaller cap (readJson's MAX_BODY_BYTES).
+ */
+export const DEFAULT_MAX_BODY_BYTES = 256 * 1024;
+
+const tooLarge = () => new ApiError(413, { error: "body_too_large", message: "That request is too big." });
+
+/** The body length a request declares (Content-Length), or 0 without one (chunked). */
+const declaredLength = (req: Request): number => {
+  const n = Number(req.headers.get("content-length") ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+/**
+ * A request's body, read as it streams in and refused (413) once it passes `maxBytes`: a declared length over the cap
+ * is refused before a byte is read, and a body with none (chunked) is cut off where it crosses the cap, so no more
+ * than the cap is ever held (2026-11-22 audit: bodies were read whole, then measured). Every route reads its body
+ * through these (readBodyBytes, readBodyText, readForm, readJson), never req.json(), .text(), .formData() or
+ * .arrayBuffer() (tests/body-limits.test.ts holds the line).
+ */
+export async function readBodyBytes(req: Request, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
+  if (declaredLength(req) > maxBytes) throw tooLarge();
+  if (!req.body) return new Uint8Array(0);
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      // Not awaited: one branch of a cloned body only settles its cancel once the other branch is done with too.
+      void reader.cancel().catch(() => {});
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  return bytes;
+}
+
+/** readBodyBytes as text (UTF-8). */
+export async function readBodyText(req: Request, maxBytes: number): Promise<string> {
+  return new TextDecoder().decode(await readBodyBytes(req, maxBytes));
+}
+
+/**
+ * The body as JSON when it parses (any Content-Type), else `fallback`; read as readBodyBytes does, so past the cap
+ * it is still a 413. For routes that take an empty or missing body as "no options".
+ */
+export async function readJsonOr(req: Request, maxBytes: number, fallback: unknown): Promise<unknown> {
+  const text = await readBodyText(req, maxBytes);
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return fallback;
+  }
+}
+
+/** A form body (URL-encoded or multipart, files included), read as readBodyBytes does. */
+export async function readForm(req: Request, maxBytes: number): Promise<FormData> {
+  const bytes = await readBodyBytes(req, maxBytes);
+  return new Response(bytes, { headers: { "content-type": req.headers.get("content-type") ?? "" } }).formData();
+}
+
+/** JSON only (blocks cross-site form posts together with the SameSite=Lax cookie), and small (`maxBytes`). */
+export async function readJson(req: Request, maxBytes = MAX_BODY_BYTES): Promise<unknown> {
   if (!/^application\/json\b/i.test(req.headers.get("content-type") ?? "")) {
     throw new ApiError(415, { error: "unsupported_media_type", message: "Send JSON with Content-Type: application/json." });
   }
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
-    throw new ApiError(413, { error: "body_too_large" });
-  }
-  const body = await req.text();
-  if (new TextEncoder().encode(body).length > MAX_BODY_BYTES) throw new ApiError(413, { error: "body_too_large" });
+  const body = await readBodyText(req, maxBytes);
   try {
     return JSON.parse(body);
   } catch {
     throw new ApiError(400, { error: "invalid_json" });
   }
 }
+
+/** Whether `host` (a hostname, no port) is the site's: its domain or any of its subdomains, or After Dark's host. */
+function ourHostname(host: string, req: Request): boolean {
+  if (host === requestHost(req).replace(/:\d+$/, "")) return true;
+  let site = "";
+  try {
+    site = new URL(siteUrl()).hostname.replace(/^www\./, "");
+  } catch {
+    /* no site address: only the request's own host counts */
+  }
+  if (site && (host === site || host.endsWith(`.${site}`))) return true;
+  const afterDark = afterDarkOrigin();
+  return afterDark !== null && host === new URL(afterDark).hostname;
+}
+
+/**
+ * Whether a request that changes something was sent by a browser from another site (2026-11-22 audit: a form on any
+ * site could post to an API route; the browser leaves the SameSite=Lax cookie off that request but keeps the cookie
+ * its answer sets, so a fresh identity replaced the visitor's). Browsers say where a request came from: Sec-Fetch-Site
+ * ("cross-site" for another site; After Dark's host and the show are the same site), else Origin. A caller that sends
+ * neither isn't a page in a browser (an agent, a webhook, a job, a script), and is never refused here.
+ */
+export function crossSiteBrowserRequest(req: Request): boolean {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return false;
+  const site = req.headers.get("sec-fetch-site");
+  if (site) return site.toLowerCase() === "cross-site";
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  if (origin === "null") return true;
+  try {
+    return !ourHostname(new URL(origin).hostname.toLowerCase(), req);
+  } catch {
+    return true;
+  }
+}
+
+/** What handle() answers a cross-site request (crossSiteBrowserRequest): before the handler, so no identity is minted. */
+export const CROSS_SITE_REFUSED = { error: "cross_site_refused", message: "That has to be done from Botchelor itself." };
 
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown, error: string): T {
   const result = schema.safeParse(body);
@@ -216,14 +332,41 @@ export function safeEqual(a: string, b: string): boolean {
 }
 
 /**
+ * A signed-in session runs out SESSION_MAX_AGE_SECONDS after it was signed (lib/auth.ts), so one in use is signed again:
+ * once it's a day old, the next API reply carries it newly signed, for the same account and with its own session
+ * version (one its account has ended stays ended). Never on a reply a shared cache could keep, nor over a session the
+ * route sets itself (signing in or out).
+ */
+export function withRenewedSession(req: Request, res: Response, now = Date.now()): Response {
+  const current = signedSession(req);
+  if (!current?.authenticated || now / 1000 - current.issuedAt < SESSION_RENEW_AFTER_SECONDS) return res;
+  if (!/\b(no-store|private)\b/.test(res.headers.get("cache-control") ?? "")) return res;
+  if (res.headers.getSetCookie().some((c) => c.startsWith(`${SESSION_COOKIE}=`))) return res;
+  try {
+    for (const c of sessionCookies({ userId: current.uid, authenticated: true, version: current.version })) res.headers.append("set-cookie", c);
+  } catch {
+    // A reply whose headers can't change (Response.redirect): a later call renews it.
+  }
+  return res;
+}
+
+/**
  * Wraps a route handler: ApiErrors become their JSON response, anything else a generic 500. Its queries carry its
  * method and route, so the pool's lines about long waits name it (lib/db-watch.ts, #1948), and so does its error line.
+ * Before the handler runs, a browser's request from another site that would change something is refused (403, no
+ * identity minted: crossSiteBrowserRequest), and so is a body declared over `maxBodyBytes` (413; DEFAULT_MAX_BODY_BYTES
+ * unless the route needs more, an admin upload). The handler gets the very request that came in (in-process bookings
+ * are marked by the object itself, lib/cast-date-request.ts), and reads its body through the capped readers above.
+ * A signed-in session in use is signed again once a day (withRenewedSession).
  */
-export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Promise<Response>) {
+export function handle<C extends unknown[]>(fn: (req: Request, ...ctx: C) => Promise<Response>, opts: { maxBodyBytes?: number } = {}) {
+  const maxBodyBytes = opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   return async (req: Request, ...ctx: C): Promise<Response> => {
     const label = requestLabel(req);
     try {
-      return await withDbLabel(label, () => fn(req, ...ctx));
+      if (crossSiteBrowserRequest(req)) throw new ApiError(403, CROSS_SITE_REFUSED);
+      if (declaredLength(req) > maxBodyBytes) throw tooLarge();
+      return withRenewedSession(req, await withDbLabel(label, () => fn(req, ...ctx)));
     } catch (err) {
       if (err instanceof ApiError) return json(err.body, err.status);
       const message = err instanceof Error ? err.message : "unknown";

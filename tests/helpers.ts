@@ -39,6 +39,7 @@ import { resetCheckerLogForTests } from "@/lib/mcp/probe-log";
 import { fixedEngine, setEngineForTests, type Outcome } from "@/lib/engine";
 import { ALL_HOUSE_CHARACTERS, HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
+import { forgetSessionVersionsForTests } from "@/lib/session-versions";
 import { signSession } from "@/lib/auth";
 import { USER_COOKIE } from "@/lib/http";
 import { setModelForTests, type ChatMessage } from "@/lib/model";
@@ -193,6 +194,8 @@ export async function startTestDb() {
       forgetLatestHouseScene();
       // The recent ending mix is cached per database (lib/endings-lately.ts): a reset starts it over.
       clearEndingsLatelyForTests();
+      // The session versions this process knows (lib/session-versions.ts) went with their table.
+      forgetSessionVersionsForTests();
       for (const table of [
         // The data plan's tables: rows between two house characters would otherwise outlive a reset.
         "ml_consents",
@@ -356,6 +359,8 @@ export async function startTestDb() {
         "agent_links",
         // Claimed identities (lib/account-claim.ts).
         "account_aliases",
+        // Sessions an account ended (lib/session-versions.ts); this process's copy is forgotten below.
+        "session_versions",
         "agent_status_cursors",
         "thread_reads",
         // While they're away (lib/activity.ts): when owners were last here, and what their agents were told.

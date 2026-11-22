@@ -56,16 +56,31 @@ async function standardView(p) {
     await p.locator(".watch-grid").waitFor({ timeout: 10_000 });
   }
 }
-/** Opens a tab of the room's panel (Chat, The date, Vote), in the standard room or the theater. */
+/**
+ * Opens a tab of the room's panel (Chat, The date, Vote), in the standard room or the theater, as the viewer's own pick.
+ * A panel leaves the tab it opened on for Vote once the ending can be called, which can be a moment after the page loads
+ * (when the host's page starts the clock), but it never leaves a tab the viewer picked (WatchRoom.tsx RoomPanel). So a tab
+ * already showing is picked by way of another one, and every click is checked: one made before the page hydrates is lost.
+ */
 async function roomTab(p, name) {
+  const label = new RegExp(`^${name}`);
+  const tab = p.getByRole("tab", { name: label }).first();
   // Before the first line, with nothing said in the chat, the panel is folded into the stage's foot (WatchRoom.tsx
   // OpenRoom): its Chat or its call opens the panel as a sheet, on that tab.
-  if (!(await p.getByRole("tab", { name: new RegExp(`^${name}`) }).count())) {
-    const foot = p.locator(".watch-open-foot button", { hasText: name === "Vote" ? /Call the ending|Your call/ : new RegExp(name) });
-    if (await foot.count()) await foot.first().click();
+  const foot = p.locator(".watch-open-foot button", { hasText: name === "Vote" ? /Call the ending|Your call/ : new RegExp(name) }).first();
+  for (let i = 0; i < 20 && !(await tab.count()); i++) {
+    if (await foot.count()) await foot.click();
+    await tab.waitFor({ timeout: 500 }).catch(() => {});
   }
-  const tab = p.getByRole("tab", { name: new RegExp(`^${name}`) }).first();
-  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  const pick = async (t) => {
+    for (let i = 0; i < 20 && (await t.getAttribute("aria-selected")) !== "true"; i++) {
+      await t.click();
+      await p.waitForTimeout(100);
+    }
+    assert((await t.getAttribute("aria-selected")) === "true", `the room's tabs wouldn't open ${name}`);
+  };
+  if ((await tab.getAttribute("aria-selected")) === "true") await pick(tab.locator("xpath=..").getByRole("tab").filter({ hasNotText: label }).first());
+  await pick(tab);
 }
 async function step(name, fn) {
   try {
@@ -80,6 +95,23 @@ async function step(name, fn) {
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
+}
+
+/**
+ * A route with a loading screen (its loading.tsx, app/PageLoading.tsx) streams: the load event can come before the page
+ * replaces that screen, since React reveals streamed content in batches. This page's goto and reload also wait for the
+ * screen to go, so the checks after them see the page itself, not its outline.
+ */
+function settled(p) {
+  for (const name of ["goto", "reload"]) {
+    const plain = p[name].bind(p);
+    p[name] = async (...args) => {
+      const res = await plain(...args);
+      await p.locator(".page-skeleton").first().waitFor({ state: "detached", timeout: 10_000 }).catch(() => {});
+      return res;
+    };
+  }
+  return p;
 }
 
 async function main() {
@@ -119,7 +151,7 @@ async function main() {
       // known bots (HeadlessChrome among them) skip the gate on purpose (lib/bots.ts), so a headless test browser would
       // never see it.
       const visitor = await browser.newContext({ userAgent: HUMAN_UA });
-      const gatePage = await visitor.newPage();
+      const gatePage = settled(await visitor.newPage());
       await gatePage.goto(`${base}/watch`);
       assert(new URL(gatePage.url()).pathname === "/watch", `expected /watch to open without the gate, got ${gatePage.url()}`);
       assert((await gatePage.getByText("Are you 18 or older?").count()) === 0, "the gate showed on a PG page");
@@ -136,15 +168,17 @@ async function main() {
     });
 
     const creator = await adultContext();
-    const page = await creator.newPage();
+    const page = settled(await creator.newPage());
 
     await step("the conversion landing page loads: hero, CTA, features, cast, FAQ and the builder", async () => {
       await page.goto(base);
       await page.getByRole("heading", { level: 1 }).waitFor();
-      assert((await page.getByText("Send your OC on a blind date").count()) > 0, "hero headline missing");
+      // A first visit's one screen (app/HomeOpen.tsx): the promise, the one-sentence box and the day's clip.
+      assert((await page.getByRole("heading", { level: 1, name: "A blind-date show where nobody steers." }).count()) > 0, "hero headline missing");
       assert((await page.getByText(/Free, no sign-up/).count()) > 0, "free/no-sign-up value prop missing");
       assert((await page.getByRole("link", { name: "Make your character" }).count()) > 0, "primary CTA missing");
-      assert((await page.locator(".hero-art .avatar").count()) === 2, "hero product teaser missing");
+      assert((await page.getByLabel("Describe someone in a sentence").count()) === 1, "the one-sentence box is missing");
+      assert((await page.locator(".home-open-clip").count()) === 1, "hero product teaser missing");
       assert((await page.locator(".features .feature").count()) >= 3, "feature grid missing");
       assert((await page.locator(".faq details").count()) >= 3, "FAQ missing");
       // The builder lives at /create (the home's #start is "Since you were here", for creators with a character already).
@@ -154,8 +188,11 @@ async function main() {
     await step("builds a custom character in the /create wizard: identity, voice, look, details, a private soul", async () => {
       await page.goto(`${base}/create`);
       await page.getByRole("heading", { level: 1, name: "Build your character" }).waitFor();
+      // A first character opens on the one-sentence box (lib/express-create.ts); the full form is one tap away.
+      await page.getByRole("button", { name: "Fill it in myself" }).click();
+      // A first character's quick track is Identity, Look, Review (lib/first-date.ts FIRST_DATE_STEPS).
       // Next isn't greyed out: pressed too soon, it says what's missing and takes you to the first of it.
-      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.getByRole("button", { name: "Next: Look" }).click();
       await page.locator(".wizard-still").getByText(/To go on, add a name/).waitFor();
       assert(await page.locator('input[name="name"]').evaluate((el) => el === document.activeElement), "Next should take you to the name");
       await page.locator('input[name="name"]').fill(CHAR.name);
@@ -166,7 +203,11 @@ async function main() {
       await page.locator('input[name="dealbreaker"]').fill(CHAR.dealbreaker);
       // The live avatar preview should render.
       assert((await page.locator(".avatar").count()) > 0, "avatar preview missing");
-      await page.getByRole("button", { name: "Next: Voice" }).click();
+      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByText("Give them a look").waitFor();
+      await page.getByRole("button", { name: "Next: Review" }).click();
+      // The rest is optional on a first character: the review's "Add depth now" opens the full track at Voice.
+      await page.getByRole("button", { name: "Add depth now" }).click();
       await page.getByText("How do they talk?").waitFor();
       await page.getByRole("button", { name: "Dry & deadpan" }).click();
       await page.getByRole("button", { name: "Next: Look" }).click();
@@ -201,11 +242,16 @@ async function main() {
       await page.getByRole("button", { name: "Next: Review" }).click();
       await page.getByText("Review & create").waitFor();
       await page.locator('.wizard-attest input[type="checkbox"]').check();
-      await page.getByRole("button", { name: `Create ${CHAR.name}` }).click();
-      await page.getByText(`Who should ${CHAR.name} meet?`).waitFor();
+      // A first character's review has Create at the top as well as in the bar: either one creates them.
+      await page.getByRole("button", { name: `Create ${CHAR.name}` }).first().click();
+      // Their first date leads the next screen, one tap away (lib/first-date.ts offerFirstDate).
+      await page.getByRole("heading", { level: 1, name: `${CHAR.name.split(" ")[0]}'s first date` }).waitFor();
+      assert((await page.getByRole("button", { name: "▶ Start the date now" }).count()) === 1, "the first date's one button is missing");
     });
 
     await step("the builder's last step points to the swipe deck: a first date with someone else's character starts with a match", async () => {
+      // Under a first date, every other way to date is folded under "More ways to date".
+      await page.locator("details.send-more-ways > summary", { hasText: "More ways to date" }).click();
       await page.getByText("💘 Swipe to meet someone new").waitFor();
       const swipeLink = page.getByRole("link", { name: `Swipe for ${CHAR.name.split(" ")[0]}` });
       const swipeHref = (await swipeLink.getAttribute("href")) ?? "";
@@ -281,7 +327,7 @@ async function main() {
 
     // A spectator, in a separate browser session.
     const spectator = await adultContext();
-    const spage = await spectator.newPage();
+    const spage = settled(await spectator.newPage());
 
     await step("facts: the owner sees the public and the 🔒 private one on the card; a spectator sees only the public one", async () => {
       await page.goto(`${base}/characters/${characterId}`);
@@ -328,7 +374,7 @@ async function main() {
 
     await step("a viewer joins the room and reacts, chats and predicts live", async () => {
       const fan = await adultContext();
-      const fpage = await fan.newPage();
+      const fpage = settled(await fan.newPage());
       try {
         await fpage.goto(roomUrl);
         await standardView(fpage);
@@ -356,9 +402,11 @@ async function main() {
     await step("the watch room opens into theater mode (M13)", async () => {
       await page.bringToFront();
       await page.goto(roomUrl);
-      // This browser stepped out of theater earlier, so the standard room remembers that; the button goes back in.
+      // This browser stepped out of theater earlier, so the standard room remembers that; the button goes back in. Before
+      // the first line the room is a stage with no such button (WatchRoom.tsx OpenRoom): it comes with the first lines,
+      // 30 s after the premiere started (lib/rules.ts WATCH_PHASES), so this waits for them.
       await page.locator(".theater, .watch-grid").first().waitFor({ timeout: 10_000 });
-      if (!(await page.locator(".theater").count())) await page.getByRole("button", { name: /Theater mode|Watch the replay/ }).click();
+      if (!(await page.locator(".theater").count())) await page.getByRole("button", { name: /Theater mode|Watch the replay/ }).click({ timeout: 60_000 });
       await page.locator(".theater .scene").waitFor({ timeout: 10_000 });
       assert((await page.locator(".theater-hud").count()) > 0, "the theater HUD is missing");
       // The sidebar beside the scene: the date line by line, the chat and the vote, in tabs.
@@ -375,13 +423,14 @@ async function main() {
 
     await step("an always-on template date can be joined from the lobby", async () => {
       const guest = await adultContext();
-      const gpage = await guest.newPage();
+      const gpage = settled(await guest.newPage());
       try {
         await gpage.goto(`${base}/watch`);
         await gpage.getByRole("heading", { name: "Watch a date" }).waitFor();
         assert((await gpage.locator(".watch-lobby-card").count()) > 0, "the lobby has no rooms");
         await gpage.locator(".watch-lobby-card").first().click();
-        await gpage.waitForURL(/\/watch\/[0-9a-f-]{36}$/);
+        // A ready room's card starts it on arrival (app/watch/page.tsx: ?start=1).
+        await gpage.waitForURL(/\/watch\/[0-9a-f-]{36}(\?start=1)?$/);
         await standardView(gpage);
         await gpage.getByRole("heading", { level: 1 }).waitFor();
         assert((await gpage.locator(".watch-stage .card").count()) > 0, "the room stage did not render");
@@ -399,7 +448,7 @@ async function main() {
       await page.getByText(/It airs on its own at/).waitFor();
       assert((await page.getByRole("button", { name: "Keep it offline" }).count()) === 1, "no way to keep the date offline");
       await page.getByRole("button", { name: "Air it now" }).click();
-      await page.getByText("The finale has aired").waitFor({ timeout: 10_000 });
+      await page.getByText("This date has aired").waitFor({ timeout: 10_000 });
     });
 
     await step("the spectator now sees the box score and a scored result", async () => {
@@ -432,19 +481,29 @@ async function main() {
       assert((await page.locator("#texts .phone-msg").count()) >= 1, "the morning-after texts should follow the date");
       // What's next, where the texts are: their date, to watch.
       assert(await page.locator(".phone-header .thread-action", { hasText: "Last date" }).isVisible(), "the thread should lead to their date");
-      // A spectator: the page is public now the finale has aired, but the texts are the owners' alone.
+      // A spectator: the page is public now the date has aired, but the texts are the owners' alone. Their phone holds
+      // what's public, each aired date and its photo, and says the texts are private (PublicThread.tsx); with nothing
+      // public to show, it's a locked phone. Never a morning after: those are texts.
       const res = await spage.goto(`${base}${couplePath}`);
       assert(res?.status() === 200, `the couple page should be public once a date airs (${res?.status()})`);
-      assert(await spage.locator(".phone-locked").isVisible(), "a spectator should see a locked phone");
-      assert((await spage.locator(".phone-messages").count()) === 0, "a spectator should see no texts");
+      // A 200 alone doesn't say it: a page that streams answers 200 even when it turns out not to be there.
+      assert((await spage.getByRole("heading", { level: 1, name: "This page isn't on the show" }).count()) === 0, "a spectator got the not-found page for an aired couple");
+      const locked = spage.locator(".couple-texts-locked").getByText(/Their texts are private/).first();
+      await locked.waitFor({ timeout: 10_000 }).catch(() => {});
+      assert(await locked.isVisible(), "a spectator should see the texts locked");
+      assert((await spage.locator(".couple-texts-locked .phone-note", { hasText: "The morning after" }).count()) === 0, "a spectator should see no texts");
       const texts = await spage.evaluate(async (path) => (await fetch(`/api${path}/texts`)).status, couplePath);
       assert(texts === 403, `the texts route should refuse a spectator (${texts})`);
     });
 
     await step("each character has a relationship board, linked from its page", async () => {
       await page.goto(`${base}/characters/${mine}`);
+      // The page is in tabs (app/characters/[id]/PageTabs.tsx): the board's link heads the Dates tab.
+      await page.getByRole("tab", { name: "Dates" }).click();
       await page.getByRole("link", { name: "📱 See their board →" }).click();
       await page.waitForURL(/\/characters\/[^/]+\/relationships$/);
+      // A client-side move: the address changes first, then the board replaces its loading screen (relationships/loading.tsx).
+      await page.locator(".phone-row").first().waitFor({ state: "attached", timeout: 10_000 }).catch(() => {});
       assert((await page.locator(".phone-row").count()) >= 1, "the board should list their date");
       assert((await page.locator(".phone-row-preview").count()) >= 1, "an owner should see the newest text");
     });
@@ -530,9 +589,9 @@ async function main() {
       // "Episodes & leagues" is part of Watch now.
       await page.goto(`${base}/feed`);
       assert(new URL(page.url()).pathname === "/watch", `/feed should redirect to /watch, got ${page.url()}`);
-      assert(await page.getByRole("heading", { name: "Latest episodes" }).isVisible(), "Watch should list the latest episodes");
+      assert(await page.getByRole("heading", { name: "Recent episodes" }).isVisible(), "Watch should list the latest episodes");
       const phone = await browser.newContext({ ...devices["iPhone 13"], storageState: await page.context().storageState() });
-      const ppage = await phone.newPage();
+      const ppage = settled(await phone.newPage());
       await ppage.goto(`${base}/swipe?character=${mine}`);
       await ppage.locator(".swipe-topbar").waitFor();
       assert(!(await ppage.locator(".site-header").isVisible()), "the phone deck should hide the site header");
@@ -541,8 +600,12 @@ async function main() {
     });
 
     await step("a match stays private: a spectator can't open their couple page before a date of theirs airs", async () => {
+      // The couple page streams behind its loading screen (app/couples/[a]/[b]/loading.tsx), so a page that isn't there
+      // answers 200 with the not-found page streamed into it (Next's loading.js docs, "Status codes").
       const res = await spage.goto(`${base}${matchPath}`);
-      assert(res?.status() === 404, `a spectator should get a 404 for an unaired match (${res?.status()})`);
+      assert(res?.status() === 404 || res?.status() === 200, `a spectator should get the not-found page for an unaired match (${res?.status()})`);
+      await spage.getByRole("heading", { level: 1, name: "This page isn't on the show" }).waitFor({ timeout: 10_000 });
+      assert((await spage.locator(".phone-messages, .couple-head").count()) === 0, "a spectator should see nothing of an unaired match");
     });
 
     await step("the cast gallery lists characters and a matchmaker proposal can be made", async () => {
@@ -560,9 +623,14 @@ async function main() {
 
     await step("each contestant has a shareable card", async () => {
       await spage.goto(`${base}/cast`);
-      await spage.locator(".gallery .meta a").first().click();
+      // Each directory card's name is its link (app/characters/page.tsx Entry).
+      await spage.locator(".gallery a.dir-name").first().click();
       await spage.waitForURL(/\/characters\//);
-      assert((await spage.locator(".contestant .avatar").count()) > 0, "contestant card avatar missing");
+      // The card's face: their hello clip where they have one, else the portrait (app/characters/[id]/page.tsx). A
+      // client-side move changes the address before the card replaces the loading screen (characters/[id]/loading.tsx).
+      const face = spage.locator(".contestant .contestant-card-face :is(.avatar, .intro-clip)");
+      await face.first().waitFor({ state: "attached", timeout: 10_000 }).catch(() => {});
+      assert((await face.count()) > 0, "contestant card face missing");
       // Share sits behind ⋯ in the header's row since 2026-11-16 (app/characters/[id]/HeaderActions.tsx).
       await spage.locator(".contestant-actions .thread-menu > button").click();
       assert((await spage.locator('.contestant-actions [role="menuitem"]').count()) > 0, "the share item is missing from the card's ⋯ menu");
@@ -575,10 +643,9 @@ async function main() {
 
     await step("an image trains the character's look and traits, entirely in the browser", async () => {
       await page.goto(`${base}/create`);
-      // Next only goes on once the first step is complete: a sample fills it, then the image sets the look.
+      // A sample fills every step and opens the review; the rail goes back to the look, then the image sets it.
       await page.getByRole("button", { name: "Use a sample character" }).click();
-      await page.getByRole("button", { name: "Next: Voice" }).click();
-      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByRole("button", { name: /^Step \d+: Look/ }).click();
       await page.getByText("Give them a look").waitFor();
       // The free-text look sits under the looks builder, folded.
       await page.locator(".looks-more").evaluate((d) => (d.open = true));
@@ -589,11 +656,10 @@ async function main() {
       await page.waitForFunction(() => (document.querySelector('input[name="appearance"]')?.value || "").includes("teal"), { timeout: 6000 });
     });
 
-    await step("the looks builder picks a look tile by tile, and After Dark's tab stays locked", async () => {
+    await step("the looks builder picks a look tile by tile, and a visitor isn't offered After Dark's tab", async () => {
       await page.goto(`${base}/create`);
       await page.getByRole("button", { name: "Use a sample character" }).click();
-      await page.getByRole("button", { name: "Next: Voice" }).click();
-      await page.getByRole("button", { name: "Next: Look" }).click();
+      await page.getByRole("button", { name: /^Step \d+: Look/ }).click();
       // B4: one card on the step; the picker opens in its own sheet.
       await page.getByRole("button", { name: "Pick their look" }).click();
       await page.getByRole("button", { name: "Woman", exact: true }).click();
@@ -602,14 +668,18 @@ async function main() {
       await page.getByText("Choose an eye colour").waitFor(); // no age row: Identity's age is theirs
       await page.locator(".looks-more").evaluate((d) => (d.open = true));
       await page.waitForFunction(() => (document.querySelector('input[name="appearance"]')?.value || "").startsWith("Latina"), { timeout: 6000 });
-      await page.getByRole("tab", { name: /After Dark/ }).click();
-      await page.getByRole("link", { name: "Subscribe to unlock" }).waitFor();
-      assert((await page.locator(".looks-stage.locked").count()) === 1, "After Dark's looks were not locked for a visitor");
+      // After Dark's tab is there only for someone who can open it (app/create/LooksBuilder.tsx): a visitor gets the show's
+      // looks alone, no locked tab and no explicit tile.
+      assert((await page.getByRole("tab", { name: /After Dark/ }).count()) === 0, "a visitor was offered After Dark's looks");
+      assert((await page.locator(".looks-builder.is-after-dark, .looks-stage.locked").count()) === 0, "a visitor's looks builder should show the show's looks only");
     });
 
     await step("a sample character fills the whole card for a fast start", async () => {
       await page.goto(`${base}/create`);
       await page.getByRole("button", { name: "Use a sample character" }).click();
+      // It lands on the review, ready to create; Identity shows what it filled.
+      await page.getByText("ready to go").waitFor();
+      await page.getByRole("button", { name: /^Step 1: Identity/ }).click();
       assert((await page.locator('input[name="name"]').inputValue()).length > 0, "sample did not fill the name");
       assert((await page.locator('input[name="dealbreaker"]').inputValue()).length > 0, "sample did not fill the dealbreaker");
     });
@@ -689,7 +759,8 @@ async function main() {
     await step("edits their own character from its card", async () => {
       await page.goto(`${base}/account`);
       await page.locator(".account-character-name").first().click();
-      await page.getByRole("link", { name: /Edit / }).first().click();
+      // The owner's Manage row: the next step, then Edit (app/characters/[id]/page.tsx).
+      await page.locator(".owner-manage-row").getByRole("link", { name: "Edit", exact: true }).click();
       const newName = "Edited Contestant";
       await page.locator('input[name="name"]').fill(newName);
       await page.getByRole("button", { name: "Save changes" }).click();
@@ -719,7 +790,7 @@ async function main() {
       const voted = await mcp("vote_feedback", { item_id: item, vote: "up" });
       assert(voted.structuredContent?.item?.up === 1, `vote_feedback failed: ${JSON.stringify(voted).slice(0, 200)}`);
       const admin = await adultContext();
-      const apage = await admin.newPage();
+      const apage = settled(await admin.newPage());
       try {
         await apage.goto(`${base}/admin/feedback`);
         await apage.getByLabel("Admin password").fill(ADMIN_PASSWORD);

@@ -289,6 +289,21 @@ describe("/api/admin/season: the format picker", () => {
     expect(closed.status).toBe(400);
   });
 
+  // UX audit 2026-11-22: Barnaby, with no committed file in lib/portraits.ts, showed as "BT" initials on the season page.
+  it("gives this season's cast their faces from the portrait ledger", async () => {
+    vi.stubEnv("FRONTIER_PASSWORD", PW);
+    const read = async () => (await (await adminSeasonGet(new Request(`${BASE_URL}/api/admin/season`, { headers }))).json()).this_season.cast as { character_id: string; portrait: string | null; house: boolean }[];
+    const first = (await read())[0];
+    expect(first).toMatchObject({ portrait: null });
+    await t.db.query(
+      `insert into character_assets (id, character_id, kind, source_type, source_model, url, review_status, content_rating) values ('asset-season-face', $1, 'portrait', 'generated', 'm', '/cast/face.webp', 'approved', 'pg')`,
+      [first.character_id],
+    );
+    expect((await read()).find((c) => c.character_id === first.character_id)).toMatchObject({ portrait: "/api/assets/asset-season-face", house: true });
+    // The house cast outlives a reset, and its assets with it.
+    await t.db.query(`delete from character_assets where id = 'asset-season-face'`);
+  });
+
   it("needs the admin password", async () => {
     const res = await adminSeasonPost(
       new Request(`${BASE_URL}/api/admin/season`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "format", season_id: "2026-11-01", slug: "island" }) }),

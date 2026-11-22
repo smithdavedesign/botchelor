@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getDb } from "@/lib/db";
-import { artStyleDemand, characterTypeDemand, DEMAND_DAYS, lineupDemand, RAW_CAP, SHRINK, showRoleplayDemand } from "@/lib/tag-demand";
+import { adminTagDemand, DEMAND_DAYS, FEW_PICKS, RAW_CAP, SHRINK } from "@/lib/tag-demand";
 import { signedInAdmin } from "../signed-in-admin";
 import DemandTable from "./DemandTable";
 
@@ -24,8 +24,8 @@ export default async function AdminTagsPage() {
       </article>
     );
   }
-  const db = await getDb();
-  const [roleplays, types, styles, lineup] = await Promise.all([showRoleplayDemand(db), characterTypeDemand(db), artStyleDemand(db), lineupDemand(db)]);
+  // Kept ten minutes (lib/tag-demand.ts adminTagDemand): 90 days of picks took about 4 s to read on every load.
+  const { roleplays, types, styles, lineup, at } = await adminTagDemand(await getDb());
   return (
     <article className="admin-wide">
       <p className="kicker">
@@ -34,8 +34,10 @@ export default async function AdminTagsPage() {
       <h1>What people pick, by tag</h1>
       <p className="muted">
         The last {DEMAND_DAYS} days, real people and agents only (our accounts and tests are left out). <strong>Ours</strong> is a tag&apos;s share of the
-        picks over its share of what&apos;s on offer (1.00× is picked as often as it&apos;s offered), capped at {RAW_CAP}×. <strong>Blended</strong> leans on
-        the census until a tag has picks of its own (it counts as {SHRINK} picks), and it&apos;s what the pickers order by.{" "}
+        picks over its share of what&apos;s on offer (1.00× is picked as often as it&apos;s offered), shown raw; the blend caps it at {RAW_CAP}× first.
+        Rows under {FEW_PICKS} picks are greyed: too few to mean much. <strong>Blended</strong> leans on the census until a tag has picks of its own
+        (it counts as {SHRINK} picks), and it&apos;s what the pickers order by. Read at{" "}
+        {new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })} UTC, kept ten minutes.{" "}
         <Link href="/admin/after-dark/tags">After Dark&apos;s →</Link>
       </p>
       <h2>Roleplays on the show ({roleplays.total} picks)</h2>

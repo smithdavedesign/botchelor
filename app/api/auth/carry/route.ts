@@ -1,8 +1,9 @@
 import { afterDarkElsewhere, afterDarkOnly } from "@/lib/after-dark-host";
 import { ADULT_COOKIE, adultCookie, safeFrom } from "@/lib/age";
 import { isCarryNonce, newCarryNonce, signCarry, verifyCarry } from "@/lib/auth";
-import { authFromRequest, handle, safeEqual, sessionCookies } from "@/lib/http";
+import { authFromRequest, handle, safeEqual, sessionCookies, signedSession } from "@/lib/http";
 import { placeCookie, requestPlace, signAdult, signPlace, verifyAdult, verifyPlace, PLACE_TRIED_COOKIE } from "@/lib/place";
+import { knownSessionVersion } from "@/lib/session-versions";
 import { OLD_HOSTS, requestHost, siteUrl } from "@/lib/site";
 
 /** The receiving browser's nonce: on the receiving host only, this route only, gone in five minutes or once used. */
@@ -75,7 +76,9 @@ export const GET = handle(async (req: Request) => {
     const cookies = [nonceCookie("", 0), ...placeFrom(mine)];
     // botchelor.com never replaces an identity it has; After Dark's host takes the show's, which is the one that counts.
     if (claims && isCarryNonce(mine) && safeEqual(claims.nonce, mine) && (afterDarkHost || !authFromRequest(req))) {
-      cookies.push(...sessionCookies({ userId: claims.uid, authenticated: claims.authenticated }));
+      // Signed with the session version it came with (lib/session-versions.ts), and not at all once its account ended it.
+      const version = claims.version ?? 0;
+      if (version >= knownSessionVersion(claims.uid)) cookies.push(...sessionCookies({ userId: claims.uid, authenticated: claims.authenticated, version }));
       if (claims.adult) cookies.push(adultCookie(secure() !== ""));
     }
     return redirect(to, cookies);
@@ -93,7 +96,7 @@ export const GET = handle(async (req: Request) => {
     const target = onOldHost ? canonical : toAfterDark;
     const auth = target && isCarryNonce(nonce) ? authFromRequest(req) : null;
     const adult = cookie(req, ADULT_COOKIE) === "1";
-    const carry = auth ? signCarry({ uid: auth.userId, authenticated: auth.authenticated, adult, nonce }) : null;
+    const carry = auth ? signCarry({ uid: auth.userId, authenticated: auth.authenticated, adult, nonce, version: signedSession(req)?.version }) : null;
     // To After Dark's host, where this browser connects from, read from the show's (Vercel's) headers and bound to the nonce.
     const pl = toAfterDark && target === toAfterDark && isCarryNonce(nonce) ? signPlace(requestPlace(req.headers), process.env, Date.now(), nonce) : null;
     // No identity, but the 18+ question answered here: After Dark's host gets that answer on its own (signed, bound).

@@ -78,7 +78,9 @@ second date), further than living dates' close-call rule (`lib/choices.ts`) reac
 2. Three votes: that answer, the won-over check, and the trail of its own interest and feelings across the date
    (`readChoice`). **Up** a step takes two net yeses. **Down** takes one clear no (to seeing them again, or to being won
    over) with no yes against it. Models say the polite yes too easily, so up asks more than down, as living dates do.
-3. The person's own private "see them again?" no means it isn't a second date.
+3. The person's own private "see them again?" no means it isn't a second date. The label agrees with the cast member's
+   own answers (2026-11-21): a disaster needs its clear no or its walk-out (a maybe/partly verdict on the engine's
+   disaster reads "Just friends"), and one that said no to seeing them again isn't on a second date.
 4. The verdict is kept (`setup.step_in.play`) before the ending settles (`lib/own-date.ts` `settleStepIn`), so the
    recap, the card and every replay land on the same ending. The engine's roll stays on `wishes.engine`. Without an
    answer from the model nothing moves. Predictions are unaffected: a step-in date is only predictable once it's aired,
@@ -117,8 +119,10 @@ full, not only to what the rest of the site does ([safety-protocol.md](safety-pr
 
 ### Our own bar, beyond the law
 
-- **The person's lines go through the show's PG filters** (`lib/safety.ts` `checkShowText`): sexual content, real people,
-  slurs, minors. A refused line is never answered; the person gets a soft redirect and
+- **The person's lines go through the show's PG filters** (`lib/safety.ts` `checkStepInText`: `checkShowText`, plus the
+  undressing and propositions a person tries that the show's writers never did, like "take that dress off for me"):
+  sexual content, real people, slurs, minors. The cast's replies pass the same check (one redraw, else it waits), and
+  every line is read again before a date can air. A refused line is never answered; the person gets a soft redirect and
   their text back to edit. The redirect names the reason (`PG_REDIRECT`), e.g. "The show is PG: keep it flirty, not
   explicit. Try saying it another way." Tested: "refuses an explicit line with a soft redirect, and never answers it".
 - **No real people:** the cast is fictional; a "you" is checked by the same filter (no real-person names), and the

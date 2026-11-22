@@ -143,6 +143,41 @@ describe("operator pass webhook (app/api/webhooks/stripe-operator)", () => {
     expect((await post(event, await stripeSignature(event))).status).toBe(200);
   });
 
+  it("keeps an event whose grant failed for Stripe's retry, and grants it then (never marked done first)", async () => {
+    // 2026-11-22 audit: the event was marked done before the grant, so a grant that threw was answered 200 on every retry.
+    const { db } = await startTestDb();
+    vi.stubEnv("OPERATOR_PASS_ENABLED", "1");
+    vi.stubEnv("OPERATOR_PASS_WEBHOOK_SECRET", FAKE_WEBHOOK_SECRET);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const event = JSON.stringify({
+      id: "evt_pass_fail",
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_f", mode: "subscription", payment_status: "paid", client_reference_id: "agent:8", subscription: "sub_8" } },
+    });
+    const deliver = async () => (await post(event, await stripeSignature(event))).status;
+    // The pass can't be written: the grant throws.
+    await db.query(`create function refuse_grant() returns trigger language plpgsql as $$ begin raise exception 'grant failed'; end $$`);
+    await db.query(`create trigger refuse_grant before insert or update on operator_entitlements for each row execute function refuse_grant()`);
+    try {
+      expect(await deliver()).toBe(500);
+    } finally {
+      await db.query(`drop trigger refuse_grant on operator_entitlements`);
+    }
+    const outcome = async () => (await db.query<{ outcome: string }>(`select outcome from operator_pass_events where event_id = 'evt_pass_fail'`)).rows[0]?.outcome;
+    expect(await outcome()).toBe("received");
+    // Retried at once (the first attempt could still be running): come back later.
+    expect(await deliver()).toBe(409);
+    expect(await operatorPassActive(db, "agent:8", new Date(), { OPERATOR_PASS_ENABLED: "1" })).toBe(false);
+    // Retried after the claim lapsed: granted, and marked.
+    await db.query(`update operator_pass_events set received_at = now() - interval '11 minutes' where event_id = 'evt_pass_fail'`);
+    expect(await deliver()).toBe(200);
+    expect(await operatorPassActive(db, "agent:8", new Date(), { OPERATOR_PASS_ENABLED: "1" })).toBe(true);
+    expect(await outcome()).toBe("initial");
+    // Done: a later delivery changes nothing.
+    expect(await deliver()).toBe(200);
+    vi.restoreAllMocks();
+  });
+
   const ends = async (db: Awaited<ReturnType<typeof startTestDb>>["db"], agentId: string) =>
     (await db.query<{ subscription_status: string; period_end: Date | string | null }>(`select subscription_status, period_end from operator_entitlements where user_id = $1`, [agentId])).rows[0];
   const at = (unix: number) => new Date(unix * 1000).toISOString();

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isSignedInAdmin } from "@/lib/admins";
 import { listAuditions, reviewAudition } from "@/lib/auditions";
 import { getDb } from "@/lib/db";
+import { portraitPathSql } from "@/lib/portrait-sql";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 import { ensureSeasonCast, leadOverride, setLeadOverride } from "@/lib/season-cast";
@@ -34,9 +35,16 @@ async function view() {
   const thisId = seasonIdOf(now);
   const nextId = seasonIdOf(nextSeasonStart(now));
   const cast = await ensureSeasonCast(db, now);
-  const names = new Map(
-    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [cast.map((c) => c.character_id)])).rows.map((r) => [r.id, r.name]),
-  );
+  // Each with their face from the portrait ledger (UX audit 2026-11-22: Barnaby, who has no committed file in
+  // lib/portraits.ts, showed as "BT" initials here).
+  const castRows = (
+    await db.query<{ id: string; name: string; is_house: boolean; portrait: string | null }>(
+      `select c.id, c.name, c.is_house, ${portraitPathSql("c")} as portrait from characters c where c.id = any($1)`,
+      [cast.map((c) => c.character_id)],
+    )
+  ).rows;
+  const names = new Map(castRows.map((r) => [r.id, r.name]));
+  const faces = new Map(castRows.map((r) => [r.id, { house: r.is_house, portrait: r.portrait }]));
   const candidates = await listCandidates(db, nextId);
   const portraits = new Map(
     (await db.query<{ id: string; url: string | null }>(`select id, url from character_assets where id = any($1)`, [candidates.map((c) => c.portrait_asset).filter(Boolean)])).rows.map((r) => [r.id, r.url]),
@@ -77,7 +85,7 @@ async function view() {
     premiere,
   };
   return {
-    this_season: { id: thisId, label: seasonLabel(thisId), format: thisFormat, cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id })) },
+    this_season: { id: thisId, label: seasonLabel(thisId), format: thisFormat, cast: cast.map((c) => ({ ...c, name: names.get(c.character_id) ?? c.character_id, ...(faces.get(c.character_id) ?? { house: false, portrait: null }) })) },
     next_season: {
       id: nextId,
       label: seasonLabel(nextId),

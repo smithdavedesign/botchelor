@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { Fragment } from "react";
 import Link from "next/link";
 import EmptyState from "@/app/EmptyState";
 import When from "@/app/When";
@@ -7,7 +8,7 @@ import Avatar from "@/app/Avatar";
 import { getDb } from "@/lib/db";
 import { listMyDatingProfiles } from "@/lib/dating";
 import { userIdFromCookieStore } from "@/lib/http";
-import { listThreads, type Thread } from "@/lib/inbox";
+import { charactersWithThreads, listThreads, type Thread } from "@/lib/inbox";
 import { shortName } from "@/lib/names";
 import { takenWith } from "@/lib/partners";
 import RememberCharacter from "@/app/RememberCharacter";
@@ -60,6 +61,8 @@ function dateBadge(t: Thread, first: string, short = false): string | null {
  * or a text they haven't read stays in the open list, with why on its badge, so a match never vanishes before it's seen.
  */
 const filedAway = (t: Thread) => t.over && !t.new_match && t.unread === 0;
+/** How many of their other characters with matches an empty page names (the header's picker has the rest). */
+const ELSEWHERE_NAMED = 3;
 
 /**
  * Matches (David, 2026-10-18): one of your characters at a time, like a dating app. New matches with no texts yet
@@ -98,6 +101,10 @@ export default async function MatchesPage({ searchParams }: Props) {
   const filed = [...everyone.fresh, ...everyone.conversations].filter(filedAway).sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0));
   const inbox = { fresh: everyone.fresh.filter((t) => !filedAway(t)), conversations: everyone.conversations.filter((t) => !filedAway(t)) };
   const openCount = inbox.fresh.length + inbox.conversations.length;
+  // Nobody open for this one: which of their others have someone (read only then), so the empty page leads there.
+  const others = mine.filter((c) => c.id !== me.id);
+  const withThreads = !openCount && others.length ? await charactersWithThreads(db, others.map((c) => c.id)).catch(() => new Set<string>()) : new Set<string>();
+  const elsewhere = others.filter((c) => withThreads.has(c.id));
   const params = { character: me.id, show: showOver ? "over" : undefined };
   const first = shortName(me.name);
   const convos = pageOf(showOver ? filed : inbox.conversations, parsePage(page), CONVERSATIONS_PAGE);
@@ -229,6 +236,19 @@ export default async function MatchesPage({ searchParams }: Props) {
                 {inbox.fresh.length
                   ? `${first}'s matches text each other soon after they match.`
                   : "A like both ways is a match, and the two start texting."}
+                {elsewhere.length > 0 && (
+                  <span className="matches-elsewhere">
+                    {" "}
+                    {elsewhere.length === 1 ? "Your other character has matches: " : "Your other characters have matches: "}
+                    {elsewhere.slice(0, ELSEWHERE_NAMED).map((c, i) => (
+                      <Fragment key={c.id}>
+                        {i ? ", " : ""}
+                        <Link href={`/matches?character=${encodeURIComponent(c.id)}`}>{shortName(c.name)}</Link>
+                      </Fragment>
+                    ))}
+                    {elsewhere.length > ELSEWHERE_NAMED ? ` and ${elsewhere.length - ELSEWHERE_NAMED} more.` : "."}
+                  </span>
+                )}
               </EmptyState>
             )}
           </section>

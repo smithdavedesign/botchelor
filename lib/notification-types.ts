@@ -104,3 +104,15 @@ export const kindsOfType = (type: NotificationType): NotificationKind[] =>
   (Object.keys(TYPE_OF) as NotificationKind[]).filter((k) => TYPE_OF[k] === type);
 
 export const isNotificationType = (v: unknown): v is NotificationType => typeof v === "string" && (NOTIFICATION_TYPES as readonly string[]).includes(v);
+
+/** A sentence that is only a date's raw id ("Episode 75e7bd34-…."), which an agent reads in my_notifications. */
+const RAW_ID_SENTENCE = /\s*\b(?:Episode|Date) [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?=\s|$)/gi;
+
+/**
+ * A notice's words as a person reads them, in the inbox, a push and an email (UX audit 2026-11-22: "Watch it to see how
+ * it ended. Episode 75e7bd34-…." on /notifications, read out by screen readers too): a sentence that is only a raw id
+ * goes. The stored body keeps it for agents (my_notifications), and the notice's link opens the date anyway.
+ */
+export function withoutRawIds(text: string): string {
+  return text.replace(RAW_ID_SENTENCE, "").trim();
+}

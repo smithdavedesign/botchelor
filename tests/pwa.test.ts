@@ -140,7 +140,7 @@ describe("the install hint", () => {
   it("shows on a phone's browser, once: after it's been shown, dismissed or installed, never again", () => {
     expect(INSTALL_HINT_KEY).toBe("bz_install_hint");
     expect(shouldShowInstallHint(phone())).toBe(true);
-    expect(shouldShowInstallHint(phone({ ua: PIXEL, pathname: "/watch" }))).toBe(true);
+    expect(shouldShowInstallHint(phone({ ua: PIXEL }))).toBe(true);
     for (const stored of ["shown", "dismissed", "installed"]) expect(shouldShowInstallHint(phone({ stored })), stored).toBe(false);
   });
 
@@ -160,7 +160,17 @@ describe("the install hint", () => {
       expect(installHintPathBlocked(p), p).toBe(true);
       expect(shouldShowInstallHint(phone({ pathname: p })), p).toBe(false);
     }
-    for (const p of ["/", "/watch", "/characters/after-darkness", "/account", "/notifications"]) expect(installHintPathBlocked(p), p).toBe(false);
+    expect(installHintPathBlocked("/")).toBe(false);
+  });
+
+  // UX audit 2026-11-22: 2.5 s into any phone page it slid over the content (on /account, the character list and its
+  // main button). Home is where an owner lands on their character, and the only page it asks on.
+  it("asks only on the home page", () => {
+    for (const p of ["/watch", "/characters/after-darkness", "/account", "/notifications", "/matches", "/studio"]) {
+      expect(installHintPathBlocked(p), p).toBe(true);
+      expect(shouldShowInstallHint(phone({ pathname: p })), p).toBe(false);
+    }
+    expect(shouldShowInstallHint(phone({ pathname: "/" }))).toBe(true);
   });
 
   it("knows an iPhone, an iPad (which asks as a Mac with touch) and Android, and says how to install on each", () => {

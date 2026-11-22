@@ -17,12 +17,24 @@ import { createHmac, randomBytes, randomUUID, scrypt, timingSafeEqual } from "no
 import { promisify } from "node:util";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
+import { knownSessionVersion } from "./session-versions";
 
 const scryptAsync = promisify(scrypt);
 
 /* ----------------------------------- signed sessions ----------------------------------- */
 
 export type SessionClaims = { uid: string; authenticated: boolean };
+/** A session token's claims, the account's session version it was signed with (lib/session-versions.ts) and when. */
+export type SessionToken = SessionClaims & { version: number; issuedAt: number };
+
+/**
+ * How long a signed-in session lasts once signed. One in use is signed again once a day (lib/http.ts handle), so only a
+ * session nobody used for this long runs out, and its owner signs in again. An anonymous session never runs out: what an
+ * anonymous visitor made has no other way back to them.
+ */
+export const SESSION_MAX_AGE_SECONDS = 60 * 24 * 60 * 60;
+/** How old a signed-in session gets before an API reply carries it newly signed. */
+export const SESSION_RENEW_AFTER_SECONDS = 24 * 60 * 60;
 
 const b64url = (b: Buffer): string => b.toString("base64url");
 const sessionSecret = (env: Record<string, string | undefined> = process.env): string | null => env.SESSION_SECRET || null;
@@ -33,20 +45,31 @@ export const sessionsSignable = (env: Record<string, string | undefined> = proce
 const hmac = (secret: string, data: string): Buffer => createHmac("sha256", secret).update(data).digest();
 
 /**
- * A session token: `v1.<payload>.<sig>`, payload = base64url JSON {u,a,t}. Stateless (no DB session store):
- * the signature is the authority. t is the issue time (seconds), kept for future rotation/expiry.
+ * A session token: `v1.<payload>.<sig>`, payload = base64url JSON {u,a,t,v}. Stateless (no DB session store): the
+ * signature is the authority. t is the issue time (seconds): a signed-in session runs out SESSION_MAX_AGE_SECONDS later.
+ * v is the account's session version (lib/session-versions.ts), left out while it's 0. Unless given (a session signed
+ * again keeps its own), it's the version this process knows, so signing someone in reads theirs first.
  */
-export function signSession(claims: SessionClaims, env: Record<string, string | undefined> = process.env): string | null {
+export function signSession(
+  claims: SessionClaims & { version?: number },
+  env: Record<string, string | undefined> = process.env,
+  now = Date.now(),
+): string | null {
   const secret = sessionSecret(env);
   if (!secret) return null;
-  const payload = b64url(Buffer.from(JSON.stringify({ u: claims.uid, a: claims.authenticated ? 1 : 0, t: Math.floor(Date.now() / 1000) })));
+  const v = claims.version ?? knownSessionVersion(claims.uid);
+  const payload = b64url(Buffer.from(JSON.stringify({ u: claims.uid, a: claims.authenticated ? 1 : 0, t: Math.floor(now / 1000), ...(v > 0 ? { v } : {}) })));
   return `v1.${payload}.${b64url(hmac(secret, payload))}`;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** Verifies a session token and returns its claims, or null if missing, malformed or wrongly signed. */
-export function verifySession(token: string | null | undefined, env: Record<string, string | undefined> = process.env): SessionClaims | null {
+/**
+ * Reads a session token: its claims, version and issue time. Null if it's missing, malformed or wrongly signed, a
+ * signed-in session older than SESSION_MAX_AGE_SECONDS, or one its account has since ended (signed with a version below
+ * the account's: a password change, "Sign out everywhere" or the account's deletion; lib/session-versions.ts).
+ */
+export function readSession(token: string | null | undefined, env: Record<string, string | undefined> = process.env, now = Date.now()): SessionToken | null {
   const secret = sessionSecret(env);
   if (!secret || !token) return null;
   const parts = token.split(".");
@@ -55,12 +78,23 @@ export function verifySession(token: string | null | undefined, env: Record<stri
   const expected = b64url(hmac(secret, payload));
   if (!safeEqual(sig, expected)) return null;
   try {
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: unknown; a?: unknown };
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: unknown; a?: unknown; t?: unknown; v?: unknown };
     if (typeof claims.u !== "string" || !UUID.test(claims.u)) return null;
-    return { uid: claims.u, authenticated: claims.a === 1 };
+    const authenticated = claims.a === 1;
+    const issuedAt = typeof claims.t === "number" && Number.isFinite(claims.t) ? claims.t : 0;
+    const version = typeof claims.v === "number" && Number.isInteger(claims.v) && claims.v > 0 ? claims.v : 0;
+    if (authenticated && now / 1000 - issuedAt > SESSION_MAX_AGE_SECONDS) return null;
+    if (version < knownSessionVersion(claims.u)) return null;
+    return { uid: claims.u, authenticated, version, issuedAt };
   } catch {
     return null;
   }
+}
+
+/** Verifies a session token and returns its claims, or null (readSession says when). */
+export function verifySession(token: string | null | undefined, env: Record<string, string | undefined> = process.env, now = Date.now()): SessionClaims | null {
+  const session = readSession(token, env, now);
+  return session ? { uid: session.uid, authenticated: session.authenticated } : null;
 }
 
 /* ----------------------------------- host moves ----------------------------------- */
@@ -73,7 +107,7 @@ export const CARRY_TTL_SECONDS = 60;
  * old host, and only accepts a token carrying that same nonce. Without it anyone could mint a token for an identity of
  * their choosing and hand it to a stranger, who'd land on botchelor.com playing as (or signed in as) the attacker.
  */
-export type CarryClaims = SessionClaims & { adult: boolean; nonce: string };
+export type CarryClaims = SessionClaims & { adult: boolean; nonce: string; version?: number };
 
 /** A carry nonce: 16 random bytes, base64url. */
 export const newCarryNonce = (): string => b64url(randomBytes(16));
@@ -90,7 +124,14 @@ export function signCarry(claims: CarryClaims, env: Record<string, string | unde
   if (!secret || !isCarryNonce(claims.nonce)) return null;
   const payload = b64url(
     Buffer.from(
-      JSON.stringify({ u: claims.uid, a: claims.authenticated ? 1 : 0, g: claims.adult ? 1 : 0, n: claims.nonce, e: Math.floor(now / 1000) + CARRY_TTL_SECONDS }),
+      JSON.stringify({
+        u: claims.uid,
+        a: claims.authenticated ? 1 : 0,
+        g: claims.adult ? 1 : 0,
+        n: claims.nonce,
+        e: Math.floor(now / 1000) + CARRY_TTL_SECONDS,
+        ...(claims.version ? { v: claims.version } : {}),
+      }),
     ),
   );
   return `carry.v2.${payload}.${b64url(hmac(secret, `carry:${payload}`))}`;
@@ -105,10 +146,12 @@ export function verifyCarry(token: string | null | undefined, env: Record<string
   const [, , payload, sig] = parts;
   if (!safeEqual(sig, b64url(hmac(secret, `carry:${payload}`)))) return null;
   try {
-    const c = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: unknown; a?: unknown; g?: unknown; n?: unknown; e?: unknown };
+    const c = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u?: unknown; a?: unknown; g?: unknown; n?: unknown; e?: unknown; v?: unknown };
     if (typeof c.u !== "string" || !UUID.test(c.u) || typeof c.e !== "number" || c.e < Math.floor(now / 1000)) return null;
     if (typeof c.n !== "string" || !isCarryNonce(c.n)) return null;
-    return { uid: c.u, authenticated: c.a === 1, adult: c.g === 1, nonce: c.n };
+    // The session version it was signed with (lib/session-versions.ts), so the receiving host signs that one, not its own.
+    const version = typeof c.v === "number" && Number.isInteger(c.v) && c.v > 0 ? c.v : 0;
+    return { uid: c.u, authenticated: c.a === 1, adult: c.g === 1, nonce: c.n, ...(version ? { version } : {}) };
   } catch {
     return null;
   }
@@ -195,10 +238,17 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt$${b64url(salt)}$${b64url(hash)}`;
 }
 
+/** The salt for checking a password against no password at all (verifyPassword). Nothing is ever stored with it. */
+const NO_PASSWORD_SALT = Buffer.alloc(16, 7);
+
 export async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
-  if (!stored) return false;
-  const [scheme, saltB64, hashB64] = stored.split("$");
-  if (scheme !== "scrypt" || !saltB64 || !hashB64) return false;
+  const [scheme, saltB64, hashB64] = (stored ?? "").split("$");
+  if (scheme !== "scrypt" || !saltB64 || !hashB64) {
+    // Nothing to check against (an unknown handle, an account with no password): the same work anyway, so a wrong handle
+    // and a wrong password take the same time (2026-11-22 audit: this returned at once, and the gap told handles apart).
+    await scryptAsync(password, NO_PASSWORD_SALT, SCRYPT_KEYLEN);
+    return false;
+  }
   const expected = Buffer.from(hashB64, "base64url");
   const actual = (await scryptAsync(password, Buffer.from(saltB64, "base64url"), expected.length)) as Buffer;
   return expected.length === actual.length && timingSafeEqual(expected, actual);

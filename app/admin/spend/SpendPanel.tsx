@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { SpendView } from "@/lib/spend";
-import { addMonths, CATEGORIES, CATEGORY_LABEL, EVERY, monthOf, type Category, type Every, type Kind } from "@/lib/spend-shared";
+import type { Reading, SpendView } from "@/lib/spend";
+import { addMonths, CATEGORIES, CATEGORY_LABEL, daysLeftWords, EVERY, isLowBalance, lowBalanceLine, monthOf, type Category, type Every, type Kind } from "@/lib/spend-shared";
 
 const usd = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
@@ -27,10 +27,14 @@ const EMPTY: Draft = { kind: "cost", category: "api", provider: "", label: "", u
 /**
  * The spend tracker: the month's totals, its costs and income line by line, six months side by side, each provider's
  * balance, and every entry with a form to add one. Reuses the admin password saved in this browser, like the other panels.
+ * The ledger draws first; the balances (four billing APIs, kept a few minutes on the server) come in after, with a red
+ * flag for one that runs out within a week at its recent pace.
  */
 export default function SpendPanel() {
   const [month, setMonth] = useState(() => monthOf(new Date()));
   const [view, setView] = useState<SpendView | null>(null);
+  const [readings, setReadings] = useState<Reading[] | null>(null);
+  const [readingsNote, setReadingsNote] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -46,6 +50,16 @@ export default function SpendPanel() {
   useEffect(() => {
     void load(month);
   }, [month, load]);
+  // Once, beside the ledger: the balances don't change with the month shown.
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/admin/spend?part=balances", { headers: headers() }).catch(() => null);
+      const body = res ? await res.json().catch(() => ({})) : {};
+      if (res?.ok && Array.isArray(body.readings)) setReadings(body.readings as Reading[]);
+      else setReadingsNote(res ? "The balances couldn't be read." : "Network error.");
+    })();
+  }, []);
+  const low = (readings ?? []).filter(isLowBalance);
 
   async function post(payload: unknown, done: (body: Record<string, unknown>) => string) {
     setBusy(true);
@@ -78,6 +92,18 @@ export default function SpendPanel() {
 
   return (
     <>
+      {low.length > 0 && (
+        <div className="spend-low" role="status">
+          {low.map((r) => (
+            <p key={r.provider}>
+              <strong>{lowBalanceLine(r)}</strong>{" "}
+              <a href={r.dashboard} target="_blank" rel="noreferrer">
+                Top up →
+              </a>
+            </p>
+          ))}
+        </div>
+      )}
       <div className="spend-months">
         <button type="button" className="secondary small" onClick={() => setMonth(addMonths(month, -1))}>
           ← {monthName(addMonths(month, -1))}
@@ -119,7 +145,13 @@ export default function SpendPanel() {
 
       <section className="card">
         <h2>Provider balances</h2>
-        <p className="muted small">Read now, kept once a day, so the week&apos;s change shows after a week of readings.</p>
+        <p className="muted small">
+          Read live and kept a few minutes, and once a day by the daily job, so the week&apos;s change shows after a week of readings. A balance that
+          runs out within a week at its recent pace is flagged, and the daily job emails the admins about it.
+        </p>
+        {!readings ? (
+          <p className="muted">{readingsNote ?? "Reading the balances…"}</p>
+        ) : (
         <div className="table-scroll">
           <table className="board">
             <thead>
@@ -134,7 +166,7 @@ export default function SpendPanel() {
               </tr>
             </thead>
             <tbody>
-              {view.readings.map((r) => (
+              {readings.map((r) => (
                 <tr key={r.provider}>
                   <td>
                     <a href={r.dashboard} target="_blank" rel="noreferrer">
@@ -143,7 +175,16 @@ export default function SpendPanel() {
                     <span className="muted small"> · {CATEGORY_LABEL[r.category]}</span>
                   </td>
                   <td>{STATE_LABEL[r.state]}</td>
-                  <td className="num">{usd(r.balance_usd)}</td>
+                  <td className="num">
+                    {isLowBalance(r) ? <strong className="spend-low-balance">{usd(r.balance_usd)}</strong> : usd(r.balance_usd)}
+                    {r.days_left !== null && (
+                      <span className={`small${isLowBalance(r) ? " spend-low-balance" : " muted"}`}>
+                        <br />
+                        {daysLeftWords(r.days_left)}
+                        {r.auto_top_up ? ", auto-pay tops it up" : ""}
+                      </span>
+                    )}
+                  </td>
                   <td className="num">{usd(r.balance_week_ago)}</td>
                   <td className="num">{usd(r.used_month_usd)}</td>
                   <td className="num">{usd(r.used_total_usd)}</td>
@@ -164,6 +205,7 @@ export default function SpendPanel() {
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
       <section className="card">

@@ -66,7 +66,9 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
 
   // This season's house cast (a handful; lib/season-cast.ts), plus any premium one this viewer owns.
   const partners: Partner[] = [
-    ...(await seasonCastCards(db ?? (await getDb()))).map(({ id, name, age, bio, traits, archetype, hue }) => ({
+    // With the face from the portrait ledger (the audit of 2026-11-22: a newcomer to the house cast, whose face isn't a
+    // committed file in lib/portraits.ts, showed as initials here).
+    ...(await seasonCastCards(db ?? (await getDb()))).map(({ id, name, age, bio, traits, archetype, hue, portrait }) => ({
       id,
       name,
       age,
@@ -74,6 +76,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       traits: [...traits],
       archetype,
       hue,
+      portrait,
     })),
     ...PREMIUM_HOUSE_CHARACTERS.filter((c) => owned.includes(c.sku)).map(({ id, name, age, bio, traits, archetype, hue }) => ({
       id,

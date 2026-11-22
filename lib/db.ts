@@ -4428,6 +4428,17 @@ create table if not exists account_aliases (
 );
 create index if not exists account_aliases_user_idx on account_aliases (user_id);
 
+-- An account's session version (lib/session-versions.ts): every session token carries the version it was signed with,
+-- and one below this is refused, so changing the password, "Sign out everywhere" and deleting the account end the
+-- sessions already handed out. A row only once it first moves (no row: 0). No foreign key, and kept when the account is
+-- deleted: it is what keeps that account's old sessions ended, and it holds only the id and a count.
+create table if not exists session_versions (
+  user_id text primary key,
+  version integer not null default 0,
+  changed_at timestamptz not null default now()
+);
+create index if not exists session_versions_changed_idx on session_versions (changed_at);
+
 -- When a character came into its account by a claim (null: it was made there). The account's choices that are consents
 -- cover a claimed character only from this moment on (lib/ml-consent.ts consentedCharactersSql), as a linked agent's do.
 alter table characters add column if not exists claimed_at timestamptz;
@@ -4972,7 +4983,22 @@ function openShared(): Promise<Db> {
 
 export function getDb(): Promise<Db> {
   if (testDb) return Promise.resolve(testDb);
-  return openShared().then(withSeasonCast);
+  return openShared().then(withSeasonCast).then(withSessionVersions);
+}
+
+/**
+ * The session versions every session check reads (lib/session-versions.ts), loaded at most once a minute: a process's
+ * first load is waited for, later ones run behind the request.
+ */
+async function withSessionVersions(db: Db): Promise<Db> {
+  try {
+    const { refreshSessionVersions, sessionVersionsLoaded } = await import("./session-versions");
+    const loading = refreshSessionVersions(db).catch((err) => console.error("[session-versions] could not load:", err instanceof Error ? err.message : "unknown"));
+    if (!sessionVersionsLoaded()) await loading;
+  } catch (err) {
+    console.error("[session-versions] could not load:", err instanceof Error ? err.message : "unknown");
+  }
+  return db;
 }
 
 /** How long a server's start waits for its schema: DigitalOcean's first health check comes 20 s in (.do/*.yaml). */
