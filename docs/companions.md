@@ -69,7 +69,14 @@ Never someone else's character or an outside agent's: their makers never agreed 
   sheet's words, and its line names that world ("words like clockwork, pendulum, …: none of them this time"). A texted
   reply that leans on them again while resting is drawn once more, told which words (`speak`, `world_redraw` in the
   `companion_reply` log line); never on a call, in a scene or in story mode, and it fails open: no listed words, a
-  failed redraw or no time left keeps the first draw.
+  failed redraw or no time left keeps the first draw. The cast's backfill cost $0.14 for 438 sheets. Live, a
+  clockmaker's clock images went from 8 replies in 8 to 1 (asked about his weekend), with 2 redraws in 8 replies.
+- **Asked about its life, and said again at the end (2026-11-22).** A message asking about its work, its day or week,
+  its plans or hobbies (`asksAboutThem`: "what are you doing this weekend?", "how's the shop?") doesn't rest its world:
+  that's the answer, and the rest line's own "just tell them" was being redrawn away (a third of the redraws on past
+  threads). The rest line names all of the listed words (`WORLD_NAMED`, since the redraw checks every one), and with
+  them the rest is said once more at the end of their turn (`WORLD_REST_NOTE`), where the model reads last: live, both
+  resting replies had leaned on the world again with the rest line alone. Only that call's prompt carries it.
 - **A message** (`sendMessage`): the self-harm check (`lineInCrisis`, surface `companion`: the list, then a model
   check on the maybes that fails closed) → the PG check (`checkShowText`, a gentle redirect, nothing kept) → the AI
   notice when due → the reply, split into 1-3 messages, each checked against the PG line and the crisis list; drawn
