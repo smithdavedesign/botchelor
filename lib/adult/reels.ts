@@ -42,7 +42,7 @@
 import { cameraWords, type CameraMoveId } from "./camera-moves";
 import { picturesBlocked } from "./readiness";
 import { isAdmin } from "../admins";
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import type { Character } from "../character";
 import { loadCharacter } from "../character";
 import type { Db } from "../db";
@@ -1946,7 +1946,7 @@ export async function makeReel(db: Db, ownerId: string, x: string, y: string, li
   const pays = !where.media.own && !(await isAdmin(db, ownerId));
   const price = settings.reel_tokens;
   if (pays && !(await spendAdTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the tokens page.` };
+    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. ${moreTokensLine()}` };
   }
   const id = crypto.randomUUID();
   try {
@@ -2178,7 +2178,7 @@ export async function filmReel(db: Db, ownerId: string, reelId: string, baseUrl:
   const pays = !where.media.own && !(await isAdmin(db, ownerId));
   const price = settings.reel_tokens;
   if (pays && !(await spendAdTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. Get more on the tokens page.` };
+    return { ok: false, status: 402, error: "needs_tokens", message: `A video of the night costs ${price} tokens. ${moreTokensLine()}` };
   }
   try {
     const [ca, cb] = await Promise.all([loadCharacter(db, row.a), loadCharacter(db, row.b)]);
@@ -2926,7 +2926,7 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
   // A clip filmed again costs what a clip past the allowance does (#1005: extras at about cost); a night's shot, its share.
   const price = !pays ? 0 : refilmTokens(r.kind, r.shots.length, settings);
   if (price && !(await spendAdTokens(db, ownerId, price))) {
-    return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.` };
+    return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}` };
   }
   try {
     const [ca, cb] = await Promise.all([loadCharacter(db, r.character_a), loadCharacter(db, r.character_b)]);

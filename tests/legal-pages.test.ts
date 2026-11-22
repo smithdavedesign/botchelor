@@ -196,6 +196,8 @@ describe("the new policy pages", () => {
     expect(html).toMatch(/discarded/);
     expect(html).toMatch(/Nobody can upload pictures or video/);
     expect(html).toContain('href="/report"');
+    // Every text-only country, from the same list the code checks (2026-11-22 audit: it said "the UK" and missed Japan).
+    expect(html).toMatch(/text only in the United Kingdom and Japan/);
   });
 
   it("/2257 says every depiction is AI-generated, so no records are required", () => {

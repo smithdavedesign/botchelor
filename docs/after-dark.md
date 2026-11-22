@@ -189,8 +189,12 @@ So After Dark's extras get a balance of their own, sold as one-time packs on the
   covers its worst-case cost even on the biggest pack. The video stays 8 tokens.
 - **On by itself.** The wallet runs once a processor can sell a pack (`adTokensOn`): CCBill and Verotel price each order
   themselves (CCBill's single-billing FlexForms link, Verotel's `type=purchase`); Segpay needs a one-time price point
-  per pack in its portal (`SEGPAY_TOKEN_PRICE_POINTS`, `10:3101,25:3102,50:3103`). Until then every After Dark spend and
-  refund goes to the show's bought tokens, as before, so the beta keeps working.
+  per pack in its portal (`SEGPAY_TOKEN_PRICE_POINTS`, `10:3101,25:3102,50:3103`). Until then After Dark spends and
+  refunds the show's balance, but only an all-given one (an admin's `token_grants`, a reviewer's allowance): an account
+  that has bought a date pack on the show (a paid `orders` row) gets a balance of 0 here and "After Dark's own billing
+  isn't open yet" (2026-11-22 audit: Stripe must never pay for After Dark). The check is in the same statement as the
+  spend. `AD_SPEND_SHOW_TOKENS=1` brings back the earlier rule, every token of the show's balance spendable here.
+  `/after-dark/tokens` says which applies (`adTokenSource`), and the header pill reads `GET /api/after-dark/tokens`.
 - **The balance:** `adult_token_grants` (a paid pack's, once per order; or an admin's, `POST
   /api/admin/after-dark/tokens {user_id, tokens}`) not revoked, minus `adult_token_usage`. Every After Dark spend point
   (`spendAdTokens`/`refundAdTokens`) and the header's count on After Dark's host read it.

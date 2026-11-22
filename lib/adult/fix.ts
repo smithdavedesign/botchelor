@@ -43,7 +43,7 @@ import { adultKeys, getAdultSettings } from "./settings";
 import { identityOf, nounOf, nudeInPublic, shootLimits } from "./studio";
 import { cleanCustom, EMPTY_PLACE, LEVEL_LABEL, type Level } from "./studio-catalog";
 import type { StudioConfig } from "./studio-config";
-import { refundAdTokens, spendAdTokens } from "./tokens";
+import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { countUse, overCap } from "./usage";
 
 export const FIX_KINDS = ["faces", "repair", "change", "undress"] as const;
@@ -401,7 +401,7 @@ export async function fixPicture(db: Db, viewer: string, mediaId: string, ask: F
 
   // Undressed costs the Studio's price (admins free), taken now and given back if nothing's kept.
   const price = ask.kind === "undress" && !(await isAdmin(db, viewer)) ? settings.studio.prices.undress : 0;
-  if (price > 0 && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `Undressed costs ${price} token${price === 1 ? "" : "s"}. Get more on the tokens page.`);
+  if (price > 0 && !(await spendAdTokens(db, viewer, price))) return fail(402, "needs_tokens", `Undressed costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}`);
   const refuse = async (status: number, error: string, message: string): Promise<Fail> => {
     if (price > 0) await refundAdTokens(db, viewer, price);
     return fail(status, error, `${message}${price > 0 ? " Your tokens are back." : ""}`);

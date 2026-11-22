@@ -204,6 +204,13 @@ body:has(.feedback-fab) .site-footer {
   .footer-group[open] .footer-chev {
     transform: rotate(90deg);
   }
+  /* A group that never folds (FooterGroup keepOpen: After Dark's Help and legal) is a heading, not a toggle. */
+  .footer-group--open > summary {
+    cursor: default;
+  }
+  .footer-group--open .footer-chev {
+    display: none;
+  }
   .footer-group .footer-links {
     padding-bottom: var(--space-3);
   }

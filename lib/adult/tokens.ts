@@ -4,16 +4,22 @@
  * talking moments, Studio shoots…) get a balance of their own, bought only through the adult processors as one-time packs
  * of about $1 a token: a video at 10 tokens (8 until 2026-11-19) then pays for what it costs to make (about $5.50) even on the biggest pack.
  *
- * Built complete and off. The wallet runs once a processor can sell a pack (adTokensOn); until then every After Dark
- * spend and refund goes to the show's bought tokens, as before, so the beta keeps working, and the day a processor goes
- * live it switches over by itself. Real use before launch was about nil, so no balance moves.
+ * Built complete and off. The wallet runs once a processor can sell a pack (adTokensOn); until then After Dark spends
+ * and refunds the show's token balance, and the day a processor goes live it switches over by itself. Real use before
+ * launch was about nil, so no balance moves.
+ *
+ * Until then, never a token bought through the show's checkout (the 2026-11-22 audit: Stripe must never fund adult
+ * content). After Dark spends the show's balance only for an account that has never bought on the show, whose balance
+ * is all given (an admin's grant, a processor reviewer's tokens: token_grants, never an order), and refuses anyone else
+ * with "its own billing isn't open yet" (moreTokensLine). AD_SPEND_SHOW_TOKENS=1 brings back the behaviour before that,
+ * every bought token spendable here too: one setting to reverse it.
  *
  * The balance: grants (a paid pack's, once per order, or an admin's top-up) not revoked, minus what's spent
  * (adult_token_usage, a running count like the show's pack_episode_usage). A refund or chargeback revokes its pack's grant
  * and takes back what's left unspent of it, never more (lib/adult/billing.ts).
  */
 import { randomUUID } from "node:crypto";
-import { episodeAllowance, refundBoughtTokens, spendBoughtTokens } from "../allowance";
+import { episodeAllowance, packDatesSql, refundBoughtTokens, spendBoughtTokens } from "../allowance";
 import type { Db } from "../db";
 import { ccbillConfig } from "./billing-ccbill";
 import { segpayConfig, segpayTokenPricePoints } from "./billing-segpay";
@@ -60,13 +66,50 @@ export function tokenProcessors(env: Env = process.env, pack?: TokenPack): Proce
 /** Whether After Dark spends its own tokens: once a processor can sell a pack. Until then it spends the show's. */
 export const adTokensOn = (env: Env = process.env): boolean => tokenProcessors(env).length > 0;
 
+/**
+ * AD_SPEND_SHOW_TOKENS=1: while After Dark's own tokens are off, it may spend every token of the show's balance, bought
+ * ones included (the behaviour before the 2026-11-22 audit). Unset, it spends only an all-given balance (above).
+ */
+export const adSpendsShowTokens = (env: Env = process.env): boolean => env.AD_SPEND_SHOW_TOKENS?.trim() === "1";
+
+/** Whether this account has bought on the show: a paid date pack (Stripe). A refunded one stops counting, as in lib/allowance.ts. */
+const BOUGHT_ON_SHOW = (who: string) => `exists (select 1 from orders o where o.user_id = ${who} and o.kind = 'episode_pack' and o.status = 'paid')`;
+
+const boughtOnShow = async (db: Db, userId: string): Promise<boolean> => (await db.query(`select 1 where ${BOUGHT_ON_SHOW("$1")}`, [userId])).rows.length > 0;
+
+/** The show's balance as After Dark may spend it, without its own tokens: all of it, none, or only an all-given one. */
+async function showBalanceHere(db: Db, userId: string, env: Env): Promise<number> {
+  if (!adSpendsShowTokens(env) && (await boughtOnShow(db, userId))) return 0;
+  return (await episodeAllowance(db, userId)).pack_left;
+}
+
+/**
+ * Where this person's After Dark balance comes from, for the tokens page to say (the 2026-11-22 audit: no page did):
+ * After Dark's own tokens; the show's whole balance (AD_SPEND_SHOW_TOKENS); a show balance that's all given; or none
+ * After Dark may spend, because they've bought on the show.
+ */
+export type AdTokenSource = "own" | "show" | "given" | "bought_on_show";
+export async function adTokenSource(db: Db, userId: string, env: Env = process.env): Promise<AdTokenSource> {
+  if (adTokensOn(env)) return "own";
+  if (adSpendsShowTokens(env)) return "show";
+  return (await boughtOnShow(db, userId)) ? "bought_on_show" : "given";
+}
+
+/**
+ * The end of a refused spend's message: where more tokens come from. Nowhere yet while After Dark's own billing is
+ * closed, so it says that, and never points at the show's shop.
+ */
+export function moreTokensLine(env: Env = process.env): string {
+  return adTokensOn(env) || adSpendsShowTokens(env) ? "Get more on the tokens page." : "After Dark's own billing isn't open yet, so there's no way to get more for now.";
+}
+
 /** Tokens bought or given, not revoked. `who` is the user id SQL. */
 const AD_TOKENS_GRANTED = (who: string) =>
   `(select coalesce(sum(g.tokens), 0)::int from adult_token_grants g where g.user_id = ${who} and g.revoked_at is null)`;
 
-/** After Dark's balance for this person: its own tokens once they're on, the show's bought tokens until then. */
+/** After Dark's balance for this person: its own tokens once they're on, the show's as After Dark may spend it until then. */
 export async function adTokenBalance(db: Db, userId: string, env: Env = process.env): Promise<number> {
-  if (!adTokensOn(env)) return (await episodeAllowance(db, userId)).pack_left;
+  if (!adTokensOn(env)) return showBalanceHere(db, userId, env);
   const { rows } = await db.query<{ left: number }>(
     `select greatest(0, ${AD_TOKENS_GRANTED("$1")} - coalesce((select used from adult_token_usage where user_id = $1), 0))::int as left`,
     [userId],
@@ -76,7 +119,20 @@ export async function adTokenBalance(db: Db, userId: string, env: Env = process.
 
 /** Spends `n` of After Dark's tokens if the person has them; false (nothing spent) when not. One conditional upsert. */
 export async function spendAdTokens(db: Db, userId: string, n: number, env: Env = process.env): Promise<boolean> {
-  if (!adTokensOn(env)) return spendBoughtTokens(db, userId, n);
+  if (!adTokensOn(env)) {
+    if (adSpendsShowTokens(env)) return spendBoughtTokens(db, userId, n);
+    // The show's balance, but only an all-given one: the same conditional upsert as spendBoughtTokens, refused in the same
+    // statement for an account that has bought on the show, so a purchase landing mid-spend can't slip through.
+    const shown = packDatesSql("$1");
+    const { rows } = await db.query(
+      `insert into pack_episode_usage as u (user_id, used)
+       select $1, $2::int where ${shown} >= $2::int and not ${BOUGHT_ON_SHOW("$1")}
+       on conflict (user_id) do update set used = u.used + $2::int where u.used + $2::int <= ${shown} and not ${BOUGHT_ON_SHOW("$1")}
+       returning used`,
+      [userId, n],
+    );
+    return rows.length > 0;
+  }
   const { rows } = await db.query(
     `insert into adult_token_usage as u (user_id, used)
      select $1, $2::int where ${AD_TOKENS_GRANTED("$1")} >= $2::int

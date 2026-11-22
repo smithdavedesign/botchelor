@@ -141,6 +141,9 @@ describe("the reader on the night page", () => {
     const theater = await page({});
     expect(theater).toContain("data-read-it");
     expect(theater).not.toContain("data-reader");
+    // The report control the content policy promises, on the night itself (2026-11-22 audit).
+    expect(theater).toContain(`href="/report?what=${encodeURIComponent(`/after-dark/${encodeURIComponent(A)}/${encodeURIComponent(B)}`)}"`);
+    expect(theater).toContain("Report this night");
     const reader = await page({ view: "reader" });
     expect(reader).toContain("data-reader");
     expect(reader).toContain("You came.");

@@ -43,9 +43,13 @@ export function platformOf(ua: string, maxTouchPoints = 0): Platform {
 /** An app's own browser (Instagram, Facebook, TikTok…) can't add to the Home Screen, so the hint would only nag. */
 export const inAppBrowser = (ua: string): boolean => /FBAN|FBAV|FB_IAB|Instagram|TikTok|musical_ly|Snapchat|Line\/|LinkedInApp|Pinterest|GSA\//i.test(ua);
 
-/** Where it never appears: After Dark and its admin pages (lib/ga-guard.ts), the admin pages, the 18+ gate, email links. */
+/**
+ * Where it never appears: After Dark and its admin pages (lib/ga-guard.ts), the admin pages, the 18+ gate, email links,
+ * and the pages people come to read or file something (the 2026-11-22 audit: on a phone it covered the 2257 statement).
+ */
+const NO_HINT_PAGES = new Set(["/gate", "/2257", "/content-policy", "/report"]);
 export function installHintPathBlocked(pathname: string): boolean {
-  return GA_OFF_PATH.test(pathname) || /^\/admin(\/|$)/.test(pathname) || pathname === "/gate" || pathname.startsWith("/email/");
+  return GA_OFF_PATH.test(pathname) || /^\/admin(\/|$)/.test(pathname) || NO_HINT_PAGES.has(pathname) || pathname.startsWith("/email/");
 }
 
 export type InstallContext = {

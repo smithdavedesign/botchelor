@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { GET } from "@/app/api/admin/after-dark/route";
+import { GET, POST } from "@/app/api/admin/after-dark/route";
 import { POST as picturesPost } from "@/app/api/admin/after-dark/pictures/route";
 import { GET as carryGet } from "@/app/api/auth/carry/route";
 import { deleteAfterDarkData } from "@/lib/account";
@@ -127,6 +127,25 @@ describe("the rules applied to a subscriber", () => {
     expect(refused.status).toBe(451);
     expect((await refused.json()).error).toBe("media_not_available_here");
     expect(await mediaAllowedFor(t.db, sub.id)).toBe(false);
+  });
+
+  it("text only: a redraw, a beat drawn now and Picture this are refused with a 451 as well; a beat for later draws nothing (2026-11-22 audit)", async () => {
+    const sub = await subscriber();
+    const post = (body: Record<string, unknown>) =>
+      POST(new Request(`${BASE_URL}/api/admin/after-dark`, { method: "POST", headers: { "content-type": "application/json", cookie: sub.cookie }, body: JSON.stringify({ a: RAFE, b: JUNIPER, ...body }) }));
+    const drawing = [{ redraw: { picture_id: "pic-1" } }, { beat: { id: "beat-1", answer: "now" } }, { picture_now: { line: 0 } }];
+    setPlaceForTests({ country: "GB", region: null });
+    for (const body of drawing) {
+      const res = await post(body);
+      expect(`${Object.keys(body)[0]} ${res.status}`).toBe(`${Object.keys(body)[0]} 451`);
+      expect((await res.json()).error).toBe("media_not_available_here");
+    }
+    expect((await post({ beat: { id: "beat-1", answer: "later" } })).status).not.toBe(451);
+    // Japan too (lib/jurisdiction.ts TEXT_ONLY_COUNTRIES), and nowhere open.
+    setPlaceForTests({ country: "JP", region: null });
+    expect((await post(drawing[0])).status).toBe(451);
+    setPlaceForTests({ country: "US", region: "CA" });
+    for (const body of drawing) expect((await post(body)).status).not.toBe(451);
   });
 
   it("admins, the operator, are open wherever they are", async () => {
