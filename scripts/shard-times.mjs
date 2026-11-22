@@ -20,6 +20,7 @@ const jobs = JSON.parse(gh("run", "view", String(run), "--repo", REPO, "--json",
 const times = {};
 for (const job of jobs) {
   // A file's line: " ✓ tests/x.test.ts (12 tests) 3456ms" (colour codes come through as ^[[…m).
+  // eslint-disable-next-line no-control-regex -- the colour codes' escape character is what it strips
   const log = gh("run", "view", String(run), "--repo", REPO, "--log", "--job", String(job.databaseId)).replace(/(\x1b|\^\[)\[[0-9;]*m/g, "");
   for (const m of log.matchAll(/[✓❯×] (tests\/\S+\.test\.ts) \(\d+ tests?[^)]*\)(?: \d+ (?:failed|skipped))? *(\d+)ms/g)) times[m[1]] = Number(m[2]);
 }
