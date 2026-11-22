@@ -487,7 +487,7 @@ async function main() {
     // Each route: who opens it, and an optional walk through its states (each state is audited separately). `before` and
     // `after` set up and put back what the route needs, around each pass of it.
     const routes = [
-      // The swipe deck: the PG show pages open without the gate since 2026-11-14 (middleware.ts), the deck still meets it.
+      // The swipe deck: the PG show pages open without the gate since 2026-11-14 (proxy.ts), the deck still meets it.
       { name: "gate", path: "/swipe", as: "visitor" },
       { name: "home", path: "/" },
       // Every page in one place, four columns on a computer (2026-11-17).

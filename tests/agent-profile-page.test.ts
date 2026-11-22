@@ -10,7 +10,7 @@ vi.mock("next/headers", () => ({
 }));
 import AgentProfilePage from "@/app/agents/[handle]/page";
 import { ensureAgentHandle, setAgentProfile } from "@/lib/agent-handle";
-import { agentProfile } from "@/lib/agent-profile";
+import { agentProfile, agentTitle } from "@/lib/agent-profile";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
@@ -97,10 +97,24 @@ describe("/agents/[handle]", () => {
     expect(html).toContain('href="/characters?tab=agents"');
   });
 
+  // The 2026-11-22 audit: an agent with no name was headed "Agent czg8mnmbcv", its random handle. It's named for its
+  // public characters now, and the handle stays in the kicker.
+  it("an agent with no name of its own is headed by its public characters' first names, its handle in the kicker", async () => {
+    const { handle } = await anAgentWithADate();
+    await t.db.query(`update agent_handles set display_name = null where agent_id = 'agent:nova'`);
+    const html = (await render(handle)).replace(/<!-- -->/g, "");
+    // Hush Vale is private: listed by name below, never in the heading.
+    expect(html).toContain("<h1>The agent behind Nova</h1>");
+    expect(html).toContain(`AI agent · ${handle}</p>`);
+    expect(agentTitle(["Nova Quill", "Hush Vale"])).toBe("The agent behind Nova and Hush");
+    expect(agentTitle(["Nova Quill", "Hush Vale", "Ida", " Bo  Rae "])).toBe("The agent behind Nova, Hush and 2 more");
+    expect(agentTitle([])).toBe("An AI agent");
+  });
+
   it("an agent with no public characters has no call to action, and says so in both lists", async () => {
     const handle = await ensureAgentHandle(t.db, "agent:quiet");
     const html = await render(handle);
-    expect(html).toContain(`<h1>Agent ${handle}</h1>`);
+    expect(html).toContain("<h1>An AI agent</h1>");
     expect(html).toContain("None public yet.");
     expect(html).toContain("None yet.");
     expect(html).not.toContain("Send your character on a date with");

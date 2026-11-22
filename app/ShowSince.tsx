@@ -10,125 +10,143 @@ const DISMISSED = "bz-show-since-dismissed";
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** The show's news since your last visit, as a list (lib/show-since.ts). */
-function Items({ card }: { card: ShowSinceData }) {
+/** How many lines of the show's news home shows inside "Since you were here"; the rest are on /watch. */
+export const SINCE_INSIDE_SHOWN = 3;
+
+/**
+ * The show's news since your last visit, as a list (lib/show-since.ts). `limit`: home's part of "Since you were here"
+ * shows the first few and links to the rest on /watch, which has the whole card (the 2026-11-22 audit: home repeated
+ * /watch's news word for word and ran seven phone screens).
+ */
+function Items({ card, limit }: { card: ShowSinceData; limit?: number }) {
+  const rows = [
+    card.season && (
+      <li key="season">
+        <Icon name="clapper" /> Season {card.season.number} ({card.season.label}) is over:{" "}
+        <Link href={card.season.path}>watch the recap</Link>
+      </li>
+    ),
+    card.aired > 0 && (
+      <li key="aired">
+        <span aria-hidden="true">📺</span> <Link href="/watch#latest">{plural(card.aired, "date aired", "dates aired")}</Link>
+      </li>
+    ),
+    card.twist && (
+      <li key="twist">
+        <span aria-hidden="true">📣</span> This week on Botchelor: <strong>{card.twist.label}</strong> —{" "}
+        <Link href="/watch#this-week" data-track="since-this-week">
+          see what&apos;s on
+        </Link>
+      </li>
+    ),
+    card.story && (
+      <li key="story">
+        <span aria-hidden="true">🎬</span> {card.story.previously} <strong>{card.story.tonight}</strong>{" "}
+        {card.story.vote && (
+          <Link href="/vote" data-track="since-story">
+            Vote
+          </Link>
+        )}
+      </li>
+    ),
+    card.chat && (
+      <li key="chat">
+        <span aria-hidden="true">📱</span> Leaked from the cast group chat: <strong>{card.chat.name}</strong> <em>“{card.chat.text}”</em>{" "}
+        <Link href="/reunion#cast-chat" data-track="cast-chat" data-track-where="since">
+          {card.chat.more > 0 ? `read the other ${card.chat.more}` : "read it"}
+        </Link>
+      </li>
+    ),
+    card.house && (
+      <li key="house">
+        <span aria-hidden="true">🏠</span> In the house, {card.house.who}: <strong>{card.house.name}</strong> <em>“{card.house.text}”</em>{" "}
+        <Link href={card.house.path} data-track="house-scene" data-track-where="since">
+          hear the rest
+        </Link>
+      </li>
+    ),
+    card.situation && (
+      <li key="situation">
+        <span aria-hidden="true">{card.situation.icon}</span> The viewers picked <strong>{card.situation.title}</strong>:{" "}
+        <Link href={card.situation.room_path}>watch how it went</Link>
+      </li>
+    ),
+    card.diary && (
+      <li key="diary">
+        <span aria-hidden="true">📹</span> {card.diary.name}, after the date with {card.diary.partner}: <em>“{card.diary.line}”</em>{" "}
+        <Link href={card.diary.episode_path}>watch it</Link>
+      </li>
+    ),
+    card.secret && (
+      <li key="secret">
+        <span aria-hidden="true">🤫</span> A secret came out: {card.secret.name} <em>{card.secret.secret.charAt(0).toLowerCase() + card.secret.secret.slice(1)}</em> (
+        {card.secret.index} of {card.secret.total}).{" "}
+        {card.secret.own ? (
+          <Link href={card.secret.own.episode_path}>See the date</Link>
+        ) : (
+          <Link href={`/characters/${card.secret.character_id}#secrets`}>See their secrets</Link>
+        )}
+      </li>
+    ),
+    ...card.moves.map((m) => (
+      <li key={`${m.lo}-${m.hi}`}>
+        <span aria-hidden="true">💫</span>{" "}
+        <Link href={`/couples/${m.lo}/${m.hi}`}>
+          {m.a} &amp; {m.b}
+        </Link>{" "}
+        are now {m.label}
+        {m.following && <span className="chip">You follow</span>}
+      </li>
+    )),
+    ...(card.overnights ?? []).map((o) => (
+      <li key={o.episode_path}>
+        <span aria-hidden="true">🌙</span>{" "}
+        <Link href={`/couples/${o.lo}/${o.hi}`}>
+          {o.a} &amp; {o.b}
+        </Link>{" "}
+        left their overnight date together: <Link href={o.episode_path}>watch it</Link>
+      </li>
+    )),
+    card.followed > 0 && (
+      <li key="followed">
+        <span aria-hidden="true">👀</span> Couples you follow went on {plural(card.followed, "date", "dates")}
+      </li>
+    ),
+    card.backing && (
+      <li key="backing">
+        <span aria-hidden="true">🏅</span> Your cast pick <Link href={`/characters/${card.backing.character_id}`}>{card.backing.name}</Link> went on{" "}
+        {plural(card.backing.aired, "date", "dates")}
+      </li>
+    ),
+    card.shift && (
+      <li key="shift">
+        <span aria-hidden="true">{card.shift.shift > 0 ? "🔥" : "🧊"}</span> Biggest chemistry shift this week:{" "}
+        <Link href={`/couples/${card.shift.lo}/${card.shift.hi}`}>
+          {card.shift.a} &amp; {card.shift.b}
+        </Link>{" "}
+        {card.shift.shift > 0 ? "+" : "−"}
+        {Math.abs(card.shift.shift)}
+      </li>
+    ),
+    card.calls && (
+      <li key="calls">
+        <span aria-hidden="true">🔮</span> You called {card.calls.right} of {card.calls.called} right
+        {card.calls.streak >= 2 ? `: ${card.calls.streak} in a row 🔥` : ""}
+      </li>
+    ),
+  ].filter(Boolean);
+  const more = limit !== undefined ? rows.length - limit : 0;
   return (
-    <ul className="show-since-list">
-      {card.season && (
-        <li>
-          <Icon name="clapper" /> Season {card.season.number} ({card.season.label}) is over:{" "}
-          <Link href={card.season.path}>watch the recap</Link>
-        </li>
-      )}
-      {card.aired > 0 && (
-        <li>
-          <span aria-hidden="true">📺</span> <Link href="/watch#latest">{plural(card.aired, "date aired", "dates aired")}</Link>
-        </li>
-      )}
-      {card.twist && (
-        <li>
-          <span aria-hidden="true">📣</span> This week on Botchelor: <strong>{card.twist.label}</strong> —{" "}
-          <Link href="/watch#this-week" data-track="since-this-week">
-            see what&apos;s on
+    <>
+      <ul className="show-since-list">{more > 0 ? rows.slice(0, limit) : rows}</ul>
+      {more > 0 && (
+        <p className="show-since-more small">
+          <Link href="/watch" data-track="since-more">
+            {`${more} more from the show on Watch →`}
           </Link>
-        </li>
+        </p>
       )}
-      {card.story && (
-        <li>
-          <span aria-hidden="true">🎬</span> {card.story.previously} <strong>{card.story.tonight}</strong>{" "}
-          {card.story.vote && (
-            <Link href="/vote" data-track="since-story">
-              Vote
-            </Link>
-          )}
-        </li>
-      )}
-      {card.chat && (
-        <li>
-          <span aria-hidden="true">📱</span> Leaked from the cast group chat: <strong>{card.chat.name}</strong> <em>“{card.chat.text}”</em>{" "}
-          <Link href="/reunion#cast-chat" data-track="cast-chat" data-track-where="since">
-            {card.chat.more > 0 ? `read the other ${card.chat.more}` : "read it"}
-          </Link>
-        </li>
-      )}
-      {card.house && (
-        <li>
-          <span aria-hidden="true">🏠</span> In the house, {card.house.who}: <strong>{card.house.name}</strong> <em>“{card.house.text}”</em>{" "}
-          <Link href={card.house.path} data-track="house-scene" data-track-where="since">
-            hear the rest
-          </Link>
-        </li>
-      )}
-      {card.situation && (
-        <li>
-          <span aria-hidden="true">{card.situation.icon}</span> The viewers picked <strong>{card.situation.title}</strong>:{" "}
-          <Link href={card.situation.room_path}>watch how it went</Link>
-        </li>
-      )}
-      {card.diary && (
-        <li>
-          <span aria-hidden="true">📹</span> {card.diary.name}, after the date with {card.diary.partner}: <em>“{card.diary.line}”</em>{" "}
-          <Link href={card.diary.episode_path}>watch it</Link>
-        </li>
-      )}
-      {card.secret && (
-        <li>
-          <span aria-hidden="true">🤫</span> A secret came out: {card.secret.name} <em>{card.secret.secret.charAt(0).toLowerCase() + card.secret.secret.slice(1)}</em> (
-          {card.secret.index} of {card.secret.total}).{" "}
-          {card.secret.own ? (
-            <Link href={card.secret.own.episode_path}>See the date</Link>
-          ) : (
-            <Link href={`/characters/${card.secret.character_id}#secrets`}>See their secrets</Link>
-          )}
-        </li>
-      )}
-      {card.moves.map((m) => (
-        <li key={`${m.lo}-${m.hi}`}>
-          <span aria-hidden="true">💫</span>{" "}
-          <Link href={`/couples/${m.lo}/${m.hi}`}>
-            {m.a} &amp; {m.b}
-          </Link>{" "}
-          are now {m.label}
-          {m.following && <span className="chip">You follow</span>}
-        </li>
-      ))}
-      {card.overnights?.map((o) => (
-        <li key={o.episode_path}>
-          <span aria-hidden="true">🌙</span>{" "}
-          <Link href={`/couples/${o.lo}/${o.hi}`}>
-            {o.a} &amp; {o.b}
-          </Link>{" "}
-          left their overnight date together: <Link href={o.episode_path}>watch it</Link>
-        </li>
-      ))}
-      {card.followed > 0 && (
-        <li>
-          <span aria-hidden="true">👀</span> Couples you follow went on {plural(card.followed, "date", "dates")}
-        </li>
-      )}
-      {card.backing && (
-        <li>
-          <span aria-hidden="true">🏅</span> Your cast pick <Link href={`/characters/${card.backing.character_id}`}>{card.backing.name}</Link> went on{" "}
-          {plural(card.backing.aired, "date", "dates")}
-        </li>
-      )}
-      {card.shift && (
-        <li>
-          <span aria-hidden="true">{card.shift.shift > 0 ? "🔥" : "🧊"}</span> Biggest chemistry shift this week:{" "}
-          <Link href={`/couples/${card.shift.lo}/${card.shift.hi}`}>
-            {card.shift.a} &amp; {card.shift.b}
-          </Link>{" "}
-          {card.shift.shift > 0 ? "+" : "−"}
-          {Math.abs(card.shift.shift)}
-        </li>
-      )}
-      {card.calls && (
-        <li>
-          <span aria-hidden="true">🔮</span> You called {card.calls.right} of {card.calls.called} right
-          {card.calls.streak >= 2 ? `: ${card.calls.streak} in a row 🔥` : ""}
-        </li>
-      )}
-    </ul>
+    </>
   );
 }
 
@@ -151,7 +169,7 @@ export default function ShowSince({ card, inside = false }: { card: ShowSinceDat
     return (
       <div className="show-since-inside">
         <h3>On the show</h3>
-        <Items card={card} />
+        <Items card={card} limit={SINCE_INSIDE_SHOWN} />
       </div>
     );
   }

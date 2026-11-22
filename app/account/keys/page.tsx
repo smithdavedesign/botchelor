@@ -98,9 +98,12 @@ export default async function KeysPage() {
         <h1>Connections</h1>
         <section className="card">
           <p>
-            <Link href="/account?next=%2Faccount%2Fkeys">Sign in</Link> to connect your own model keys: for your characters&apos; dates and texts, their
-            portraits and their intro clips. Keys belong to an account, so an anonymous session can&apos;t lose them.
+            Connect your own model keys for your characters&apos; dates and texts, their portraits and their intro clips. Keys are saved to your
+            account: sign in, or make a free one, to add yours.
           </p>
+          <Link className="button" href="/account?next=%2Faccount%2Fkeys">
+            Sign in to add a key
+          </Link>
         </section>
       </article>
     );

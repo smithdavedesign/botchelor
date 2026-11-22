@@ -232,14 +232,6 @@ export async function setAssetMedia(db: Db, id: string, url: string, sourceUrl?:
   await db.query(`update character_assets set url = $2, source_url = coalesce($3, source_url) where id = $1`, [id, markAiDataUrl(url), sourceUrl ?? null]);
 }
 
-/** The approved asset plus the id of the character it belongs to (for proxying a clip on the owner's key). */
-export async function approvedAssetWithOwner(db: Db, id: string): Promise<{ asset: CharacterAsset; owner_id: string | null } | null> {
-  const asset = await getApprovedAsset(db, id);
-  if (!asset?.character_id) return asset ? { asset, owner_id: null } : null;
-  const { rows } = await db.query<{ owner_id: string | null }>(`select owner_id from characters where id = $1`, [asset.character_id]);
-  return { asset, owner_id: rows[0]?.owner_id ?? null };
-}
-
 /** The credit line a licensed asset's licence requires, or null when no credit is owed. */
 export const attributionLine = (asset: CharacterAsset): string | null =>
   asset.attribution ? `${asset.attribution}${asset.license_name ? ` (${asset.license_name})` : ""}` : null;

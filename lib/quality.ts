@@ -26,6 +26,7 @@
  */
 import type { Character } from "./character";
 import type { Turn } from "./conversation";
+import { escapeRegExp } from "./text";
 
 const STOPWORDS = new Set(
   (
@@ -145,7 +146,6 @@ export type LineIssues = {
   self_address: string | null;
 };
 
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** A name's first word, without trailing punctuation ("Ottoline Brack" → "Ottoline"). */
 const firstNameOf = (name: string) => (name.trim().split(/\s+/)[0] ?? "").replace(/[^\p{L}\p{N}'’-]+$/u, "");
 

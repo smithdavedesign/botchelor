@@ -4,7 +4,7 @@ import { showCrowd } from "@/lib/crowd-threshold";
 import ShareRecord from "./ShareRecord";
 import { tonightOf, type RecordShare } from "@/lib/share-record";
 import { signShare, type Sharer } from "@/lib/share-record-name";
-import { recordLine, BOARD_DAYS, type CallRecord, type CallersBoard } from "@/lib/streaks";
+import { recordLine, BOARD_DAYS, BOARD_NAMED_MIN, type CallRecord, type CallersBoard } from "@/lib/streaks";
 
 /**
  * Your calls (lib/streaks.ts), in one line: your record and run when you have one, else the invitation to make one. Home
@@ -96,14 +96,18 @@ export function shareOf(record: CallRecord, now: Date = new Date(), sharer: Shar
 export function CallersBoardPanel({ board, nameless = false, insider = false }: { board: CallersBoard; nameless?: boolean; insider?: boolean }) {
   if (!board.top.length) return null;
   const listed = board.top.some((e) => e.mine);
-  if (!showCrowd(board.callers, { insider })) {
+  // A board of mostly "A viewer" rows says nobody's here, to an insider too (the 2026-11-22 audit): the list waits for
+  // BOARD_NAMED_MIN names. Meanwhile someone on it sees their place, and the form to put their name up.
+  if (!showCrowd(board.callers, { insider }) || board.named < BOARD_NAMED_MIN) {
     return (
       <section className="watch-section" aria-labelledby="best-callers">
         <h2 id="best-callers">Best callers this week</h2>
         <p className="calls-line">
           <span aria-hidden="true">🔮</span> <strong>Call the ending before a date airs</strong> and your name goes up here.{" "}
-          <Link href="/calls">Tonight&apos;s open calls →</Link>
+          <Link href="/calls#open-calls">Tonight&apos;s open calls →</Link>
         </p>
+        {board.my_rank && <p className="muted small">{`You're number ${board.my_rank} this week. The list shows once ${BOARD_NAMED_MIN} callers have put a name up.`}</p>}
+        {nameless && board.my_rank && <BoardName folded />}
       </section>
     );
   }

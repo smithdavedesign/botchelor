@@ -13,6 +13,7 @@ import {
   testEventsGrant,
   verifyStripeSignature,
 } from "@/lib/stripe";
+import { soft } from "@/lib/soft";
 
 /** Subscription events are a few KB; anything this big isn't one. */
 const MAX_WEBHOOK_BYTES = 256 * 1024;
@@ -104,7 +105,7 @@ export const POST = handle(async (req) => {
       agentId = s.data.client_reference_id;
       subId = s.data.subscription ?? null;
       await grantOperatorPass(db, agentId, "initial", { provider: "stripe", subscriptionId: subId });
-      await recordAgentEvent(db, agentId, "pass_purchased", { provider: "stripe" }).catch(() => {});
+      await recordAgentEvent(db, agentId, "pass_purchased", { provider: "stripe" }).catch(soft("operator pass webhook: agent event"));
       track("purchase_completed", { product: "operator_pass" });
       outcome = "initial";
     }

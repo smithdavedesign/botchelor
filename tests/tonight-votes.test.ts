@@ -91,10 +91,13 @@ describe("the Tonight card", () => {
     expect(d).toContain('<h2 id="dare-head">');
   });
 
-  it("sits its two parts side by side on a wide screen and one after the other on a phone", () => {
+  it("sits its two parts side by side on a wide screen, and in one sideways row on a phone", () => {
     const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
     expect(css).toMatch(/\.tonight-votes-parts \{\s*display: grid;/);
     expect(css).toMatch(/@media \(min-width: 900px\) \{\s*\.tonight-votes-parts \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+    // A phone (the 2026-11-22 audit: stacked, the card was two of the owner's seven screens): a swipe apart.
+    expect(css).toMatch(/@media \(max-width: 720px\) \{\s*\.tonight-votes-parts \{\s*grid-auto-flow: column;\s*grid-auto-columns: minmax\(86%, 1fr\);/);
+    expect(readFileSync(join(__dirname, "..", "app", "TonightVotes.tsx"), "utf8")).toContain('<div className="tonight-votes-parts scroll-row">');
     // A part is half the card's width, so its choices run one under another.
     expect(css).toMatch(/\.tonight-part \.situation-choices \{\s*grid-template-columns: minmax\(0, 1fr\);/);
   });

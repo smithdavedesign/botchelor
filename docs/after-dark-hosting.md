@@ -50,7 +50,7 @@ The same code runs in both places. Two settings decide what each deployment does
   `https://ad.botchelor.com/api/auth/carry?to=<the page>`, the sign-in hop below.
 - A visit to `/after-dark/*` or `/admin/after-dark/*` on botchelor.com redirects there too (307, so switching back is
   instant): through the hop when the browser has an identity to bring, straight to the page when it doesn't, or for a
-  crawler (`middleware.ts`).
+  crawler (`proxy.ts`).
 - After Dark's APIs redirect there (307, method and body kept): `/api/admin/after-dark/*`, `/api/jobs/eval-after-dark`,
   and the looks builder's After Dark tiles `/api/looks/nsfw-*` (`next.config.ts`).
 - After Dark's MCP tools answer "After Dark runs on its own host now: connect to https://ad.botchelor.com/api/mcp (with

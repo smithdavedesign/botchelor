@@ -41,6 +41,3 @@ export async function adultPickerDemand(db: Db, now = Date.now()): Promise<Recor
   cache = { at: now, value: demandMap(await adultRoleplayDemand(db)) };
   return cache.value;
 }
-export const forgetAdultPickerDemandForTests = () => {
-  cache = null;
-};

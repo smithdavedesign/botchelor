@@ -103,6 +103,12 @@ describe("asking for an invite", () => {
 });
 
 describe("reviewing from the email", () => {
+  it("a link that doesn't work says so, and has a way on (2026-11-22)", async () => {
+    const page = renderToStaticMarkup(await InviteReview({ searchParams: Promise.resolve({ t: "nope.nope" }) }));
+    expect(page).toContain("That link doesn&#x27;t work");
+    expect(page).toContain('<a class="button" href="/">Back to the show</a>');
+  });
+
   it("the page shows the request with buttons; Approve gives a beta pass and sends the welcome", async () => {
     const { id, cookie } = await person();
     await ask(cookie);
