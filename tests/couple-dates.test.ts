@@ -115,9 +115,13 @@ describe("a couple's dates", () => {
 });
 
 describe("a couple page's head", () => {
-  it("keeps the page out of search with a private character or a deleted account's on it (2026-11-21)", async () => {
+  it("keeps the page out of search with a private character or a deleted account's on it (2026-11-21), or one date so far", async () => {
     const { generateMetadata } = await import("@/app/couples/[a]/[b]/page");
     const robots = async () => (await generateMetadata({ params: Promise.resolve({ a: character, b: partner }) })).robots;
+    // One date: the page mostly repeats it, so it's out of search as it's out of the sitemap (lib/seo.ts coupleIndexable).
+    expect(await robots()).toEqual({ index: false, follow: true });
+    const [lo, hi] = pairKey(character, partner);
+    await t.db.query(`update relationships set public_dates = 2 where character_a = $1 and character_b = $2`, [lo, hi]);
     expect(await robots()).toBeUndefined();
     try {
       await t.db.query(`update characters set visibility = 'private' where id = $1`, [character]);
@@ -126,6 +130,7 @@ describe("a couple page's head", () => {
       expect(await robots()).toEqual({ index: false, follow: true });
     } finally {
       await t.db.query(`update characters set visibility = 'public', owner_id = $2 where id = $1`, [character, userIdOf(owner)]);
+      await t.db.query(`update relationships set public_dates = 1 where character_a = $1 and character_b = $2`, [lo, hi]);
     }
   });
 });
