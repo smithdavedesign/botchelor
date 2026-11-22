@@ -169,12 +169,7 @@ export async function getApprovedAssetHead(db: Db, id: string, width: number | n
   return r ? { ...r, thumb: r.thumb ? Buffer.from(r.thumb) : null } : null;
 }
 
-/** The small copy of an asset at `width`, resized before and kept (character_asset_thumbs), or null. */
-export async function getAssetThumb(db: Db, id: string, width: number): Promise<Buffer | null> {
-  const { rows } = await db.query<{ data: Buffer }>(`select data from character_asset_thumbs where asset_id = $1 and width = $2`, [id, width]);
-  return rows[0] ? Buffer.from(rows[0].data) : null;
-}
-
+/** Keeps the small copy of an asset at `width` (character_asset_thumbs); getApprovedAssetHead reads it back. */
 export async function keepAssetThumb(db: Db, id: string, width: number, data: Buffer): Promise<void> {
   await db.query(`insert into character_asset_thumbs (asset_id, width, data) values ($1, $2, $3) on conflict (asset_id, width) do nothing`, [id, width, data]);
 }
