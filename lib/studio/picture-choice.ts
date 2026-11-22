@@ -51,7 +51,7 @@ export async function pictureChoices(db: Db, viewer: string, characterId: string
       [viewer, characterId],
     ),
     db.query<{ id: string }>(
-      `select id from character_assets where character_id = $1 and kind = 'portrait' and review_status = 'approved' and content_rating = 'pg' and url like 'data:image/%'
+      `select id from character_assets where character_id = $1 and kind = 'portrait' and review_status = 'approved' and content_rating = 'pg' and left(url, 16) like 'data:image/%'
         order by created_at desc limit 12`,
       [characterId],
     ),

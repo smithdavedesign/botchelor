@@ -55,8 +55,36 @@ export function setPublicLaunchDayForTests(day: string | null): void {
  * names) and whoever booked a date for one (only a character's owner can: a deleted account's kept characters move to
  * the deleted owner, but its dates keep their creator, as David's "Wren Kestrel" runs did), people first active before
  * the public launch (PUBLIC_LAUNCH_DAY), the deleted owner (a deleted account's kept characters) and the show itself.
+ *
+ * Kept in this server's memory for OUR_IDS_TTL_MS, one load at a time for everyone asking (2026-11-22 audit: the query
+ * reads every MCP call and held a database connection 4–7 s; an admin page asked 3–7 times at once, and two of them
+ * held 9 of the pool's 10). A failed load isn't kept; each caller gets its own copy. Off outside production (tests and
+ * scripts read it every time), unless a test turns it on.
  */
-export async function loadOurIds(db: Db): Promise<string[]> {
+export const OUR_IDS_TTL_MS = 10 * 60_000;
+type KeptIds = { at: number; ids: Promise<string[]> };
+const keptIds = new WeakMap<object, KeptIds>();
+let ourIdsCacheForced: boolean | null = null;
+const ourIdsCacheOn = () => ourIdsCacheForced ?? (process.env.NODE_ENV === "production" && !process.env.VITEST);
+
+/** Tests: switch the kept list on or off regardless of the environment (null: back to the default). */
+export function setOurIdsCacheForTests(enabled: boolean | null): void {
+  ourIdsCacheForced = enabled;
+}
+
+export async function loadOurIds(db: Db, now = Date.now()): Promise<string[]> {
+  if (!ourIdsCacheOn()) return queryOurIds(db);
+  const hit = keptIds.get(db);
+  if (hit && now - hit.at < OUR_IDS_TTL_MS) return [...(await hit.ids)];
+  const ids = queryOurIds(db);
+  keptIds.set(db, { at: now, ids });
+  ids.catch(() => {
+    if (keptIds.get(db)?.ids === ids) keptIds.delete(db);
+  });
+  return [...(await ids)];
+}
+
+async function queryOurIds(db: Db): Promise<string[]> {
   const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like $2)`;
   const { rows } = await db.query<{ id: string }>(
     `select user_id as id from admins

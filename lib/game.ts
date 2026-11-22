@@ -1185,7 +1185,8 @@ export type PublicCharacter = {
 /** A character's public persona. Its private facts are stripped (lib/extras.ts publicExtras): the owner's page reads them itself. */
 export async function getPublicCharacter(db: Db, id: string): Promise<PublicCharacter | null> {
   // One statement, its approved portrait and clip included (approvedPortraitId, approvedClipId, approvedClipIsVideo):
-  // three round trips in a row were most of a character page's first wait (2026-11-04 performance audit).
+  // three round trips in a row were most of a character page's first wait (2026-11-04 performance audit). Whether the
+  // clip is a video comes from its url's first 16 characters, so the stored video isn't read (lib/assets.ts).
   const { rows } = await db.query<
     Omit<PublicCharacter, "portrait_asset_id" | "clip_asset_id" | "clip_is_video" | "pg_flags"> & {
       dealbreaker: string;
@@ -1198,7 +1199,7 @@ export async function getPublicCharacter(db: Db, id: string): Promise<PublicChar
             coalesce(c.extras, '{}'::jsonb) as extras, c.this_week, c.created_via = 'mcp' as made_by_agent,
             c.visibility = 'private' as private, c.owner_id,
             (${approvedPortraitSelect("c.id")}) as portrait_asset_id,
-            clip.id as clip_asset_id, coalesce(clip.url like 'data:video/mp4;%', false) as clip_is_video
+            clip.id as clip_asset_id, coalesce(left(clip.url, 16) like 'data:video/mp4;%', false) as clip_is_video
        from characters c
        left join lateral (
          select a.id, a.url from character_assets a
