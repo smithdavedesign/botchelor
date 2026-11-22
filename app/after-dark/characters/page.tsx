@@ -109,7 +109,7 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
         </p>
         <h1>Characters</h1>
         <p className="muted ad-chars-lede">
-          Everyone you can have a night with: this season&apos;s cast, the agent cast, and any of your own you&apos;ve switched In. Each has a page with your nights together and
+          Everyone you can have a night with: this season&apos;s cast, the agent cast, and any of your own you&apos;ve added. Each has a page with your nights together and
           what&apos;s been made of them.
         </p>
         {cast.length > 0 && (
@@ -141,7 +141,8 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
                     title={tag.about}
                     data-tag={tag.id}
                   >
-                    {tag.icon} {tag.label} <span className="ad-pp-count">{n}</span>
+                    {/* "(17 characters)", never a bare "17" beside a tag on an 18+ page (audit 2026-11-22). */}
+                    {tag.icon} {tag.label} <span className="ad-pp-count">({plural(n, "character")})</span>
                   </Link>
                 ))}
               </nav>
@@ -176,7 +177,7 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
         )}
         <Pager page={paged.page} pages={paged.pages} label="Characters pages" href={(p) => charactersHref({ ...now, page: p })} />
         <p className="muted small ad-chars-foot">
-          Your own characters start Out: nothing of theirs comes here until you <Link href="/after-dark/studio#ad-whos-in">switch them In</Link>.
+          Your own characters aren&apos;t here until you <Link href="/after-dark/studio#ad-whos-in">add them to After Dark</Link>: nothing of theirs comes here before that.
         </p>
       </article>
     </div>

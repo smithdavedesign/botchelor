@@ -160,7 +160,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // After Dark's link shows to someone it's open to (lib/adult/entitlement.ts), only where it's offered
     // (lib/jurisdiction.ts); once its public door is opened (lib/adult/door.ts, admins only until payments), to every
     // adult where it isn't blocked.
-    afterDarkDoor(db, viewer, await headers()).catch(() => ({ door: false, threshold: false })),
+    afterDarkDoor(db, viewer, await headers()).catch(() => ({ door: false, threshold: false, admin: false })),
     // The meter's count. When its read fails (the pool busy, #1948) the meter is left out for this page, rather than the
     // whole frame failing or the meter showing a count that isn't theirs.
     db && viewerId
@@ -234,7 +234,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <span>After Dark</span>
             </span>
           )}
-          <Nav tokens={adHost && viewerId ? (adTokens ?? 0) : dates.left} meter={count.failed ? "none" : adHost ? (viewerId && afterDark ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
+          <Nav tokens={adHost && viewerId ? (adTokens ?? 0) : dates.left} meter={count.failed ? "none" : adHost ? (viewerId && afterDark && !door.admin ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board).
             A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}

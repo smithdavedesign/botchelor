@@ -21,13 +21,17 @@ export function asOfFrom(value: unknown): Date {
 export const MOTIONS = ["push", "pan-left", "rise", "pan-right"] as const;
 export const motionOf = (i: number): (typeof MOTIONS)[number] => MOTIONS[i % MOTIONS.length];
 
-export type ReelCard = "create" | "after_dark";
+export type ReelCard = "create" | "after_dark" | "night";
 /**
  * What comes in the feed: each post, and after every CARD_EVERY a card, taking turns. After Dark's card only for
- * someone who can't see After Dark and isn't on its side already.
+ * someone who can't see After Dark and isn't on its side already. On After Dark's own reels (`place`), its card for a
+ * night of their own instead of the show's "make a character, your first dates are free" (audit 2026-11-22).
  */
-export function feedOf<T>(posts: readonly T[], opts: { afterDarkCard: boolean }): ({ kind: "post"; post: T; n: number } | { kind: "card"; card: ReelCard; n: number })[] {
-  const cards: ReelCard[] = opts.afterDarkCard ? ["create", "after_dark"] : ["create"];
+export function feedOf<T>(
+  posts: readonly T[],
+  opts: { afterDarkCard: boolean; place?: "show" | "after_dark" },
+): ({ kind: "post"; post: T; n: number } | { kind: "card"; card: ReelCard; n: number })[] {
+  const cards: ReelCard[] = opts.place === "after_dark" ? ["night"] : opts.afterDarkCard ? ["create", "after_dark"] : ["create"];
   const out: ({ kind: "post"; post: T; n: number } | { kind: "card"; card: ReelCard; n: number })[] = [];
   posts.forEach((post, i) => {
     out.push({ kind: "post", post, n: i });

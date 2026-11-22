@@ -35,6 +35,8 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const personaHref = `${showHome().replace(/\/$/, "")}/account#persona`;
   // Still closed to everyone else: an admin is told so, and where the switch is.
   const adminsOnly = admin && !rolloutOn(settings.rollout, "companion", false);
+  // Who they've had scenes with, the latest first: the picker shows them first.
+  const recent = [...scenes.running, ...scenes.ended].sort((x, y) => y.last_at.localeCompare(x.last_at)).map((s) => s.character.id);
   return (
     <div className="after-dark-mode">
       <article className="after-dark ad-si" data-step-in-setup>
@@ -51,7 +53,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
         </p>
         {adminsOnly && (
           <p className="muted small" data-step-in-admins-only>
-            Admins only for now. It opens to everyone After Dark is open to from <Link href="/admin/after-dark/settings">Settings → Not open yet</Link>, once the card
+            Admins only for now. It opens to everyone After Dark is open to from <Link href="/admin/after-dark/settings?tab=rollout">Settings → Rollout</Link>, once the card
             processors have been told.
           </p>
         )}
@@ -63,7 +65,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
         )}
         <h2>{scenes.running.length ? "Start a new scene" : "Set the scene"}</h2>
         {cast.length ? (
-          <StepInSetup cast={cast} places={stepInPlaces(drawn)} persona={who.persona ? { name: who.persona.name } : null} personaLeftOut={who.leftOut} personaHref={personaHref} preselect={sp?.with ?? null} />
+          <StepInSetup cast={cast} recent={recent} places={stepInPlaces(drawn)} persona={who.persona ? { name: who.persona.name } : null} personaLeftOut={who.leftOut} personaHref={personaHref} preselect={sp?.with ?? null} />
         ) : (
           <p className="muted">Nobody is in your After Dark yet. This season&apos;s cast is in by default; your own characters are switched in on the Studio page.</p>
         )}

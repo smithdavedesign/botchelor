@@ -16,7 +16,7 @@ test scaffold); this table is what is built now.
 | Entitlement | An admin, or a signed-in account with an active subscription (or a cancelled one with paid time left) and a passed age check. Passes for a processor's reviewer, an invited beta month and a 48-hour taste of scenes only go through the same check. Checked server-side on every action | `lib/adult/entitlement.ts`, `lib/adult/invites.ts`, `lib/adult/taste.ts` |
 | Billing | A subscription and token packs on adult card processors (CCBill, Segpay, Verotel), never Stripe. Each processor is on only when all its settings are in the environment | `lib/adult/billing.ts`, `lib/adult/billing-*.ts` |
 | Age checks | Subscribing records the 18+ self-declaration. A real check through Didit, for the UK, Australia and Brazil, is built and stays off until its three settings are set | `lib/adult/billing.ts`, `lib/adult/age-check.ts`, `lib/jurisdiction.ts` |
-| The door | The header's After Dark door shows to anyone After Dark is open to. Showing it to every adult where After Dark isn't blocked, landing on the subscribe page (taste, invite request, waitlist), is the `public_door` switch: admins only by default, until it is switched to everyone in the settings' Not open yet tab | `lib/adult/door.ts`, `lib/adult/rollout.ts` |
+| The door | The header's After Dark door shows to anyone After Dark is open to. Showing it to every adult where After Dark isn't blocked, landing on the subscribe page (taste, invite request, waitlist), is the `public_door` switch: admins only by default, until it is switched to everyone in the settings' Rollout tab | `lib/adult/door.ts`, `lib/adult/rollout.ts` |
 | Host | Its own host, `ad.botchelor.com` (`AFTER_DARK_ONLY=1`) | `lib/after-dark-host.ts`, [after-dark-hosting.md](after-dark-hosting.md) |
 
 **The After Dark docs.** This file is the single source for what is built and its rules; its later sections are
@@ -59,7 +59,7 @@ subscription. Keep the two paths distinct.
 
 David: "until we get a payment system we cannot open it to public. so keep it admin only but build it anyway and we can
 switch it from admin only later." Each piece is built and switched by `adult_settings.rollout` (`lib/adult/rollout.ts`;
-settings → **Not open yet**, or the admin MCP's settings tool): `admins` (the default: admins see it everywhere it
+settings → **Rollout**, or the admin MCP's settings tool): `admins` (the default: admins see it everywhere it
 applies, on production) or `everyone`. `rolloutOn(cfg, piece, admin)` is the one check.
 
 - **`public_door`** (`lib/adult/door.ts`, the design review's A3). Open to everyone, the header's door shows to every

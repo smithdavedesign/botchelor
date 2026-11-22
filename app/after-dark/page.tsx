@@ -175,7 +175,8 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
                 )}
               </span>
               <span className="ad-home-feature-body">
-                <span className="ad-home-eyebrow">Last night · {[latest.chapter && latest.chapter > 1 ? `Chapter ${latest.chapter}` : "", latest.lines ? `${latest.lines} lines` : ""].filter(Boolean).join(" · ") || "under way"}</span>
+                {/* "Your latest night", not "Last night": it read as yesterday's (audit 2026-11-22). */}
+                <span className="ad-home-eyebrow">Your latest night · {[latest.chapter && latest.chapter > 1 ? `Chapter ${latest.chapter}` : "", latest.lines ? `${latest.lines} lines` : ""].filter(Boolean).join(" · ") || "under way"}</span>
                 <strong className="ad-home-feature-names">
                   {first(latest.a.name)} × {first(latest.b.name)}
                 </strong>
@@ -200,15 +201,15 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
               <p className="muted small">
                 {bring.on
                   ? "Pick them a scene below, or set up their face and body in the Studio for pictures."
-                  : `Characters start Out: nothing of theirs comes here until you switch them In. You can switch them Out again any time, on ${studioWord}.`}
+                  : `Your own characters aren't in After Dark until you add them: nothing of theirs comes here before that. You can take them out again any time, on ${studioWord}.`}
               </p>
             </Switches>
           </div>
         )}
         {yoursOut > 0 && !bring && (
           <p className="muted small" data-yours-out>
-            {yoursOut === 1 ? "One of your characters is" : `${yoursOut} of your characters are`} Out: nothing of theirs comes here until you{" "}
-            <Link href="/after-dark/studio">switch them In on {studioWord}</Link>.
+            {yoursOut === 1 ? "One of your characters isn't" : `${yoursOut} of your characters aren't`} in After Dark: nothing of theirs comes here until you{" "}
+            <Link href="/after-dark/studio">add them on {studioWord}</Link>.
           </p>
         )}
         {/* Your nights first, then a new one (the audit, 2026-10-29: the hub opened on a checklist of switches). */}

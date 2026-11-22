@@ -169,7 +169,7 @@ export default function Nav({
   const [tokens, setTokens] = useState(initialTokens);
   useEffect(() => setTokens(initialTokens), [initialTokens]);
   useEffect(() => {
-    if (!personal) return;
+    if (!personal || meter === "none") return;
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
       fetch(meter === "tokens" ? "/api/after-dark/tokens" : "/api/me", { cache: "no-store" })
@@ -215,13 +215,14 @@ export default function Nav({
           on that host), the meter, and the newcomer's one call to action. The links follow. */}
       <div className="nav-tools">
         {adHost ? (
-          <Link prefetch={false} href={showHref} className="nav-ad-link nav-ad-link--back">
+          // Named for a screen reader: on a phone the words are hidden and only the arrow shows.
+          <Link prefetch={false} href={showHref} className="nav-ad-link nav-ad-link--back" aria-label="Back to the show">
             <Icon name="chevronLeft" />
             <span>Back to the show</span>
           </Link>
         ) : (
           afterDark && (
-            <Link href={afterDarkHref("/after-dark")} className="nav-ad-link" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
+            <Link href={afterDarkHref("/after-dark")} className="nav-ad-link" aria-label="After Dark" aria-current={pathname.startsWith("/after-dark") ? "page" : undefined}>
               <Icon name="moon" />
               <span>After Dark</span>
               <Icon name="arrowUpRight" className="nav-ad-link-out" />
