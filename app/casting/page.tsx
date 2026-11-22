@@ -5,6 +5,7 @@ import SetHero from "@/app/SetHero";
 import LeadFace from "./LeadFace";
 import Avatar from "@/app/Avatar";
 import FaceLoop from "@/app/FaceLoop";
+import Tilt from "@/app/motion/Tilt";
 import Icon from "@/app/Icon";
 import { AUDITION_MIN_DATES, auditionPicks, castingBoard, type AuditionPick } from "@/lib/auditions";
 import { auditionWords } from "@/lib/audition-words";
@@ -73,7 +74,7 @@ function CastingSlots({ label, month, cast, lead, size, open, picks, def }: { la
       </p>
       <ul className="casting-slots" aria-label={def.lead ? `${month}'s lead, and the suitors' open places` : "This month's cast, and next month's open places"}>
         {def.lead && lead && (
-          <li className="casting-slot is-taken is-lead tap-card">
+          <Tilt as="li" className="casting-slot is-taken is-lead tap-card" max={5}>
             <FaceLoop id={lead.id} radius={56 * 0.28}>
               <Avatar seed={lead.id} name={lead.name} hue={lead.hue} house={!lead.fan} portraitSrc={lead.portrait} size={56} decorative />
             </FaceLoop>
@@ -83,10 +84,10 @@ function CastingSlots({ label, month, cast, lead, size, open, picks, def }: { la
               </Link>
               <span className="muted small">{`${lead.archetype} · ${month}'s lead`}</span>
             </span>
-          </li>
+          </Tilt>
         )}
         {taken.map((c) => (
-          <li key={c.id} className="casting-slot is-taken tap-card">
+          <Tilt as="li" key={c.id} className="casting-slot is-taken tap-card" max={5}>
             <FaceLoop id={c.id} radius={56 * 0.28}>
               <Avatar seed={c.id} name={c.name} hue={c.hue} house={!c.fan} portraitSrc={c.portrait} size={56} decorative />
             </FaceLoop>
@@ -96,7 +97,7 @@ function CastingSlots({ label, month, cast, lead, size, open, picks, def }: { la
               </Link>
               <span className="muted small">{c.archetype} · on this month&apos;s cast</span>
             </span>
-          </li>
+          </Tilt>
         ))}
         {/* The open places are buttons: a press picks one of your characters and puts it up (app/casting/OpenSlots.tsx). */}
         <OpenSlots count={open} picks={picks} noun={def.lead ? words.noun : null} label={label} />

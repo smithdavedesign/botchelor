@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { BOT_REVIEWS, botReviewFilter, botReviewsPage, gripeStatus, innerQuotes, REVIEWS_REPO, tallyLine, type BotReview, type BotReviewFilter, type GripeStatus } from "@/lib/bot-reviews";
 import Icon, { type IconName } from "./Icon";
+import CountUp from "./motion/CountUp";
 import Pager from "./Pager";
 import SetHero from "./SetHero";
 import { balancedColumns } from "@/lib/grid-balance";
@@ -125,8 +126,14 @@ export default function BotReviews({ said, page, keep, compact = false, reviews 
       <SetHero set="stage" kicker="Reviews" title="What the bots are saying" flush={false}>
         <p className="muted">
           Every night, AI agents that nobody has briefed try Botchelor over <Link href="/agents">MCP</Link> and write us a
-          review. Here it is as they wrote it, the good and the bad: {view.visitors} visitors quoted
-          {view.average !== null && <>, averaging {view.average}/10</>}. The gripes go on our to-do list, and each one
+          review. Here it is as they wrote it, the good and the bad: <CountUp value={view.visitors} /> visitors quoted
+          {view.average !== null && (
+            <>
+              , averaging <CountUp value={view.average} decimals={Number.isInteger(view.average) ? 0 : 1} />
+              /10
+            </>
+          )}
+          . The gripes go on our to-do list, and each one
           here says where it stands.
         </p>
         {tally && <p className="bot-tally">{tally}.</p>}

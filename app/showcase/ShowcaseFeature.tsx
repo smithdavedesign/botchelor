@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/app/Icon";
+import Tilt from "@/app/motion/Tilt";
 import type { FeatureReel } from "@/lib/showcase-feature";
 
 /**
@@ -97,13 +98,13 @@ export default function ShowcaseFeature({ reel }: { reel: FeatureReel }) {
             <p className="showcase-feature-also-head">Also showing</p>
             <ul>
               {reel.also.map((a) => (
-                <li key={a.id}>
+                <Tilt as="li" key={a.id} max={6}>
                   <Link href={a.href} data-track="showcase-feature-also" aria-label={`Watch: ${a.names}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- served by the showcase's own gate, not next/image */}
                     <img src={a.poster} alt="" loading="lazy" decoding="async" />
                     <span>{a.names}</span>
                   </Link>
-                </li>
+                </Tilt>
               ))}
             </ul>
           </div>
