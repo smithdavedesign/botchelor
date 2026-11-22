@@ -228,7 +228,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       )}
 
       {/* 1. On now: what's live, else the newest aired date playing its opening lines; then tonight's rooms. The heading
-          says which (the 2026-11-22 audit: "On now" sat over "Just aired" and "Off air · Nothing live right now"). */}
+          says which (the 2026-11-22 audit: the old On now heading sat over "Just aired" and "Off air · Nothing live
+          right now"). */}
       <section className="watch-block" aria-labelledby="on-now">
         <h2 id="on-now" className="watch-block-head">
           {live.length > 0 ? (
