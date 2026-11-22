@@ -23,7 +23,7 @@ import type { Db } from "@/lib/db";
 import { recentPublicUrls } from "@/lib/indexnow";
 import { pairKey } from "@/lib/relationships";
 import { cachedContentSitemap, characterIndexable, contentSitemap, coupleIndexable, dateAuthored, forgetContentSitemapForTests } from "@/lib/seo";
-import { config, middleware } from "@/middleware";
+import { config, proxy as middleware } from "@/proxy";
 import { api, HOUSE_PARTNER_ID, setupEpisode, setupPairedEpisode, startTestDb, userIdOf } from "./helpers";
 
 const BASE = "https://b.test";

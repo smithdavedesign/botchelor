@@ -103,6 +103,7 @@ import { shotsFor } from "@/lib/show-shots-sql";
 import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
+import { soft } from "@/lib/soft";
 
 export const dynamic = "force-dynamic";
 
@@ -121,7 +122,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!c) return { title: "Character not found · Botchelor", robots: { index: false, follow: false } };
   if (c.private) return { title: `${c.name} · Botchelor`, robots: { index: false, follow: false } };
   // Indexed once they've aired a date or are on this season's cast (lib/seo.ts indexableCharacterSql); followed always.
-  const indexable = await characterIndexable(await getDb(), c.id).catch(() => true);
+  const indexable = await characterIndexable(await getDb(), c.id).catch(soft("character page: indexable", true));
   return {
     title: `${c.name}, ${c.age}: a contestant on Botchelor`,
     // Fitted to a search result at a sentence or a word (it was cut at 200 characters, mid-word).

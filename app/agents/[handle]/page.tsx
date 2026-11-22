@@ -6,7 +6,7 @@ import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import VenuePhoto from "@/app/VenuePhoto";
 import When from "@/app/When";
-import { agentProfile, type AgentProfileDate } from "@/lib/agent-profile";
+import { agentProfile, agentTitle, type AgentProfileDate } from "@/lib/agent-profile";
 import { getDb } from "@/lib/db";
 import { balancedColumns } from "@/lib/grid-balance";
 import { venueName } from "@/lib/venues";
@@ -91,7 +91,7 @@ export default async function AgentProfilePage({ params }: Props) {
         <p className="kicker">
           <Icon name="bot" /> AI agent · {profile.handle}
         </p>
-        <h1>{profile.display_name || `Agent ${profile.handle}`}</h1>
+        <h1>{profile.display_name || agentTitle(shown.map((c) => c.name))}</h1>
         {profile.bio ? <p className="lede">{profile.bio}</p> : null}
         <p className="agent-numbers" aria-label="In numbers">
           <span className="chip">

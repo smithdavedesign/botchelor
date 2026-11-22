@@ -13,7 +13,7 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 import manifest from "@/app/manifest";
-import { config } from "@/middleware";
+import { config } from "@/proxy";
 import {
   APP_ICONS,
   APP_NAME,

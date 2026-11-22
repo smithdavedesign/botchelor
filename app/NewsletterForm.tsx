@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { trackConversion } from "./conversion";
-import { requestJson } from "./request";
+import { issueWords, requestJson } from "./request";
 
 /**
  * The Sunday letter's sign-up (lib/newsletter.ts): an address and the 18+ box, in the site footer and on /newsletter.
@@ -18,13 +18,14 @@ export default function NewsletterForm({ place }: { place: "footer" | "page" }) 
     setState("busy");
     setError(null);
     try {
-      const { status, message } = await requestJson("/api/newsletter", { email: String(form.get("email") ?? ""), attest: form.get("attest") === "on" });
+      const { status, data, message } = await requestJson("/api/newsletter", { email: String(form.get("email") ?? ""), attest: form.get("attest") === "on" });
       if (status === 201) {
         trackConversion("newsletter_signup", { place });
         setState("done");
         return;
       }
-      setError(message);
+      // Its messages name their box ("Enter a valid email address."), so no field name before them (2026-11-22 audit).
+      setError(issueWords(data) ?? message);
     } catch {
       setError("Network error. Try again.");
     }
