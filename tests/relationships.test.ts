@@ -2,9 +2,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { deterministicEngine, type DateInput, type SideOutcome } from "@/lib/engine";
 import {
   computeRelationship,
+  healStaleRelationships,
   loadRelationship,
   pairContext,
   pairKey,
+  refreshRelationship,
+  relationshipsOf,
   stageOf,
   tieStrength,
   venueForPlan,
@@ -350,6 +353,42 @@ describe("the relationship graph — stored and refreshed", () => {
     rel = (await loadRelationship(t.db, character.id, HOUSE_PARTNER_ID))!;
     expect(rel.all.dates).toBe(1);
     expect(rel.public.dates).toBe(0);
+  });
+
+  it("a date made private behind the graph's back (by hand) leaves every view at once, and the hourly sweep heals the rest", async () => {
+    const { creator, character, episode } = await setupEpisode("second_date");
+    await api.reveal(episode.id, creator);
+    const [lo, hi] = pairKey(character.id, HOUSE_PARTNER_ID);
+    const stored = async () => (await t.db.query<{ n: number }>(`select public_dates as n from relationships where character_a = $1 and character_b = $2`, [lo, hi])).rows[0].n;
+    const byHand = (visibility: string) => t.db.query(`update episodes set visibility = $2 where id = $1`, [episode.id, visibility]);
+    expect(await stored()).toBe(1);
+
+    // No route refreshed the edge, so it still counts the date as public: the board refreshes it before showing it.
+    await byHand("private");
+    expect(await stored()).toBe(1);
+    const [edge] = await relationshipsOf(t.db, character.id);
+    expect(edge.public.dates).toBe(0);
+    expect(viewRelationship(edge, { userId: null, owner: false })).toBeNull();
+    expect(await stored()).toBe(0);
+
+    // One pair's read (the couple page, get_relationships with) does the same.
+    await byHand("public");
+    await refreshRelationship(t.db, lo, hi);
+    await byHand("private");
+    expect((await loadRelationship(t.db, character.id, HOUSE_PARTNER_ID))!.public.dates).toBe(0);
+
+    // Nobody reads it: the hourly job's sweep refreshes it, then has nothing left to do.
+    await byHand("public");
+    await refreshRelationship(t.db, lo, hi);
+    await byHand("private");
+    expect(await healStaleRelationships(t.db)).toBe(1);
+    expect(await stored()).toBe(0);
+    expect(await healStaleRelationships(t.db)).toBe(0);
+    // A live edge is never touched by it.
+    await byHand("public");
+    await refreshRelationship(t.db, lo, hi);
+    expect(await healStaleRelationships(t.db)).toBe(0);
+    expect(await stored()).toBe(1);
   });
 
   it("a rematch snapshots the pair's history on its setup, so a replay sees the relationship as it was", async () => {

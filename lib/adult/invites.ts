@@ -18,6 +18,7 @@ import { siteUrl } from "../site";
 import { inviteSource } from "./bridge";
 import { BETA_PROVIDER } from "./entitlement";
 import { DEFAULT_REEL_TOKENS, getAdultSettings } from "./settings";
+import { adTokensOn } from "./tokens";
 
 type Env = Record<string, string | undefined>;
 
@@ -136,7 +137,13 @@ export async function decideInvite(
       [userId, end.toISOString(), BETA_PROVIDER, invite.requested_at, invite.country],
     );
     const settings = await getAdultSettings(db).catch(() => null);
-    const message = welcomeEmail({ base: siteUrl(env), until: end, clipTokens: settings?.clip_tokens ?? 1, reelTokens: settings?.reel_tokens ?? DEFAULT_REEL_TOKENS });
+    const message = welcomeEmail({
+      base: siteUrl(env),
+      until: end,
+      clipTokens: settings?.clip_tokens ?? 1,
+      reelTokens: settings?.reel_tokens ?? DEFAULT_REEL_TOKENS,
+      tokensOnSale: adTokensOn(env),
+    });
     // The welcome asks for replies: send them to the operator, not the no-reply sender.
     welcomed = (await sendAccountEmail(db, userId, "ad_invite_welcome", invite.email, { ...message, replyTo: contactEmail(env) }, env)) === "sent";
   }
@@ -161,15 +168,19 @@ function frame(lines: string[], links: { label: string; href: string }[]) {
 
 /**
  * The welcome, on approval. Discreet like the subscription emails (lib/adult/billing.ts): the subject and the preview
- * don't say what After Dark is. It says what's free (scenes and pictures, for BETA_DAYS) and what isn't (video).
+ * don't say what After Dark is. It says what's free (scenes and pictures, for BETA_DAYS) and what isn't (video): at
+ * token prices once After Dark sells tokens (lib/adult/tokens.ts adTokensOn), and until then without a price nobody can
+ * pay (the 2026-11-22 audit).
  */
-export function welcomeEmail(opts: { base: string; until: Date; clipTokens: number; reelTokens: number }) {
+export function welcomeEmail(opts: { base: string; until: Date; clipTokens: number; reelTokens: number; tokensOnSale: boolean }) {
   const base = opts.base.replace(/\/+$/, "");
   const { text, html } = frame(
     [
       "You're in: your invite to After Dark on Botchelor is approved.",
       `It's free until ${day(opts.until)}. Every chapter and the pictures are on us, within the month's fair-use limits.`,
-      `Video isn't included: that one's on you. Each clip costs ${tokens(opts.clipTokens)} and the video of the night ${tokens(opts.reelTokens)}. Tokens come in packs: the tokens page says what each thing costs and where to get them.`,
+      opts.tokensOnSale
+        ? `Video isn't included: that one's on you. Each clip costs ${tokens(opts.clipTokens)} and the video of the night ${tokens(opts.reelTokens)}. Tokens come in packs: the tokens page says what each thing costs and where to get them.`
+        : "Video isn't part of the beta: clips and the video of the night open when After Dark's own billing does.",
       "It's an early beta, so some things may be rough. Reply to this email with anything you notice, or anything you'd like to see.",
     ],
     [

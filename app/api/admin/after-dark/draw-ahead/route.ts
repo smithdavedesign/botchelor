@@ -4,6 +4,7 @@ import { drawAheadNote, drawAheadView, setDrawAhead } from "@/lib/adult/draw-ahe
 import { adultViewer } from "@/lib/adult/mode";
 import { mediaRefusal } from "@/lib/adult/place";
 import { openScene } from "@/lib/adult/scenes";
+import { moreTokensLine } from "@/lib/adult/tokens";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
@@ -46,7 +47,7 @@ export const POST = handle(async (req: Request) => {
   const drawing = input.on ? await drawAheadNow(db, { id: scene.id, owner: viewer, a: scene.a.id, b: scene.b.id, chapter: scene.chapter }, await waitingBeats(db, scene.id, scene.chapter, input.at ?? 0), requestBase(req)) : 0;
   const view = await drawAheadView(db, viewer, scene.id);
   // Turned on with moments waiting, and the chapter's price couldn't be taken: it turned itself off again.
-  if (input.on && !view.on) return json({ error: "needs_tokens", draw_ahead: view, message: `Draw ahead takes ${view.price} token${view.price === 1 ? "" : "s"} a chapter. Get more on the shop page.` }, 402);
+  if (input.on && !view.on) return json({ error: "needs_tokens", draw_ahead: view, message: `Draw ahead takes ${view.price} token${view.price === 1 ? "" : "s"} a chapter. ${moreTokensLine()}` }, 402);
   const back =set.refunded > 0 ? ` Your ${set.refunded === 1 ? "token is" : "tokens are"} back: nothing was drawn ahead this chapter.` : "";
   return json({ draw_ahead: view, drawing, refunded: set.refunded, note: input.on ? drawAheadNote(view) : `Draw ahead is off: moments wait for "Picture this?" again.${back}` });
 });

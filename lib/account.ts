@@ -18,6 +18,7 @@ import { forgetUnusedVoices } from "./companion-voice";
 import type { Db } from "./db";
 import { getPoints } from "./game";
 import { DELETED_OWNER } from "./rules";
+import { refreshEpisodePair } from "./relationships";
 
 /** The owner link set on a character that must stay (it's in a shared episode) after its owner deletes. */
 export { DELETED_OWNER };
@@ -829,7 +830,8 @@ export type CharacterDeletion = { deleted: boolean; anonymized: boolean };
  * Deletes one of the user's characters. Mirrors account deletion for a single character: a character never
  * used in an episode is hard-deleted (cascading its soul, assets, relationships and proposals); one already
  * in a shared episode keeps its fictional sheet but loses its private soul and its owner link (a tombstone),
- * so the episode other viewers saw still renders. Owner-checked by the caller; returns what happened.
+ * so the episode other viewers saw still renders. The tombstone is private (2026-11-21): its name on those dates,
+ * nothing more; its card, board and sitemap entry go. Owner-checked by the caller; returns what happened.
  */
 export async function deleteCharacter(db: Db, userId: string, characterId: string): Promise<CharacterDeletion> {
   const inEpisode = async () =>
@@ -847,8 +849,8 @@ export async function deleteCharacter(db: Db, userId: string, characterId: strin
     const owned = await db.query("select 1 from characters where id = $1 and owner_id = $2 and not is_house", [characterId, userId]);
     if (owned.rows.length) await forgetEverything(db, [characterId]);
     const { rows } = await db.query<{ id: string }>(
-      // Closed to dates too: a retired character must leave everyone's swipe deck (#260).
-      "update characters set owner_id = $3, open_to_dates = false where id = $1 and owner_id = $2 and not is_house returning id",
+      // Closed to dates too: a retired character must leave everyone's swipe deck (#260). Private: its name only.
+      "update characters set owner_id = $3, open_to_dates = false, visibility = 'private' where id = $1 and owner_id = $2 and not is_house returning id",
       [characterId, userId, DELETED_OWNER],
     );
     return { deleted: false, anonymized: rows.length > 0 };
@@ -897,9 +899,16 @@ async function deleteIdentity(db: Db, userId: string): Promise<AccountDeletion> 
 
   // Step into the date (lib/step-in.ts forgetPersonas): someone's "you" is them, not a fictional sheet. Anonymized, and
   // every date it was on taken offline (their own words are in the lines). Owned by "you:<id>", so steps 2-3 never see it.
-  await run(`update episodes set visibility = 'private' where character_a in (select id from characters where owner_id = 'you:' || $1) or character_b in (select id from characters where owner_id = 'you:' || $1)`, [userId]);
+  // The couples those dates were part of are refreshed, so no board or sky still counts one (a failed refresh is swept hourly).
+  const offline = (
+    await db.query<{ id: string }>(
+      `update episodes set visibility = 'private' where character_a in (select id from characters where owner_id = 'you:' || $1) or character_b in (select id from characters where owner_id = 'you:' || $1) returning id`,
+      [userId],
+    )
+  ).rows;
+  for (const e of offline) await refreshEpisodePair(db, e.id).catch(() => {});
   await run(`delete from souls where character_id in (select id from characters where owner_id = 'you:' || $1)`, [userId]);
-  await run(`update characters set owner_id = $2, name = 'A former viewer', bio = 'Someone who stepped into a date.', pronouns = null where owner_id = 'you:' || $1`, [userId, DELETED_OWNER]);
+  await run(`update characters set owner_id = $2, name = 'A former viewer', bio = 'Someone who stepped into a date.', pronouns = null, visibility = 'private' where owner_id = 'you:' || $1`, [userId, DELETED_OWNER]);
 
   // 2. Characters never used in an episode: hard delete (cascades assets, relationships, proposals).
   const charactersDeleted = await returning(
@@ -916,8 +925,9 @@ async function deleteIdentity(db: Db, userId: string): Promise<AccountDeletion> 
   // Their After Dark turn-ons (sex-life data, GDPR Art. 9) go too; a deleted character's went with it (on delete cascade).
   if (kept.length) await run("delete from adult_profiles where character_id = any($1::text[])", [kept]);
   const charactersAnonymized = await returning(
-    // Closed to dates too: a deleted creator's character must never be asked out or blind-matched again.
-    "update characters set owner_id = $2, open_to_dates = false where owner_id = $1 and not is_house returning id",
+    // Closed to dates too: a deleted creator's character must never be asked out or blind-matched again. Private (its name
+    // on the dates it aired in, nothing more), as deleteCharacter's tombstone; those dates stay up for the other side.
+    "update characters set owner_id = $2, open_to_dates = false, visibility = 'private' where owner_id = $1 and not is_house returning id",
     [userId, DELETED_OWNER],
   );
 

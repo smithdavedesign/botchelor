@@ -52,9 +52,11 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   const auth = authFromCookieStore(store);
   const entitled = await canAfterDark(db, auth);
   // Once the public door is open (lib/adult/door.ts), someone it isn't open to yet lands on the subscribe page (the taste,
-  // the invite request, the waitlist); until then, the same not-found as anywhere else.
+  // the invite request, the waitlist); until then, the same not-found as anywhere else. Someone signed out always does
+  // (the 2026-11-22 audit: ad.botchelor.com showed a bare not-found, with no way for a member or a reviewer to sign in):
+  // that page is the visitor's, with the sign-in, and shows nothing of anyone's nights.
   if (!entitled.ok) {
-    if (await publicDoorOpen()) redirect("/after-dark/subscribe");
+    if (entitled.why === "signed_out" || (await publicDoorOpen())) redirect("/after-dark/subscribe");
     notFound();
   }
   // A device that hasn't entered this account's PIN gets nothing from here: the layout shows the PIN prompt instead.
@@ -220,7 +222,7 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
             <h2 id="ad-episodes">Episodes</h2>
             <Link href="/after-dark/shorts">{shorts.length ? "All episodes and the 📣 board →" : "📣 The Call it board →"}</Link>
           </div>
-          <p className="muted small ad-home-sub">The house cast&apos;s nights, published as episodes to read and watch. Included in the subscription.</p>
+          <p className="muted small ad-home-sub">The house cast&apos;s nights, published as episodes to read and watch.</p>
           {shorts.length ? (
             <EpisodeCards shorts={shorts} watched={watched} textOnly={textOnly} />
           ) : (

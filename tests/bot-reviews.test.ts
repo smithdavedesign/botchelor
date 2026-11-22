@@ -195,8 +195,17 @@ describe("a fixed gripe reads as fixed", () => {
     expect(html).toMatch(new RegExp(`<li class="card bot-card bot-gripe bot-open"><span class="chip">${ICON.source} Gripe · open</span>`));
     expect(html).toContain("1 of 2 gripes fixed, 1 open.");
     expect(html).toContain("Read all 4 reviews");
-    // They are AI agents' reviews, and the strip says so.
+    // They are AI models' reviews from our own test, and the strip says so (2026-11-22 audit: they read as outside agents').
     expect(html).toContain("What the bots are saying");
-    expect(html).toContain("AI agents nobody briefed");
+    expect(html).toContain("Our own test sends AI models through the show with no instructions");
+    expect(html).not.toContain("nobody briefed");
+  });
+
+  it("on /reviews, says the reviews come from our own test runs, not outside users, and counts test visits", () => {
+    const html = renderToStaticMarkup(createElement(BotReviews, { said: undefined, page: undefined, keep: {} }));
+    expect(html).toContain("Our own test sends AI models through Botchelor over");
+    expect(html).toContain("our test, not outside users.");
+    expect(html).toContain("test visits quoted");
+    expect(html).not.toMatch(/nobody (has )?briefed/);
   });
 });

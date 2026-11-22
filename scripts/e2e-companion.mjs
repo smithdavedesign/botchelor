@@ -401,7 +401,7 @@ async function main() {
     await notice.waitFor({ timeout: 5_000 });
     const text = ((await notice.textContent()) ?? "").replace(/\s+/g, " ");
     assert(text.startsWith(starts), `the call's notice should start "${starts}", got "${text}"`);
-    assert(text.includes("the words are saved as messages in this chat. You can delete them later, in this chat's ⚙️ Settings."), `the call's notice should say the words are kept and where they're deleted: "${text}"`);
+    assert(/as messages(?: in this chat)?\. You can delete them later, in this chat's ⚙️ Settings\./.test(text), `the call's notice should say the words are kept and where they're deleted: "${text}"`);
     const link = notice.getByRole("link", { name: "What a call keeps" });
     assert((await link.getAttribute("href")) === "/privacy#calls" && (await link.getAttribute("target")) === "_blank", "the notice should open the privacy notice's calls section in a new tab");
     // Readable on the call's dark backdrop: the link takes the line's own colour, not the site's accent.
@@ -638,7 +638,7 @@ async function main() {
       await shot(page, "companion-call-ready-desktop");
       // v1, taking turns.
       await call.getByRole("radio", { name: /Taking turns/ }).check();
-      await callNotice(call, "Your audio never reaches us: your browser turns it into words", 1280);
+      await callNotice(call, "Your browser's speech service (Google in Chrome, Apple in Safari) hears you", 1280);
       // Taking turns, the reply is said in their call voice (Aura, made on the server), not the device's.
       assert(((await call.textContent()) ?? "").includes(`${first}'s call voice · free`), "taking turns should offer their call voice");
       await call.getByRole("button", { name: `📞 Call ${first}` }).click();
@@ -777,7 +777,7 @@ async function main() {
         const storedMode = await p.evaluate(() => localStorage.getItem("bz_call_mode"));
         assert(await call.getByRole("radio", { name: /Taking turns/ }).isChecked(), `the way picked last time should be picked again (stored: ${storedMode})`);
         // "How calls work" is folded, so the line above the button is all a returning caller sees: it must be there.
-        await callNotice(call, "Your audio never reaches us: your browser turns it into words", 390);
+        await callNotice(call, "Your browser's speech service (Google in Chrome, Apple in Safari) hears you", 390);
         for (const name of [`📞 Call ${first}`, "Not now"]) {
           const box = await call.getByRole("button", { name }).boundingBox();
           assert(box && box.y + box.height <= 844, `${name} should be on screen before scrolling`);

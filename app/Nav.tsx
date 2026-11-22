@@ -164,14 +164,15 @@ export default function Nav({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   // #1005 (2026-10-30 prod loop: "the shop said 40 tokens, the header still said 43"): the count is read again when the
-  // page comes back into view and every half minute on a page that spends, so a spend shows without a reload.
+  // page comes back into view and every half minute on a page that spends, so a spend shows without a reload. After
+  // Dark's count is its own route's (app/api/after-dark/tokens): the balance as After Dark may spend it, never the show's.
   const [tokens, setTokens] = useState(initialTokens);
   useEffect(() => setTokens(initialTokens), [initialTokens]);
   useEffect(() => {
     if (!personal) return;
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
-      fetch("/api/me", { cache: "no-store" })
+      fetch(meter === "tokens" ? "/api/after-dark/tokens" : "/api/me", { cache: "no-store" })
         .then(okJson)
         .then((me) => {
           const n = me?.[meter === "tokens" ? "tokens_left" : "dates_left"];
@@ -232,7 +233,7 @@ export default function Nav({
         {/* #539: the count is free dates this week plus topped-up tokens, so it says "dates left", not "tokens". */}
         {meter === "none" ? null : personal && meter === "tokens" ? (
           // #1173: After Dark's own page says what a token buys and how to get more (the show's shop sells them as dates).
-          <Link href="/after-dark/tokens" className={`token-pill token-pill--tokens${tone}`} title="Tokens left. The subscription includes the chapters, their pictures and a few clips a month; tokens pay for the extras (more clips, the video of the night). The show's free weekly dates aren't spent here.">
+          <Link href="/after-dark/tokens" className={`token-pill token-pill--tokens${tone}`} title="Tokens left for After Dark's extras (clips, the video of the night). Your pass covers the chapters and their pictures. Tap for what a token buys and where yours come from.">
             <span className="token-pip" aria-hidden="true">◈</span>
             <span className="token-count">{tokens}</span>
             <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>

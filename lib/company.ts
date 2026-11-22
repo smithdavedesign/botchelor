@@ -65,7 +65,7 @@ export const CONTACT_ROUTES: readonly Route[] = [
   { id: "report", what: "Something wrong in an episode, a character or a picture", how: "The report form. Every episode and character has a report button too.", href: "/report" },
   { id: "refund", what: "A refund, or a purchase that didn't arrive", how: "Send us your Stripe receipt.", subject: "Refund" },
   { id: "cancel", what: "Cancelling a subscription", how: "Step by step, for each plan.", href: "/cancel" },
-  { id: "privacy", what: "Your data: a copy, a correction or deleting it", how: "Delete your account from your account page, or ask us.", href: "/account", subject: "Privacy request" },
+  { id: "privacy", what: "Your data: a copy, a correction or deleting it", how: "Delete your account from your account page, or ask us.", href: "/account#delete-account", subject: "Privacy request" },
   { id: "copyright", what: "Copyright and takedown notices", how: "How to send one is in the terms.", href: "/terms#copyright" },
   { id: "security", what: "A security problem", how: "How to report it, and what we promise in return.", href: "/security" },
   { id: "press", what: "Press and writing about the show", how: "Start with the press kit.", href: "/press", subject: "Press" },

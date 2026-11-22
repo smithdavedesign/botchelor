@@ -32,7 +32,7 @@
 import type { CameraMoveId } from "./camera-moves";
 import { readinessOf, type Readiness, type SetupOffer } from "./readiness";
 import { isAdmin } from "../admins";
-import { adTokenBalance, refundAdTokens, spendAdTokens } from "./tokens";
+import { adTokenBalance, moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { LOOK_DETAILS, LOOK_STEPS, hairWords, tileId, looksAppearance, looksPictureWords, normaliseLooks, optionPrompt, optionsFor, type Gender, type Looks } from "../looks";
@@ -487,7 +487,7 @@ async function runJob(db: Db, viewer: string, access: Extract<StudioAccess, { ok
   if (!gate.ok) return fail(503, "hive_paused", gate.message);
   const pays = spec.tokens > 0 && !access.admin;
   if (pays && !(await spendAdTokens(db, viewer, spec.tokens))) {
-    return fail(402, "needs_tokens", `That costs ${spec.tokens} token${spec.tokens === 1 ? "" : "s"}. Get more on the tokens page.`);
+    return fail(402, "needs_tokens", `That costs ${spec.tokens} token${spec.tokens === 1 ? "" : "s"}. ${moreTokensLine()}`);
   }
   const id = crypto.randomUUID();
   await db.query(
@@ -1240,7 +1240,7 @@ export async function setUpForPictures(db: Db, viewer: string, characterId: stri
   if (plan.drawing) return fail(409, "setting_up", `${first}'s setup is still drawing: it lands in a minute or two.`);
   // What both parts need, before anything is drawn or spent: the tokens for both, and room in the month for every picture.
   if (plan.tokens > 0 && (await adTokenBalance(db, viewer)) < plan.tokens) {
-    return fail(402, "needs_tokens", `Setting ${first} up costs ${plan.tokens} token${plan.tokens === 1 ? "" : "s"}. Get more on the tokens page.`);
+    return fail(402, "needs_tokens", `Setting ${first} up costs ${plan.tokens} token${plan.tokens === 1 ? "" : "s"}. ${moreTokensLine()}`);
   }
   const room = await usageLeft(db, viewer, "studio");
   if (room !== null && room < plan.faces + plan.bodies) return fail(429, "over_cap", `That's ${plan.faces + plan.bodies} pictures and ${room} are left this month. They reset on the 1st.`);
@@ -1819,7 +1819,7 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   if (capped) return fail(429, "over_cap", capped);
   const tokens = seconds === 10 ? config.prices.animate_10 : config.prices.animate_5;
   const pays = tokens > 0 && !admin;
-  if (pays && !(await spendAdTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. Get more on the tokens page.`);
+  if (pays && !(await spendAdTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. ${moreTokensLine()}`);
   const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
   let queueId: string;
   let sent: LoggedRequest[] = [];

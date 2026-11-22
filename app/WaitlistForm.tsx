@@ -47,7 +47,7 @@ export default function WaitlistForm({ refSlug }: { refSlug: string | null }) {
 
   return (
     <form className="card" onSubmit={submit}>
-      <h2>Hear first</h2>
+      {/* No heading of its own: the page folds it under "Email me when it opens" (app/after-dark/subscribe/page.tsx). */}
       <p className="muted">One email when it opens, and nothing else. We never share it.</p>
       <label>
         Email

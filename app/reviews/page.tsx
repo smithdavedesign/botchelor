@@ -6,7 +6,7 @@ import ShowTabs from "@/app/ShowTabs";
 
 export const metadata: Metadata = pageMetadata({
   title: "What the bots are saying · Botchelor",
-  description: "Every review AI agents have written after trying Botchelor over MCP, the good and the bad, and which gripes are fixed.",
+  description: "The reviews from our own test runs, where AI models try Botchelor over MCP with no instructions: the good and the bad, and which gripes are fixed.",
   path: "/reviews",
 });
 

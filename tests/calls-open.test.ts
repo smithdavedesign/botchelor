@@ -52,7 +52,9 @@ describe("/calls", () => {
     expect(html).toContain('class="card tap-card open-calls-next open-calls-empty" data-track="share-record-lobby" href="/watch"');
     expect(html).not.toContain('class="card tap-card open-call"');
     expect(html).not.toContain("Nothing is waiting to air right now");
-    expect(html).toContain('data-track="share-record-cta" href="/watch#airing-soon"');
+    // Nothing to call: the button doesn't ask for a call above "Nothing is on the air" (2026-11-22 audit), it goes to the schedule.
+    expect(html).toContain('data-track="share-record-cta" href="/watch">See tonight&#x27;s schedule</a>');
+    expect(html).not.toContain("Call tonight&#x27;s endings");
     expect(html).toContain("season pool");
   });
 
@@ -91,7 +93,7 @@ describe("/calls", () => {
     // Each card is the episode's own link (where the lobby's card goes), and only four of the five made it on.
     expect(made.filter((ep) => cards.includes(`href="/episodes/${ep.id}"`))).toHaveLength(4);
     expect(html).not.toContain("Nothing is waiting to air right now");
-    expect(html).toContain('data-track="share-record-cta" href="/watch#airing-soon"');
+    expect(html).toContain('data-track="share-record-cta" href="/watch#airing-soon">Call tonight&#x27;s endings</a>');
   });
 
   it("a shared record keeps its grid, its words and its name, with the open calls under them", async () => {

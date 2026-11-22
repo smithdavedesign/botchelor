@@ -244,6 +244,8 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
     expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(page(`${AD}/after-dark`)).toBe(`307 ${AD}/gate?from=%2Fafter-dark - -`); // the gate, here, as on the show
     expect(page(`${AD}/gate?from=/after-dark`)).toBe("200 - next -");
+    // The 2257 statement, the content policy and the report form stay on its own address (2026-11-22 audit).
+    for (const own of ["/2257", "/content-policy", "/report?what=x"]) expect(`${own} ${page(`${AD}${own}`, { cookie: "bz_adult=1" })}`).toBe(`${own} 200 - next -`);
     expect(page(`${AD}/admin/after-dark/graph`, { cookie: "bz_adult=1" })).toBe("200 - next -");
     expect(page(`${AD}/`, { cookie: "bz_adult=1" })).toBe(`307 ${SHOW}/after-dark - -`); // #1034: its own address opens it
     expect(page(`${AD}/characters?tab=people`, { cookie: `bz_adult=1; bz_uid=${UID}` })).toBe(`307 ${SHOW}/characters?tab=people - -`);
@@ -294,6 +296,7 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
       "/api/me",
       "/api/line-feedback?kind=after_dark&ref=x",
       "/api/library",
+      "/api/content-reports",
     ];
     for (const path of kept) expect(`${path} ${await go(path)}`).toBe(`${path} 200 -`);
     const sent = ["/api/episodes/e1/reveal?x=1", "/api/auth/login", "/api/auth/google/start", "/api/auth/carry2", "/api/admin/after-darkness", "/api/webhooks/stripe", "/api/jobs/daily", "/api/me/keys"];
@@ -308,6 +311,8 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
     const start = [
       ...[join(ROOT, "app/after-dark"), join(ROOT, "app/admin/after-dark")].flatMap((d) => readdirSync(d, { recursive: true, encoding: "utf8" }).map((f) => join(d, f))),
       ...["app/Nav.tsx", "app/AgeGate.tsx", "app/FeedbackDock.tsx", "app/WaitlistForm.tsx", "lib/venues.ts"].map((f) => join(ROOT, f)),
+      // The pages it serves besides its own (lib/after-dark-host.ts AFTER_DARK_HOST_PAGES): the report form posts here.
+      ...["app/gate/page.tsx", "app/2257/page.tsx", "app/content-policy/page.tsx", "app/report/page.tsx"].map((f) => join(ROOT, f)),
     ].filter((f) => /\.tsx?$/.test(f));
     const files = new Set<string>();
     const visit = (f: string) => {

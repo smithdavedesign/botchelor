@@ -2,13 +2,24 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST as adminGrantPost } from "@/app/api/admin/after-dark/tokens/route";
 import { GET as segpayGet } from "@/app/api/after-dark/billing/segpay/route";
 import { GET as verotelGet } from "@/app/api/after-dark/billing/verotel/route";
-import { POST as buyPost } from "@/app/api/after-dark/tokens/route";
+import { GET as tokensGet, POST as buyPost } from "@/app/api/after-dark/tokens/route";
 import { deleteAfterDarkData } from "@/lib/account";
 import { claimAdmin, grantTokens } from "@/lib/admins";
 import { episodeAllowance } from "@/lib/allowance";
 import { ccbillSingleDigest, ccbillSinglePayUrl } from "@/lib/adult/billing-ccbill";
 import { parseVerotelPostback, verotelPurchaseUrl, verotelSignature, verotelSignatureValid } from "@/lib/adult/billing-verotel";
-import { adTokenBalance, adTokensOn, grantAdTokens, refundAdTokens, spendAdTokens, tokenPacks, tokenProcessors } from "@/lib/adult/tokens";
+import {
+  adSpendsShowTokens,
+  adTokenBalance,
+  adTokenSource,
+  adTokensOn,
+  grantAdTokens,
+  moreTokensLine,
+  refundAdTokens,
+  spendAdTokens,
+  tokenPacks,
+  tokenProcessors,
+} from "@/lib/adult/tokens";
 import { setPlaceForTests } from "@/lib/place";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
@@ -33,7 +44,7 @@ beforeEach(async () => {
   for (const name of [
     "CCBILL_ACCOUNT", "CCBILL_SUBACCOUNT", "CCBILL_FLEX_ID", "CCBILL_SALT", "CCBILL_WEBHOOK_KEY", "SEGPAY_PACKAGE_ID", "SEGPAY_PRICE_POINT_ID",
     "SEGPAY_POSTBACK_SECRET", "SEGPAY_POSTBACK_IPS", "SEGPAY_TOKEN_PRICE_POINTS", "VEROTEL_SHOP_ID", "VEROTEL_SIGNATURE_KEY", "VEROTEL_PERIOD",
-    "AD_TOKEN_PACKS", "AFTER_DARK_ORIGIN", "AFTER_DARK_ONLY", "RESEND_API_KEY",
+    "AD_TOKEN_PACKS", "AFTER_DARK_ORIGIN", "AFTER_DARK_ONLY", "RESEND_API_KEY", "AD_SPEND_SHOW_TOKENS",
   ]) {
     vi.stubEnv(name, "");
   }
@@ -136,16 +147,75 @@ describe("the packs and who sells them", () => {
   });
 });
 
+/** A date pack paid for on the show's checkout (Stripe). */
+async function boughtOnShow(id: string, episodes = 5, status = "paid") {
+  await t.db.query(
+    `insert into orders (id, user_id, sku, kind, amount_cents, currency, status, episodes, paid_at) values ($1, $2, 'episode_pack_5', 'episode_pack', 400, 'usd', $3, $4, now())`,
+    [crypto.randomUUID(), id, status, episodes],
+  );
+}
+
 describe("the balance", () => {
-  it("until a processor sells packs, After Dark spends and refunds the show's bought tokens, as before", async () => {
+  it("until a processor sells packs, After Dark spends and refunds the show's balance when it's all given (an admin's grant)", async () => {
     const id = userIdOf(newUserCookie());
     await grantTokens(t.db, id, 5, "test");
+    expect(await adTokenSource(t.db, id)).toBe("given");
     expect(await adTokenBalance(t.db, id)).toBe(5);
     expect(await spendAdTokens(t.db, id, 3)).toBe(true);
     expect((await episodeAllowance(t.db, id)).pack_left).toBe(2);
     expect(await spendAdTokens(t.db, id, 3)).toBe(false);
     await refundAdTokens(t.db, id, 3);
     expect(await adTokenBalance(t.db, id)).toBe(5);
+  });
+
+  it("never spends a balance with tokens bought on the show's checkout: Stripe never pays for After Dark (2026-11-22 audit)", async () => {
+    const id = userIdOf(newUserCookie());
+    await grantTokens(t.db, id, 5, "test");
+    await boughtOnShow(id);
+    expect(adSpendsShowTokens()).toBe(false);
+    expect(await adTokenSource(t.db, id)).toBe("bought_on_show");
+    expect(await adTokenBalance(t.db, id)).toBe(0);
+    expect(await spendAdTokens(t.db, id, 1)).toBe(false);
+    // Nothing was taken from the show's balance.
+    expect((await episodeAllowance(t.db, id)).pack_left).toBe(10);
+    expect((await t.db.query(`select used from pack_episode_usage where user_id = $1`, [id])).rows).toEqual([]);
+    expect(moreTokensLine()).toBe("After Dark's own billing isn't open yet, so there's no way to get more for now.");
+  });
+
+  it("a pack refunded on the show stops counting as bought, as it stops counting in the balance", async () => {
+    const id = userIdOf(newUserCookie());
+    await grantTokens(t.db, id, 2, "test");
+    await boughtOnShow(id, 5, "refunded");
+    expect(await adTokenSource(t.db, id)).toBe("given");
+    expect(await adTokenBalance(t.db, id)).toBe(2);
+    expect(await spendAdTokens(t.db, id, 2)).toBe(true);
+  });
+
+  it("refuses in the same statement once a purchase lands, though the balance was all given a moment before", async () => {
+    const id = userIdOf(newUserCookie());
+    await grantTokens(t.db, id, 5, "test");
+    expect(await spendAdTokens(t.db, id, 1)).toBe(true);
+    await boughtOnShow(id);
+    expect(await spendAdTokens(t.db, id, 1)).toBe(false);
+    expect((await t.db.query<{ used: number }>(`select used from pack_episode_usage where user_id = $1`, [id])).rows[0]!.used).toBe(1);
+  });
+
+  it("AD_SPEND_SHOW_TOKENS=1 brings back the shared balance, bought tokens and all: one setting to reverse it", async () => {
+    vi.stubEnv("AD_SPEND_SHOW_TOKENS", "1");
+    const id = userIdOf(newUserCookie());
+    await grantTokens(t.db, id, 1, "test");
+    await boughtOnShow(id);
+    expect(adSpendsShowTokens()).toBe(true);
+    expect(await adTokenSource(t.db, id)).toBe("show");
+    expect(await adTokenBalance(t.db, id)).toBe(6);
+    expect(await spendAdTokens(t.db, id, 4)).toBe(true);
+    expect((await episodeAllowance(t.db, id)).pack_left).toBe(2);
+    await refundAdTokens(t.db, id, 4);
+    expect(await adTokenBalance(t.db, id)).toBe(6);
+    expect(moreTokensLine()).toBe("Get more on the tokens page.");
+    // Anything but "1" leaves it off.
+    vi.stubEnv("AD_SPEND_SHOW_TOKENS", "yes");
+    expect(await adTokenBalance(t.db, id)).toBe(0);
   });
 
   it("once they're sold, it's After Dark's own: the show's tokens don't count, and it never overdraws or refunds below zero", async () => {
@@ -162,6 +232,21 @@ describe("the balance", () => {
     expect(await adTokenBalance(t.db, id)).toBe(10);
     // The show's own tokens weren't touched.
     expect((await episodeAllowance(t.db, id)).pack_left).toBe(5);
+    expect(await adTokenSource(t.db, id)).toBe("own");
+    expect(moreTokensLine()).toBe("Get more on the tokens page.");
+  });
+
+  it("the header pill's count (GET): a member's balance as After Dark may spend it; not found for anyone else", async () => {
+    const who = await subscriber();
+    await grantTokens(t.db, who.id, 3, "test");
+    const get = (cookie: string | null) => tokensGet(new Request(`${BASE_URL}/api/after-dark/tokens`, { headers: cookie ? { cookie } : {} }));
+    const res = await get(who.cookie);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ tokens_left: 3 });
+    await boughtOnShow(who.id);
+    expect(await (await get(who.cookie)).json()).toEqual({ tokens_left: 0 });
+    expect((await get(signedInCookie(userIdOf(newUserCookie())))).status).toBe(404);
+    expect((await get(null)).status).toBe(404);
   });
 });
 

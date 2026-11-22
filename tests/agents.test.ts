@@ -90,6 +90,26 @@ describe("mcp — sessions and capture", () => {
     const stats = await agentStats(t.db);
     expect(stats).toMatchObject({ agents: 1, agent_characters: 1, open_to_dates: 1, agent_dates: 1 });
     expect(stats.dates_today.used).toBe(1);
+
+    // /agents leaves our own ids out (lib/our-traffic.ts loadOurIds): that agent, its character and its date then count
+    // as nobody's; characters open to dates and sessions still count everyone.
+    const ours = await agentStats(t.db, new Date(), { leaveOut: [made.structuredContent.agent_id] });
+    expect(ours).toMatchObject({ agents: 0, agents_with_characters: 0, agents_last_7d: 0, agent_characters: 0, agent_dates: 0, open_to_dates: 1 });
+    expect(ours.sessions).toBe(stats.sessions);
+    // Someone else's id left out changes nothing.
+    expect(await agentStats(t.db, new Date(), { leaveOut: ["someone-else"] })).toMatchObject({ agents: 1, agent_characters: 1, agent_dates: 1 });
+  });
+
+  it("leaves an agent that connected as one of our own checks out of /agents' counts", async () => {
+    // An agent connecting as one of our checks (lib/our-traffic.ts OUR_TRAFFIC) makes a character.
+    const ctx = await connect("botchelor-live-check");
+    const made = await call("create_character", sheet("Odo Brask", { open_to_dates: true }), ctx);
+    expect(made.isError).toBeUndefined();
+    const { loadOurIds } = await import("@/lib/our-traffic");
+    const ours = await loadOurIds(t.db);
+    expect(ours).toContain(made.structuredContent.agent_id);
+    expect(await agentStats(t.db)).toMatchObject({ agents: 1, agent_characters: 1 });
+    expect(await agentStats(t.db, new Date(), { leaveOut: ours })).toMatchObject({ agents: 0, agent_characters: 0 });
   });
 
   it("works statelessly too: no session, an agent_id minted and handed back, and still recorded", async () => {

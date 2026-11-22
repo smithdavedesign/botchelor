@@ -196,7 +196,7 @@ import { GENERIC_OPENINGS } from "../scene-cards";
 import { arcQuestion, predictArc } from "../arcs";
 import { extrasText, renameLeftovers } from "../rename-leftovers";
 import { AIR_TIMING_NOTE, airDueDates, airIfDue, airsFrom, airsWhen, type AirTiming, airTimings, airWindowMinutes, scheduleAir, waitsOnRoom } from "../air";
-import { CONVERSATION_TURNS, dateLabel, TURN_DIALOGUE_MAX } from "../rules";
+import { CONVERSATION_TURNS, dateLabel, DELETED_OWNER, TURN_DIALOGUE_MAX } from "../rules";
 import { isPlaceholder, placeLabel, placesLabel, venueName, venuePhrase, venueShown } from "../venues";
 import { movePlace, planPlace } from "../places";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX, feedbackBoard, saveFeedback, similarOnBoard, voteFeedback } from "../feedback";
@@ -7894,14 +7894,24 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const ids = withId ? [id, withId] : [id];
       const edges = withId ? [await loadRelationship(db, id, withId)].filter((r): r is Relationship => r !== null) : await relationshipsOf(db, id);
       const others = edges.map((r) => (r.lo === id ? r.hi : r.lo));
-      const charRows = (await db.query<{ id: string; name: string; owner_id: string | null }>(`select id, name, owner_id from characters where id = any($1)`, [[...new Set([...ids, ...others])]])).rows;
+      const charRows = (
+        await db.query<{ id: string; name: string; owner_id: string | null; visibility: string }>(`select id, name, owner_id, visibility from characters where id = any($1)`, [[...new Set([...ids, ...others])]])
+      ).rows;
       const names = new Map(charRows.map((r) => [r.id, r.name]));
       const mineIds = new Set(charRows.filter((r) => r.owner_id === who.id).map((r) => r.id));
+      // 2026-11-21: someone else's private character is its name only, so none of its relationships either; and only an
+      // owner of the pair sees one with a private character, or with a deleted account's (kept so aired dates keep both names).
+      const unseen = new Set(charRows.filter((r) => r.owner_id !== who.id && (r.visibility === "private" || r.owner_id === DELETED_OWNER)).map((r) => r.id));
+      if (unseen.has(id) && charRows.some((r) => r.id === id && r.visibility === "private")) {
+        return { data: { character_id: id, name: names.get(id) ?? null, private: true, relationships: [], note: "Its creator keeps this character private: only its name is shown." }, identity: who };
+      }
       // #1033 (the 2026-10-30-2046 run: one pair read "disaster" from one side and "second_date" from the other): an owner of
       // EITHER character sees the owners' layer (lib/relationships.ts visibleTo), as the couple page does, so asking from
       // the other side's character_id no longer drops to the public layer. Per edge, so the same pair reads the same both ways.
       const ownsEdge = (rel: Relationship) => mineIds.has(rel.lo) || mineIds.has(rel.hi);
-      const views = edges.map((rel) => ({ rel, owner: ownsEdge(rel), view: viewRelationship(rel, { userId: who.id, owner: ownsEdge(rel) }) }));
+      const views = edges
+        .filter((rel) => ownsEdge(rel) || !unseen.has(rel.lo === id ? rel.hi : rel.lo))
+        .map((rel) => ({ rel, owner: ownsEdge(rel), view: viewRelationship(rel, { userId: who.id, owner: ownsEdge(rel) }) }));
       // 2.9.0: when each unaired date airs, for the stage note below.
       const unairedIds = views.flatMap(({ view, owner }) => (owner && view ? view.timeline.filter((x) => !x.aired).map((x) => x.episode_id) : []));
       const [airAt, privateDates] = await Promise.all([

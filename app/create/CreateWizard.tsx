@@ -1025,6 +1025,8 @@ export default function CreateWizard({
         ...(hidingList(hiding).length ? { hiding: hidingList(hiding) } : {}),
         ...(typeTags?.length ? { tags: typeTags } : {}),
         attest,
+        // The same box says they're 18 or older: the only thing that lets the save set the 18+ gate's cookie.
+        ...(attest ? { over_18: true } : {}),
       });
       if (status === 201) {
         // `express`: drafted from one sentence (lib/express-create.ts), so the funnel can tell the two ways in apart.
@@ -1254,8 +1256,9 @@ export default function CreateWizard({
           <p className="kicker">Create</p>
           <h1>Build your character</h1>
           {/* One line (2026-11-08 UI audit, item 10: five lines of intro pushed the first field off a phone's first screen;
-              that nobody steers a date is on the home page and in the questions). */}
-          {step === S.identity && expressOpen && <p className="muted wizard-intro">An original fictional adult, from a sentence. Change anything before they&apos;re created.</p>}
+              that nobody steers a date is on the home page and in the questions). The one box's says it's free and nothing
+              is final (2026-11-22 audit: the page never said free), still two lines on a 360px phone. */}
+          {step === S.identity && expressOpen && <p className="muted wizard-intro">An original fictional adult, from a sentence. It&apos;s free, and you can change anything after.</p>}
           {step === S.identity && !expressOpen && (
             <p className="muted wizard-intro">
               {depth
@@ -1365,8 +1368,11 @@ export default function CreateWizard({
             </label>
           </div>
           <div className="wizard-actions express-actions">
+            {/* Grey until there's a sentence, and it says so itself (2026-11-22 audit: a grey "Meet them" with no word on why
+                read as broken). In the label, not a line under it: on a phone this bar is stuck to the bottom of the screen,
+                and any taller it covers the examples. */}
             <button type="submit" disabled={expressBusy || expressText.trim().length < EXPRESS_TEXT_MIN} data-track="express-meet">
-              {expressBusy ? "Drafting them…" : "Meet them"}
+              {expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to meet them" : "Meet them"}
             </button>
             {/* The ways out, always one tap away, in the same bar as the button (it sticks to the bottom on a phone). */}
             <p className="muted small express-alt">
@@ -1378,7 +1384,7 @@ export default function CreateWizard({
                 Use a sample character
               </button>
               {" · "}
-              <Link href={IMPORT_PATH}>bring one from another app</Link>
+              <Link href={IMPORT_PATH}>Import one from another app</Link>
             </p>
           </div>
         </form>
@@ -1736,7 +1742,7 @@ export default function CreateWizard({
                 <label className="check wizard-attest">
                   <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
                   <span>
-                    <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
+                    <span aria-hidden>✍️ </span>I&apos;m 18 or older, and this is my own original character: a fictional adult, not a real person.
                   </span>
                 </label>
                 <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk} data-track="create-top">
@@ -1890,7 +1896,7 @@ export default function CreateWizard({
             <label className="check wizard-attest">
               <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
               <span>
-                <span aria-hidden>✍️ </span>This is my own original character: a fictional adult, not a real person.
+                <span aria-hidden>✍️ </span>I&apos;m 18 or older, and this is my own original character: a fictional adult, not a real person.
               </span>
             </label>
           )}
@@ -1902,7 +1908,7 @@ export default function CreateWizard({
                   <>
                     Tick{" "}
                     <button type="button" className="link-button" onClick={() => document.getElementById("wizard-attest")?.focus()}>
-                      &ldquo;my own original character&rdquo;
+                      &ldquo;I&apos;m 18 or older&rdquo;
                     </button>{" "}
                     above to create them.
                   </>
