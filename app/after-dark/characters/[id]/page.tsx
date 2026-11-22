@@ -157,7 +157,12 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
                 <li key={m.id} data-ad-character-media={m.id}>
                   <Link href={`/after-dark/gallery?tab=${m.kind === "video" ? "videos" : "pictures"}`} title={m.kind === "video" ? "Your videos, in the Gallery" : "Your pictures, in the Gallery"}>
                     {m.kind === "video" ? (
-                      <video src={`/api/admin/after-dark/media/${m.id}#t=0.1`} preload="metadata" muted playsInline aria-label={`One of your videos of ${name}`} />
+                      // By its picture when it has one: nothing of the video loads before it plays.
+                      m.poster ? (
+                        <video src={`/api/admin/after-dark/media/${m.id}`} poster={`/api/admin/after-dark/media/${m.poster}?w=640`} preload="none" muted playsInline aria-label={`One of your videos of ${name}`} />
+                      ) : (
+                        <video src={`/api/admin/after-dark/media/${m.id}#t=0.1`} preload="metadata" muted playsInline aria-label={`One of your videos of ${name}`} />
+                      )
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element -- a private file from the media route
                       <img src={`/api/admin/after-dark/media/${m.id}?w=640`} alt={`One of your pictures of ${name}`} loading="lazy" />

@@ -29,6 +29,21 @@ const nav = vi.hoisted(() => ({
   }),
 }));
 vi.mock("next/navigation", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/navigation")>()), redirect: nav.redirect, notFound: nav.notFound }));
+// Who's looking, for the page's own cookie read (a private date's own people get a note instead of the 404).
+const viewer = vi.hoisted(() => ({ cookie: "" }));
+vi.mock("next/headers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/headers")>()),
+  cookies: async () => {
+    const jar = new Map(
+      viewer.cookie
+        .split(";")
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => [p.slice(0, p.indexOf("=")), p.slice(p.indexOf("=") + 1)] as const),
+    );
+    return { get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined) };
+  },
+}));
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { BEACON_REFS } from "@/app/funnel";
@@ -52,7 +67,7 @@ import {
   verdictsOf,
 } from "@/lib/report-card";
 import { DATE_VARIABLES } from "@/lib/rules";
-import { api, BASE_URL, setupEpisode, startTestDb } from "./helpers";
+import { api, BASE_URL, newUserCookie, setupEpisode, startTestDb } from "./helpers";
 
 const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
 const box = (finals: Partial<Record<(typeof DATE_VARIABLES)[number], number>>, delta = 0): BoxScore =>
@@ -165,6 +180,7 @@ describe("the page and the picture, on a real date", () => {
   beforeEach(async () => {
     await t.reset();
     og.elements.length = 0;
+    viewer.cookie = "";
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
   afterEach(() => vi.restoreAllMocks());
@@ -188,6 +204,8 @@ describe("the page and the picture, on a real date", () => {
     expect(ALL_GRADES).toContain(overall);
     expect(html).toContain("A disaster");
     expect(html.match(/data-subject=/g)).toHaveLength(DATE_VARIABLES.length);
+    // 2026-11-22 audit: the letter is where the date stands among aired ones, said over the grades, not only at the foot.
+    expect(html).toContain("Each grade compares this date with every date on the air; the words say how it went on the night.");
     expect(html).toContain(`href="${`/episodes/${episode.id}`}?ref=${REPORT_REF}"`);
     expect(html).toContain('href="/create"');
 
@@ -221,11 +239,20 @@ describe("the page and the picture, on a real date", () => {
     expect(words).toContain("AI characters on a blind date nobody steers");
   });
 
-  it("a private date has none, aired or not", async () => {
+  it("a private date has none, aired or not: its own people are told why, anyone else gets the 404", async () => {
     const { episode, creator } = await setupEpisode("second_date");
     await api.reveal(episode.id, creator);
     expect((await api.setVisibility(episode.id, "private", creator)).status).toBe(200);
     expect((await picture(episode.id)).status).toBe(404);
+    await expect(page(episode.id)).rejects.toMatchObject({ notFound: true });
+    // 2026-11-22 audit: its owner read "doesn't exist, or it was hidden after several viewers reported it".
+    viewer.cookie = creator;
+    const own = text(renderToStaticMarkup(await page(episode.id)));
+    expect(own).toContain("Private dates have no report card");
+    expect(own).toContain("is private: only you can watch it");
+    expect(own).toContain(`href="/episodes/${episode.id}"`);
+    expect(own).not.toContain("data-subject=");
+    viewer.cookie = newUserCookie();
     await expect(page(episode.id)).rejects.toMatchObject({ notFound: true });
   });
 });

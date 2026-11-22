@@ -10,7 +10,7 @@
  *   ("botchelor-loop-…": lib/house-bots.ts). The loop arena's
  *   background crowd (scripts/loop/crowd.mjs) connects under other names on purpose, so it stays "agent".
  *
- * The /characters hub (app/characters/page.tsx) files each origin under one tab: the cast, people's, agent-made.
+ * The /characters hub (app/characters/(list)/page.tsx) files each origin under one tab: the cast, people's, agent-made.
  */
 import type { Db } from "./db";
 import { houseBotSql, originalSql } from "./house-bots";

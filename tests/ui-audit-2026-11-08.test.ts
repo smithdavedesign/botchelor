@@ -299,8 +299,8 @@ describe("page widths (docs/brand.md, Layout)", () => {
     for (const [page, root] of [
       ["app/page.tsx", '<div className="home page-wide">'],
       ["app/watch/page.tsx", 'className="watch-page page-wide"'],
-      ["app/characters/page.tsx", 'className="characters-hub page-wide"'],
-      ["app/companion/page.tsx", 'className="companion-page page-wide"'],
+      ["app/characters/(list)/page.tsx", 'className="characters-hub page-wide"'],
+      ["app/companion/(list)/page.tsx", 'className="companion-page page-wide"'],
       ["app/showcase/page.tsx", "showcase-page page-full"],
       ["app/creators/[handle]/page.tsx", "showcase-page page-full"],
       ["app/after-dark/gallery/page.tsx", '<div className="after-dark-mode page-full">'],
@@ -343,7 +343,7 @@ describe("balanced grids (lib/grid-balance.ts)", () => {
 
   it("is set on the season's cast, at home and on Characters", () => {
     expect(source("app/page.tsx")).toMatch(/className="home-cast-faces grid-balanced"[\s\S]{0,200}"--cols": balancedColumns\(/);
-    expect(source("app/characters/page.tsx").match(/gallery grid-balanced/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(source("app/characters/(list)/page.tsx").match(/gallery grid-balanced/g)?.length).toBeGreaterThanOrEqual(2);
   });
 });
 

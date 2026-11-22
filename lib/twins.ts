@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { loadCharacter } from "./character";
 import type { Db } from "./db";
+import type { CharacterExtras } from "./extras";
 import { findLookalikes } from "./originality";
 
 /**
@@ -30,9 +30,15 @@ export function setTwinsCacheForTests(enabled: boolean | null): void {
  * gets its own copy. Off outside production (tests and scripts compare every time), unless a test turns it on.
  */
 export async function twinsOfCharacter(db: Db, characterId: string, now = Date.now()): Promise<Map<string, string>> {
-  const c = await loadCharacter(db, characterId);
+  // The sheet's own fields, in one read (2026-11-22: loadCharacter's soul, memory and history reads were a round trip
+  // and three queries on every deck view, for nothing the comparison uses).
+  const { rows } = await db.query<{ name: string; bio: string; traits: string[]; want: string; dealbreaker: string; voice: string | null; extras: CharacterExtras | null }>(
+    `select name, bio, traits, want, dealbreaker, voice, extras from characters where id = $1`,
+    [characterId],
+  );
+  const c = rows[0];
   if (!c) return new Map();
-  const sheet = { name: c.name, bio: c.bio, traits: c.persona.traits, want: c.persona.want, dealbreaker: c.dealbreaker, voice: c.voice, extras: c.extras };
+  const sheet = { name: c.name, bio: c.bio, traits: c.traits, want: c.want, dealbreaker: c.dealbreaker, voice: c.voice ?? null, extras: c.extras ?? {} };
   const compare = async () => new Map((await findLookalikes(db, sheet, characterId, 10)).filter((x) => x.kind === "concept").map((x) => [x.id, x.why]));
   const none = () => new Map<string, string>();
   if (!twinsCacheOn()) return compare().catch(none);
