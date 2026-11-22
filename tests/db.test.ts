@@ -6,6 +6,7 @@ import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { CATALOG, ITEM_KINDS } from "@/lib/catalog";
 import { ORDER_STATUSES } from "@/lib/payments";
 import { DRAMA_ANSWERS, DRAMA_QUESTIONS, REPORT_REASONS } from "@/lib/rules";
+import { forgetSessionVersionsForTests } from "@/lib/session-versions";
 import { fakeClient, poolOf } from "./fake-pool";
 import { startTestDb } from "./helpers";
 
@@ -284,6 +285,7 @@ describe("prepareDb: the schema at server start", () => {
       vi.unstubAllEnvs();
       setDbForTests(t.db);
       cache.__botchelorDb = before;
+      forgetSessionVersionsForTests(); // its failed load above would otherwise wait out a minute
     }
   });
 
