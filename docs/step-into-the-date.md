@@ -24,7 +24,7 @@ The questions for counsel at the end are still open, and one of them (age) matte
   that anyone could type in to read someone else's date; guests off → "sign in first"; closed → not found. An account
   adopts the visitor's id on sign-up, so a guest's dates and their count come along.
 - **18+:** `/step-in` (the picker and the start screen) is open without the 18+ interstitial, as the builder is
-  (`middleware.ts` `UNGATED_PAGES`). A visitor the gate hasn't asked answers on the start screen: an "I'm 18 or over"
+  (`proxy.ts` `UNGATED_PAGES`). A visitor the gate hasn't asked answers on the start screen: an "I'm 18 or over"
   checkbox in the form (`attest: true` on `POST /api/step-in`), and a date that starts sets the gate's own cookie
   (`bz_adult`), exactly as saving a character does. Without the cookie or the box the start is refused (403). The date
   itself (`/step-in/<id>` and its API) stays behind the gate's cookie. A "you" must still be 18+.
@@ -141,7 +141,7 @@ full, not only to what the rest of the site does ([safety-protocol.md](safety-pr
 
 **Someone signed in** (unchanged since it was built):
 
-- **1 free a day** (`STEP_IN_FREE_PER_DAY`), then one of their dates (the week's free dates first, then pack dates:
+- **1 free a day** (`step_in_usage.free_used`), then one of their dates (the week's free dates first, then pack dates:
   `reserveEpisode`, as for any date). Leaving before saying anything gives it back.
 - **At most 5 a day** (`STEP_IN_MAX_PER_DAY`; admins 20). Counted in `step_in_usage (user_id, day)`.
 

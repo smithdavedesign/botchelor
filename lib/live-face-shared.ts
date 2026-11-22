@@ -11,7 +11,6 @@
 import { pcmSamples, toPcm16 } from "./companion-live-shared";
 
 export type LiveFaceProvider = "simli" | "musetalk" | "ditto";
-export const LIVE_FACE_PROVIDERS: readonly LiveFaceProvider[] = ["simli", "musetalk", "ditto"];
 
 /**
  * Streamed clauses (Ditto): the worker's fragmented MP4 is H.264 Main 3.1 with AAC-LC, so this is the MediaSource type
@@ -23,7 +22,6 @@ export const FRAG_STALL_MS = 4_000;
 
 /** The reactions a Ditto face can show between replies (lib/live-face/ditto-clips.ts renders them once per character). */
 export type ReactionKind = "nod" | "tilt" | "brow";
-export const REACTION_KINDS: readonly ReactionKind[] = ["nod", "tilt", "brow"];
 /** A pause in the person's speech this long (they're still talking, no sentence end yet) can earn a small nod. */
 export const LISTEN_PAUSE_MS = 650;
 /** Only after they've been talking this long: a nod at the first breath reads as impatience. */

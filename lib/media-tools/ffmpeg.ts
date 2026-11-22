@@ -29,13 +29,6 @@ export type FfmpegRun = {
   nice?: number;
 };
 export type FfmpegResult = { files: Record<string, Buffer>; stderr: string };
-type Runner = (run: FfmpegRun) => Promise<FfmpegResult>;
-
-let runnerForTests: Runner | null = null;
-/** Tests that don't need ffmpeg itself stand in for it (the moments' own tests run the real one). */
-export function setFfmpegForTests(r: Runner | null): void {
-  runnerForTests = r;
-}
 
 /**
  * Where the binary is: FFMPEG_PATH when it's set (a system ffmpeg), else ffmpeg-static's. The package is loaded by a name
@@ -55,7 +48,6 @@ async function binary(): Promise<string> {
 }
 
 export async function runFfmpeg(run: FfmpegRun): Promise<FfmpegResult> {
-  if (runnerForTests) return runnerForTests(run);
   const dir = await mkdtemp(join(tmpdir(), "bz-ffmpeg-"));
   try {
     for (const [name, bytes] of Object.entries(run.inputs)) await writeFile(join(dir, name), bytes);

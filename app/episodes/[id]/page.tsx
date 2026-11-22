@@ -77,6 +77,7 @@ import { pushKeys } from "@/lib/push";
 import { withoutLeadName } from "./lead-name";
 import UpNext from "./UpNext";
 import { upNextFor, type UpNextEpisode } from "@/lib/up-next";
+import { escapeRegExp } from "@/lib/text";
 
 export const dynamic = "force-dynamic";
 
@@ -250,7 +251,7 @@ export default async function EpisodePage({
   // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
   await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
-  // Hidden after reports: a 404 for everyone except its creators (see app/episodes/not-found.tsx).
+  // Hidden after reports: a 404 for everyone except its creators (the site's one not-found page, app/not-found.tsx).
   if (!episode || (episode.hidden && !episode.is_creator)) notFound();
   const cookieStore = await cookies();
   // Everything below starts at once (2026-11-04 performance audit: one after another, the owner's date page waited on
@@ -1047,6 +1048,6 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
  *  heading above it. Only that act's own label is taken off, never a first sentence. */
 function withoutActLabel(scene: string, label: string | undefined): string {
   if (!label) return scene;
-  const name = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const name = escapeRegExp(label);
   return scene.replace(new RegExp(`^\\s*act\\s*\\d+\\s*[:.\\-–—]\\s*${name}\\s*[.:\\-–—]\\s*`, "i"), "");
 }
