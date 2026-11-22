@@ -30,7 +30,7 @@ describe("award title cards (app/AwardCard.tsx)", () => {
 
   it("is a dark title card with the pair's faces large, the figure counting up and the words intact", () => {
     const html = renderToStaticMarkup(createElement(AwardCard, { award: golden, line: golden.detail }));
-    expect(html).toContain('class="tilt card award award-card sheen-once"');
+    expect(html).toContain('class="card award award-card sheen-once tilt"');
     expect(html).toContain('class="award-faces is-pair"');
     expect(html.match(/href="\/characters\/house-(barnaby|sable)"/g)).toHaveLength(2);
     expect(html).toMatch(/<span class="count-up" data-final="9"><span>9<\/span><\/span> second dates out of 9\./);

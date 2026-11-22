@@ -574,6 +574,15 @@ body:has(.set-hero) {
   .contestant-card .meta > :is(.contestant-stats, .contestant-actions, .hero-ratings) {
     grid-column: 1 / -1;
   }
+  /* Grid items keep their margins, and the row gap already spaces the lines: the details line's own margin opened a gap
+     under it. With no job line the face spans three rows, not four, so no empty row sits under the name (the visual
+     pop audit's open item, 2026-11-21). */
+  .contestant-card .meta > p:is(.kicker, .muted, .contestant-job) {
+    margin-block: 0;
+  }
+  .contestant-card:not(:has(.contestant-job)) .contestant-card-face {
+    grid-row: 1 / span 3;
+  }
   .contestant-card .meta h1 {
     font-size: var(--text-2xl);
   }

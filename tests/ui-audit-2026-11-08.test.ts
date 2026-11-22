@@ -275,10 +275,10 @@ describe("the companions browser's pages (app/companion/CompanionBrowser.tsx)", 
   it(`shows ${COMPANIONS_PAGE} and a way to the next ones, and says how many are shown of how many`, () => {
     expect(COMPANIONS_PAGE).toBe(24);
     const many = html(createElement(CompanionBrowser, { threads: [], others: Array.from({ length: 30 }, (_, i) => companion(i)) }));
-    expect(many.match(/<li class="companion-tile"/g)).toHaveLength(24);
+    expect(many.match(/<li class="companion-tile tilt"/g)).toHaveLength(24);
     expect(many).toContain('<p class="companion-more"><button type="button" class="button secondary">Show 6 more</button> <span class="muted small">24 of 30 shown</span></p>');
     const few = html(createElement(CompanionBrowser, { threads: [], others: Array.from({ length: 24 }, (_, i) => companion(i)) }));
-    expect(few.match(/<li class="companion-tile"/g)).toHaveLength(24);
+    expect(few.match(/<li class="companion-tile tilt"/g)).toHaveLength(24);
     expect(few).not.toContain("companion-more");
   });
 });
