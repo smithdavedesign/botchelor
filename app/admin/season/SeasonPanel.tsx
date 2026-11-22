@@ -105,7 +105,13 @@ export default function SeasonPanel() {
   }
 
   if (error && !view) return <p className="error">{error}</p>;
-  if (!view) return <p className="muted">Loading…</p>;
+  // The page's tallest part arrives last: its placeholder keeps a screen of room so the panels under it don't jump.
+  if (!view)
+    return (
+      <p className="muted admin-season-loading" aria-busy="true">
+        Loading…
+      </p>
+    );
   const live = view.next_season.candidates.filter((c) => c.status !== "rejected");
   return (
     <>

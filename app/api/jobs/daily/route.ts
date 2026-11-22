@@ -24,6 +24,7 @@ import { recentPublicUrls, submitIndexNow } from "@/lib/indexnow";
 import { internalJobAuthorized, runQueuedJobs } from "@/lib/jobs";
 import { recordJobRun, startJobMeter } from "@/lib/job-meter";
 import { pruneServerErrors } from "@/lib/errors";
+import { pruneOpsLog } from "@/lib/ops-log";
 import { pruneRateHits } from "@/lib/limits";
 import { pruneMcpCalls } from "@/lib/agent-analytics";
 import { markDay7Returns } from "@/lib/agent-funnel";
@@ -88,6 +89,8 @@ async function upkeep({ db, step }: Ctx): Promise<PartResult> {
   await step("voices", () => forgetUnusedVoices(db));
   await step("plan_checkouts", () => prunePlanCheckouts(db).catch(() => {}));
   await step("server_errors", () => pruneServerErrors(db).catch(() => {}));
+  // The servers' own log (lib/ops-log.ts): 30 days.
+  await step("ops_log", () => pruneOpsLog(db).catch(() => {}));
   // The providers' balances read once a day (lib/spend.ts), and the admins emailed when one that doesn't top itself up
   // has under a week left at its recent pace. Billing APIs only: nothing spends.
   const lowBalances = await step("low_balances", () => alertLowBalances(db).catch(() => 0));

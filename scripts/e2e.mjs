@@ -623,7 +623,7 @@ async function main() {
 
     await step("each contestant has a shareable card", async () => {
       await spage.goto(`${base}/cast`);
-      // Each directory card's name is its link (app/characters/page.tsx Entry).
+      // Each directory card's name is its link (app/characters/(list)/page.tsx Entry).
       await spage.locator(".gallery a.dir-name").first().click();
       await spage.waitForURL(/\/characters\//);
       // The card's face: their hello clip where they have one, else the portrait (app/characters/[id]/page.tsx). A

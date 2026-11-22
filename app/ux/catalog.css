@@ -387,7 +387,7 @@ h3 {
   }
 }
 
-/* ---------------- Characters: job and hometown (app/characters/page.tsx) ---------------- */
+/* ---------------- Characters: job and hometown (app/characters/(list)/page.tsx) ---------------- */
 .dir-job {
   display: flex;
   flex-wrap: wrap;
@@ -402,7 +402,7 @@ h3 {
   color: var(--muted);
 }
 
-/* ---------------- Characters: a card's actions (app/characters/page.tsx Entry; lib/character-verb.ts) ----------------
+/* ---------------- Characters: a card's actions (app/characters/(list)/page.tsx Entry; lib/character-verb.ts) ----------------
    The one verb for whoever's looking, and Talk under it, at the card's foot so a row of cards lines them up. Each is
    the full width of the card and a full-height control (44px), and a long label ("Send Marisol on a date with
    Juniper") wraps inside a narrow card, two to a row on a phone, instead of widening it. */
