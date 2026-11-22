@@ -6,7 +6,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import ShowSince from "@/app/ShowSince";
+import ShowSince, { SINCE_INSIDE_SHOWN } from "@/app/ShowSince";
 import TonightBand from "@/app/TonightBand";
 import SeasonLine from "@/app/watch/SeasonLine";
 import type { EpisodeView } from "@/lib/game";
@@ -67,6 +67,20 @@ describe("the daily lines on the pages", () => {
     expect(html).toContain("Previously: Dex found out what Sable has been saying.");
     expect(html).toContain('href="/vote"');
     expect(renderToStaticMarkup(createElement(ShowSince, { card: { ...card, story: null }, inside: true }))).not.toContain("Previously");
+  });
+
+  it("home shows the first lines of the news and sends the rest to /watch, which has them all (the 2026-11-22 audit)", () => {
+    const move = (n: number) => ({ lo: `a${n}`, hi: `b${n}`, a: `Ada ${n}`, b: `Bea ${n}`, label: "Sparks", following: false });
+    const card = { since: new Date(NOW - 86_400_000).toISOString(), aired: 2, moves: [move(1), move(2), move(3)], calls: null, followed: 0, situation: null, diary: null, shift: null, secret: null, backing: null, season: null, twist: null, chat: null, overnights: [], house: null, story } as ShowSinceData;
+    const home = renderToStaticMarkup(createElement(ShowSince, { card, inside: true }));
+    expect(home.match(/<li/g)).toHaveLength(SINCE_INSIDE_SHOWN);
+    expect(home).toContain("Previously: Dex found out what Sable has been saying.");
+    expect(home).toMatch(/<a [^>]*href="\/watch"[^>]*>2 more from the show on Watch →<\/a>/);
+    const watch = renderToStaticMarkup(createElement(ShowSince, { card }));
+    expect(watch.match(/<li/g)).toHaveLength(5);
+    expect(watch).not.toContain("more from the show");
+    // Three lines or fewer: all of them, and no link.
+    expect(renderToStaticMarkup(createElement(ShowSince, { card: { ...card, moves: [move(1)] }, inside: true }))).not.toContain("more from the show");
   });
 
   it("the vote card leads with what the vote decides on a day with twists, and with the pair otherwise", () => {

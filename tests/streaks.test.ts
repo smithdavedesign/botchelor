@@ -73,6 +73,7 @@ describe("records from aired dates", () => {
       ["Ben", 1, 2, false],
     ]);
     expect(board.callers).toBe(3);
+    expect(board.named).toBe(2);
     expect(board.my_rank).toBe(2); // 1 of 1 ranks above Ben's 1 of 2: as many right, fewer misses
     expect((await callersBoard(t.db, userIdOf(ana))).top[0].mine).toBe(true);
     // Last week's calls have dropped off by next week.

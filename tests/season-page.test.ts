@@ -276,6 +276,12 @@ describe("the page (app/seasons/[slug])", () => {
     expect(html).toContain("When things happen");
     expect(html).toContain("The pilot, Meet the lead");
     expect(html).toContain("The Sunday premiere");
+    // Every time in one zone, the show's, with the US's beside it, as the premiere's own line (2026-11-22 audit: "Starts
+    // Mon, Nov 30, 4:00 PM PST", in the viewer's zone, sat beside the pilot's UTC line).
+    expect(html).toContain("Starts Tuesday 1 December, 00:00 UTC (Mon 7 pm ET, Mon 4 pm PT)");
+    expect(html).toContain("Sunday 29 November, 23:00 UTC (6 pm ET, 3 pm PT)");
+    expect(html).toMatch(/Sundays, \d\d:\d\d UTC \(/);
+    expect(html).not.toMatch(/\d (AM|PM) [A-Z]{2,4}\b/);
   });
 
   it("hides the starters' box when nothing qualifies", async () => {

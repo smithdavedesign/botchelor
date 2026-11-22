@@ -20,7 +20,7 @@ const files = (dir: string): string[] =>
 /** file → the After Dark modules it imports, for every file that isn't After Dark's own. */
 function adultImports(): Record<string, string[]> {
   const out: Record<string, string[]> = {};
-  for (const file of [...files("lib"), ...files("app"), "middleware.ts"]) {
+  for (const file of [...files("lib"), ...files("app"), "proxy.ts"]) {
     const path = file.replace(/\\/g, "/");
     if (OWN.some((re) => re.test(path))) continue;
     const src = readFileSync(file, "utf8");
