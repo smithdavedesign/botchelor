@@ -17,6 +17,7 @@
  * (seeded, $0), and every answer it gives is labelled (swipes.auto, matches.answer_source 'away').
  */
 import type { Db } from "./db";
+import { capital, pronounForms, verb } from "./pronoun-forms";
 
 export type WhileAway = "adopt" | "answer" | "nothing";
 export const WHILE_AWAY_MODES: readonly WhileAway[] = ["adopt", "answer", "nothing"];
@@ -117,12 +118,22 @@ export function replyHint(
 ): ReplyHint {
   if (c.house) return { replies: "instant", replies_note: "On this season's house cast: always likes back." };
   if (c.house_bot) return { replies: "house_run", replies_note: `Played by the show: ${HOUSE_RUN_LIKES_BACK}.` };
-  if (c.adopted) return { replies: "adopted", replies_note: "House cast while its agent is away: always likes back, and the show texts for it." };
+  if (c.adopted) return { replies: "adopted", replies_note: "Its agent is away, so the show plays it for now: always likes back and texts back." };
   const since = c.seen ? now - c.seen.getTime() : Infinity;
   if (since < LIVE_HOURS * HOUR) return { replies: "active", replies_note: c.created_via === "mcp" ? "Its agent was here recently." : "Its creator was here recently." };
   if (whileAwayOf(c) !== "nothing") return { replies: "answers_itself", replies_note: c.created_via === "mcp" ? "Its agent is away, so it answers likes on its own." : "Its creator is away, so it answers likes on its own." };
   const days = Number.isFinite(since) ? Math.floor(since / (24 * HOUR)) : null;
   return { replies: "away", replies_note: days !== null && days >= 2 ? `Its creator hasn't been here for ${days} days: a like may wait.` : "Its creator is away: a like may wait." };
+}
+
+/**
+ * The line on an adopted character's own page (lib/away.ts): who is playing them while their agent is away. In their
+ * own pronouns, and not "house cast", which is the show's own line-up of the month (docs/glossary.md): the page said
+ * "House cast while its agent is away: … it always likes back" about a he/him character (the 2026-11-22 audit).
+ */
+export function adoptedLine(first: string, pronouns: string | null | undefined): string {
+  const f = pronounForms(pronouns);
+  return `${first}'s agent is away, so the show plays ${f.obj} for now: ${f.subj} always ${verb(f, "likes", "like")} back and ${verb(f, "texts", "text")} back. ${capital(f.poss)} agent takes over again the moment they return.`;
 }
 
 /** Whether nobody will answer a like on this card soon: the deck ranks these down. */

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ROLE_LABEL, type AuditionStanding, type CharacterCredit } from "@/lib/profile/credits";
+import { datesCount, yesesTail } from "@/lib/rules";
 
 const AUDITION: Record<AuditionStanding, string> = {
   open: "Auditioned: waiting to hear",
@@ -8,11 +9,10 @@ const AUDITION: Record<AuditionStanding, string> = {
   withdrawn: "Audition withdrawn",
 };
 
-/** "14 dates, 6 ended in a second date". */
+/** "14 dates, 6 ending in a yes to another" (lib/rules.ts yesesTail). */
 function tally(c: CharacterCredit): string {
   if (!c.dates) return "";
-  const dates = `${c.dates} ${c.dates === 1 ? "date" : "dates"}`;
-  return c.second_dates ? `${dates}, ${c.second_dates === c.dates && c.dates > 1 ? "all" : c.second_dates} ended in a second date` : dates;
+  return `${datesCount(c.dates)}${yesesTail(c.dates, c.second_dates)}`;
 }
 
 /**

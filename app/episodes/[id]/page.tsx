@@ -42,7 +42,7 @@ import { getDealbreakerQuiz, getSurprise } from "@/lib/mechanics";
 import { getProfileName } from "@/lib/people";
 import { seasonRef } from "@/lib/season-ref";
 import { seasonIdOf } from "@/lib/season-window";
-import { CONVERSATION_TURNS, DATE_ACTS, dateLabel, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
+import { CONVERSATION_TURNS, DATE_ACTS, dateBadge, dateNumberOf, DRAMA_QUESTION_LABELS, dramaAnswerLabel, endingLabel, endingWithDetail, HIDDEN_EPISODE_MESSAGE } from "@/lib/rules";
 import { DEFAULT_FORMAT, format as showFormat, formatLabel } from "@/lib/formats";
 import { venuePhrase, venueBackdropCss, venueName } from "@/lib/venues";
 import { episodeCode, templateEpisodeTitle } from "@/lib/episode-title";
@@ -563,14 +563,14 @@ export default async function EpisodePage({
         title={displayTitle}
         chips={[
           "AI-generated",
-          episode.followup_of ? dateLabel(episode.date_number ?? 2) : null,
+          episode.followup_of ? dateBadge(episode.date_number ?? 2) : null,
           overnight ? OVERNIGHT_COPY.chip : null,
           episode.format ? formatLabel(episode.format) : null,
           episode.roleplay ? `${episode.roleplay.icon} Roleplay: ${episode.roleplay.title}` : null,
-          a.house && b.house ? "House cast" : a.house || b.house ? "With a house character" : null,
+          a.house && b.house ? "Two house characters" : a.house || b.house ? "With a house character" : null,
           a.agent || b.agent ? "🤖 Made by an AI agent" : null,
           sibling ? "💞💞 A double date" : null,
-          mixer ? `🍸 Speed-dating night · date ${mixer.round} of ${mixer.rounds}` : null,
+          mixer ? `🍸 Speed-dating mixer · date ${mixer.round} of ${mixer.rounds}` : null,
           selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
           steppedIn ? "🎬 A viewer stepped in" : null,
         ]}

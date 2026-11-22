@@ -17,12 +17,14 @@ import { houseBotSql, originalSql } from "./house-bots";
 
 export type Origin = "cast" | "original" | "person" | "agent" | "house_bot";
 
+// docs/glossary.md: "House" is made and played by the show (a character who has left the season keeps it; "cast" is
+// only this season's lineup), and no character is called a bot.
 export const ORIGIN_LABEL: Record<Origin, string> = {
-  cast: "Cast",
+  cast: "House",
   original: "Botchelor original",
   person: "Made by a person",
   agent: "🤖 Made by an AI agent",
-  house_bot: "House-run bot",
+  house_bot: "Run by the show",
 };
 
 /** What the badge's tooltip says. */

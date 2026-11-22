@@ -390,9 +390,10 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {/* The season's games, each on its own page now. The ids keep old links (emails, Discord posts) landing here. */}
       <nav className="watch-elsewhere" aria-label="More from the show">
         <span className="watch-elsewhere-head">More from the show</span>
-        <Link href="/reunion">The Reunion</Link>
+        {/* The words of docs/glossary.md: /reunion is "This season so far" (the Season tab), the points are a scoreboard. */}
+        <Link href="/reunion">This season so far</Link>
         <Link id="season-pool" href="/reunion#season-pool">
-          Season pool and backing
+          Season scoreboard and backing
         </Link>
         <Link id="cast-chat" href="/reunion#cast-chat">
           The cast chat

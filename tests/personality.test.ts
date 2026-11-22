@@ -170,7 +170,8 @@ describe("on the card", () => {
     expect(html).toContain("How they say hello");
     expect(html).toContain("“no worries”");
     expect(html).toContain("Their tells");
-    expect(html).toContain("When they&#x27;re nervous, they");
+    // In the character's own pronouns, each tell a sentence of its own (lib/tell-lines.ts); they/them when none are given.
+    expect(html).toContain("When they&#x27;re nervous");
   });
 });
 

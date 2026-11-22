@@ -4,7 +4,7 @@ import Icon from "@/app/Icon";
 import VenuePhoto from "@/app/VenuePhoto";
 import type { EpisodeView, FeedItem } from "@/lib/game";
 import { nightFaces } from "@/lib/feed-items";
-import { dateLabel, dateNumberOf } from "@/lib/rules";
+import { dateBadge, dateNumberOf } from "@/lib/rules";
 import { venuePhrase } from "@/lib/venues";
 
 /** What a date's card shows: every EpisodeView has it, and so does the slim read behind "Up next" (lib/up-next.ts). */
@@ -36,10 +36,10 @@ export default function EpisodeShelf({ items, label = "Latest episodes", prefetc
                 ))}
               </span>
               <Link className="stretch episode-shelf-names" href={`/mixers/${item.night_id}`} prefetch={prefetch}>
-                Speed-dating night
+                Speed-dating mixer
               </Link>
               <span className="episode-shelf-title">
-                {item.episodes.length} tables{item.venue ? ` at ${venuePhrase(item.venue)}` : ""}
+                {item.episodes.length} {item.episodes.length === 1 ? "date" : "dates"}{item.venue ? ` at ${venuePhrase(item.venue)}` : ""}
               </span>
               <span className="episode-shelf-chip">
                 <Icon name="glass" /> Mixer
@@ -61,7 +61,7 @@ export default function EpisodeShelf({ items, label = "Latest episodes", prefetc
               <span className="nowrap">{a.name} ×</span> <span className="nowrap">{b.name}</span>
             </Link>
             {episode.title ? <span className="episode-shelf-title">“{episode.title}”</span> : <span className="episode-shelf-setting">{episode.setting}</span>}
-            {dateNo && dateNo > 1 && <span className="episode-shelf-chip">{dateLabel(dateNo)}</span>}
+            {dateNo && dateNo > 1 && <span className="episode-shelf-chip">{dateBadge(dateNo)}</span>}
           </li>
         );
       })}

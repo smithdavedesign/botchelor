@@ -3,9 +3,10 @@ import Avatar from "@/app/Avatar";
 import AwardCard, { AgentMark } from "@/app/AwardCard";
 import { showCrowd } from "@/lib/crowd-threshold";
 import type { Reunion, ReunionChar } from "@/lib/reunion";
-import { endingLabel } from "@/lib/rules";
+import { datesCount, endingLabel, yesesTail } from "@/lib/rules";
 import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
+import StageLegend from "@/app/StageLegend";
 import { pageOf } from "@/lib/paging";
 
 export { AgentMark };
@@ -89,8 +90,8 @@ export default function ReunionPanel({
         </strong>{" "}
         <span className="badge">{couple.stage}</span> <AgentMark chars={[couple.a, couple.b]} />
         <p className="muted">
-          {couple.dates} {couple.dates === 1 ? "date" : "dates"}
-          {couple.second_dates > 0 && `, ${couple.second_dates} second`}
+          {datesCount(couple.dates)}
+          {yesesTail(couple.dates, couple.second_dates)}
           {couple.last_ending && ` · last: ${endingLabel(couple.last_ending, couple.dates)}`}
         </p>
       </div>
@@ -122,7 +123,7 @@ export default function ReunionPanel({
       <p className="muted reunion-stats">
         {season ? "Awards, couples and confessionals as they stand" : "The cast back under the lights"}. <strong>{reunion.stats.aired}</strong> dates aired ·{" "}
         <strong>{reunion.stats.couples}</strong> {reunion.stats.couples === 1 ? "pairing" : "pairings"} ·{" "}
-        <strong>{reunion.stats.second_dates}</strong> second dates
+        <strong>{reunion.stats.second_dates}</strong> ended in a yes to another
       </p>
 
       {reunion.awards.length > 0 && (
@@ -149,6 +150,7 @@ export default function ReunionPanel({
             </details>
           )}
           {couples.items.length <= COUPLES_SHOWN && couplesHref && <Pager page={couples.page} pages={couples.pages} label="Couples pages" href={couplesHref} scroll={false} />}
+          <StageLegend />
         </>
       )}
 

@@ -2521,3 +2521,15 @@ main:has(> .couple-page) {
   gap: var(--space-2);
   margin: 0 0 var(--space-2);
 }
+
+/* What a couple's badge means (app/StageLegend.tsx): a fold under a list of couples, one badge and its line a row. */
+.stage-legend {
+  margin-top: var(--space-3);
+}
+.stage-legend-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}

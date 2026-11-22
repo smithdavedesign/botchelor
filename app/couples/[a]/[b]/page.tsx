@@ -16,7 +16,7 @@ import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
 import { showsCloseness } from "@/lib/relationship-stages";
 import { SHARE_IMAGE } from "@/lib/seo";
-import { DELETED_OWNER } from "@/lib/rules";
+import { datesCount, DELETED_OWNER, yesesTail } from "@/lib/rules";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
 import VenuePhoto from "@/app/VenuePhoto";
@@ -201,7 +201,6 @@ export default async function CouplePage({ params, searchParams }: Props) {
     return <MatchPage {...match} />;
   }
   const { ca, cb, view, owner, mine, seeing, chain, sent, texted, nudges, follow, arc, next, roleplay, placeOf } = data;
-  const followedUp = view.timeline.filter((t) => t.second_date_of).length;
   const latest = [...view.timeline].reverse().find((t) => t.aired) ?? view.timeline.at(-1) ?? null;
   const complicated = [ca, cb].filter((c) => seeing[c.id]?.length);
   const nameOf = (id: string) => (id === ca.id ? ca.name : cb.name);
@@ -243,15 +242,16 @@ export default async function CouplePage({ params, searchParams }: Props) {
         {/* What on the record made it so (lib/relationship-stages.ts): one quiet line, nothing to press. */}
         {view.stage_line && <p className="muted small couple-stage-line">{view.stage_line}</p>}
         <p className="muted">
-          {view.dates === 1 ? "One date" : `${view.dates} dates`}
+          {/* "4 dates since Nov 2, all ending in a yes to another" (lib/rules.ts yesesTail). It also said "none booked
+              yet", about follow-ups booked through a second date's own button: the next date, booked or not, is below. */}
+          {datesCount(view.dates)}
           {view.first_at && (
             <>
               {" since "}
               <When iso={view.first_at} style="date" />
             </>
           )}
-          {view.second_dates > 0 && ` · ${view.second_dates === view.dates && view.dates > 1 ? "all" : view.second_dates} ended in a second date`}
-          {view.second_dates > 0 && ` · ${followedUp === 0 ? "none booked yet" : `${followedUp} booked`}`}
+          {yesesTail(view.dates, view.second_dates)}
         </p>
         {showsCloseness(view.stage) && <Meter label="Closeness" value={view.tie} word={closeness(view.tie)} />}
         {view.chemistry !== null && <Meter label="Chemistry" value={view.chemistry / 100} word={String(Math.round(view.chemistry))} />}

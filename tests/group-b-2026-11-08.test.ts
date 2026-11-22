@@ -337,7 +337,7 @@ describe("the season pool", () => {
     expect(list).toContain("A viewer");
     expect(list).toContain('href="/seasons/october-2026#pool"');
     const revealed = renderToStaticMarkup(createElement(SeasonPoolPanel, { standing: null, revealed: board, now }));
-    expect(revealed).toContain("The October 2026 pool is out.");
+    expect(revealed).toContain("The October 2026 scoreboard is out.");
   });
 });
 
@@ -390,6 +390,6 @@ describe("the share card for this week's calls (item 10)", () => {
     const html = renderToStaticMarkup(await CallsPage({ searchParams: Promise.resolve(q) }));
     expect(html).toContain("<h1>Someone&#x27;s calls this week</h1>");
     expect(html).toContain("4 of 5 this week · 3 in a row");
-    expect(html).toContain("season pool");
+    expect(html).toContain("season score");
   });
 });

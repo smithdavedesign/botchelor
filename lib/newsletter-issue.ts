@@ -155,7 +155,7 @@ function dateLines(item: DropItem): { title: string; lines: string[]; path: stri
     const pairs = item.dates.map((d) => `${firstName(d.a.name)} × ${firstName(d.b.name)}`);
     const where = item.venue ? ` at ${venuePhrase(item.venue)}` : "";
     return {
-      title: item.theme === "recoupling" ? `The Recoupling${where}` : `Speed-dating night${where}`,
+      title: item.theme === "recoupling" ? `The Recoupling${where}` : `Speed-dating mixer${where}`,
       lines: [`${plural(singles, "single")} · ${plural(item.dates.length, "table")} aired`, `${pairs.slice(0, 3).join(" · ")}${pairs.length > 3 ? ` and ${pairs.length - 3} more` : ""}`],
       path: `/mixers/${encodeURIComponent(item.night_id ?? "")}`,
     };

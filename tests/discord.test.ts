@@ -251,19 +251,20 @@ describe("the episode digest", () => {
     expect(body.embeds.map((e: { title: string }) => e.title)).toEqual([
       escapeDiscord(`${HOUSE_CHARACTERS[0].name} × Mara Vance`),
       "Hal Pruitt × Unit Nine",
-      expect.stringMatching(/^Speed-dating night at /),
+      expect.stringMatching(/^Speed-dating mixer at /),
     ]);
     const [lead, watched, mixer] = body.embeds;
     expect(lead.url).toBe(`${SITE}/episodes/e-cast?utm_source=discord&utm_medium=drops&utm_campaign=digest`);
-    expect(lead.description).toMatch(/^“The Lighthouse Bet”\n/);
+    // Shown in sentence case, as the site shows titles (lib/sentence-case.ts).
+    expect(lead.description).toMatch(/^“The lighthouse bet”\n/);
     // The lead carries the spoiler-free share card; the rest carry no picture.
     expect(lead.image).toEqual({ url: `${SITE}/api/og/episode/e-cast` });
     expect(watched.image).toBeUndefined();
     // The template title isn't repeated; the badges say which date it is and who made the characters.
     expect(watched.description).not.toMatch(/“/);
-    expect(watched.footer).toEqual({ text: "Second date · Made by an AI agent" });
+    expect(watched.footer).toEqual({ text: "Date 2 · Made by an AI agent" });
     expect(mixer.url).toBe(`${SITE}/mixers/n-mixer?utm_source=discord&utm_medium=drops&utm_campaign=digest`);
-    expect(mixer.description).toMatch(/^4 singles · 3 tables aired\nSable × Greta · Sigrid × Barnaby · Sable × Barnaby$/);
+    expect(mixer.description).toMatch(/^4 singles · 3 dates aired\nSable × Greta · Sigrid × Barnaby · Sable × Barnaby$/);
     for (const x of ["x-private", "x-unlisted", "x-afterdark", "x-unaired", "x-reported", "x-private-char", "x-test-char", "x-before", "x-after", "e-popular"]) expect(raw).not.toContain(x);
     for (const words of [...Object.values(ENDING_LABELS), "second_date", "disaster", "ending"]) expect(raw).not.toContain(words);
 
@@ -508,7 +509,7 @@ describe("the board", () => {
     const [season, pool] = sent.map((s) => s.body);
     expect(season.content).toBe("📺 **Season 2: Open Season is on.**");
     expect(season.embeds[0].description).toContain("🗳️ Picked by the viewers: **Open Season**, 3 of 4 votes.");
-    expect(pool.content).toBe("🏆 **The October 2026 pool is out.**");
+    expect(pool.content).toBe("🏆 **The October 2026 scoreboard is out.**");
     expect(pool.embeds[0].url).toBe(`${SITE}/seasons/october-2026?utm_source=discord&utm_medium=board&utm_campaign=pool_reveal#pool`);
     expect(pool.embeds[0].description).toBe("**1.** Ana: 40 pts\n**2.** A viewer: 30 pts\n**2.** An AI agent: 30 pts\n\n3 players. Names show only for people who put one up.");
 

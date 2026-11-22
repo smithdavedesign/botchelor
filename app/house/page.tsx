@@ -80,7 +80,7 @@ export default async function HousePage({ searchParams }: { searchParams?: Promi
         </>
       ) : (
         <section className="card house-empty">
-          <EmptyState emoji="🏠" title="The house is quiet" action={{ href: "/watch", label: "Watch a date" }} secondary={{ href: "/reunion", label: "The Reunion" }}>
+          <EmptyState emoji="🏠" title="The house is quiet" action={{ href: "/watch", label: "Watch a date" }} secondary={{ href: "/reunion", label: "This season so far" }}>
             {houseScenesOn()
               ? "Nobody has anything to say yet. The cast talks once a date has aired: come back this evening."
               : "The cast is keeping to itself for now. The dates are still on."}

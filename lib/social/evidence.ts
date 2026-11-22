@@ -28,8 +28,9 @@ export function evidenceLink(ref: string, at: string, o: { closedSeasons?: Reado
     case "night":
       return SAFE.test(rest) ? { href: `/mixers/${rest}`, label: "the night", at } : null;
     case "season":
-      // A season has its page once it's closed (app/seasons/[slug]); before then, the words only.
-      return { href: o.closedSeasons?.has(rest) ? seasonPath(rest) : null, label: "the season", at };
+      // A season has its page once it's closed (app/seasons/[slug]); before then, the words only. "The season's cast",
+      // not "the season": what made them housemates is being cast together (2026-11-22 audit: "the season" said nothing).
+      return { href: o.closedSeasons?.has(rest) ? seasonPath(rest) : null, label: "the season's cast", at };
     case "link": {
       const [lo, hi] = rest.split(":");
       return SAFE.test(lo ?? "") && SAFE.test(hi ?? "") ? { href: `/characters/${lo}`, label: "their backstory", at } : null;
