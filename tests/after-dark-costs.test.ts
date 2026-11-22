@@ -23,7 +23,7 @@ beforeEach(async () => {
 describe("what After Dark costs (#1005)", () => {
   it("the meter says tokens on After Dark's host, and dates on the show", () => {
     expect(renderToStaticMarkup(createElement(Nav, { tokens: 40, meter: "tokens" }))).toMatch(/40<\/span><span class="token-word">tokens</);
-    expect(renderToStaticMarkup(createElement(Nav, { tokens: 43 }))).toMatch(/43<\/span><span class="token-word">dates<span class="token-word-long"> left</);
+    expect(renderToStaticMarkup(createElement(Nav, { tokens: 43 }))).toMatch(/43<\/span><span class="token-word">dates left</);
   });
 
   it("/api/me carries the dates left and the bought tokens left", async () => {

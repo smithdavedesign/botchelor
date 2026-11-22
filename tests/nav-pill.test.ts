@@ -64,21 +64,6 @@ describe("the header's date meter", () => {
     expect(html).toContain("Everyone gets 3 free dates a week");
     expect(html).toContain('href="/shop"');
   });
-
-  // 2026-11-22: below 1180px the word went and a phone's header read "🎬 3", whose meaning was only in a tooltip that
-  // touch never shows. Now the word shortens ("3 free", "3 dates") and the link's label says it whole.
-  it("keeps a short word where the bar is narrow, and says the whole of it to a screen reader", () => {
-    const fresh = pill({ tokens: 3, personal: false });
-    expect(fresh).toContain('aria-label="3 free dates"');
-    expect(fresh).toContain('<span class="token-word">free<span class="token-word-long"> dates</span></span>');
-    const mine = pill({ tokens: 1, personal: true });
-    expect(mine).toContain('aria-label="1 date left"');
-    expect(mine).toContain('<span class="token-word">date<span class="token-word-long"> left</span></span>');
-    const css = readFileSync("app/globals.css", "utf8");
-    const narrow = css.slice(css.indexOf("@media (max-width: 1180px)"));
-    expect(narrow).toMatch(/^[^]*?\.nav \.token-word-long,\s*\.nav \.token-pill--tokens \.token-word \{\s*display: none;/);
-    expect(narrow.slice(0, narrow.indexOf("\n}\n"))).not.toMatch(/\.nav \.token-word \{\s*display: none/);
-  });
 });
 
 // Three doors and the account, the same for everyone (2026-11-15, lib/nav-chat.ts): Watch · Chat · Characters ·

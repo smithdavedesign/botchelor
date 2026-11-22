@@ -954,16 +954,14 @@ h2 {
   border: 1.5px solid var(--card);
 }
 
-/* Between 900 and 1180px the bar tightens instead of collapsing: the call to action becomes the plus, the meter's word
-   shortens ("3 free", "3 dates": a bare "3" said nothing on a phone, where no tooltip shows; its link's label says it
-   whole), the door drops its "leaves the site" arrow but keeps its words (a moon alone doesn't say "adult side"). */
+/* Between 900 and 1180px the bar tightens instead of collapsing: the call to action becomes the plus, the meter drops
+   its word, the door drops its "leaves the site" arrow but keeps its words (a moon alone doesn't say "adult side"). */
 @media (max-width: 1180px) {
   .site-header {
     padding: 0.6rem var(--gutter);
     gap: 0.5rem;
   }
-  .nav .token-word-long,
-  .nav .token-pill--tokens .token-word {
+  .nav .token-word {
     display: none;
   }
   .nav a.nav-cta-full {

@@ -250,35 +250,16 @@ export default function Nav({
             <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
           </Link>
         ) : personal ? (
-          <IntentLink
-            prefetch={pf}
-            href="/shop"
-            className={`token-pill token-pill--dates${tone}`}
-            title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date."
-            aria-label={`${tokens} ${tokens === 1 ? "date" : "dates"} left`}
-          >
+          <IntentLink prefetch={pf} href="/shop" className={`token-pill token-pill--dates${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
             <Icon name="clapper" className="token-pip" />
             <span className="token-count">{tokens}</span>
-            {/* Narrower than 1180px the word shortens rather than going: "3 dates", never a bare "3" (2026-11-22). */}
-            <span className="token-word">
-              {tokens === 1 ? "date" : "dates"}
-              <span className="token-word-long"> left</span>
-            </span>
+            <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
           </IntentLink>
         ) : (
-          <IntentLink
-            prefetch={pf}
-            href="/shop"
-            className="token-pill token-pill--dates"
-            title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}
-            aria-label={`${tokens} free ${tokens === 1 ? "date" : "dates"}`}
-          >
+          <IntentLink prefetch={pf} href="/shop" className="token-pill token-pill--dates" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
             <Icon name="clapper" className="token-pip" />
             <span className="token-count">{tokens}</span>
-            <span className="token-word">
-              free
-              <span className="token-word-long">{tokens === 1 ? " date" : " dates"}</span>
-            </span>
+            <span className="token-word">{tokens === 1 ? "free date" : "free dates"}</span>
           </IntentLink>
         )}
         {/* The one call to action, in the bar above 900px: words, or an icon-only plus between 900 and 1180px. On a
