@@ -13,7 +13,7 @@ vi.mock("next/navigation", async (original) => ({
 vi.mock("@/app/AfterDarkTeaser", () => ({ default: () => null }));
 import { renderToStaticMarkup } from "react-dom/server";
 import CharacterPage from "@/app/characters/[id]/page";
-import CharactersPage from "@/app/characters/page";
+import CharactersPage from "@/app/characters/(list)/page";
 import { signSession } from "@/lib/auth";
 import { actionsFor, cardVerbLabel, characterVerb, makeHref, sendHref, stepInHref, textVerb, verbFacts, verbsFor, viewerCharacter, type VerbFacts } from "@/lib/character-verb";
 import { companionEligible } from "@/lib/companion";

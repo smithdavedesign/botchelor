@@ -207,7 +207,7 @@ describe("heavy pages' round trips (2026-11-04 audit)", () => {
     ["home (owner)", "owner", async () => withEnv("COMPANION_OPEN", "1", async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never }))],
     // A stranger's home: the day's clip (lib/home-clip.ts) rides in the same Promise.all as the boards, so it adds no depth.
     ["home (visitor)", null, async () => (await import("@/app/page")).default({ searchParams: Promise.resolve({}) as never })],
-    ["characters", null, async () => (await import("@/app/characters/page")).default({ searchParams: Promise.resolve({}) as never })],
+    ["characters", null, async () => (await import("@/app/characters/(list)/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["watch", null, async () => (await import("@/app/watch/page")).default({ searchParams: Promise.resolve({}) as never })],
     ["matches (owner)", "owner", async () => (await import("@/app/matches/page")).default({ searchParams: Promise.resolve({}) })],
     // Chat (lib/chat-inbox.ts) with companions open, as on prod: the threads with them ride the round trip that reads
