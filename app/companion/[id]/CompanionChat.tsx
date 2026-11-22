@@ -14,7 +14,7 @@ import RoleplayPicker, { choiceReady, roleplayFields, type RoleplayChoice } from
 import PlacePicker from "@/app/stage/PlacePicker";
 import OverlayClose from "@/app/OverlayClose";
 import { useOverlay } from "@/app/useOverlay";
-import { openingField, type OpeningChoice } from "@/lib/scene-opening";
+import { openingField, type OpeningChoice } from "@/lib/opening-choice";
 import { storyParagraphs, storySegments, storySpeech } from "@/lib/story-reply";
 import { withoutStageDirections } from "@/lib/companion-live-shared";
 import { useSpeech } from "@/app/stage/useSpeech";

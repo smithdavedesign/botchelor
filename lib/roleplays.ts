@@ -15,9 +15,9 @@
  * the prompts when it's picked (how it starts, what each of them wants, where it can go, its tone, how it opens). A
  * roleplay someone writes has none.
  *
- * Pure and client-safe: the picker and the server share it.
+ * Pure and client-safe: the picker and the server share it. Checking one someone wrote is the server's
+ * (lib/roleplay-check.ts), so the content filter's word lists stay out of the picker's code (2026-11-22 audit).
  */
-import { checkShowText, excludedTheme } from "./safety";
 import type { SceneCard } from "./scene-cards";
 import type { TagId } from "./tags";
 
@@ -1276,29 +1276,6 @@ export const DATE_ROLEPLAY_SUGGESTIVE =
 /** The words that make a roleplay's set-up suggestive (DATE_ROLEPLAY_SUGGESTIVE), accents aside ("risqué"), or null. */
 export function suggestiveIn(text: string): string | null {
   return DATE_ROLEPLAY_SUGGESTIVE.exec(text.normalize("NFKD").replace(/\p{M}/gu, ""))?.[1] ?? null;
-}
-
-/**
- * A roleplay written for a date (or saved safe in the Create library, lib/studio/library.ts): PG, adults, no real people,
- * nothing suggestive and none of the never-list. Null when it's fine.
- */
-export function checkCustomRoleplay(t: { title: string; premise: string; roles: [string, string] | null }): string | null {
-  const fields = { title: t.title, premise: t.premise, ...(t.roles ? { role_a: t.roles[0], role_b: t.roles[1] } : {}) };
-  const r = checkShowText(fields);
-  if (!r.ok) {
-    return r.reason === "minor"
-      ? "That roleplay can't be used: everyone in it is an adult, with nothing suggesting otherwise."
-      : r.reason === "real_person"
-        ? "That roleplay can't be used: no real or famous people (made-up ones are fine)."
-        : "That roleplay can't be used: the show is PG, so nothing sexual and no innuendo.";
-  }
-  const all = Object.values(fields).join(" ");
-  const suggestive = suggestiveIn(all);
-  if (suggestive) return `That roleplay can't be used: the show is PG, so nothing sexual and no innuendo ("${suggestive}").`;
-  if (excludedTheme(all) || DATE_ROLEPLAY_NEVER.test(all)) {
-    return "That roleplay can't be used: two adults who both want to be there, never family, school or a babysitter, nobody with a say over the other's job, and nobody drunk, trapped or kept from saying no.";
-  }
-  return null;
 }
 
 /**

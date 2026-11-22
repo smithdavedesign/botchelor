@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { requestJson } from "@/app/request";
-import { PROMPT_MAX, type MyPrompt } from "@/lib/studio/library";
+import { PROMPT_MAX, type MyPrompt } from "@/lib/studio/library-limits";
 import CopyPrompt from "./CopyPrompt";
 
 /**

@@ -13,7 +13,7 @@
  *
  * Each item is `safe` or `after_dark`:
  *  - safe prompts and venues: PG (the show's check plus the PG picture words), usable in the PG Studio and in After Dark;
- *  - safe roleplays: the show's roleplay check (lib/roleplays.ts checkCustomRoleplay) and After Dark's never-list too,
+ *  - safe roleplays: the show's roleplay check (lib/roleplay-check.ts checkCustomRoleplay) and After Dark's never-list too,
  *    since they play on show dates and in After Dark alike;
  *  - after_dark: After Dark's lines only, usable only there, and only by someone After Dark is open to. Roleplays are
  *    held to its lines plus the roleplays' own never-list (no family or step-family, babysitter, teacher, school,
@@ -22,28 +22,44 @@
  */
 import type { Db } from "../db";
 import { crossesTaboo } from "../adult/acts";
-import { checkCustomRoleplay } from "../roleplays";
+import { checkCustomRoleplay } from "../roleplay-check";
 import { checkAdultText, checkPgPictureText, excludedTheme, type SafetyResult } from "../safety";
 import { normalizeScene } from "../venues";
 import type { SceneCategory } from "../adult/scene-catalog";
+import {
+  LIBRARY_MAX,
+  PLACE_DESCRIPTION_MAX,
+  PLACE_NAME_MAX,
+  PROMPT_MAX,
+  ROLE_MAX,
+  ROLEPLAY_CATEGORIES,
+  ROLEPLAY_PREMISE_MAX,
+  ROLEPLAY_TITLE_MAX,
+  type Library,
+  type LibraryMode,
+  type MyPlace,
+  type MyPrompt,
+  type MyRoleplay,
+} from "./library-limits";
 
-export const LIBRARY_MODES = ["safe", "after_dark"] as const;
-export type LibraryMode = (typeof LIBRARY_MODES)[number];
-export const LIBRARY_MAX = 60;
-export const PROMPT_MAX = 500;
-export const PLACE_NAME_MAX = 40;
-export const PLACE_DESCRIPTION_MAX = 240;
-export const ROLEPLAY_TITLE_MAX = 60;
-export const ROLEPLAY_PREMISE_MAX = 300;
-export const ROLE_MAX = 60;
-
-/** The roleplay categories a person may file theirs under (the show's own, lib/adult/scene-catalog.ts). */
-export const ROLEPLAY_CATEGORIES = ["romance", "strangers", "second", "afterhours", "getaway", "nightlife", "nightin", "outdoors", "fantasy", "scifi", "mystery", "funny"] as const satisfies readonly SceneCategory[];
-
-export type MyPrompt = { id: string; text: string; title: string | null; mode: LibraryMode; created_at: string };
-export type MyPlace = { id: string; name: string; description: string | null; mode: LibraryMode; created_at: string };
-export type MyRoleplay = { id: string; title: string; premise: string; roles: [string, string] | null; category: SceneCategory; mode: LibraryMode; created_at: string };
-export type Library = { prompts: MyPrompt[]; places: MyPlace[]; roleplays: MyRoleplay[] };
+// Its limits and shapes are lib/studio/library-limits.ts, which the browser loads without this file's checks
+// (2026-11-22 audit: /prompts' own list carried the content filter's word lists for one number).
+export {
+  LIBRARY_MODES,
+  LIBRARY_MAX,
+  PROMPT_MAX,
+  PLACE_NAME_MAX,
+  PLACE_DESCRIPTION_MAX,
+  ROLEPLAY_TITLE_MAX,
+  ROLEPLAY_PREMISE_MAX,
+  ROLE_MAX,
+  ROLEPLAY_CATEGORIES,
+  type LibraryMode,
+  type MyPrompt,
+  type MyPlace,
+  type MyRoleplay,
+  type Library,
+} from "./library-limits";
 
 /** A roleplay's never-list on top of After Dark's lines (the show's own are held to the same: tests/after-dark-roleplays.test.ts). */
 const ROLEPLAY_NEVER =
