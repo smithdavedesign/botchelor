@@ -502,10 +502,8 @@ describe("the invite page (/casting/invite/[code])", () => {
   it("is never indexed, and a code that can't be used says so in one line, with the way to the casting", async () => {
     const { metadata } = await import("@/app/casting/invite/[code]/page");
     expect(metadata.robots).toEqual({ index: false, follow: false });
-    const unknown = await render("zzzzzzzzzz");
-    expect(unknown).toContain("We can&#x27;t find that invite");
-    expect(unknown).toContain('href="/casting"');
-    expect(unknown).not.toContain("Apply with");
+    // A code that was never made is a real 404 (2026-11-22 audit): the site's not-found page, not a 200 that says so.
+    await expect(render("zzzzzzzzzz")).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/);
     const old = await oneCode(1);
     await t.db.query(`update casting_invites set expires_at = now() - interval '1 minute' where code = $1`, [old]);
     expect(await render(old)).toContain("This invite has expired");

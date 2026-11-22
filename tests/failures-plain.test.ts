@@ -30,7 +30,7 @@ describe("Not open yet (C21)", () => {
     expect(html).not.toContain("isn&#x27;t on the show");
   });
   it("is what the companion pages show while closed, not notFound()", () => {
-    for (const p of ["app/companion/page.tsx", "app/companion/plan/page.tsx"]) {
+    for (const p of ["app/companion/(list)/page.tsx", "app/companion/plan/page.tsx"]) {
       const src = readFileSync(p, "utf8");
       expect(src, p).toContain("<NotOpenYet");
       expect(src, p).not.toContain("notFound()");

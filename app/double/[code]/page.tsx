@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
 import ShareDoubleLink from "@/app/ShareDoubleLink";
 import { getDb } from "@/lib/db";
@@ -39,8 +40,10 @@ export default async function DoubleLinkPage({ params }: Props) {
   const { code } = await params;
   const db = await getDb();
   const link = await loadDoubleLink(db, code);
-  const [a, b] = link ? await Promise.all([getPublicCharacter(db, link.character_id), getPublicCharacter(db, link.partner_id)]) : [null, null];
-  if (!link || !a || !b || link.status === "closed" || link.status === "expired") {
+  // A code that was never made is a real 404 (2026-11-22 audit); one that's off still says so, below.
+  if (!link) notFound();
+  const [a, b] = await Promise.all([getPublicCharacter(db, link.character_id), getPublicCharacter(db, link.partner_id)]);
+  if (!a || !b || link.status === "closed" || link.status === "expired") {
     return (
       <div className="page-narrow date-link">
         <h1>This double-date link isn&apos;t open any more</h1>
