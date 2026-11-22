@@ -16,6 +16,8 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await t.reset();
+  // job_runs isn't in the shared reset, and a part's run there counts as done when it has no rows of its own.
+  await t.db.query(`delete from job_runs`);
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
 afterEach(() => {
@@ -127,7 +129,7 @@ describe("the daily job's rows and its resume pass", () => {
 
     clock("17:20");
     expect(await nextDailyPart(t.db)).toEqual({ part: "upkeep", why: "missed", tries: 0 });
-    await call("upkeep");
+    await (await call("upkeep")).json();
     expect(await nextDailyPart(t.db)).toEqual({ part: "show", why: "failed", tries: 1 });
   });
 
@@ -152,7 +154,7 @@ describe("the daily job's rows and its resume pass", () => {
   it("/admin's Servers card gets the latest day's parts", async () => {
     vi.stubEnv("CRON_SECRET", secret);
     clock("16:20");
-    await call("upkeep");
+    await (await call("upkeep")).json();
     clock("17:00");
     const status = await dailyStatus(t.db);
     expect(status.since).toBe(at("16:00").toISOString());
