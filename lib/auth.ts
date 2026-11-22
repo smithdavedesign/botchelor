@@ -238,10 +238,17 @@ export async function hashPassword(password: string): Promise<string> {
   return `scrypt$${b64url(salt)}$${b64url(hash)}`;
 }
 
+/** The salt for checking a password against no password at all (verifyPassword). Nothing is ever stored with it. */
+const NO_PASSWORD_SALT = Buffer.alloc(16, 7);
+
 export async function verifyPassword(password: string, stored: string | null | undefined): Promise<boolean> {
-  if (!stored) return false;
-  const [scheme, saltB64, hashB64] = stored.split("$");
-  if (scheme !== "scrypt" || !saltB64 || !hashB64) return false;
+  const [scheme, saltB64, hashB64] = (stored ?? "").split("$");
+  if (scheme !== "scrypt" || !saltB64 || !hashB64) {
+    // Nothing to check against (an unknown handle, an account with no password): the same work anyway, so a wrong handle
+    // and a wrong password take the same time (2026-11-22 audit: this returned at once, and the gap told handles apart).
+    await scryptAsync(password, NO_PASSWORD_SALT, SCRYPT_KEYLEN);
+    return false;
+  }
   const expected = Buffer.from(hashB64, "base64url");
   const actual = (await scryptAsync(password, Buffer.from(saltB64, "base64url"), expected.length)) as Buffer;
   return expected.length === actual.length && timingSafeEqual(expected, actual);

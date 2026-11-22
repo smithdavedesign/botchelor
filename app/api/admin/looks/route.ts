@@ -1,7 +1,7 @@
 import { hivePausedMessage, hivePausedUntil } from "@/lib/adult/hive-limit";
 import { isSignedInAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
-import { authFromRequest, handle, json } from "@/lib/http";
+import { authFromRequest, handle, json, MAX_BODY_BYTES, readJsonOr } from "@/lib/http";
 import { drawMissingTiles, tileProgress } from "@/lib/looks-draw";
 import { frontierAuthorized } from "@/lib/model";
 
@@ -30,7 +30,7 @@ export const GET = handle(async (req: Request) => {
  */
 export const POST = handle(async (req: Request) => {
   if (!(await authorized(req))) return denied();
-  const body = (await req.json().catch(() => ({}))) as { limit?: unknown; variant?: unknown; only?: unknown; set?: unknown; redraw?: unknown };
+  const body = ((await readJsonOr(req, MAX_BODY_BYTES, {})) ?? {}) as { limit?: unknown; variant?: unknown; only?: unknown; set?: unknown; redraw?: unknown };
   const variant = body.variant === "pg" || body.variant === "nsfw" ? body.variant : undefined;
   const only = Array.isArray(body.only) ? body.only.filter((x): x is string => typeof x === "string").slice(0, 40) : undefined;
   const db = await getDb();

@@ -1,4 +1,5 @@
 import { adultCookie, safeFrom } from "@/lib/age";
+import { CROSS_SITE_REFUSED, crossSiteBrowserRequest, json, readForm } from "@/lib/http";
 
 /**
  * Confirm 18+ at the entry gate. A plain form POST (works without JavaScript): it sets the year-long adult
@@ -7,9 +8,11 @@ import { adultCookie, safeFrom } from "@/lib/age";
  * so it reliably rides the 303 redirect.
  */
 export async function POST(req: Request): Promise<Response> {
+  // Only the gate's own form says yes: another site's can't tick it for a visitor (lib/http.ts crossSiteBrowserRequest).
+  if (crossSiteBrowserRequest(req)) return json(CROSS_SITE_REFUSED, 403);
   let from = "/";
   try {
-    const form = await req.formData();
+    const form = await readForm(req, 4096); // one field (a path): read no further than 4 KB
     from = safeFrom(typeof form.get("from") === "string" ? (form.get("from") as string) : "/");
   } catch {
     // No form body (e.g. a fetch with none): fall back to the home page.

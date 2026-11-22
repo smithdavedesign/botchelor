@@ -3,6 +3,7 @@ import { claimCookie } from "@/lib/account-claim";
 import { AuthError, PASSWORD_MAX, PASSWORD_MIN, registerAccount, sessionsSignable } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { handle, json, jsonWithSession, parseBody, readJson, session } from "@/lib/http";
+import { overLimit, REGISTER_LIMITS, visitorKey } from "@/lib/limits";
 import { welcome } from "@/lib/notifications";
 import { assertSafeName } from "@/lib/people";
 import { freshSessionVersion } from "@/lib/session-versions";
@@ -25,6 +26,11 @@ export const POST = handle(async (req) => {
   assertSafeName(input.handle, "handle");
 
   const db = await getDb();
+  // Sign-ups from one address (lib/limits.ts REGISTER_LIMITS), before the password is hashed.
+  const visitor = visitorKey(req.headers);
+  if (visitor && (await overLimit(db, "register", visitor, REGISTER_LIMITS))) {
+    return json({ error: "too_many_signups", message: "That's a lot of new accounts from one connection. Try again in an hour." }, 429);
+  }
   try {
     const account = await registerAccount(db, sess.userId, input.handle, input.password);
     // The account's first notice (lib/notifications.ts welcome): never in the way of the sign-up itself.

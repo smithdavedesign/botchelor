@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { safeFrom } from "@/lib/age";
 import type { PeopleSummary, TrendDay, UserFeedbackRow } from "@/lib/user-feedback";
 import { CATEGORY_LABELS, FEEDBACK_CATEGORIES, FEEDBACK_NOTE_MAX, FEEDBACK_STATUSES, type FeedbackCategory, type FeedbackStatus } from "@/lib/user-feedback-shared";
 
@@ -407,7 +408,7 @@ export default function PeopleFeedback() {
                     {r.rating === null ? "no rating" : <strong>{r.rating}/10</strong>} · {r.account ? "account" : "anonymous"}
                     {r.page ? (
                       <>
-                        {" "}· <a href={r.page}>{r.page}</a>
+                        {" "}· {safeFrom(r.page) === r.page ? <a href={r.page}>{r.page}</a> : r.page}
                       </>
                     ) : null}
                     {r.viewport ? ` · ${r.viewport}` : ""}
