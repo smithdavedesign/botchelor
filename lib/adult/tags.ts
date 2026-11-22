@@ -50,7 +50,6 @@ export type AdultTagId = TagId | (typeof ADULT_ONLY_TAGS)[number]["id"];
 const BY_ID: ReadonlyMap<string, AdultTagDef> = new Map(ADULT_TAGS.map((t) => [t.id, t]));
 export const adultTagById = (id: string): AdultTagDef | undefined => BY_ID.get(id);
 export const isAdultTagId = (id: unknown): id is AdultTagId => typeof id === "string" && BY_ID.has(id);
-export const adultTagsIn = (facet: AdultTagFacet): readonly AdultTagDef[] => ADULT_TAGS.filter((t) => t.facet === facet);
 
 /** The hard nos a set of tags runs into: a roleplay with any of them is marked for a pair that ruled one out. */
 export function tagHardNos(tags: readonly string[], chips: readonly string[]): string[] {

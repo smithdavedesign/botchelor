@@ -68,7 +68,6 @@ export const LINE_STYLES = {
   talked_about: { token: "--social-talk", dash: [0, 2.6], arrow: true },
 } as const satisfies Record<string, LineStyle>;
 export type StyleKey = keyof typeof LINE_STYLES;
-export const isStyleKey = (x: unknown): x is StyleKey => typeof x === "string" && Object.prototype.hasOwnProperty.call(LINE_STYLES, x);
 
 const RIVALRY = new Set<TieKindId>(["rival", "nemesis", "frenemy"]);
 const ENMITY = new Set<TieKindId>(["enemy", "grudge"]);

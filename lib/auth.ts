@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
 import { knownSessionVersion } from "./session-versions";
+import { soft } from "./soft";
 
 const scryptAsync = promisify(scrypt);
 
@@ -447,7 +448,7 @@ export async function exchangeGoogleCode(
     }),
   });
   if (!res.ok) throw new AuthError(502, "google_exchange_failed", "Google sign-in failed. Try again.");
-  const body = (await res.json().catch(() => null)) as { id_token?: unknown } | null;
+  const body = (await res.json().catch(soft("auth: Google token reply", null))) as { id_token?: unknown } | null;
   const idToken = typeof body?.id_token === "string" ? body.id_token : null;
   const payload = idToken ? decodeJwtPayload(idToken) : null;
   const sub = typeof payload?.sub === "string" ? payload.sub : null;

@@ -20,10 +20,6 @@ export function setSound(next: boolean) {
   for (const f of subs) f();
 }
 
-export function soundOn(): boolean {
-  return on;
-}
-
 /** The switch, for a component: [on, set]. Muted on the server and on first paint. */
 export function useSound(): [boolean, (next: boolean) => void] {
   const value = useSyncExternalStore(
