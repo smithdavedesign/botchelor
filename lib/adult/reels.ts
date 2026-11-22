@@ -39,6 +39,7 @@
  * The keyframes are drawn, checked and queued when the reel starts. Shots take minutes on Venice, so a reel is then
  * advanced by whoever's watching (GET polls advanceReel).
  */
+import { createHash } from "node:crypto";
 import { cameraWords, type CameraMoveId } from "./camera-moves";
 import { picturesBlocked } from "./readiness";
 import { isAdmin } from "../admins";
@@ -76,6 +77,7 @@ import { candidates, ensureTagged, placeKeys, rank, tagNow } from "./media-tags"
 import { giveBackIncludedClip } from "./usage";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
 import { replicateVoice, voiceFor } from "../voice";
+import { logShotFailures } from "./video-failures";
 
 // A character's stock voice lives in the shared voice kit (lib/voice.ts) now; reels and their callers still import it from here.
 export { replicateVoice, voiceFor };
@@ -93,6 +95,13 @@ const SHOTS_PER_POLL = 2;
  */
 export const CHECK_RETRY_MS = 10 * 60 * 1000;
 export const REEL_GIVE_UP_MS = 3 * 60 * 60 * 1000;
+/**
+ * How long one collecting pass holds a reel (advanceReel), renewed as it goes: only a pass cut off (a deploy, a crash)
+ * lets it lapse, and the reel is free again this long after.
+ */
+const COLLECT_LEASE_S = 120;
+/** Renewed when the pass has held it this long, before its next shot. */
+const RENEW_AFTER_MS = 30_000;
 /**
  * The multi-image edit that draws a shot's keyframe: hosted by Venice itself, uncensored, and it keeps both faces (the
  * bake-off of 2026-10-22: FireRed missed the pose and kept a baseline's lingerie). $0.04 a keyframe.
@@ -1142,11 +1151,14 @@ export function replicateSetImage(dataUri: string, place: string, baseUrl: strin
   return bytes <= DATA_URI_MAX || normalizeScene(key) !== key ? dataUri : `${baseUrl.replace(/\/$/, "")}${setPath(place)}`;
 }
 
-async function venice(key: string, path: string, body: unknown): Promise<Response> {
-  // What made the media (lib/adult/request-log.ts): not the polls for it.
-  if (path !== "/video/retrieve") logRequest(`${VENICE}${path}`, body);
-  return doFetch(`${VENICE}${path}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+async function venice(key: string, path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  // What made the media (lib/adult/request-log.ts): not the polls for it, nor letting it go.
+  if (path !== "/video/retrieve" && path !== "/video/complete") logRequest(`${VENICE}${path}`, body);
+  return doFetch(`${VENICE}${path}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body), ...(signal ? { signal } : {}) });
 }
+
+/** An answer's body nobody needs, read off and dropped: one left unread holds its connection open (2026-11-22). */
+const drain = (res: Response): Promise<void> => res.text().then(() => undefined, () => undefined);
 
 /** A line in a stock voice from Venice's Kokoro (MP3): a Replicate shot's voice when Replicate is limited. */
 async function veniceSpeech(key: string, text: string, voice: string): Promise<ReplicateFile> {
@@ -1255,17 +1267,64 @@ export async function queueVideo(
   return q.queue_id;
 }
 
-/** Where a queued video is: still being made, done (its bytes), or failed. Venice keeps it until releaseVideo. */
-export async function retrieveVideo(key: string, model: string, queueId: string): Promise<{ state: "making" } | { state: "ready"; bytes: Buffer } | { state: "failed"; reason: string }> {
-  const res = await venice(key, "/video/retrieve", { model, queue_id: queueId });
-  if (!res.ok) return { state: "failed", reason: `Venice ${res.status}` };
-  if (!(res.headers.get("content-type") ?? "").includes("video")) return { state: "making" };
-  return { state: "ready", bytes: Buffer.from(await res.arrayBuffer()) };
+/** The pauses before asking Venice again when it's busy (429), has trouble of its own (5xx) or doesn't answer. */
+const RETRIEVE_RETRY_MS = [1000, 3000];
+/** A retrieve (a video is about 10 MB) not done by then counts as no answer. */
+const RETRIEVE_TIMEOUT_MS = 90_000;
+/** Answers that only say Venice is busy, whatever became of the video: it's asked again on the next poll. */
+const onlyBusy = (status: number) => status === 429 || status === 502 || status === 503 || status === 504;
+
+/**
+ * Where a queued video is: still being made, done (its bytes), or failed. Venice keeps it until releaseVideo. A busy or
+ * failing answer (429, 5xx) or none at all is asked again twice, a moment apart, before it counts (2026-11-22: one bad
+ * answer failed a paid shot); one that still only says Venice is busy, or no answer, leaves it for the next poll. A 500
+ * ("inference processing failed") fails it, and a 404 says Venice's copy is gone.
+ */
+export async function retrieveVideo(key: string, model: string, queueId: string): Promise<{ state: "making" } | { state: "ready"; bytes: Buffer } | { state: "failed"; reason: string; status: number }> {
+  for (let attempt = 0; ; attempt++) {
+    let res: Response | null = null;
+    try {
+      res = await venice(key, "/video/retrieve", { model, queue_id: queueId }, AbortSignal.timeout(RETRIEVE_TIMEOUT_MS));
+      if (res.ok && (res.headers.get("content-type") ?? "").includes("video")) return { state: "ready", bytes: Buffer.from(await res.arrayBuffer()) };
+      await drain(res);
+      if (res.ok) return { state: "making" };
+    } catch {
+      // No answer, or cut off partway (the network, the timeout).
+      res = null;
+    }
+    if ((!res || res.status === 429 || res.status >= 500) && attempt < RETRIEVE_RETRY_MS.length) {
+      await pause(RETRIEVE_RETRY_MS[attempt]);
+      continue;
+    }
+    if (!res || onlyBusy(res.status)) return { state: "making" };
+    return { state: "failed", reason: `Venice ${res.status}`, status: res.status };
+  }
 }
 
-/** Venice's copy of a video, deleted once ours is kept (or it was refused). */
+/**
+ * Venice's copy of a video, deleted once ours is kept (or it was refused): its delete (/video/complete) answers with a
+ * line of JSON. The retrieve with delete_media_on_completion used before sent the whole video back just to delete it,
+ * and nothing read that answer (2026-11-22). Should the delete not go through, that way still deletes it, the bytes
+ * read off and dropped as they come.
+ */
 export async function releaseVideo(key: string, model: string, queueId: string): Promise<void> {
-  await venice(key, "/video/retrieve", { model, queue_id: queueId, delete_media_on_completion: true }).catch(() => {});
+  try {
+    const res = await venice(key, "/video/complete", { model, queue_id: queueId }, AbortSignal.timeout(30_000));
+    await drain(res);
+    if (res.ok) return;
+  } catch {
+    // Not answered: the old way, below.
+  }
+  try {
+    const res = await venice(key, "/video/retrieve", { model, queue_id: queueId, delete_media_on_completion: true }, AbortSignal.timeout(RETRIEVE_TIMEOUT_MS));
+    const reader = res.body?.getReader();
+    while (reader) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+  } catch {
+    // Left to Venice, where an uncollected video expires.
+  }
 }
 
 /** A picture made larger by Venice's upscaler (the Studio's Upscale, about $0.02): a PNG comes back. */
@@ -1692,8 +1751,10 @@ export async function stopReel(db: Db, ownerId: string, id: string, reason = "st
   const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[] }>(`select owner_id, status, shots from adult_reels where id = $1`, [id])).rows[0];
   if (!row || row.owner_id !== ownerId) return null;
   if (row.status !== "making") return getReel(db, id);
-  const shots = row.shots.map((s) => (stillOut(s) ? { ...s, status: "failed" as const, reason } : s));
-  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1 and status = 'making'`, [id, JSON.stringify(shots)]);
+  // Each shot still out given up on its own, and only if it's still out: one a collecting pass has just brought in stays.
+  for (const [k, s] of row.shots.entries()) {
+    if (stillOut(s)) await writeShot(db, id, k, JSON.stringify(s), JSON.stringify({ ...s, status: "failed", reason }));
+  }
   // A shot still running on Replicate is stopped there too, so it doesn't go on billing for a video nobody collects.
   // One made on their own key is stopped with that key.
   const running = row.shots.filter((s) => s.status === "queued" && s.provider === "replicate" && s.queue_id);
@@ -2231,11 +2292,99 @@ export async function reuseBeatPictures(
 const failShot = (s: ReelShot, reason: string) => Object.assign(s, { status: "failed", reason: reason.slice(0, 200) });
 
 /**
+ * The id a shot's video is kept under, from who made it and its job there (Venice's queue id, Replicate's prediction
+ * id; "voice" for the line said beside a Replicate shot, by that shot's id): the same job kept again is the same row and
+ * file, never a second copy (2026-11-22: two passes at once kept two shots twice, and the copies showed in the Gallery
+ * as loose clips).
+ */
+export function shotVideoId(provider: "venice" | "replicate" | "voice", job: string): string {
+  const h = createHash("sha256").update(`reel shot\n${provider}\n${job}`).digest("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${((parseInt(h[16], 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+/** Whether something is kept under this id already. */
+const kept = async (db: Db, id: string): Promise<boolean> => (await db.query(`select 1 from adult_images where id = $1`, [id])).rows.length > 0;
+
+/** A shot's checked video, kept under its job's id (shotVideoId): keeping the same job again changes nothing. */
+async function keepShotVideo(db: Db, ownerId: string, pair: { character_a: string; character_b: string }, s: ReelShot, id: string, bytes: Buffer, provider: "venice" | "replicate"): Promise<void> {
+  const file = await keepBytes("after-dark", id, bytes, "video/mp4");
+  await db.query(
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request, model) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, $9, $10, $11::jsonb, $12)
+     on conflict (id) do nothing`,
+    [id, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), file.data, file.object_key, s.media_id ?? null, provider, s.fell_back === true, requestJson(s.request), s.model ?? null],
+  );
+}
+
+/** A shot whose video is in: what it waited on goes. */
+function shotIn(s: ReelShot, mediaId: string): void {
+  s.status = "ready";
+  s.media_id = mediaId;
+  delete s.request;
+  delete s.retry_at;
+  delete s.silent_retry;
+  delete s.reason;
+}
+
+/** A collecting pass's hold on a reel: until when (as Postgres wrote it, to the microsecond), and when it was taken. */
+type Lease = { until: string; at: number };
+
+/**
+ * A reel taken for one collecting pass (2026-11-22: the open page's poll and the host's collector, lib/adult/reel-
+ * collector.ts, asked after the same reel at once and both kept its finished shots), with its shots as they are then.
+ * Null: another pass has it (or it's no longer being made), and this one leaves it alone.
+ */
+async function claimReel(db: Db, id: string): Promise<{ lease: Lease; shots: ReelShot[] } | null> {
+  const r = (
+    await db.query<{ shots: ReelShot[]; until: string }>(
+      `update adult_reels set collecting_until = now() + interval '${COLLECT_LEASE_S} seconds'
+        where id = $1 and status = 'making' and (collecting_until is null or collecting_until < now())
+        returning shots, collecting_until::text as until`,
+      [id],
+    )
+  ).rows[0];
+  return r ? { lease: { until: r.until, at: Date.now() }, shots: r.shots } : null;
+}
+
+/** The hold made longer while it's still this pass's; false once another pass has taken it, and this one stops. */
+async function renewReel(db: Db, id: string, lease: Lease): Promise<boolean> {
+  if (Date.now() - lease.at < RENEW_AFTER_MS) return true;
+  const r = (
+    await db.query<{ until: string }>(
+      `update adult_reels set collecting_until = now() + interval '${COLLECT_LEASE_S} seconds' where id = $1 and collecting_until = $2::timestamptz returning collecting_until::text as until`,
+      [id, lease.until],
+    )
+  ).rows[0];
+  if (!r) return false;
+  Object.assign(lease, { until: r.until, at: Date.now() });
+  return true;
+}
+
+/** The hold let go, if it's still this pass's. */
+const releaseReel = (db: Db, id: string, lease: Lease) =>
+  db.query(`update adult_reels set collecting_until = null where id = $1 and collecting_until = $2::timestamptz`, [id, lease.until]).catch(() => {});
+
+/**
+ * One shot of a reel written back on its own, and only if it's still what the writer read (`was`): never the whole list,
+ * so whatever someone else wrote meanwhile (another pass, Stop) stands. False when it had changed.
+ */
+async function writeShot(db: Db, id: string, k: number, was: string, now: string): Promise<boolean> {
+  const { rows } = await db.query(`update adult_reels set shots = jsonb_set(shots, array[$2::text], $5::jsonb), updated_at = now() where id = $1 and shots -> ($3::int) = $4::jsonb returning 1`, [
+    id,
+    String(k),
+    k,
+    was,
+    now,
+  ]);
+  return rows.length > 0;
+}
+
+/**
  * Collects one Replicate shot once its prediction is done: the video downloaded at once (Replicate deletes it within
  * the hour), checked by Hive, and only then stored; then, unless the talk model said it, its line said by the
  * character's stock voice (Wan 2.2 is silent), stored beside it. A talking shot the talk model couldn't make is queued
  * on the silent model instead. "checked": it went to Hive; "busy": Hive couldn't check it (it's asked again later);
- * "waiting": still being made, or failed without reaching Hive.
+ * "waiting": still being made, or failed without reaching Hive; "in": kept already, by a pass that didn't get to write
+ * the shot back, so nothing was fetched or checked again.
  */
 async function collectReplicateShot(
   db: Db,
@@ -2245,6 +2394,63 @@ async function collectReplicateShot(
   keys: { replicate: string; hive: string | null; venice?: string | null },
   voiceModel: () => Promise<string>,
   now: number,
+): Promise<"checked" | "busy" | "waiting" | "in"> {
+  const mediaId = shotVideoId("replicate", s.queue_id!);
+  const got = (await kept(db, mediaId)) ? "in" : await fetchReplicateShot(db, ownerId, pair, s, keys, now, mediaId);
+  if (got !== "in" && got !== "checked") return got;
+  if (s.status === "discarded" || s.status === "failed") return got;
+  shotIn(s, mediaId);
+  // A clip with no line in it (an act from the menu) stays silent; a talking shot said its line itself.
+  if (!s.text.trim() || s.speaks) return got;
+  // Made silent after the speech model couldn't: the voice said for it plays beside it, not a second one.
+  if (s.said_id) {
+    s.audio_id = s.said_id;
+    return got;
+  }
+  // Its line, in their voice, kept by the shot's id like the shot: said already by a pass that didn't write it back.
+  const audioId = shotVideoId("voice", mediaId);
+  if (await kept(db, audioId)) {
+    s.audio_id = audioId;
+    return got;
+  }
+  // The words were held to the two lines when the reel started (makeReel). A voice that doesn't come leaves the shot
+  // silent, with its caption, rather than losing it.
+  try {
+    // The voice is a job of its own: on Venice's Kokoro when Replicate is limited (the video stays where it was made).
+    // On someone's own key, on that key only.
+    const say = async (p: MediaProvider) =>
+      p === "replicate" ? runModel(keys.replicate, await voiceModel(), replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 }) : veniceSpeech(keys.venice!, s.text, s.voice ?? "af_alloy");
+    const said = s.own
+      ? { value: await say("replicate"), provider: "replicate" as const, fell_back: false }
+      : await runMedia(db, "voice", say, { configured: "replicate", available: (p) => p === "replicate" || Boolean(keys.venice) });
+    const voice = said.value;
+    if (!voice.mime.startsWith("audio/")) throw new Error("Replicate returned no audio");
+    const file = await keepBytes("after-dark", audioId, voice.bytes, voice.mime);
+    await db.query(
+      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'audio', $5, $6, $7, $8, 'ready', $9, $10, $11)
+       on conflict (id) do nothing`,
+      [audioId, ownerId, pair.character_a, pair.character_b, `Reel line: ${s.text}`.slice(0, 500), voice.mime, file.data, file.object_key, mediaId, said.provider, said.fell_back],
+    );
+    s.audio_id = audioId;
+    if (said.fell_back) s.fell_back = true;
+  } catch (err) {
+    s.reason = `no voice: ${err instanceof Error ? err.message : "error"}`.slice(0, 200);
+  }
+  return got;
+}
+
+/**
+ * The fetching half of collectReplicateShot: the finished prediction downloaded, checked by Hive and kept under
+ * `mediaId`, or why not ("checked" with the shot discarded or failed, "busy", "waiting").
+ */
+async function fetchReplicateShot(
+  db: Db,
+  ownerId: string,
+  pair: { character_a: string; character_b: string },
+  s: ReelShot,
+  keys: { replicate: string },
+  now: number,
+  mediaId: string,
 ): Promise<"checked" | "busy" | "waiting"> {
   let p: Prediction;
   try {
@@ -2310,52 +2516,19 @@ async function collectReplicateShot(
     await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, verdict.reason.slice(0, 300)]).catch(() => {});
     return "checked";
   }
-  const mediaId = crypto.randomUUID();
-  const kept = await keepBytes("after-dark", mediaId, file.bytes, "video/mp4");
-  await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request, model) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'replicate', $9, $10::jsonb, $11)`,
-    [mediaId, ownerId, pair.character_a, pair.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request), s.model ?? null],
-  );
-  s.status = "ready";
-  s.media_id = mediaId;
-  delete s.request;
-  delete s.retry_at;
-  delete s.silent_retry;
-  delete s.reason;
-  // A clip with no line in it (an act from the menu) stays silent; a talking shot said its line itself.
-  if (!s.text.trim() || s.speaks) return "checked";
-  // Made silent after the speech model couldn't: the voice said for it plays beside it, not a second one.
-  if (s.said_id) {
-    s.audio_id = s.said_id;
-    return "checked";
-  }
-  // Its line, in their voice: the words were held to the two lines when the reel started (makeReel). A voice that
-  // doesn't come leaves the shot silent, with its caption, rather than losing it.
-  try {
-    // The voice is a job of its own: on Venice's Kokoro when Replicate is limited (the video stays where it was made).
-    // On someone's own key, on that key only.
-    const say = async (p: MediaProvider) =>
-      p === "replicate" ? runModel(keys.replicate, await voiceModel(), replicateVoiceInput(s), { maxBytes: MAX_VOICE_BYTES, timeoutMs: 60_000 }) : veniceSpeech(keys.venice!, s.text, s.voice ?? "af_alloy");
-    const said = s.own
-      ? { value: await say("replicate"), provider: "replicate" as const, fell_back: false }
-      : await runMedia(db, "voice", say, { configured: "replicate", available: (p) => p === "replicate" || Boolean(keys.venice) });
-    const voice = said.value;
-    if (!voice.mime.startsWith("audio/")) throw new Error("Replicate returned no audio");
-    const audioId = crypto.randomUUID();
-    const kept = await keepBytes("after-dark", audioId, voice.bytes, voice.mime);
-    await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back) values ($1, $2, $3, $4, 'audio', $5, $6, $7, $8, 'ready', $9, $10, $11)`,
-      [audioId, ownerId, pair.character_a, pair.character_b, `Reel line: ${s.text}`.slice(0, 500), voice.mime, kept.data, kept.object_key, mediaId, said.provider, said.fell_back],
-    );
-    s.audio_id = audioId;
-    if (said.fell_back) s.fell_back = true;
-  } catch (err) {
-    s.reason = `no voice: ${err instanceof Error ? err.message : "error"}`.slice(0, 200);
-  }
+  await keepShotVideo(db, ownerId, pair, s, mediaId, file.bytes, "replicate");
   return "checked";
 }
 
-/** Checks a reel's queued shots once: stores each finished one that passes Hive, discards the rest. */
+/**
+ * Checks a reel's queued shots once: stores each finished one that passes Hive, discards the rest.
+ *
+ * One pass at a time (2026-11-22: the open page's poll and the host's collector asked at the same moment, both fetched,
+ * checked and kept the same two finished shots, and whichever wrote the shot list last won). A pass takes the reel first
+ * (claimReel) and one that can't changes nothing; it writes each shot back on its own, only if no one changed it
+ * meanwhile (writeShot); a video is kept under its job's id (shotVideoId), so keeping it again is a no-op; and the
+ * provider's copy is deleted only once ours is kept.
+ */
 export async function advanceReel(db: Db, ownerId: string, id: string): Promise<Reel | null> {
   const row = (await db.query<{ owner_id: string; status: string; shots: ReelShot[]; character_a: string; character_b: string; created_at: string | Date }>(`select owner_id, status, shots, character_a, character_b, created_at from adult_reels where id = $1`, [id])).rows[0];
   if (!row || row.owner_id !== ownerId) return null;
@@ -2364,102 +2537,121 @@ export async function advanceReel(db: Db, ownerId: string, id: string): Promise<
   // undo the queued ones it's about to write.
   const age0 = Date.now() - new Date(row.created_at).getTime();
   if (row.shots.some((s) => s.status === "frame_ready" && !s.archived_at) && age0 <= REEL_GIVE_UP_MS) return getReel(db, id);
-  const keys = await adultKeys(db);
-  const shots = row.shots;
-  // A couple of finished shots per poll: Hive rate-limits a burst (429), and the next poll takes the rest.
-  let checked = 0;
-  const now = Date.now();
-  const age = now - new Date(row.created_at).getTime();
-  for (const s of shots) {
-    // Kept to be queued, but filming was cut off before it was (a deploy mid-filmReel): it's never coming either.
-    if (s.status === "frame_ready" && !s.archived_at && age > REEL_GIVE_UP_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "never started" });
-    if (s.status !== "queued") continue;
-    // Waited long enough: shots still unchecked are given up (their share of tokens comes back), so the reel settles.
-    if (age > REEL_GIVE_UP_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "gave up waiting" });
-    // Its start was cut off before its video was queued (makeReel stopped partway): it's never coming.
-    else if (!s.queue_id && age > NEVER_QUEUED_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "never started" });
-  }
-  // A shot made on its owner's own key is collected with that key, and never with ours.
-  const ownKey = shots.some((s) => s.own && s.status === "queued") ? await jobKey(db, ownerId, "after_dark_video").catch(() => undefined) : null;
-  const ownOf = (provider: "venice" | "replicate") => (ownKey?.provider === provider ? ownKey.apiKey : null);
-  // Replicate's voice model, read once a poll and only when a Replicate shot needs it.
-  let voiceModel: string | null = null;
-  const voiceModelOf = async () => (voiceModel ??= (await getAdultSettings(db)).replicate_voice_model);
-  // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is fetched or sent to Hive; the shots wait where they
-  // were made, unchecked, until the pause is over, and say so.
-  const paused = await hivePausedUntil(db);
-  if (paused) {
+  // Another pass has it (the host's collector, or this page's last poll): it's left to that one.
+  const claim = await claimReel(db, id);
+  if (!claim) return getReel(db, id);
+  const { lease, shots } = claim;
+  try {
+    const keys = await adultKeys(db);
+    // Each shot as the pass took it: written back on its own, and only if it's still that.
+    const was = shots.map((s) => JSON.stringify(s));
+    const save = async (k: number): Promise<boolean> => {
+      const now = JSON.stringify(shots[k]);
+      if (now === was[k]) return true;
+      if (!(await writeShot(db, id, k, was[k], now))) return false;
+      was[k] = now;
+      return true;
+    };
+    // A couple of finished shots per poll: Hive rate-limits a burst (429), and the next poll takes the rest.
+    let checked = 0;
+    const now = Date.now();
+    const age = now - new Date(row.created_at).getTime();
     for (const s of shots) {
-      if (s.status !== "queued" || !s.queue_id) continue;
-      if (!s.retry_at || s.retry_at < paused) s.retry_at = paused;
-      s.reason = hivePausedReason(paused).slice(0, 200);
+      // Kept to be queued, but filming was cut off before it was (a deploy mid-filmReel): it's never coming either.
+      if (s.status === "frame_ready" && !s.archived_at && age > REEL_GIVE_UP_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "never started" });
+      if (s.status !== "queued") continue;
+      // Waited long enough: shots still unchecked are given up (their share of tokens comes back), so the reel settles.
+      if (age > REEL_GIVE_UP_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "gave up waiting" });
+      // Its start was cut off before its video was queued (makeReel stopped partway): it's never coming.
+      else if (!s.queue_id && age > NEVER_QUEUED_MS) Object.assign(s, { status: "failed", reason: s.reason ?? "never started" });
     }
+    // A shot made on its owner's own key is collected with that key, and never with ours.
+    const ownKey = shots.some((s) => s.own && s.status === "queued") ? await jobKey(db, ownerId, "after_dark_video").catch(() => undefined) : null;
+    const ownOf = (provider: "venice" | "replicate") => (ownKey?.provider === provider ? ownKey.apiKey : null);
+    // Replicate's voice model, read once a poll and only when a Replicate shot needs it.
+    let voiceModel: string | null = null;
+    const voiceModelOf = async () => (voiceModel ??= (await getAdultSettings(db)).replicate_voice_model);
+    // Hive over its daily limit (lib/adult/hive-limit.ts): nothing is fetched or sent to Hive; the shots wait where they
+    // were made, unchecked, until the pause is over, and say so.
+    const paused = await hivePausedUntil(db);
+    if (paused) {
+      for (const s of shots) {
+        if (s.status !== "queued" || !s.queue_id) continue;
+        if (!s.retry_at || s.retry_at < paused) s.retry_at = paused;
+        s.reason = hivePausedReason(paused).slice(0, 200);
+      }
+    }
+    for (let k = 0; k < shots.length; k++) {
+      const s = shots[k];
+      if (paused) break;
+      if (s.status !== "queued" || !s.queue_id || !s.model || checked >= SHOTS_PER_POLL) continue;
+      if (s.retry_at && now < new Date(s.retry_at).getTime()) continue;
+      // Couldn't be read just now: asked again next poll. Gone (disconnected, or switched to the other provider): failed.
+      if (s.own && ownKey === undefined) continue;
+      if (s.own && !ownOf(s.provider ?? "venice")) {
+        failShot(s, "Your key for After Dark videos isn't connected any more (Connections)");
+        continue;
+      }
+      // Still this pass's (renewed as it goes): one that lost it stops, and the pass that has it carries on.
+      if (!(await renewReel(db, id, lease))) break;
+      if (s.provider === "replicate") {
+        const token = s.own ? ownOf("replicate") : keys.replicate;
+        if (!token) continue;
+        const got = await collectReplicateShot(db, ownerId, row, s, { replicate: token, hive: keys.hive, venice: s.own ? null : keys.venice }, voiceModelOf, now);
+        if (got === "checked") checked++;
+        // Paid on their own key once it's in, by the pass that wrote it in.
+        if ((await save(k)) && s.own && (s as ReelShot).status === "ready") await recordJobSpend(db, ownerId, "after_dark_video", "replicate", ownShotUsd(s));
+        // Hive couldn't check it: nothing more goes to Hive this poll.
+        if (got === "busy") break;
+        continue;
+      }
+      const veniceKey = s.own ? ownOf("venice") : keys.venice;
+      if (!veniceKey) continue;
+      const [model, queueId] = [s.model, s.queue_id];
+      const mediaId = shotVideoId("venice", queueId);
+      // Kept already, by a pass that didn't get to write the shot back: it's in, with nothing to fetch or check again.
+      if (!(await kept(db, mediaId))) {
+        // Venice keeps the file until ours is kept (a check that can't run yet is tried again next poll).
+        const got = await retrieveVideo(veniceKey, model, queueId);
+        // A slow answer can outlast the hold: once another pass has the reel, the video is that pass's to check and keep.
+        if (!(await renewReel(db, id, lease))) break;
+        if (got.state === "making") continue;
+        if (got.state === "failed") {
+          failShot(s, got.reason);
+          await save(k);
+          continue;
+        }
+        checked++;
+        const verdict = await checkMedia(db, { base64: got.bytes.toString("base64"), mime: "video/mp4" }, "video");
+        // The check couldn't run (Hive busy, down, or out for the day): not a refusal yet. Try again after a wait (or
+        // once the pause is over), and send nothing more to Hive this poll.
+        if (!verdict.ok && couldntRun(verdict)) {
+          s.retry_at = askAgainAt(verdict, now);
+          s.reason = waitReason(verdict);
+          await save(k);
+          break;
+        }
+        if (!verdict.ok) {
+          s.status = "discarded";
+          s.reason = verdict.reason.slice(0, 200);
+          await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, verdict.reason.slice(0, 300)]).catch(() => {});
+          await save(k);
+          continue;
+        }
+        await keepShotVideo(db, ownerId, row, s, mediaId, got.bytes, "venice");
+      }
+      shotIn(s, mediaId);
+      if ((await save(k)) && s.own) await recordJobSpend(db, ownerId, "after_dark_video", "venice", ownShotUsd(s));
+      // Ours is kept: Venice's copy can go.
+      await releaseVideo(veniceKey, model, queueId);
+    }
+    for (let k = 0; k < shots.length; k++) await save(k);
+    // The shots that landed, tagged now the reel says what each shows (lib/adult/media-tags.ts tagNow).
+    await tagNow(db, shots.filter((s) => s.status === "ready").map((s) => s.media_id));
+    return await settleIfDone(db, id);
+  } finally {
+    await releaseReel(db, id, lease);
   }
-  for (const s of shots) {
-    if (paused) break;
-    if (s.status !== "queued" || !s.queue_id || !s.model || checked >= SHOTS_PER_POLL) continue;
-    if (s.retry_at && now < new Date(s.retry_at).getTime()) continue;
-    // Couldn't be read just now: asked again next poll. Gone (disconnected, or switched to the other provider): failed.
-    if (s.own && ownKey === undefined) continue;
-    if (s.own && !ownOf(s.provider ?? "venice")) {
-      failShot(s, "Your key for After Dark videos isn't connected any more (Connections)");
-      continue;
-    }
-    if (s.provider === "replicate") {
-      const token = s.own ? ownOf("replicate") : keys.replicate;
-      if (!token) continue;
-      const got = await collectReplicateShot(db, ownerId, row, s, { replicate: token, hive: keys.hive, venice: s.own ? null : keys.venice }, voiceModelOf, now);
-      if (got === "checked") checked++;
-      if (s.own && (s as ReelShot).status === "ready") await recordJobSpend(db, ownerId, "after_dark_video", "replicate", ownShotUsd(s));
-      // Hive couldn't check it: nothing more goes to Hive this poll.
-      if (got === "busy") break;
-      continue;
-    }
-    const veniceKey = s.own ? ownOf("venice") : keys.venice;
-    if (!veniceKey) continue;
-    // Venice keeps the file until we've stored our own (a check that can't run yet is tried again next poll).
-    const res = await venice(veniceKey, "/video/retrieve", { model: s.model, queue_id: s.queue_id });
-    if (!res.ok) {
-      s.status = "failed";
-      s.reason = `Venice ${res.status}`;
-      continue;
-    }
-    if (!(res.headers.get("content-type") ?? "").includes("video")) continue; // still being made
-    const bytes = Buffer.from(await res.arrayBuffer());
-    checked++;
-    const verdict = await checkMedia(db, { base64: bytes.toString("base64"), mime: "video/mp4" }, "video");
-    // The check couldn't run (Hive busy, down, or out for the day): not a refusal yet. Try again after a wait (or once
-    // the pause is over), and send nothing more to Hive this poll.
-    if (!verdict.ok && couldntRun(verdict)) {
-      s.retry_at = askAgainAt(verdict, now);
-      s.reason = waitReason(verdict);
-      break;
-    }
-    if (!verdict.ok) {
-      s.status = "discarded";
-      s.reason = verdict.reason.slice(0, 200);
-      await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'reel', $3)`, [crypto.randomUUID(), ownerId, verdict.reason.slice(0, 300)]).catch(() => {});
-      continue;
-    }
-    const mediaId = crypto.randomUUID();
-    const kept = await keepBytes("after-dark", mediaId, bytes, "video/mp4");
-    await db.query(
-      `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, request, model) values ($1, $2, $3, $4, 'video', $5, 'video/mp4', $6, $7, 'ready', $8, 'venice', $9, $10::jsonb, $11)`,
-      [mediaId, ownerId, row.character_a, row.character_b, `Reel shot: ${s.text}`.slice(0, 500), kept.data, kept.object_key, s.media_id ?? null, s.fell_back === true, requestJson(s.request), s.model ?? null],
-    );
-    s.status = "ready";
-    s.media_id = mediaId;
-    delete s.retry_at;
-    delete s.request;
-    delete s.reason;
-    if (s.own) await recordJobSpend(db, ownerId, "after_dark_video", "venice", ownShotUsd(s));
-    // Ours now: Venice's copy can go.
-    await venice(veniceKey, "/video/retrieve", { model: s.model, queue_id: s.queue_id, delete_media_on_completion: true }).catch(() => {});
-  }
-  await db.query(`update adult_reels set shots = $2::jsonb, updated_at = now() where id = $1`, [id, JSON.stringify(shots)]);
-  // The shots that landed, tagged now the reel says what each shows (lib/adult/media-tags.ts tagNow).
-  await tagNow(db, shots.filter((s) => s.status === "ready").map((s) => s.media_id));
-  return settleIfDone(db, id);
 }
 
 /**
@@ -2485,12 +2677,17 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
       ? refilmed.reduce((t, s) => t + (s.status === "ready" ? 0 : (s.refilm_tokens ?? 0)), 0)
       : r.tokens - Math.ceil((r.tokens * good) / r.shots.length);
     for (const s of refilmed) delete s.refilm_tokens;
+    // What failed, as it was (a shot back in its storyboard keeps its reason as last_try): logged once it's settled.
+    const failed = r.shots.map((s) => ({ ...s }));
+    const filmedNow = refilmed.length ? refilmed.map((s) => r.shots.indexOf(s)) : undefined;
     if (back) reopenShots(r.shots);
     const writeShots = refilmed.length > 0 || back;
     const done = await db.query(
       `update adult_reels set status = $2, updated_at = now()${back ? ", tokens = 0, returned_at = now()" : ""}${writeShots ? ", shots = $3::jsonb" : ""} where id = $1 and status = 'making' returning 1`,
       writeShots ? [id, back ? "draft" : status, JSON.stringify(r.shots)] : [id, status],
     );
+    // Only by the pass that settled it, so each failure is logged once (a shot filmed again: only that one).
+    if (done.rows.length) logShotFailures({ id, kind: r.kind }, failed, filmedNow);
     if (done.rows.length && refund > 0) await refundAdTokens(db, r.owner_id, refund);
     // An included clip (#1005) that didn't come through: its place in the month's allowance back (a refilm's isn't one).
     if (done.rows.length && status === "failed" && !refilmed.length && r.kind === "clip" && r.clip?.included) await giveBackIncludedClip(db, r.owner_id, r.clip.included);

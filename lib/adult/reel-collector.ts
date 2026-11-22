@@ -5,7 +5,8 @@ import { advanceReel } from "./reels";
  * Videos being made, asked after by the host itself (instrumentation.ts, After Dark's own deployment). A reel's shots
  * come back only when something asks (advanceReel, which the page polls while it is open), and Replicate drops a
  * prediction nobody collected in half an hour; the 2026-10-31 audit left six finished shots waiting 20 minutes because
- * the page was on the theater. This asks once a minute for every reel still being made, whatever is open.
+ * the page was on the theater. This asks once a minute for every reel still being made, whatever is open. A reel is
+ * collected by one pass at a time (advanceReel claims it): while the page's poll has it, this leaves it, and back.
  */
 export const COLLECT_EVERY_MS = 60_000;
 /** A reel younger than this is the page's own to poll (its shots are still being queued). */

@@ -30,6 +30,7 @@ import Storyboard from "./Storyboard";
 import MediaMenu from "./MediaMenu";
 import type { BusyReel, Reel, ReelScope } from "@/lib/adult/reels";
 import { byFiling, groupNights, makingNote, nightNumbers, runningNight, videoNight } from "@/lib/adult/nights";
+import { pollReels } from "@/lib/adult/reel-poll";
 import { autoplayStop } from "@/lib/adult/autoplay";
 import type { AdultNight, AdultScene } from "@/lib/adult/scenes";
 import { SOFT_CHAPTERS, STAGES } from "@/lib/adult/stages";
@@ -210,16 +211,15 @@ export default function SceneWriter({
   // drops a shot nobody collected in half an hour. Asked from here while the page is open, whatever shows (the theater,
   // another tab): until the 2026-10-31 audit only the 🎞 Videos list asked, so leaving it for the theater stalled the
   // video (six finished shots sat 20 minutes; in 90 seconds once asked).
+  // One ask at a time (lib/adult/reel-poll.ts): the next waits for the last to answer, and a video that's done isn't asked after.
   const making = reelList.filter((r) => r.status === "making").map((r) => r.id).join(",");
   useEffect(() => {
     if (!making) return;
-    const timer = setInterval(async () => {
-      for (const id of making.split(",")) {
-        const res = await fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null);
-        if (res?.reel) putReel(res.reel as Reel);
-      }
-    }, 15000);
-    return () => clearInterval(timer);
+    const ask = (id: string) =>
+      fetch(`/api/admin/after-dark/reel?id=${encodeURIComponent(id)}`)
+        .then(okJson)
+        .then((d: { reel?: Reel } | null) => d?.reel ?? null);
+    return pollReels(making.split(","), ask, putReel, 15000);
   }, [making, putReel]);
   /** A video of one chapter (a saved one by `nightId`, else the one being written), or of the whole night (lib/adult/reels.ts). */
   /**
@@ -588,6 +588,9 @@ export default function SceneWriter({
   const nightVideo = (g: (typeof nightGroups)[number]) => void planVideo(g.rows.length > 1 ? "night" : "chapter", g.rows[0].id);
   // The night that just ended, while the new one hasn't started: the start card says where it went.
   const lastEnded = !scene.lines.length && (scene.chapter ?? 1) === 1 && nightGroups[0]?.complete ? nightGroups[0] : null;
+  // Its own videos: once one is made the start card offers to watch it, not to make it again (2026-11-22).
+  const lastVideos = lastEnded ? reelList.filter((r) => r.kind !== "clip" && nightOfVideo(r) === numbers.night.get(lastEnded.id)) : [];
+  const lastMaking = lastVideos.find((r) => r.status === "making");
   // The newest night first, each night's chapters in order.
   const chapterList = nightGroups.flatMap((g) =>
     g.rows.map((n) => ({ id: n.id, chapter: n.chapter, lines: n.lines.length, created_at: n.created_at, place: n.place, night: numbers.night.get(g.id) })),
@@ -733,8 +736,15 @@ export default function SceneWriter({
                     label: lastEnded.rows.length > 1 ? `${lastEnded.rows.length} chapters` : `${nightLines(lastEnded)} lines`,
                     videoTokens: reelTokens,
                     canVideo: !mediaPaused && nightLines(lastEnded) >= 6,
+                    videoMaking: lastMaking ? makingNote(lastMaking) : null,
+                    videoReady: lastVideos.some((r) => r.status === "ready"),
                     onWatch: () => setWatching(lastEnded.rows[0]),
                     onVideo: () => nightVideo(lastEnded),
+                    onPlayVideo: () => {
+                      setMediaTab("videos");
+                      setPageTab("gallery");
+                      setSheet(true);
+                    },
                   }
                 : null
             }

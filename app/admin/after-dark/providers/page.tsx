@@ -9,6 +9,7 @@ import { signedInAdmin } from "@/lib/adult/mode";
 import ClearFlagButton from "./ClearFlagButton";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { houseProviderStatus, type HouseCard } from "@/lib/adult/provider-status";
+import { recentVideoFailures, type VideoFailure } from "@/lib/adult/video-failures";
 import { ago, maskKey } from "@/lib/connections-shared";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -55,6 +56,7 @@ export default async function AfterDarkProvidersPage() {
   const admin = await signedInAdmin(db, authFromCookieStore(store));
   if (!admin || (await lockedForCookies(db, admin, store))) notFound();
   const cards = await houseProviderStatus(db);
+  const failures = await recentVideoFailures(db).catch(() => []);
   const billing = await billingOverview(db);
   const processors = configuredProcessors();
   const now = Date.now();
@@ -87,8 +89,54 @@ export default async function AfterDarkProvidersPage() {
           />
         ))}
       </div>
+      <Failures rows={failures} />
       <Billing overview={billing} processors={processors} />
     </article>
+  );
+}
+
+/**
+ * The last week's night-video shots, clips and talking moments that didn't come through (lib/adult/video-failures.ts),
+ * read from their own rows; each also logged an "[ad-video]" line when it failed.
+ */
+function Failures({ rows }: { rows: VideoFailure[] }) {
+  return (
+    <section id="video-failures" data-admin-video-failures>
+      <h2>Videos that didn&apos;t come through</h2>
+      {rows.length ? (
+        <div className="table-scroll">
+          <table className="ad-pairs">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>What</th>
+                <th>Made by</th>
+                <th>Why</th>
+                <th>Id</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((f) => (
+                <tr key={`${f.id}-${f.detail}`}>
+                  <td>{when(f.at)}</td>
+                  <td>{f.detail}</td>
+                  <td>
+                    {f.provider}
+                    {f.model ? ` · ${f.model}` : ""}
+                  </td>
+                  <td title={f.reason}>{f.code}</td>
+                  <td>
+                    <code>{f.id.slice(0, 8)}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="muted">None in the last 7 days.</p>
+      )}
+    </section>
   );
 }
 

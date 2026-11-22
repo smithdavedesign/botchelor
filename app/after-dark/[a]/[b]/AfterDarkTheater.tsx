@@ -363,7 +363,17 @@ export default function AfterDarkTheater({
    * The night that just ended, while the new one hasn't started (David, 2026-11-01: "once the night is over you can't go
    * back and make a video of the night"): where it went, to watch again or film.
    */
-  lastNight?: { label: string; videoTokens: number; canVideo: boolean; onWatch: () => void; onVideo: () => void } | null;
+  lastNight?: {
+    label: string;
+    videoTokens: number;
+    canVideo: boolean;
+    /** Its video being made (the progress line), or already made: then it's watched, not made again. */
+    videoMaking?: string | null;
+    videoReady?: boolean;
+    onWatch: () => void;
+    onVideo: () => void;
+    onPlayVideo?: () => void;
+  } | null;
   /** The steer goes to one of them only, as a whisper (lib/adult/director.ts); null: to the scene. Shared with the page. */
   whisperTo?: "a" | "b" | null;
   onWhisperTo?: (who: "a" | "b" | null) => void;
@@ -549,10 +559,12 @@ export default function AfterDarkTheater({
   const stageTalk = stageLine ? talks.talks.find((t) => t.who === stageLine.who && t.text === stageLine.text) : undefined;
   const speakerPortrait = stageSpeaker ? Boolean(presence[stageSpeaker.id]?.portrait) : false;
   const sayable = Boolean(stageLine && shown[onStage]?.dialogue && shown[onStage].dialogue !== "…");
-  const [awaitingTalk, setAwaitingTalk] = useState<string | null>(null);
+  // The one asked for, and whose it is: its progress line shows until it opens (2026-11-22: after a 12-second note, nothing
+  // but a tooltip said it was coming, for about four minutes).
+  const [awaitingTalk, setAwaitingTalk] = useState<{ id: string; name: string } | null>(null);
   useEffect(() => {
     if (!awaitingTalk) return;
-    const t = talks.talks.find((x) => x.id === awaitingTalk);
+    const t = talks.talks.find((x) => x.id === awaitingTalk.id);
     if (t?.status === "ready") {
       setAwaitingTalk(null);
       setTalking({ id: t.id, name: (t.who === "a" ? a : b).name });
@@ -568,9 +580,9 @@ export default function AfterDarkTheater({
     const got = await talks.ask(onStage, stageLine.text, live ? null : (feedbackRef ?? null));
     if ("message" in got) return setPresenceNote(got.message);
     if (got.talk.status === "ready") return setTalking({ id: got.talk.id, name: stageSpeaker.name });
-    setAwaitingTalk(got.talk.id);
-    setPresenceNote(`🗣 ${stageSpeaker.name.split(/\s+/)[0]} is saying it: it opens here in a minute or two.`);
+    setAwaitingTalk({ id: got.talk.id, name: stageSpeaker.name.split(/\s+/)[0] });
   };
+  const talkNote = awaitingTalk ? `🗣 Making ${awaitingTalk.name}'s talking moment… about 4 minutes: it opens here when it's ready.` : null;
   // "✨ Bring them to life" is offered while either still lacks some of it and nothing's on its way.
   const canBringToLife = [a, b].some((c) => !presence[c.id] || (!presence[c.id].making && presence[c.id].missing > 0));
   const toggleDrawAhead = async () => {
@@ -951,9 +963,17 @@ export default function AfterDarkTheater({
                     ▶ Watch it
                   </button>
                   {" · "}
-                  <button type="button" className="linklike" disabled={!lastNight.canVideo} onClick={lastNight.onVideo}>
-                    🎬 Make its video · <TokenPrice tokens={lastNight.videoTokens} free={videoFree} />
-                  </button>
+                  {lastNight.videoMaking ? (
+                    <span data-last-video="making">{lastNight.videoMaking}</span>
+                  ) : lastNight.videoReady && lastNight.onPlayVideo ? (
+                    <button type="button" className="linklike" data-last-video="ready" onClick={lastNight.onPlayVideo}>
+                      🎬 Watch its video
+                    </button>
+                  ) : (
+                    <button type="button" className="linklike" disabled={!lastNight.canVideo} onClick={lastNight.onVideo}>
+                      🎬 Make its video · <TokenPrice tokens={lastNight.videoTokens} free={videoFree} />
+                    </button>
+                  )}
                 </p>
               )}
               <p className="ad-start-where">
@@ -1294,6 +1314,11 @@ export default function AfterDarkTheater({
               {(videoNote || note || presenceNote) && (
                 <p className="ad-theater-note" role="status">
                   {busy && !videoNote && note && <Loading tone="current" size="sm" />} {videoNote || note || presenceNote}
+                </p>
+              )}
+              {talkNote && (
+                <p className="ad-theater-note" role="status" data-talk-making>
+                  {talkNote}
                 </p>
               )}
               {steerAgain && !busy && (
