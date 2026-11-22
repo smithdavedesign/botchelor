@@ -150,7 +150,7 @@ is a product decision, not a refactor.
 
 ## The data model
 
-One database, no joins across services. `lib/db.ts` creates about 260 tables; [data-model.md](data-model.md) is the map
+One database, no joins across services. `lib/db.ts` creates about 285 tables (283 in production on 2026-11-22); [data-model.md](data-model.md) is the map
 of how they connect (character, show, season, date, asset, person). The ones this page's flows touch:
 
 | Table | What it holds | Owner module |
@@ -171,14 +171,17 @@ of how they connect (character, show, season, date, asset, person). The ones thi
 ## Scheduled jobs
 
 One scheduled job on After Dark's DigitalOcean app (`.do/app.yaml` `jobs`, at :20 past every hour, UTC) calls the
-`/api/jobs/<name>` routes with `Authorization: Bearer $CRON_SECRET`:
+`/api/jobs/<name>` routes with `Authorization: Bearer $CRON_SECRET`. Every answer streams until its work is done and
+ends `"ok":true`; a call without it prints `FAILED: <host> <job>` and fails the run, which DigitalOcean ends at 30
+minutes, so nothing in it waits idle:
 
 | Route | Host | When | What it does |
 | --- | --- | --- | --- |
 | `lobby` | botchelor.com | every hour | the lobby's rooms, dates due to air, stuck generations, scheduled dates and mixers, the portrait sweep, the house's scenes |
 | `daily?part=upkeep`, `show`, `people`, `growth` | botchelor.com | 16:20 UTC, one part at a time, 45 s apart | retention and prunes; the lobby's fresh room and backfilled conversations; the couples' daily texts, digest and reminders; IndexNow, weekly lessons, next season's candidates |
 | `after-dark-daily` | ad.botchelor.com | after the daily parts | the house cast's After Dark baselines, the agent cast's portrait checks, the overnight sweep |
-| `showcase-check` | ad.botchelor.com | every hour, after a 20-minute pause | the PG check on After Dark posts still rated explicit, then a first-frame still and a sound read for each new clip |
+| `daily?part=resume` | botchelor.com | hourly from 17:20 to 23:20 UTC, before the showcase check | runs again the first daily part of the day that didn't finish (cut off by a deploy, failed, or never started), at most two a run and three tries a part (`lib/daily-parts.ts`); each part's rows are in `ops_log` |
+| `showcase-check` | ad.botchelor.com | every hour but 16:20 | the PG check on After Dark posts still rated explicit, then a first-frame still and a sound read for each new clip |
 
 Some things still run without a job. A **season** closes lazily: standings depend only on rows stamped before the
 deadline (finales aired in the window, members who joined before it), so the first visit after the 1st (00:00 UTC)
@@ -252,7 +255,7 @@ Secrets come from the keychain, never from a file in the repo.
 
 | Layer | Command | What it proves |
 | --- | --- | --- |
-| Unit + integration | `npm test` (vitest) | the engine, the rules, the filter, and every API route against a real in-memory Postgres (PGlite) with a scripted model and a forced engine |
+| Unit + integration | `npm test` (vitest) | the engine, the rules, the filter, and most API routes (313 of the 330 route files under `app/api` are imported by a test, 2026-11-22) against a real in-memory Postgres (PGlite) with a scripted model and a forced engine |
 | Type safety | `npm run typecheck` | — |
 | End to end | `npm run e2e` (Playwright, needs `CHROMIUM_PATH`) | the production build in a real browser: build a character, send a date, predict, air the finale, buy a pack through a signed webhook |
 | Demo data | `npm run seed` | a believable season, driven over HTTP exactly as the UI would |
