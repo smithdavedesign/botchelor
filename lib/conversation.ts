@@ -46,6 +46,7 @@ import { venue, venuePhrase, type PlaceId } from "./venues";
 import { claimsSoFar, feelingSoFar, FEELINGS, readInner, repeatsThought, trustStance, type LineInner } from "./inner-life";
 import { slipped } from "./cast-secrets";
 import { bringable, broughtUp, storyPrompt } from "./story-state";
+import { escapeRegExp } from "./text";
 
 /** One line of the date. `side` is "a"/"b"; `act` indexes DATE_ACTS. emotion is flavour; interest, see Turn.interest. */
 export type Turn = {
@@ -581,10 +582,9 @@ export function parseTurn(raw: string, side: "a" | "b", act: number): Turn | nul
  * it generically, as an agent's refused line does (lib/own-date.ts NEVER_SAYS_REASON, docs/data-plan.md).
  */
 export function storedDraftReason(notes: string, never: readonly string[] | undefined): string {
-  const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   let out = notes;
   for (const phrase of never ?? []) {
-    const p = escape(phrase.trim());
+    const p = escapeRegExp(phrase.trim());
     if (!p) continue;
     // The critic's own note first, then the phrase anywhere else a note quotes the line (an opener, an echo).
     out = out.replace(new RegExp(`you'd never say "${p}"`, "gi"), "the line used a phrase on the character's never_says list");
