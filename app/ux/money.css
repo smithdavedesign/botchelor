@@ -172,6 +172,20 @@
 .money-faces-line {
   margin: var(--space-2) 0 0;
 }
+/* Subscribe, in the price's own card (2026-11-22 audit: it sat under the table, on a phone's third screen), with the
+   renewal said in full beside it. */
+.money-hero-buy {
+  margin-top: var(--space-4);
+}
+.money-hero-buy .cta-row {
+  margin: 0 0 var(--space-2);
+}
+.money-hero-buy .plan-checkout {
+  margin-bottom: var(--space-2);
+}
+.money-hero-buy > p:last-child {
+  margin-bottom: 0;
+}
 
 /* ---------------- Free beside the plan, one table (/companion/plan) ---------------- */
 .money-compare {
@@ -223,13 +237,28 @@
 .money-yes .icon {
   color: var(--ok-text);
 }
-@media (max-width: 480px) {
-  .money-compare th,
-  .money-compare td {
-    padding: var(--space-2) var(--space-1);
+/* A phone (2026-11-22 audit: three columns of about 90px, mostly a word a line): each row is a block, what it is across
+   the top and Free beside the plan under it, in the two columns the heads name. */
+@media (max-width: 640px) {
+  .money-compare,
+  .money-compare thead,
+  .money-compare tbody {
+    display: block;
+  }
+  .money-compare tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .money-compare thead th:first-child {
+    display: none;
   }
   .money-compare tbody th {
-    width: 28%;
+    grid-column: 1 / -1;
+    width: auto;
+    padding-bottom: 0;
+  }
+  .money-compare tbody td {
+    border-top: 0;
   }
 }
 

@@ -59,8 +59,9 @@ function Yes() {
 
 /**
  * The Companion Plan (lib/paid-plans.ts, lib/companion-plan.ts): the price as the headline over the companions' faces,
- * Free beside the plan in one table, then Subscribe with the renewal said in full before anyone pays, and for a
- * subscriber where their plan stands and where to cancel.
+ * and Subscribe in that same card, with the renewal said in full before anyone pays; for a subscriber, where their plan
+ * stands and where to cancel. Then Free beside the plan in one table. Subscribe sat under the table until the
+ * 2026-11-22 audit, about 1,300px down on a desktop and on a phone's third screen.
  */
 export default async function CompanionPlanPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
   const { checkout } = await searchParams;
@@ -115,111 +116,33 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
             </p>
           </>
         )}
+        {!subscribed && (
+          <div className="money-hero-buy" id="plan-buy">
+            {!onSale ? (
+              <p className="muted">The plan isn&apos;t on sale right now.</p>
+            ) : a?.admin ? (
+              <p className="muted small">You&apos;re an admin: companions have no limit for you.</p>
+            ) : !auth?.authenticated ? (
+              <p className="cta-row">
+                <Link className="button" href="/account?next=%2Fcompanion%2Fplan">
+                  Sign in to subscribe
+                </Link>
+              </p>
+            ) : (
+              <PlanCheckout price={price} />
+            )}
+            {/* The renewal terms in full, with the button (California's auto-renewal law: said plainly before anyone pays). */}
+            <p className="small muted">
+              {price}, charged now and every month after until you cancel. Cancel any time in Stripe&apos;s billing portal (the link is on this page and in your
+              receipt): the plan runs to the end of the month you paid for, and there are no partial refunds. <Link href="/terms#companion-plan">The plan&apos;s terms</Link>.
+            </p>
+          </div>
+        )}
       </header>
 
       {checkout === "success" && !subscribed && <PlanWait />}
 
-      <section className="card plan-card" aria-labelledby="plan-what">
-        <h2 id="plan-what">What you get</h2>
-        <table className="money-compare">
-          <thead>
-            <tr>
-              <th scope="col">
-                <span className="sr-only">What</span>
-              </th>
-              <th scope="col">Free</th>
-              <th scope="col" className="is-plan">
-                Companion Plan
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Replies a day</th>
-              <td>{perDay} a day across every companion</td>
-              <td className="is-plan">
-                No daily limit
-                <small>fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month</small>
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                Voice notes
-                <small>tap 🔊 on any reply to hear it in their own voice</small>
-              </th>
-              <td>One date from a pack buys {voice.bundle}</td>
-              <td className="is-plan">
-                {voice.included} a month included
-                <small>after that, one date from a pack buys {voice.bundle}</small>
-              </td>
-            </tr>
-            {live && (
-              <tr>
-                <th scope="row">
-                  Live calls
-                  <small>where you can talk over each other</small>
-                </th>
-                <td>Calls that take turns are free</td>
-                <td className="is-plan">
-                  {minutes.included} minutes a month{facePlan ? ", with their face moving as they talk" : ""}
-                  <small>after that, one date from a pack buys {minutes.bundle} minutes; calls that take turns are free</small>
-                </td>
-              </tr>
-            )}
-            <tr>
-              <th scope="row">
-                Their memory of you
-                <small>you can see and change all of it</small>
-              </th>
-              <td>
-                <Yes />
-                {depth && <small>the last {RECENT_TURNS} messages kept word for word</small>}
-              </td>
-              <td className="is-plan">
-                <Yes />
-                {depth && <small>twice as long: the last {DEEP_TURNS} messages kept word for word</small>}
-              </td>
-            </tr>
-            {/* Depth comes with the plan, never by the line (lib/writing-style.ts). */}
-            {depth && (
-              <tr>
-                <th scope="row">
-                  Narrated writing
-                  <small>your dates and scenes told as prose, like a novel; pick it in your account</small>
-                </th>
-                <td>The script: lines and a short action</td>
-                <td className="is-plan">
-                  Included
-                  <small>and stories of your dates (without the plan, {STORY_TOKENS} bought date each)</small>
-                </td>
-              </tr>
-            )}
-            <tr>
-              <th scope="row">Another reply whenever you like</th>
-              <td>
-                <Yes />
-              </td>
-              <td className="is-plan">
-                <Yes />
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">How much they say</th>
-              <td>
-                <Yes />
-              </td>
-              <td className="is-plan">
-                <Yes />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <p className="muted small">
-          Everything the free tier has stays the same on the plan. <Link href="/terms#companion-extras">How extras work</Link>.
-        </p>
-      </section>
-
-      {subscribed ? (
+      {subscribed && (
         <section className="card plan-card" aria-labelledby="plan-yours">
           <h2 id="plan-yours">Your plan</h2>
           <p>
@@ -241,29 +164,99 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
             <Link href="/companion">Talk with your companions</Link>
           </p>
         </section>
-      ) : (
-        <section className="card plan-card" aria-labelledby="plan-buy">
-          <h2 id="plan-buy">Subscribe</h2>
-          {!onSale ? (
-            <p className="muted">The plan isn&apos;t on sale right now.</p>
-          ) : a?.admin ? (
-            <p className="muted small">You&apos;re an admin: companions have no limit for you.</p>
-          ) : !auth?.authenticated ? (
-            <p>
-              <Link className="button" href="/account?next=%2Fcompanion%2Fplan">
-                Sign in to subscribe
-              </Link>
-            </p>
-          ) : (
-            <PlanCheckout price={price} />
-          )}
-          {/* The renewal terms in full, with the button (California's auto-renewal law: said plainly before anyone pays). */}
-          <p className="small muted">
-            {price}, charged now and every month after until you cancel. Cancel any time in Stripe&apos;s billing portal (the link is on this page and in your
-            receipt): the plan runs to the end of the month you paid for, and there are no partial refunds. <Link href="/terms#companion-plan">The plan&apos;s terms</Link>.
-          </p>
-        </section>
       )}
+
+      <section className="card plan-card" aria-labelledby="plan-what">
+        <h2 id="plan-what">What you get</h2>
+        {/* The roles are spelled out: a phone lays the table out as blocks (app/ux/money.css), and some browsers drop a
+            table's meaning once its parts stop displaying as one. */}
+        <table className="money-compare" role="table">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">
+                <span className="sr-only">What</span>
+              </th>
+              <th scope="col" role="columnheader">
+                Free
+              </th>
+              <th scope="col" role="columnheader" className="is-plan">
+                Companion Plan
+              </th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            <tr role="row">
+              <th scope="row" role="rowheader">
+                Replies a day
+              </th>
+              <td role="cell">{perDay} a day across every companion</td>
+              <td role="cell" className="is-plan">
+                No daily limit
+                <small>fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month</small>
+              </td>
+            </tr>
+            <tr role="row">
+              <th scope="row" role="rowheader">
+                Voice notes
+                <small>tap 🔊 on any reply to hear it in their own voice</small>
+              </th>
+              <td role="cell">One date from a pack buys {voice.bundle}</td>
+              <td role="cell" className="is-plan">
+                {voice.included} a month included
+                <small>after that, one date from a pack buys {voice.bundle}</small>
+              </td>
+            </tr>
+            {live && (
+              <tr role="row">
+                <th scope="row" role="rowheader">
+                  Live calls
+                  <small>where you can talk over each other</small>
+                </th>
+                <td role="cell">Calls that take turns are free</td>
+                <td role="cell" className="is-plan">
+                  {minutes.included} minutes a month{facePlan ? ", with their face moving as they talk" : ""}
+                  <small>after that, one date from a pack buys {minutes.bundle} minutes; calls that take turns are free</small>
+                </td>
+              </tr>
+            )}
+            <tr role="row">
+              <th scope="row" role="rowheader">
+                Their memory of you
+                <small>you can see and change all of it</small>
+              </th>
+              <td role="cell">
+                <Yes />
+                {depth && <small>the last {RECENT_TURNS} messages kept word for word</small>}
+              </td>
+              <td role="cell" className="is-plan">
+                <Yes />
+                {depth && <small>twice as long: the last {DEEP_TURNS} messages kept word for word</small>}
+              </td>
+            </tr>
+            {/* Depth comes with the plan, never by the line (lib/writing-style.ts). */}
+            {depth && (
+              <tr role="row">
+                <th scope="row" role="rowheader">
+                  Narrated writing
+                  <small>your dates and scenes told as prose, like a novel; pick it in your account</small>
+                </th>
+                <td role="cell">The script: lines and a short action</td>
+                <td role="cell" className="is-plan">
+                  Included
+                  <small>and stories of your dates (without the plan, {STORY_TOKENS} bought date each)</small>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {/* What "a date from a pack" is, said once (the audit: the unit was never explained), and the two rows that were
+            Yes on both sides ("Another reply whenever you like", "How much they say") as the line they were. */}
+        <p className="muted small">
+          A date from a pack is one of the show&apos;s bought dates (<Link href="/shop">More dates</Link>): it sends a character on a date, or buys a bundle
+          of the extras above. Everything that&apos;s free stays the same on the plan, like asking for another reply or choosing how much they say.{" "}
+          <Link href="/terms#companion-extras">How extras work</Link>.
+        </p>
+      </section>
     </article>
   );
 }

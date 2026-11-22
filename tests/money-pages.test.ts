@@ -154,25 +154,47 @@ describe("/companion/plan: the price over the faces, Free beside the plan", () =
     expect(faces.length).toBeLessThanOrEqual(8);
     expect(html).toContain('width="44"');
     expect(html).toMatch(/\d+ companions to talk with\. <a href="\/companion">Meet them<\/a>\./);
-    // The comparison: Free and the plan as columns, the numbers from the code.
-    expect(html).toContain('<table class="money-compare">');
-    expect(html).toContain('<th scope="col">Free</th><th scope="col" class="is-plan">Companion Plan</th>');
-    expect(html).toContain(`<th scope="row">Replies a day</th><td>${companionFreePerDay()} a day across every companion</td>`);
+    // The comparison: Free and the plan as columns, the numbers from the code. Its roles are spelled out, because a
+    // phone lays it out as blocks (app/ux/money.css).
+    expect(html).toContain('<table class="money-compare" role="table">');
+    expect(html).toContain('<th scope="col" role="columnheader">Free</th><th scope="col" role="columnheader" class="is-plan">Companion Plan</th>');
+    expect(html).toContain(`<th scope="row" role="rowheader">Replies a day</th><td role="cell">${companionFreePerDay()} a day across every companion</td>`);
     expect(html).toContain(`No daily limit<small>fair use: ${COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month</small>`);
-    expect(html).toContain(`<td>One date from a pack buys ${COMPANION_EXTRAS.voice.bundle}</td>`);
+    expect(html).toContain(`<td role="cell">One date from a pack buys ${COMPANION_EXTRAS.voice.bundle}</td>`);
     expect(html).toContain(`${COMPANION_EXTRAS.voice.included} a month included<small>after that, one date from a pack buys ${COMPANION_EXTRAS.voice.bundle}</small>`);
     expect(html).not.toContain("Live calls");
-    expect(html.match(/class="money-yes"/g)).toHaveLength(6);
     expect(html).toContain("Their memory of you");
-    expect(html).toContain("Another reply whenever you like");
-    expect(html).toContain("How much they say");
+    // The 2026-11-22 audit: two rows said Yes on both sides and nothing else. They're the line under the table now,
+    // with what "a date from a pack" is, which the page never said.
+    expect(html.match(/class="money-yes"/g)).toHaveLength(2);
+    expect(html).not.toContain("Another reply whenever you like");
+    expect(html).not.toContain("<th scope=\"row\" role=\"rowheader\">How much they say");
+    expect(html).toContain("like asking for another reply or choosing how much they say");
+    expect(html).toMatch(/A date from a pack is one of the show&#x27;s bought dates \(<a href="\/shop">More dates<\/a>\)/);
     expect(html).toContain('href="/terms#companion-extras"');
-    // Subscribe as before: sign in first, the renewal sentence in full (the e2e looks for it), the plan's terms.
+    // Subscribe: sign in first, the renewal sentence in full (the e2e looks for it), the plan's terms. In the price's
+    // own card since the audit (it sat under the table, on a phone's third screen), ahead of the table.
     expect(html).toContain('id="plan-buy"');
     expect(html).toContain('href="/account?next=%2Fcompanion%2Fplan"');
     expect(html).toContain("$9.99 a month, charged now and every month after until you cancel");
     expect(html).toContain('href="/terms#companion-plan"');
     expect(html.indexOf("Sign in to subscribe")).toBeLessThan(html.indexOf("charged now and every month"));
+    expect(html.indexOf('id="plan-buy"')).toBeGreaterThan(html.indexOf('<header class="money-hero">'));
+    expect(html.indexOf('id="plan-buy"')).toBeLessThan(html.indexOf("</header>"));
+    expect(html.indexOf("charged now and every month")).toBeLessThan(html.indexOf('<table class="money-compare"'));
+    expect(html.match(/<a class="button"/g)).toHaveLength(1);
+  });
+
+  // On a phone the three columns were about 90px each, mostly a word a line (the 2026-11-22 audit): each row is a block
+  // there, what it is across the top, then Free beside the plan in the two columns the heads name.
+  it("lays the table out as blocks on a phone, Free beside the plan under each row's name", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync("app/ux/money.css", "utf8");
+    const phone = css.slice(css.indexOf("@media (max-width: 640px) {", css.indexOf(".money-compare {")));
+    expect(phone).toMatch(/^@media \(max-width: 640px\) \{\s*\.money-compare,\s*\.money-compare thead,\s*\.money-compare tbody \{\s*display: block;/);
+    expect(phone).toMatch(/\.money-compare tr \{\s*display: grid;\s*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/);
+    expect(phone).toMatch(/\.money-compare tbody th \{\s*grid-column: 1 \/ -1;\s*width: auto;/);
+    expect(css).toMatch(/\.money-hero-buy \{\s*margin-top: var\(--space-4\);/);
   });
 
   it("adds the live-calls row only when live calls are on", async () => {
@@ -184,7 +206,7 @@ describe("/companion/plan: the price over the faces, Free beside the plan", () =
     expect(html).toContain("Live calls");
     expect(html).toContain(`${extraTerms("minute").included} minutes a month`);
     expect(html).toContain(`one date from a pack buys ${extraTerms("minute").bundle} minutes`);
-    expect(html).toContain("<td>Calls that take turns are free</td>");
+    expect(html).toContain('<td role="cell">Calls that take turns are free</td>');
   });
 
   it("says it isn't open yet while companions are closed, rather than a 404 (mobile audit C21)", async () => {
