@@ -17,11 +17,14 @@ const title = (group: SkyGroup, members: number): string =>
  */
 const PAIRS_SHOWN_FROM = 10;
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-/** How the numbers read, e.g. "212 pairs · 340 public dates · 37 love triangles". */
+/**
+ * How the numbers read, e.g. "212 pairs · 340 public dates · 37 love triangles among them": the group's own, which the
+ * card's title names, so they don't read as the whole sky's (/graph counts every character's).
+ */
 export function teaserStats(t: Pick<Teaser, "pairs" | "dates" | "triangles">, group: SkyGroup = "cast"): string {
   if (group !== "yours" && t.pairs < PAIRS_SHOWN_FROM) return "";
   const parts = [count(t.pairs, "pair", "pairs"), count(t.dates, "public date", "public dates")];
-  if (t.triangles > 0) parts.push(count(t.triangles, "love triangle", "love triangles"));
+  if (t.triangles > 0) parts.push(`${count(t.triangles, "love triangle", "love triangles")} among them`);
   return parts.join(" · ");
 }
 

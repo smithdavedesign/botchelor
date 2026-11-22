@@ -159,7 +159,11 @@ export default async function ReportCardPage({ params }: Props) {
           </blockquote>
         )}
 
+        {/* Watch first, then the ways to share (the 2026-11-22 audit: "Watch the date" came after three share buttons). */}
         <p className="report-share">
+          <Link className="button" href={episodeFromReportCard(id)} data-track="report-card-watch">
+            Watch the date
+          </Link>
           <ShareButton
             path={sharedReportCardPath(id)}
             title={reportCardTitle(card)}
@@ -181,9 +185,6 @@ export default async function ReportCardPage({ params }: Props) {
       </article>
 
       <section className="card report-next">
-        <Link className="button" href={episodeFromReportCard(id)} data-track="report-card-watch">
-          Watch the date
-        </Link>
         <Link className="button-ghost" href="/create" data-track="report-card-create">
           Send your own character on one
         </Link>

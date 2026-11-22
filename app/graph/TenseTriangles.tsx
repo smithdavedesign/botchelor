@@ -137,7 +137,9 @@ export default function TenseTriangles() {
         Where the network can&apos;t stay as it is: two at odds who are both close to someone, or three all at odds. Something has to give. From the public record only.
       </p>
       {got === undefined ? (
-        <p className="muted small">Loading…</p>
+        // Fetched once the section nears the screen: until then it says nothing (the 2026-11-22 audit's page capture
+        // found "Loading…" under the heading of a section that hadn't started loading).
+        near && <p className="muted small">Loading…</p>
       ) : got === "error" ? (
         <p className="muted small">The triangles didn&apos;t load. Try again in a minute.</p>
       ) : !got || !got.hooks.length ? (
@@ -145,7 +147,8 @@ export default function TenseTriangles() {
       ) : (
         <>
           <p className="small">
-            <strong>{got.unbalanced}</strong> of {got.unbalanced + got.balanced} triangles are tense.{got.groups > got.hooks.length ? " The ones that moved most recently:" : ""}
+            {/* Not the love triangles the numbers above count: these are friends, relatives and coworkers (2026-11-22 audit). */}
+            <strong>{got.unbalanced}</strong> of the {got.unbalanced + got.balanced} triangles of friends, relatives and coworkers are tense.{got.groups > got.hooks.length ? " The ones that moved most recently:" : ""}
           </p>
           <ol className="list tense-list">
             {got.hooks.map((h) => (

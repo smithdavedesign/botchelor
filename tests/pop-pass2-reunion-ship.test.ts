@@ -2,11 +2,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import AwardCard, { leadingFigure } from "@/app/AwardCard";
 import ShipPage from "@/app/ship/[a]/[b]/page";
 import { readName, shipMerge, shipPair } from "@/lib/ship-names";
 import type { ReunionAward } from "@/lib/reunion";
+
+// The ship page looks up a real couple by the two names (lib/ship-couple.ts); there's no database here.
+vi.mock("@/lib/ship-couple", () => ({ shipCouple: async () => null }));
 
 const ROOT = join(__dirname, "..");
 

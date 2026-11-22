@@ -278,7 +278,8 @@ const TONIGHT: Record<LinkKind, Record<ArcStep, string>> = {
     reveal: "a second chance, or a goodbye.",
   },
   fake_dating: {
-    spark: "the fake couple goes on a real date.",
+    // Not "the fake couple": a line on its own (/watch's season line) left viewers asking which couple (2026-11-22 audit).
+    spark: "the two who once pretended to be a couple go on a real date.",
     setback: "how much of it was ever pretend.",
     reveal: "which parts were never pretend.",
   },

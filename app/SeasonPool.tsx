@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { countdown } from "@/lib/countdown";
+import { countdown, lastNightOf } from "@/lib/countdown";
 import { crowdLine, showCrowd } from "@/lib/crowd-threshold";
 import { ordinal, type PoolBoard, type PoolStanding } from "@/lib/season-pool";
 import Icon from "@/app/Icon";
@@ -78,7 +78,7 @@ export default function SeasonPoolPanel({ standing, revealed, now, insider = fal
           )}
           <span className="muted">
             Every right call, drama pick, dealbreaker guess, arc, dare and backing this month adds up to one score. The board, with names, is
-            revealed when the season closes {countdown(standing.reveals_at, now)}.
+            revealed when the season closes {countdown(lastNightOf(standing.reveals_at), now)}.
           </span>
         </p>
       )}

@@ -12858,6 +12858,39 @@ html.constellation-locked body {
     left: var(--space-3);
     max-width: none;
   }
+  /* The map first (the 2026-11-22 audit: search, the views, the chips and "Showing the 64 strongest pairs" took the top
+     half of a phone, the sky a cluster at its foot): the sky straight under the search row and the views. The chips (the
+     sky's key and its filter) and "Showing the 64 strongest pairs" go under it, by the legend; full screen keeps them all
+     on top. The bar and the lines row step aside (display: contents) so the stage can order their parts. */
+  .constellation-stage:not(.is-full) {
+    display: flex;
+    flex-direction: column;
+  }
+  .constellation-stage:not(.is-full) > .constellation-bar,
+  .constellation-stage:not(.is-full) .constellation-lines {
+    display: contents;
+  }
+  .constellation-stage:not(.is-full) .constellation-lenses {
+    flex: 0 0 auto;
+    max-width: calc(100% - 2 * var(--gutter));
+    margin: var(--space-2) var(--gutter);
+  }
+  .constellation-stage:not(.is-full) > .constellation-sky {
+    order: 1;
+  }
+  .constellation-stage:not(.is-full) .constellation-stage-chips {
+    order: 2;
+    flex: 0 0 auto;
+    padding: var(--space-3) var(--gutter) var(--space-1);
+    scroll-padding-inline: var(--gutter); /* or the row snaps its first chip past the gutter */
+  }
+  .constellation-stage:not(.is-full) > .constellation-more:not(.constellation-world) {
+    order: 3;
+    padding-top: var(--space-2);
+  }
+  .constellation-stage:not(.is-full) > .constellation-sky ~ * {
+    order: 4;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .constellation-canvas {

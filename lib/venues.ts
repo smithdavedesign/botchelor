@@ -197,7 +197,9 @@ export function placeAt<P extends string>(turns: readonly { moved_to?: P }[], st
 /** The place, written to sit mid-sentence ("last time at the observatory", "at Chud's place"). */
 export const venuePhrase = (id: PlaceId | string | null | undefined): string => {
   const label = placeLabel(id);
-  if (label) return label;
+  // A place of their own keeps its capitals ("Chud's place"), but not a leading article: the phrase goes mid-sentence
+  // (the 2026-11-22 audit: "The mixer at A sticky dive bar").
+  if (label) return /^(A|An|The) /.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
   const name = venue(id).name;
   return name.charAt(0).toLowerCase() + name.slice(1);
 };

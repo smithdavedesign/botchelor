@@ -20,7 +20,7 @@ import { OVERNIGHT_COPY, overnightClose, overnightDatesOn, overnightEndingLabel 
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { ADULT_COOKIE } from "@/lib/age";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { dareReveal, VERDICT_WORDS } from "@/lib/dares";
+import { dareReveal, dareSubject, verdictSentence } from "@/lib/dares";
 import { callRecord, NO_CALLS } from "@/lib/streaks";
 import ShareRecord from "@/app/ShareRecord";
 import { shareOf } from "@/app/YourCalls";
@@ -851,14 +851,13 @@ export default async function EpisodePage({
           <section className="card dare-reveal">
             <h2>The producers dared {nameOf(dare.character_id) ?? dare.name}</h2>
             <p>
-              The audience voted, and {who(dare.character_id) ?? <strong>{dare.name}</strong>} walked in with it in the pocket: <em>“{dare.text}”</em> Their
-              date never knew.
+              {/* In the dared one's own pronouns (the 2026-11-22 audit: "they" for Sable). */}
+              The audience voted, and {who(dare.character_id) ?? <strong>{dare.name}</strong>} walked in with it in the pocket: <em>“{dare.text}”</em>{" "}
+              {{ He: "His", She: "Her", They: "Their" }[dareSubject(dare.pronouns)]} date never knew.
             </p>
             <p>
-              Did they go through with it?{" "}
-              <strong>
-                {dare.verdict ? VERDICT_WORDS[dare.verdict].charAt(0).toUpperCase() + VERDICT_WORDS[dare.verdict].slice(1) : "Watch the date and decide."}
-              </strong>
+              Did {dareSubject(dare.pronouns).toLowerCase()} go through with it?{" "}
+              <strong>{dare.verdict ? verdictSentence(dare.verdict, dare.pronouns) : "Watch the date and decide."}</strong>
             </p>
           </section>
         )}

@@ -9,6 +9,12 @@ import type { MixerTable } from "@/lib/mixer-night";
 /** A line's beat while the night plays, and the bell's longer pause between rounds. */
 const LINE_MS = 2200;
 const BELL_MS = 3000;
+/**
+ * The record shows each table's first lines and folds the rest, as an episode page does (the 2026-11-22 audit: every
+ * table in full made the night 11,000–14,000px on a phone, and each one ended on its ending, "Just friends", under the
+ * fold that warned the endings were behind a tap). Playing the night shows every line in turn, as before.
+ */
+export const TABLE_FOLD_LINES = 4;
 
 type Step = { kind: "bell"; round: number } | { kind: "line"; table: number; line: number } | { kind: "table"; table: number };
 
@@ -42,6 +48,8 @@ export default function MixerNight({ tables, rounds, closing }: { tables: MixerT
   // null: the record (everything shown). A number: playing, with steps[0..pos) shown.
   const [pos, setPos] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
+  // The tables opened past their first lines in the record.
+  const [opened, setOpened] = useState<ReadonlySet<number>>(() => new Set());
   const refs = useRef<(HTMLElement | null)[]>([]);
 
   useEffect(() => {
@@ -62,7 +70,7 @@ export default function MixerNight({ tables, rounds, closing }: { tables: MixerT
   }, [currentTable]);
 
   const shownLines = (k: number): number => {
-    if (pos === null) return tables[k].turns.length;
+    if (pos === null) return opened.has(k) ? tables[k].turns.length : Math.min(TABLE_FOLD_LINES, tables[k].turns.length);
     let n = 0;
     for (let s = 0; s < Math.min(pos, steps.length); s++) {
       const st = steps[s];
@@ -167,6 +175,11 @@ export default function MixerNight({ tables, rounds, closing }: { tables: MixerT
                 ) : (
                   <p className="muted small">{t.state === "ready" ? "Its lines didn't come out; they're written in later." : NOTE[t.state]}</p>
                 )}
+                {pos === null && t.state === "ready" && n < t.turns.length && (
+                  <button type="button" className="button-ghost small mixer-table-more" onClick={() => setOpened((s) => new Set(s).add(k))} aria-expanded={false}>
+                    Read the rest of their table ({t.turns.length - n} more {t.turns.length - n === 1 ? "line" : "lines"}, and how it ended)
+                  </button>
+                )}
                 {t.ending_label && n >= t.turns.length && <p className="mixer-table-ending small">{t.ending_label}</p>}
               </section>
             )}
@@ -174,7 +187,9 @@ export default function MixerNight({ tables, rounds, closing }: { tables: MixerT
         );
       })}
 
-      {(pos === null || done) && (
+      {/* Who left with whom: at the end of the night once it has played; in the record it stays behind the tap at the top
+          (the 2026-11-22 audit found it here in the open, under "Tap to see: it gives the endings away"). */}
+      {(done || (pos === null && !closing)) && (
         <section className="mixer-closing" aria-label="Closing time">
           <p>
             🌙 {closing ?? "Who leaves with whom shows here once every table has aired (it would give the endings away)."}

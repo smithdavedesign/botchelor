@@ -228,6 +228,30 @@ describe("3. the result page leads to /create with the first name filled in, and
   });
 });
 
+describe("3b. a pair that's a real couple on the show leads with them (the 2026-11-22 audit)", () => {
+  it("names the couple, their badge and aired dates, links their couple page, and makes that the filled button", async () => {
+    // Juniper Vale and Sable Quist (lib/house.ts), four aired dates, going steady: the stored pair, lower id first.
+    await t.db.query(
+      `insert into relationships (character_a, character_b, dates, public_dates, stage, public_stage) values ('house-juniper', 'house-sable', 4, 4, 'going_steady', 'going_steady')`,
+    );
+    try {
+      for (const html of [await renderShip("juniper", "sable"), await renderShip("sable", "juniper")]) {
+        expect(html).toContain('href="/couples/house-juniper/house-sable"');
+        expect(html).toContain("Going steady");
+        expect(html).toContain("4 dates aired.");
+        expect(html).toMatch(/<a class="button" data-track="ship-couple-cta" href="\/couples\/house-juniper\/house-sable">See their dates<\/a>/);
+        expect(html).not.toContain("Send them on a blind date");
+      }
+      // The page's own order: the first name in the address comes first.
+      expect(await renderShip("sable", "juniper")).toContain("Sable Quist × Juniper Vale");
+      // A pair that never dated keeps the blind-date offer.
+      expect(await renderShip("juniper", "dex")).toContain("Send them on a blind date");
+    } finally {
+      await t.db.query(`delete from relationships where character_a = 'house-juniper' and character_b = 'house-sable'`);
+    }
+  });
+});
+
 describe("4. real people and sexual terms get the error, no ship names, and noindex", () => {
   it.each([
     ["a real person (full name)", "elon-musk", "dex", "real_person"],

@@ -6,6 +6,9 @@ import { nameFromSegment, SHIP_ERRORS, shipMerge, shipPair, shipPath, type ShipB
 import ShipForm from "../../ShipForm";
 import MoreTools from "@/app/tools/MoreTools";
 import { SHIP_TOOL_PATH } from "@/lib/tools";
+import { getDb } from "@/lib/db";
+import { STAGE_LABELS } from "@/lib/relationship-stages";
+import { shipCouple, type ShipCouple } from "@/lib/ship-couple";
 
 type Props = { params: Promise<{ a: string; b: string }> };
 
@@ -80,6 +83,11 @@ export default async function ShipPage({ params }: Props) {
 
   const { a, b, names } = pair;
   const longest = longestOf(names);
+  // Two of the show's own who've dated on air (lib/ship-couple.ts): the page leads with them, not with a new character.
+  // Only a nicety: a database that's slow or down leaves the names page as it always was.
+  const couple: ShipCouple | null = await getDb()
+    .then((db) => shipCouple(db, a.display, b.display))
+    .catch(() => null);
   return (
     <>
       <section className="card ship-tool">
@@ -87,6 +95,15 @@ export default async function ShipPage({ params }: Props) {
           <Link href="/tools/ship-name-generator">OC Ship Name Generator</Link>
         </p>
         <h1>{`${a.display} × ${b.display} ship names`}</h1>
+        {couple && (
+          <p className="ship-couple">
+            <span className="kicker">On the show</span>{" "}
+            <Link href={couple.path} data-track="ship-couple">
+              <strong>{`${couple.a.name} × ${couple.b.name}`}</strong>
+            </Link>
+            {`${couple.stage ? `: ${STAGE_LABELS[couple.stage]}` : ""}, ${couple.dates} ${couple.dates === 1 ? "date" : "dates"} aired.`}
+          </p>
+        )}
         {names.length > 0 ? (
           <>
             <p className="muted">Best first. Each one keeps a piece of both names.</p>
@@ -117,16 +134,33 @@ export default async function ShipPage({ params }: Props) {
         <ShipForm a={a.display} b={b.display} secondary />
       </section>
 
-      <section className="card ship-cta">
-        <h2>Send them on a blind date</h2>
-        <p>
-          {`Give ${a.display} a blind date to go with the ship name: AI writes it, nobody can steer it (not even you), and friends guess how it ends. Free, no sign-up.`}
-        </p>
-        <Link className="button" href={`/create?name=${encodeURIComponent(a.display)}`}>
-          {`Send ${a.display} on a blind date`}
-        </Link>
-        <MoreTools current={SHIP_TOOL_PATH} />
-      </section>
+      {couple ? (
+        // A real couple: their dates first, the blind date for a character of your own second.
+        <section className="card ship-cta">
+          <h2>{`Watch ${couple.a.name.split(/\s+/)[0]} and ${couple.b.name.split(/\s+/)[0]}`}</h2>
+          <p>{`Every date they've had on the show, how each one ended, and where they stand now. Nobody wrote it in advance.`}</p>
+          <p className="cta-row">
+            <Link className="button" href={couple.path} data-track="ship-couple-cta">
+              See their dates
+            </Link>
+            <Link className="button-ghost" href={`/create?name=${encodeURIComponent(a.display)}`}>
+              {`Make your own ${a.display}`}
+            </Link>
+          </p>
+          <MoreTools current={SHIP_TOOL_PATH} />
+        </section>
+      ) : (
+        <section className="card ship-cta">
+          <h2>Send them on a blind date</h2>
+          <p>
+            {`Give ${a.display} a blind date to go with the ship name: AI writes it, nobody can steer it (not even you), and friends guess how it ends. Free, no sign-up.`}
+          </p>
+          <Link className="button" href={`/create?name=${encodeURIComponent(a.display)}`}>
+            {`Send ${a.display} on a blind date`}
+          </Link>
+          <MoreTools current={SHIP_TOOL_PATH} />
+        </section>
+      )}
     </>
   );
 }

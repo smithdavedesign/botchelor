@@ -98,7 +98,9 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
             </>
           ) : (
             <>
-              Starts <When iso={data.starts_at} style="day-time" />
+              {/* The premiere's words, the same clock as the countdown under it (the 2026-11-22 audit: "Starts Mon, Nov 30,
+                  4:00 PM PST" beside "Sunday 29 November, 23:00 UTC" read as two dates for one start). */}
+              Season starts {premiereTimeWords(data.starts_at, { day: true })}
             </>
           )}
         </p>
@@ -111,6 +113,15 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
             words={premiereTimeWords(premiere.at, { day: true })}
             href={premiere.room_path}
           />
+        )}
+        {/* Before the month, the page's one thing to do is apply or vote: a button in the hero, on a phone's first screen
+            too (the 2026-11-22 audit: it was a text link three screens down). */}
+        {casting && (
+          <p className="cta-row">
+            <Link className="button" href="/casting" data-track="season-hero-casting">
+              {casting.total > 0 ? "Apply or vote" : "Apply as a suitor"}
+            </Link>
+          </p>
         )}
       </SetHero>
 

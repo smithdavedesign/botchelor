@@ -15,7 +15,7 @@ describe("Watch stays short", () => {
     expect(page).toContain('id="on-now"');
     expect(page).toContain("Vote before it airs");
     expect(page).toContain("Recent episodes");
-    // One column of votes: never side by side.
+    // Never squeezed side by side into narrow columns (a phone swipes between near full-width cards, below).
     expect(page).not.toContain("is-two");
   });
 
@@ -76,5 +76,26 @@ describe("Watch loads lightly", () => {
     expect(room).toContain("const roomFor = cache(async (id: string, viewerId: string | null) => getRoomState(");
     expect(room.match(/getRoomState\(/g)).toHaveLength(1);
     expect(room.match(/roomFor\(id, /g)).toHaveLength(2);
+  });
+});
+
+// The 2026-11-22 audit, on a phone: "On now" sat over "Just aired" and "Off air", "Watch how it ends" fell below the first
+// screen, Sable × Nell sat beside Nell × Sable, and the recent episodes started on the fifth screen, after the votes.
+describe("Watch's first screens", () => {
+  it("heads the block with what it holds: live, just aired, or tonight", () => {
+    expect(page).toMatch(/Live now\s*<\/>\s*\) : featured \? \(\s*"Just aired"\s*\) : \(\s*"Tonight"\s*\)/);
+    expect(page).not.toContain('"On now"');
+    expect(page).not.toContain("watch-lead-kicker");
+  });
+
+  it("lists one room a pair to start, whichever way round", () => {
+    expect(page).toContain('const pairKey = (r: LobbyEntry) => r.characters.map((c) => c.id).sort().join(" ");');
+  });
+
+  it("on a phone, the lead date shows two lines then its button, and tonight's votes sit side by side, a swipe apart", () => {
+    const css = readFileSync(new URL("../app/ux/show.css", import.meta.url), "utf8");
+    const phone = css.slice(css.indexOf("@media (max-width: 720px) {\n  .watch-lead .date-excerpt-line"));
+    expect(phone).toContain(".watch-lead .date-excerpt-line:nth-child(n + 3) {\n    display: none;");
+    expect(phone).toMatch(/\.watch-votes \{\s*grid-auto-flow: column;\s*grid-auto-columns: minmax\(86%, 1fr\);/);
   });
 });

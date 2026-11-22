@@ -150,12 +150,14 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
           )}
           {stats.cross_kind > 0 && (
             <li>
-              <strong>{stats.cross_kind}</strong> cross-kind {stats.cross_kind === 1 ? "pair" : "pairs"}
+              {/* Plain words for "cross-kind" (the 2026-11-22 audit): a vampire and a robot, say. */}
+              <strong>{stats.cross_kind}</strong> {stats.cross_kind === 1 ? "pair" : "pairs"} of two different kinds
             </li>
           )}
           {stats.triangles > 0 && (
             <li>
-              <strong>{stats.triangles}</strong> {stats.triangles === 1 ? "triangle" : "triangles"}
+              {/* Every character's, as the list's first line counts them; the Characters tabs count their group's. */}
+              <strong>{stats.triangles}</strong> love {stats.triangles === 1 ? "triangle" : "triangles"} in all
             </li>
           )}
           <li>
@@ -188,8 +190,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const tables = (
     <>
       <section className="constellation-ledger" id="ledger">
-        <h2>The ledger</h2>
-        <p className="muted small">Every pair on the canvas, in plain text — the same public facts, no JavaScript needed.</p>
+        {/* "Every pair", not "The ledger" (the 2026-11-22 audit); the id and ?ledger= stay for old links. */}
+        <h2>Every pair, as a list</h2>
+        <p className="muted small">Every pair in the sky, in plain text — the same public facts, no JavaScript needed.</p>
         {edges.length ? (
           <ul className="list">
             {ledger.items.map((e) => {
@@ -223,7 +226,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         ) : (
           <p className="muted">No public dates yet: the sky is all orbit. Send two characters on a date and the first line appears.</p>
         )}
-        <Pager page={ledger.page} pages={ledger.pages} label="Ledger pages" href={(n) => pageHref("/graph", kept, "ledger", n, "ledger")} scroll={false} />
+        <Pager page={ledger.page} pages={ledger.pages} label="Pages of every pair" href={(n) => pageHref("/graph", kept, "ledger", n, "ledger")} scroll={false} />
         {singles.length > 0 && (
           <>
             <h3>In orbit (no public dates yet)</h3>
@@ -282,7 +285,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
             {stats.kind_coverage
               ? `and ${Math.round(stats.kind_coverage * 100)}% of people's and agents' characters have said so far`
               : "and people's and agents' characters have only just started saying it"}
-            , so the kind colours and the table above undercount the cross-kind sky.
+            , so the kind colours and the table above undercount the pairs of different kinds.
           </li>
           <li>
             <strong>Mutual matches stay hidden until a date airs.</strong> A match is its owners&apos; secret, so the spark before the first date casts no
@@ -348,7 +351,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
       {lensesOn && <TenseTriangles />}
       {/* Open when a ledger page is asked for (its pager links here), folded otherwise. */}
       <details className="constellation-fold ux-fold" id="tables" open={sp.ledger !== undefined}>
-        <summary>The ledger, who dates whom by kind, and what the network doesn&apos;t know yet</summary>
+        <summary>Every pair as a list, who dates whom by kind, and what the sky doesn&apos;t know yet</summary>
         {tables}
       </details>
     </article>

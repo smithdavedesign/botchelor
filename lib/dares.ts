@@ -106,7 +106,7 @@ export function dareWinnerOf(choices: readonly DareDef[], tally: Map<string, num
   return best;
 }
 
-export { DARE_VERDICTS, followedOf, VERDICT_WORDS, verdictFromRoll, type DareVerdict } from "./dare-words";
+export { DARE_VERDICTS, dareSubject, followedOf, VERDICT_WORDS, verdictFromRoll, verdictSentence, type DareVerdict } from "./dare-words";
 
 /** A night's verdict: the stored one (lib/dare-verdict.ts), else the engine's roll. */
 async function verdictOf(db: Db, stored: string | null, episodeId: string, characterId: string): Promise<DareVerdict | null> {
@@ -126,13 +126,13 @@ export async function dareFollowed(db: Db, episodeId: string, characterId: strin
   return row.sides[row.is_a ? 0 : 1]?.note_followed ?? null;
 }
 
-export type DareReveal = { character_id: string; name: string; text: string; verdict: DareVerdict | null; followed: boolean | null };
+export type DareReveal = { character_id: string; name: string; pronouns: string | null; text: string; verdict: DareVerdict | null; followed: boolean | null };
 
 /** The episode page's reveal, once the date has aired: who was dared, to do what, and whether they went through with it. */
 export async function dareReveal(db: Db, episodeId: string): Promise<DareReveal | null> {
   const row = (
-    await db.query<{ character_id: string; dare_id: string; name: string; verdict: string | null }>(
-      `select n.character_id, n.dare_id, c.name, n.verdict from dare_nights n join characters c on c.id = n.character_id
+    await db.query<{ character_id: string; dare_id: string; name: string; pronouns: string | null; verdict: string | null }>(
+      `select n.character_id, n.dare_id, c.name, c.pronouns, n.verdict from dare_nights n join characters c on c.id = n.character_id
         where n.episode_id = $1`,
       [episodeId],
     )
@@ -140,7 +140,7 @@ export async function dareReveal(db: Db, episodeId: string): Promise<DareReveal 
   const def = row ? dareById(row.dare_id) : undefined;
   if (!row || !def) return null;
   const verdict = await verdictOf(db, row.verdict, episodeId, row.character_id);
-  return { character_id: row.character_id, name: row.name, text: def.text, verdict, followed: followedOf(verdict) };
+  return { character_id: row.character_id, name: row.name, pronouns: row.pronouns, text: def.text, verdict, followed: followedOf(verdict) };
 }
 
 export type DareChoice = { id: string; text: string; votes: number };
@@ -158,6 +158,8 @@ export type DareBoard = {
   last: {
     day: string;
     name: string;
+    /** The dared one's pronouns ("she/her"), for the verdict's sentence (lib/dare-words.ts verdictSentence). */
+    pronouns: string | null;
     text: string;
     episode_path: string | null;
     /** Null until it airs. */
@@ -181,8 +183,8 @@ export async function dareBoard(db: Db, viewerId: string | null, now: Date = new
     viewerId
       ? db.query<{ pick: string }>(`select pick from dare_votes where day = $1 and user_id = $2`, [day, viewerId])
       : Promise.resolve({ rows: [] as { pick: string }[] }),
-    db.query<{ day: string; character_id: string; dare_id: string; episode_id: string | null; name: string; revealed: boolean; verdict: string | null }>(
-      `select n.day, n.character_id, n.dare_id, n.episode_id, c.name, (e.revealed_at is not null) as revealed, n.verdict
+    db.query<{ day: string; character_id: string; dare_id: string; episode_id: string | null; name: string; pronouns: string | null; revealed: boolean; verdict: string | null }>(
+      `select n.day, n.character_id, n.dare_id, n.episode_id, c.name, c.pronouns, (e.revealed_at is not null) as revealed, n.verdict
          from dare_nights n
          join characters c on c.id = n.character_id
          left join episodes e on e.id = n.episode_id
@@ -205,6 +207,7 @@ export async function dareBoard(db: Db, viewerId: string | null, now: Date = new
     last = {
       day: lr.day,
       name: lr.name,
+      pronouns: lr.pronouns,
       text: lastDef.text,
       episode_path: lr.episode_id ? `/episodes/${lr.episode_id}` : null,
       verdict: lastVerdict,

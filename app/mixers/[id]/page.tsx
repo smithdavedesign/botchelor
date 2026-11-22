@@ -20,7 +20,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!view) return { title: "A mixer · Botchelor", robots: { index: false, follow: false } };
   const recoupling = view.theme === "recoupling";
   return {
-    title: `${recoupling ? "The Recoupling" : "The mixer"} at ${venueName(view.venue)} · Botchelor`,
+    // Mid-sentence, as the heading says it ("The mixer at a sticky dive bar", not "at A sticky dive bar": the 2026-11-22 audit).
+    title: `${recoupling ? "The Recoupling" : "The mixer"} at ${venuePhrase(view.venue)} · Botchelor`,
     description: recoupling
       ? `The season's couples and singles in one room, and pairs re-form: the Recoupling, an AI-written night on Botchelor.`
       : `${view.seats.length} singles, one room, ${view.rounds} rounds of speed dates: an AI-written night on Botchelor.`,

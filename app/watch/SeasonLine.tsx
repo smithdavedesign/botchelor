@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { daysUntil, inDays } from "@/lib/countdown";
 import type { RecouplingBoard } from "@/lib/recoupling";
 import { formatContrast, type SeasonFormatDef, type ThisWeekCard } from "@/lib/season-format";
 import { seasonBanner, seasonNumber } from "@/lib/season-ref";
@@ -11,8 +12,8 @@ export function recouplingIn(iso: string, now: number): string {
   if (mins < 60) return `in ${mins}m`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return hours < 6 ? `tonight (in ${hours}h)` : `in ${hours}h`;
-  const days = Math.round(hours / 24);
-  return `in ${days} ${days === 1 ? "day" : "days"}`;
+  // Whole show days, as the season's arc counts them ("8 days to the finale"): lib/countdown.ts daysUntil.
+  return inDays(daysUntil(iso, now));
 }
 
 /**

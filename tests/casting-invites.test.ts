@@ -517,7 +517,8 @@ describe("the invite page (/casting/invite/[code])", () => {
     const html = unescape(await render(code));
     const lead = HOUSE_CHARACTERS[5];
     const first = lead.name.split(/\s+/)[0];
-    expect(html).toContain(`You're invited to ${new Date(`${NEXT}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}'s The Botchelor`);
+    // The season's name as a name, not "December's The Botchelor" (the 2026-11-22 audit).
+    expect(html).toContain(`You're invited to The Botchelor in ${new Date(`${NEXT}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}`);
     expect(html).toContain(lead.name);
     expect(html).toContain("five suitors, a rose ceremony every Sunday, and the audience votes");
     expect(html).toContain(`skips the usual three-date wait and goes straight on an audition date with ${first}`);
