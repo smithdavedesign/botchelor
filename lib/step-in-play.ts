@@ -120,16 +120,30 @@ export async function judgePlay(model: Model, characters: [Character, Character]
   return { see_again: trail, won_over: "partly", trail, score: VOTE[trail], shift: 0, why: null, read: true };
 }
 
-/** The ending the play reaches: the engine's moved by the shift (one step), never a second date the person said no to. */
-export function playEnding(prior: Ending, play: Pick<StepInPlay, "shift">, personWish: boolean | null): Ending {
+/** What the ending reads from the verdict: its step, and (when the model answered) the cast member's own answers. */
+type PlayRead = Pick<StepInPlay, "shift"> & Partial<Pick<StepInPlay, "see_again" | "won_over" | "read">>;
+
+/**
+ * The ending the play reaches: the engine's moved by the shift (one step), never a second date the person said no to,
+ * and never a label the cast member's own answers argue with. 2026-11-21: "A disaster" over "Juniper liked Rowan's
+ * three-wreck Peugeot…; the unanswered ghost question kept her on the fence", from a maybe/partly/maybe verdict that
+ * moved nothing off the engine's disaster. So a disaster needs the cast member's clear no (to seeing them again, or to
+ * being won over) or its walk-out, and one who said no to seeing them again isn't on a second date. Without its answer
+ * (`read`), the engine's stands.
+ */
+export function playEnding(prior: Ending, play: PlayRead, personWish: boolean | null, walkedOut = false): Ending {
   const i = Math.min(ENDINGS.length - 1, Math.max(0, ENDINGS.indexOf(prior) - play.shift));
-  const ending = ENDINGS[i];
+  let ending: Ending = ENDINGS[i];
+  if (play.see_again && play.won_over && !play.read) {
+    if (ending === "disaster" && play.see_again !== "no" && play.won_over !== "no" && !walkedOut) ending = "friends";
+    else if (ending === "second_date" && play.see_again === "no") ending = "friends";
+  }
   return ending === "second_date" && personWish === false ? "friends" : ending;
 }
 
 /** The outcome with the play weighed in: each side's wants_another follows its own answer. */
-export function applyPlay(outcome: Outcome, play: Pick<StepInPlay, "shift" | "see_again">, personWish: boolean | null): Outcome {
-  const ending = playEnding(outcome.ending, play, personWish);
+export function applyPlay(outcome: Outcome, play: PlayRead & Pick<StepInPlay, "see_again">, personWish: boolean | null, walkedOut = false): Outcome {
+  const ending = playEnding(outcome.ending, play, personWish, walkedOut);
   const sides = [
     { ...outcome.sides[0], wants_another: personWish ?? ending !== "disaster" },
     { ...outcome.sides[1], wants_another: play.see_again === "yes" ? true : play.see_again === "no" ? false : ending !== "disaster" },

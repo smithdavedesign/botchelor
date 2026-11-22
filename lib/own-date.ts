@@ -1039,7 +1039,7 @@ async function settleStepIn(db: Db, row: Row, decided: Outcome): Promise<Outcome
   if (!play) return decided;
   const transcript = row.transcript ?? [];
   const personWish = typeof row.wishes?.a === "boolean" ? row.wishes.a : null;
-  const final = applyPlay(decided, play, personWish);
+  const final = applyPlay(decided, play, personWish, transcript.some((t) => t.walked_out));
   if (!row.wishes?.engine && row.status === "generating") {
     const kept: StoredWishes = { ...(personWish === null ? {} : { a: personWish }), engine: decided.ending, sent: { a: personWish !== null, b: false } };
     await db.query(

@@ -95,8 +95,13 @@ export function companionMessages(args: {
   /** The character's own recent lines, to keep from saying them again. */
   avoid: readonly string[];
   now?: Date;
-  /** A regenerate: the reply it's drawn again from, to say something else. */
+  /** A redraw: the draw that couldn't be used (not PG, or said before), to say something else. */
   insteadOf?: string | null;
+  /**
+   * A regenerate ("Another reply"): the replies they've passed on for this turn (the one showing, then earlier draws),
+   * none to come back, reworded versions included.
+   */
+  passedOn?: readonly string[];
   /** The user turn the model answers when the person hasn't said anything new (the opener, a regenerate). */
   cue?: string;
   /** Playing a scene at one of the show's places, face to face, instead of texting. */
@@ -299,6 +304,13 @@ export function companionMessages(args: {
     ...(!scene && persona ? ["", `The name they go by here: ${JSON.stringify(persona.name)}. Use it when a name fits, the way you'd use anyone's.`] : []),
     ...(args.summary ? ["", `Earlier in your conversation: ${args.summary}`] : []),
     ...(args.avoid.length ? ["", "Lines you've already sent (don't reuse them or how they open):", ...args.avoid.map((l) => `- ${l}`)] : []),
+    ...(args.passedOn?.length
+      ? [
+          "",
+          "They asked for a different reply to this. Don't send any of these again, or a reworded version of one: open another way, take a different angle, and use different images and words.",
+          ...args.passedOn.map((l) => `- ${l}`),
+        ]
+      : []),
     ...(args.insteadOf ? ["", `You were about to say this; say something different instead: ${args.insteadOf}`] : []),
   ].join("\n");
 
@@ -338,7 +350,29 @@ export function houseBlock(lines: readonly string[] | null | undefined): string[
 }
 
 const wordsOf = (s: string) => s.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
-const fiveGrams = (w: readonly string[]) => new Set(w.slice(0, Math.max(0, w.length - 4)).map((_, i) => w.slice(i, i + 5).join(" ")));
+const nGrams = (w: readonly string[], n: number) => new Set(w.slice(0, Math.max(0, w.length - n + 1)).map((_, i) => w.slice(i, i + n).join(" ")));
+const fiveGrams = (w: readonly string[]) => nGrams(w, 5);
+
+/**
+ * Whether a regenerated reply is one they passed on, reworded (2026-11-21: "That message felt like a mainspring wound a
+ * few turns too many…" came back as "Well now, that message arrived like a mainspring wound a few turns too many…",
+ * well under repeatsEarlier's bar): six words in a row in common, or two in five of its three-word runs.
+ */
+export function tooCloseTo(line: string, passedOn: readonly string[]): boolean {
+  const mine = wordsOf(line);
+  const sixes = nGrams(mine, 6);
+  const threes = nGrams(mine, 3);
+  if (threes.size < 2) return false;
+  return passedOn.some((p) => {
+    const theirs = wordsOf(p);
+    const theirSixes = nGrams(theirs, 6);
+    for (const g of sixes) if (theirSixes.has(g)) return true;
+    const theirThrees = nGrams(theirs, 3);
+    let shared = 0;
+    for (const g of threes) if (theirThrees.has(g)) shared++;
+    return shared / threes.size >= 0.4;
+  });
+}
 
 /**
  * Whether a line says one of the character's earlier lines again: most of its five-word runs are in one of them (the

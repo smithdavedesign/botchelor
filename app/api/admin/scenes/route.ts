@@ -1,6 +1,6 @@
 import { isSignedInAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
-import { authFromRequest, handle, json } from "@/lib/http";
+import { authFromRequest, handle, json, MAX_BODY_BYTES, readJsonOr } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 import { listSceneRequests } from "@/lib/scenes";
 import { drawMissingSets, drawQueuedSets, listSetQueue } from "@/lib/sets";
@@ -23,7 +23,7 @@ export const GET = handle(async (req: Request) => {
 /** Owner-only: draws sets for the most-asked-for places that have none yet (lib/sets.ts), `limit` at a time (max 25). */
 export const POST = handle(async (req: Request) => {
   if (!(await authorized(req))) return json({ error: "not_authorized", message: "Needs the admin password or an admin account." }, 403);
-  const body = (await req.json().catch(() => ({}))) as { limit?: unknown; queue?: unknown };
+  const body = ((await readJsonOr(req, MAX_BODY_BYTES, {})) ?? {}) as { limit?: unknown; queue?: unknown };
   const limit = Math.min(25, Math.max(1, Number(body.limit) || 10));
   const db = await getDb();
   // The queue of sets scenes are waiting on (lib/sets.ts listSetQueue), or the most-asked-for places dates went.

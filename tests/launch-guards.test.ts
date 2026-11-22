@@ -83,7 +83,8 @@ describe("starting dates is limited per visitor, not per cookie", () => {
 
   it("stores a keyed hash of the IP, never the IP, and prunes it after two days", async () => {
     await startDateFrom("203.0.113.7");
-    const { rows } = await t.db.query<{ key: string }>("select key from rate_hits");
+    // (Making the character counted in the site-wide create caps too: lib/create-limits.ts.)
+    const { rows } = await t.db.query<{ key: string }>("select key from rate_hits where bucket = 'date_start'");
     expect(rows).toHaveLength(1);
     expect(rows[0].key).not.toContain("203.0.113");
     expect(rows[0].key).toBe(visitorKey(new Headers({ "x-forwarded-for": "203.0.113.7" })));

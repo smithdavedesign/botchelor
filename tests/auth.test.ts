@@ -19,6 +19,7 @@ import {
   verifySession,
 } from "@/lib/auth";
 import { setDbForTests } from "@/lib/db";
+import { REGISTER_LIMITS, visitorKey } from "@/lib/limits";
 import { BASE_URL, startTestDb } from "./helpers";
 
 const SECRET = ["sess", "test", "secret", "abcdefghij0123456789"].join("-");
@@ -63,6 +64,23 @@ describe("passwords", () => {
     expect(await verifyPassword(PW2, stored)).toBe(true);
     expect(await verifyPassword(PW2 + "-no", stored)).toBe(false);
     expect(await verifyPassword("x", null)).toBe(false);
+  });
+
+  it("takes as long with no password to check as with a wrong one, so a wrong handle doesn't show", async () => {
+    // 2026-11-22 audit: no stored password returned at once, and the gap told a real handle from a made-up one.
+    const stored = await hashPassword(PW2);
+    const time = async (f: () => Promise<unknown>) => {
+      const t0 = performance.now();
+      await f();
+      return performance.now() - t0;
+    };
+    const wrong: number[] = [];
+    const none: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      wrong.push(await time(() => verifyPassword(PW, stored)));
+      none.push(await time(() => verifyPassword(PW, null)));
+    }
+    expect(Math.min(...none)).toBeGreaterThan(0.4 * Math.min(...wrong));
   });
 });
 
@@ -160,6 +178,25 @@ describe("the auth routes", () => {
     expect(out.status).toBe(200);
     expect((await out.json()).authenticated).toBe(false);
     expect(out.headers.getSetCookie().some((c) => c.startsWith("bz_sess=;"))).toBe(true); // cleared
+  });
+
+  it("holds sign-ups from one address at the cap, before any password is hashed", async () => {
+    const from = (address: string, handle: string) =>
+      registerRoute(
+        new Request(BASE_URL + "/api/auth/register", {
+          method: "POST",
+          headers: { "content-type": "application/json", "do-connecting-ip": address },
+          body: JSON.stringify({ handle, password: PW, attest: true }),
+        }),
+      );
+    expect((await from("203.0.113.7", "firstcomer")).status).toBe(201);
+    const key = visitorKey(new Headers({ "do-connecting-ip": "203.0.113.7" }));
+    for (let i = 1; i < REGISTER_LIMITS.perHour; i++) await t.db.query(`insert into rate_hits (bucket, key) values ('register', $1)`, [key]);
+    const held = await from("203.0.113.7", "onetoomany");
+    expect(held.status).toBe(429);
+    expect((await held.json()).error).toBe("too_many_signups");
+    expect((await t.db.query(`select 1 from accounts where handle = 'onetoomany'`)).rows).toHaveLength(0);
+    expect((await from("203.0.113.8", "elsewhere")).status).toBe(201);
   });
 
   it("is unavailable, not a 500, when the deployment can't sign sessions", async () => {

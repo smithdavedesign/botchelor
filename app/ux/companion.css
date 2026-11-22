@@ -377,6 +377,11 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-send .button {
   min-height: 44px;
 }
+/* Past the limit the count says by how much, and Send waits (CompanionChat lineMax): nothing is cut off silently. */
+.companion-over {
+  color: var(--bad-text);
+  font-weight: 600;
+}
 .companion-note {
   margin: 0;
   padding: var(--space-2) var(--space-3);
