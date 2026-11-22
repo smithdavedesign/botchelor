@@ -50,13 +50,20 @@ function zoneTime(at: Date, timeZone: string): string {
 
 /**
  * The premiere's time for everyone: "23:00 UTC (6 pm ET, 3 pm PT)". With `day`, the date first: "Sunday 29 November,
- * 23:00 UTC (6 pm ET, 3 pm PT)". US Eastern and Pacific follow their own summer time.
+ * 23:00 UTC (6 pm ET, 3 pm PT)"; with `weekly`, a time that comes round every week: "Sundays, 23:00 UTC (6 pm ET, 3 pm
+ * PT)". US Eastern and Pacific follow their own summer time. A season page says all its times this way, so its start, its
+ * schedule and the premiere read in one zone (the 2026-11-22 audit: "Starts Mon, Nov 30, 4:00 PM PST" in the viewer's
+ * zone sat beside the pilot's UTC line).
  */
-export function premiereTimeWords(at: Date | string, opts: { day?: boolean } = {}): string {
+export function premiereTimeWords(at: Date | string, opts: { day?: boolean; weekly?: boolean } = {}): string {
   const d = typeof at === "string" ? new Date(at) : at;
   const utc = `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
   const us = `${zoneTime(d, "America/New_York")} ET, ${zoneTime(d, "America/Los_Angeles")} PT`;
-  const day = opts.day ? `${d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}, ` : "";
+  const day = opts.weekly
+    ? `${d.toLocaleDateString("en-GB", { weekday: "long", timeZone: "UTC" })}s, `
+    : opts.day
+      ? `${d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}, `
+      : "";
   return `${day}${utc} (${us})`;
 }
 

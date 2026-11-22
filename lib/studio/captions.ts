@@ -43,6 +43,7 @@ export function captionMessages(input: { name: string; voice: readonly string[];
         ...(input.voice.length ? ["How they talk and who they are:", ...input.voice.map((v) => `- ${v}`)] : []),
         "",
         `The photo: ${input.shows}${input.together ? " (with their date, who stays unnamed)" : ""}.`,
+        "Only that is known about it: don't add a place, an activity, an expression, a time or anything else it doesn't name.",
         "",
         `Write three captions they'd post it with, first person, each under ${CAPTION_MAX} characters and each different: one playful, one tender, one teasing.`,
         input.spicy

@@ -100,12 +100,15 @@ describe("swipes and texts", () => {
 });
 
 describe("a Studio picture asks before it's deleted", () => {
-  it("Delete opens Yes, delete / Keep in the tile; only Yes deletes", () => {
+  it("Delete, set apart in the tile's ⋯, opens Yes, delete / Keep in its place; only Yes deletes", () => {
     const src = read("app/characters/[id]/studio/PgStudio.tsx");
     expect(src).not.toContain("onClick={() => onDelete(p.id)}");
-    expect(src).toContain('onClick={() => setAsking(p.id)}');
-    expect(src).toMatch(/Delete for good\?\{p\.pinned \? " It comes off their profile too\." : ""\}/);
-    expect(src).toMatch(/onClick=\{\(\) => \{\s*setAsking\(null\);\s*onDelete\(p\.id\);\s*\}\}/);
-    expect(src).toMatch(/onClick=\{\(\) => setAsking\(null\)\}>\s*Keep/);
+    const at = src.indexOf('<p className="studio-tile-delete">');
+    expect(at).toBeGreaterThan(src.indexOf('<details className="studio-tile-more">'));
+    const row = src.slice(at, src.indexOf("</p>", at));
+    expect(row).toContain("onClick={() => setAsking(p.id)}");
+    expect(row).toMatch(/Delete for good\?\{p\.pinned \? " It comes out of their Photos too\." : ""\}/);
+    expect(row).toMatch(/onClick=\{\(\) => \{\s*setAsking\(null\);\s*onDelete\(p\.id\);\s*\}\}/);
+    expect(row).toMatch(/onClick=\{\(\) => setAsking\(null\)\}>\s*Keep/);
   });
 });

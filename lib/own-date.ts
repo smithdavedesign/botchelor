@@ -1998,11 +1998,6 @@ export async function advanceQuietDatesFor(db: Db, agentId: string, limit = 3): 
   return read;
 }
 
-/** Forgets which quiet dates were tried (tests). */
-export function clearQuietTriedForTests(): void {
-  quietTried.clear();
-}
-
 /** A date that isn't there: say if it was declined or cancelled, rather than "no such date". */
 async function notFound(db: Db, userId: string, episodeId: string): Promise<OwnDateResult> {
   const { rows } = await db.query<{ title: string }>(

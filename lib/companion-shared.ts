@@ -166,7 +166,6 @@ export const COMPANION_EXTRAS = {
   minute: { included: 20, bundle: 10, tokens: 1, one: "call minute", many: "call minutes" },
 } as const;
 export type CompanionExtraKind = keyof typeof COMPANION_EXTRAS;
-export const COMPANION_EXTRA_KINDS = Object.keys(COMPANION_EXTRAS) as CompanionExtraKind[];
 
 const whole = (raw: string | undefined, min: number): number | null => {
   const n = Number.parseInt((raw ?? "").trim(), 10);
