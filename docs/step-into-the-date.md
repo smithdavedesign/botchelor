@@ -223,7 +223,10 @@ Juniper: a disaster." (`lib/step-in-shared.ts` `STEP_IN_SHARE_WORDS`).
   `verb-send`, `verb-match`, `verb-make`.
 - Server events (system log): `step_in_started` (with `guest`), `step_in_finished`, `step_in_aired`,
   `step_in_refused` (which cap turned a start away: `ip_starts`, `guest_dates`, `guest_day`, `day_cap`, `no_dates`;
-  and whether a guest; never who), `step_in_line_withheld`, `crisis_notice_shown` (`surface: step_in_line | step_in_about`).
+  and whether a guest; never who), `step_in_line_withheld`, `crisis_notice_shown` (`surface: step_in_line | step_in_about`),
+  and `step_in_timing`: one a move (`line`, `advance`, `continue`) with its wall time (`ms`) and how much of it had a
+  database query in flight (`db_queries`, `db_ms`) or a model call (`model_calls`, `model_ms`), the rest `other_ms`
+  (`lib/request-timing.ts`; numbers only, never the words).
 - Real-use metrics count a step-in date as performed by a `person` (`lib/real-metrics.ts`).
 
 ## The switches
