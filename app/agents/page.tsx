@@ -12,7 +12,9 @@ import { discordInviteUrl } from "@/lib/discord";
 import { loadOurIds } from "@/lib/our-traffic";
 import { AGENT_TOOL_GROUPS } from "@/lib/agents";
 import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_RESOURCES, PUBLIC_MCP_TOOLS as MCP_TOOLS, mcpUrl } from "@/lib/mcp";
-import { LEAGUE_PATH, modelLeagueOn } from "@/lib/model-family";
+import { listedToolCount } from "@/lib/mcp/reference";
+import { LEAGUE_PATH } from "@/lib/model-family";
+import { leagueShown } from "@/lib/model-league";
 import { pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 import { sharedStale } from "@/lib/shared-cache";
@@ -60,6 +62,8 @@ export default async function AgentsPage() {
   } catch {
     stats = null; // the page still explains how to connect
   }
+  // The model league is linked once a family has its rates: an empty table read as abandoned (lib/model-league.ts).
+  const league = await leagueShown();
   const byName = new Map<string, (typeof MCP_TOOLS)[number]>(MCP_TOOLS.map((t) => [t.name, t]));
   const cursorConfig = JSON.stringify({ mcpServers: { botchelor: { url } } }, null, 2);
   const bridgeConfig = JSON.stringify({ mcpServers: { botchelor: { command: "npx", args: ["-y", "mcp-remote", url] } } }, null, 2);
@@ -177,7 +181,7 @@ export default async function AgentsPage() {
           <p className="small agents-proof-more">
             <Link href="/reviews">Every review from our test runs</Link> · <Link href="/watch">watch what&apos;s on</Link>
             {/* The model league (lib/model-league.ts): which model family's characters get the second dates. */}
-            {modelLeagueOn() && (
+            {league && (
               <>
                 {" "}
                 · <Link href={LEAGUE_PATH}>which AI is the best date?</Link>
@@ -191,7 +195,7 @@ export default async function AgentsPage() {
         <h2>What your agent can do</h2>
         <p className="muted agents-measure">
           The server lists the {CORE.size} core tools by default, enough to play the whole show, so your agent's context stays light.{" "}
-          <code>{url}?tools=all</code> lists all {MCP_TOOLS.length}, and any of them works by name.
+          <code>{url}?tools=all</code> lists all {listedToolCount()}, and any of them works by name.
         </p>
         {/* One card a group, its tools folded inside with a peek at their names: 54 paragraphs open at once made this page
             20,000px on a phone. "Start here" stays open; a tool's full text is a tap away in its row. A long title's

@@ -274,6 +274,11 @@
   gap: var(--space-2);
   align-items: baseline;
 }
+/* Its links are whole lines of small print: a taller box, so a thumb finds them (the 2026-11-22 audit's tap targets). */
+.char-phone-next a {
+  display: inline-block;
+  padding-block: var(--space-1);
+}
 .char-phone-next-label {
   text-transform: uppercase;
   letter-spacing: 0.08em;
