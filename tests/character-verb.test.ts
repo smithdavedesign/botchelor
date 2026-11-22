@@ -298,8 +298,13 @@ describe("the head of a character's page", () => {
     expect(html).toContain(`href="/create?meet=${CAST.id}&amp;next=${encodeURIComponent(`/characters/${CAST.id}`)}">make a character to date ${first(CAST.name)}</a>`);
     // One filled button: the builder's own filled "Make a character" isn't there too.
     expect(html).not.toContain("💌 Make a character to date");
-    // Text, one small button in the header (the card further down still explains what a thread with them is).
+    // Text, one small button in the header, and the page's only way into the thread: the "Talk with" card that said it
+    // again further down is gone (2026-11-22 audit).
     expect(html).toContain(`<div class="contestant-actions"><button type="button" class="button secondary small" data-track="verb-text">Text ${first(CAST.name)}</button>`);
+    expect(html).not.toContain("companion-entry");
+    expect(html).not.toContain(`Talk to ${first(CAST.name)}`);
+    // The heading is the name alone; the badges sit beside it in the same row (2026-11-22 audit).
+    expect(html).toContain(`<div class="contestant-name"><h1>${CAST.name}</h1><span class="badge`);
     expect(html.indexOf("contestant-actions")).toBeLessThan(html.indexOf("Step into a date with"));
   });
 
