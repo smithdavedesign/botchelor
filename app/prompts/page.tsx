@@ -5,6 +5,7 @@ import Pager from "@/app/Pager";
 import { adultViewerFromCookies } from "@/lib/adult/mode";
 import { artistsNamed, parseArtists } from "@/lib/prompt-artists";
 import { getDb } from "@/lib/db";
+import { authFromCookieStore } from "@/lib/http";
 import { pageHref, pageOf, parsePage } from "@/lib/paging";
 import {
   ALL_PROMPTS,
@@ -60,9 +61,23 @@ async function showsNsfw(): Promise<boolean> {
   }
 }
 
+/**
+ * Whether the viewer has an account: your own prompts need one (app/api/library). A visitor without one gets the sign-in
+ * line from the server, and the page never asks the library for them (2026-11-22: that ask was a 401 on every
+ * signed-out visit).
+ */
+async function hasAccount(): Promise<boolean> {
+  try {
+    return authFromCookieStore(await cookies())?.authenticated === true;
+  } catch {
+    return false;
+  }
+}
+
 export default async function PromptsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const showNsfw = await showsNsfw();
+  const signedIn = await hasAccount();
   const q = parseQuery(sp.q);
   const source = parseSource(sp.source);
   const tag = parseTag(sp.tag, showNsfw);
@@ -129,7 +144,7 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         </form>
       </section>
 
-      <MyPrompts />
+      <MyPrompts signedIn={signedIn} />
 
       {/* A tag picked: pictures people made in the Studio with it (lib/prompt-examples.ts), over the prompts. */}
       {tag && tagById(tag) && <PromptExamples tag={tagById(tag)!} examples={await examplesFor(tag)} />}
@@ -173,9 +188,9 @@ export default async function PromptsPage({ searchParams }: { searchParams: Sear
         <h2>Where these come from</h2>
         <p>
           Every prompt is from an openly licensed dataset and keeps its licence. We only cleaned them up: one line of plain
-          words, no model weights or flags, nothing under 40 or over 400 characters, no repeats. Anything about minors,
-          anything sexual or violent, anything naming a real person, and anything describing a picture that already exists
-          rather than one to make was left out.
+          words, no model weights or flags, plain misspellings fixed, nothing under 40 or over 400 characters, no repeats.
+          Anything about minors, anything sexual or violent, anything with a real person as its subject, and anything
+          describing a picture that already exists rather than one to make was left out.
         </p>
         <p>
           The tags are the Studio&apos;s own: its framing, angle, pose, wardrobe, accessories, place, light and expression

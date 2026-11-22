@@ -8,11 +8,12 @@ import CopyPrompt from "./CopyPrompt";
 /**
  * Your own prompts, at the top of the library (David, 2026-10-25: "allow them to create and save prompts to this
  * library"): write one, or Save one from the list below; both Studios offer them under "Your prompts". Signed-out
- * visitors see one line saying so; nothing here is indexed (it's drawn in the browser).
+ * visitors see one line saying so, from the server (`signedIn` is false: no account, so nothing to ask the library for);
+ * a signed-in viewer's list is drawn in the browser, so nothing here is indexed.
  */
-export default function MyPrompts() {
+export default function MyPrompts({ signedIn }: { signedIn: boolean }) {
   const [mine, setMine] = useState<MyPrompt[] | null>(null);
-  const [signedOut, setSignedOut] = useState(false);
+  const [signedOut, setSignedOut] = useState(!signedIn);
   const [text, setText] = useState("");
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,8 +29,8 @@ export default function MyPrompts() {
       .then((d) => d && setMine(d.library.prompts as MyPrompt[]))
       .catch(() => {});
   useEffect(() => {
-    void load();
-  }, []);
+    if (signedIn) void load();
+  }, [signedIn]);
   if (signedOut) {
     return (
       <p className="muted small my-prompts-signin">

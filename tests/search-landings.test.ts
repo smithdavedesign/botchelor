@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import AlternativePage from "@/app/alternatives/AlternativePage";
 import { ALTERNATIVES, alternativeFaq, alternativePath } from "@/lib/alternatives";
-import { indexablePromptTags, promptTagPath, TAG_PAGE_MIN, tagCounts } from "@/lib/prompts-library";
+import { indexablePromptTags, promptTagHeading, promptTagPath, TAG_PAGE_MIN, tagCounts } from "@/lib/prompts-library";
 import { landingPaths, staticSitemap } from "@/lib/seo";
 
 const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
@@ -46,6 +46,15 @@ describe("the /alternatives pages", () => {
 });
 
 describe("prompt tag pages", () => {
+  it("read as plain headings, never \"Close portrait prompts\" or \"Man portrait prompts\"", () => {
+    const heading = (id: string) => promptTagHeading(indexablePromptTags().find((t) => t.id === id)!);
+    expect(heading("framing.close")).toBe("Close-up portrait prompts");
+    expect(heading("subject:man")).toBe("Portrait prompts of men");
+    expect(heading("subject:woman")).toBe("Portrait prompts of women");
+    expect(heading("expression.smiling")).toBe("Smiling portrait prompts");
+    for (const t of indexablePromptTags()) expect(promptTagHeading(t)).toMatch(/portrait prompts/i);
+  });
+
   it("exist for PG tags with enough prompts, and for nothing else", async () => {
     const tags = indexablePromptTags();
     expect(tags.length).toBeGreaterThan(5);
@@ -62,10 +71,11 @@ describe("prompt tag pages", () => {
     const first = tags[0];
     const meta = await generateMetadata({ params: Promise.resolve({ id: first.id }) });
     expect(meta.alternates?.canonical).toBe(promptTagPath(first.id));
-    expect(String(meta.title)).toContain(`${first.count.toLocaleString("en-US")} ${first.label.toLowerCase()} portrait prompts`);
+    const heading = promptTagHeading(first);
+    expect(String(meta.title)).toContain(`${first.count.toLocaleString("en-US")} ${heading[0].toLowerCase()}${heading.slice(1)}`);
     const html = text(renderToStaticMarkup(await Page({ params: Promise.resolve({ id: first.id }) })));
-    expect(html).toContain(`<h1>${first.label} portrait prompts</h1>`);
-    expect(html.match(/class="prompt-item"/g)!.length).toBeLessThanOrEqual(60);
+    expect(html).toContain(`<h1>${heading}</h1>`);
+    expect(html.match(/class="prompt-item"/g)!.length).toBeLessThanOrEqual(24);
     expect(html).toContain('href="/prompts"');
     // A small or NSFW tag has no page.
     const nsfwMeta = await generateMetadata({ params: Promise.resolve({ id: small.id }) });
