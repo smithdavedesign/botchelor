@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // Guards the palette in app/globals.css (docs/brand.md, "Color"). It reads the real token blocks, so a future
@@ -61,6 +61,24 @@ describe("theme contrast (WCAG 2.2 AA)", () => {
       }
     });
   }
+});
+
+// --accent is the decoration pink (docs/brand.md): a fill under words in the label colour is --accent-btn, which the
+// gradient test above holds at 4.5:1. White on --accent is 4.2:1, and lightened toward the bubble's white 3.6:1: the
+// showcase's picked chip and the real date's second speaker on home failed axe that way (2026-11-22 audit).
+describe("fills under the label colour", () => {
+  it("are never the decoration pink, in any stylesheet", () => {
+    const dir = new URL("../app/ux/", import.meta.url);
+    const sheets: [string, string][] = [["app/globals.css", css], ...readdirSync(dir).filter((f) => f.endsWith(".css")).map((f): [string, string] => [`app/ux/${f}`, readFileSync(new URL(f, dir), "utf8")])];
+    const bad: string[] = [];
+    for (const [name, text] of sheets) {
+      for (const m of text.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const body = m[2];
+        if (/color:\s*var\(--accent-ink\)/.test(body) && /background(-color)?:\s*(var\(--accent\)|color-mix\(in srgb, var\(--accent\) )/.test(body)) bad.push(`${name}: ${m[1].trim()}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
 });
 
 describe("type scale", () => {

@@ -966,7 +966,7 @@ body:has(.companion-fullscreen) .site-footer {
 }
 /* A live call (P6): marked on the top line, and the face pulses while the line connects. */
 .companion-call .companion-call-live {
-  background: var(--accent);
+  background: var(--accent-btn);
   border-color: transparent;
   color: var(--accent-ink);
 }
