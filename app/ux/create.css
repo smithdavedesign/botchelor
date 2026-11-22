@@ -845,7 +845,10 @@
   gap: var(--space-2) var(--space-4);
   margin-top: var(--space-3);
 }
+/* Under it at every width: the grey button says what it's waiting for (2026-11-22 audit), wider than "Meet them", and
+   the ways out beside it would jump up a row when it turns on. */
 .wizard .express-actions .express-alt {
+  flex: 1 0 100%;
   margin: 0;
 }
 @media (max-width: 640px) {
@@ -854,7 +857,6 @@
     flex: 1 0 100%;
   }
   .wizard .express-actions .express-alt {
-    flex: 1 0 100%;
     text-align: center;
   }
 }
