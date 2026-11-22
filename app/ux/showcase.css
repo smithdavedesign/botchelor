@@ -125,20 +125,15 @@ a.showcase-side {
   font-size: var(--text-sm);
 }
 /* The filled buttons' pink under the label colour, 4.5:1 in either theme (the decoration pink held white at 4.2:1, and
-   the count faded to 80% at 3.8:1: 2026-11-22 audit). The count is told apart by its size. */
+   the count faded to 80% at 3.8:1: 2026-11-22 audit). The count is told apart by its size. After Dark's night keeps
+   the pair as it is (it remaps neither token), like the Yours | Showcase tabs beside it: an ink set there without
+   its fill put night's dark ink on this pink at 3.7:1. */
 a.showcase-side.on {
   background: var(--accent-btn);
   color: var(--accent-ink);
 }
 a.showcase-side.on .showcase-count {
   color: inherit;
-}
-/* After Dark's night (globals.css .after-dark-mode): its accent is a light lilac, so the chip that's on takes night's
-   darkest ink; the site's white on it was about 2.2:1 (the 2026-11-22 audit). */
-.after-dark-mode a.showcase-side.on,
-body.ad-host a.showcase-side.on,
-body:has(.ad-discreet) a.showcase-side.on {
-  color: var(--night-bg);
 }
 /* What's picked, each with its ×. */
 .showcase-picked {
