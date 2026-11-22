@@ -46,6 +46,22 @@ describe("the demand table", () => {
     expect(html.match(/<tr class="demand-few">/g)).toHaveLength(1);
   });
 
+  // The 2026-11-22 audit: After Dark's table, before any member had picked, was a column of 0s, a column of dashes and
+  // the census twice over.
+  it("drops the picks, ours and the blend when nobody has picked yet, and says the order is the census's", () => {
+    const none = (r: DemandRow): DemandRow => ({ ...r, picks: 0, raw: null });
+    const html = renderToStaticMarkup(DemandTable({ demand: { ...demand([none(row("setup", "rivals", 1.15)), none(row("setup", "work", 1.17))]), total: 0 }, caption: "After Dark roleplays" }));
+    expect(html).toContain("data-no-picks");
+    expect(html).toContain("the order is the census&#x27;s alone");
+    for (const gone of ["Picks", "Ours (raw)", "Blended"]) expect(html).not.toContain(`<th scope="col">${gone}</th>`);
+    for (const kept of ["On offer", "Census"]) expect(html).toContain(`<th scope="col">${kept}</th>`);
+    expect(html).not.toContain("demand-few");
+    // One pick anywhere and the full table is back.
+    const one = renderToStaticMarkup(DemandTable({ demand: demand([row("setup", "rivals", 1.15), none(row("setup", "work", 1.17))]), caption: "After Dark roleplays" }));
+    expect(one).not.toContain("data-no-picks");
+    expect(one).toContain('<th scope="col">Blended</th>');
+  });
+
   it("starts a shown caption where the cells' words start, and leaves the hidden ones alone", () => {
     const css = readFileSync("app/globals.css", "utf8");
     const cell = css.match(/\.board th,\s*\.board td \{[^}]*padding: [^ ;]+ ([^;]+);/)?.[1];

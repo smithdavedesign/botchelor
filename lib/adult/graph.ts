@@ -169,12 +169,40 @@ export async function pairContent(db: Db, x: string, y: string): Promise<PairCon
   };
 }
 
+/** The ring's radius, in the 0–100 box the nodes sit in. */
+const RING = 38;
+
 /** Where each node sits: evenly round a circle, the busiest at the top (positions in a 0–100 box). */
 export function layout(nodes: GraphNode[]): Map<string, { x: number; y: number }> {
   const out = new Map<string, { x: number; y: number }>();
   nodes.forEach((n, i) => {
     const t = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(1, nodes.length);
-    out.set(n.id, nodes.length === 1 ? { x: 50, y: 50 } : { x: 50 + 38 * Math.cos(t), y: 50 + 38 * Math.sin(t) });
+    out.set(n.id, nodes.length === 1 ? { x: 50, y: 50 } : { x: 50 + RING * Math.cos(t), y: 50 + RING * Math.sin(t) });
   });
   return out;
+}
+
+/** A node's radius: the portrait's full size (4.6) until neighbours on the ring would touch, then smaller. */
+export function nodeRadius(count: number): number {
+  if (count <= 1) return 4.6;
+  return Math.max(1.6, Math.min(4.6, 0.42 * 2 * RING * Math.sin(Math.PI / count)));
+}
+
+/**
+ * Where a node's name goes: just outside the ring, along the node's own radius, reading outward and never upside down,
+ * so neighbours' names never cross and no circle covers one (the page draws them after every node). Under the 2026-11-22
+ * audit's 37 characters, names sat under each node and the next circle hid them ("aby", "eet"). A lone node's name sits
+ * under it. Its farthest reach is about 60 from the middle, so the drawing's box runs from -12 to 112.
+ */
+export function labelAt(p: { x: number; y: number }, r: number): { x: number; y: number; rotate: number; anchor: "start" | "end" | "middle" } {
+  const dx = p.x - 50;
+  const dy = p.y - 50;
+  const out = Math.hypot(dx, dy);
+  if (out < 1) return { x: p.x, y: p.y + r + 3, rotate: 0, anchor: "middle" };
+  const t = Math.atan2(dy, dx);
+  const x = 50 + (out + r + 1.2) * Math.cos(t);
+  const y = 50 + (out + r + 1.2) * Math.sin(t);
+  const deg = (t * 180) / Math.PI;
+  // The left half turns its text round (a half turn either way, kept within ±90°) and ends it at the node instead.
+  return Math.cos(t) >= -1e-9 ? { x, y, rotate: deg, anchor: "start" } : { x, y, rotate: deg > 0 ? deg - 180 : deg + 180, anchor: "end" };
 }

@@ -54,6 +54,46 @@
     max-width: none;
   }
 }
+/* The dropdowns' fold (ShowcaseBrowser.tsx): on a phone one "Filters" chip, as tall as a finger, opens them. A wider
+   screen drops the chip and shows them, open or not, where the browser can style a disclosure's contents
+   (::details-content); one that can't keeps the chip there too, so they're never out of reach. */
+.showcase-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  list-style: none;
+}
+.showcase-filter-toggle::-webkit-details-marker {
+  display: none;
+}
+.showcase-filter-toggle::after {
+  content: "▾";
+  font-size: var(--text-2xs);
+}
+.showcase-filter-fold[open] > .showcase-filter-toggle {
+  margin-bottom: var(--space-2);
+}
+.showcase-filter-fold[open] > .showcase-filter-toggle::after {
+  content: "▴";
+}
+@supports selector(::details-content) {
+  @media (min-width: 721px) {
+    .showcase-filter-fold > .showcase-filter-toggle {
+      display: none;
+    }
+    .showcase-filter-fold::details-content {
+      display: block;
+      content-visibility: visible;
+    }
+  }
+}
 .showcase-check {
   display: inline-flex;
   align-items: center;
@@ -91,6 +131,13 @@ a.showcase-side.on {
 a.showcase-side.on .showcase-count {
   color: inherit;
   opacity: 0.8;
+}
+/* After Dark's night (globals.css .after-dark-mode): its accent is a light lilac, so the chip that's on takes night's
+   darkest ink; the site's white on it was about 2.2:1 (the 2026-11-22 audit). */
+.after-dark-mode a.showcase-side.on,
+body.ad-host a.showcase-side.on,
+body:has(.ad-discreet) a.showcase-side.on {
+  color: var(--night-bg);
 }
 /* What's picked, each with its ×. */
 .showcase-picked {

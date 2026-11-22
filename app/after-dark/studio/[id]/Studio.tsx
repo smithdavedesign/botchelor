@@ -349,7 +349,6 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
         ref={setupNameRef}
         type="text"
         maxLength={40}
-        aria-label="A name for these choices"
         placeholder="Name these choices"
         value={setupName}
         onChange={(e) => setSetupName(e.target.value)}

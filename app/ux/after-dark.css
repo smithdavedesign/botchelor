@@ -4085,3 +4085,12 @@ fieldset.ad-si-step {
 .ad-waitlist[open] > summary {
   margin-bottom: var(--space-2);
 }
+
+/* A face still loading at night (Avatar.tsx): a dim night tile, not the bright gradient the show uses to say whose face
+   is coming (the 2026-11-22 audit: rows of saturated tiles before the faces). The gradient is the tile's inline style,
+   so this outranks it; a loaded face covers the tile either way. */
+.after-dark-mode .avatar-portrait,
+body.ad-host .avatar-portrait,
+body:has(.ad-discreet) .avatar-portrait {
+  background: var(--night-card) !important;
+}

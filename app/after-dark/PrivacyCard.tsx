@@ -49,6 +49,8 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
   const [confirming, setConfirming] = useState(false);
+  // The profile's own card has its own line: a privacy switch's "Saved" shouldn't land beside the delete.
+  const [profileNote, setProfileNote] = useState<Note>(null);
 
   async function save(body: Record<string, unknown>, done: string) {
     setBusy(true);
@@ -97,12 +99,12 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
   /** Wipes the turn-ons and hard nos (app/api/admin/after-dark/profile DELETE); the consent goes with them. */
   async function deleteProfile() {
     setBusy(true);
-    setNote(null);
+    setProfileNote(null);
     const res = await requestJson(PROFILE_API, {}, "DELETE").catch(() => null);
     setBusy(false);
     setConfirming(false);
-    if (!res?.ok) return setNote({ text: res?.message ?? "That didn't delete. Try again.", error: true });
-    setNote({ text: "Deleted: your turn-ons and hard nos are gone. Nothing is stored again until you tick the consent.", error: false });
+    if (!res?.ok) return setProfileNote({ text: res?.message ?? "That didn't delete. Try again.", error: true });
+    setProfileNote({ text: "Deleted: your turn-ons and hard nos are gone. Nothing is stored again until you tick the consent.", error: false });
     router.refresh();
   }
 
@@ -115,6 +117,7 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
 
   const summary = [p.blur ? "blur on" : "blur off", p.neutral_title ? "neutral title" : "full title", p.pin ? "PIN on" : "PIN off"].join(" · ");
   return (
+    <>
     <details className="card settings ad-privacy">
       <summary>Privacy: {summary}</summary>
       <label className="check">
@@ -182,8 +185,14 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
           </div>
         )}
       </fieldset>
-      <fieldset className="ad-privacy-profile">
-        <legend>Your turn-ons and hard nos</legend>
+      <div role="status" aria-live="polite">
+        {note && <p className={note.error ? "error" : "muted small"}>{note.text}</p>}
+      </div>
+    </details>
+    {/* Download and delete in a card of their own, never folded away (the 2026-11-22 audit found the delete inside the
+        closed Privacy card, whose line names only the blur, the title and the PIN). */}
+    <section className="card settings ad-privacy-profile" aria-labelledby="ad-profile-data">
+        <h2 id="ad-profile-data">Your turn-ons and hard nos</h2>
         <p className="muted small">
           What you saved for your characters and your limits for each pair. Only you see them, and they&apos;re stored only with your consent.
         </p>
@@ -207,10 +216,10 @@ export default function PrivacyCard({ initial }: { initial: Privacy }) {
             </button>
           </div>
         )}
-      </fieldset>
       <div role="status" aria-live="polite">
-        {note && <p className={note.error ? "error" : "muted small"}>{note.text}</p>}
+        {profileNote && <p className={profileNote.error ? "error" : "muted small"}>{profileNote.text}</p>}
       </div>
-    </details>
+    </section>
+    </>
   );
 }
