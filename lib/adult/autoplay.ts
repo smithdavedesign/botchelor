@@ -12,8 +12,5 @@ export function autoplayStop(before: { chapter: number }, after: { chapter: numb
   return null;
 }
 
-/** On the page, where a step's lines land at once: a pause to read them before the next ones are written. */
-export const AUTOPLAY_PAGE_PAUSE_MS = 4000;
-
 /** In the theater: the next lines are written while this many are still to play, so the stage never sits waiting. */
 export const AUTOPLAY_THEATER_AHEAD = 3;

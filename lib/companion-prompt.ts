@@ -4,6 +4,7 @@ import type { ChatMessage } from "./model";
 import type { ReplyLength } from "./companion-shared";
 import { SCENE_DRIVE_RULE, STORY_MODE_ANSWER, storyModeRules } from "./narration";
 import { personaForScene, type ScenePersona } from "./persona";
+import { escapeRegExp } from "./text";
 
 /** The recent turns the prompt carries word for word; older ones are in the rolling summary. */
 export const RECENT_TURNS = 20;
@@ -412,7 +413,7 @@ export function jsonOf(raw: string): unknown {
  */
 export function replyBubbles(raw: string, name: string): string[] {
   const first = name.trim().split(/\s+/)[0] || name;
-  const named = new RegExp(`^(${escape(name)}|${escape(first)})\\s*:\\s*`, "i");
+  const named = new RegExp(`^(${escapeRegExp(name)}|${escapeRegExp(first)})\\s*:\\s*`, "i");
   const bubbles = replyParts(raw)
     .map((b) =>
       b
@@ -492,7 +493,7 @@ export function sceneReply(raw: string, name: string): { say: string; action: st
   }
   const line = replyBubbles(say.replace(/\n\s*\n/g, " "), name).join(" ");
   if (!line) return null;
-  const named = new RegExp(`^(${escape(name)}|${escape(first)})\\s+`, "i");
+  const named = new RegExp(`^(${escapeRegExp(name)}|${escapeRegExp(first)})\\s+`, "i");
   const did = (action ?? "")
     .replace(/[*()[\]"]/g, " ")
     .replace(/\s+/g, " ")
@@ -500,8 +501,4 @@ export function sceneReply(raw: string, name: string): { say: string; action: st
     .replace(named, "")
     .replace(/[.;,\s]+$/, "");
   return { say: line, action: did ? (did.length > ACTION_MAX ? `${did.slice(0, ACTION_MAX - 1).replace(/\s+\S*$/, "")}…` : did) : null };
-}
-
-function escape(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

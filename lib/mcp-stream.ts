@@ -64,10 +64,6 @@ export function resetStreamsForTests(): void {
   WRITERS.clear();
 }
 
-export function streamStateForTests(): { queues: number; writers: number } {
-  return { queues: QUEUES.size, writers: WRITERS.size };
-}
-
 /** Build an SSE wire message for one JSON-RPC frame. */
 export function sseFrame(msg: OutgoingMessage, id?: string | number): string {
   const data = JSON.stringify(msg);
@@ -154,10 +150,6 @@ export function resetPendingForTests(): void {
   for (const p of PENDING.values()) p.reject(new Error("test reset"));
   PENDING.clear();
   nextRequestId = 1;
-}
-
-export function pendingCountForTests(): number {
-  return PENDING.size;
 }
 
 /**

@@ -15,6 +15,7 @@ import type { Db } from "./db";
 import { internalRequest } from "./http";
 import { notify } from "./notifications";
 import { operatorPassOffered, operatorReserved } from "./operator-pass";
+import { soft } from "./soft";
 
 /** Waiting bookings one creator may hold. */
 export const SCHEDULED_MAX_PENDING = 3;
@@ -107,7 +108,7 @@ export async function cancelScheduledDate(db: Db, creatorId: string, id: string)
 async function book(creatorId: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
   const req = internalRequest(creatorId, { body });
   const res = await postEpisode(req);
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const data = (await res.json().catch(soft("scheduled dates: the booking reply", {}))) as Record<string, unknown>;
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -128,7 +129,7 @@ export async function runDueScheduledDates(db: Db, now: Date = new Date(), limit
   for (const m of due) {
     // The agents' shared daily budget, exactly as go_on_date checks it; an operator pass with reserved dates jumps it.
     const today = await agentDatesToday(db);
-    const reserved = ((await operatorReserved(db, m.creator_id).catch(() => null))?.reserved_left ?? 0) > 0;
+    const reserved = ((await operatorReserved(db, m.creator_id).catch(soft("scheduled dates: operator reserve", null)))?.reserved_left ?? 0) > 0;
     if (today.used >= today.cap && !(today.cap > 0 && reserved)) {
       if (m.attempts < MAX_ATTEMPTS) {
         await db.query(`update scheduled_dates set ran_at = null, run_at = $2, outcome = $3 where id = $1`, [
@@ -144,7 +145,7 @@ export async function runDueScheduledDates(db: Db, now: Date = new Date(), limit
           title: "📅 Your scheduled date couldn't run",
           body: `The agents' shared show-model dates stayed used up through ${MAX_ATTEMPTS} hourly tries, so the booking was dropped. Schedule it again for just after 00:00 UTC${operatorPassOffered() ? ", or an operator pass reserves dates (/agents/pricing)" : ""}.`,
           link: null,
-        }).catch(() => {});
+        }).catch(soft("scheduled dates: notify a dropped booking"));
         out.failed += 1;
       }
       continue;
@@ -158,14 +159,14 @@ export async function runDueScheduledDates(db: Db, now: Date = new Date(), limit
     const r = await book(m.creator_id, body);
     if (r.ok) {
       const episodeId = String(r.data.id ?? "");
-      await db.query(`update episodes set created_via = 'mcp' where id = $1`, [episodeId]).catch(() => {});
+      await db.query(`update episodes set created_via = 'mcp' where id = $1`, [episodeId]).catch(soft("scheduled dates: mark the date as an agent's"));
       await db.query(`update scheduled_dates set episode_id = $2, outcome = 'booked' where id = $1`, [m.id, episodeId]);
       await notify(db, m.creator_id, {
         kind: "scheduled_date",
         title: "📅 Your scheduled date is booked",
         body: "It's being written now; get_episode has it, and it airs the usual way.",
         link: episodeId ? `/episodes/${episodeId}` : null,
-      }).catch(() => {});
+      }).catch(soft("scheduled dates: notify a booking"));
       out.booked += 1;
     } else {
       const why = String(r.data.message ?? r.data.error ?? `refused (${r.status})`).slice(0, 300);
@@ -175,7 +176,7 @@ export async function runDueScheduledDates(db: Db, now: Date = new Date(), limit
         title: "📅 Your scheduled date couldn't be booked",
         body: `${why} Nothing was spent beyond what the reply says; schedule_date again once it's fixed.`,
         link: null,
-      }).catch(() => {});
+      }).catch(soft("scheduled dates: notify a refused booking"));
       out.failed += 1;
     }
   }

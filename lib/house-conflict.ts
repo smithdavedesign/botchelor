@@ -73,6 +73,7 @@ import {
   type Outcome,
   type SceneLine,
 } from "./house-scenes";
+import { escapeRegExp } from "./text";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const first = (name: string) => shortName(name);
@@ -546,8 +547,7 @@ export function challengePrompt(f: ChallengeFacts): string {
 }
 
 const WIN_WORDS = /\b(?:wins?|won|winner|takes it|victory|champion|first place)\b/i;
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const names = (text: string, name: string) => new RegExp(`(?<![\\p{L}])${escapeRe(first(name))}(?![\\p{L}])`, "iu").test(text);
+const names = (text: string, name: string) => new RegExp(`(?<![\\p{L}])${escapeRegExp(first(name))}(?![\\p{L}])`, "iu").test(text);
 
 /** Whether a line hands the win to someone who didn't win (pure): it talks of winning and names another contestant, not the winner. */
 export function namesWrongWinner(text: string, f: Pick<ChallengeFacts, "contestants" | "winner">): boolean {

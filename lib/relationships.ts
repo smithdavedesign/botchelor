@@ -48,6 +48,7 @@ export { STAGE_LABELS, stageOf, type BaseStage, type Stage, type StageMarks };
 
 type Env = Record<string, string | undefined>;
 import { venue as venueOf, type PlaceId, type VenueId } from "./venues";
+import { escapeRegExp } from "./text";
 
 /** The canonical (sorted) key for a pair: one unordered pair is one edge. */
 export const pairKey = (x: string, y: string): [string, string] => (x < y ? [x, y] : [y, x]);
@@ -316,7 +317,7 @@ function findJokes(dates: { id: string; transcript: Turn[]; afterglow: Afterglow
       .join(" \n ")
       .toLowerCase();
     for (const p of new Set(shared)) {
-      if (!new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(later)) continue;
+      if (!new RegExp(`\\b${escapeRegExp(p)}\\b`).test(later)) continue;
       found.set(p, new Set([...(found.get(p) ?? []), d.id]));
     }
   });

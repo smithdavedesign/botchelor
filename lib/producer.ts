@@ -53,7 +53,7 @@ import { seasonFormatNow } from "./season-format-store";
 import { seasonIdOf } from "./season-window";
 import { socialHook } from "./social/hook";
 import { setWant, storyStateOn, tensions, type Tension, type TensionKind, type WantKind } from "./story-state";
-import { VENUE_IDS, venueName, venuePhrase, type VenueId } from "./venues";
+import { VENUE_IDS, venuePhrase, type VenueId } from "./venues";
 import { inFlight } from "./shared-cache";
 import { LINK_WORDS, type LinkKind } from "./character-links";
 import { dateRoleplayById } from "./roleplays";
@@ -831,6 +831,3 @@ export async function producerView(db: Db, now: Date = new Date(), env: Env = pr
   }
   return { on: producerOn(env), next_day: next, next_skipped: rows.some((r) => r.day === next && r.status === "skipped"), beats };
 }
-
-/** The venue's name for a twist's title elsewhere (the vote's "last" line). */
-export const twistPlace = (t: Pick<Twist, "venue">): string | null => (t.venue ? venueName(t.venue) : null);

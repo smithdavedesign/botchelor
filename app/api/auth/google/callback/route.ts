@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { authFromRequest, handle, sessionCookies } from "@/lib/http";
 import { welcome } from "@/lib/notifications";
 import { freshSessionVersion } from "@/lib/session-versions";
+import { soft } from "@/lib/soft";
 
 function redirect(path: string, cookies: string[] = []): Response {
   const headers = new Headers({ location: path });
@@ -53,7 +54,7 @@ export const GET = handle(async (req) => {
     const isNew = !(await googleAccountExists(db, identity.sub));
     const userId = await loginWithGoogle(db, current, identity.sub, identity.email);
     // The account's first notice (lib/notifications.ts welcome): never in the way of the sign-in itself.
-    if (isNew) await welcome(db, userId).catch(() => {});
+    if (isNew) await welcome(db, userId).catch(soft("auth: welcome after a Google sign-up"));
     // A one-shot, readable cookie so the next page sends GA4's sign_up event (app/FunnelBeacon.tsx).
     const signup = isNew ? ["bz_signup=google; Path=/; SameSite=Lax; Max-Age=600"] : [];
     // Signing in to an account that already exists leaves what this browser made behind: offer to bring it in
