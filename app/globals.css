@@ -6594,11 +6594,17 @@ html.feedback-open body {
 .sheet-dialog::backdrop {
   background: rgba(20, 8, 24, 0.45);
 }
+/* The page stays still under an open sheet or overlay (app/useOverlay.ts). The html's overflow stops the window
+   scrolling. The body's is clip, never hidden: a hidden body becomes a scroll container, and the sticky header then
+   sticks to the body's own top, so on a scrolled page it left the screen as a menu opened (2026-11-21, the header
+   picker over /graph). Clip cuts the same overflow without making a scroll container. */
 html:has(.sheet-dialog[open]),
-html:has(.sheet-dialog[open]) body,
-html.overlay-open,
-html.overlay-open body {
+html.overlay-open {
   overflow: hidden;
+}
+html:has(.sheet-dialog[open]) body,
+html.overlay-open body {
+  overflow: clip;
 }
 /* The scrolling part, so a scrollbar never belongs to the dialog (a press on the dialog itself means the backdrop). */
 .sheet-body {

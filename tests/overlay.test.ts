@@ -92,7 +92,10 @@ describe("the overlays on it", () => {
 
   it("the lock and the ✕ are styled: page overflow hidden, a 44px button", () => {
     const css = read("app/globals.css");
-    expect(css).toMatch(/html\.overlay-open body \{\s*overflow: hidden;/);
+    expect(css).toMatch(/html\.overlay-open \{\s*overflow: hidden;/);
+    // The body clips, never hides: a hidden body is a scroll container, and the sticky header left a scrolled page.
+    expect(css).toMatch(/html:has\(\.sheet-dialog\[open\]\) body,\s*html\.overlay-open body \{\s*overflow: clip;/);
+    expect(css).not.toMatch(/overlay-open body \{\s*overflow: hidden;/);
     expect(css).toMatch(/button\.overlay-x \{[^}]*width: 44px;[^}]*height: 44px;/);
   });
 });
