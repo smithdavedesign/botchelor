@@ -1766,12 +1766,6 @@ export async function dateShareFor(db: Db, episodeId: string, ownerId: string) {
   return r.first ? firstDateShare(episodeId, r) : dateShare(episodeId, r, r.date_number);
 }
 
-/** The first-date share only (kept for callers that want nothing after the first). */
-export const firstDateShareFor = async (db: Db, episodeId: string, ownerId: string) => {
-  const share = await dateShareFor(db, episodeId, ownerId);
-  return share && new URL(share.url).searchParams.get("utm_campaign") === "first_date" ? share : null;
-};
-
 /**
  * Waits (up to `seconds`, capped at WAIT_MAX_SECONDS) for a date on the show's model to be written, then returns it like
  * get_episode. #401: says how long this call waited (waited_seconds), apart from how old the date is (age_seconds).

@@ -15,12 +15,6 @@ export function SetupPrice({ offer }: { offer: SetupOffer }) {
   return <TokenPrice tokens={offer.tokens} included={offer.free} free="no tokens" />;
 }
 
-/** The same in words, for a line of prose. */
-export function setupPrice(offer: SetupOffer): string {
-  if (offer.free) return "included";
-  return offer.tokens === 0 ? "no tokens" : `${offer.tokens} token${offer.tokens === 1 ? "" : "s"}`;
-}
-
 /** What one tap does, in a line: what it draws, or that it picks the face already there. */
 export function setupWords(r: Pick<Readiness, "face" | "body">, offer: SetupOffer): string {
   const parts = [!r.face ? (offer.baseline ? "picks the face already drawn" : "draws faces and picks one") : "", !r.body ? "draws a body reference from the face and picks it" : ""].filter(Boolean);
