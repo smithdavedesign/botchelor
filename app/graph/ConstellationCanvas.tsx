@@ -44,6 +44,27 @@ const edgeKey = (e: SkyEdge) => `${e.a_id}~${e.b_id}${e.lines ? `:${e.lines.map(
 /** How many places are named on a zoomed-out sky (a phone's whole sky): the most shared, where they fit. */
 const PLACE_NAMES_ZOOMED_OUT = 6;
 
+/**
+ * The view that frames every star, centred, no closer than a focus: what a `fit` asks for (the orbit only when nothing
+ * else is on the sky, so a world fills the screen), and where the camera rides while a layout settles (`orbit`: the
+ * ring too, when it's on, as the sky is drawn to be seen whole). Null with nothing on the sky.
+ */
+function framing(sim: Sim, w: number, h: number, orbit = false): View | null {
+  const inner = orbit ? sim.nodes : sim.nodes.filter((n) => !n.orbit);
+  const stars = inner.length ? inner : sim.nodes;
+  if (!stars.length) return null;
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const n of stars) {
+    x0 = Math.min(x0, n.x - n.r);
+    y0 = Math.min(y0, n.y - n.r);
+    x1 = Math.max(x1, n.x + n.r);
+    y1 = Math.max(y1, n.y + n.r);
+  }
+  const pad = 32;
+  const zoom = Math.min(1.6, Math.max(0.4, Math.min((w - 2 * pad) / Math.max(1, x1 - x0), (h - 2 * pad) / Math.max(1, y1 - y0))));
+  return { zoom, panX: w / 2 - ((x0 + x1) / 2) * zoom, panY: h / 2 - ((y0 + y1) / 2) * zoom };
+}
+
 /** The sim's view of the stars: a place's star stays small whatever its members (its size isn't anyone's popularity). */
 const simNodes = (ns: readonly SkyNode[]) => ns.map((n) => ({ id: n.id, degree: n.place ? 1 : n.degree }));
 
@@ -56,6 +77,10 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simRef = useRef<Sim | null>(null);
   const viewRef = useRef<View>({ zoom: 1, panX: 0, panY: 0 });
+  // The camera frames the stars by itself (2026-11-21: a desktop's first sky was a small clump in a wide dark canvas)
+  // until the viewer takes it: any press or wheel, or a search's focus. `autoFit` is on while a layout settles.
+  const touchedRef = useRef(false);
+  const autoFitRef = useRef(true);
   const hoverRef = useRef<ReturnType<typeof pick>>(null);
   const rafRef = useRef<number>(0);
   const imagesRef = useRef<Map<string, HTMLImageElement | "failed">>(new Map());
@@ -102,6 +127,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
       sizeRef.current = { w, h };
+      if (!touchedRef.current) autoFitRef.current = true;
       if (!simRef.current) rebuild();
       wake(0.1);
     };
@@ -429,13 +455,28 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       ctx.globalAlpha = 1;
     };
 
+    /** Until the viewer takes the camera: ease toward framing the stars each frame, and land on it once they're still. */
+    const autoFrame = (settled: boolean) => {
+      const sim = simRef.current;
+      if (!sim || !autoFitRef.current || touchedRef.current) return;
+      const target = framing(sim, sizeRef.current.w, sizeRef.current.h, true);
+      if (!target) return;
+      const v = viewRef.current;
+      const k = settled ? 1 : 0.18;
+      v.zoom += (target.zoom - v.zoom) * k;
+      v.panX += (target.panX - v.panX) * k;
+      v.panY += (target.panY - v.panY) * k;
+      if (settled) autoFitRef.current = false;
+    };
     const loop = () => {
       const sim = simRef.current;
       if (sim && !reducedRef.current && sim.alpha >= ALPHA_MIN) {
         tick(sim);
+        autoFrame(false);
         draw();
         rafRef.current = requestAnimationFrame(loop);
       } else {
+        autoFrame(true);
         draw();
         rafRef.current = 0;
       }
@@ -446,6 +487,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       if (!sim) return;
       if (reducedRef.current) {
         settle(sim);
+        autoFrame(true);
         draw();
         return;
       }
@@ -490,6 +532,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     let lastPinch = 0;
 
     const onPointerDown = (ev: PointerEvent) => {
+      touchedRef.current = true;
       canvas.setPointerCapture(ev.pointerId);
       pointers.set(ev.pointerId, { x: ev.offsetX, y: ev.offsetY });
       moved = 0;
@@ -584,6 +627,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     };
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault();
+      touchedRef.current = true;
       zoomAt(ev.offsetX, ev.offsetY, Math.exp(-ev.deltaY * 0.0015));
     };
 
@@ -646,6 +690,8 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
       h,
     );
     if (simRef.current) warmStart(simRef.current, sim);
+    // A new sky (a filter, the whole sky arriving) is framed again for whoever hasn't moved the camera.
+    if (!touchedRef.current) autoFitRef.current = true;
     const alpha = sim.alpha;
     if (reducedRef.current) settle(sim);
     simRef.current = sim;
@@ -667,6 +713,7 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     if (!n) return;
     const { w, h } = sizeRef.current;
     const v = viewRef.current;
+    touchedRef.current = true;
     v.zoom = 1.6;
     v.panX = w / 2 - n.x * v.zoom;
     v.panY = h / 2 - n.y * v.zoom;
@@ -681,22 +728,9 @@ export default function ConstellationCanvas({ nodes, edges, selection, onSelect,
     const sim = simRef.current;
     const canvas = canvasRef.current;
     if (!sim || !canvas) return;
-    const inner = sim.nodes.filter((n) => !n.orbit);
-    const stars = inner.length ? inner : sim.nodes;
-    if (!stars.length) return;
-    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
-    for (const n of stars) {
-      x0 = Math.min(x0, n.x - n.r);
-      y0 = Math.min(y0, n.y - n.r);
-      x1 = Math.max(x1, n.x + n.r);
-      y1 = Math.max(y1, n.y + n.r);
-    }
-    const { w, h } = sizeRef.current;
-    const pad = 32;
-    const v = viewRef.current;
-    v.zoom = Math.min(1.6, Math.max(0.4, Math.min((w - 2 * pad) / Math.max(1, x1 - x0), (h - 2 * pad) / Math.max(1, y1 - y0))));
-    v.panX = w / 2 - ((x0 + x1) / 2) * v.zoom;
-    v.panY = h / 2 - ((y0 + y1) / 2) * v.zoom;
+    const target = framing(sim, sizeRef.current.w, sizeRef.current.h);
+    if (!target) return;
+    Object.assign(viewRef.current, target);
     canvas.dispatchEvent(new Event("constellation:wake"));
   }, [fit]);
 

@@ -147,13 +147,14 @@ describe("the show's tabs: Watch · House · Season", () => {
     expect(current(visitor)).toBe("The cast");
   });
 
-  it("still takes the two pages that left it: the Constellation reads as the house's, Reviews marks none", () => {
-    expect(current(strip("/graph"))).toBe("House");
+  it("still takes Reviews, which marks none; the Constellation wears Characters' Cards | Map switch instead", () => {
     expect(current(strip("/reviews"))).toBeNull();
-    // Both pages still wear the strip, and /house does now.
+    expect(current(strip("/graph"))).toBeNull();
     expect(readFileSync("app/house/page.tsx", "utf8")).toContain('<ShowTabs active="/house" />');
-    expect(readFileSync("app/graph/page.tsx", "utf8")).toContain('<ShowTabs active="/graph" />');
     expect(readFileSync("app/reviews/page.tsx", "utf8")).toContain('<ShowTabs active="/reviews" />');
+    const graph = readFileSync("app/graph/page.tsx", "utf8");
+    expect(graph).not.toContain("<ShowTabs");
+    expect(graph).toContain('<ViewSwitch current="map" group={origin} />');
   });
 
   it("keeps Reviews and the Constellation reachable from /everything", () => {

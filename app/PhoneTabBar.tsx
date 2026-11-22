@@ -24,7 +24,8 @@ export function tabBarTabs(companions: boolean, chat = true, hasCharacter = true
     return [
       watch,
       { href: "/chat", label: "Chat", icon: "chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
-      { href: "/characters", label: "Characters", icon: "users" },
+      // The Constellation (/graph) is Characters as a map (app/characters/ViewSwitch.tsx).
+      { href: "/characters", label: "Characters", icon: "users", also: ["/graph"] },
       // The fifth (2026-11-16): the Gallery and My studio (app/studio/StudioTabs.tsx).
       // An owner's own Studio; for anyone else the Gallery (app/Nav.tsx navLinks: the same rule).
       hasCharacter ? { href: "/studio", label: "Studio", icon: "sparkles", also: ["/showcase", "/reels"] } : { href: "/showcase", label: "Studio", icon: "sparkles", also: ["/studio", "/reels"] },

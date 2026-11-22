@@ -15,6 +15,7 @@ import { crowdLine, isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import TalkButton from "@/app/companion/TalkButton";
 import CharactersTabs from "./CharactersTabs";
+import ViewSwitch from "./ViewSwitch";
 import { companionOpen } from "@/lib/companion-shared";
 import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab, offSeasonHouse, ownCharacterIds, parseDirectoryQuery, privateAmong, searchDirectory, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore } from "@/lib/http";
@@ -344,7 +345,11 @@ export default async function CharactersPage({ searchParams }: Props) {
       <SearchForm q={q} find={find} demand={demand?.types} />
       {/* A search is across every tab, so no tab is the current one while it shows. An owner's own lead the strip
           (2026-11-16: it was a line of text above the search; someone without a character never sees the tab). */}
-      <CharactersTabs current={finding ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} />
+      {/* The tabs, and beside them the same people as a map (ViewSwitch: the Constellation on the tab's group). */}
+      <div className="characters-strip">
+        <CharactersTabs current={finding ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} />
+        <ViewSwitch current="cards" spot={finding ? null : yours ? "yours" : tab} />
+      </div>
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
       {finding ? await searchResults(q, find, viewer) : yours && viewerId ? await yoursTab(viewerId) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewer }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewer, insider })}
     </article>
