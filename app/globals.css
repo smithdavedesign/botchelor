@@ -13286,7 +13286,7 @@ a:hover > .ad-edge,
 /* A job kind with a failure or a stuck job in the last day (app/admin/after-dark/providers Jobs): it stands out. */
 .ad-job-health tr.ad-job-trouble th,
 .ad-job-health tr.ad-job-trouble td {
-  background: color-mix(in srgb, var(--bad-text, #ffadc0) 12%, transparent);
+  background: color-mix(in srgb, var(--bad-text) 12%, transparent);
 }
 section:has(> .ad-pairs) {
   overflow-x: auto;
