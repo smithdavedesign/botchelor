@@ -374,14 +374,30 @@ Cloudflare's 526 for every visitor, which is what botchelor.com did for ~5 minut
 | Host | Proxy | Points to |
 |---|---|---|
 | `@` | **Proxied** (orange cloud) | CNAME (flattened) → `botchelor-show-t9g76.ondigitalocean.app` |
-| `www` | DNS only | the show app's `ondigitalocean.app` address |
-| `ad` | DNS only | After Dark's app's (`clownfish-app`) `ondigitalocean.app` address |
+| `www` | **Proxied** (since 2026-11-22) | the show app's `ondigitalocean.app` address; Cloudflare answers most requests with a 301 (below) |
+| `ad` | **Proxied** (since 2026-11-22) | After Dark's app's (`clownfish-app`) `ondigitalocean.app` address |
 | `media` | DNS only | `botchelor-ad-media.b-cdn.net` |
 | `staging` | DNS only | the show app's `ondigitalocean.app` address (reaches the show without www's redirect) |
 
 Resend's records (`send`, `rsend`, `resend._domainkey`, `_dmarc`) and Glama's TXT record (`_glama-claim.www`) stay as
 they are. Cloudflare's "Add visitor location headers" managed transform is on (Rules → Settings) and the show app has
 `GEO_HEADERS=cloudflare` ("Where a visitor is", above).
+
+**Rules at Cloudflare (2026-11-22).** All free-plan rules, editable in the dashboard:
+- Security → WAF → Custom rules: one rule blocks scanner paths the app never serves (`/wp-*`, `*.php`, `/.env`, `/.git/`
+  and the like) with a 403. It covers `@`, `www` and `ad`; DNS-only names (`media`, `staging`) bypass it.
+- Rules → Redirect Rules: `www.botchelor.com` → `https://botchelor.com<path>` as one 301 with the query string kept, for
+  every path except `/api/*`, `/.well-known/*` (DigitalOcean's certificate checks) and paths with a file extension; the
+  app's own 308 still moves those.
+- Caching → Cache Rules: `/sitemap.xml` (1 hour), `/share-card.png` (1 day) and the share pictures (`*/opengraph-image*`,
+  `/api/og/*`, 1 hour) are kept at Cloudflare's edge, ignoring the app's cache headers; only 2xx answers are kept. The
+  edge TTL is what makes Cloudflare cache them at all, because DigitalOcean's edge adds a `__cf_bm` Set-Cookie. None of
+  these routes reads the visitor's session; a route that does must never be added here. A share picture can be up to an
+  hour behind (a character made private keeps its old picture at that address for at most an hour); purge it in
+  Caching → Configuration if that matters.
+- Scrape Shield: Email Address Obfuscation is **off** (its injected script threw errors on /house, and crawlers saw
+  "[email protected]" instead of the address).
+- Always Use HTTPS is off: DigitalOcean's edge already moves `http://` to `https://`, and the www rule handles both.
 
 At DigitalOcean the show app lists `botchelor.com` (primary), `www.botchelor.com` and `staging.botchelor.com`, all as
 "you manage your domain" (no zone): DigitalOcean's own DNS zone for botchelor.com is no longer used. The `edge` test name

@@ -250,7 +250,10 @@ No API token is needed: everything here is in the dashboard.
 
 **Cloudflare (from 2026-10-30).** Wix is only the registrar now: DNS moved to DigitalOcean's DNS on 2026-10-30 and is
 moving to Cloudflare (free plan), where records are edited in Cloudflare's dashboard (botchelor.com → DNS → Records).
-`ad` and `media` are **DNS only** (grey cloud), not proxied. The full table is in `docs/hosting.md`. There are no CAA
+`ad` is **Proxied** (orange cloud) since 2026-11-22, so the zone's WAF rule covers it; `media` is **DNS only** (grey
+cloud). Behind the orange cloud DigitalOcean's edge still sets `do-connecting-ip` to the visitor's address, so the
+per-visitor limits are unchanged, and the signed `bz_place` cookie from the carry hop still decides the region. The full
+table and the zone's rules are in `docs/hosting.md`. There are no CAA
 records, so DigitalOcean's and Bunny's certificates can issue. (When this was written, DNS was at Wix: Wix → Domains →
 botchelor.com → Manage DNS Records.)
 
