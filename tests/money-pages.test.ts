@@ -2,6 +2,10 @@
 // under a meter card, /companion/plan as a price hero with companions' faces and a Free-beside-the-plan table, and
 // /agents/pricing as two plan cards under three stat chips (app/ux/money.css). Each page keeps every behaviour the lift
 // re-arranged: the buttons, the notices, the notes, the links and the attributes other tests and the e2e scripts look for.
+//
+// One obvious upgrade (2026-11-21): the shop's tiles are the packs alone, the bigger one first with the page's one loud
+// button; the Companion Plan is a line under them and Plus's demand test its small block. /agents/pricing shows the
+// operator pass only while it is offered (OPERATOR_PASS_SALE=1 beside its link).
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
@@ -48,7 +52,7 @@ describe("/shop: offer tiles under a meter card", () => {
     vi.stubEnv("COMPANION_PLAN_LINK", "https://buy.stripe.com/plan_for_tests");
   };
 
-  it("puts the balance in a meter card, then each offer in a tile with its price as the headline and one button", async () => {
+  it("puts the balance in a meter card, then the pack in a tile with its price as the headline and one button", async () => {
     openShop();
     const { default: ShopPage } = await import("@/app/shop/page");
     const html = await render(await ShopPage({ searchParams: Promise.resolve({}) }));
@@ -57,15 +61,20 @@ describe("/shop: offer tiles under a meter card", () => {
     expect(html).toContain(`<strong>${FREE_EPISODES_PER_SEASON}</strong><span>dates left</span>`);
     expect(html).toContain(`${FREE_EPISODES_PER_SEASON} of ${FREE_EPISODES_PER_SEASON} free this week. Free dates come back Monday 00:00 UTC.`);
     expect(html.indexOf("money-meter")).toBeLessThan(html.indexOf("money-tile"));
-    // Three tiles: the pack and the Companion Plan, each led by its price, and Plus's demand test (not for sale).
-    expect(html.match(/class="card money-tile shop-item[^"]*"/g)).toHaveLength(3);
-    expect(html).toContain("data-shop-plus");
+    // One tile: the pack, led by its price. The Companion Plan and Plus's demand test (not for sale) come after the
+    // tiles, a line and a small block, so neither reads as an offer beside the pack.
+    expect(html.match(/class="card money-tile shop-item[^"]*"/g)).toHaveLength(1);
     expect(html).toContain('<p class="money-price"><span class="money-price-amount">$4</span><span class="money-price-per">once</span></p>');
-    expect(html).toContain('<p class="money-price"><span class="money-price-amount">$9.99</span><span class="money-price-per">a month</span></p>');
-    expect(html).toContain('data-shop-plan="companion"');
-    expect(html).toContain('href="/companion/plan"');
+    expect(html.match(/class="money-price"/g)).toHaveLength(1);
+    const after = html.slice(html.indexOf("</ul>", html.indexOf('class="money-tiles"')));
+    expect(after).toMatch(
+      /<p class="shop-also muted" data-shop-plan="companion">Talk with any companion as much as you like: <a[^>]*href="\/companion\/plan"[^>]*>the Companion Plan<\/a>, \$9\.99 a month\. Cancel any time\.<\/p>/,
+    );
+    expect(after).toMatch(/<div class="shop-also shop-plus" data-shop-plus="true"><div class="plus-tile is-compact" data-plus-interest="shop">/);
+    expect(html).not.toContain("plan-face");
     // Buy as before: the attestation box and the labelled button, the small print folded, the points rule in the open.
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>Buy 5 more dates for \$4<\/button>/);
+    // The only pack on sale is the one the page leads with, so its button is the loud one.
+    expect(html).toMatch(/<button type="submit">Buy 5 more dates for \$4<\/button>/);
     expect(html).toContain('name="attest"');
     expect(html).not.toContain("Purchases open soon");
     expect(html).not.toContain("data-ad-tokens-note");
@@ -73,6 +82,27 @@ describe("/shop: offer tiles under a meter card", () => {
     expect(html).toContain("Nothing here changes points, picks, badges or rank");
     expect(html).toContain('href="/terms"');
     expect(html).toContain("<h1>More dates</h1>");
+  });
+
+  it("leads with the bigger pack once it's on sale: first, with the one loud button, the other pack's outlined", async () => {
+    openShop();
+    vi.stubEnv("STRIPE_LINK_PACK_15", "https://example.com/pay-15");
+    const { default: ShopPage } = await import("@/app/shop/page");
+    const html = await render(await ShopPage({ searchParams: Promise.resolve({}) }));
+    expect([...html.matchAll(/data-shop-sku="([a-z0-9_]+)"/g)].map((m) => m[1])).toEqual(["pack_15", "pack_5"]);
+    expect(html.match(/class="card money-tile shop-item[^"]*"/g)).toHaveLength(2);
+    expect(html.match(/<span class="badge">Best value<\/span>/g)).toHaveLength(1);
+    expect(html.match(/<button[^>]*>Buy [^<]+<\/button>/g)).toEqual([
+      '<button type="submit">Buy 15 more dates for $10</button>',
+      '<button type="submit" class="secondary">Buy 5 more dates for $4</button>',
+    ]);
+    // Signed out, the same: the price is still each button, and only the bigger pack's is loud.
+    vi.stubEnv("SESSION_SECRET", ["money", "pages", "test", "secret", "0123456789abcdef"].join("-"));
+    const signedOut = await render(await ShopPage({ searchParams: Promise.resolve({}) }));
+    expect(signedOut.match(/<button[^>]*>Buy [^<]+<\/button>/g)).toEqual([
+      '<button type="button">Buy 15 more dates · $10</button>',
+      '<button type="button" class="secondary">Buy 5 more dates · $4</button>',
+    ]);
   });
 
   it("keeps the notices: purchases open soon while no link is set (Buy shown but off), thanks back from checkout", async () => {
@@ -168,11 +198,34 @@ describe("/companion/plan: the price over the faces, Free beside the plan", () =
   });
 });
 
-describe("/agents/pricing: three stat chips, two plan cards", () => {
-  it("prices the pass as its headline, with the link as a button and the reference note under it", async () => {
+describe("/agents/pricing: stat chips over what's free, and the operator pass only while it's offered", () => {
+  it("leaves the pass out while it isn't offered, even with its link set: two chips, the free card, nothing to buy", async () => {
     notDeployed();
     vi.stubEnv("OPERATOR_PASS_LINK", "https://buy.stripe.com/test_pass");
-    const { default: PricingPage } = await import("@/app/agents/pricing/page");
+    vi.stubEnv("OPERATOR_PASS_SALE", "");
+    const { default: PricingPage, generateMetadata } = await import("@/app/agents/pricing/page");
+    const html = await render(PricingPage());
+    const chips = [...html.matchAll(/<li class="money-stat"><strong>(\d+)<\/strong>/g)].map((m) => Number(m[1]));
+    expect(chips).toEqual([3, agentDailyDateCap()]);
+    expect(html.match(/class="card money-plan/g)).toHaveLength(1);
+    expect(html).toContain("<h2>Free, always</h2>");
+    expect(html).toContain("<code>start_own_date</code>");
+    expect(html).not.toMatch(/operator pass/i);
+    expect(html).not.toContain("Coming soon");
+    expect(html).not.toContain("buy.stripe.com");
+    expect(html).not.toContain("client_reference_id");
+    expect(html).toContain('href="/agents"');
+    expect(html).toContain('href="/shop"');
+    const meta = JSON.stringify(await generateMetadata());
+    expect(meta).toContain("Pricing for agents");
+    expect(meta).not.toMatch(/operator pass/i);
+  });
+
+  it("with OPERATOR_PASS_SALE=1 beside the link, prices the pass as its headline, the link as a button, the reference note under it", async () => {
+    notDeployed();
+    vi.stubEnv("OPERATOR_PASS_LINK", "https://buy.stripe.com/test_pass");
+    vi.stubEnv("OPERATOR_PASS_SALE", "1");
+    const { default: PricingPage, generateMetadata } = await import("@/app/agents/pricing/page");
     const html = await render(PricingPage());
     const chips = [...html.matchAll(/<li class="money-stat"><strong>(\d+)<\/strong>/g)].map((m) => Number(m[1]));
     expect(chips).toEqual([3, agentDailyDateCap(), RESERVED_PER_MONTH]);
@@ -186,16 +239,17 @@ describe("/agents/pricing: three stat chips, two plan cards", () => {
     expect(html).not.toContain("Coming soon");
     expect(html).toContain('href="/agents"');
     expect(html).toContain('href="/shop"');
+    expect(JSON.stringify(await generateMetadata())).toContain("Operator pass");
   });
 
-  it("says Coming soon in the pass card while the pass can't be bought", async () => {
+  it("never offers the pass on the switch alone: no link, nothing to buy", async () => {
     notDeployed();
-    for (const key of ["OPERATOR_PASS_LINK", "NEXT_PUBLIC_OPERATOR_PASS_LINK", "OPERATOR_PASS_ENABLED"]) vi.stubEnv(key, "");
+    for (const key of ["OPERATOR_PASS_LINK", "NEXT_PUBLIC_OPERATOR_PASS_LINK"]) vi.stubEnv(key, "");
+    vi.stubEnv("OPERATOR_PASS_SALE", "1");
+    vi.stubEnv("OPERATOR_PASS_ENABLED", "1");
     const { default: PricingPage } = await import("@/app/agents/pricing/page");
     const html = await render(PricingPage());
-    expect(html).toContain("Coming soon.");
-    expect(html).toContain("<code>send_feedback</code>");
-    expect(html).not.toContain("client_reference_id");
-    expect(html).toContain("<h2>Operator pass</h2>");
+    expect(html.match(/class="card money-plan/g)).toHaveLength(1);
+    expect(html).not.toMatch(/operator pass/i);
   });
 });

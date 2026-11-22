@@ -10,9 +10,22 @@ import { requestJson } from "@/app/request";
  * Starts buying one item: the server stores a pending order and answers with the owner's Stripe Payment
  * Link for it, and the browser goes there. `label` is the button text (STRIPE_PRICE_LABEL). The shop always shows it,
  * off while no Payment Link is set (app/shop/page.tsx; the UX audit's "a shop that always shows Buy"). `place` says
- * where the click came from (the shop, or the out-of-dates wall) on the begin_checkout event.
+ * where the click came from (the shop, or the out-of-dates wall) on the begin_checkout event. `quiet`: the outlined
+ * button, for every pack but the one the page leads with (one loud button a page).
  */
-export default function BuyButton({ sku, label, disabled, place = "shop" }: { sku: string; label: string; disabled: boolean; place?: string }) {
+export default function BuyButton({
+  sku,
+  label,
+  disabled,
+  place = "shop",
+  quiet = false,
+}: {
+  sku: string;
+  label: string;
+  disabled: boolean;
+  place?: string;
+  quiet?: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signin, setSignin] = useState<string | null>(null);
@@ -49,7 +62,7 @@ export default function BuyButton({ sku, label, disabled, place = "shop" }: { sk
       </label>
       {/* Intent to pay, for RepoHQ's funnel (app/funnel.ts): every Buy click, counted on the click itself, since the
           required checkbox stops the form's submit until it's ticked. */}
-      <button type="submit" disabled={busy || disabled} onClick={() => sendFunnel("checkout")}>
+      <button type="submit" className={quiet ? "secondary" : undefined} disabled={busy || disabled} onClick={() => sendFunnel("checkout")}>
         {busy ? "Opening Stripe…" : label}
       </button>
       {error && (

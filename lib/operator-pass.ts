@@ -38,6 +38,16 @@ export function operatorPassOn(env: Env = process.env): boolean {
   return env.OPERATOR_PASS_ENABLED === "1" || operatorPassLink(env) !== null;
 }
 
+/**
+ * Whether the pass is offered: on the agents' pricing page, in llms.txt and in a capped agent's refusals. Off unless
+ * OPERATOR_PASS_SALE=1 beside the link (David, 2026-11-21: "agents won't spend money", and the pass had sold to nobody,
+ * so it comes off the pricing pages; one obvious upgrade, for people). Whether a pass works is still operatorPassOn: one
+ * already held, or comped, keeps its reserved dates, and the webhook still grants what Stripe says was paid.
+ */
+export function operatorPassOffered(env: Env = process.env): boolean {
+  return env.OPERATOR_PASS_SALE === "1" && operatorPassLink(env) !== null;
+}
+
 /** "YYYY-MM" in UTC: the month a reserved date belongs to (reserved dates reset on the UTC month). */
 export const monthKey = (now: Date = new Date()): string => now.toISOString().slice(0, 7);
 
@@ -153,7 +163,7 @@ export async function agentForSubscription(db: Db, subscriptionId: string): Prom
 
 export type PassView = { on: boolean; purchasable: boolean; reserved_per_month: number };
 
-/** What the pricing page shows: whether the pass is on and whether it can be bought right now. */
+/** What the pricing page shows: whether the pass is on and whether it is offered for sale right now (operatorPassOffered). */
 export function passView(env: Env = process.env): PassView {
-  return { on: operatorPassOn(env), purchasable: operatorPassLink(env) !== null, reserved_per_month: RESERVED_PER_MONTH };
+  return { on: operatorPassOn(env), purchasable: operatorPassOffered(env), reserved_per_month: RESERVED_PER_MONTH };
 }

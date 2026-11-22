@@ -4,7 +4,6 @@ import Link from "next/link";
 import SetHero from "@/app/SetHero";
 import Icon from "@/app/Icon";
 import PackVenues from "@/app/PackVenues";
-import PlanFace from "@/app/PlanFace";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
 import { CATALOG, formatPrice, frameClass, onSale, PACK_15, PACK_5, PACKS, type ItemKind } from "@/lib/catalog";
@@ -62,14 +61,19 @@ function Price({ amount, per }: { amount: string; per: string }) {
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
- * The shop as offer tiles (the design lift, 2026-11-13): your balance as a meter card, then every offer in a grid with its
- * price as the headline, and the small print folded under them. Every behaviour from before stays: Buy or Sign in to buy,
- * the price label from Stripe's env, the thanks after checkout, "purchases open soon" while no link is set, the Companion
- * Plan's card while companions are open, the After Dark tokens note, and the owned notes.
+ * The shop as offer tiles (the design lift, 2026-11-13): your balance as a meter card, then the packs in a grid with
+ * their price as the headline, and the small print folded under them. Every behaviour from before stays: Buy or Sign in
+ * to buy, the price label from Stripe's env, the thanks after checkout, "purchases open soon" while no link is set, the
+ * After Dark tokens note, and the owned notes.
  *
  * 2026-11-14: one tile per pack on sale (lib/catalog.ts onSale: each pack has its own Payment Link, and a pack with no link
- * isn't shown; pack_5 is always shown, its Buy off until its link is set), "Best value" on the 15-pack, and the
- * "Botchelor Plus" intent tile (lib/plus-interest.ts): a plan that doesn't exist yet, with one button that only counts.
+ * isn't shown; pack_5 is always shown, its Buy off until its link is set), and "Best value" on the 15-pack.
+ *
+ * 2026-11-21, one obvious upgrade (the product review counted seven ways to pay, and nobody had clicked Buy in a
+ * month): the shop sells one thing, more dates, with one loud button. The bigger pack comes first and its Buy is the
+ * loud one, as on the out-of-dates wall (app/OutOfDates.tsx); the other pack's is outlined. The Companion Plan, which
+ * sells on its own page, is a line under the tiles instead of a tile, and the "Botchelor Plus" interest test
+ * (lib/plus-interest.ts: a plan that doesn't exist yet, with one button that only counts) is its small version there.
  */
 export default async function ShopPage({ searchParams }: { searchParams: SearchParams }) {
   const { checkout } = await searchParams;
@@ -80,7 +84,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   const dates = db && viewerId ? await episodeAllowance(db, viewerId) : freshAllowance();
   const env = process.env;
   const open = paymentLinkFromEnv(env) !== null;
-  const tiles = onSale(env);
+  // The pack the page leads with: the bigger one when it's on sale. It comes first and its button is the loud one.
+  const packs = onSale(env);
+  const lead = packs.find((i) => i.sku === PACK_15.sku) ?? packs[0];
+  const tiles = lead ? [lead, ...packs.filter((i) => i !== lead)] : packs;
   const ownedOffSale = CATALOG.filter((i) => !PACKS.includes(i) && owned.includes(i.sku));
   // Buying needs an account (app/api/checkout): an anonymous player's tokens would live in one browser's cookie.
   const signInToBuy = open && sessionsSignable() && !viewer?.authenticated;
@@ -91,10 +98,10 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   // After Dark exists: the show never shows it).
   const afterDarkToo = db && viewer?.authenticated ? (await canAfterDark(db, viewer).catch(() => ({ ok: false }))).ok : false;
   const units = `${unit}s`;
-  // The Companion Plan sells on its own page (app/companion/plan): its tile here, so the shop lists everything on sale
+  // The Companion Plan sells on its own page (app/companion/plan): its line here, so the shop names everything on sale
   // (2026-11-07 audit, item 20: on a phone the shop never mentioned it). Only while companions are open and the plan has
   // its link; never on After Dark's host, which has its own tokens.
-  const planTile = unit === "date" && companionOpen() && planLink("companion") !== null;
+  const planLine = unit === "date" && companionOpen() && planLink("companion") !== null;
   const plan = priceParts(planPrice("companion"));
   // The meter shows this week's free ones; topped-up ones are said in the line (they never run out on a day).
   const freePct = dates.free_per_season > 0 ? Math.round((Math.min(dates.free_left, dates.free_per_season) / dates.free_per_season) * 100) : 0;
@@ -168,39 +175,20 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
               {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
               <div className="money-tile-act">
                 {signInToBuy ? (
-                  <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} />
+                  <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} quiet={item !== lead} />
                 ) : (
                   <BuyButton
                     sku={item.sku}
                     label={priceLabelFromEnv(env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`, item.sku)}
                     disabled={!itemOpen}
                     place="shop"
+                    quiet={item !== lead}
                   />
                 )}
               </div>
             </li>
           );
         })}
-        {planTile && (
-          <li className="card money-tile shop-item shop-plan has-plan-face" data-shop-plan="companion">
-            {unit === "date" && <PlanFace />}
-            <Price amount={plan.amount} per={plan.per} />
-            <strong className="money-tile-name">{PLANS.companion.name}</strong>
-            <span className="badge">Subscription</span>
-            <p className="money-tile-what muted">Talk with any companion as much as you like: no daily limit on replies. Cancel any time.</p>
-            <div className="money-tile-act">
-              <Link className="button" href="/companion/plan" data-track="shop-companion-plan">
-                See the Companion Plan
-              </Link>
-            </div>
-          </li>
-        )}
-        {unit === "date" && (
-          // Not for sale: a $0 demand test for a plan (docs/ideas.md's parked table). The tile says so.
-          <li className="card money-tile shop-item shop-plus" data-shop-plus>
-            <PlusInterest place="shop" newsletter={newsletterOpen()} />
-          </li>
-        )}
         {ownedOffSale.map((item) => (
           <li key={item.sku} className="card money-tile shop-item is-owned">
             <p className="money-price is-owned">
@@ -214,6 +202,23 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
       </ul>
 
       {signInToBuy && <p className="muted small">Buying needs an account, so what you buy follows you to any device.</p>}
+      {/* What else there is, said once and quietly: neither is the page's button. */}
+      {planLine && (
+        <p className="shop-also muted" data-shop-plan="companion">
+          Talk with any companion as much as you like:{" "}
+          <Link href="/companion/plan" data-track="shop-companion-plan">
+            the {PLANS.companion.name}
+          </Link>
+          , {plan.amount}
+          {plan.per && ` ${plan.per}`}. Cancel any time.
+        </p>
+      )}
+      {unit === "date" && (
+        // Not for sale: a $0 demand test for a plan (docs/ideas.md's parked table). It says so.
+        <div className="shop-also shop-plus" data-shop-plus>
+          <PlusInterest place="shop" newsletter={newsletterOpen()} compact />
+        </div>
+      )}
       <p className="muted small">Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</p>
       {/* The small print, folded (2026-10-31 UX audit, A9). */}
       <details className="ux-fold shop-small-print">

@@ -197,6 +197,45 @@ describe("the company pages", () => {
     expect(text).toMatch(/Never for sale/);
   });
 
+  it("/pricing is two cards, what's free and one upgrade, with one loud button; the rest are lines under them", () => {
+    vi.stubEnv("STRIPE_PAYMENT_LINK", "https://buy.stripe.com/test_botchelorSamplePack");
+    vi.stubEnv("STRIPE_LINK_PACK_15", "https://buy.stripe.com/test_botchelorBiggerPack");
+    vi.stubEnv("COMPANION_OPEN", "1");
+    vi.stubEnv("COMPANION_PLAN_LINK", "https://buy.stripe.com/test_botchelorPlan");
+    let html = render(PricingPage);
+    const grid = () => html.slice(html.indexOf('class="pricing-grid"'), html.indexOf('aria-labelledby="also"'));
+    // Two cards: Free, then More dates with both packs as lines in it. One loud button on the whole page.
+    expect([...grid().matchAll(/<li class="(pricing-card[^"]*)" id="([a-z-]+)"/g)].map((m) => `${m[2]}: ${m[1]}`)).toEqual([
+      "free: pricing-card rise-in",
+      "pack: pricing-card pricing-card--featured rise-in",
+    ]);
+    expect([...grid().matchAll(/data-pricing-pack="([a-z0-9_]+)"/g)].map((m) => m[1])).toEqual(["pack_5", "pack_15"]);
+    expect(grid()).toContain('<h2>More dates</h2><p class="pricing-price">from $4 <span class="muted small">paid once</span></p>');
+    expect(grid()).toContain('<li data-pricing-pack="pack_5">5 more dates for $4</li><li id="pack_15" data-pricing-pack="pack_15">15 more dates for $10</li>');
+    expect(html.match(/class="button"/g)).toHaveLength(1);
+    expect(html).toMatch(/<a class="button"[^>]*href="\/shop"[^>]*>Get more dates<\/a>/);
+    // The Companion Plan and your own key: a line each, a plain link, no card.
+    const also = html.slice(html.indexOf('aria-labelledby="also"'), html.indexOf('aria-labelledby="never"'));
+    expect(also).toContain('<ul class="pricing-also">');
+    expect([...also.matchAll(/<li id="([a-z-]+)">/g)].map((m) => m[1])).toEqual(["companion-plan", "own-key"]);
+    expect(also).not.toContain("pricing-card");
+    expect(also).not.toContain('class="button');
+    expect(also).toMatch(/<a[^>]*href="\/companion\/plan"[^>]*>See the Companion Plan<\/a>/);
+    expect(also).toMatch(/<a[^>]*href="\/account\/keys"[^>]*>Connect a key<\/a>/);
+    // Agents are told their dates are free; no pass is sold from here.
+    expect(html).toContain('href="/agents/pricing"');
+    expect(html).not.toMatch(/operator pass/i);
+
+    // With no pack on sale and the plan on sale, the plan is the upgrade and the packs are the line.
+    vi.stubEnv("STRIPE_PAYMENT_LINK", "");
+    vi.stubEnv("NEXT_PUBLIC_STRIPE_PAYMENT_LINK", "");
+    html = render(PricingPage);
+    expect([...grid().matchAll(/<li class="(pricing-card[^"]*)" id="([a-z-]+)"/g)].map((m) => m[2])).toEqual(["free", "companion-plan"]);
+    expect(html.match(/class="button"/g)).toHaveLength(1);
+    expect(html).toMatch(/<a class="button"[^>]*href="\/companion\/plan"[^>]*>See the Companion Plan<\/a>/);
+    expect([...html.matchAll(/<li id="([a-z-]+)">/g)].map((m) => m[1])).toEqual(["pack", "own-key"]);
+  });
+
   it("/press links only files that exist, and says when the show went public", () => {
     const html = render(PressPage);
     const srcs = [...html.matchAll(/<img[^>]+src="([^"]+)"/g)].map((m) => m[1]);

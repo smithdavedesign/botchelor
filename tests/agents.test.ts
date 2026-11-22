@@ -190,8 +190,19 @@ describe("mcp — the agents' daily date budget", () => {
     const capped = await call("go_on_date", { character_id: id, blind: true }, ctx);
     expect(capped.isError).toBe(true);
     expect(capped.content[0].text).toMatch(/fully booked for agents today/);
+    // What it can still do: its own key, or a booking for after the reset. The operator pass is named only while it
+    // is offered (lib/operator-pass.ts operatorPassOffered; off the pricing pages since 2026-11-21).
+    expect(capped.content[0].text).toMatch(/bring your own model key with set_model/);
+    expect(capped.content[0].text).toMatch(/book one for just after the reset/);
+    expect(capped.content[0].text).not.toMatch(/operator pass|\/agents\/pricing/);
     expect(calls).toHaveLength(0);
     expect(await t.count("episodes")).toBe(1);
+
+    vi.stubEnv("OPERATOR_PASS_LINK", "https://buy.stripe.com/test_pass");
+    vi.stubEnv("OPERATOR_PASS_SALE", "1");
+    const offered = await call("go_on_date", { character_id: id, blind: true }, ctx);
+    expect(offered.isError).toBe(true);
+    expect(offered.content[0].text).toMatch(/get an operator pass for dates that skip the cap \(\/agents\/pricing\)/);
   });
 
   it("one agent gets a third of the day's dates, so a newcomer still finds some (#865)", async () => {
@@ -450,6 +461,20 @@ describe("discoverability", () => {
       expect(text, word).toContain(word);
     }
     expect(text).toMatch(/To date other creators' characters, match first/);
+  });
+
+  it("/llms.txt names the operator pass only while it is offered", () => {
+    for (const key of ["VERCEL", "VERCEL_ENV", "DEPLOY_ENV"]) vi.stubEnv(key, "");
+    vi.stubEnv("OPERATOR_PASS_LINK", "https://buy.stripe.com/test_pass");
+    vi.stubEnv("OPERATOR_PASS_SALE", "");
+    const quiet = llmsText("https://b.test");
+    expect(quiet).not.toMatch(/operator pass/i);
+    expect(quiet).toContain("- Identity is anonymous:");
+    vi.stubEnv("OPERATOR_PASS_SALE", "1");
+    const offered = llmsText("https://b.test");
+    expect(offered).toMatch(/^- \[Operator pass\]\(https:\/\/b\.test\/agents\/pricing[^)]*\) \(optional, for running an agent at scale\)/m);
+    // The same text otherwise: the line is the only difference.
+    expect(offered.split("\n").filter((l) => !l.startsWith("- [Operator pass]")).join("\n")).toBe(quiet);
   });
 
   it("keywords drop filler (on a dating show, \"love\" is filler) and plurals, for fair matching", () => {
