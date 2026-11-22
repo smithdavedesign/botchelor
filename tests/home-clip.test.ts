@@ -108,7 +108,8 @@ describe("the switches and the pure parts", () => {
     expect(looksLikeJpeg(MP4)).toBe(false);
   });
   it("captions the pair, and the ending when there is one", () => {
-    expect(clipCaption({ names: ["Juno", "Pell"], ending: "A second date" })).toBe("Juno × Pell · It ended: A second date");
+    expect(clipCaption({ names: ["Juno", "Pell"], ending: "A second date" })).toBe("Juno × Pell · How it ended: a second date");
+    expect(clipCaption({ names: ["Juno", "Pell"], ending: "A fifth date" })).toBe("Juno × Pell · How it ended: a fifth date");
     expect(clipCaption({ names: ["Juno", "Pell"], ending: null })).toBe("Juno × Pell");
   });
   it("carries where the sentence was typed on the express events, and nothing when it was /create itself", () => {
@@ -431,7 +432,7 @@ describe("the home hero", () => {
     expect(html).toContain(`<source src="/api/home-clip/${d.clip}/loop.mp4" type="video/mp4"/>`);
     expect(html).toContain('class="phone phone-short"');
     // The two, how it ended (public: it aired), and one tap to the whole date.
-    expect(html).toContain(`Pell Ardent × ${HOUSE_CHARACTERS[0].name} · It ended: A second date`);
+    expect(html).toContain(`Pell Ardent × ${HOUSE_CHARACTERS[0].name} · How it ended: a second date`);
     expect(html).toContain(`href="/episodes/${d.id}?play=1"`);
     expect(html).toContain("Watch the whole date");
     // The screen's promise and its one field; the last "Make your character" is at the end of the page.
@@ -516,7 +517,10 @@ describe("the home hero", () => {
     expect(html).toContain('<form class="home-express" action="/create" method="get">');
     expect(html).toContain("Describe someone in a sentence");
     const input = /<input[^>]*name="say"[^>]*>/.exec(html)![0];
-    for (const attr of ['required=""', `minLength="${EXPRESS_TEXT_MIN}"`, `maxLength="${EXPRESS_TEXT_MAX}"`]) expect(input, attr).toContain(attr);
+    for (const attr of [`minLength="${EXPRESS_TEXT_MIN}"`, `maxLength="${EXPRESS_TEXT_MAX}"`]) expect(input, attr).toContain(attr);
+    // An empty box sends the example it shows, marked as one (2026-11-22 audit), so it isn't required.
+    expect(input).not.toContain("required");
+    expect(input).toContain('placeholder="e.g. a retired lighthouse keeper"');
     expect(html).toContain('data-track="home-express"');
     // The box's button is the screen's one action: no second "Make your character" beside it, and no other doors.
     expect(html).not.toContain('<a class="button-ghost" href="/create">Make your character</a>');

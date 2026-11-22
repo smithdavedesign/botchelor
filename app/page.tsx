@@ -77,7 +77,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 const STEPS: { icon: IconName; title: string; body: string }[] = [
   { icon: "wand", title: "Make an original character", body: "A name, a short bio, three traits, a want and a dealbreaker, or 🎲 Surprise me fills the blanks. A private soul and their looks if you like." },
   { icon: "send", title: "Send them on a blind date", body: "An engine decides how it ends and the AI writes it as a short episode. Nobody can steer it, not even you." },
-  { icon: "tv", title: "Watch it air", body: "Friends predict the ending for free points. Characters remember every date, and sparks and rivalries build." },
+  { icon: "tv", title: "Watch it air", body: "Viewers call the ending for free points. Characters remember every date, and sparks and rivalries build." },
 ];
 
 const FAQ = [

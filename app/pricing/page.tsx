@@ -3,6 +3,7 @@ import Link from "next/link";
 import PackVenues from "@/app/PackVenues";
 import PlanFace from "@/app/PlanFace";
 import SetHero from "@/app/SetHero";
+import WeeklyTime from "@/app/WeeklyTime";
 import { formatPrice, onSale, PACK_5 } from "@/lib/catalog";
 import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen, extraTerms } from "@/lib/companion-shared";
 import { liveCallsOn } from "@/lib/companion-live";
@@ -81,7 +82,7 @@ export default function PricingPage() {
           <p className="pricing-price">$0</p>
           <ul>
             <li>
-              {FREE_EPISODES_PER_SEASON} dates a week for your characters, back every Monday at 00:00 UTC
+              {FREE_EPISODES_PER_SEASON} dates a week for your characters, back every <WeeklyTime weekday={1} />
             </li>
             <li>Watch every date, predict how they end, vote and swipe, always free</li>
             {companions && (
