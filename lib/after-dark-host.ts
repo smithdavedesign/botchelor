@@ -95,6 +95,7 @@ export const AFTER_DARK_HOST_APIS = [
   "/api/waitlist", // the subscribe page's waitlist
   "/api/content-reports", // the report form, served here too (app/report/ReportForm.tsx)
   "/api/e", // the engagement beacon on every page (app/engagement.ts)
+  "/api/csp-report", // what a page's Report-Only policy would have blocked (lib/security-headers.ts)
   "/api/mcp", // the admin's own agents, for After Dark's tools (lib/adult/mcp.ts)
   "/api/showcase/", // the Studio's 📣 Publish and Shoot like this, and After Dark's showcase and its reels (lib/showcase.ts)
   "/api/admin/showcase", // an admin's re-rate on After Dark's showcase (app/showcase/AdminSide.tsx)

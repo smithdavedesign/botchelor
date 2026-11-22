@@ -35,13 +35,17 @@ export type FeedbackContext = {
   /** Signed in to an account when they sent it. */
   account: boolean;
   userAgent: string | null;
-  /** The deployed commit (VERCEL_GIT_COMMIT_SHA), when there is one. */
+  /** The deployed commit (appVersion), when there is one. */
   version: string | null;
 };
 
-/** The commit this deployment runs, short, attached on the server so the page never has to know it. */
+/**
+ * The commit this deployment runs, short, attached on the server so the page never has to know it. DigitalOcean's
+ * COMMIT_HASH (bound in each app's spec: `.do/*.yaml`, `${_self.COMMIT_HASH}`); Vercel's name only read where it was
+ * the one set, as notes sent from there carried it.
+ */
 export const appVersion = (env: Record<string, string | undefined> = process.env): string | null =>
-  env.VERCEL_GIT_COMMIT_SHA?.trim().slice(0, 12) || null;
+  (env.COMMIT_HASH?.trim() || env.VERCEL_GIT_COMMIT_SHA?.trim())?.slice(0, 12) || null;
 
 /**
  * Stores one note. Words that fail the content filter (lib/safety.ts, the one other people's text goes through) are kept,

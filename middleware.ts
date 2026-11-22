@@ -5,6 +5,7 @@ import { PLACE_COOKIE, PLACE_TRIED_COOKIE, placeCookieFresh } from "@/lib/jurisd
 import { track } from "@/lib/analytics";
 import { detectBot } from "@/lib/bots";
 import { showcaseSideMove } from "@/lib/showcase-paths";
+import { CSP_REPORT_SAMPLE, NONCE_HEADER, newNonce, reportOnlyPolicy } from "@/lib/security-headers";
 import { OLD_HOSTS, requestHost, siteUrl } from "@/lib/site";
 import { NOTRACK_COOKIE } from "@/lib/tracking";
 
@@ -21,7 +22,7 @@ const IDENTITY_COOKIES = ["bz_sess", "bz_uid"];
 
 /** A page visit on the old host: a cookieless visitor (or crawler) moves for good; a player carries their identity. */
 function moveToCanonical(req: NextRequest): NextResponse | null {
-  const host = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host).toLowerCase();
+  const host = requestHost(req);
   if (!OLD_HOSTS.has(host)) return null;
   const canonical = siteUrl();
   const target = new URL(canonical).host;
@@ -260,7 +261,27 @@ function renewPlace(req: NextRequest): NextResponse | null {
   return NextResponse.redirect(url, 307);
 }
 
+/**
+ * A path whose %-escapes don't decode (one cut short, "%E0%A4%A") is a bad request, said here: past this point Next
+ * decodes it to match a dynamic route, fails, and answers 500 (2026-11-22 audit). The matcher sends /api paths that
+ * hold a "%" here for this check alone.
+ */
+export function badlyEncoded(pathname: string): boolean {
+  if (!pathname.includes("%")) return false;
+  try {
+    decodeURIComponent(pathname);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function middleware(req: NextRequest): NextResponse {
+  if (badlyEncoded(req.nextUrl.pathname)) {
+    return new NextResponse("Bad request: that address isn't encoded properly.", { status: 400, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
+  // An /api path comes here only for that check (the matcher's "/api/(.*%.*)"): nothing below is for it.
+  if (req.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
   const moved = moveToCanonical(req) ?? moveFromOtherHost(req) ?? moveShowcaseSide(req) ?? moveForAfterDark(req) ?? renewPlace(req);
   if (moved) return moved; // the query (?repohq-notrack=1 included) travels with it and is handled on arrival
   const res = route(req);
@@ -289,6 +310,24 @@ export function canonicalPairPath(pathname: string): string | null {
     return null;
   }
   return a > b ? `/${m[1]}/${m[3]}/${m[2]}` : null;
+}
+
+/**
+ * A page goes on with a nonce of its own and the Report-Only policy built on it (lib/security-headers.ts). Next reads the
+ * nonce from the policy on the request and puts it on its own scripts; the layout puts it on its inline ones
+ * (NONCE_HEADER); the browser gets the same policy. A policy the request came with is dropped first: Next would read
+ * an enforced one before this.
+ */
+function onward(req: NextRequest): NextResponse {
+  const nonce = newNonce();
+  const policy = reportOnlyPolicy(nonce, { report: Math.random() * CSP_REPORT_SAMPLE < 1 });
+  const headers = new Headers(req.headers);
+  headers.delete("content-security-policy");
+  headers.set("content-security-policy-report-only", policy);
+  headers.set(NONCE_HEADER, nonce);
+  const res = NextResponse.next({ request: { headers } });
+  res.headers.set("Content-Security-Policy-Report-Only", policy);
+  return res;
 }
 
 function route(req: NextRequest): NextResponse {
@@ -334,10 +373,10 @@ function route(req: NextRequest): NextResponse {
     const bot = detectBot(req.headers.get("user-agent"), req.headers.get("signature-agent"));
     if (bot) {
       track("bot_visit", { bot: bot.name, kind: bot.kind, path: pathname });
-      return NextResponse.next();
+      return onward(req);
     }
   }
-  if (open || adult) return NextResponse.next();
+  if (open || adult) return onward(req);
 
   const url = req.nextUrl.clone();
   url.pathname = "/gate";
@@ -352,6 +391,8 @@ export const config = {
   // Plus the agent docs and crawler files, matched by exact path so they can be counted (never gated).
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\..*|.*opengraph-image|.*icon|apple-icon).*)",
+    // An /api path with a %-escape in it, for the bad-encoding check only (badlyEncoded).
+    "/api/(.*%.*)",
     "/llms.txt",
     "/llm.txt",
     "/llms-full.txt",

@@ -9863,19 +9863,24 @@ const WRITE_TOOL_NAMES = MCP_TOOLS.filter((t) => (t.annotations as { readOnlyHin
  * same address, by its keyed hash: never the address) within AGENT_REUSE_MINUTES gets that earlier id back, but only when
  * it never wrote anything: no character, no date, no link, no write tool that went through. An identity that has written
  * is never handed to anyone else. No address (or no client name or user agent), no reuse.
+ *
+ * And only for a client that sends that earlier session's Mcp-Session-Id with its initialize (2026-11-22 audit): many
+ * people's connectors reach us from one cloud's addresses with the same name and user agent, so those alone would hand
+ * one person's fresh identity to another, and both would then act as it. The session id went only to the client it was
+ * issued to, so it proves the same client.
  */
-async function reusableAgent(db: Db, c: { client: string | null; userAgent: string | null; visitor: string | null }): Promise<string | null> {
-  if (!c.client || !c.userAgent || !c.visitor) return null;
+async function reusableAgent(db: Db, c: { client: string | null; userAgent: string | null; visitor: string | null; sessionId: string | null }): Promise<string | null> {
+  if (!c.client || !c.userAgent || !c.visitor || !c.sessionId) return null;
   const { rows } = await db.query<{ agent_id: string }>(
     `select s.agent_id from mcp_sessions s
-      where s.client_name = $1 and s.user_agent = $2 and s.visitor = $3
+      where s.id = $6 and s.client_name = $1 and s.user_agent = $2 and s.visitor = $3
         and s.created_at > now() - make_interval(mins => $4) and s.id not like 'agent:%'
         and not exists (select 1 from characters c where c.owner_id = s.agent_id)
         and not exists (select 1 from episodes e where e.creator_id = s.agent_id)
         and not exists (select 1 from agent_links l where l.agent_id = s.agent_id)
         and not exists (select 1 from mcp_calls k where k.agent_id = s.agent_id and k.method = 'tools/call' and k.ok and k.tool = any($5))
-      order by s.created_at desc limit 1`,
-    [c.client, c.userAgent, c.visitor, AGENT_REUSE_MINUTES, WRITE_TOOL_NAMES],
+      limit 1`,
+    [c.client, c.userAgent, c.visitor, AGENT_REUSE_MINUTES, WRITE_TOOL_NAMES, c.sessionId.slice(0, 80)],
   );
   return rows[0]?.agent_id ?? null;
 }
@@ -9979,7 +9984,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         // Never for our own traffic (the loop's visitors connect side by side from one Mac with the same client, and
         // would become one identity); the reuse only tidies outside agents' analytics, which leave ours out anyway.
         else if (!isOurs(clip(info.name, 80), clip(ctx.userAgent, 200))) {
-          const reused = await reusableAgent(db, { client: clip(info.name, 80), userAgent: clip(ctx.userAgent, 200), visitor: ctx.visitor ?? null }).catch(() => null);
+          const reused = await reusableAgent(db, { client: clip(info.name, 80), userAgent: clip(ctx.userAgent, 200), visitor: ctx.visitor ?? null, sessionId: ctx.sessionId ?? null }).catch(() => null);
           if (reused) {
             agentId = reused;
             wasReused = true;

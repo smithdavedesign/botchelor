@@ -23,7 +23,7 @@ import { GET as getViewer, POST as postFeedback } from "@/app/api/feedback/route
 import { deleteAccount, exportAccount } from "@/lib/account";
 import { claimAdmin } from "@/lib/admins";
 import { feedbackBoard } from "@/lib/feedback";
-import { csvCell, feedbackCsv, USER_FEEDBACK_LIMITS, type UserFeedbackRow } from "@/lib/user-feedback";
+import { appVersion, csvCell, feedbackCsv, USER_FEEDBACK_LIMITS, type UserFeedbackRow } from "@/lib/user-feedback";
 import { betaPromptDue, cleanPage, cleanViewport, npsGroup, npsScore, promptPathBlocked, type BetaPromptState } from "@/lib/user-feedback-shared";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
 
@@ -315,6 +315,16 @@ describe("the viewer's context (GET /api/feedback)", () => {
     expect((await t.db.query<{ at: Date }>("select beta_prompt_at as at from accounts where user_id = $1", [member])).rows[0].at).toEqual(first);
     // An anonymous visitor's browser remembers it alone: nothing to store, nothing breaks.
     expect((await seen(newUserCookie())).status).toBe(200);
+  });
+});
+
+describe("the app version a note carries (appVersion)", () => {
+  it("is DigitalOcean's commit, short; Vercel's only where it's the one set; else none", () => {
+    expect(appVersion({ COMMIT_HASH: "0123456789abcdef0123" })).toBe("0123456789ab");
+    expect(appVersion({ COMMIT_HASH: "0123456789abcdef", VERCEL_GIT_COMMIT_SHA: "fedcba9876543210" })).toBe("0123456789ab");
+    expect(appVersion({ VERCEL_GIT_COMMIT_SHA: "fedcba9876543210" })).toBe("fedcba987654");
+    expect(appVersion({ COMMIT_HASH: " " })).toBeNull();
+    expect(appVersion({})).toBeNull();
   });
 });
 

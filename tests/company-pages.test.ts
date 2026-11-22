@@ -373,16 +373,17 @@ describe("the security headers on every response", () => {
     const rules = await config.headers!();
     const all = rules.find((r) => r.source === "/:path*")!;
     const names = all.headers.map((h) => h.key.toLowerCase());
-    expect(names).toEqual(["strict-transport-security", "x-content-type-options", "x-frame-options", "content-security-policy", "referrer-policy"]);
+    expect(names).toEqual(["strict-transport-security", "x-content-type-options", "x-frame-options", "content-security-policy", "permissions-policy", "referrer-policy"]);
     expect(all.headers).toEqual([...SECURITY_HEADERS]);
     expect(rules.find((r) => r.source === "/cast/:file*")!.headers.map((h) => h.key)).toContain("x-ai-generated");
     expect(config.poweredByHeader).toBe(false);
   });
 
-  it("never force https on subdomains we don't serve, and never lock framing out for the show itself", () => {
+  it("keep every subdomain on https but stay off the preload list, and never lock framing out for the show itself", () => {
     const value = (key: string) => SECURITY_HEADERS.find((h) => h.key === key)!.value;
-    expect(value("Strict-Transport-Security")).not.toMatch(/includeSubDomains|preload/i);
-    expect(value("Content-Security-Policy")).toBe("frame-ancestors 'self'");
+    expect(value("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains");
+    // Enforced: only the rules no page here can trip. The rest is Report-Only (tests/security-csp.test.ts).
+    expect(value("Content-Security-Policy")).toBe("frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
     expect(value("X-Frame-Options")).toBe("SAMEORIGIN");
   });
 });

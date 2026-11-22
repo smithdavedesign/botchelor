@@ -3,6 +3,7 @@ import { track } from "@/lib/analytics";
 import { ceremonyBoard, voteCeremony } from "@/lib/ceremony";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
+import { TOO_MANY_VOTES, voteLimited } from "@/lib/limits";
 
 const VoteInput = z.object({ pick: z.string().min(1).max(120) });
 
@@ -19,6 +20,7 @@ export const POST = handle(async (req) => {
   const sess = session(req);
   const input = parseBody(VoteInput, await readJson(req), "invalid_vote");
   const db = await getDb();
+  if (await voteLimited(db, "ceremony_vote", req.headers)) return json(TOO_MANY_VOTES, 429, sess);
   const result = await voteCeremony(db, sess.userId, input.pick);
   if (!result.ok) return json({ error: result.error, message: result.message }, result.status, sess);
   track("ceremony_vote", {});

@@ -37,6 +37,10 @@ services:
       - key: DEPLOY_ENV
         value: "production"
         scope: RUN_AND_BUILD_TIME
+      # The commit this deployment runs, for the version a feedback note carries (lib/user-feedback.ts appVersion).
+      - key: COMMIT_HASH
+        value: ${_self.COMMIT_HASH}
+        scope: RUN_TIME
       - key: SITE_URL
         value: "https://botchelor.com"
         scope: RUN_AND_BUILD_TIME
