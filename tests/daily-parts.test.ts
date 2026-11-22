@@ -131,6 +131,24 @@ describe("the daily job's rows and its resume pass", () => {
     expect(await nextDailyPart(t.db)).toEqual({ part: "show", why: "failed", tries: 1 });
   });
 
+  it("a part the job ran before parts were logged (a job_runs row, no rows of its own) counts as done", async () => {
+    const ran = (part: string, hhmm: string) =>
+      t.db.query(`insert into job_runs (job, part, at, ms, report) values ('daily', $1, $2, 1000, '{}'::jsonb)`, [part, at(hhmm).toISOString()]);
+    await ran("people", "15:00"); // the day before's window: doesn't count for today
+    await ran("upkeep", "16:20");
+    await ran("show", "16:22");
+    clock("20:20");
+    expect(await nextDailyPart(t.db)).toEqual({ part: "people", why: "missed", tries: 0 });
+    await ran("people", "16:27");
+    await ran("growth", "16:33");
+    expect(await nextDailyPart(t.db)).toEqual({ part: null, reason: "all_done", busy: null, gave_up: [] });
+    expect((await dailyStatus(t.db)).parts.map((p) => `${p.part} ${p.state}`)).toEqual(["upkeep done", "show done", "people done", "growth done"]);
+    // A run of all four at once (no ?part) is one row, "all".
+    await t.db.query(`delete from job_runs`);
+    await ran("all", "16:40");
+    expect(await nextDailyPart(t.db)).toMatchObject({ part: null, reason: "all_done" });
+  });
+
   it("/admin's Servers card gets the latest day's parts", async () => {
     vi.stubEnv("CRON_SECRET", secret);
     clock("16:20");

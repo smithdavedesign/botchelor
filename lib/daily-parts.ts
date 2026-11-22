@@ -76,13 +76,29 @@ export function pickResume(rows: PartRow[], now: Date): Resume {
   return { part: null, reason: "all_done", busy: null, gave_up: gaveUp };
 }
 
+/**
+ * The window's rows. A part with none in the servers' log but a run in job_runs (lib/job-meter.ts, written as each part
+ * ends) counts as done: the job ran it before parts were logged (the day this shipped), or the log's write failed.
+ * Without this, the first resume pass would run every part a second time that day. A run of all four (no ?part) is
+ * job_runs part "all".
+ */
 async function partRows(db: Db, since: Date): Promise<PartRow[]> {
   const { rows } = await db.query<{ part: string | null; state: string | null; at: Date | string }>(
     `select props->>'part' as part, props->>'state' as state, at from ops_log
       where event = 'daily_part' and at >= $1 order by at, id`,
     [since.toISOString()],
   );
-  return rows.flatMap((r) => (r.part && r.state ? [{ part: r.part, state: r.state, at: new Date(r.at) }] : []));
+  const logged = rows.flatMap((r) => (r.part && r.state ? [{ part: r.part, state: r.state, at: new Date(r.at) }] : []));
+  const ran = await db.query<{ part: string; at: Date | string }>(
+    `select part, max(at) as at from job_runs where job = 'daily' and at >= $1 group by part`,
+    [since.toISOString()],
+  );
+  const seen = new Set(logged.map((r) => r.part));
+  const unlogged = ran.rows
+    .flatMap((r) => (r.part === "all" ? DAILY_PARTS.map((part) => ({ part, at: r.at })) : [{ part: r.part, at: r.at }]))
+    .filter((r) => isDailyPart(r.part) && !seen.has(r.part))
+    .map((r) => ({ part: r.part, state: "done", at: new Date(r.at) }));
+  return [...logged, ...unlogged].sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 
 /** The resume pass's pick (app/api/jobs/daily ?part=resume), from today's rows. */
