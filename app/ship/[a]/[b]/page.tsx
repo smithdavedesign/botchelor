@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import ShareLink from "@/app/ShareLink";
+import JsonLd from "@/app/JsonLd";
+import { breadcrumbJsonLd, fitDescription } from "@/lib/seo";
 import { canonicalShipPath, nameFromSegment, SHIP_ERRORS, shipMerge, shipPair, shipPath, type ShipBlend, type ShipMerge, type ShipPair } from "@/lib/ship-names";
 import ShipForm from "../../ShipForm";
 import MoreTools from "@/app/tools/MoreTools";
-import { SHIP_TOOL_PATH } from "@/lib/tools";
+import { SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
 
 type Props = { params: Promise<{ a: string; b: string }> };
 
@@ -51,7 +53,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const path = canonicalShipPath(a, b);
   return {
     title: `${title} · Botchelor`,
-    description,
+    description: fitDescription(description),
     alternates: { canonical: path },
     openGraph: { type: "website", siteName: "Botchelor", title, description, url: path },
     twitter: { card: "summary_large_image", title, description },
@@ -128,6 +130,15 @@ export default async function ShipPage({ params }: Props) {
         </Link>
         <MoreTools current={SHIP_TOOL_PATH} />
       </section>
+      {/* Its place under the free tools, at the pair's one address (2026-11-22 audit: ship pages had no page-level data). */}
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Botchelor", path: "/" },
+          { name: "Free OC tools", path: TOOLS_PATH },
+          { name: "OC Ship Name Generator", path: SHIP_TOOL_PATH },
+          { name: `${a.display} × ${b.display}`, path: canonicalShipPath(a, b) },
+        ])}
+      />
     </>
   );
 }

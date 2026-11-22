@@ -21,6 +21,7 @@ vi.mock("next/navigation", async (original) => ({
 
 import { renderToStaticMarkup } from "react-dom/server";
 import RootLayout, { metadata as rootMetadata } from "@/app/layout";
+import ShipPage, { generateMetadata as shipMetadata } from "@/app/ship/[a]/[b]/page";
 import { ALTERNATIVES } from "@/lib/alternatives";
 import { characterJsonLd, DESCRIPTION_MAX, fitDescription, pageMetadata, SITE_FEEDS, SITE_TITLE, toolJsonLd } from "@/lib/seo";
 import { seasonLiveMeta } from "@/lib/season-page";
@@ -106,6 +107,19 @@ describe("titles that say what people search for", () => {
   it("the show's own creator profile says Botchelor once", () => {
     expect(source("app/creators/[handle]/page.tsx")).toContain("/botchelor/i.test(c.display_name)");
   });
+
+  it("the pages of each character, date, couple, creator and ship pair fit their descriptions too", async () => {
+    for (const [page, call] of [
+      ["app/characters/[id]/page.tsx", "description: fitDescription(`${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`),"],
+      ["app/episodes/[id]/page.tsx", "description: fitDescription(description),"],
+      ["app/couples/[a]/[b]/page.tsx", "description: fitDescription(`${ca.name} and ${cb.name} on Botchelor:"],
+      ["app/creators/[handle]/page.tsx", "description: fitDescription(c.bio ?? `Pictures and clips by @${c.handle}.`),"],
+    ]) {
+      expect(source(page), page).toContain(call);
+    }
+    const long = await shipMetadata({ params: Promise.resolve({ a: "bartholomew-alexander", b: "maximiliana-rosalind" }) });
+    expect(String(long.description).length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+  });
 });
 
 describe("every page of the show: the RSS feed and llms.txt in its head, every free tool in its footer", () => {
@@ -151,5 +165,18 @@ describe("structured data", () => {
     expect(page).not.toContain("/icon.svg");
     expect(page).toContain("...(season.closed ? { url: `${base}${season.path}` } : {})");
     expect(source("app/couples/[a]/[b]/page.tsx")).toContain('{ name: "Characters", path: "/characters" }');
+  });
+
+  it("a ship pair's page sits under the free tools, at the pair's one address whichever order it was typed in", async () => {
+    for (const [a, b] of [
+      ["juniper", "dex"],
+      ["dex", "juniper"],
+    ]) {
+      const html = renderToStaticMarkup(await ShipPage({ params: Promise.resolve({ a, b }) }));
+      const blocks = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]) as Record<string, any>);
+      const crumbs = blocks.flat().find((d) => d["@type"] === "BreadcrumbList");
+      expect(crumbs, `${a}/${b}`).toBeTruthy();
+      expect(crumbs.itemListElement.map((i: { item: string }) => new URL(i.item).pathname)).toEqual(["/", TOOLS_PATH, "/tools/ship-name-generator", "/ship/dex/juniper"]);
+    }
   });
 });

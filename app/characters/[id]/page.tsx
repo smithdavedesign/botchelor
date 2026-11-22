@@ -21,7 +21,7 @@ import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import { portraitPathSql, withPortraits } from "@/lib/assets";
 import JsonLd from "@/app/JsonLd";
-import { breadcrumbJsonLd, characterIndexable, characterJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, characterIndexable, characterJsonLd, fitDescription } from "@/lib/seo";
 import { getDatingProfile } from "@/lib/dating";
 import { hasExtras, moodLabel, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
 import { archetypeLabel, goalLabel } from "@/lib/kinds";
@@ -124,7 +124,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const indexable = await characterIndexable(await getDb(), c.id).catch(() => true);
   return {
     title: `${c.name}, ${c.age}: a contestant on Botchelor`,
-    description: `${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`.slice(0, 200),
+    // Fitted to a search result at a sentence or a word (it was cut at 200 characters, mid-word).
+    description: fitDescription(`${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`),
     alternates: { canonical: `/characters/${c.id}` },
     ...(indexable ? {} : { robots: { index: false, follow: true } }),
   };
