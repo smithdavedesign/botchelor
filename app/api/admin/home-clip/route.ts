@@ -2,10 +2,13 @@ import { airIfDue } from "@/lib/air";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
 import { clipRefusal, CUT_MAX_BYTES, CUT_MAX_SECONDS, homeHeroClipOn, LOOP_MAX_BYTES, LOOP_MAX_SECONDS, looksLikeJpeg, looksLikeMp4, POSTER_MAX_BYTES, saveHomeClip } from "@/lib/home-clip";
-import { handle, json } from "@/lib/http";
+import { ApiError, handle, json, readForm } from "@/lib/http";
 import { frontierAuthorized } from "@/lib/model";
 
 export const dynamic = "force-dynamic";
+
+/** The whole form: the loop, the poster and the cut at their largest, plus the fields and the form's own framing. */
+const FORM_MAX_BYTES = LOOP_MAX_BYTES + POSTER_MAX_BYTES + CUT_MAX_BYTES + 256 * 1024;
 
 const REFUSALS = {
   episode_not_found: "No such date.",
@@ -27,8 +30,9 @@ export const POST = handle(async (req: Request) => {
   if (!homeHeroClipOn()) return json({ error: "off", message: "HOME_HERO_CLIP is off." }, 404);
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
+    form = await readForm(req, FORM_MAX_BYTES);
+  } catch (err) {
+    if (err instanceof ApiError) throw err; // over FORM_MAX_BYTES: 413
     return json({ error: "invalid_form", message: "Send a multipart form." }, 400);
   }
   const episodeId = String(form.get("episode") ?? "").trim();
@@ -70,4 +74,4 @@ export const POST = handle(async (req: Request) => {
   if (refusal) return json({ error: refusal, message: REFUSALS[refusal] }, refusal === "episode_not_found" ? 404 : 409);
   const { id } = await saveHomeClip(db, { episode_id: episodeId, day, loop, poster, width, height, seconds, cut });
   return json({ ok: true, id, episode_id: episodeId, day, loop: `/api/home-clip/${id}/loop.mp4`, poster: `/api/home-clip/${id}/poster.jpg`, ...(cut ? { cut: `/api/home-clip/${id}/cut.mp4` } : {}) });
-});
+}, { maxBodyBytes: FORM_MAX_BYTES });

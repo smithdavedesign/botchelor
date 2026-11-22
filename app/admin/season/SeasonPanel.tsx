@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 
-type Slot = { character_id: string; name: string; slot: number; source: "dealt" | "survivor" | "new" | "fan" | "lead" | "suitor" };
+type Slot = { character_id: string; name: string; slot: number; source: "dealt" | "survivor" | "new" | "fan" | "lead" | "suitor"; house?: boolean; portrait?: string | null };
 type Botchelor = {
   leads: { id: string; name: string }[];
   this_season: {
@@ -210,7 +210,7 @@ export default function SeasonPanel() {
         <ol>
           {view.this_season.cast.map((s) => (
             <li key={s.character_id}>
-              <CharacterName character={{ id: s.character_id, name: s.name }} /> <span className="muted">· {SOURCE[s.source]}</span>
+              <CharacterName character={{ id: s.character_id, name: s.name, house: s.house, portrait: s.portrait ?? null }} /> <span className="muted">· {SOURCE[s.source]}</span>
             </li>
           ))}
         </ol>

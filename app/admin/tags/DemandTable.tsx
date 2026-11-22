@@ -1,4 +1,4 @@
-import type { Demand, FacetSources } from "@/lib/tag-demand";
+import { FEW_PICKS, RAW_CAP, type Demand, type FacetSources } from "@/lib/tag-demand";
 
 const x = (v: number | null) => (v === null ? "–" : `${v.toFixed(2)}×`);
 
@@ -6,6 +6,8 @@ const x = (v: number | null) => (v === null ? "–" : `${v.toFixed(2)}×`);
  * One demand measure as a table (lib/tag-demand.ts): each tag's picks and supply, ours raw, the census's, and the blend
  * the pickers order by, most wanted first. A facet heading between groups. A facet that isn't a tag (art style, lineup)
  * also shows where its picks came from, one column per source. Each table scrolls on its own on a phone.
+ * Ours is shown raw, with what the blend takes when it's over the cap (UX audit 2026-11-22: "capped at 3×" sat beside
+ * 12.44×), and a row with under FEW_PICKS picks is greyed: two picks of a rare tag read as a signal.
  */
 export default function DemandTable({
   demand,
@@ -41,7 +43,7 @@ export default function DemandTable({
                 ))}
                 <th scope="col">Picks</th>
                 <th scope="col">On offer</th>
-                <th scope="col">Ours</th>
+                <th scope="col">Ours (raw)</th>
                 <th scope="col">Census</th>
                 <th scope="col">Blended</th>
               </tr>
@@ -51,7 +53,7 @@ export default function DemandTable({
                 .filter((r) => r.facet === f)
                 .sort((a, b) => b.blended - a.blended)
                 .map((r) => (
-                  <tr key={r.tag}>
+                  <tr key={r.tag} className={r.picks < FEW_PICKS ? "demand-few" : undefined}>
                     <th scope="row">
                       {r.icon} {r.label}
                     </th>
@@ -60,7 +62,10 @@ export default function DemandTable({
                     ))}
                     <td>{r.picks}</td>
                     <td>{r.supply}</td>
-                    <td>{x(r.raw)}</td>
+                    <td>
+                      {x(r.raw)}
+                      {r.raw !== null && r.raw > RAW_CAP && <span className="muted small"> ({RAW_CAP}× in the blend)</span>}
+                    </td>
                     <td>{x(r.census)}</td>
                     <td>
                       <strong>{x(r.blended)}</strong>

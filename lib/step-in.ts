@@ -48,7 +48,7 @@ import { isStepIn, loadOwnDate, nextTurnMeta, ownDateInProgress, ownDateShape, r
 import { transcriptQuality } from "./quality";
 import { refreshEpisodePair } from "./relationships";
 import { CONVERSATION_TURNS, DATE_ACTS, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, ENDING_DETAIL_LABELS, endingDetailOf, endingLabel, TURN_DIALOGUE_MAX } from "./rules";
-import { checkSheetText, checkShowText, type RejectReason } from "./safety";
+import { checkSheetText, checkStepInText, type RejectReason } from "./safety";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { seasonCastIds } from "./season-cast";
 import { weekAt } from "./seasons";
@@ -661,6 +661,12 @@ async function castLine(db: Db, row: StepRow, attempt = 0): Promise<boolean> {
     track("step_in_line_withheld", { episode_id: row.id, why: "self_harm" });
     return attempt < 1 ? castLine(db, row, attempt + 1) : false;
   }
+  // Nor does it play along with a pick-up line the person's check missed ("nobody's taking anything off before the
+  // tacos!"): Step in's PG check (lib/safety.ts checkStepInText), the same way.
+  if (!checkStepInText({ dialogue: line.dialogue, action: line.action }).ok) {
+    track("step_in_line_withheld", { episode_id: row.id, why: "pg" });
+    return attempt < 1 ? castLine(db, row, attempt + 1) : false;
+  }
   const stored = outerLine(line) as Turn;
   const inner: StoredInner = { v: 1, lines: [...transcript.map((_, i) => row.inner_life?.lines[i] ?? null), line.inner && Object.keys(line.inner).length ? line.inner : null] };
   // A walk-out ends the date on this line (end_by), as the show's loop does.
@@ -832,7 +838,7 @@ export async function sayStepIn(db: Db, userId: string, episodeId: string, input
   await addCost(db, episodeId, crisis.usage).catch(() => {});
   if (crisis.crisis) return pause();
   const action = input.action?.trim().slice(0, 40) ?? "";
-  const verdict = checkShowText({ dialogue, action });
+  const verdict = checkStepInText({ dialogue, action });
   if (!verdict.ok) return { ok: true, view: await view(), refused: PG_REDIRECT[verdict.reason] };
 
   const { built, decided, formatId } = await rebuildOwnDate(db, row);
@@ -877,11 +883,20 @@ export async function leaveStepIn(db: Db, userId: string, episodeId: string): Pr
   return { ok: true, refunded };
 }
 
+/** Whether every line passes Step in's PG check (lib/safety.ts checkStepInText), read again before a date can air. */
+export function stepInAirable(transcript: readonly Pick<Turn, "dialogue" | "action">[]): boolean {
+  return transcript.every((t) => checkStepInText({ dialogue: t.dialogue, action: t.action }).ok);
+}
+
 /** They air it: it becomes a normal public episode (it airs on its own once its window closes, lib/air.ts). */
 export async function airStepIn(db: Db, userId: string, episodeId: string): Promise<StepInResult> {
   const row = await loadStep(db, userId, episodeId);
   if (!row) return fail(404, "not_found", "No date of yours here.");
   if (row.status !== "ready") return fail(409, "not_finished", "Finish the date first, then choose whether it airs.");
+  if (row.visibility !== "public" && !stepInAirable(row.transcript ?? [])) {
+    track("step_in_air_refused", { episode_id: episodeId });
+    return fail(409, "not_airable", "This date can't air: a line in it goes past what the show is (PG). It stays yours, private.");
+  }
   if (row.visibility !== "public") {
     await db.query(`update episodes set visibility = 'public' where id = $1 and creator_id = $2`, [episodeId, userId]);
     await refreshEpisodePair(db, episodeId).catch(() => {});

@@ -17,6 +17,7 @@ import { Resend } from "resend";
 import type { Db } from "./db";
 import { safeEqual } from "./http";
 import type { Notification, NotificationKind } from "./notifications";
+import { withoutRawIds } from "./notification-types";
 import { siteUrl } from "./site";
 
 type Env = Record<string, string | undefined>;
@@ -143,7 +144,9 @@ export const emailLink = (base: string, link: string | null): string => {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** The frame every email shares: the message, then why you got it and the one-click way out. */
-function render(intro: string, items: { title: string; body: string | null; link: string | null }[], unsubUrl: string, base: string) {
+function render(intro: string, all: { title: string; body: string | null; link: string | null }[], unsubUrl: string, base: string) {
+  // A person reads these: a body's raw ids (kept for agents) stay out.
+  const items = all.map((i) => ({ ...i, body: i.body ? withoutRawIds(i.body) || null : null }));
   const rows = items
     .map((i) => {
       // Mail clients send no referrer: the link says it came from email (lib/engagement.ts sourceOf reads utm_source).

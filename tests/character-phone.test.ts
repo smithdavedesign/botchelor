@@ -24,6 +24,7 @@ import { markOfferTaken } from "@/lib/companion-offers";
 import { listMyCharacters } from "@/lib/game";
 import { markCharacterTextsRead } from "@/lib/notifications";
 import { HOUSE_CHARACTERS } from "@/lib/house";
+import { CHARACTER_COOKIE } from "@/lib/current-character";
 import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, setupEpisode, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -299,6 +300,11 @@ describe("several characters", () => {
     expect(phone.character.id).toBe(older.character.id);
     expect(phone.unread).toBe(true);
     expect(phone.others.map((o) => o.character.name)).toEqual(["Bea Moss", "Zed Novak"]);
+    // The one the header shows (lib/current-character.ts) leads, even over an unread text: home and the header agree
+    // (UX audit 2026-11-22: "Your character Vesper" under the header's "Orrin").
+    const picked = (await characterPhone(t.db, me, await listMyCharacters(t.db, me), NOW, process.env, newest.id))!;
+    expect(picked.character.id).toBe(newest.id);
+    expect(picked.others.map((o) => o.character.name)).toEqual(["Ada Lark", "Bea Moss"]);
     // Once read, the most recent thing that happened leads: Bea's date. Ada's row leads into her thread.
     await t.db.query(`update notifications set read_at = now() where user_id = $1`, [me]);
     const read = (await phoneFor(creator))!;
@@ -348,6 +354,18 @@ describe("the home page", () => {
     expect(html).not.toContain('class="faq"');
     expect(html).not.toContain("cta-final");
     expect(html).toContain('<h1 class="sr-only">');
+  });
+
+  it("leads with the character the header shows (the remembered one), not the one with the latest news", async () => {
+    const { creator, episode } = await setupEpisode("second_date");
+    await heard(creator, episode.id);
+    const zed = await (await api.createCharacter(validCharacter({ name: "Zed Novak" }), creator)).json();
+    as(creator);
+    expect(await home()).toContain("Open Mira's texts");
+    jar.cookies.set(CHARACTER_COOKIE, zed.id);
+    const html = await home();
+    expect(html).toContain("Send Zed on a first date");
+    expect(html).not.toContain("Open Mira's texts");
   });
 
   it("HOME_PHONE=0: the owner's page as it was", async () => {

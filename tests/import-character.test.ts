@@ -231,6 +231,17 @@ describe("import: free text", () => {
     const r = importFromFields("free_text", { name: "Mara Quill", description: "Runs a map stall.", age: "41", gender: "female", personality: "sly, kind, restless", wants: "a co-pilot" }, "…");
     expect(r).toMatchObject({ ok: true, draft: { sheet: { name: "Mara Quill", age: "41", want: "a co-pilot" }, pronouns: "she/her", traits: ["sly", "kind", "restless"] } });
   });
+
+  it("an age of 0 from the reader is a blank: nothing to read says so, never that it's a minor", () => {
+    // "asdf" and a cut-off card both came back from the model as just { age: "0" } (2026-11-21).
+    expect(importFromFields("free_text", { age: "0" }, "asdf")).toMatchObject({ ok: false, reason: "unreadable", message: expect.stringContaining("couldn't find a character") });
+    expect(importFromFields("free_text", { age: "-1" }, "{\"name\": \"Mar")).toMatchObject({ ok: false, reason: "unreadable" });
+    // A real description with a 0 age imports without one, and the builder asks for it.
+    const r = importFromFields("free_text", { name: "Mara Quill", description: "Runs a map stall.", age: "0" }, "…");
+    expect(r).toMatchObject({ ok: true, draft: { sheet: { name: "Mara Quill", age: "" } } });
+    // A stated age under 18 is still refused.
+    expect(importFromFields("free_text", { name: "Kit", description: "Skates.", age: "16" }, "…")).toMatchObject({ ok: false, reason: "minor", message: CHARACTER_REJECTION_MESSAGES.minor });
+  });
 });
 
 describe("import helpers", () => {
@@ -248,6 +259,11 @@ describe("import helpers", () => {
     expect(statedAge(undefined, "a 45 year old pilot")).toBe(45);
     expect(statedAge("Age: around 30", "")).toBe(30);
     expect(statedAge(undefined, "an ageless spirit")).toBeNull();
+    expect(statedAge("0", "")).toBeNull();
+    expect(statedAge("-5", "")).toBeNull();
+    expect(statedAge("0", "a 45 year old pilot")).toBe(45);
+    expect(statedAge(undefined, "0 years old")).toBeNull();
+    expect(statedAge("17", "")).toBe(17);
   });
 
   it("takes labelled lines out of the prose", () => {

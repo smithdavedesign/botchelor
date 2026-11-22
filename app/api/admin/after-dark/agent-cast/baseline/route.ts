@@ -3,7 +3,7 @@ import { isAdmin } from "@/lib/admins";
 import { baselineFromLocal } from "@/lib/adult/media";
 import { loadCharacter } from "@/lib/character";
 import { getDb } from "@/lib/db";
-import { handle, json } from "@/lib/http";
+import { handle, json, readBodyBytes } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -29,7 +29,7 @@ export const POST = handle(async (req: Request) => {
   if (!characterId || !ownerId) return json({ error: "invalid_request", message: "character_id and owner_id are needed." }, 400);
   if (!MIMES.has(mime)) return json({ error: "invalid_request", message: "Send a JPEG, PNG or WebP." }, 415);
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BYTES) return json({ error: "body_too_large" }, 413);
-  const bytes = Buffer.from(await req.arrayBuffer());
+  const bytes = Buffer.from(await readBodyBytes(req, MAX_BYTES));
   if (!bytes.length || bytes.length > MAX_BYTES) return json({ error: "body_too_large" }, 413);
   const db = await getDb();
   if (!(await isAdmin(db, ownerId))) return json({ error: "invalid_request", message: "owner_id must be an admin." }, 400);
@@ -43,4 +43,4 @@ export const POST = handle(async (req: Request) => {
   } catch (e) {
     return json({ error: "not_kept", message: e instanceof Error ? e.message : String(e) }, 422);
   }
-});
+}, { maxBodyBytes: MAX_BYTES });

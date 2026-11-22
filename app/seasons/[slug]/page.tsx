@@ -362,7 +362,7 @@ export default async function SeasonPage({ params, searchParams }: Props) {
                 {nextCast.map((c) => (
                   <li key={c.id}>
                     <Link href={`/characters/${c.id}`} className="season-next-face">
-                      <Avatar seed={c.id} name={c.name} hue={c.hue} house size={56} decorative />
+                      <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={56} decorative />
                       <span>
                         <strong>{c.name}</strong>
                         <span className="muted small">{stayedIds.has(c.id) ? "Back again" : c.archetype}</span>

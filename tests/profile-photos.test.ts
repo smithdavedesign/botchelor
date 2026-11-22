@@ -1,8 +1,10 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET as getPhotos, POST as postPhoto } from "@/app/api/characters/[id]/photos/route";
 import { pinPhoto, profilePhotos, PROFILE_PHOTOS_MAX, sendPhoto, unpinPhoto } from "@/lib/studio/profile-photos";
 import { deletePgPicture } from "@/lib/studio/pg";
 import { HOUSE_CHARACTERS } from "@/lib/house";
-import { startTestDb } from "./helpers";
+import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
 // The PG Studio's uses (2026-10-30): pinned profile photos anyone can see, and a photo sent in their texts.
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -58,6 +60,39 @@ describe("profile photos", () => {
     }
     await picture("one-more");
     expect(await pinPhoto(t.db, OWNER, "one-more")).toMatchObject({ ok: false, error: "full" });
+  });
+
+  it("a private character's photos reach only its owner, whether asked for or sent back after a take-down", async () => {
+    vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
+    const ownerId = randomUUID(); // a signed session names a uuid
+    await character("hidden", ownerId);
+    await t.db.query(`update characters set visibility = 'private' where id = 'hidden'`);
+    await picture("h1", "hidden", "pg", ownerId);
+    expect((await pinPhoto(t.db, ownerId, "h1")).ok).toBe(true);
+    const params = { params: Promise.resolve({ id: "hidden" }) };
+    const look = async (cookie: string) =>
+      (await (await getPhotos(new Request(`${BASE_URL}/api/characters/hidden/photos`, { headers: { cookie } }), params)).json()).photos;
+    // 2026-11-22 audit: taking down a picture of one's own answered with the URL's character's photos, unchecked.
+    const takeDown = async (cookie: string) =>
+      (
+        await (
+          await postPhoto(
+            new Request(`${BASE_URL}/api/characters/hidden/photos`, {
+              method: "POST",
+              headers: { "content-type": "application/json", cookie },
+              body: JSON.stringify({ action: "unpin", picture_id: "not-theirs" }),
+            }),
+            params,
+          )
+        ).json()
+      ).photos;
+    const stranger = signedInCookie(randomUUID());
+    expect(await look(stranger)).toEqual([]);
+    expect(await takeDown(stranger)).toEqual([]);
+    const owner = signedInCookie(ownerId);
+    expect((await look(owner)).map((p: { picture_id: string }) => p.picture_id)).toEqual(["h1"]);
+    expect((await takeDown(owner)).map((p: { picture_id: string }) => p.picture_id)).toEqual(["h1"]);
+    vi.unstubAllEnvs();
   });
 
   it("taken down, or deleted from the Studio, and its copy stops being served", async () => {

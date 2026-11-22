@@ -1076,9 +1076,19 @@ h2 {
   .nav a.nav-ad-link {
     padding: 0.35rem 0.5rem;
   }
+  /* The door's word out of sight, not out of a screen reader's reach (UX audit 2026-11-22: display: none left the
+     link with no name, axe link-name on every phone page): the .sr-only rule. */
   .nav a.nav-ad-link span,
   .moon-badge span {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
   .moon-badge {
     padding: 0.25rem 0.4rem;
@@ -7409,6 +7419,25 @@ main:has(> .admin-wide) {
   align-items: center;
   gap: var(--space-3);
   margin: var(--space-3) 0;
+}
+/* A provider's balance that runs out within a week at its recent pace (/admin/spend, lib/spend-shared.ts isLowBalance). */
+.spend-low {
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1.5px solid var(--bad);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bad) 8%, var(--card));
+  color: var(--bad-text);
+}
+.spend-low p {
+  margin: var(--space-1) 0;
+}
+.spend-low-balance {
+  color: var(--bad-text);
+}
+/* A tag with too few picks to mean much (/admin/tags, lib/tag-demand.ts FEW_PICKS). */
+.board tr.demand-few > * {
+  color: var(--muted);
 }
 .table-tools button {
   font-size: var(--text-sm);

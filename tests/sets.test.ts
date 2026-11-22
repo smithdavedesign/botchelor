@@ -80,6 +80,12 @@ describe("drawn sets", () => {
     expect(drawn).toHaveLength(1);
   });
 
+  it("answers a broken escape in the place's name as not found, not an error", async () => {
+    const res = await GET(new Request(`${BASE_URL}/api/sets/%E0%A4%A`), { params: Promise.resolve({ slug: "%E0%A4%A" }) });
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-set-status")).toBe("none");
+  });
+
   it("draws nothing for a library venue, a place that fails the show's text check, or without keys", async () => {
     const drawn = fakeFal();
     hive(CLEAN);

@@ -100,12 +100,14 @@ export default function Compare() {
   const show = (c: { compare: CompareRow; renders: RenderRow[] }) => setOpen(c);
 
   return (
-    <div className="stack" style={{ display: "grid", gap: "1.25rem" }}>
-      <section className="card" style={{ display: "grid", gap: "0.75rem" }}>
+    // One column that may shrink (minmax(0, 1fr)): a grid item keeps its content's width by default, so a long name
+    // in the select pushed a phone's page 27 px sideways (UX audit 2026-11-22).
+    <div className="stack" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "1.25rem" }}>
+      <section className="card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "0.75rem" }}>
         <h2 style={{ margin: 0 }}>Run a compare</h2>
         <label>
           Character
-          <select value={character} onChange={(e) => setCharacter(e.target.value)}>
+          <select value={character} onChange={(e) => setCharacter(e.target.value)} style={{ maxWidth: "100%" }}>
             {listing.characters.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} {c.live_face ? "· has a MuseTalk face" : "· no MuseTalk face yet"}
@@ -117,7 +119,7 @@ export default function Compare() {
           Their line
           <textarea value={line} onChange={(e) => setLine(e.target.value)} maxLength={240} rows={2} />
         </label>
-        <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gap: "0.35rem" }}>
+        <fieldset style={{ border: 0, padding: 0, margin: 0, minWidth: 0, maxWidth: "100%", display: "grid", gap: "0.35rem" }}>
           <legend>Renderers</legend>
           {listing.renderers.map((r) => (
             <label key={r.id} style={{ display: "flex", gap: "0.5rem", alignItems: "baseline", opacity: r.ready ? 1 : 0.6 }}>
@@ -139,7 +141,7 @@ export default function Compare() {
       </section>
 
       {open && (
-        <section className="card" style={{ display: "grid", gap: "0.75rem" }}>
+        <section className="card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "0.75rem" }}>
           <h2 style={{ margin: 0 }}>
             {open.compare.character_name ?? open.compare.character_id}: “{open.compare.line}” <span className="muted small">{open.compare.audio_seconds ? `${open.compare.audio_seconds} s of voice` : ""}</span>
           </h2>
@@ -186,12 +188,12 @@ export default function Compare() {
         </section>
       )}
 
-      <section className="card" style={{ display: "grid", gap: "0.5rem" }}>
+      <section className="card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "0.5rem" }}>
         <h2 style={{ margin: 0 }}>Your calls</h2>
         <p className="muted small" style={{ margin: 0 }}>Which renderer your own live calls use when the character has a face at it (Ditto needs only their face kit). Auto is the server's setting.</p>
         <label>
           Renderer
-          <select value={mine} onChange={(e) => void chooseMine(e.target.value)}>
+          <select value={mine} onChange={(e) => void chooseMine(e.target.value)} style={{ maxWidth: "100%" }}>
             <option value="auto">Auto (the server's)</option>
             <option value="musetalk">MuseTalk clips (ours)</option>
             <option value="ditto">Ditto clips (ours): the whole head</option>

@@ -1,3 +1,4 @@
+import { ApiError, readBodyText } from "@/lib/http";
 import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
 import { attachStream, sseFrame } from "@/lib/mcp-stream";
 import { visitorKey } from "@/lib/limits";
@@ -30,13 +31,12 @@ const rpcError = (code: number, message: string, status = 200) =>
   new Response(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code, message } }), { status, headers: JSON_HEADERS });
 
 export async function POST(req: Request): Promise<Response> {
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return rpcError(-32600, "request too large", 413);
   let body: unknown;
   try {
-    const text = await req.text();
-    if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return rpcError(-32600, "request too large", 413);
-    body = JSON.parse(text);
+    // Read as it streams in, and no further than MAX_BODY_BYTES (lib/http.ts readBodyText).
+    body = JSON.parse(await readBodyText(req, MAX_BODY_BYTES));
   } catch (err) {
+    if (err instanceof ApiError && err.status === 413) return rpcError(-32600, "request too large", 413);
     // 2.4.5 (run 0610: "a bare parse error, and I couldn't tell why"): say what the parser hit, and what's expected.
     const why = err instanceof Error ? err.message.slice(0, 160) : "not JSON";
     return rpcError(-32700, `parse error: the request body isn't valid JSON (${why}). Send one JSON-RPC object, e.g. {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_status","arguments":{}}}; strings inside it (a turn's output too) must be JSON-escaped.`);

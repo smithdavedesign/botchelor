@@ -15,6 +15,7 @@
  */
 import { track } from "./analytics";
 import type { Db } from "./db";
+import { ApiError, CROSS_SITE_REFUSED, crossSiteBrowserRequest, json, MAX_BODY_BYTES, readBodyText } from "./http";
 
 export type CrisisLine = { region: string; how: string; href: string };
 export type CrisisResources = {
@@ -138,15 +139,22 @@ export function crisisAware<C extends unknown[]>(
   handler: (req: Request, ...ctx: C) => Promise<Response>,
 ): (req: Request, ...ctx: C) => Promise<Response> {
   return async (req: Request, ...ctx: C) => {
+    // Another site's request is refused before its words are read, as handle() would refuse it (lib/http.ts).
+    if (crossSiteBrowserRequest(req)) return json(CROSS_SITE_REFUSED, 403);
     let resources: CrisisResources | null = null;
     try {
-      const body = /^application\/json\b/i.test(req.headers.get("content-type") ?? "") ? ((await req.clone().json()) as unknown) : null;
+      // The copy is read only as far as the handler's own limit (readJson's MAX_BODY_BYTES): past it, both are refused.
+      const body = /^application\/json\b/i.test(req.headers.get("content-type") ?? "") ? (JSON.parse(await readBodyText(req.clone(), MAX_BODY_BYTES)) as unknown) : null;
       if (body && typeof body === "object" && !Array.isArray(body)) {
         const b = body as Record<string, unknown>;
         const texts = words(b).filter((w): w is string => typeof w === "string");
         if (texts.length) resources = crisisCheck(typeof surface === "function" ? surface(b) : surface, ...texts);
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 413) {
+        void req.body?.cancel().catch(() => {}); // the handler never reads it: let the rest of the body go
+        return json(err.body, 413);
+      }
       /* not JSON: the handler answers that */
     }
     return withCrisis(await handler(req, ...ctx), resources);
