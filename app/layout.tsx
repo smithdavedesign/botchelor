@@ -22,7 +22,7 @@ import Threshold from "./Threshold";
 import { touchOwner } from "@/lib/activity";
 import { APP_NAME, APPLE_TOUCH_ICON, PAPER_DARK, PAPER_LIGHT } from "@/lib/pwa";
 import { placeFromEdge } from "@/lib/place";
-import { AFTER_DARK_DESCRIPTION, SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
+import { AFTER_DARK_DESCRIPTION, SHARE_IMAGE, SITE_DESCRIPTION, SITE_TITLE, siteJsonLd } from "@/lib/seo";
 import { showHome, siteUrl } from "@/lib/site";
 import { trackingConfig } from "@/lib/tracking";
 import { GoogleAnalytics, GoogleTagManager } from "@next/third-parties/google";
@@ -107,8 +107,9 @@ export const metadata: Metadata = {
   ],
   category: "entertainment",
   // No title or description here: Next fills og:title and twitter:title from each page's own (lib/seo.ts pageMetadata
-  // sets all of them on the public pages), so a page that sets neither never shares the home page's.
-  openGraph: { type: "website", siteName: "Botchelor", locale: "en_US" },
+  // sets all of them on the public pages), so a page that sets neither never shares the home page's. The share card is
+  // named, so a page that names none shares the .png the CDN keeps, not app/opengraph-image.tsx (2026-11-22 audit).
+  openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", images: [SHARE_IMAGE] },
   twitter: { card: "summary_large_image" },
   // Search Console / Bing Webmaster ownership meta tags, when their tokens are set (lib/tracking.ts).
   ...(TRACKING.verification ? { verification: TRACKING.verification } : {}),

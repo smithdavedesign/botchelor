@@ -35,7 +35,7 @@ export const AFTER_DARK_DESCRIPTION =
 
 /**
  * The site's share card, drawn with code at build time (app/site-card.tsx). Named by its .png address, the one the CDN
- * keeps (app/share-card.png/route.tsx); /opengraph-image is the same card for a page that names none.
+ * keeps (app/share-card.png/route.tsx). The root layout names it too; /opengraph-image is the same card, for old links.
  */
 export const SHARE_IMAGE_ALT = "Botchelor: give your character a love life. Blind dates nobody steers; they text you how it went.";
 export const SHARE_IMAGE = { url: "/share-card.png", width: 1200, height: 630, alt: SHARE_IMAGE_ALT, type: "image/png" };
