@@ -5,6 +5,7 @@ import { POST as settingsPost } from "@/app/api/admin/after-dark/settings/route"
 import { crossesTaboo } from "@/lib/adult/acts";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { setMediaFetchForTests } from "@/lib/adult/media";
+import { setAdultModelForTests } from "@/lib/adult/mode";
 import { ALONE_QUESTION, setModerationFetchForTests, VENICE_CHAT } from "@/lib/adult/moderation";
 import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
@@ -32,6 +33,7 @@ import { isTileId, tileSpecs } from "@/lib/looks";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
+import { ModelError } from "@/lib/model";
 import { checkAdultText } from "@/lib/safety";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -256,6 +258,7 @@ afterEach(() => {
   setReelFetchForTests(null);
   setReplicateFetchForTests(null);
   setMediaFetchForTests(null);
+  setAdultModelForTests(null);
   setCheckFetchForTests(null);
   setCheckSleepForTests(null);
   setModerationFetchForTests(null);
@@ -411,6 +414,9 @@ describe("a shoot", () => {
     const { cookie, character } = await setup({ admin: true });
     fakeHive();
     const { edits } = fakeVenice();
+    // The text model reads the owner's own words after the shoot (lib/adult/media-tags.ts): it refuses, as OpenRouter
+    // refuses the placeholder key.
+    setAdultModelForTests({ complete: async () => Promise.reject(new ModelError("model returned HTTP 401", 401)) });
     // Only two sections get the owner's own words; the schema must not demand the rest (zod partialRecord, not record).
     const res = await post({ action: "shoot", character_id: character, choices: { wardrobe: "nude", custom: "she looks right into the camera", dialog: "come here", extra: { pose: "leaning forward on her elbows", light: "candlelit" } } }, cookie);
     expect(res.status).toBe(200);
