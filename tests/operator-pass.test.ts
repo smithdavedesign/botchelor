@@ -134,13 +134,47 @@ describe("operator pass webhook (app/api/webhooks/stripe-operator)", () => {
     const event = JSON.stringify({
       id: "evt_pass_1",
       type: "checkout.session.completed",
-      data: { object: { id: "cs_1", mode: "subscription", payment_status: "paid", client_reference_id: "agent:9", subscription: "sub_9" } },
+      data: { object: { id: "cs_1", mode: "subscription", payment_status: "paid", amount_total: 900, currency: "usd", client_reference_id: "agent:9", subscription: "sub_9" } },
     });
     expect((await post(event, await stripeSignature(event))).status).toBe(200);
     expect(await operatorPassActive(db, "agent:9", new Date(), { OPERATOR_PASS_ENABLED: "1" })).toBe(true);
     expect(await agentForSubscription(db, "sub_9")).toBe("agent:9");
     // A duplicate delivery of the same event changes nothing.
     expect((await post(event, await stripeSignature(event))).status).toBe(200);
+  });
+
+  it("grants no pass on a checkout that paid less than the pass's price, another currency, or no amount", async () => {
+    // 2026-11-22 audit: any Payment Link in the account carries an agent's id, so a cheaper one could grant the pass.
+    const { db } = await startTestDb();
+    vi.stubEnv("OPERATOR_PASS_ENABLED", "1");
+    vi.stubEnv("OPERATOR_PASS_WEBHOOK_SECRET", FAKE_WEBHOOK_SECRET);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deliver = async (id: string, paid: Record<string, unknown>) => {
+      const event = JSON.stringify({
+        id,
+        type: "checkout.session.completed",
+        data: { object: { id: `cs_${id}`, mode: "subscription", payment_status: "paid", client_reference_id: "agent:7", subscription: `sub_${id}`, ...paid } },
+      });
+      return (await post(event, await stripeSignature(event))).status;
+    };
+    const outcome = async (id: string) => (await db.query<{ outcome: string }>(`select outcome from operator_pass_events where event_id = $1`, [id])).rows[0]?.outcome;
+    for (const [id, paid] of [
+      ["evt_cheap", { amount_total: 100, currency: "usd" }],
+      ["evt_eur", { amount_total: 900, currency: "eur" }],
+      ["evt_none", {}],
+    ] as const) {
+      expect(await deliver(id, paid)).toBe(200);
+      expect(await outcome(id)).toBe("underpaid");
+    }
+    expect(await operatorPassActive(db, "agent:7", new Date(), { OPERATOR_PASS_ENABLED: "1" })).toBe(false);
+    expect(errors).toHaveBeenCalled();
+    // The price it's sold at is the floor: a dearer one raises it, and paying it grants the pass.
+    vi.stubEnv("OPERATOR_PASS_PRICE_USD", "15");
+    expect(await deliver("evt_old", { amount_total: 900, currency: "usd" })).toBe(200);
+    expect(await outcome("evt_old")).toBe("underpaid");
+    expect(await deliver("evt_full", { amount_total: 1500, currency: "usd" })).toBe(200);
+    expect(await operatorPassActive(db, "agent:7", new Date(), { OPERATOR_PASS_ENABLED: "1" })).toBe(true);
+    vi.restoreAllMocks();
   });
 
   it("keeps an event whose grant failed for Stripe's retry, and grants it then (never marked done first)", async () => {
@@ -152,7 +186,7 @@ describe("operator pass webhook (app/api/webhooks/stripe-operator)", () => {
     const event = JSON.stringify({
       id: "evt_pass_fail",
       type: "checkout.session.completed",
-      data: { object: { id: "cs_f", mode: "subscription", payment_status: "paid", client_reference_id: "agent:8", subscription: "sub_8" } },
+      data: { object: { id: "cs_f", mode: "subscription", payment_status: "paid", amount_total: 900, currency: "usd", client_reference_id: "agent:8", subscription: "sub_8" } },
     });
     const deliver = async () => (await post(event, await stripeSignature(event))).status;
     // The pass can't be written: the grant throws.
@@ -189,7 +223,7 @@ describe("operator pass webhook (app/api/webhooks/stripe-operator)", () => {
     send({
       id: `evt_buy_${n}`,
       type: "checkout.session.completed",
-      data: { object: { id: `cs_${n}`, mode: "subscription", payment_status: "paid", client_reference_id: `agent:${n}`, subscription: `sub_${n}` } },
+      data: { object: { id: `cs_${n}`, mode: "subscription", payment_status: "paid", amount_total: 900, currency: "usd", client_reference_id: `agent:${n}`, subscription: `sub_${n}` } },
     });
 
   it("renews on a paid cycle invoice, to the period it paid for, in the shape the account's API version sends", async () => {

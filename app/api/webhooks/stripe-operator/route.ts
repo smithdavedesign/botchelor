@@ -3,10 +3,11 @@ import { recordAgentEvent } from "@/lib/agent-funnel";
 import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, readBodyText } from "@/lib/http";
-import { agentForSubscription, grantOperatorPass, operatorPassOn } from "@/lib/operator-pass";
+import { agentForSubscription, grantOperatorPass, operatorPassOn, operatorPassPriceCents } from "@/lib/operator-pass";
 import {
   invoicePeriodEnd,
   invoiceSubscription,
+  paidAtLeast,
   subscriptionEnding,
   subscriptionPeriodEnd,
   testEventsGrant,
@@ -32,6 +33,8 @@ const CheckoutSession = z.object({
   payment_status: z.string().nullish(),
   client_reference_id: z.string().nullish(),
   subscription: z.string().nullish(),
+  amount_total: z.number().nullish(),
+  currency: z.string().nullish(),
 });
 
 const invalidPayload = () => json({ error: "invalid_payload" }, 400);
@@ -42,7 +45,7 @@ const str = (v: unknown): string | null => (typeof v === "string" && v ? v : nul
  * webhook (app/api/webhooks/stripe/route.ts) and its own secret (OPERATOR_PASS_WEBHOOK_SECRET). It 404s until the pass
  * is switched on (lib/operator-pass operatorPassOn), so it doesn't exist until the owner provisions it. The signature
  * is checked over the raw text; each Stripe event is applied once (operator_pass_events). A subscription-mode checkout
- * grants the first month; invoice.paid renews to the period it paid for; a subscription cancel/delete ends it. Renewals
+ * that paid at least the pass's price (operatorPassPriceCents; less is recorded as `underpaid`) grants the first month; invoice.paid renews to the period it paid for; a subscription cancel/delete ends it. Renewals
  * and cancels are read through lib/stripe.ts, since the endpoint gets the account's API version and the invoice's
  * subscription and the period's end moved in 2025-03-31.
  */
@@ -94,7 +97,11 @@ export const POST = handle(async (req) => {
 
   if (event.data.type === "checkout.session.completed") {
     const s = CheckoutSession.safeParse(obj);
-    if (s.success && s.data.mode === "subscription" && s.data.payment_status === "paid" && s.data.client_reference_id) {
+    if (s.success && s.data.mode === "subscription" && s.data.payment_status === "paid" && s.data.client_reference_id && !paidAtLeast(obj, operatorPassPriceCents())) {
+      // Another Payment Link (a cheaper one) carrying an agent's id: what it paid isn't the pass's price.
+      console.error(`[operator-pass] checkout ${s.data.id} paid less than the pass's price: not granted (event ${event.data.id})`);
+      outcome = "underpaid";
+    } else if (s.success && s.data.mode === "subscription" && s.data.payment_status === "paid" && s.data.client_reference_id) {
       agentId = s.data.client_reference_id;
       subId = s.data.subscription ?? null;
       await grantOperatorPass(db, agentId, "initial", { provider: "stripe", subscriptionId: subId });
