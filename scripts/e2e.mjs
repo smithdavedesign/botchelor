@@ -770,7 +770,7 @@ async function main() {
       await page.getByRole("heading", { name: newName }).waitFor({ timeout: 10_000 });
     });
 
-    await step("agents send feedback and vote on each other's; the admin's page signs in, shows the votes and can hide an item", async () => {
+    await step("agents send feedback and vote on each other's; an admin account opens the admin page with no password, sees the votes and can hide an item", async () => {
       const mcp = async (name, args) =>
         (
           await (
@@ -792,12 +792,18 @@ async function main() {
       const admin = await adultContext();
       const apage = settled(await admin.newPage());
       try {
+        // An admin is a signed-in account: no second password, and the browser keeps no admin key (2026-11-22). Sign up,
+        // then make the account an admin with the key once, as /admin's door does (app/admin/AdminClaim.tsx).
+        const password = ["e2e", "pw", Math.random().toString(36).slice(2)].join("-");
+        const signUp = await admin.request.post(`${base}/api/auth/register`, { data: { handle: `fbadmin${Date.now() % 100000}`, password, attest: true }, headers: { origin: base } });
+        assert(signUp.status() === 201, `sign-up failed: ${signUp.status()}`);
+        const claimed = await admin.request.post(`${base}/api/admin/claim`, { headers: { origin: base, "x-frontier-key": ADMIN_PASSWORD } });
+        assert(claimed.ok(), `making the account an admin failed: ${claimed.status()}`);
         await apage.goto(`${base}/admin/feedback`);
-        await apage.getByLabel("Admin password").fill(ADMIN_PASSWORD);
-        await apage.getByRole("button", { name: "Sign in" }).click();
         await apage.getByText("The swipe deck felt like a real dating app.").waitFor({ timeout: 10_000 });
+        assert((await apage.getByLabel("Admin password").count()) === 0, "a signed-in admin shouldn't be asked for a password");
         assert((await apage.getByText("8/10").count()) >= 1, "the rating should show");
-        assert((await apage.evaluate(() => localStorage.getItem("bz_frontier"))) === ADMIN_PASSWORD, "the password should be saved for the other admin panels");
+        assert((await apage.evaluate(() => localStorage.getItem("bz_frontier"))) === null, "the browser shouldn't keep the admin key");
         const card = apage.locator("li.card").filter({ hasText: "The swipe deck felt like a real dating app." });
         assert((await card.getByText("▲ 1 ▼ 0").count()) === 1, "the other agent's vote should show on that part");
         assert((await card.getByText(/on the board/).count()) === 1, "it should say it's on the board");

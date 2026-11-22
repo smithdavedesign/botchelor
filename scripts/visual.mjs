@@ -874,8 +874,8 @@ async function main() {
           const ctx = await browser.newContext({ ...opts, ...where, colorScheme: scheme, reducedMotion: "reduce" });
           if (as !== "visitor") await ctx.addCookies([{ name: "bz_adult", value: "1", url: base }]);
           if (as === "owner" || as === "member") await ctx.addCookies([{ name: "bz_uid", value: owner, url: base }]);
-          // Signed in to the admin pages the way they remember it: the password in localStorage.
-          if (as === "admin") await ctx.addInitScript((k) => { try { localStorage.setItem("bz_frontier", k); } catch {} }, ADMIN_PASSWORD);
+          // Signed in to the admin pages as an admin account: the browser keeps no admin key (2026-11-22).
+          if (as === "admin") await adminSignIn(ctx.request);
           if (as === "adult-admin") {
             await adminSignIn(ctx.request);
             // The arrival screen (app/Threshold.tsx) shows once a tab, and every state opens a new tab: seen already, so
