@@ -456,12 +456,27 @@ export async function unreadCount(db: Db, userId: string): Promise<number> {
   return rows[0]?.n ?? 0;
 }
 
-/** Clears (deletes) some, or all, of a person's notifications. Only ever their own. Returns how many went. */
-export async function clearNotifications(db: Db, userId: string, ids: string[] | "all"): Promise<number> {
-  const { rows } =
-    ids === "all"
-      ? await db.query(`delete from notifications where user_id = $1 returning id`, [userId])
-      : await db.query(`delete from notifications where user_id = $1 and id = any($2) returning id`, [userId, ids]);
+/**
+ * Clears (deletes) some, or all, of a person's notifications. Only ever their own. Returns how many went.
+ * "all" can keep to some `kinds` (the inbox's type filter) and to those that arrived by `before`: the inbox clears
+ * after a few seconds' Undo, and a text that lands in those seconds was never on the screen that was cleared.
+ */
+export async function clearNotifications(db: Db, userId: string, ids: string[] | "all", opts: { kinds?: readonly string[]; before?: Date } = {}): Promise<number> {
+  if (ids !== "all") {
+    const { rows } = await db.query(`delete from notifications where user_id = $1 and id = any($2) returning id`, [userId, ids]);
+    return rows.length;
+  }
+  const params: unknown[] = [userId];
+  let where = "user_id = $1";
+  if (opts.kinds) {
+    params.push([...opts.kinds]);
+    where += ` and kind = any($${params.length})`;
+  }
+  if (opts.before) {
+    params.push(opts.before.toISOString());
+    where += ` and created_at <= $${params.length}::timestamptz`;
+  }
+  const { rows } = await db.query(`delete from notifications where ${where} returning id`, params);
   return rows.length;
 }
 

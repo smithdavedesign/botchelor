@@ -239,6 +239,30 @@ describe("notifications", () => {
     expect((await del(me, {})).status).toBe(422);
   });
 
+  it("the inbox's Clear all keeps to its filtered type and to what had arrived when it was pressed", async () => {
+    const me = newUserCookie();
+    const uid = userIdOf(me);
+    await notify(t.db, uid, { kind: "texted", title: "💬 Old text" });
+    await notify(t.db, uid, { kind: "matched", title: "💘 A match" });
+    const del = (body: unknown) =>
+      clearNotificationsRoute(new Request(`${BASE_URL}/api/notifications`, { method: "DELETE", headers: { cookie: me, "content-type": "application/json" }, body: JSON.stringify(body) }));
+
+    // Pressed on the Texts filter: only texts go.
+    const pressed = new Date(Date.now() + 1000).toISOString();
+    expect((await (await del({ all: true, type: "texts", before: pressed })).json()).cleared).toBe(1);
+    expect((await listNotifications(t.db, uid)).map((n) => n.title)).toEqual(["💘 A match"]);
+
+    // A text that lands during the Undo seconds wasn't on the screen that was cleared: it stays.
+    await t.db.query(`update notifications set created_at = now() - interval '1 minute' where user_id = $1`, [uid]);
+    const cut = new Date(Date.now() - 30_000).toISOString();
+    await notify(t.db, uid, { kind: "texted", title: "💬 Just now" });
+    expect((await (await del({ all: true, before: cut })).json()).cleared).toBe(1);
+    expect((await listNotifications(t.db, uid)).map((n) => n.title)).toEqual(["💬 Just now"]);
+
+    // A time that isn't one is refused.
+    expect((await del({ all: true, before: "yesterday" })).status).toBe(422);
+  });
+
   it("push goes to a subscribed browser when keys are set; a gone subscription is dropped; only real push services", async () => {
     const me = userIdOf(newUserCookie());
     const endpoint = "https://fcm.googleapis.com/fcm/send/abc123";

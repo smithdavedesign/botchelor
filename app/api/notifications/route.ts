@@ -27,11 +27,26 @@ export const POST = handle(async (req: Request) => {
   return json({ marked }, 200, sess);
 });
 
-/** Clears some, or all, of your notifications: { "all": true } or { "ids": [...] }. */
+const ClearInput = z.union([
+  z.object({ all: z.literal(true), type: z.string().max(32).optional(), before: z.iso.datetime({ offset: true }).optional() }),
+  z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(100) }),
+]);
+
+/**
+ * Clears some, or all, of your notifications: { "ids": [...] }, or { "all": true } with an optional `type` (one type's,
+ * as the inbox's filter shows it) and `before` (only those that had arrived by then: the inbox's Clear all waits out
+ * an Undo first, and must not take a notification that came in meanwhile).
+ */
 export const DELETE = handle(async (req: Request) => {
   const sess = session(req);
-  const input = parseBody(MarkInput, await readJson(req), "invalid_request");
+  const input = parseBody(ClearInput, await readJson(req), "invalid_request");
   const db = await getDb();
-  const cleared = await clearNotifications(db, sess.userId, "all" in input ? "all" : input.ids);
+  const cleared =
+    "all" in input
+      ? await clearNotifications(db, sess.userId, "all", {
+          kinds: isNotificationType(input.type) ? kindsOfType(input.type) : undefined,
+          before: input.before ? new Date(input.before) : undefined,
+        })
+      : await clearNotifications(db, sess.userId, input.ids);
   return json({ cleared, unread: await unreadCount(db, sess.userId) }, 200, sess);
 });
