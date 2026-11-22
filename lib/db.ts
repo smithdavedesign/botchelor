@@ -4783,6 +4783,20 @@ create table if not exists social_suggestion_log (
 create index if not exists social_suggestion_log_character_idx on social_suggestion_log (character_id, shown_at desc);
 create index if not exists social_suggestion_log_viewer_idx on social_suggestion_log (viewer);
 create index if not exists social_suggestion_log_shown_idx on social_suggestion_log (shown_at);
+
+-- A character's own world in words (lib/world-words.ts, 2026-11-22): the words of its work, hobbies and habits that a
+-- companion reply rests after leaning on them, metaphors included ("tick", "mainspring" for a clockmaker). Written once
+-- per version of the sheet by a cheap model; sheet_key is the hash of the sheet it was written from, so an edited sheet
+-- is written again. source 'none': the model's reply had no usable words (not asked again until the sheet changes).
+-- cost: what that one call cost, in USD. Keyed to the character and cascading with it; no person column.
+create table if not exists character_world_words (
+  character_id text primary key references characters (id) on delete cascade,
+  words text[] not null default '{}',
+  sheet_key text not null,
+  source text not null check (source in ('model', 'none')),
+  cost numeric,
+  made_at timestamptz not null default now()
+);
 `;
 
 /**

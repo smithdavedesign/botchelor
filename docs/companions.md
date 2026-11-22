@@ -60,6 +60,16 @@ Never someone else's character or an outside agent's: their makers never agreed 
   person or the scene brought it up), the next reply is told to rest it, in plain words and its own voice, and that
   one call's sheet goes without its sample lines. On the threads so far that's about a third of replies, most of them
   from the few characters who lean hardest on their world.
+- **Its world in words (2026-11-22, `lib/world-words.ts`).** Live, that still wasn't enough: a resting clockmaker
+  reached for "tick" and "mainspring", words its sheet never says. So a cheap model (the companions' DeepSeek on
+  OpenRouter, a fraction of a cent a sheet) lists each character's world once per version of its sheet (12-20 plain
+  words: its work's things, tools, jargon and images), kept in `character_world_words` with the sheet's hash. The
+  hourly lobby job writes them for new and edited sheets; `POST /api/jobs/world-words?max=&cap=` (the jobs' token)
+  wrote the cast's once. The rest (`worldRest`, the same answer for the prompt and the redraw) counts them with the
+  sheet's words, and its line names that world ("words like clockwork, pendulum, …: none of them this time"). A texted
+  reply that leans on them again while resting is drawn once more, told which words (`speak`, `world_redraw` in the
+  `companion_reply` log line); never on a call, in a scene or in story mode, and it fails open: no listed words, a
+  failed redraw or no time left keeps the first draw.
 - **A message** (`sendMessage`): the self-harm check (`lineInCrisis`, surface `companion`: the list, then a model
   check on the maybes that fails closed) → the PG check (`checkShowText`, a gentle redirect, nothing kept) → the AI
   notice when due → the reply, split into 1-3 messages, each checked against the PG line and the crisis list; drawn

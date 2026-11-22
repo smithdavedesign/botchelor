@@ -219,7 +219,7 @@ export function leanedOn(lines: readonly string[], theirs: readonly string[]): s
  * Words that turned up in the worlds of many sheets (a sample of 348, 2026-11-22) and say nothing about any one of them:
  * never a world word, even when a sheet repeats them.
  */
-const NOT_A_WORLD: ReadonlySet<string> = new Set(
+export const NOT_A_WORLD: ReadonlySet<string> = new Set(
   (
     "single quiet find perfect perfectly moment sorry calm count tiny name table story stories read reading listen sound " +
     "question please interest interesting secret talk retired former amateur freelance owner professional"
@@ -279,6 +279,42 @@ export function reachedFor(reply: string, world: ReadonlySet<string>, topic: rea
     if (world.has(s) && !theirs.has(s) && !out.has(s)) out.set(s, w);
   }
   return [...out.values()];
+}
+
+/**
+ * Its whole world: what its sheet keeps coming back to (worldWords) and the words a model listed for it once
+ * (lib/world-words.ts: "tick", "mainspring", what the sheet doesn't say), never its own name or a word many sheets share.
+ */
+export function worldOf(c: Pick<Character, "name" | "bio" | "extras">, listed: readonly string[] = []): Set<string> {
+  const world = worldWords(c);
+  const named = new Set(contentWords(c.name ?? "", 4).map(stem));
+  for (const w of listed) {
+    const s = stem(String(w).toLowerCase());
+    if (s.length >= 3 && !named.has(s) && !NOT_A_WORLD.has(s)) world.add(s);
+  }
+  return world;
+}
+
+/** How many of the listed words the rest line names, as that world (the rest is still checked). */
+export const WORLD_NAMED = 10;
+
+/**
+ * Whether this reply rests its world, worked out once for the prompt and the redraw alike (lib/companion.ts speak): its
+ * world, the words of it its last reply here reached for (none: no rest), and the topic (what they said lately, and the
+ * scene's place), whose words never count.
+ */
+export function worldRest(args: {
+  character: Pick<Character, "name" | "bio" | "extras">;
+  turns: readonly PromptTurn[];
+  deep?: boolean;
+  scene?: PromptScene | null;
+  worldWords?: readonly string[];
+}): { world: Set<string>; reached: string[]; topic: string[] } {
+  const lately = repliesOf(args.turns.slice(-(args.deep ? DEEP_TURNS : RECENT_TURNS)));
+  const world = worldOf(args.character, args.worldWords);
+  const topic = [...lately.theirs, args.scene?.prompt ?? ""];
+  const reached = lately.replies.length ? reachedFor(lately.replies[lately.replies.length - 1], world, topic) : [];
+  return { world, reached, topic };
 }
 
 /** The character's replies in a thread's turns (its bubbles in a row are one reply, with what it did), and the person's words. */
@@ -402,6 +438,8 @@ export function companionMessages(args: {
    * fact about their life.
    */
   persona?: ScenePersona | null;
+  /** The words of its own world a model listed for it once (lib/world-words.ts), if any: what a rest leaves out too. */
+  worldWords?: readonly string[];
 }): ChatMessage[] {
   const { character: c, length, now = new Date(), scene = null } = args;
   const persona = args.persona?.name ? args.persona : null;
@@ -420,8 +458,10 @@ export function companionMessages(args: {
   const lately = repliesOf(args.turns.slice(-(args.deep ? DEEP_TURNS : RECENT_TURNS)));
   const leaned = leanedOn(lately.replies, lately.theirs);
   // Its last reply reached for its own world (its work, its hobby, its sayings): this one rests it, and its sample
-  // lines (all in that world, often) stay out of this call's sheet.
-  const reached = lately.replies.length ? reachedFor(lately.replies[lately.replies.length - 1], worldWords(c), [...lately.theirs, scene?.prompt ?? ""]) : [];
+  // lines (all in that world, often) stay out of this call's sheet. With the words a model listed for its world, the
+  // rest line names that world, so "clock" rests the ticking and the pendulums too.
+  const { reached } = worldRest({ character: c, turns: args.turns, deep: args.deep, scene, worldWords: args.worldWords });
+  const listed = (args.worldWords ?? []).slice(0, WORLD_NAMED);
   const sheet = reached.length ? { ...self, voice_examples: undefined } : self;
   const day = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
   const setting = scene
@@ -555,6 +595,7 @@ export function companionMessages(args: {
       ? [
           "",
           `Your last reply reached for your own world (${reached.slice(0, LEANED_MAX).map((w) => `"${w}"`).join(", ")}). This one rests it: no images, comparisons or jokes from your work, your hobbies or your sayings. Answer what they said in plain words, still in your own voice; if they ask about your work or your week, just tell them.`,
+          ...(listed.length ? [`That world, for you, is words like ${listed.join(", ")}: none of them this time, not even in passing.`] : []),
         ]
       : []),
     ...(args.passedOn?.length
