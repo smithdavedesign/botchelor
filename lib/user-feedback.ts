@@ -76,8 +76,6 @@ export type PeopleFilter = {
   includeOurs: boolean;
 };
 
-export const ANY_TIME: PeopleFilter = { from: null, to: null, category: null, status: null, minRating: null, maxRating: null, includeOurs: false };
-
 // One static WHERE for every query below: a null parameter switches its condition off.
 const FILTER_WHERE = `($1::timestamptz is null or created_at >= $1::timestamptz)
   and ($2::timestamptz is null or created_at < $2::timestamptz)

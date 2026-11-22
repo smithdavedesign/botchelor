@@ -20,6 +20,7 @@
  * No imports but types, so the plain-JS backfill loads it as it is.
  */
 import type { NameKind, OcNameStyle } from "../oc-name-pools";
+import { escapeRegExp } from "../text";
 
 /** How many of the show's people may share a first name. */
 export const FIRST_NAME_MAX = 3;
@@ -107,11 +108,10 @@ export function personNameKind(relation: string | null | undefined, pronouns: st
   return null;
 }
 
-const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** A text with one first name changed for another, whole words only ("Eleanor's" too, never "Eleanora"). */
 function renamedIn(text: string | null | undefined, from: string, to: string): string | null {
   if (!text) return text ?? null;
-  return text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(from)}(?![\\p{L}\\p{N}])`, "gu"), to);
+  return text.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(from)}(?![\\p{L}\\p{N}])`, "gu"), to);
 }
 
 export type PersonName = { ok: true; name: string; note: string | null; why: string[] } | { ok: false; reason: string };
