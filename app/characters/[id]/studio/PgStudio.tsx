@@ -169,12 +169,12 @@ export default function PgStudio({ initial }: { initial: PgState }) {
     setNote({ text: `📷 Sent to ${name}, in their texts.` });
   }
 
+  // Asked first, in the tile (Pictures below): a picture paid for in tokens is gone for good once deleted.
   async function remove(id: string) {
     const res = await requestJson(`/api/characters/${c.id}/studio`, { action: "delete", picture_id: id }).catch(() => null);
-    if (res?.ok) {
-      setState((s) => ({ ...s, pictures: s.pictures.filter((p) => p.id !== id) }));
-      setFresh((f) => f.filter((p) => p.id !== id));
-    }
+    if (!res?.ok) return setNote({ text: res ? res.message : "That didn't reach the server.", error: true });
+    setState((s) => ({ ...s, pictures: s.pictures.filter((p) => p.id !== id) }));
+    setFresh((f) => f.filter((p) => p.id !== id));
   }
 
   const price = state.free ? (state.admin ? "free for admins" : "free: their first shoot") : `${state.price} token${state.price === 1 ? "" : "s"}`;
@@ -362,6 +362,9 @@ function Pictures({
   /** A private character: only its owner sees it, so a picture of it isn't offered for the showcase. */
   hidden?: boolean;
 }) {
+  // The picture whose Delete was pressed: it asks in place before anything goes (2026-11-22 audit: one press deleted a
+  // paid picture, with no way back).
+  const [asking, setAsking] = useState<string | null>(null);
   return (
     <ul className="pg-pictures">
       {items.map((p) => {
@@ -448,9 +451,29 @@ function Pictures({
                     </div>
                   </div>
                   <p className="studio-tile-delete">
-                    <button type="button" className="button-ghost small danger" onClick={() => onDelete(p.id)}>
-                      Delete
-                    </button>
+                    {asking === p.id ? (
+                      <span className="pg-picture-confirm" role="group" aria-label="Delete this picture for good?">
+                        <span className="small">Delete for good?{p.pinned ? " It comes out of their Photos too." : ""}</span>
+                        <button
+                          type="button"
+                          className="button-ghost small danger"
+                          onClick={() => {
+                            setAsking(null);
+                            onDelete(p.id);
+                          }}
+                          data-track="studio-delete"
+                        >
+                          Yes, delete
+                        </button>
+                        <button type="button" className="button-ghost small" onClick={() => setAsking(null)}>
+                          Keep
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" className="button-ghost small danger" onClick={() => setAsking(p.id)}>
+                        Delete
+                      </button>
+                    )}
                   </p>
                 </div>
               </details>
