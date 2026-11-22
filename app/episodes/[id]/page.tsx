@@ -77,6 +77,7 @@ import { pushKeys } from "@/lib/push";
 import { withoutLeadName } from "./lead-name";
 import UpNext from "./UpNext";
 import { upNextFor, type UpNextEpisode } from "@/lib/up-next";
+import { filmedAsLine, type FilmedAs } from "@/lib/filmed-as";
 import { escapeRegExp } from "@/lib/text";
 import { knownEpisodeOnce } from "@/app/known-once";
 import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
@@ -162,7 +163,7 @@ function MakeYourOwn() {
   );
 }
 
-type HeroCharacter = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; agent?: boolean; private?: boolean };
+type HeroCharacter = { id: string; name: string; hue: number | null; house: boolean; portrait: string | null; agent?: boolean; private?: boolean; filmed_as?: FilmedAs };
 
 /**
  * The top of an episode (David, 2026-10-21: "expand the setting image so it's like a hero background… entice people
@@ -226,6 +227,14 @@ function EpisodeHero({
         </h1>
         {title && <p className="episode-hero-title">“{title}”</p>}
         {setting && <p className="episode-hero-setting">{setting}</p>}
+        {/* Renamed since (lib/filmed-as.ts): the lines below keep the name and pronouns they were filmed with. */}
+        {[a, b].map((c) =>
+          c.filmed_as ? (
+            <p key={c.id} className="episode-hero-filmed" data-filmed-as={c.id}>
+              {filmedAsLine(c.name, c.filmed_as)}
+            </p>
+          ) : null,
+        )}
         {children}
         <ul className="episode-hero-chips" aria-label="About this episode">
           {chips.filter(Boolean).map((c) => (
