@@ -10,15 +10,16 @@ import { sendFunnel } from "@/app/funnel";
  * Buy, for a visitor who isn't signed in (2026-10-31 UX audit, A9): the price is still the button, and it asks them to
  * sign in, in a sheet, instead of the card reading like an error. The click counts as intent to pay, as BuyButton's does.
  * Signing up keeps everything they already have (the account adopts their anonymous id), and both ways back land on
- * the shop again.
+ * the shop again. `quiet`: the outlined button, as BuyButton's.
  */
-export default function SignInToBuy({ sku, label, google }: { sku: string; label: string; google: boolean }) {
+export default function SignInToBuy({ sku, label, google, quiet = false }: { sku: string; label: string; google: boolean; quiet?: boolean }) {
   const [open, setOpen] = useState(false);
   const next = encodeURIComponent("/shop");
   return (
     <>
       <button
         type="button"
+        className={quiet ? "secondary" : undefined}
         onClick={() => {
           sendFunnel("checkout");
           trackConversion("begin_checkout", { sku });

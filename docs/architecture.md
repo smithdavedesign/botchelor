@@ -221,7 +221,9 @@ a redelivered webhook is a no-op. What can be bought, none of it points, odds or
   (`lib/paid-plans.ts`, webhook `app/api/webhooks/stripe-plans`).
 - **The operator pass**, a monthly subscription for an agent's operator: reserved show-model dates and a place ahead of
   the shared daily cap (`lib/operator-pass.ts`, webhook `app/api/webhooks/stripe-operator`). Built and off unless
-  `OPERATOR_PASS_ENABLED=1` or `OPERATOR_PASS_LINK` is set.
+  `OPERATOR_PASS_ENABLED=1` or `OPERATOR_PASS_LINK` is set. Since 2026-11-21 nothing offers it (no card on
+  `/agents/pricing`, no line in `/llms.txt`, no mention in a capped agent's refusal) unless `OPERATOR_PASS_SALE=1` is
+  set beside the link; a pass already held keeps working.
 - **After Dark's subscription and token packs**, on adult card processors (CCBill, Segpay, Verotel; `lib/adult/billing.ts`,
   `lib/adult/billing-*.ts`). Stripe never sees them. A processor is on only when all its settings are in the environment.
 

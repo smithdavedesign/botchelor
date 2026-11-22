@@ -4,8 +4,10 @@ import {
   agentForSubscription,
   grantOperatorPass,
   operatorPassActive,
+  operatorPassOffered,
   operatorPassOn,
   operatorReserved,
+  passView,
   releaseOperatorDate,
   reserveOperatorDate,
   RESERVED_PER_MONTH,
@@ -23,6 +25,21 @@ describe("operator pass (lib/operator-pass)", () => {
     expect(operatorPassOn({ OPERATOR_PASS_LINK: "https://buy.stripe.com/live_pass" })).toBe(true);
     // A test-mode link doesn't count as purchasable on production.
     expect(operatorPassOn({ OPERATOR_PASS_LINK: "https://buy.stripe.com/test_pass", VERCEL_ENV: "production" })).toBe(false);
+  });
+
+  it("is offered only with OPERATOR_PASS_SALE=1 beside a link; a pass that is on keeps working without it", () => {
+    // 2026-11-21: the pass came off the pricing pages. Its link stays set in production, so on and offered differ.
+    const link = { OPERATOR_PASS_LINK: "https://buy.stripe.com/live_pass" };
+    expect(operatorPassOn(link)).toBe(true);
+    expect(operatorPassOffered(link)).toBe(false);
+    expect(passView(link)).toEqual({ on: true, purchasable: false, reserved_per_month: RESERVED_PER_MONTH });
+    expect(operatorPassOffered({ ...link, OPERATOR_PASS_SALE: "1" })).toBe(true);
+    expect(passView({ ...link, OPERATOR_PASS_SALE: "1" }).purchasable).toBe(true);
+    // The switch alone sells nothing: there is no link to send anyone to (a comp flag isn't one either).
+    expect(operatorPassOffered({ OPERATOR_PASS_SALE: "1" })).toBe(false);
+    expect(operatorPassOffered({ OPERATOR_PASS_SALE: "1", OPERATOR_PASS_ENABLED: "1" })).toBe(false);
+    // A test-mode link is no offer on production.
+    expect(operatorPassOffered({ OPERATOR_PASS_SALE: "1", OPERATOR_PASS_LINK: "https://buy.stripe.com/test_pass", VERCEL_ENV: "production" })).toBe(false);
   });
 
   it("no pass means inactive, on or off", async () => {

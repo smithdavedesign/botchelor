@@ -9,17 +9,29 @@ _First written 2026-10-22; rewritten 2026-11-14 to match the catalog (`lib/catal
 | What | Price | Where it's set | Sold where | Code |
 |---|---|---|---|---|
 | `pack_5`, "5 more dates" | $4 once | Stripe Payment Link `STRIPE_PAYMENT_LINK` (or `STRIPE_LINK_PACK_5`), label `STRIPE_PRICE_LABEL` | `/shop`, the out-of-dates wall | `lib/catalog.ts PACK_5` |
-| `pack_15`, "15 more dates" | $10 once | Stripe Payment Link `STRIPE_LINK_PACK_15`, label `STRIPE_PRICE_LABEL_PACK_15` | `/shop` ("Best value"), the out-of-dates wall; hidden until the link is set | `lib/catalog.ts PACK_15` |
-| Companion Plan | $9.99 a month | Stripe Payment Link `COMPANION_PLAN_LINK`, label `COMPANION_PLAN_PRICE` | `/companion/plan`, a tile on `/shop` while companions are open | `lib/paid-plans.ts` |
-| Operator pass (agents) | $9 a month (`OPERATOR_PASS_PRICE_USD`) | Stripe Payment Link `OPERATOR_PASS_LINK` | `/agents/pricing`, the budget-refusal reply | `lib/operator-pass.ts` |
+| `pack_15`, "15 more dates" | $10 once | Stripe Payment Link `STRIPE_LINK_PACK_15`, label `STRIPE_PRICE_LABEL_PACK_15` | `/shop` (first, "Best value", the page's loud button), the out-of-dates wall; hidden until the link is set | `lib/catalog.ts PACK_15` |
+| Companion Plan | $9.99 a month | Stripe Payment Link `COMPANION_PLAN_LINK`, label `COMPANION_PLAN_PRICE` | `/companion/plan`; a line under the packs on `/shop` and under the cards on `/pricing` while companions are open | `lib/paid-plans.ts` |
+| Operator pass (agents) | $9 a month (`OPERATOR_PASS_PRICE_USD`) | Stripe Payment Link `OPERATOR_PASS_LINK` | **nowhere since 2026-11-21**: `/agents/pricing`, `/llms.txt` and the budget-refusal reply name it only with `OPERATOR_PASS_SALE=1` beside the link. A pass already held or comped keeps working | `lib/operator-pass.ts` |
 | After Dark subscription and tokens | set per processor | CCBill / Segpay / Verotel, never Stripe | After Dark's host | `lib/adult/billing.ts` |
 | Premium house characters, frames | $2–$8 once | no link (off sale) | shown only to someone who already owns one | `lib/catalog.ts CATALOG` |
 
 Not for sale, and never: points, odds, pairings, endings, badges. Nothing paid or voted touches them; votes and advice
 ride the private-note channel only.
 
+**One obvious upgrade (2026-11-21).** A product review counted seven ways to pay, and in the 30 days before, with our
+own visits left out, nobody had clicked Buy (`/shop`: 24 views by 12 visitors; `/pricing`: 1 view). So each page now
+sells one thing with one loud button:
+
+- `/shop` sells more dates. Its tiles are the packs alone, the bigger one first with the loud button, as on the
+  out-of-dates wall; the other pack's button is outlined (`BuyButton` and `SignInToBuy` take `quiet`).
+- `/pricing` is two cards, Free and More dates (both packs as lines in it, one button to the shop), then "Other
+  options": the Companion Plan and your own key, a line and a plain link each. With no pack on sale and the plan on
+  sale, the plan is the card and the packs are the line.
+- The operator pass is off the pricing pages (David, the same day: agents won't pay; park them as a paying channel).
+  `lib/operator-pass.ts operatorPassOffered` is the one rule: `OPERATOR_PASS_SALE=1` and a link.
+
 **Botchelor Plus** ($4.99 a month: your character goes out every day, texts you first, unlimited speed dates, a frame) is
-**not a product**. It's an intent tile on `/shop` and in the out-of-dates wall with one button, "Tell me when it opens",
+**not a product**. It's a small block under the packs on `/shop` and in the out-of-dates wall with one button, "Tell me when it opens",
 which records a `plus_interest` row (`lib/plus-interest.ts`) and nothing else. The copy says it doesn't exist yet and
 nothing is charged. The gate that reopens building it (docs/ideas.md, the parked table): 10 taps, or the first outside
 purchase of anything. `/admin/spend` shows "Plus interest: N people (M with email)".
@@ -96,7 +108,8 @@ session (`lib/keys.ts`); `TALK_LEVELS` "marathon" needs one.
 | `STRIPE_LINK_PACK_15`, `STRIPE_PRICE_LABEL_PACK_15` | pack_15's link and label; unset = the tile isn't shown |
 | `STRIPE_WEBHOOK_SECRET` | the packs' webhook signing secret |
 | `COMPANION_PLAN_LINK`, `COMPANION_PLAN_PRICE`, `STRIPE_PLANS_WEBHOOK_SECRET`, `STRIPE_PORTAL_LINK` | the Companion Plan |
-| `OPERATOR_PASS_LINK`, `OPERATOR_PASS_PRICE_USD` | the operator pass |
+| `OPERATOR_PASS_LINK`, `OPERATOR_PASS_PRICE_USD` | the operator pass: its link (a pass bought through it is still granted) and its price |
+| `OPERATOR_PASS_SALE=1` | offers the pass again on `/agents/pricing`, in `/llms.txt` and in a capped agent's refusal. Unset since 2026-11-21 |
 | `STRIPE_ALLOW_TEST_LINK=1` | a test-mode proof run against production |
 | `LLM_DIRECTOR_MODEL` | a stronger model for plan and recap; flip it when there's revenue to pay the extra ~1¢ a date |
 

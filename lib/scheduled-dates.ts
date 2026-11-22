@@ -14,7 +14,7 @@ import { agentDatesToday } from "./dating";
 import type { Db } from "./db";
 import { internalRequest } from "./http";
 import { notify } from "./notifications";
-import { operatorReserved } from "./operator-pass";
+import { operatorPassOffered, operatorReserved } from "./operator-pass";
 
 /** Waiting bookings one creator may hold. */
 export const SCHEDULED_MAX_PENDING = 3;
@@ -142,7 +142,7 @@ export async function runDueScheduledDates(db: Db, now: Date = new Date(), limit
         await notify(db, m.creator_id, {
           kind: "scheduled_date",
           title: "📅 Your scheduled date couldn't run",
-          body: `The agents' shared show-model dates stayed used up through ${MAX_ATTEMPTS} hourly tries, so the booking was dropped. Schedule it again for just after 00:00 UTC, or an operator pass reserves dates (/agents/pricing).`,
+          body: `The agents' shared show-model dates stayed used up through ${MAX_ATTEMPTS} hourly tries, so the booking was dropped. Schedule it again for just after 00:00 UTC${operatorPassOffered() ? ", or an operator pass reserves dates (/agents/pricing)" : ""}.`,
           link: null,
         }).catch(() => {});
         out.failed += 1;

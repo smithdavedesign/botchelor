@@ -36,12 +36,36 @@ export default function PricingPage() {
   const facePlan = live && liveFaceMode() === "plan";
   // Narrated writing, stories and the longer memory (lib/writing-style.ts): said only while they're open to members.
   const depth = companions && stylesAudience() === "members";
-  // One loud button on the page (design review 2026-11-16, D-05; the design system's PricingCard): the featured plan
-  // carries the primary and every other plan's goes quiet. The design features the Companion Plan; while it isn't on
-  // sale, the first pack.
-  const featured = companions && planOnSale ? "companion-plan" : packOnSale ? "pack" : null;
-  const cta = (id: string) => (featured === id ? "button" : "button secondary");
-  const card = (id: string) => (featured === id ? "pricing-card pricing-card--featured" : "pricing-card");
+  // The Companion Plan's points, for its card on the days it is the page's upgrade.
+  const planPoints = (
+    <>
+      <li>No daily limit on companion replies (fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month)</li>
+      {/* Depth comes with the plan, never by the line (lib/writing-style.ts): Narrated, stories, the longer memory. */}
+      {depth && (
+        <>
+          <li>Narrated writing: your dates and scenes told as prose, like a novel</li>
+          <li>A longer memory: your companions keep twice as much of your conversation in mind</li>
+          <li>Stories of your dates included</li>
+        </>
+      )}
+      <li>{COMPANION_EXTRAS.voice.included} voice notes a month in their own voices</li>
+      {live && (
+        <li>
+          {extraTerms("minute").included} live call minutes a month{facePlan ? ", with their face moving as they talk" : ""}
+        </li>
+      )}
+      <li>Cancel any time: it runs to the end of the month you paid for</li>
+    </>
+  );
+  // One obvious upgrade (2026-11-21; the product review counted seven ways to pay, and nobody had clicked Buy in a
+  // month). The page is two cards: what's free, and the one thing most people would pay for, more dates, with the one
+  // loud button (design review 2026-11-16, D-05). Everything else on sale is a line under them. /shop sells the dates
+  // and is the page people open (24 views to this page's 1 in the month before), so the upgrade here is the shop's.
+  // While no pack is on sale and the Companion Plan is, the plan is the upgrade and the packs are the line.
+  const packs = onSale();
+  const upgrade: "pack" | "companion-plan" = packOnSale || !planOnSale ? "pack" : "companion-plan";
+  const cta = (id: string) => (upgrade === id ? "button" : "button secondary");
+  const card = (id: string) => `${upgrade === id ? "pricing-card pricing-card--featured" : "pricing-card"} rise-in`;
   return (
     <article className="legal-page company-page">
       <SetHero
@@ -73,18 +97,23 @@ export default function PricingPage() {
           </Link>
         </li>
 
-        {/* One card per pack on sale (lib/catalog.ts onSale): the 5-pack always, the 15-pack once its link is set. */}
-        {onSale().map((pack) => (
-          <li key={pack.sku} className={card(pack.sku === PACK_5.sku ? "pack" : pack.sku)} id={pack.sku === PACK_5.sku ? "pack" : pack.sku}>
-            {/* One place for each date it buys (app/PackVenues.tsx). */}
-            <PackVenues dates={pack.episodes} />
-            <h2>{pack.name}</h2>
+        {upgrade === "pack" ? (
+          // More dates, as one card: every pack on sale (lib/catalog.ts onSale: the 5-pack always, the 15-pack once its
+          // link is set) is a line in it, and the one button goes to the shop, where they're bought.
+          <li className={card("pack")} id="pack">
+            {/* One place for each date the first pack buys (app/PackVenues.tsx). */}
+            <PackVenues dates={PACK_5.episodes} />
+            <h2>More dates</h2>
             <p className="pricing-price">
-              {formatPrice(pack.price_cents)} <span className="muted small">paid once</span>
+              from {formatPrice(packs[0]?.price_cents ?? PACK_5.price_cents)} <span className="muted small">paid once</span>
             </p>
             <ul>
-              <li>{pack.episodes} more dates, used after the free ones</li>
-              <li>They never expire</li>
+              {packs.map((pack) => (
+                <li key={pack.sku} id={pack.sku === PACK_5.sku ? undefined : pack.sku} data-pricing-pack={pack.sku}>
+                  {pack.episodes} more dates for {formatPrice(pack.price_cents)}
+                </li>
+              ))}
+              <li>Used after the free ones, and they never expire</li>
               {depth && (
                 <li>
                   One also buys a date of yours told as a story ({STORY_TOKENS} bought date; included with the {PLANS.companion.name})
@@ -93,66 +122,60 @@ export default function PricingPage() {
               <li>Not a subscription</li>
             </ul>
             {packOnSale ? (
-              <Link className={cta(pack.sku === PACK_5.sku ? "pack" : pack.sku)} href="/shop" data-track="pricing-pack">
+              <Link className={cta("pack")} href="/shop" data-track="pricing-pack">
                 Get more dates
               </Link>
             ) : (
               <p className="muted small">Not on sale yet.</p>
             )}
           </li>
-        ))}
-
-        {companions && (
+        ) : (
           <li className={`${card("companion-plan")} has-plan-face`} id="companion-plan">
             <PlanFace />
             <h2>{PLANS.companion.name}</h2>
             <p className="pricing-price">{planPrice("companion")}</p>
-            <ul>
-              <li>No daily limit on companion replies (fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month)</li>
-              {/* Depth comes with the plan, never by the line (lib/writing-style.ts): Narrated, stories, the longer memory. */}
-              {depth && (
-                <>
-                  <li>Narrated writing: your dates and scenes told as prose, like a novel</li>
-                  <li>A longer memory: your companions keep twice as much of your conversation in mind</li>
-                  <li>Stories of your dates included</li>
-                </>
-              )}
-              <li>{COMPANION_EXTRAS.voice.included} voice notes a month in their own voices</li>
-              {live && (
-                <li>
-                  {extraTerms("minute").included} live call minutes a month{facePlan ? ", with their face moving as they talk" : ""}
-                </li>
-              )}
-              <li>Cancel any time: it runs to the end of the month you paid for</li>
-            </ul>
-            {planOnSale ? (
-              <Link className={cta("companion-plan")} href="/companion/plan" data-track="pricing-companion-plan">
-                See the Companion Plan
-              </Link>
-            ) : (
-              <p className="muted small">Not on sale yet.</p>
-            )}
+            <ul>{planPoints}</ul>
+            <Link className={cta("companion-plan")} href="/companion/plan" data-track="pricing-companion-plan">
+              See the Companion Plan
+            </Link>
           </li>
         )}
-
-        <li className={card("own-key")} id="own-key">
-          <h2>Bring your own key</h2>
-          <p className="pricing-price">
-            $0 <span className="muted small">from us: you pay the provider</span>
-          </p>
-          <ul>
-            <li>Your characters&apos; lines on dates and texts run on your own model account</li>
-            <li>Google Gemini, OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter</li>
-            <li>You pay the provider directly, with the limits you set there</li>
-            <li>
-              A 4-second intro clip of your character is the one extra that needs both: one bought date, plus about $0.20 to Google on your own key (Veo)
-            </li>
-          </ul>
-          <Link className={cta("own-key")} href="/account/keys" data-track="pricing-own-key">
-            Connect a key
-          </Link>
-        </li>
       </ul>
+
+      {/* Everything else with a price, said once each and quietly: none of it is the page's button. */}
+      <section aria-labelledby="also">
+        <h2 id="also">Other options</h2>
+        <ul className="pricing-also">
+          {companions && upgrade === "pack" && (
+            <li id="companion-plan">
+              <strong>{PLANS.companion.name}</strong>, {planPrice("companion")}: no daily limit on companion replies (fair use:{" "}
+              {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month), {COMPANION_EXTRAS.voice.included} voice notes a month in their own voices
+              {live ? `, ${extraTerms("minute").included} live call minutes a month${facePlan ? " with their face moving as they talk" : ""}` : ""}
+              {depth ? ", narrated writing, a longer memory and stories of your dates" : ""}. Cancel any time.{" "}
+              {planOnSale ? (
+                <Link href="/companion/plan" data-track="pricing-companion-plan">
+                  See the Companion Plan
+                </Link>
+              ) : (
+                <span className="muted">Not on sale yet.</span>
+              )}
+            </li>
+          )}
+          {upgrade !== "pack" && (
+            <li id="pack">
+              <strong>More dates</strong>: {packs.map((pack) => `${pack.episodes} for ${formatPrice(pack.price_cents)}`).join(", or ")}, paid once. Not on sale yet.
+            </li>
+          )}
+          <li id="own-key">
+            <strong>Bring your own key</strong>, $0 from us: your characters&apos; lines on dates and texts run on your own model account (Google Gemini,
+            OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter), and you pay the provider directly, with the limits you set there. A 4-second
+            intro clip of your character is the one extra that needs both: one bought date, plus about $0.20 to Google on your own key (Veo).{" "}
+            <Link href="/account/keys" data-track="pricing-own-key">
+              Connect a key
+            </Link>
+          </li>
+        </ul>
+      </section>
 
       <section aria-labelledby="never">
         <h2 id="never">Never for sale</h2>
