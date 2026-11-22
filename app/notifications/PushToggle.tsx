@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { queueEvent } from "@/app/engagement";
 import { installSteps, platformOf } from "@/lib/pwa";
+import { okJson } from "@/lib/ok-json";
 import Icon from "@/app/Icon";
 
 /** The VAPID public key (base64url) as the bytes a browser's PushManager wants. */
@@ -51,6 +52,23 @@ export default function PushToggle({
   const [state, setState] = useState<State>("busy");
   const [error, setError] = useState<string | null>(null);
   const [asked, setAsked] = useState(false);
+  // Where this browser can't notify, email needs an account (app/api/me/email): whether this viewer has one, asked only
+  // then (2026-11-22 audit: signed-in people were told "it needs a free account").
+  const emailInstead = prompt && emailFallback && (state === "unsupported" || state === "denied" || state === "install");
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!emailInstead || signedIn !== null) return;
+    let live = true;
+    fetch("/api/me", { cache: "no-store" })
+      .then(okJson)
+      .then((me) => {
+        if (live) setSignedIn(me?.authenticated === true);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [emailInstead, signedIn]);
 
   useEffect(() => {
     (async () => {
@@ -100,7 +118,7 @@ export default function PushToggle({
         </p>
       );
     }
-    if (emailFallback && (state === "unsupported" || state === "denied" || state === "install")) {
+    if (emailInstead) {
       return (
         <section className="card invite-row push-prompt" aria-label="Email notifications">
           <span className="invite-row-icon" aria-hidden="true">
@@ -108,9 +126,12 @@ export default function PushToggle({
           </span>
           <div className="invite-row-text">
             <strong>{title}</strong>
-            <span className="muted small">This browser can&apos;t notify you, but email can (it needs a free account).</span>
+            <span className="muted small">
+              {signedIn ? "This browser can't notify you, but email can." : "This browser can't notify you, but email can (it needs a free account)."}
+            </span>
           </div>
-          <Link className="button-ghost small" href="/account">
+          {/* Signed in: straight to the email card on their account page; else the account page, to make one. */}
+          <Link className="button-ghost small" href={signedIn ? "/account#email-notifications" : "/account"}>
             Email me
           </Link>
         </section>

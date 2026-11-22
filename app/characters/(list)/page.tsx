@@ -15,8 +15,8 @@ import { forViewer, shared } from "@/lib/shared-cache";
 import { crowdLine, isInsider } from "@/lib/crowd-threshold";
 import { getDb } from "@/lib/db";
 import TalkButton from "@/app/companion/TalkButton";
-import CharactersTabs from "./CharactersTabs";
-import ViewSwitch from "./ViewSwitch";
+import CharactersTabs from "@/app/characters/CharactersTabs";
+import ViewSwitch from "@/app/characters/ViewSwitch";
 import { companionOpen } from "@/lib/companion-shared";
 import { DIRECTORY_QUERY_MAX, DIRECTORY_SEARCH_LIMIT, directoryEntries, listTab, offSeasonHouse, ownCharacterIds, parseDirectoryQuery, privateAmong, searchDirectory, tabCounts, type DirectoryEntry } from "@/lib/directory";
 import { authFromCookieStore } from "@/lib/http";
@@ -35,7 +35,7 @@ import { listCandidates } from "@/lib/season-gen";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
-import MatchmakerForm from "./MatchmakerForm";
+import MatchmakerForm from "@/app/characters/MatchmakerForm";
 import GraphTeaser from "@/app/graph/GraphTeaser";
 import { graphTeaser, type GraphTeaser as Teaser } from "@/app/graph/teaser";
 import { cachedConstellation } from "@/lib/graph-cache";
@@ -44,7 +44,7 @@ import { isCharacterTag } from "@/lib/character-tags-shared";
 import { ART_STYLE_LABEL, ART_STYLES, isArtStyle, type ArtStyle } from "@/lib/art-style";
 import { pickerDemand } from "@/lib/tag-demand";
 import { byDemand, isStatus, STATUSES, tagById, tagsIn, type Status, type TagId } from "@/lib/tags";
-import FilterSeen from "./FilterSeen";
+import FilterSeen from "@/app/characters/FilterSeen";
 
 export const dynamic = "force-dynamic";
 

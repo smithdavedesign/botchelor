@@ -22,6 +22,12 @@ export default function EmailNotifications({ confirmed }: { confirmed?: "confirm
       .then((d) => setS(d as Status))
       .catch(() => {});
   }, []);
+  // Arriving from "Email me" (/account#email-notifications): this card renders after its read, so the browser's own jump
+  // to the anchor found nothing; go there now that it's on the page.
+  const shown = Boolean(s?.available);
+  useEffect(() => {
+    if (shown && window.location.hash === "#email-notifications") document.getElementById("email-notifications")?.scrollIntoView({ block: "start" });
+  }, [shown]);
 
   async function turnOn(email: string | null) {
     setBusy(true);
@@ -49,7 +55,8 @@ export default function EmailNotifications({ confirmed }: { confirmed?: "confirm
 
   if (!s || !s.available) return null;
   return (
-    <section className="card">
+    // #email-notifications: where "Email me" lands from a page whose browser can't notify (app/notifications/PushToggle.tsx).
+    <section className="card" id="email-notifications">
       <h2>Email notifications</h2>
       <p className="muted">
         Hear by email when someone&apos;s waiting on your second-date yes, or a second date is booked. Everything else
