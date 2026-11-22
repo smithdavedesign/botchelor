@@ -386,6 +386,7 @@ describe("GET /api/jobs/daily", () => {
       "voices",
       "plan_checkouts",
       "server_errors",
+      "ops_log",
       "low_balances",
     ]);
     for (const s of upkeep.load.steps) expect(s).toEqual({ step: expect.any(String), ms: expect.any(Number), heap_mb: expect.any(Number), rss_mb: expect.any(Number) });

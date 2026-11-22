@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { localWeeklyWords, utcWeeklyWords } from "@/app/weekly-time";
 import { okJson } from "@/lib/ok-json";
 
 type Note = { first: string; lead: string; hour: number; minute?: number };
@@ -25,9 +26,16 @@ export default function CastingVerdictLine({ episodeId }: { episodeId: string })
     };
   }, [episodeId]);
   if (!note) return null;
+  // In the viewer's own clock (2026-11-22 audit: it read in UTC). The line only renders once its data is in, in the browser.
+  let when: string;
+  try {
+    when = localWeeklyWords(0, note.hour, note.minute ?? 0);
+  } catch {
+    when = utcWeeklyWords(0, note.hour, note.minute ?? 0);
+  }
   return (
     <p className="muted small" data-casting-line>
-      Roses are handed out Sunday at {String(note.hour).padStart(2, "0")}:{String(note.minute ?? 0).padStart(2, "0")} UTC. {note.first} will text you.
+      Roses are handed out {when}. {note.first} will text you.
     </p>
   );
 }

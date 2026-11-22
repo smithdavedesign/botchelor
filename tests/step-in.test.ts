@@ -324,6 +324,23 @@ describe("the self-harm protocol", () => {
     expect((await t.db.query(`select surface, n from crisis_referrals`)).rows).toEqual([{ surface: "step_in_about", n: 1 }]);
   });
 
+  it("tells the cast member which of its own images it has leaned on tonight, unless the person brought them up", async () => {
+    // 2026-11-21: Juniper's dryer came up in all three of her lines.
+    const admin = await person({ admin: true });
+    const id = (await start(admin.cookie)).body.episode_id;
+    castNext = ["My dryer takes nine minutes to do anything, so I have opinions.", "The dryer and I have an understanding, nine minutes at a time."];
+    await playThrough(admin.cookie, id, true);
+    const turns = calls.filter((c) => c.kind === "turn").map((c) => c.messages.map((m) => m.content).join("\n"));
+    expect(turns.length).toBeGreaterThanOrEqual(3);
+    const leaned = (prompt: string) => /"words_youve_leaned_on_lately":\s*\[([^\]]*)\]/.exec(prompt)?.[1] ?? null;
+    // Its first two lines: nothing to rest yet. Its third: the dryer and the nine, not the person's maps.
+    expect(leaned(turns[0])).toBeNull();
+    expect(leaned(turns[1])).toBeNull();
+    expect(leaned(turns.at(-1)!)).toContain('"dryer"');
+    expect(leaned(turns.at(-1)!)).toContain('"nine"');
+    expect(leaned(turns.at(-1)!)).not.toContain("maps");
+  });
+
   it("never lets the cast member voice self-harm: that line is drawn again", async () => {
     const admin = await person({ admin: true });
     const id = (await start(admin.cookie)).body.episode_id;

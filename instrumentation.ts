@@ -14,7 +14,9 @@ export const onRequestError: Instrumentation.onRequestError = async (err, reques
 
 /**
  * Before either host serves a request (Next awaits register), it holds sharp to its memory limits (lib/sharp-limits.ts)
- * and brings the database schema up to date (lib/db.ts prepareDb), so a deploy's first visitors don't wait for it.
+ * and brings the database schema up to date (lib/db.ts prepareDb), so a deploy's first visitors don't wait for it. Then,
+ * on the same connection, it writes the start's row (lib/ops-log.ts: the commit and memory limit), so /admin can say
+ * what's running and tell a deploy from a restart after the container's own log is gone.
  * After Dark's own host (lib/after-dark-host.ts) also asks after the videos being made while nobody has their page open
  * (lib/adult/reel-collector.ts): a reel's shots come back only when asked, and Replicate drops one nobody collected in
  * half an hour. The test runner starts nothing.
@@ -24,7 +26,8 @@ export async function register(): Promise<void> {
   const { limitSharp } = await import("./lib/sharp-limits");
   await limitSharp();
   const { prepareDb } = await import("./lib/db");
-  await prepareDb();
+  const { recordBoot } = await import("./lib/ops-log");
+  await prepareDb({ onReady: (db) => recordBoot(db) });
   const { afterDarkOnly } = await import("./lib/after-dark-host");
   if (!afterDarkOnly()) return;
   const { startReelCollector } = await import("./lib/adult/reel-collector");

@@ -3,11 +3,16 @@ import Link from "next/link";
 import { pageMetadata } from "@/lib/seo";
 import { BackToContents, CONTACT_HEADING, Contact, LastChanged, OnThisPageGrouped, PolicyLinks, PRIVACY_HEADINGS, PrivacySections, TERMS_HEADINGS, TermsSections } from "./sections";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Terms, purchases and privacy · Botchelor",
-  description: "Botchelor's terms of use and sale and its privacy notice on one page: who it's for, what you can buy and the refund policy, what we store and why, and your rights.",
-  path: "/legal",
-});
+// The same words as /terms and /privacy, which search lists: this one stays out of search, its links followed (2026-11-22
+// audit). Not a canonical to /terms, which holds only half of it.
+export const metadata: Metadata = {
+  ...pageMetadata({
+    title: "Terms, purchases and privacy · Botchelor",
+    description: "Botchelor's terms of use and sale and its privacy notice on one page: who it's for, what you can buy and the refund policy, what we store and why, and your rights.",
+    path: "/legal",
+  }),
+  robots: { index: false, follow: true },
+};
 // Rendered per request, so a CONTACT_EMAIL added after the build shows without a redeploy.
 export const dynamic = "force-dynamic";
 

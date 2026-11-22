@@ -6,7 +6,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JsonLd from "@/app/JsonLd";
-import { breadcrumbJsonLd, logoJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, dateAuthored, fitDescription, logoJsonLd } from "@/lib/seo";
 import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUESTION, shareDescription, shareTitle, wentWellTitle } from "@/lib/episode-share";
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
@@ -50,6 +50,7 @@ import { previouslyOn } from "@/lib/previously-on";
 import { venueBackdrop } from "@/lib/portraits";
 import { showSetBackground, showSetPath, type ShowSet } from "@/lib/show-sets";
 import Avatar from "@/app/Avatar";
+import RememberCharacter from "@/app/RememberCharacter";
 import CharacterName from "@/app/CharacterName";
 import Afterglow, { SecondDate } from "./Afterglow";
 import EndingSeen from "./EndingSeen";
@@ -84,7 +85,8 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 /**
  * Each episode gets its own title and summary for search and link previews, from the public view only (no
  * spoilers: the setting is the teaser). Only public, unhidden episodes are indexable; unlisted, private and
- * hidden ones tell crawlers to stay out, as does one with a deleted account's character (lib/public-cast.ts).
+ * hidden ones tell crawlers to stay out, as does one with a deleted account's character (lib/public-cast.ts). A public
+ * date between two machine-made characters stays linked but says noindex (lib/seo.ts authoredDateSql, as the sitemap).
  *
  * The link preview is the share card (/api/og/episode/<id>): a "How does it end?" poll, as a large Twitter card.
  * Setting openGraph.images here is what puts it ahead of ./opengraph-image (the box score card, still served).
@@ -92,11 +94,18 @@ const PREMIUM_IDS = new Set(PREMIUM_HOUSE_CHARACTERS.map((c) => c.id));
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const { id } = await params;
   const db = await getDb();
-  const [episode, clip, listed] = await Promise.all([getEpisodeView(db, id, null), episodeClip(db, id).catch(() => null), dateListed(db, id).catch(() => true)]);
+  const [episode, clip, listed, authored] = await Promise.all([
+    getEpisodeView(db, id, null),
+    episodeClip(db, id).catch(() => null),
+    dateListed(db, id).catch(() => true),
+    dateAuthored(db, id).catch(() => true),
+  ]);
   if (!episode || episode.hidden) return { title: "Episode · Botchelor", robots: { index: false, follow: false } };
   const [a, b] = episode.characters;
   const names: [string, string] = [a.name, b.name];
-  const indexable = episode.visibility === "public" && listed;
+  const indexable = episode.visibility === "public" && listed && authored;
+  // Public but between two machine-made characters: out of search, its links still followed.
+  const thin = episode.visibility === "public" && listed && !authored;
   // An owner's share of a date that went well (lib/episode-share.ts ownerSharedPath, David 2026-11-11): the card and the
   // headline name the second date, only once aired and only for that ending; any other date keeps the question.
   const wentWell = (await searchParams)?.card === ENDING_CARD && endingCardAllowed(episode);
@@ -112,9 +121,10 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     // #SEO: richer long-tail title (name × name + venue) in the HTML <title>; social cards keep the "How does it end?"
     // headline. Never includes the ending — a Google snippet shouldn't spoil what visitors can predict for points.
     title: pageTitle(names, venue),
-    description,
+    // Fitted to a search result; the share cards below keep the whole of it.
+    description: fitDescription(description),
     alternates: { canonical: `/episodes/${id}` },
-    robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
+    robots: indexable ? { index: true, follow: true } : { index: false, follow: thin },
     // The root layout's openGraph and twitter are replaced, not merged, so the site's own fields are repeated here.
     // A date with a clip of its own (lib/home-clip.ts episodeClip) unfurls as a playable video where the app plays
     // og:video (Discord, Facebook); the card picture stays for everything else, X included.
@@ -241,7 +251,7 @@ export default async function EpisodePage({
   // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
   await airIfDue(db, id).catch(() => null);
   const episode = await getEpisodeView(db, id, viewerId);
-  // Hidden after reports: a 404 for everyone except its creators (see ./not-found.tsx).
+  // Hidden after reports: a 404 for everyone except its creators (see app/episodes/not-found.tsx).
   if (!episode || (episode.hidden && !episode.is_creator)) notFound();
   const cookieStore = await cookies();
   // Everything below starts at once (2026-11-04 performance audit: one after another, the owner's date page waited on
@@ -340,9 +350,10 @@ export default async function EpisodePage({
     ready ? mixerNightOf(db, episode.id).catch(() => null) : null,
     // The cold open, for a pair with history: their last aired date, told in one line (lib/previously-on.ts).
     ready && (dateNumberOf(episode) ?? 0) > 1 ? previouslyOn(db, episode.id).catch(() => null) : null,
-    // The creator arriving from sending the date (?play=1): which side is theirs, that side's reflection (the preview of
-    // the first text on the verdict card, VerdictCard.tsx) and whether this is that character's first date.
-    play && episode.is_creator && viewerId
+    // The creator's own side: which one is theirs (the header's face follows it, below) and, arriving from sending the
+    // date (?play=1), that side's reflection (the preview of the first text on the verdict card, VerdictCard.tsx) and
+    // whether this is that character's first date.
+    episode.is_creator && viewerId
       ? db
           .query<{ side: 0 | 1 | null; reflection: string | null; dates: number }>(
             `select case when a.owner_id = $2 then 0 when b.owner_id = $2 then 1 end as side,
@@ -403,11 +414,16 @@ export default async function EpisodePage({
   const confessionalShot = (id: string) => episode.characters.find((x) => x.id === id)?.shots?.confessional ?? null;
   // A creator of a house date has nobody to block; everyone else blocks "whoever made this".
   const canBlock = !episode.is_creator || episode.characters.every((c) => !c.house);
+  // The header's face follows the creator's own character in this date (app/RememberCharacter.tsx; 2026-11-22 audit: it
+  // showed another of theirs while they watched this one's date).
+  const mine = creatorSide && creatorSide.side !== null ? episode.characters[creatorSide.side]?.id ?? null : null;
+  const remember = mine ? <RememberCharacter id={mine} /> : null;
 
   // M10: the date is generated in the background. Until it's ready, show a waiting state that polls.
   if (episode.status !== "ready") {
     return (
       <article className="episode-page">
+        {remember}
         <EpisodeHero characters={episode.characters} venue={episode.venue ?? null} setting={null} set="booth" chips={["🎬 Being filmed", "AI-generated"]}>
           {!episode.is_creator && (
             <div className="episode-hero-cta">
@@ -528,6 +544,7 @@ export default async function EpisodePage({
     lastAct >= 0 && Boolean(episode.finale) && squash(withoutActLabel(episode.scenes![lastAct], DATE_ACTS[lastAct])) === squash(episode.finale);
   return (
     <article className="episode-page">
+      {remember}
       {episode.visibility === "public" && !episode.hidden && (
         <JsonLd
           data={[{

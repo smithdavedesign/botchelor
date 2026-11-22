@@ -197,19 +197,27 @@ describe("3. the result page leads to /create with the first name filled in, and
     expect(long.match(/<input[^>]*name="name"[^>]*>/)?.[0]).toContain(`value="${"x".repeat(40)}"`);
   });
 
-  it("has an og:title (and twitter title) with both names, a canonical link to itself, and stays indexable", async () => {
+  it("has an og:title (and twitter title) with both names, a canonical link to the pair's address, and stays indexable", async () => {
     const meta = await shipMetadata(params("juniper", "dex"));
     const og = String(meta.openGraph?.title ?? "");
     expect(og).toContain("Juniper");
     expect(og).toContain("Dex");
     expect(String(meta.twitter?.title ?? "")).toContain("Juniper");
     expect(String(meta.title)).toContain("Juniper × Dex");
-    expect(meta.alternates?.canonical).toBe("/ship/juniper/dex");
+    // The pair's one address for search: the names in alphabetical order (lib/ship-names.ts canonicalShipPath).
+    expect(meta.alternates?.canonical).toBe("/ship/dex/juniper");
+    expect(meta.openGraph?.url).toBe("/ship/dex/juniper");
     expect(meta.robots).toBeUndefined();
   });
 
-  it("points every case of the same pair at one canonical address", async () => {
-    expect((await shipMetadata(params("JUNIPER", "Dex"))).alternates?.canonical).toBe("/ship/juniper/dex");
+  it("points every case and both orders of the same pair at one canonical address", async () => {
+    for (const [a, b] of [
+      ["JUNIPER", "Dex"],
+      ["dex", "juniper"],
+      ["Dex", "JUNIPER"],
+    ]) {
+      expect((await shipMetadata(params(a, b))).alternates?.canonical, `${a}/${b}`).toBe("/ship/dex/juniper");
+    }
   });
 
   it("offers a copyable link to the page and a form to try another pair, filled in with these names", async () => {
