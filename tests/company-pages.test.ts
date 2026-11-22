@@ -282,6 +282,13 @@ describe("the company pages", () => {
     expect(render(AccessibilityPage)).toContain("?subject=Accessibility");
     expect(words(render(SecurityPage))).toContain(`after ${LOGIN_FAILS_PER_HANDLE} wrong passwords`);
   });
+
+  it("/accessibility states contrast as an aim with its known gap, not as a promise", () => {
+    const text = words(render(AccessibilityPage));
+    expect(text).toContain("We aim for every colour of text to clear 4.5:1");
+    expect(text).not.toContain("Every colour of text clears");
+    expect(text).toContain("A spot can still miss the contrast we aim for");
+  });
 });
 
 describe("/.well-known/security.txt", () => {
