@@ -17,9 +17,7 @@ import ConstellationApp from "./ConstellationApp";
 import TenseTriangles from "./TenseTriangles";
 import { parseStill, parseWhen, parseWorld, whenParam } from "./filter";
 import { parseStages, stagesParam } from "./stages";
-import ShowTabs from "@/app/ShowTabs";
-import StoryMap from "@/app/StoryMap";
-import { cachedStoryMap } from "@/lib/story-map";
+import ViewSwitch from "@/app/characters/ViewSwitch";
 import { lensParam, parseLens } from "@/lib/social/lenses";
 import { cachedLensSky, socialLensesOn } from "@/lib/social/lens-sky";
 
@@ -73,12 +71,11 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
   const lensesOn = socialLensesOn();
   const lens = lensesOn ? parseLens(sp.lens) : "love";
   // The same cached build for every ?focus=: the focus is applied in the browser (ConstellationApp initialFocus).
-  // This week's story map (lib/story-map.ts) rides next to it: its own shared copy, null with STORY_MAP=0.
-  // The viewer's own ids ride along too, for "Yours" (signed in only; the sky itself is everyone's). A shared view's
-  // sky comes too, so its link draws at once; Love's page carries none (the other views load when they're picked).
-  const [{ nodes, edges, stats, kinds }, week, mine, lensSky] = await Promise.all([
+  // The viewer's own ids ride along, for "Yours" (signed in only; the sky itself is everyone's). A shared view's sky
+  // comes too, so its link draws at once; Love's page carries none (the other views load when they're picked).
+  // This week's story map is the house's now (/house, 2026-11-21), so it no longer rides here.
+  const [{ nodes, edges, stats, kinds }, mine, lensSky] = await Promise.all([
     cachedConstellation(),
-    cachedStoryMap().catch(() => null),
     viewerCharacterIds(),
     lens === "love" ? null : cachedLensSky(lens).catch(() => null),
   ]);
@@ -184,7 +181,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
         lensesOn={lensesOn}
         initialLens={lens}
         initialLensSky={lensSky}
-        loveNumbers={lensesOn && week ? numbers : null}
+        loveNumbers={lensesOn ? numbers : null}
       />
     </>
   );
@@ -321,48 +318,29 @@ export default async function GraphPage({ searchParams }: { searchParams: Search
     </>
   );
 
-  // STORY_MAP=0: the page as it was, the sky first.
-  if (!week) {
-    return (
-      <article className="constellation-page page-wide">
-        {jsonLd}
-        <ShowTabs active="/graph" />
-        {sky}
-        <header className="constellation-header">
-          <p className="kicker">The social graph</p>
-          <h1>The Constellation</h1>
-          <p className="lede">{DESCRIPTION}</p>
-          {numbers}
-        </header>
-        {lensesOn && <TenseTriangles />}
-        {tables}
-      </article>
-    );
-  }
-
-  // This week first (three visitors in thirty days opened the old page and none scrolled past the sky): the story map
-  // under a title that says what it is, then everyone who ever dated, then the tables for whoever wants them.
+  // The sky first (2026-11-21, David: "not sure we should have content above the giant graph"): three visitors in thirty
+  // days opened the page and none scrolled to the sky, which sat a screen or more down under the week's story map. That
+  // map is the house's now (/house); here, one line of title with the Cards | Map switch (it's Characters as a map),
+  // then the sky, then what it is, the numbers, the tense triangles and the folded tables for whoever scrolls.
   return (
-    <article className="constellation-page page-wide has-story-map">
+    <article className="constellation-page page-wide">
       {jsonLd}
-      <ShowTabs active="/graph" />
-      <header className="constellation-header story-map-header">
-        <p className="kicker">
-          <Link href="/house">The house</Link> · The story map
-        </p>
-        <h1>Who&apos;s with whom this week</h1>
-        <p className="lede">
-          This season&apos;s cast and the last seven days: who has a date coming up, who agreed to another, who are rivals and who had it out in the house. Every line
-          links to what made it.
-        </p>
+      <header className="constellation-top">
+        <div className="constellation-top-title">
+          <h1>The Constellation</h1>
+          <p className="muted small">
+            Who&apos;s dated whom: {stats.characters} characters, {stats.couples} {stats.couples === 1 ? "pair" : "pairs"}.{" "}
+            <Link href="/house#story-map" data-track="graph-this-week">
+              This week in the house →
+            </Link>
+          </p>
+        </div>
+        <ViewSwitch current="map" group={origin} />
       </header>
-      <StoryMap map={week} title={null} allTimeHref="#all-time" />
-      <section className="constellation-all-time" id="all-time" aria-labelledby="all-time-head">
-        <h2 id="all-time-head" className="section">
-          All time: the Constellation
-        </h2>
-        <p className="muted small">{DESCRIPTION}</p>
+      {/* #all-time: the old links into the sky's section (the Characters previews', the story map's) still land on it. */}
+      <section className="constellation-all-time" id="all-time" aria-label="The constellation">
         {sky}
+        <p className="muted small constellation-about">{DESCRIPTION}</p>
         {/* With the views on, the numbers are the sky's own line (each view has its own), drawn by ConstellationApp. */}
         {!lensesOn && numbers}
       </section>

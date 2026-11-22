@@ -233,7 +233,7 @@ describe("the preview card (app/graph/GraphTeaser.tsx)", () => {
 
   it("is one link to /graph on the same group; the sky is decoration and never names or links anyone", () => {
     const html = renderToStaticMarkup(createElement(GraphTeaser, { teaser: graphTeaser(SKY, "person")!, group: "person" }));
-    expect(html).toContain('href="/graph?origin=person#all-time"');
+    expect(html).toContain('href="/graph?origin=person"');
     expect(html).toContain("Explore the constellation");
     expect(html).toContain("Who people&#x27;s characters have fallen for");
     expect(html).toMatch(/class="graph-teaser-sky" aria-hidden="true"/);
@@ -294,7 +294,7 @@ describe("the pages", () => {
 
     await seedDate();
     const html = await characters();
-    expect(html).toContain('href="/graph?origin=cast#all-time"');
+    expect(html).toContain('href="/graph?origin=cast"');
     expect(html).toContain("The cast&#x27;s love lives, all tangled up");
     expect(html).not.toContain("See it as a constellation");
   });
@@ -302,7 +302,7 @@ describe("the pages", () => {
   it("the people's tab draws people's characters and who they dated", async () => {
     await seedDate();
     const html = await characters({ tab: "people" });
-    expect(html).toContain('href="/graph?origin=person#all-time"');
+    expect(html).toContain('href="/graph?origin=person"');
     expect(html).toContain("The relationship graph");
     // Nobody agent-made has a date: the agents' tab has no preview.
     expect(await characters({ tab: "agents" })).not.toContain("graph-teaser");
@@ -311,12 +311,15 @@ describe("the pages", () => {
   it("/graph?origin=cast opens on the cast, with who they dated", async () => {
     await seedDate();
     const { default: GraphPage } = await import("@/app/graph/page");
-    const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "cast" }) }));
-    expect(html).toMatch(/<button type="button" class="segmented-tab" aria-pressed="true" aria-current="page">The cast<\/button>/);
-    expect(html).toContain("Who they dated");
+    // The origin filter lives in the Filters sheet (2026-11-21); the bar says who the sky is narrowed to, and counts it.
+    const html = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "cast" }) })).replace(/<!-- -->/g, "");
+    expect(html).toMatch(/<button type="button" class="constellation-scope" title="Show everyone" data-track="graph-scope-clear">The cast &amp; who they dated<span aria-hidden="true"> ✕<\/span>/);
+    expect(html).toContain('class="constellation-filters-count"> · 1<span class="sr-only"> on</span>');
+    // The Cards | Map switch: back to the cast's cards.
+    expect(html).toMatch(/<a class="segmented-tab" data-track="characters-view-cards" href="\/characters">Cards<\/a>/);
     const plain = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "nonsense" }) }));
-    expect(plain).toMatch(/aria-pressed="true" aria-current="page">Everyone<\/button>/);
-    expect(plain).not.toContain("Who they dated");
+    expect(plain).not.toContain("constellation-scope");
+    expect(plain).not.toContain("constellation-filters-count");
   });
 
   it("/graph?stage=&when=&still= opens on that sky: a filtered sky can be shared", async () => {
@@ -327,13 +330,12 @@ describe("the pages", () => {
     expect(html).toMatch(chip("together", true));
     expect(html).toMatch(chip("friends", true));
     expect(html).toMatch(chip("sparks", false));
-    expect(html).toContain('<option value="season" selected="">This season</option>');
-    expect(html).toMatch(/<input type="checkbox" checked=""\/>\s*Still seeing each other/);
+    // When and "still seeing each other" are in the Filters sheet now: the button counts them.
+    expect(html.replace(/<!-- -->/g, "")).toContain('class="constellation-filters-count"> · 2<span class="sr-only"> on</span>');
 
     const plain = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ when: "someday", still: "yes" }) }));
     expect(plain).toMatch(chip("sparks", true));
-    expect(plain).toContain('<option value="all" selected="">All time</option>');
-    expect(plain).toMatch(/<input type="checkbox"\/>\s*Still seeing each other/);
+    expect(plain).not.toContain("constellation-filters-count");
   });
 
   it("/graph?world= opens on just their corner of the sky; a corner nobody's in is none", async () => {
@@ -358,7 +360,7 @@ describe("the pages", () => {
   it("the Yours tab draws your characters and who they dated, numbers and all, linking to /graph on yours", async () => {
     await seedDate("zz-yours-dated", signIn());
     const html = await characters({ tab: "yours" });
-    expect(html).toContain('href="/graph?origin=yours#all-time"');
+    expect(html).toContain('href="/graph?origin=yours"');
     expect(html).toContain("Who your character has dated");
     expect(html).toContain("1 pair · 2 public dates");
   });
@@ -381,14 +383,13 @@ describe("the pages", () => {
     await seedDate();
     // A stranger: no Yours, and ?origin=yours opens on everyone.
     const stranger = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "yours" }) }));
-    expect(stranger).not.toContain(">Yours</button>");
-    expect(stranger).toMatch(/aria-pressed="true" aria-current="page">Everyone<\/button>/);
+    expect(stranger).not.toContain("constellation-scope");
 
     await seedDate("zz-yours-dated", signIn());
     const owner = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({ origin: "yours" }) }));
-    expect(owner).toMatch(/aria-pressed="true" aria-current="page">Yours<\/button>/);
-    expect(owner).toContain("Who they dated");
+    expect(owner.replace(/<!-- -->/g, "")).toContain(">Yours &amp; who they dated<span");
+    expect(owner).toMatch(/data-track="characters-view-cards" href="\/characters\?tab=yours">Cards</);
     const everyone = renderToStaticMarkup(await GraphPage({ searchParams: Promise.resolve({}) }));
-    expect(everyone).toMatch(/aria-pressed="false">Yours<\/button>/);
+    expect(everyone).not.toContain("constellation-scope");
   });
 });

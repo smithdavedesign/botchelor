@@ -96,6 +96,38 @@ ol.home-features {
 .characters-head .button {
   margin: 0;
 }
+/* /characters: the tabs, and the Cards | Map switch at the row's end (app/characters/ViewSwitch.tsx); on a phone the tabs
+   take the row and the switch sits under them on the right, its own size (not the tabs' equal segments). */
+.characters-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 var(--space-2);
+}
+.characters-strip > .segmented {
+  margin: 0;
+}
+.view-switch {
+  flex: 0 0 auto;
+}
+/* Its own size on a phone too (/characters and /graph), not the tabs' equal segments across the width. */
+@media (max-width: 600px) {
+  .segmented.view-switch {
+    width: fit-content;
+  }
+  .segmented.view-switch .segmented-tab {
+    flex: 0 0 auto;
+    flex-direction: row;
+    min-height: 40px;
+    padding: 0 var(--space-3);
+    border-radius: 999px;
+  }
+  .characters-strip > .view-switch {
+    margin-left: auto;
+  }
+}
 .home-cast-more {
   margin-top: var(--space-3);
 }
@@ -1908,6 +1940,11 @@ main:has(> .couple-page) {
 .house-page > :not(.show-tabs) {
   max-width: var(--page-read);
 }
+/* Except the week's story map (2026-11-21, moved here from /graph): the drawing and its list side by side want the
+   page's width, not the reading column's. */
+.house-page > .story-map {
+  max-width: none;
+}
 .house-page > header > h1 {
   margin: 0;
 }
@@ -2225,31 +2262,57 @@ main:has(> .couple-page) {
     margin-inline: 0;
   }
 }
-/* A wide page (/graph): the drawing and its list side by side. */
+/* A wide page (/house): the drawing and its list side by side. */
 @media (min-width: 1000px) {
-  .has-story-map .story-map-body {
+  .house-page .story-map-body {
     flex-direction: row;
     align-items: flex-start;
   }
-  .has-story-map .story-map-figure {
+  .house-page .story-map-figure {
     flex: 1 1 60%;
     min-width: 0;
   }
-  .has-story-map .story-map-list {
+  .house-page .story-map-list {
     flex: 1 1 40%;
     min-width: 0;
   }
 }
-/* /graph with the story map first: the sky sits in its own section, the tables fold. */
+/* /graph opens on the sky (2026-11-21): one line of title with the Cards | Map switch, then the sky's section, what it
+   is and its numbers under it, the tables folded. */
+.constellation-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0;
+}
+.constellation-top-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+.constellation-top h1,
+.constellation-top p,
+.constellation-top .view-switch {
+  margin: 0;
+}
+.constellation-top h1 {
+  font-size: var(--text-2xl);
+}
 .constellation-all-time {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-top: var(--space-5);
 }
-.constellation-all-time > h2,
 .constellation-all-time > p {
   margin: 0;
+}
+.constellation-about {
+  margin-top: var(--space-3);
+  text-align: center;
 }
 .constellation-fold {
   margin-top: var(--space-4);
