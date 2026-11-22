@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import IntroClip from "@/app/characters/[id]/IntroClip";
+import IntroClip, { introStart } from "@/app/characters/[id]/IntroClip";
 
 const source = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 const page = source("app/characters/[id]/page.tsx");
@@ -34,6 +34,19 @@ describe("the contestant card", () => {
     expect(html).toContain('<video muted="" loop="" playsInline="" preload="none" poster="/cast/house-juniper-v5.webp" aria-label="Juniper says hello">');
     // No buttons before the page is live, so nothing flashes; they arrive with the first play.
     expect(html).not.toContain("<button");
+  });
+
+  // 2026-11-22 audit: a character page weighed 4.3 MB, 3.5 of them the hello, fetched while the page itself loaded.
+  it("starts by itself only once the page has loaded and the card is on screen, and holds still on a slow link", () => {
+    expect(introStart(false, { effectiveType: "4g" })).toBe("auto");
+    expect(introStart(false, undefined)).toBe("auto"); // a browser that doesn't say (Safari, Firefox)
+    for (const effectiveType of ["slow-2g", "2g", "3g"]) expect(introStart(false, { effectiveType }), effectiveType).toBe("still");
+    expect(introStart(false, { saveData: true, effectiveType: "4g" })).toBe("still");
+    expect(introStart(true, { effectiveType: "4g" })).toBe("still");
+    const clip = source("app/characters/[id]/IntroClip.tsx");
+    expect(clip).toContain('if (document.readyState === "complete") start();');
+    expect(clip).toContain('else window.addEventListener("load", start, { once: true });');
+    expect(clip).toMatch(/new IntersectionObserver\(\(entries\) => \{\s*if \(!entries\.some\(\(e\) => e\.isIntersecting\)\) return;/);
   });
 
   it("holds still under reduced motion, and starts complete", () => {

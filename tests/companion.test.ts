@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as listRoute, POST as openRoute } from "@/app/api/companion/route";
 import { DELETE as deleteRoute, GET as viewRoute, POST as actRoute } from "@/app/api/companion/[id]/route";
@@ -14,10 +15,11 @@ import {
   openOurAgentCast,
   openThread,
   regenerate,
+  REGENERATE_TEMPERATURE,
   sendMessage,
   setCompanionModelForTests,
 } from "@/lib/companion";
-import { FACTS_EVERY, FACTS_IN_PROMPT, FACTS_PER_THREAD, factsForPrompt, updateFacts, updateSummary, SUMMARY_EVERY } from "@/lib/companion-memory";
+import { FACTS_EVERY, FACTS_IN_PROMPT, FACTS_PER_THREAD, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary, SUMMARY_EVERY } from "@/lib/companion-memory";
 import { replyBubbles } from "@/lib/companion-prompt";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -46,7 +48,7 @@ const CAST = HOUSE_CHARACTERS[0];
 const first = CAST.name.split(" ")[0];
 
 /** Every model call, routed by what it is. */
-let calls: { kind: "reply" | "crisis" | "facts" | "summary" | "other"; messages: ChatMessage[] }[] = [];
+let calls: { kind: "reply" | "crisis" | "facts" | "summary" | "other"; messages: ChatMessage[]; temperature?: number }[] = [];
 let replies: string[] = [];
 let risk: "true" | "false" = "false";
 let factsReply = JSON.stringify({ facts: [] });
@@ -54,7 +56,7 @@ let down = false;
 function routedModel() {
   let n = 0;
   setCompanionModelForTests({
-    async complete(messages) {
+    async complete(messages, options) {
       const system = messages[0]?.content ?? "";
       if (system.startsWith("You check one message")) {
         calls.push({ kind: "crisis", messages });
@@ -69,7 +71,7 @@ function routedModel() {
         return JSON.stringify({ notes: "They talked about bread, the new job and Maya's wedding." });
       }
       if (system.startsWith("You are ")) {
-        calls.push({ kind: "reply", messages });
+        calls.push({ kind: "reply", messages, temperature: options?.temperature });
         if (down) throw new Error("model down");
         // In JSON mode like the real model (lib/model.ts); a test's own replies are plain text, the fallback.
         return replies.shift() ?? JSON.stringify({ messages: [`Reply number ${++n}, in my own voice.`, "And a second thought about it."] });
@@ -331,7 +333,8 @@ describe("a companion thread", () => {
     const all = await messages(body.thread_id);
     expect(all.find((m: Any) => m.text === "First take.").replaced_by).toBeTruthy();
     const redraw = calls.filter((c) => c.kind === "reply").at(-1)!.messages;
-    expect(redraw[0].content).toContain("say something different instead: First take.");
+    expect(redraw[0].content).toContain("They asked for a different reply to this.");
+    expect(redraw[0].content).toContain("- First take.");
     // The reply being drawn again isn't in the turns: the model answers the person's message afresh.
     expect(redraw.at(-1)).toEqual({ role: "user", content: "what's your week been like" });
     replies = ["Ooh, Lisbon."];
@@ -342,6 +345,35 @@ describe("a companion thread", () => {
     const edited = calls.filter((c) => c.kind === "reply").at(-1)!.messages;
     expect(edited.at(-1)).toEqual({ role: "user", content: "what's your week been like? I'm off to Lisbon" });
     expect(JSON.stringify(edited.slice(1))).not.toContain("Second take");
+  });
+
+  it("Another reply is a different reply: every draw they passed on is named, and a reworded copy is drawn again, looser", async () => {
+    const me = await person({ admin: true });
+    const { body } = await open(me.cookie);
+    replies = ["That message felt like a mainspring wound a few turns too many. Breathe."];
+    await act(me.cookie, body.thread_id, { action: "send", text: "sorry, long day" });
+    const before = calls.filter((c) => c.kind === "reply").length;
+    // The live case (2026-11-21): the first redraw is the same reply reworded; it's drawn once more.
+    replies = ["Well now, that message arrived like a mainspring wound a few turns too many. Let's find a quieter rhythm.", "Long days earn soup. What did yours throw at you?"];
+    const r = await act(me.cookie, body.thread_id, { action: "regenerate" });
+    expect(r.body.view.messages.at(-1).text).toBe("Long days earn soup. What did yours throw at you?");
+    const drawn = calls.filter((c) => c.kind === "reply").slice(before);
+    expect(drawn).toHaveLength(2);
+    expect(drawn.every((c) => c.temperature === REGENERATE_TEMPERATURE)).toBe(true);
+    expect(drawn[0].messages[0].content).toContain("- That message felt like a mainspring wound a few turns too many. Breathe.");
+    expect(drawn[1].messages[0].content).toContain("that's the reply they passed on, reworded");
+    // Again: both earlier draws are named, newest set-aside first after the one showing.
+    replies = ["Okay, new plan: tea, blanket, one terrible film."];
+    await act(me.cookie, body.thread_id, { action: "regenerate" });
+    const third = calls.filter((c) => c.kind === "reply").at(-1)!;
+    expect(third.messages[0].content).toContain("- Long days earn soup. What did yours throw at you?");
+    expect(third.messages[0].content).toContain("- That message felt like a mainspring wound a few turns too many. Breathe.");
+    // An ordinary reply is drawn as before.
+    replies = ["Ha, fair."];
+    await act(me.cookie, body.thread_id, { action: "send", text: "deal" });
+    const plain = calls.filter((c) => c.kind === "reply").at(-1)!;
+    expect(plain.temperature).toBe(0.9);
+    expect(plain.messages[0].content).not.toContain("They asked for a different reply");
   });
 
   it("a model that's down writes nothing; asking again answers", async () => {
@@ -475,6 +507,20 @@ describe("a reply as messages", () => {
     expect(replyBubbles(`${CAST.name}: "Hey you."\n\n*smiles* So, the plan?`, CAST.name)).toEqual(["Hey you.", "So, the plan?"]);
     expect(replyBubbles("a\n\nb\n\nc\n\nd", "X")).toEqual(["a", "b", "c d"]);
     expect(replyBubbles("   \n\n  ", "X")).toEqual([]);
+  });
+});
+
+describe("the message box (2026-11-21: a 1,170-character paste was cut to 1,000 mid-word without a word)", () => {
+  const chat = readFileSync("app/companion/[id]/CompanionChat.tsx", "utf8");
+  const box = chat.slice(chat.indexOf('id="companion-line"'), chat.indexOf("/>", chat.indexOf('id="companion-line"')));
+
+  it("takes any length, says by how much it's over the limit, and won't send until it's shorter", () => {
+    expect(box.length).toBeGreaterThan(0);
+    expect(box).not.toMatch(/maxLength/);
+    expect(box).toContain('aria-describedby="companion-count"');
+    expect(chat).toContain("{overBy > 0 && ` · ${overBy} over the limit: shorten it to send`}");
+    expect(chat).toContain("if (!text || busy || text.length > lineMax) return;");
+    expect(chat).toContain("disabled={busy || !draft.trim() || overBy > 0}");
   });
 });
 
@@ -669,6 +715,26 @@ describe("the memory follow-up", () => {
     for (let i = 0; i < FACTS_EVERY; i++) await t.db.query(`insert into companion_messages (id, thread_id, role, text, created_at) values ($1, $2, 'user', 'more', now() + interval '1 hour')`, [crypto.randomUUID(), id]);
     await expect(companionFollowUp(t.db, id)).resolves.toBeUndefined();
     expect((await t.db.query(`select 1 from companion_facts where thread_id = $1`, [id])).rows).toHaveLength(1);
+  });
+
+  it("draws a guest's facts inside their few replies, so the memory the sign-up line promises is there", async () => {
+    vi.stubEnv("COMPANION_OPEN", "1");
+    expect(GUEST_FACTS_EVERY).toBeLessThan(COMPANION_GUEST_REPLIES);
+    const g = guest();
+    const id = (await open(g.cookie)).body.thread_id as string;
+    factsReply = JSON.stringify({ facts: [{ kind: "work", text: "They just started a job at a bakery." }] });
+    for (let i = 0; i < GUEST_FACTS_EVERY - 1; i++) await act(g.cookie, id, { action: "send", text: `bakery story ${i}` });
+    await companionFollowUp(t.db, id, { guest: true });
+    expect(calls.filter((c) => c.kind === "facts")).toHaveLength(0);
+    await act(g.cookie, id, { action: "send", text: "and the ovens are enormous" });
+    await companionFollowUp(t.db, id, { guest: true });
+    expect((await t.db.query<Any>(`select text from companion_facts where thread_id = $1`, [id])).rows).toEqual([{ text: "They just started a job at a bakery." }]);
+    // With an account, the usual number.
+    const me = await person({ admin: true });
+    const mine = (await open(me.cookie)).body.thread_id as string;
+    for (let i = 0; i < GUEST_FACTS_EVERY; i++) await act(me.cookie, mine, { action: "send", text: `bakery story ${i}` });
+    await companionFollowUp(t.db, mine);
+    expect(calls.filter((c) => c.kind === "facts")).toHaveLength(1);
   });
 
   it("an unreadable answer draws nothing but still counts those messages as read", async () => {

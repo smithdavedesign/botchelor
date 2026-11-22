@@ -631,7 +631,8 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
     },
   },
   {
-    id: "said-no", title: "The one who said no", icon: "🖋️", category: "afterhours", roles: ["the one with the fortune", "the one who said no"], costumes: ["an understated, very expensive suit", "a favourite jacket, worn on purpose"],
+    // Retitled 2026-11-22 (audit): "The one who said no" read as a consent theme in a list; it's a turned-down business offer.
+    id: "said-no", title: "The offer they turned down", icon: "🖋️", category: "afterhours", roles: ["the one with the fortune", "the one who turned it down"], costumes: ["an understated, very expensive suit", "a favourite jacket, worn on purpose"],
     tags: ["opposites", "drama"],
     premise: "{a} is very rich. Last week {b} turned down {a}'s business offer in front of a full room, and {a} asked for a dinner to find out why. The offer is off the table tonight: nothing is for sale and nothing is owed.",
     card: {

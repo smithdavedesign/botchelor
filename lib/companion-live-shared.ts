@@ -3,10 +3,11 @@
  * so the browser's call and the tests share it.
  *
  *  - ClauseSplitter: a reply streaming from the model, cut into pieces that can be checked and said one at a time.
+ *  - withoutStageDirections: what a reply says out loud, its stage directions off (every voice path, not the screen).
  *  - spokenClause: one piece made sayable (a texted *action*, a name in front or quotes around it come off).
  *  - liveStep: the call's turn-taking and barge-in, as a reducer: what Deepgram heard and what's playing in, what to
  *    do (send a turn, stop their voice, drop the reply in flight) out.
- *  - minutesDue: how many of a call's minutes have started.
+ *  - minutesDue: how many of a call's minutes have started; LIVE_CONNECT_MS: how long one may take to connect.
  */
 
 /** A first piece this long may end at a comma: the sooner the first words are said, the sooner the call feels live. */
@@ -57,12 +58,14 @@ export class ClauseSplitter {
       const upTo = b.slice(0, m.index + m[0].length);
       if (m[0] === "." && ABBREVIATIONS.test(upTo)) continue;
       if (m[0] === "." && /\d$/.test(b.slice(0, m.index)) && /^\.\d/.test(b.slice(m.index, m.index + 2))) continue;
+      // A stage direction is never cut in two ("(sets the glass down. Smiles.)"), so it comes off whole.
+      if (insideAside(upTo)) continue;
       return m.index + m[0].length;
     }
     if (this.count === 0 && b.length >= FIRST_CLAUSE_MIN) {
       const soft = /[,;:]\s|\s[—–-]\s/g;
       for (let m = soft.exec(b); m; m = soft.exec(b)) {
-        if (m.index + 1 >= FIRST_CLAUSE_MIN) return m.index + m[0].length;
+        if (m.index + 1 >= FIRST_CLAUSE_MIN && !insideAside(b.slice(0, m.index + 1))) return m.index + m[0].length;
       }
     }
     if (b.length > CLAUSE_MAX) {
@@ -75,16 +78,70 @@ export class ClauseSplitter {
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** ":(", ";)", ":-P" and the like: not brackets, and nothing to say. */
+const EMOTICON = /(^|\s)[:;=][-^o']?[()DPp/\\|](?=[\s.,!?]|$)/g;
+
+/** Whether text ends inside a stage direction still open there: an unclosed ( or [, or an odd *. ":(" isn't one. */
+function insideAside(text: string): boolean {
+  const s = text.replace(EMOTICON, "$1");
+  const count = (re: RegExp) => (s.match(re) ?? []).length;
+  return count(/\(/g) > count(/\)/g) || count(/\[/g) > count(/\]/g) || count(/\*/g) % 2 === 1;
+}
+
+/** First words of a stage direction in brackets: "(laughs)", "(slides his phone across the bar)", "(softly)". */
+const STAGE_WORDS = new Set(
+  (
+    "laughs laughing laughter chuckles chuckling giggles giggling grins grinning smiles smiling smirks smirking winks winking " +
+    "sighs sighing shrugs shrugging nods nodding pauses pausing beat leans leaning whispers whispering blushes blushing " +
+    "scoffs scoffing snorts snorting slides sliding taps tapping sips sipping glances glancing looks looking gestures " +
+    "gesturing points pointing raises raising rolls rolling clears clearing takes taking pulls pulling pushes pushing holds " +
+    "holding reaches reaching turns turning sits sitting stands standing steps stepping picks picking sets setting puts " +
+    "putting tilts tilting bites biting hums humming mutters muttering murmurs murmuring beams beaming frowns frowning gasps " +
+    "gasping groans groaning coughs coughing softly quietly gently warmly dryly wryly playfully teasingly sarcastically " +
+    "deadpan aside under"
+  ).split(" "),
+);
+
 /**
- * A piece of a live reply as it's said: a name in front ("Nell:"), a texted *action*, quotes around the whole of it,
- * markdown and emoji come off. Empty when nothing sayable is left.
+ * What a reply says out loud (2026-11-21: "(slides his phone across the bar) Watch this." was going to be said whole):
+ * its stage directions come off, as *actions* already did. Anything in *asterisks* or [square brackets]; a (parenthesis)
+ * that stands on its own (it opens the reply or a sentence) or opens on an action word ("(laughs)", "(softly)", "(a
+ * beat)"). An aside inside a sentence ("I was a chef (well, sort of) for years") is said. For the voice only: the
+ * message on screen keeps them.
+ */
+export function withoutStageDirections(text: string): string {
+  const s = text
+    .replace(/\*[^*]{1,200}\*/g, " ")
+    .replace(/\[[^[\]]{0,200}\]/g, " ")
+    .replace(EMOTICON, "$1")
+    .replace(/(^|[.!?…:;—–]["”’']?\s*|\s[-–—]\s*|["“]\s*)?\(([^()]{0,200})\)/g, (all: string, before: string | undefined, inside: string) => {
+      const [first = "", second = ""] = inside.toLowerCase().replace(/[^a-z\s]/g, " ").trim().split(/\s+/);
+      const action = STAGE_WORDS.has(first) || ((first === "a" || first === "an") && STAGE_WORDS.has(`${second}s`)) || (first === "a" && second === "beat");
+      return before !== undefined || action ? `${before ?? ""} ` : all;
+    });
+  // A direction a cut left open goes with its words: "(slides his phone across the" | "bar) Watch this." is said
+  // "" | "Watch this."; the asides kept keep their brackets.
+  const opened = s.search(/[([][^()[\]]*$|(?:^|\s)\*(?=\w)[^*]*$/);
+  const head = opened >= 0 ? s.slice(0, opened) : s;
+  const closed = head.search(/^[^()[\]]*[)\]]|^[^*]*\w\*(?=\s|$|[.,!?])/);
+  const said = closed >= 0 ? head.slice(head.slice(closed).search(/[)\]*]/) + closed + 1) : head;
+  return said
+    .replace(/[*]/g, " ")
+    .replace(/\s+([,.!?…;:])/g, "$1")
+    .replace(/^[\s,.;:—–-]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * A piece of a live reply as it's said: a name in front ("Nell:"), a texted *action* or other stage direction
+ * (withoutStageDirections), quotes around the whole of it, markdown and emoji come off. Empty when nothing sayable is left.
  */
 export function spokenClause(text: string, name: string, first = true): string {
   const firstName = name.trim().split(/\s+/)[0] || name;
   let s = text.replace(/\r/g, "").replace(/\n+/g, " ");
   if (first) s = s.replace(new RegExp(`^\\s*(${escape(name)}|${escape(firstName)})\\s*:\\s*`, "i"), "");
-  s = s
-    .replace(/\*[^*]{1,120}\*/g, " ")
+  s = withoutStageDirections(s)
     .replace(/[*_#`~]/g, " ")
     .replace(/\p{Extended_Pictographic}️?/gu, " ")
     .replace(/\s+/g, " ")
@@ -182,6 +239,13 @@ export const heardSoFar = (s: LiveState): string => `${s.said} ${s.interim}`.rep
 
 /** A minute starts this long after the last one ended, so a turn that lands on the boundary isn't charged twice. */
 export const MINUTE_GRACE_MS = 5_000;
+
+/**
+ * A live call that hasn't connected in this long (the microphone not allowed yet, a line that won't open) stops trying,
+ * says so and offers to try again. The microphone is asked for before the call starts, and the server gives the first
+ * minute back to a call that ends sooner than this with nothing said (lib/companion-live.ts LIVE_REFUND_WITHIN_MS).
+ */
+export const LIVE_CONNECT_MS = 30_000;
 
 /** The minutes of a call that have started by `now` (at least the first). */
 export function minutesDue(startedAt: number, now: number): number {

@@ -20,6 +20,7 @@ import { ALL_HOUSE_CHARACTERS } from "../house";
 import { HOUSE_LOOK_VERSION } from "../art-style";
 import { afterDarkPortrait } from "../portraits";
 import { siteUrl } from "../site";
+import { afterDarkBase } from "../after-dark-host";
 import { IMAGE_MIN_AGE, LOOK_STEPS, looksPictureWords, optionPrompt, optionsFor, type Gender } from "../looks";
 import { crossesTaboo } from "./acts";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -1015,6 +1016,9 @@ export async function ownMedia(
 /**
  * A link to one picture that works without a session for a few minutes, for a provider to fetch as a video's start
  * frame (lib/adult/reels.ts). HMAC over the id and the expiry with SESSION_SECRET; pictures only, never clips.
+ * On After Dark's own address when it has one (lib/after-dark-host.ts afterDarkBase), whatever `baseUrl` the caller had:
+ * a link on the show's address reached the picture through a redirect to After Dark's host, and providers' 10 s fetch
+ * timed out on it (the 2026-11-22 audit; 4 pictures and a clip on 11-16).
  */
 export const MEDIA_LINK_MS = 30 * 60 * 1000;
 const mediaMac = (id: string, until: number, secret: string) => createHmac("sha256", secret).update(`after-dark-media:${id}:${until}`).digest("base64url");
@@ -1024,7 +1028,7 @@ export function signedMediaUrl(id: string, baseUrl: string, now = Date.now(), en
   const until = now + MEDIA_LINK_MS;
   // Named .png (every After Dark picture is one): Replicate's Wan 2.6 refuses a link with no extension ("Invalid image
   // format ''"), so every talking shot fell back to silent (2026-11-04). The route takes the id with or without it.
-  return `${baseUrl.replace(/\/$/, "")}/api/admin/after-dark/media/${encodeURIComponent(id)}.png?until=${until}&sig=${mediaMac(id, until, secret)}`;
+  return `${afterDarkBase(baseUrl, env).replace(/\/$/, "")}/api/admin/after-dark/media/${encodeURIComponent(id)}.png?until=${until}&sig=${mediaMac(id, until, secret)}`;
 }
 /** The id a media link names: without the file extension a signed link carries (signedMediaUrl). */
 export const mediaIdOf = (param: string) => param.replace(/\.(?:png|jpe?g|webp)$/i, "");
@@ -1033,7 +1037,7 @@ export function signedPresenceUrl(id: string, baseUrl: string, now = Date.now(),
   const secret = env.SESSION_SECRET;
   if (!secret) throw new Error("SESSION_SECRET is not set");
   const until = now + MEDIA_LINK_MS;
-  return `${baseUrl.replace(/\/$/, "")}/api/admin/after-dark/presence/${encodeURIComponent(id)}?until=${until}&sig=${mediaMac(`presence:${id}`, until, secret)}`;
+  return `${afterDarkBase(baseUrl, env).replace(/\/$/, "")}/api/admin/after-dark/presence/${encodeURIComponent(id)}?until=${until}&sig=${mediaMac(`presence:${id}`, until, secret)}`;
 }
 export const presenceLinkValid = (id: string, until: string | null, sig: string | null, now = Date.now(), env: Record<string, string | undefined> = process.env) =>
   mediaLinkValid(`presence:${id}`, until, sig, now, env);

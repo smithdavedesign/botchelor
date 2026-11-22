@@ -13,12 +13,15 @@ export const onRequestError: Instrumentation.onRequestError = async (err, reques
 };
 
 /**
- * After Dark's own host (lib/after-dark-host.ts) asks after the videos being made while nobody has their page open
+ * Both hosts hold sharp to its memory limits before the first request (lib/sharp-limits.ts). After Dark's own host
+ * (lib/after-dark-host.ts) also asks after the videos being made while nobody has their page open
  * (lib/adult/reel-collector.ts): a reel's shots come back only when asked, and Replicate drops one nobody collected in
- * half an hour. The show's host and the test runner start nothing.
+ * half an hour. The test runner starts nothing.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NODE_ENV === "test") return;
+  const { limitSharp } = await import("./lib/sharp-limits");
+  await limitSharp();
   const { afterDarkOnly } = await import("./lib/after-dark-host");
   if (!afterDarkOnly()) return;
   const { startReelCollector } = await import("./lib/adult/reel-collector");

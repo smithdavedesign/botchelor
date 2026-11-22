@@ -13,8 +13,8 @@ import { portraitPathSql } from "./assets";
 import { loadCharacter, type Character } from "./character";
 import { lessonsForPrompt } from "./character-lessons";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
-import { AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
-import { factsForPrompt, updateFacts, updateSummary } from "./companion-memory";
+import { AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, tooCloseTo, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { FACTS_EVERY, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
   COMPANION_GUEST_THREADS,
@@ -791,6 +791,10 @@ type SpeakResult = { ok: true; ids: string[]; texts: string[] } | CompanionFail;
 
 /** A reply is drawn again (after a PG or crisis miss) only this soon: past it, the deflection, so the request ends in time. */
 export const REDRAW_WITHIN_MS = 40_000;
+/** A regenerate ("Another reply") is drawn a little looser than a reply (0.9), so it doesn't land on the same words. */
+export const REGENERATE_TEMPERATURE = 1;
+/** How many replies they passed on a regenerate's prompt names (the one showing, then the newest earlier draws). */
+export const PASSED_ON_MAX = 4;
 
 /** The recent turns, oldest first (a redrawn reply's earlier draw left out, and the reply being drawn again). */
 async function recentTurns(db: Db, threadId: string, exclude: readonly string[] = [], keep: number = RECENT_TURNS): Promise<{ turns: PromptTurn[]; avoid: string[]; photos: string[] }> {
@@ -848,6 +852,8 @@ async function speak(
   opts: {
     cue?: string;
     insteadOf?: string | null;
+    /** A regenerate: the replies they passed on for this turn, none to come back reworded (tooCloseTo). */
+    passedOn?: readonly string[];
     /** The reply being drawn again: not in the prompt's turns. */
     replacing?: readonly string[];
     /** On a voice call (never in a scene): a short spoken reply, kept as one message marked as said on the call. */
@@ -889,8 +895,13 @@ async function speak(
   // A safe draw that only says something again: used when the redraw doesn't come back better (never a deflection).
   let safeRepeat: { bubbles: string[]; action: string | null } | null = null;
   const again = (x: string) => `${x.slice(0, 300)} (you've said this before: say something new)`;
+  // A regenerate: what they passed on stays out, reworded too (tooCloseTo draws once more), drawn a little looser.
+  const passedOn = opts.passedOn ?? [];
+  const passed = (x: string) => passedOn.length > 0 && tooCloseTo(x, passedOn);
+  const unlike = (x: string) => `${x.slice(0, 300)} (that's the reply they passed on, reworded: say something else)`;
+  const temperature = passedOn.length ? REGENERATE_TEMPERATURE : 0.9;
   const prompt = (o: { insteadOf: string | null; told?: boolean }) =>
-    companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona, storyMode: o.told === true });
+    companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, passedOn, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona, storyMode: o.told === true });
 
   // Story mode (lib/narration.ts): in a scene, for someone on the narrated style (the Companion Plan's, and admins':
   // lib/writing-style.ts), the reply is written as prose in ONE call, where a script line used to get a narration pass
@@ -906,7 +917,7 @@ async function speak(
       let raw: string;
       try {
         raw = await model.complete(prompt({ insteadOf: instead, told: true }), {
-          temperature: 0.9,
+          temperature,
           frequencyPenalty: 0.3,
           maxTokens: storyModeTokens(t.reply_length),
           onUsage: (u) => usage.push(u),
@@ -932,9 +943,9 @@ async function speak(
       // What the guard left is checked once more as a whole: a cut can bring two sentences together.
       if (!checkFamilyTalk(kept).ok || crisisIntent(kept)) continue;
       const speech = guarded.speech.join(" ");
-      if (repeatsEarlier(speech, said)) {
+      if (repeatsEarlier(speech, said) || passed(kept)) {
         safeTold ??= guarded.paragraphs;
-        instead = again(speech);
+        instead = passed(kept) ? unlike(speech || kept) : again(speech);
         continue;
       }
       told = guarded.paragraphs;
@@ -949,7 +960,7 @@ async function speak(
       raw = await model.complete(
         prompt({ insteadOf }),
         {
-          temperature: 0.9,
+          temperature,
           frequencyPenalty: 0.3,
           maxTokens: call ? 250 : t.reply_length === "long" ? 700 : 400,
           onUsage: (u) => usage.push(u),
@@ -964,9 +975,9 @@ async function speak(
       // A scene: one line, with what they do as they say it; both under the PG line and the crisis list.
       const line = sceneReply(raw, character.name);
       if (line && checkFamilyTalk(line.say).ok && checkFamilyTalk(line.action ?? "").ok && !crisisIntent(line.say) && !crisisIntent(line.action ?? "")) {
-        if (repeatsEarlier(line.say, said)) {
+        if (repeatsEarlier(line.say, said) || passed(line.say)) {
           safeRepeat ??= { bubbles: [line.say], action: line.action };
-          insteadOf = again(line.say);
+          insteadOf = passed(line.say) ? unlike(line.say) : again(line.say);
           continue;
         }
         bubbles = [line.say];
@@ -980,10 +991,10 @@ async function speak(
     if (drawn.length && drawn.every((b) => checkFamilyTalk(b).ok && !crisisIntent(b))) {
       // Not an earlier line, and not a bubble before it in this same reply (the sim saw one paragraph sent twice).
       const fresh = drawn.filter((b, i) => !repeatsEarlier(b, [...said, ...drawn.slice(0, i)]));
-      if (fresh.length === drawn.length) bubbles = drawn;
+      if (fresh.length === drawn.length && !passed(drawn.join(" "))) bubbles = drawn;
       else {
         safeRepeat ??= { bubbles: fresh.length ? fresh : drawn, action: null };
-        insteadOf = again(drawn.join(" "));
+        insteadOf = fresh.length === drawn.length ? unlike(drawn.join(" ")) : again(drawn.join(" "));
       }
     } else insteadOf = `${drawn.join(" ").slice(0, 300)} (keep it PG and kind)`;
   }
@@ -1250,7 +1261,21 @@ export async function regenerate(db: Db, userId: string, threadId: string, now: 
   const { t, character } = l;
   if (t.paused_at) return fail(409, "paused", "This conversation is paused. Carry on when you're ready.");
   const last = await lastReply(db, t.id);
-  const r = await speak(db, t, character, now, { insteadOf: last.rows.map((m) => m.text).join(" ").slice(0, 600) || null, cue: cueAfter(t, character.name, last.before), replacing: last.rows.map((m) => m.id) });
+  // What they've passed on for this turn: the reply showing, and the draws before it (2026-11-21: a regenerate came
+  // back a near copy of the one showing), so the new one is told to leave them all behind.
+  const current = last.rows[0]?.draw ?? null;
+  const earlier = current
+    ? (
+        await db.query<{ text: string }>(
+          `select text from companion_messages
+            where thread_id = $1 and replaced_by = $2 and draw is not null and draw <> $2 and id <> replaced_by and via <> 'photo'
+            order by created_at desc, id desc limit $3`,
+          [t.id, current, PASSED_ON_MAX],
+        )
+      ).rows.map((m) => m.text)
+    : [];
+  const passedOn = [last.rows.map((m) => m.text).join(" "), ...earlier].map((x) => x.replace(/\s+/g, " ").trim().slice(0, 300)).filter(Boolean).slice(0, PASSED_ON_MAX);
+  const r = await speak(db, t, character, now, { passedOn, cue: cueAfter(t, character.name, last.before), replacing: last.rows.map((m) => m.id) });
   if (!r.ok) return r;
   if (last.rows.length) await setAside(db, t.id, last.rows, r.ids[0]);
   return getThread(db, userId, threadId);
@@ -1515,16 +1540,17 @@ export async function deleteThread(db: Db, userId: string, threadId: string): Pr
 }
 
 /**
- * After a reply (the route runs it in after(), past the response): new facts when FACTS_EVERY messages have come in,
- * and the rolling summary when it's due. Never throws.
+ * After a reply (the route runs it in after(), past the response): new facts when FACTS_EVERY messages have come in
+ * (a guest's at GUEST_FACTS_EVERY), and the rolling summary when it's due. Never throws.
  */
-export async function companionFollowUp(db: Db, threadId: string): Promise<void> {
+export async function companionFollowUp(db: Db, threadId: string, opts: { guest?: boolean } = {}): Promise<void> {
   try {
     const t = (await db.query<{ character_id: string }>(`select character_id from companion_threads where id = $1`, [threadId])).rows[0];
     if (!t) return;
     const name = (await db.query<{ name: string }>(`select name from characters where id = $1`, [t.character_id])).rows[0]?.name ?? "the character";
     const model = await modelFor(db);
-    const facts = await updateFacts(db, threadId, name, model);
+    // A guest's few replies would never reach a draw: theirs comes sooner (GUEST_FACTS_EVERY), so what's kept shows.
+    const facts = await updateFacts(db, threadId, name, model, new Date(), opts.guest ? GUEST_FACTS_EVERY : FACTS_EVERY);
     const summary = await updateSummary(db, threadId, name, model);
     if (process.env.COMPANION_DEBUG === "1") console.error(`[companion] follow-up ${threadId}: ${facts} facts, summary ${summary}`);
   } catch (err) {

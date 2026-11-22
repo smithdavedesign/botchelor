@@ -460,8 +460,16 @@ export type AdminFlag = { user_id: string; reason: string; processor: string; fl
 
 const iso = (v: Date | string | null): string | null => (v === null ? null : new Date(v).toISOString());
 
+/**
+ * A subscription's status as the admin's view says it: "lapsed" for one still marked active whose period has ended (the
+ * 2026-11-22 audit: a pass that ran until 11-07 read "active").
+ */
+export function shownStatus(status: string, periodEnd: string | null, now: Date = new Date()): string {
+  return status === "active" && periodEnd !== null && new Date(periodEnd).getTime() <= now.getTime() ? "lapsed" : status;
+}
+
 /** The admin's view: subscriptions (paid ones first), the latest postbacks and the flags. */
-export async function billingOverview(db: Db): Promise<{ subscriptions: AdminSubscription[]; events: AdminBillingEvent[]; flags: AdminFlag[] }> {
+export async function billingOverview(db: Db, now: Date = new Date()): Promise<{ subscriptions: AdminSubscription[]; events: AdminBillingEvent[]; flags: AdminFlag[] }> {
   const subs = await db.query<Omit<AdminSubscription, "period_end" | "subscribed_at"> & { period_end: Date | string | null; subscribed_at: Date | string | null }>(
     `select e.user_id, e.subscription_status as status, e.period_end, e.provider, e.subscribed_at, e.age_method, e.age_country, f.reason as flagged
        from adult_entitlements e left join adult_billing_flags f on f.user_id = e.user_id and f.reviewed_at is null
@@ -475,7 +483,7 @@ export async function billingOverview(db: Db): Promise<{ subscriptions: AdminSub
     `select user_id, reason, processor, flagged_at, reviewed_at from adult_billing_flags order by flagged_at desc limit 50`,
   );
   return {
-    subscriptions: subs.rows.map((r) => ({ ...r, period_end: iso(r.period_end), subscribed_at: iso(r.subscribed_at) })),
+    subscriptions: subs.rows.map((r) => ({ ...r, status: shownStatus(r.status, iso(r.period_end), now), period_end: iso(r.period_end), subscribed_at: iso(r.subscribed_at) })),
     events: events.rows.map((r) => ({ ...r, received_at: iso(r.received_at)! })),
     flags: flags.rows.map((r) => ({ ...r, flagged_at: iso(r.flagged_at)!, reviewed_at: iso(r.reviewed_at) })),
   };

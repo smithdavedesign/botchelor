@@ -6,7 +6,7 @@ import Avatar, { sized } from "@/app/Avatar";
 import { characterPortrait } from "@/lib/portraits";
 import { useSpeech } from "@/app/stage/useSpeech";
 import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
-import { heardSoFar, LIVE_START, liveStep, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
+import { heardSoFar, LIVE_CONNECT_MS, LIVE_START, liveStep, withoutStageDirections, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
 import { CLIP_HOLD_MS, CLIP_LATE_MS, LISTEN_MIN_SPEECH_MS, LISTEN_PAUSE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
@@ -122,6 +122,8 @@ const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2,
 
 const MIC_BLOCKED =
   "Your browser didn't let the call use the microphone. Allow it for this site (on an iPhone, turn on Dictation in Settings → General → Keyboard), then tap to talk.";
+/** A live call that didn't connect in LIVE_CONNECT_MS: most often the browser's microphone question, still unanswered. */
+const CONNECT_TIMED_OUT = "The call didn't connect. If your browser is asking to use the microphone, allow it, then try again.";
 const RECOGNITION_ERRORS: Record<string, string> = {
   "not-allowed": MIC_BLOCKED,
   "service-not-allowed": MIC_BLOCKED,
@@ -193,6 +195,8 @@ export default function CompanionCall({
   const [minutes, setMinutes] = useState<CompanionExtraState | null>(live?.minutes ?? null);
   // Paused because the call minutes ran out: the button to go on shows the price.
   const [buyOffer, setBuyOffer] = useState(false);
+  // Paused because a live call didn't connect in time: the button to go on says Try again.
+  const [retryOffer, setRetryOffer] = useState(false);
   // What's been said on this call (lib/companion-call-transcript.ts), and whether the 💬 Transcript is open.
   const [script, setScript] = useState<Transcript>(TRANSCRIPT_START);
   const [showScript, setShowScript] = useState(false);
@@ -237,6 +241,10 @@ export default function CompanionCall({
   const bargeIns = useRef(0);
   const voiceOff = useRef(false);
   const minutesNow = useRef<CompanionExtraState | null>(live?.minutes ?? null);
+  // Each try at connecting a live call (a later one makes an earlier one stale), its deadline, and the face warmed once.
+  const attempt = useRef(0);
+  const connectTimer = useRef(0);
+  const warmed = useRef(false);
   const mainButton = useRef<HTMLButtonElement>(null);
   const endButton = useRef<HTMLButtonElement>(null);
 
@@ -248,6 +256,15 @@ export default function CompanionCall({
     // On arrival only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The call sheet is open, on a live call with their moving face: its worker starts booting now (the route's "warm"),
+  // so the call's first clause finds it hot. Never for a look at the thread: it rents a GPU.
+  useEffect(() => {
+    if (warmed.current || !canLive || mode !== "live" || live?.face !== "yours") return;
+    warmed.current = true;
+    void livePost({ action: "warm" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   function go(p: Phase) {
     phaseNow.current = p;
@@ -311,9 +328,10 @@ export default function CompanionCall({
 
   /**
    * Stops listening (or talking) and waits for a tap, saying why when there's a reason. A live call hangs up its line
-   * too (nothing's heard or paid for while paused); `buy`: it paused because the call minutes ran out.
+   * too (nothing's heard or paid for while paused); `buy`: it paused because the call minutes ran out; `retry`: it
+   * didn't connect in time.
    */
-  function pause(why: string | null, buy = false) {
+  function pause(why: string | null, buy = false, retry = false) {
     go("paused");
     // Their reply stops here, so whatever of it was still to come is cut off.
     log({ kind: "cut" });
@@ -323,6 +341,7 @@ export default function CompanionCall({
     hear("");
     setNote(why);
     setBuyOffer(buy);
+    setRetryOffer(retry);
   }
 
   function listen() {
@@ -423,7 +442,7 @@ export default function CompanionCall({
     const played = url || made ? await play((url ?? made)!) : false;
     if (made) URL.revokeObjectURL(made);
     // Not played (a phone that wouldn't, a file that broke): the device says it, unless they stopped it meanwhile.
-    if (!played && !ended.current && phaseNow.current === "speaking") await props.current.speech.speakAll(words, who);
+    if (!played && !ended.current && phaseNow.current === "speaking") await props.current.speech.speakAll(withoutStageDirections(words), who);
     // Said to the end (stopped by Interrupt, a pause or the end, it was already marked cut off).
     log({ kind: "done" });
     lastAt.current = Date.now();
@@ -529,6 +548,7 @@ export default function CompanionCall({
     if (modeNow.current === "live") {
       const priced = extraPrice("minute", minutesNow.current) !== "";
       setBuyOffer(false);
+      setRetryOffer(false);
       void liveBegin(priced);
       return;
     }
@@ -573,14 +593,37 @@ export default function CompanionCall({
     }
   }
 
-  /** Starts (or, after a pause, starts again) the live line: a minute taken, a token, the microphone and the socket. */
+  /**
+   * Starts (or, after a pause, starts again) the live line: the microphone first, so nothing is taken while the browser
+   * asks for it, then the call (a minute taken, a token) and the socket. Not connected in LIVE_CONNECT_MS (the question
+   * about the microphone unanswered, a line that won't open), it pauses, says why and offers to try again.
+   */
   async function liveBegin(buy: boolean) {
+    const mine = ++attempt.current;
+    // Ended, paused, timed out or tried again since: this try lets go.
+    const stale = () => ended.current || attempt.current !== mine || phaseNow.current !== "connecting";
     go("connecting");
     hear("");
+    window.clearTimeout(connectTimer.current);
+    connectTimer.current = window.setTimeout(() => {
+      if (!stale()) pause(CONNECT_TIMED_OUT, false, true);
+    }, LIVE_CONNECT_MS);
+    const audio = ctx.current;
+    if (!audio) return classicInstead("This browser can't play a live call");
+    player.current ??= new PcmPlayer(audio);
+    try {
+      mic.current?.stop();
+      mic.current = new Mic();
+      await mic.current.start(audio, (pcm) => socket.current?.send(pcm));
+    } catch {
+      if (stale()) return;
+      return pause(MIC_BLOCKED);
+    }
+    if (stale()) return;
     const r = await livePost({ action: "start", buy, lang: navigator.language });
     const call = r.data?.call as { id?: string } | undefined;
-    if (ended.current || (phaseNow.current as Phase) !== "connecting") {
-      // Ended or paused while it connected: hang up the call that just started (a quick one gives its minute back).
+    if (stale()) {
+      // Ended, paused or timed out while it connected: hang up the call that just started (a quick one gives its minute back).
       if (call?.id) void livePost({ action: "end", call_id: call.id, seconds: 0 }, true);
       return;
     }
@@ -592,7 +635,7 @@ export default function CompanionCall({
       // Their live face, when the server offered one: it opens beside the line and takes the voice once it streams.
       const offered = r.data?.face as LiveFaceSession | null | undefined;
       setFaceSession(offered ?? null);
-      return liveOpen(stt.url, stt.token);
+      return liveOpen(stt.url, stt.token, stale);
     }
     const message = typeof r.data?.message === "string" ? r.data.message : null;
     if (r.status === 402) return pause(message, true);
@@ -601,25 +644,20 @@ export default function CompanionCall({
     return classicInstead("Live calls aren't working right now");
   }
 
-  async function liveOpen(url: string, token: string) {
-    const audio = ctx.current;
-    if (!audio) return classicInstead("This browser can't play a live call");
-    player.current ??= new PcmPlayer(audio);
+  /** The socket to Deepgram, once the microphone is on and the call has started. */
+  async function liveOpen(url: string, token: string, stale: () => boolean) {
+    let line: Listening;
     try {
-      mic.current?.stop();
-      mic.current = new Mic();
-      await mic.current.start(audio, (pcm) => socket.current?.send(pcm));
+      line = await listenLive(url, token, { heard: onHeard, closed: () => void reconnect() });
     } catch {
-      return pause(MIC_BLOCKED);
-    }
-    if (ended.current || phaseNow.current !== "connecting") return closeLive();
-    try {
-      socket.current = await listenLive(url, token, { heard: onHeard, closed: () => void reconnect() });
-    } catch {
+      if (stale()) return;
       closeLive();
       return classicInstead("The live line didn't connect");
     }
-    if (ended.current || phaseNow.current !== "connecting") return closeLive();
+    // Let go of meanwhile (pause and End call already hung up the rest): only this socket is left to close.
+    if (stale()) return line.close();
+    socket.current = line;
+    window.clearTimeout(connectTimer.current);
     liveState.current = LIVE_START;
     heardAt.current = Date.now();
     go("listening");
@@ -644,6 +682,7 @@ export default function CompanionCall({
 
   /** Hangs up the live line: the socket, the microphone, the reply in flight, and the server's call (its minutes settle). */
   function closeLive() {
+    window.clearTimeout(connectTimer.current);
     socket.current?.close();
     socket.current = null;
     mic.current?.stop();
@@ -1035,6 +1074,8 @@ export default function CompanionCall({
         return;
       }
       if (modeNow.current !== "live" || !callId.current) return;
+      // Still connecting: no minute ticks until it has (LIVE_CONNECT_MS stops it trying, and gives the first one back).
+      if (phaseNow.current === "connecting") return;
       if (phaseNow.current === "listening" && !liveState.current.said && !liveState.current.interim && Date.now() - Math.max(heardAt.current, lastAt.current) > LIVE_QUIET_MS) {
         pause("Paused after a quiet minute, so it isn't using your call minutes.");
         return;
@@ -1256,7 +1297,11 @@ export default function CompanionCall({
               )}
               {phase === "paused" ? (
                 <button type="button" className="button" onClick={resume} ref={mainButton} data-track="companion-call-resume">
-                  {modeNow.current === "live" && extraPrice("minute", minutes) !== "" ? `🎙 ${buyOffer ? "Keep talking" : "Tap to talk"} · ${extraPrice("minute", minutes)}` : "🎙 Tap to talk"}
+                  {retryOffer
+                    ? `↻ Try again${modeNow.current === "live" && extraPrice("minute", minutes) !== "" ? ` · ${extraPrice("minute", minutes)}` : ""}`
+                    : modeNow.current === "live" && extraPrice("minute", minutes) !== ""
+                      ? `🎙 ${buyOffer ? "Keep talking" : "Tap to talk"} · ${extraPrice("minute", minutes)}`
+                      : "🎙 Tap to talk"}
                 </button>
               ) : (
                 <button type="button" className="button-ghost" onClick={() => pause(null)} disabled={phase === "thinking" || phase === "connecting"}>

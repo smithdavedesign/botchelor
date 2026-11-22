@@ -224,6 +224,27 @@ describe("a face kit", () => {
     expect(kit!.failed).toMatch(/still: it came out revealing/);
   });
 
+  it("a loop left making and never collected expires after half an hour, so the next call draws it again", async () => {
+    const id = await withPortrait("Stuck Loop");
+    const { asked } = fakeReplicate();
+    verdict("CLOTHED");
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, queued: true });
+    const loops = () => asked.filter((a) => a.url.includes("wan-video")).length;
+    expect(loops()).toBe(1);
+    // Nobody polled (the page was closed): it stays "making", and a call within the half hour leaves it be.
+    const before = asked.length;
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
+    expect(asked).toHaveLength(before);
+    await t.db.query(`update face_kits set updated_at = now() - interval '25 minutes', created_at = now() - interval '25 minutes' where character_id = $1 and part = 'loop'`, [id]);
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
+    // Days later (the 11-13 and 11-18 rows): the next call draws the loop again, and only the loop.
+    await t.db.query(`update face_kits set updated_at = now() - interval '3 days', created_at = now() - interval '3 days' where character_id = $1 and part = 'loop'`, [id]);
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 0, queued: true });
+    expect(loops()).toBe(2);
+    expect(asked).toHaveLength(before + 1);
+    expect((await t.db.query<{ status: string }>(`select status from face_kits where character_id = $1 and part = 'loop'`, [id])).rows[0].status).toBe("making");
+  });
+
   it("draws a few a day on calls (FACE_KIT_PER_DAY), never more; one being made isn't started twice", async () => {
     vi.stubEnv("FACE_KIT_PER_DAY", "1");
     const a = await withPortrait("First Face");

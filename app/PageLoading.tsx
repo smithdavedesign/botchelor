@@ -16,10 +16,14 @@ const Lines = ({ widths }: { widths: number[] }) => (
  * characters from another page it looks like my click didn't do anything"). It shows the moment a link is tapped: what
  * is loading, in words and the house mark (app/Loading.tsx), over a grey outline of the page, so nothing jumps when the
  * page arrives. Styles are `.page-skeleton` in app/globals.css.
+ *
+ * `width` is the page's own: "wide" for a page whose root is a wide page (.page-wide, an episode, a couple, the watch
+ * room), "full" for a whole-screen one (.page-full). Without it the outline sat in the reading column and main widened
+ * under the page when it arrived, a layout shift (2026-11-22 audit).
  */
-export default function PageLoading({ shape, label }: { shape: PageShape; label: string }) {
+export default function PageLoading({ shape, label, width }: { shape: PageShape; label: string; width?: "wide" | "full" }) {
   return (
-    <div className={`page-skeleton page-skeleton-${shape}`} aria-busy="true">
+    <div className={`page-skeleton page-skeleton-${shape}${width ? ` page-${width}` : ""}`} aria-busy="true">
       <p className="page-skeleton-status" role="status">
         <Loading /> <span>{label}</span>
       </p>

@@ -56,6 +56,11 @@ describe("robots.txt and the framework's prefetch requests", () => {
       for (const url of ["/", "/tools", "/tools/oc-chemistry-test", "/episodes/abc", "/import?from=cai&utm_source=reddit", "/api/og/episode/abc", "/api/assets/abc", "/api/mcp"]) {
         expect(crawlable(url, allow, disallow), url).toBe(true);
       }
+      // The show's PG media on public pages (2026-11-22 audit: Google rendered them blank): character photos, the home
+      // video and its poster, a cast intro.
+      for (const url of ["/api/shots/abc.webp", "/api/home-clip/abc/poster.jpg", "/api/home-clip/abc/loop.mp4", "/api/cast-intro/abc/intro-1795213677.mp4"]) {
+        expect(crawlable(url, allow, disallow), url).toBe(true);
+      }
     }
   });
 

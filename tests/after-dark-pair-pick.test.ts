@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pairOf, pairPath, pickerData, pickGroups, surprisePair, whoseCounts, whoseFilters } from "@/lib/adult/pair-pick";
+import { byName, oneFaceGroups, pairOf, pairPath, pickerData, pickGroups, surprisePair, whoseCounts, whoseFilters } from "@/lib/adult/pair-pick";
 import type { CastMember, CastPair } from "@/lib/adult/scenes";
 
 // The hub's pair picker (lib/adult/pair-pick.ts; David, 2026-11-18: "change the choose a new pair to be better ux like a
@@ -76,6 +76,34 @@ describe("what the panel shows", () => {
     // "o" starts Okonkwo, and is only inside Morrow and Calloway.
     expect(names(groups(null, "o"))).toEqual([["3 matches", ["Star", "Dex", "Sweet"]]]);
     expect(groups(null, "nobody")).toEqual([]);
+  });
+
+  it("one face at a time (Step in's set-up): whole names A to Z, or the search's matches, a word that starts with it first", () => {
+    const step = [sweet, star, ines, juniper, dex, who("c-alex-r", "Alex Reyes"), who("c-alex-m", "Alex Moreau")].map(({ id, name }) => ({ id, name }));
+    expect(byName(step, "").map((c) => c.name)).toEqual(["Alex Moreau", "Alex Reyes", "Dex Morrow", "Inès Valdecasas", "Juniper Hale", "Star Okonkwo", "Sweet Calloway"]);
+    expect(byName(step, "alex").map((c) => c.name)).toEqual(["Alex Moreau", "Alex Reyes"]);
+    expect(byName(step, " VALDE ").map((c) => c.id)).toEqual(["c-ines"]);
+    // "mor" starts Moreau and Morrow; nothing has it inside.
+    expect(byName(step, "mor").map((c) => c.name)).toEqual(["Alex Moreau", "Dex Morrow"]);
+    expect(byName(step, "o").map((c) => c.name)).toEqual(["Star Okonkwo", "Alex Moreau", "Dex Morrow", "Sweet Calloway"]);
+    expect(byName(step, "nobody")).toEqual([]);
+  });
+
+  it("Step in's groups: from their scenes (latest first), the house cast, everyone else; one list of matches once typed", () => {
+    const step = [sweet, star, ines, juniper, dex].map(({ id, name, house }) => ({ id, name, house }));
+    const label = (g: { label: string; faces: { name: string }[] }[]) => g.map((x) => [x.label, x.faces.map((f) => f.name.split(" ")[0])]);
+    expect(label(oneFaceGroups(step, [], ""))).toEqual([
+      ["House cast", ["Juniper", "Star", "Sweet"]],
+      ["Everyone else", ["Dex", "Inès"]],
+    ]);
+    expect(label(oneFaceGroups(step, [dex.id, star.id, dex.id, "c-gone"], ""))).toEqual([
+      ["From your scenes", ["Dex", "Star"]],
+      ["House cast", ["Juniper", "Sweet"]],
+      ["Everyone else", ["Inès"]],
+    ]);
+    expect(label(oneFaceGroups([ines, dex].map(({ id, name }) => ({ id, name })), [], ""))).toEqual([["Everyone · 2", ["Dex", "Inès"]]]);
+    expect(label(oneFaceGroups(step, [dex.id], "ines"))).toEqual([["1 match", ["Inès"]]]);
+    expect(oneFaceGroups(step, [dex.id], "nobody")).toEqual([]);
   });
 
   it("filters to the house cast or theirs", () => {

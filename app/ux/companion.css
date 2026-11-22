@@ -38,6 +38,9 @@
 main:has(> .companion-fullscreen) {
   max-width: 72rem;
   padding-bottom: var(--space-4);
+  /* The chat sets its own height to fit the screen, with no footer to keep below the fold: main's screen-high minimum
+     (app/globals.css) would only add a few pixels of scrolling. */
+  min-height: 0;
 }
 body:has(.companion-fullscreen) .site-footer {
   display: none;
@@ -373,6 +376,11 @@ body:has(.companion-fullscreen) .site-footer {
 }
 .companion-send .button {
   min-height: 44px;
+}
+/* Past the limit the count says by how much, and Send waits (CompanionChat lineMax): nothing is cut off silently. */
+.companion-over {
+  color: var(--bad-text);
+  font-weight: 600;
 }
 .companion-note {
   margin: 0;
