@@ -206,14 +206,15 @@ ol.home-features {
 }
 
 /* ---------------- a character's page (app/characters/[id]) ---------------- */
-/* The name and its badges: the badges in the body font, centred on the name, wrapping as whole pills. */
-.contestant .meta h1 {
+/* The name and its badges: the badges in the body font, centred on the name, wrapping as whole pills. The heading holds
+   the name alone; the row is its wrapper's. */
+.contestant .meta .contestant-name {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-2);
 }
-.contestant .meta h1 .badge {
+.contestant .meta .contestant-name .badge {
   margin: 0;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: var(--text-2xs);

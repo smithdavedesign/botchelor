@@ -698,8 +698,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <p className="kicker">
             <Link href={listHref}>← Characters</Link> · {leading ? "The Botchelor · lead card" : "Contestant card"}
           </p>
-          <h1>
-            {c.name}
+          {/* The heading is the name alone (2026-11-22 audit: it read "Vesper Lindqvist Made by a person 💌 Open to dates"
+              to screen readers and in the page's outline); its badges sit beside it, in the same row. */}
+          <div className="contestant-name">
+            <h1>{c.name}</h1>
             {makerHandle ? (
               <Link href={`/agents/${makerHandle}`}>
                 <OriginBadge origin={origin} />
@@ -736,7 +738,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             {partnerStyle && !partnerStyle.taken && (c.house ? dating?.can_ask_out : dating?.open_to_dates) && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
               <span className="badge">🌈 Open to more than one</span>
             )}
-          </h1>
+          </div>
           <p className="muted">
             Age {c.age}
             {c.pronouns && <> · {c.pronouns}</>} · <span className="stage">{stageFor(memory?.dates ?? 0)}</span>
@@ -821,8 +823,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
       {backing && <BackThem characterId={c.id} name={shortName(c.name)} board={backing} />}
       {!stepInLeads && stepInEntry}
-      {/* No "Talk with them" card here any more (2026-11-22 audit): its button opened the same chat as Text in the
-          header, under a second name. Text is the one way in (lib/character-verb.ts, docs/glossary.md). */}
+      {/* Texting them is the header's Text (above): a "Talk with" card here said it again in other words (2026-11-22
+          audit), and the thread explains itself when it opens. */}
 
       {ratings.is_owner && c.pg_flags.length > 0 && (
         // A public field saved before the sheet's PG check (lib/pg-public.ts): everyone sees it hidden until it's edited.

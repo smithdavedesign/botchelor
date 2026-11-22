@@ -87,9 +87,29 @@ export async function listOpenReports(db: Db): Promise<ReportedEpisode[]> {
 }
 
 /**
+ * A date an admin took down (reviewReports 'removed', or a takedown request decided 'hidden', lib/content-reports.ts),
+ * as SQL on the episode id in `id`. It stays private: its host can't make it public or unlisted again (2026-11-22
+ * audit: a takedown its host could undo in one click). An admin putting it back ('cleared', or the request decided
+ * again) hands it back to its host, still private until they choose.
+ */
+export const takenDownSql = (id: string) =>
+  `(exists (select 1 from reports_reviewed tr where tr.episode_id = ${id} and tr.decision = 'removed')
+    or exists (select 1 from content_reports tc where tc.episode_id = ${id} and tc.status = 'hidden'))`;
+
+export async function takenDown(db: Db, episodeId: string): Promise<boolean> {
+  return (await db.query<{ down: boolean }>(`select ${takenDownSql("$1")} as down`, [episodeId])).rows[0]?.down === true;
+}
+
+export const TAKEN_DOWN = {
+  error: "taken_down",
+  message: "We took this date down after a report, so it stays private. If you think that was a mistake, tell us at /report.",
+} as const;
+
+/**
  * Reviews every open report on one episode. 'cleared': the reports stop counting, so a hidden episode is back.
- * 'removed': the same, and the episode becomes private to its creator (reversible from the owner's own page;
- * nothing is deleted). Returns how many reports were reviewed (0: nothing was open on that episode).
+ * 'removed': the same, and the episode becomes private to its creator, who can't make it public again (takenDownSql;
+ * nothing is deleted). 'cleared' on a date taken down before puts it back in its host's hands (a mistake fixed). Returns
+ * how many reports were reviewed (0: nothing was open on that episode, nor taken down).
  */
 export async function reviewReports(db: Db, episodeId: string, decision: ReviewDecision): Promise<number> {
   const { rows } = await db.query<{ episode_id: string }>(
@@ -100,6 +120,13 @@ export async function reviewReports(db: Db, episodeId: string, decision: ReviewD
      returning episode_id`,
     [episodeId, decision],
   );
+  if (decision === "cleared") {
+    const undone = await db.query<{ episode_id: string }>(
+      `update reports_reviewed set decision = 'cleared', reviewed_at = now() where episode_id = $1 and decision = 'removed' returning episode_id`,
+      [episodeId],
+    );
+    rows.push(...undone.rows);
+  }
   if (rows.length && decision === "removed") {
     await db.query("update episodes set visibility = 'private' where id = $1", [episodeId]);
   }

@@ -65,6 +65,9 @@ const ORIGIN_FILTERS: { id: OriginFilter; label: string }[] = [
 const SCOPE_LABEL: Record<Exclude<OriginFilter, "all">, string> = { yours: "Yours", cast: "The cast", person: "People's characters", agent: "Agents' characters" };
 /** A stable "none" (a fresh [] each render would re-filter the sky each render). */
 const NO_IDS: string[] = [];
+/** An empty sky, the same one every render: a fresh [] would make every memo and effect built on the sky run again. */
+const NO_NODES: SkyNode[] = [];
+const NO_EDGES: SkyEdge[] = [];
 const COLOR_BY: { id: ColorBy; label: string }[] = [
   { id: "character", label: "Character" },
   { id: "kind", label: "Kind" },
@@ -252,7 +255,7 @@ export default function ConstellationApp({
   const [groups, setGroups] = useState<GroupChoice>(null);
   const lensWhole = useMemo(() => (lensData ? lensGraph(lensData) : null), [lensData]);
   // Whichever sky is up: Love's characters, or the view's characters and places.
-  const skyAll: SkyNode[] = lensWhole ? lensWhole.nodes : social ? [] : data.nodes;
+  const skyAll: SkyNode[] = lensWhole ? lensWhole.nodes : social ? NO_NODES : data.nodes;
 
   // The kinds anyone on the sky has said, in the vocabulary's order, for the filter and the legend.
   const kindsPresent = useMemo(() => KINDS.filter((k) => skyAll.some((n) => n.kind === k.id)), [skyAll]);
@@ -366,8 +369,8 @@ export default function ConstellationApp({
     return () => clearTimeout(t);
   }, [lens, social, lensData]);
   // What the canvas draws: Love's pairs, or the view's lines and places as its filters leave them.
-  const skyNodes: SkyNode[] = social ? (lensShown?.nodes ?? []) : nodes;
-  const skyEdges: SkyEdge[] = social ? (lensShown?.edges ?? []) : edges;
+  const skyNodes: SkyNode[] = social ? (lensShown?.nodes ?? NO_NODES) : nodes;
+  const skyEdges: SkyEdge[] = social ? (lensShown?.edges ?? NO_EDGES) : edges;
   // Their world with the centre filtered off the sky (a kind or a group they aren't): nothing of it can be drawn.
   const worldGone = worldNode !== null && !skyNodes.some((n) => n.id === worldNode.id);
   const noLines = social ? false : (narrowed && edges.length === 0) || worldGone;

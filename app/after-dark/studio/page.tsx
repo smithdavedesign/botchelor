@@ -84,7 +84,8 @@ export default async function AfterDarkStudioPage({ searchParams }: { searchPara
                       <span className="ad-studio-card-name">{c.name}</span>
                       <span className="muted small">{note}</span>
                     </Link>
-                    <Link href={`/after-dark/studio/${c.id}`} className="button small">
+                    {/* The card above opens it too, so this is a quiet button: five loud ones read as five equal choices. */}
+                    <Link href={`/after-dark/studio/${c.id}`} className="button-ghost small" aria-label={`Open the Studio for ${c.name}`}>
                       🎨 Open the Studio
                     </Link>
                   </li>

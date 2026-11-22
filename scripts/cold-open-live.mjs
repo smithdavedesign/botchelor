@@ -67,7 +67,7 @@ try {
       .waitForFunction(() => (document.querySelector("dialog video.cut-video")?.currentTime ?? 0) > 3, null, { timeout: 30_000 })
       .then(() => true, () => false);
     if (!played) problems.push(`${label}: the short version didn't play`);
-    const audio = await video.evaluate((v) => ({ muted: v.muted, duration: Math.round(v.duration || 0), audio: v.mozHasAudio ?? v.webkitAudioDecodedByteCount > 0 ?? null })).catch(() => null);
+    const audio = await video.evaluate((v) => ({ muted: v.muted, duration: Math.round(v.duration || 0), audio: v.mozHasAudio ?? v.webkitAudioDecodedByteCount > 0 })).catch(() => null);
     console.log(`${label}: short version ${JSON.stringify(audio)}`);
     await shot("short-version");
     await page.keyboard.press("Escape");
