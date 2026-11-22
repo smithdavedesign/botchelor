@@ -235,6 +235,12 @@ describe("the home's latest", () => {
     expect(html).toContain('href="/after-dark/gallery?tab=videos"');
     expect(html).toContain('href="/after-dark/gallery?tab=pictures"');
     expect(html).toContain("New video");
+    // At a tile's size (the 2026-11-22 audit: two 1 MB pictures on the hub), and a video with no picture of its own by its first frame.
+    expect(html).toContain('src="/api/admin/after-dark/media/old-picture?w=640"');
+    expect(html).toContain('src="/api/admin/after-dark/media/new-video#t=0.1"');
+    // Made from a picture: that picture until it plays, and nothing of the video loaded before.
+    await t.db.query(`update adult_images set source_image = 'old-picture' where id = 'new-video'`);
+    expect(await home()).toMatch(/<video src="\/api\/admin\/after-dark\/media\/new-video" poster="\/api\/admin\/after-dark\/media\/old-picture\?w=640" preload="none"/);
   });
 });
 
@@ -322,18 +328,31 @@ describe("the home as a landing page", () => {
         kind,
         at,
       ]);
+    // A second night, played before: its card is under Continue, with its own cover.
+    await t.db.query(`insert into adult_scenes (id, owner_id, character_a, character_b, lines, updated_at) values ('s-ac', $1, $2, $3, $4::jsonb, now() - interval '1 day')`, [
+      id,
+      A,
+      C,
+      JSON.stringify([{ who: "a", text: "Again?" }]),
+    ]);
     await picture("older-ab", A, B, "2026-11-01T00:00:00Z");
     // Stored either way round, it's still theirs; the newest wins.
     await picture("newest-ab", B, A, "2026-11-10T00:00:00Z");
+    await picture("cover-ac", C, A, "2026-11-11T00:00:00Z");
     // Not a cover: one of them alone, or a clip.
     await picture("solo-a", A, null, "2026-11-12T00:00:00Z");
     await picture("clip-ab", A, B, "2026-11-13T00:00:00Z", "video");
     const html = await home();
-    expect(html).toContain('src="/api/admin/after-dark/media/newest-ab?w=640"');
+    // The latest night is the hero, at the hero's size, and isn't offered again as the first card under it.
     expect(html).toContain('src="/api/admin/after-dark/media/newest-ab?w=960"');
-    expect(html).not.toContain("older-ab?w=");
-    expect(html).not.toContain("solo-a?w=");
-    expect(html).not.toContain("clip-ab?w=");
+    expect(html).not.toContain(`data-night="${pairPath(A, B)}"`);
+    expect(html).toContain(`data-night="${pairPath(A, C)}"`);
+    expect(html).toContain('src="/api/admin/after-dark/media/cover-ac?w=640"');
+    // Only a night's newest picture of the two is a cover.
+    for (const not of ["older-ab", "solo-a", "clip-ab"]) expect(html).not.toContain(`${not}?w=960`);
+    // Your latest shows each at a tile's size, never the full 1-5 MB picture.
+    expect(html).toContain('src="/api/admin/after-dark/media/older-ab?w=640"');
+    expect(html).not.toMatch(/media\/(older-ab|newest-ab|cover-ac|solo-a)"/);
     // A pair nobody has started isn't on the page (the picker makes it from its two faces): 151 of the cast made a
     // 4.6 MB hub of 11,325 pairs.
     expect(html).not.toContain(pairPath(B, C));

@@ -178,7 +178,7 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
 }
 
 /**
- * The companions list (app/companion/page.tsx), filterable on the page: a search, who they are (on the show now, house
+ * The companions list (app/companion/(list)/page.tsx), filterable on the page: a search, who they are (on the show now, house
  * cast, agent-made, a creator's, yours), pronouns, how they're drawn (realistic or anime), what kind of person and their
  * love life (docs/tags.md), and a sort. Your conversations stay on top, above the filters, and the filters never touch them.
  * Everything is client-side: the page sends at most ~170 people.
