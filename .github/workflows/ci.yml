@@ -31,6 +31,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
+      # oxlint (.oxlintrc.json): hooks, <img>, `any` and a few always-a-bug rules; a stale eslint-disable fails it too.
+      - run: npm run lint
 
   test:
     runs-on: ubuntu-latest

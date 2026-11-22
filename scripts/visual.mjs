@@ -880,7 +880,7 @@ async function main() {
             await adminSignIn(ctx.request);
             // The arrival screen (app/Threshold.tsx) shows once a tab, and every state opens a new tab: seen already, so
             // the screenshots are the pages, not the arrival screen over each of them (until 2026-11-15 they all were).
-            await ctx.addInitScript(() => { try { sessionStorage.setItem("bz-threshold:after-dark", "1"); } catch {} });
+            await ctx.addInitScript(() => { try { sessionStorage.setItem("bz-threshold:after-dark", "1"); } catch { /* storage blocked */ } });
           }
           if (as === "member") {
             // The first signed-in pass registers (adopting the owner's anonymous session, so the account lists

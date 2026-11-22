@@ -48,12 +48,13 @@ export default function Compare() {
   }, [load]);
 
   // The address follows the compare shown, so copying it links here.
+  const openId = open?.compare.id ?? null;
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (open) url.searchParams.set("compare", open.compare.id);
+    if (openId) url.searchParams.set("compare", openId);
     else url.searchParams.delete("compare");
     window.history.replaceState(null, "", url);
-  }, [open?.compare.id]);
+  }, [openId]);
 
   // While a compare has renders still going, ask after it every few seconds.
   useEffect(() => {

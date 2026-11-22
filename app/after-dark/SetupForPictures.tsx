@@ -59,7 +59,7 @@ export default function SetupForPictures({ r }: { r: Readiness }) {
     router.refresh();
   }
 
-  async function useFace(imageId: string) {
+  async function pickFace(imageId: string) {
     setBusy("face");
     setNote(null);
     const res = await requestJson("/api/admin/after-dark/face", { character_id: r.id, image_id: imageId }).catch(() => null);
@@ -86,7 +86,7 @@ export default function SetupForPictures({ r }: { r: Readiness }) {
             <>
               {/* eslint-disable-next-line @next/next/no-img-element -- private, presigned media */}
               <img className="ad-setup-thumb" src={`/api/admin/after-dark/media/${offer.baseline}?w=160`} alt={`${first}'s face, drawn already`} />
-              <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void useFace(offer.baseline!)}>
+              <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void pickFace(offer.baseline!)}>
                 Use this face
               </button>
             </>

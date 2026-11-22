@@ -126,6 +126,7 @@ const apply = (code: string, cookie: string, body: Record<string, unknown>) =>
   inviteApply(jsonRequest(`/api/casting/invite/${code}`, body, { cookie }), { params: Promise.resolve({ code }) });
 const applyAs = async (code: string, who: { cookie: string; id: string }, extra: Record<string, unknown> = {}) => {
   const res = await apply(code, who.cookie, { character_id: who.id, consent: true, ...extra });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { status: res.status, body: (await res.json()) as Record<string, any>, cookie: res.headers.get("set-cookie") };
 };
 const admin = (method: "GET" | "POST", body?: unknown, headers: Record<string, string> = { "x-frontier-key": PW }) =>

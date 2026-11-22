@@ -1061,6 +1061,8 @@ export default function CompanionCall({
   // Once it's started, the keyboard is on End call (the button that started it has gone).
   useEffect(() => {
     if (phase !== "ready") endButton.current?.focus();
+    // Only when the call starts, not on each phase after it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase === "ready"]);
 
   // The clock, and the call ends after five quiet minutes.
@@ -1099,7 +1101,6 @@ export default function CompanionCall({
     };
     document.addEventListener("visibilitychange", away);
     return () => document.removeEventListener("visibilitychange", away);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Leaving the page ends the call.
@@ -1107,7 +1108,6 @@ export default function CompanionCall({
     () => () => {
       if (!ended.current && startedAt.current) end();
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

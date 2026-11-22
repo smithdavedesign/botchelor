@@ -19,6 +19,7 @@ export const UNREAD_MESSAGE = "The show couldn't check text in that language jus
 export function needsTranslation(text: string): boolean {
   const lang = detectLanguage(text);
   if (lang) return lang !== "en";
+  // eslint-disable-next-line no-control-regex -- the ASCII range, \x00 included
   return /[^\x00-\x7F]/.test(text) && /\p{L}{2}/u.test(text.replace(/[\x00-\x7F]/g, ""));
 }
 
