@@ -43,6 +43,8 @@ import { drawShowShots, SHOTS_FROM_HOUR } from "@/lib/show-shots";
 import { backfillSocial } from "@/lib/social/derive";
 import { lapseProposals } from "@/lib/social/declare";
 import { resumeSocialMetrics } from "@/lib/social/metrics-job";
+import { fillWorldWords, WORLD_WORDS_PER_HOUR } from "@/lib/world-words";
+import { companionWriter } from "@/lib/companion";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -190,6 +192,17 @@ async function pass(): Promise<Record<string, unknown>> {
     after(socialMetrics);
   } catch {
     void socialMetrics(); // outside a request (a test): just run it
+  }
+  // The words of each character's own world (lib/world-words.ts): every new or edited sheet, once, on the companions'
+  // cheap model (a fraction of a cent a sheet), after the response. Nothing without the saved OpenRouter key.
+  const worldWords = () =>
+    companionWriter(db)
+      .then((model) => fillWorldWords(db, model, { max: WORLD_WORDS_PER_HOUR, budgetMs: 60_000, concurrency: 2 }))
+      .catch(() => null);
+  try {
+    after(worldWords);
+  } catch {
+    void worldWords(); // outside a request (a test): just run it
   }
   // The show's Discord (lib/discord-posts.ts, docs/discord.md): the episode digest, Sunday's vote and the board, each
   // posted once, after everything above that changes them. Off until a webhook is set; at most a few posts of 5 seconds,

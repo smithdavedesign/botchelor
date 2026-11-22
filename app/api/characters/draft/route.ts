@@ -55,13 +55,16 @@ async function ask(text: string): Promise<string | "timeout" | null> {
 /**
  * A name nobody on the show has (names are unique, #734/#737; lib/name-check.ts). The model's own when it's free; else
  * the same surname under one of the show's spare first names (freeNames); else, with no usable name at all, a spare first
- * name picked by the words. Never one the PG screen would drop.
+ * name picked by the words. Never one the PG screen would drop, and never a house cast member's first name: those are the
+ * show's regulars (2026-11-22 audit: a draft was called "Barnaby" beside Barnaby Thorne).
  */
 async function freeName(db: Db, wanted: string, seedText: string): Promise<string> {
+  const firstOf = (n: string) => n.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  const house = new Set((await db.query<{ first: string }>(`select distinct lower(split_part(trim(name), ' ', 1)) as first from characters where is_house`)).rows.map((r) => r.first));
   if (wanted) {
     const { twin, freeNames } = await nameCheck(db, wanted);
-    if (!twin) return wanted;
-    const free = (await freeNames()).find((n) => !sheetPgIssue(n));
+    if (!twin && !house.has(firstOf(wanted))) return wanted;
+    const free = (await freeNames()).find((n) => !sheetPgIssue(n) && !house.has(firstOf(n)));
     if (free) return free;
   }
   const taken = new Set((await db.query<{ name: string }>(`select lower(trim(name)) as name from characters`)).rows.map((r) => r.name));

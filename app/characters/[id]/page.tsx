@@ -21,7 +21,7 @@ import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
 import { portraitPathSql, withPortraits } from "@/lib/assets";
 import JsonLd from "@/app/JsonLd";
-import { breadcrumbJsonLd, characterIndexable, characterJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, characterIndexable, characterJsonLd, fitDescription } from "@/lib/seo";
 import { getDatingProfile } from "@/lib/dating";
 import { hasExtras, moodLabel, profileComplete, profileMissing, type CharacterExtras } from "@/lib/extras";
 import { archetypeLabel, goalLabel } from "@/lib/kinds";
@@ -104,6 +104,8 @@ import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
 import { soft } from "@/lib/soft";
+import { knownCharacterOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +120,8 @@ const RELATIONSHIPS_PAGE = 8;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownCharacterOnce(id));
   const c = await getPublicCharacter(await getDb(), id);
   if (!c) return { title: "Character not found · Botchelor", robots: { index: false, follow: false } };
   if (c.private) return { title: `${c.name} · Botchelor`, robots: { index: false, follow: false } };
@@ -125,7 +129,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const indexable = await characterIndexable(await getDb(), c.id).catch(soft("character page: indexable", true));
   return {
     title: `${c.name}, ${c.age}: a contestant on Botchelor`,
-    description: `${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`.slice(0, 200),
+    // Fitted to a search result at a sentence or a word (it was cut at 200 characters, mid-word).
+    description: fitDescription(`${c.name}, a contestant on Botchelor: ${c.bio} Wants: ${c.want}`),
     alternates: { canonical: `/characters/${c.id}` },
     ...(indexable ? {} : { robots: { index: false, follow: true } }),
   };
@@ -665,7 +670,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     <article>
       <JsonLd
         data={[
-          characterJsonLd(c),
+          characterJsonLd(c, undefined, faceSrc),
           breadcrumbJsonLd([
             { name: "Botchelor", path: "/" },
             { name: "Characters", path: listHref },

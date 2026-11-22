@@ -33,6 +33,8 @@ vi.mock("next/navigation", async (importOriginal) => ({ ...(await importOriginal
 const viewer = vi.hoisted(() => ({ cookie: "" }));
 vi.mock("next/headers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/headers")>()),
+  // A page load's headers: the report card's metadata checks first that the date exists (app/NotFoundBeforeLoading.tsx).
+  headers: async () => new Headers(),
   cookies: async () => {
     const jar = new Map(
       viewer.cookie

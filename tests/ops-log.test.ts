@@ -164,6 +164,9 @@ describe("the servers' own log (lib/ops-log.ts)", () => {
   it("bootFacts never carries more than the commit, limits, Node and the instance's name", () => {
     expect(Object.keys(bootFacts({ COMMIT_SHA: SHA_A })).sort()).toEqual(["heap_limit_mb", "instance", "malloc_arena_max", "memory_limit_mb", "node", "sha", "total_memory_mb"]);
     expect(bootFacts({}).total_memory_mb).toBeGreaterThan(0);
+    // A start's row on /admin: the limit when there is one, else the memory the container sees (DigitalOcean's size).
+    expect(opsDetail("boot", { sha: SHA_A, memory_limit_mb: 1024, total_memory_mb: 2048, heap_limit_mb: 560 })).toBe(`commit ${SHA_A.slice(0, 7)}, 1024 MB, heap 560 MB`);
+    expect(opsDetail("boot", { sha: SHA_A, memory_limit_mb: null, total_memory_mb: 2048, heap_limit_mb: 1120 })).toBe(`commit ${SHA_A.slice(0, 7)}, 2048 MB, heap 1120 MB`);
   });
 
   it("the summary says what each host runs, tells a restart from a deploy, and adds up the day's dates", async () => {

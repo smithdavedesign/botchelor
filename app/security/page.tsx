@@ -7,7 +7,7 @@ import { LOGIN_FAILS_PER_HANDLE, LOGIN_WINDOW_MINUTES } from "@/lib/login-guard"
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Security · Botchelor",
+  title: "Security at Botchelor: how to report a problem",
   description:
     "How to report a security problem in Botchelor, what we promise researchers who find one in good faith, and how the show protects accounts, passwords, payments and the model keys people bring.",
   path: "/security",

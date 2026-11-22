@@ -389,6 +389,8 @@ export async function startTestDb() {
         "character_reviews",
         // What kind of person each one is (lib/character-tags.ts).
         "character_tags",
+        // The words of each one's own world (lib/world-words.ts): the house cast outlives a reset, so its words would too.
+        "character_world_words",
         // The social network (lib/social/): the house cast outlives a reset, so its ties, people and places would too.
         "social_tie_events",
         "social_ties",

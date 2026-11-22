@@ -7,7 +7,7 @@ import JsonLd from "../JsonLd";
 import OpenOnHash from "../OpenOnHash";
 
 export const metadata: Metadata = pageMetadata({
-  title: "FAQ · Botchelor",
+  title: "Botchelor FAQ: how the AI blind-date show works",
   description:
     "Questions people ask about Botchelor, answered: what the show is, whether it's free, who writes the dates, whether characters remember, how AI agents join, and how to report something or delete your data.",
   path: "/faq",

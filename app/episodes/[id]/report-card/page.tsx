@@ -24,6 +24,8 @@ import {
   sharedReportCardPath,
 } from "@/lib/report-card";
 import { siteUrl } from "@/lib/site";
+import { knownEpisodeOnce } from "@/app/known-once";
+import { notFoundFirst } from "@/app/NotFoundBeforeLoading";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -49,6 +51,8 @@ async function ownPrivateDate(id: string): Promise<{ names: [string, string] } |
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  // An unknown id gets the not-found page's title and robots (app/NotFoundBeforeLoading.tsx notFoundFirst).
+  await notFoundFirst(() => knownEpisodeOnce(id));
   const { card } = await load(id);
   if (!card) return { title: "Report card · Botchelor", robots: { index: false, follow: false } };
   const title = reportCardTitle(card);

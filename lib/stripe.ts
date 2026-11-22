@@ -157,3 +157,26 @@ export function subscriptionPeriodEnd(sub: Obj): Date | null {
 export function subscriptionEnding(sub: Obj): boolean {
   return sub.cancel_at_period_end === true || time(sub.cancel_at) !== null;
 }
+
+/** The first dollar amount in a price label ("$9.99 a month" is 999), in cents; null when it names none. */
+export function centsIn(label: string | null | undefined): number | null {
+  const n = Number(/\$\s*(\d+(?:\.\d{1,2})?)/.exec(label ?? "")?.[1]);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
+}
+
+/**
+ * Whether a completed Checkout Session paid at least `cents` in US dollars (2026-11-22 audit: a subscription checkout was
+ * granted whatever it paid). A Payment Link carries our checkout id as client_reference_id, and any Payment Link in the
+ * account takes one, so the amount is what ties a payment to the price it unlocks, as the packs' floor does
+ * (lib/payments.ts grantOrder). A promotion code's discount counts as paid: only the account's owner can make one, and
+ * it comes off the price of the link it was used on, so a cheaper link stays short. A session with no amount (a free
+ * trial, or a shape we don't know) pays nothing.
+ */
+export function paidAtLeast(session: Obj, cents: number): boolean {
+  const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+  const amount = n(session.amount_total);
+  const totals = session.total_details;
+  const discount = (totals && typeof totals === "object" ? n((totals as Obj).amount_discount) : null) ?? 0;
+  const currency = str(session.currency)?.toLowerCase() ?? null;
+  return amount !== null && currency === "usd" && amount + discount >= cents;
+}

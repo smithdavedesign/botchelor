@@ -18,11 +18,14 @@ export const EXPRESS_SAY_KEY = "bz_express_say";
 /** How long the builder waits for the route: a little longer, so the server's own answer arrives first when it has one. */
 export const EXPRESS_CLIENT_TIMEOUT_MS = 16_000;
 
-/** The three taps that fill the box: originals written for this page, each a different kind of person. */
+/**
+ * The three taps that fill the box: originals written for this page, each a different kind of person. Each says she or
+ * he (2026-11-22 audit: "Storm chaser" said neither, so its draft had no look to suggest).
+ */
 export const EXPRESS_EXAMPLES: readonly { label: string; text: string }[] = [
-  { label: "Night baker", text: "A night-shift baker who names every sourdough starter and can't do small talk before sunrise." },
+  { label: "Night baker", text: "A night-shift baker who names all her sourdough starters and can't do small talk before sunrise." },
   { label: "Stuntman", text: "A retired stuntman in his fifties who now teaches ballroom dancing and is afraid of escalators." },
-  { label: "Storm chaser", text: "A storm-chasing meteorologist who is fearless in a tornado and hopeless at first dates." },
+  { label: "Storm chaser", text: "A storm-chasing meteorologist who is fearless in a tornado and hopeless at first dates, and he knows it." },
 ];
 
 /** Why a draft did not happen; each opens the usual form with one plain sentence (expressFailureLine). */

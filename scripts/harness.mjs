@@ -3,8 +3,8 @@
  * key is needed), a sample Stripe Payment Link (answered locally), and a throwaway or persistent
  * database. Used by scripts/e2e.mjs (end-to-end tests) and scripts/seed.mjs (demo data).
  *
- * No real infrastructure: DATABASE_URL, GOOGLE_API_KEY, LLM_* and STRIPE_* are dropped from the app's
- * environment and replaced with local stand-ins. The stub showrunner returns a valid three-act
+ * No real infrastructure: the app gets only what a process needs from this shell (shellEnv: PATH, HOME, the locale…)
+ * plus the local stand-ins named in appEnv, so a key in the shell never reaches it. The stub showrunner returns a valid three-act
  * narration that matches whatever ending the engine already decided (it reads decided_outcome from the
  * prompt), so episodes are schema-valid and self-consistent.
  */
@@ -243,14 +243,24 @@ export const RUN_WEBHOOK_SECRET = randomBytes(24).toString("hex");
 // Gate for the internal template-room seeder (app/api/watch-parties/templates). Fresh per run.
 export const WATCH_ADMIN_TOKEN = randomBytes(24).toString("hex");
 
-/** The app's environment: this shell's, minus real infrastructure, plus the local stand-ins. */
+/**
+ * What a local build or app may see of this shell: what a process needs to run (the path, home, temp, locale and Node's
+ * own settings) and nothing else, so a key the shell holds (a REPLICATE_API_TOKEN, a RESEND_API_KEY…) never reaches a
+ * run that could spend or send with it (2026-11-22 audit: it was every variable but a few named ones). A value a run
+ * needs is set by name in appEnv or by the script that starts the app; HARNESS_PASS_ENV names any other to pass on
+ * purpose ("A,B").
+ */
+const SHELL_KEEP = /^(PATH|HOME|USER|LOGNAME|SHELL|TERM|TMPDIR|TMP|TEMP|LANG|LANGUAGE|LC_[A-Z]+|TZ|NODE_OPTIONS|NODE_EXTRA_CA_CERTS|SSL_CERT_FILE|SSL_CERT_DIR|XDG_[A-Z_]+|SYSTEMROOT|SYSTEMDRIVE|WINDIR|COMSPEC|PATHEXT|APPDATA|LOCALAPPDATA|PROGRAMDATA|USERPROFILE)$/;
+
+export function shellEnv(env = process.env) {
+  const pass = new Set((env.HARNESS_PASS_ENV ?? "").split(",").map((k) => k.trim()).filter(Boolean));
+  return Object.fromEntries(Object.entries(env).filter(([k, v]) => v !== undefined && (SHELL_KEEP.test(k) || pass.has(k))));
+}
+
+/** The app's environment: what a process needs from this shell (shellEnv), plus the local stand-ins. */
 export function appEnv(showrunnerPort, dataDir) {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^(DATABASE_URL|GOOGLE_API_KEY|LLM_|STRIPE_|NEXT_PUBLIC_STRIPE_|VERCEL|CONTACT_EMAIL)/.test(key)) delete env[key];
-  }
   return {
-    ...env,
+    ...shellEnv(),
     NODE_ENV: "production",
     PGLITE_DIR: dataDir,
     LLM_BASE_URL: `http://127.0.0.1:${showrunnerPort}/v1`,
@@ -295,7 +305,8 @@ export function build() {
   const result = spawnSync(process.execPath, [NEXT_BIN, "build"], {
     cwd: ROOT,
     stdio: ["ignore", "ignore", "inherit"],
-    env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" },
+    // The build prerenders pages and bakes NEXT_PUBLIC_ values into the browser's code: the shell's keys stay out of it too.
+    env: { ...shellEnv(), NEXT_TELEMETRY_DISABLED: "1" },
   });
   if (result.status !== 0) throw new Error("next build failed");
 }

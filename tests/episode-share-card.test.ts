@@ -200,10 +200,9 @@ describe("2. the episode page's head: og:image is the share card, a large Twitte
     expect(String(m.openGraph?.title)).toContain("Mira Quell");
   });
 
-  it("gives an unknown episode no share card and no description of it", async () => {
-    const m = await meta("no-such-episode");
-    expect(imageUrls(m.openGraph?.images).join()).not.toContain("/api/og/episode/");
-    expect(m.robots).toMatchObject({ index: false });
+  it("gives an unknown episode no share card and no description of it: its metadata is the not-found page's", async () => {
+    // app/NotFoundBeforeLoading.tsx notFoundFirst: the 404's title and robots are app/not-found.tsx's.
+    await expect(meta("no-such-episode")).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/);
   });
 });
 

@@ -27,7 +27,7 @@ import { deriveSoulSignals, type SoulSignals } from "@/lib/engine";
 import { sheetSignals } from "@/lib/temperament";
 import VoiceStep from "./VoiceStep";
 import LooksBuilder from "./LooksBuilder";
-import { looksAppearance } from "@/lib/looks";
+import { isLooksLine, looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import DeeperStep from "./DeeperStep";
 import DepthMeter from "./DepthMeter";
@@ -50,6 +50,7 @@ import {
   sampleLineLabel,
   tellLabel,
   TEXT_DETAILS,
+  TEXT_DETAIL_KEYS,
   type CharacterExtras,
   profileComplete,
 } from "@/lib/extras";
@@ -301,6 +302,7 @@ function Stepper({
   labels,
   optional = [],
   issues = [],
+  filled,
 }: {
   step: number;
   max: number;
@@ -309,6 +311,11 @@ function Stepper({
   optional?: readonly number[];
   /** Per step, how many of its texts won't pass the show's check (app/create/sheet-issues.ts): those steps say so. */
   issues?: readonly number[];
+  /**
+   * Per step, whether it holds anything. Given (an edit, where every step is open), a step is ticked only when it does
+   * (2026-11-22 audit: the edit rail ticked steps that were never filled in); without it, reached is done.
+   */
+  filled?: readonly boolean[];
 }) {
   // Seven steps don't fit a 375px phone: the rail scrolls sideways, so bring the current step into view.
   const rail = useRef<HTMLOListElement>(null);
@@ -319,7 +326,8 @@ function Stepper({
   return (
     <ol ref={rail} className="wizard-rail" aria-label="Progress">
       {labels.map((label, i) => {
-        const state = i === step ? "current" : i < max ? "done" : "todo";
+        const done = i < max && (filled?.[i] ?? true);
+        const state = i === step ? "current" : done ? "done" : "todo";
         const fix = issues[i] ?? 0;
         return (
           <li key={label} className={`wizard-rail-step ${state}${optional.includes(i) ? " optional" : ""}${fix ? " has-issues" : ""}`}>
@@ -327,11 +335,11 @@ function Stepper({
               type="button"
               className="wizard-rail-dot"
               aria-current={i === step ? "step" : undefined}
-              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : i < max ? " (done)" : ""}${fix ? `, ${fix} to fix` : ""}`}
+              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : done ? " (done)" : i < max ? " (empty)" : ""}${fix ? `, ${fix} to fix` : ""}`}
               disabled={i > max}
               onClick={() => i <= max && onJump(i)}
             >
-              <span className="wizard-rail-num">{fix ? "!" : i < max && i !== step ? "✓" : i + 1}</span>
+              <span className="wizard-rail-num">{fix ? "!" : done && i !== step ? "✓" : i + 1}</span>
             </button>
             <span className="wizard-rail-label">
               {label}
@@ -471,8 +479,9 @@ export default function CreateWizard({
   const setExtras = useCallback((update: (prev: CharacterExtras) => CharacterExtras) => setExtrasState(update), []);
   // The appearance line the looks builder last wrote: replaced as the picks change, unless it's been typed over.
   const autoAppearance = useRef<string | null>(init?.extras.looks ? looksAppearance(init.extras.looks) : null);
-  // Typed by hand (here, or saved before): the looks builder leaves it alone. A sample's line it replaces.
-  const appearanceTyped = useRef(Boolean(init?.appearance?.trim() && init.appearance !== autoAppearance.current));
+  // Typed by hand (here, or saved before): the looks builder leaves it alone. A sample's line it replaces, and its own line
+  // too, in today's words or the ones it was saved in (isLooksLine).
+  const appearanceTyped = useRef(Boolean(init?.appearance?.trim() && !isLooksLine(init.appearance, init.extras.looks)));
   function looksAppearanceChanged(line: string) {
     setAppearance((prev) => (appearanceTyped.current && prev.trim() && prev !== autoAppearance.current ? prev : line));
     autoAppearance.current = line;
@@ -514,6 +523,8 @@ export default function CreateWizard({
   const expressExample = useRef<string | null>(null);
   // What the draft was, said where it matters: on the form when it fell short or failed, on Look and Review when it came.
   const [expressNote, setExpressNote] = useState<ExpressNote | null>(null);
+  // Picked by hand since the draft suggested one: the Look note stops calling it "already picked" (2026-11-22 audit).
+  const [lookChanged, setLookChanged] = useState(false);
   // The save's refusal when it was for going past PG (lib/adult/past-pg.ts): the door shows under that error, and only that one.
   const [savePastPg, setSavePastPg] = useState<string | null>(null);
 
@@ -702,6 +713,7 @@ export default function CreateWizard({
       setVoice(str(d.voice));
       const extra: CharacterExtras = d.extras && typeof d.extras === "object" ? d.extras : {};
       setExtrasState(extra);
+      setLookChanged(false);
       // Their own words about the look stay theirs; otherwise the line is the suggested look's, replaced as picks change.
       const looksLine = extra.looks?.gender ? looksAppearance(extra.looks) : "";
       autoAppearance.current = looksLine || null;
@@ -996,6 +1008,17 @@ export default function CreateWizard({
   // The whole sheet's length (lib/sheet-words.ts): Go deeper and the review show it against the 400–999 sweet spot. Not
   // `words`, which is the bio's own counter above.
   const sheetLength = sheetWords({ bio: sheet.bio, want: sheet.want, dealbreaker: sheet.dealbreaker, traits, voice, appearance, soul, extras, hiding, week });
+  // Whether a step holds anything, for the edit rail's ticks (Stepper `filled`). Identity and the review always do.
+  const has = (x: string | null | undefined) => Boolean(x?.trim());
+  const stepHolds = (real: number): boolean => {
+    if (real === S.voice) return has(voice) || Object.values(extras.lines ?? {}).some(has) || Object.values(extras.tells ?? {}).some(has) || (extras.never_says ?? []).some(has);
+    if (real === S.look) return Boolean(extras.looks?.gender);
+    if (real === S.details) return (extras.prompts ?? []).some((p) => has(p.answer)) || (extras.hobbies ?? []).length > 0 || has(week) || TEXT_DETAIL_KEYS.some((k) => has(extras[k]));
+    if (real === S.facts) return (extras.facts ?? []).some((f) => has(f.value));
+    if (real === S.deeper) return (extras.hot_takes ?? []).some(has) || has(extras.baggage) || has(extras.wins_them_over) || Boolean(extras.mood) || hidingList(hiding).length > 0;
+    if (real === S.soul) return [soul.values, soul.insecurities, soul.humor, soul.boundaries, soul.romantic, soul.communication].some(has);
+    return true;
+  };
 
   async function createCharacter() {
     if (stopForIssues()) return;
@@ -1291,6 +1314,7 @@ export default function CreateWizard({
         onJump={(i) => jump(track[i] ?? i)}
         labels={track.map((i) => labels[i])}
         issues={track.map((real) => issues.filter((x) => S[x.step] === real).length)}
+        filled={edit ? track.map(stepHolds) : undefined}
         // On the depth track a first character's dating profile is optional too: an empty one is filled at Create.
         optional={edit || !depth ? [] : firstCharacter ? [...OPTIONAL_STEPS, S.details] : OPTIONAL_STEPS}
       />
@@ -1538,7 +1562,9 @@ export default function CreateWizard({
               <p className="notice wizard-sample-note" data-track="express-look">
                 <strong>{`Meet ${shortName(sheet.name) || "them"}.`}</strong>{" "}
                 {extras.looks?.gender
-                  ? "A look that fits your words is already picked: change it, or go on."
+                  ? lookChanged
+                    ? "Their look is picked: change it any time, or go on."
+                    : "A look that fits your words is already picked: change it, or go on."
                   : "Pick a look, or go on: it's optional."}
               </p>
             )}
@@ -1548,7 +1574,8 @@ export default function CreateWizard({
               <Avatar seed={avatarSeed} name={sheet.name || "?"} hue={hue} size={56} portraitSrc={portrait} />
               <div className="looks-card-meta">
                 <strong>{extras.looks?.gender ? "Their look" : "Not picked yet"}</strong>
-                <span className="muted small">{looksAppearance(extras.looks ?? {}) || "Pick from pictures: style, eyes, hair, build and an outfit. Optional, but their free portrait is drawn from it (without one they get a colour tile)."}</span>
+                {/* Without picks they still get a free portrait, drawn from their bio (lib/default-portraits.ts). */}
+                <span className="muted small">{looksAppearance(extras.looks ?? {}) || "Pick from pictures: style, eyes, hair, build and an outfit. Optional: their free portrait is drawn from it, or from their bio if you skip it."}</span>
               </div>
               <button type="button" className="secondary" onClick={() => setLooksOpen(true)}>
                 {extras.looks?.gender ? "Change their look" : "Pick their look"}
@@ -1557,7 +1584,10 @@ export default function CreateWizard({
             <ModalSheet open={looksOpen} onClose={() => setLooksOpen(false)} title="Their look" wide>
               <LooksBuilder
                 looks={extras.looks ?? {}}
-                setLooks={(l) => setExtras((p) => ({ ...p, looks: l }))}
+                setLooks={(l) => {
+                  setLookChanged(true);
+                  setExtras((p) => ({ ...p, looks: l }));
+                }}
                 age={sheet.age}
                 tiles={lookTiles}
                 afterDark={afterDark}
@@ -1842,7 +1872,9 @@ export default function CreateWizard({
                 ));
             })()}
 
-            <DepthMeter words={sheetLength} />
+            {/* On the depth track only (an edit, or "Add depth"): right after a one-sentence draft, "40 words: the sweet
+                spot is 400–999" read as a verdict on a character that's ready to date (2026-11-22 audit). */}
+            {depth && <DepthMeter words={sheetLength} />}
 
             {/* Not on someone's first character: the tips wait for its first date (the character's page). */}
             {!createOnTop && (
