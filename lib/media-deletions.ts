@@ -14,8 +14,9 @@
  * MEDIA_DELETE_TRIES times; the row then says why (outcome 'failed') for a person to look at.
  *
  * Deleted from every store this server has settings for (lib/object-store.ts mediaStores): a file of any area can be in
- * either, since the host that made it decided (After Dark's own host keeps everything in Bunny). After Dark's files
- * (after-dark/…) wait while Bunny isn't one of them, so a host without its settings never calls one gone.
+ * either, since the host that made it decided (After Dark's own host keeps everything in Bunny). The areas that live on
+ * Bunny (lib/object-store.ts onBunny: After Dark's, the cast's hellos) wait while Bunny isn't one of them, so a host
+ * without its settings never calls one of those gone.
  *
  * Only the live show deletes (DEPLOY_ENV=production, not After Dark's own host, which reaches Bunny alone). A
  * developer's machine or a preview can have the stores' settings with a copy of the rows (a branch of the database),
@@ -24,7 +25,7 @@
 import { afterDarkOnly } from "./after-dark-host";
 import type { Db } from "./db";
 import { isProductionDeploy } from "./deploy";
-import { mediaStores, type ObjectStore } from "./object-store";
+import { mediaStores, onBunny, type ObjectStore } from "./object-store";
 
 /** How long a queued file waits before it's deleted (the trigger's `interval '7 days'` in lib/db.ts). */
 export const MEDIA_DELETE_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -123,8 +124,8 @@ export async function deleteDueMedia(
       run.kept++;
       continue;
     }
-    // After Dark's files are in Bunny: without it here, they wait for a run that has it.
-    if (key.startsWith("after-dark/") && !hasBunny) {
+    // After Dark's files and the other Bunny areas are in Bunny: without it here, they wait for a run that has it.
+    if (onBunny(key) && !hasBunny) {
       run.waiting++;
       continue;
     }

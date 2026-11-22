@@ -192,11 +192,12 @@ describe("the daily run (deleteDueMedia)", () => {
     expect((await queued())[0]).toMatchObject({ outcome: "failed", done_at: expect.anything() });
   });
 
-  it("keeps After Dark's files waiting where Bunny isn't, and deletes from every store", async () => {
+  it("keeps Bunny's files (After Dark's, the cast's hellos) waiting where Bunny isn't, and deletes from every store", async () => {
     await due("after-dark/y.mp4");
+    await due("intros/hello.mp4");
     await due("looks/z.webp");
     const bucket = fakeStore();
-    expect(await deleteDueMedia(t.db, { stores: [{ store: bucket.store, bunny: false }] })).toMatchObject({ deleted: 1, waiting: 1 });
+    expect(await deleteDueMedia(t.db, { stores: [{ store: bucket.store, bunny: false }] })).toMatchObject({ deleted: 1, waiting: 2 });
     expect(bucket.removed).toEqual(["looks/z.webp"]);
     const bunny = fakeStore();
     const bucket2 = fakeStore();
@@ -204,9 +205,9 @@ describe("the daily run (deleteDueMedia)", () => {
       { store: bunny.store, bunny: true },
       { store: bucket2.store, bunny: false },
     ];
-    expect(await deleteDueMedia(t.db, { stores: both })).toMatchObject({ deleted: 1, waiting: 0 });
-    expect(bunny.removed).toEqual(["after-dark/y.mp4"]);
-    expect(bucket2.removed).toEqual(["after-dark/y.mp4"]);
+    expect(await deleteDueMedia(t.db, { stores: both })).toMatchObject({ deleted: 2, waiting: 0 });
+    expect(bunny.removed.sort()).toEqual(["after-dark/y.mp4", "intros/hello.mp4"]);
+    expect(bucket2.removed.sort()).toEqual(["after-dark/y.mp4", "intros/hello.mp4"]);
   });
 
   it("deletes only on the live show: never on a developer's machine, a preview or After Dark's own host", async () => {
