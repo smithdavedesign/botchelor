@@ -29,6 +29,7 @@ import { producerOn } from "./producer";
 import { PAIR_PHRASES, type Stage } from "./relationship-stages";
 import { relationshipsOf, viewRelationship, type Relationship } from "./relationships";
 import { inFlight, shared } from "./shared-cache";
+import { listedCharacterSql } from "./public-cast";
 
 type Env = Record<string, string | undefined>;
 
@@ -257,7 +258,7 @@ export function publicEdges(characterId: string, rels: readonly Relationship[], 
 async function publicPeople(db: Db, ids: readonly string[]): Promise<TalkPerson[]> {
   const wanted = [...new Set(ids)];
   if (!wanted.length) return [];
-  return (await db.query<TalkPerson>(`select id, name from characters where id = any($1) and visibility = 'public'`, [wanted])).rows;
+  return (await db.query<TalkPerson>(`select c.id, c.name from characters c where c.id = any($1) and c.visibility = 'public' and ${listedCharacterSql("c")}`, [wanted])).rows;
 }
 
 type HouseTalk = { scenes: HouseSceneView[]; beats: TalkBeat[]; people: TalkPerson[] };

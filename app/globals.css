@@ -8980,9 +8980,6 @@ body:has(.ad-discreet) {
 .looks-builder.is-after-dark .looks-tabs button.chosen {
   background: linear-gradient(120deg, #2b1640, #10091c);
 }
-.looks-lock {
-  margin-left: 0.25em;
-}
 /* The looks steps: thin dashes, eleven on one row even on a 360px phone (the 11th used to wrap onto a row of its own).
    They shrink below 24px wide there, but sit 24px+ apart centre to centre, and each dash is drawn inside a 24px-tall
    button (UX audit 2026-10-23), which keeps them fair tap targets. */

@@ -16,6 +16,7 @@ import { activeNudge, alsoSeeing } from "@/lib/between-dates";
 import { loadRelationship, pairKey, viewRelationship } from "@/lib/relationships";
 import { showsCloseness } from "@/lib/relationship-stages";
 import { SHARE_IMAGE } from "@/lib/seo";
+import { DELETED_OWNER } from "@/lib/rules";
 import { planFromChain } from "@/lib/simulation";
 import { venueName } from "@/lib/venues";
 import VenuePhoto from "@/app/VenuePhoto";
@@ -174,6 +175,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${ca.name} and ${cb.name}: their blind dates and how it's going · Botchelor`,
     description: `${ca.name} and ${cb.name} on Botchelor: every blind date they've been on, where they stand now, their inside jokes and the plans they made in the morning-after texts.`,
     alternates: { canonical: `/couples/${lo}/${hi}` },
+    // With a private character or a deleted account's (lib/public-cast.ts), the page stays up but out of search (and the sitemap).
+    ...([ca, cb].some((c) => c.private || c.owner_id === DELETED_OWNER) ? { robots: { index: false, follow: true } } : {}),
     // Setting openGraph replaces the root layout's, share card included, so the card is named here (lib/seo.ts).
     openGraph: { type: "website", siteName: "Botchelor", locale: "en_US", url: `/couples/${lo}/${hi}`, title: `${ca.name} and ${cb.name} on Botchelor`, images: [SHARE_IMAGE] },
   };

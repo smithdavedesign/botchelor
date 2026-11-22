@@ -3,7 +3,9 @@ import { buildTraitStats, compatibility, MIN_EVIDENCE } from "@/lib/compatibilit
 import { findMatches } from "@/lib/dating";
 import type { SideOutcome } from "@/lib/engine";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
-import { contentSitemap } from "@/lib/seo";
+import { recentPublicUrls } from "@/lib/indexnow";
+import { dateListed } from "@/lib/public-cast";
+import { characterIndexable, contentSitemap } from "@/lib/seo";
 import { api, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, startTestDb, userIdOf, validCharacter } from "./helpers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -103,6 +105,49 @@ describe("couples on the site, in matchmaking and over MCP", () => {
     expect(owner.relationships[0].plans).toEqual([]);
     // The response echoes the calling agent's own id; the relationship itself carries no user ids.
     expect(JSON.stringify(owner.relationships)).not.toContain(ownerId);
+  });
+
+  it("get_relationships: nothing of someone else's private character, and nobody's edge with a private or deleted account's one", async () => {
+    const { creator, character } = await airedDate("second_date", [true, true]);
+    const ownerId = userIdOf(creator);
+    const withIds = (r: Any) => r.result.structuredContent.relationships.map((x: Any) => x.with.id);
+    expect(withIds(await rpc("get_relationships", { character_id: HOUSE_PARTNER_ID }))).toContain(character.id);
+
+    await api.editCharacter(character.id, { visibility: "private" }, creator);
+    const own = (await rpc("get_relationships", { character_id: character.id })).result.structuredContent;
+    expect(own).toMatchObject({ character_id: character.id, private: true, relationships: [] });
+    expect(withIds(await rpc("get_relationships", { character_id: HOUSE_PARTNER_ID }))).not.toContain(character.id);
+    // Its owner still reads both sides.
+    expect(withIds(await rpc("get_relationships", { character_id: character.id, agent_id: ownerId }))).toEqual([HOUSE_PARTNER_ID]);
+    expect(withIds(await rpc("get_relationships", { character_id: HOUSE_PARTNER_ID, agent_id: ownerId }))).toContain(character.id);
+
+    // A deleted account's character that stayed public (deleting one makes it private since): no one's edge.
+    await t.db.query(`update characters set visibility = 'public', owner_id = 'deleted' where id = $1`, [character.id]);
+    expect(withIds(await rpc("get_relationships", { character_id: HOUSE_PARTNER_ID }))).not.toContain(character.id);
+  });
+
+  it("a deleted account's character, its dates and its couples leave the sitemap and IndexNow, and say noindex", async () => {
+    const { character, episode } = await airedDate("friends", [false, false]);
+    const [lo, hi] = [character.id, HOUSE_PARTNER_ID].sort();
+    await t.db.query(`update relationships set public_dates = 2 where character_a = $1 and character_b = $2`, [lo, hi]);
+    const base = "https://botchelor.com";
+    const theirs = [`${base}/characters/${character.id}`, `${base}/episodes/${episode.id}`, `${base}/couples/${lo}/${hi}`];
+    const sitemap = async () => (await contentSitemap(t.db, base)).map((u) => u.url);
+    const pinged = () => recentPublicUrls(t.db, new Date(Date.now() - 60 * 60_000), base);
+    expect(await sitemap()).toEqual(expect.arrayContaining(theirs));
+    expect(await pinged()).toEqual(expect.arrayContaining(theirs));
+    expect([await characterIndexable(t.db, character.id), await dateListed(t.db, episode.id)]).toEqual([true, true]);
+    // A private character's couple is out too (its page says noindex).
+    await t.db.query(`update characters set visibility = 'private' where id = $1`, [character.id]);
+    expect([...(await sitemap()), ...(await pinged())]).not.toContain(theirs[2]);
+    await t.db.query(`update characters set visibility = 'public' where id = $1`, [character.id]);
+
+    // As the rows a deleted account left public before deleting made them private.
+    await t.db.query(`update characters set owner_id = 'deleted' where id = $1`, [character.id]);
+    const after = [...(await sitemap()), ...(await pinged())];
+    for (const url of theirs) expect(after).not.toContain(url);
+    expect(after).toContain(`${base}/characters/${HOUSE_PARTNER_ID}`); // the house partner's own page stays
+    expect([await characterIndexable(t.db, character.id), await dateListed(t.db, episode.id)]).toEqual([false, false]);
   });
 
   it("the sitemap lists couples once two of their dates have aired publicly", async () => {

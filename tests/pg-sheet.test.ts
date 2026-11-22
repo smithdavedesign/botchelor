@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ALL_HOUSE_CHARACTERS } from "@/lib/house";
 import { getPublicCharacter } from "@/lib/game";
 import { getDealbreakerQuiz } from "@/lib/mechanics";
+import { handleMcpMessage } from "@/lib/mcp";
 import { PG_HIDDEN_TEXT, pgExtras, pgFlags, pgPublic } from "@/lib/pg-public";
 import { checkFields, checkSheetText, sheetPgIssue } from "@/lib/safety";
 import { api, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
@@ -34,6 +35,42 @@ describe("the sheet check", () => {
     }
     // Explicit words still read as sexual.
     expect(sheetPgIssue("Into kinky stuff")).toBe("sexual");
+  });
+
+  it("touching oneself in its euphemisms, and a body part rated, read as innuendo too (2026-11-21)", () => {
+    for (const s of [
+      // A public profile's "When they're bored, they…" answer, served on its card and over MCP.
+      "like playing with themselves discretely",
+      "Plays with herself when nobody's home",
+      "jerking off in the shower",
+      "wanking",
+      "rubbing one out",
+      "spanking the monkey",
+      "touching himself",
+      "self-pleasure",
+      // A test sheet's dealbreaker, quizzed on an aired date's page.
+      "big ass",
+      "Nice butt",
+      "a bubble butt",
+    ]) {
+      expect(sheetPgIssue(s), s).toBe("innuendo");
+    }
+    for (const s of [
+      "Kicks ass at trivia",
+      "A total badass on the court",
+      "Touched by small kindnesses",
+      "Playing with friends on Sundays",
+      "Plays with the dog for hours",
+      "Talks to himself while cooking",
+      "Keeps herself busy with puzzles",
+      "A nice rack of lamb, slow-roasted",
+      "A big butterfly collection",
+      "A spanking new bike",
+      "Chicken breasts on the grill",
+      "Rubs one eye when tired",
+    ]) {
+      expect(sheetPgIssue(s), s).toBeNull();
+    }
   });
 
   it("everyday sheets still pass", () => {
@@ -115,6 +152,26 @@ describe("with a database", () => {
     const made = await (await api.createCharacter(validCharacter(), cookie)).json();
     const edit = await (await api.editCharacter(made.id, { want: CHUD.want, dealbreaker: CHUD.dealbreaker }, cookie)).json();
     expect(edit.issues.map((i: { field: string }) => i.field)).toEqual(["want", "dealbreaker"]);
+  });
+
+  it("a flagged tell is left off the public card and get_character and search_characters, and kept for its owner (2026-11-21)", async () => {
+    const owner = newUserCookie();
+    const made = await (await api.createCharacter(validCharacter({ name: "Sweet Thang" }), owner)).json();
+    const line = "like playing with themselves discretely";
+    // As it was saved before the check caught it (no write path allows it now).
+    await t.db.query(`update characters set extras = coalesce(extras, '{}'::jsonb) || $2::jsonb where id = $1`, [made.id, JSON.stringify({ tells: { bored: line, nervous: "hums show tunes" } })]);
+    const card = (await getPublicCharacter(t.db, made.id))!;
+    expect(card.extras?.tells).toEqual({ nervous: "hums show tunes" });
+    const call = async (name: string, args: Record<string, unknown>) =>
+      JSON.stringify(await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }, {}));
+    const got = await call("get_character", { character_id: made.id });
+    expect(got).toContain("hums show tunes");
+    expect(got).not.toContain("playing with themselves");
+    const found = await call("search_characters", { query: "Sweet Thang" });
+    expect(found).toContain(made.id);
+    expect(found).not.toContain("playing with themselves");
+    const own = await call("get_character", { character_id: made.id, agent_id: userIdOf(owner) });
+    expect(own).toContain("playing with themselves");
   });
 
   it("an old row is shown softened, its owner told which fields, and its dealbreaker is never quizzed on", async () => {
