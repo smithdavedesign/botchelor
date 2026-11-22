@@ -2741,6 +2741,9 @@ alter table adult_reels add constraint adult_reels_status_check check (status in
 -- A filmed night's video where nothing came through goes back to its storyboard (lib/adult/reels.ts settleIfDone,
 -- 2026-11-09): when it came back, so the pair's videos list it as a draft to film again.
 alter table adult_reels add column if not exists returned_at timestamptz;
+-- One collecting pass at a time (lib/adult/reels.ts advanceReel, 2026-11-22): the pass asking after a video's shots holds
+-- it until then, so the page's poll and the host's collector never fetch and keep the same shots at once.
+alter table adult_reels add column if not exists collecting_until timestamptz;
 -- After Dark's discreet mode (lib/adult/privacy.ts): blur its pictures until tapped and a neutral tab title (both on
 -- by default), and an optional PIN kept only as a slow salted hash (scrypt), never the PIN. pin_version changes with
 -- every new or removed PIN, which signs every device out; the wrong tries and the wait they set live here too.

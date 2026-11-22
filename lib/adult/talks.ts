@@ -21,6 +21,7 @@ import { queueVideo, reelNight, releaseVideo, retrieveVideo } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
 import { countUse, overCap } from "./usage";
+import { logTalkFailure } from "./video-failures";
 import { sayable, voiceLines } from "./voice-lines";
 
 /**
@@ -122,6 +123,7 @@ export async function collectTalks(db: Db, viewer: string): Promise<number> {
   if (!keys.venice) return 0;
   const failed = async (r: Row, why: string) => {
     const done = await db.query(`update adult_talks set status = 'failed', error = $2, updated_at = now() where id = $1 and status = 'making' returning id`, [r.id, why.slice(0, 200)]);
+    if (done.rows.length) logTalkFailure(r, why);
     if (done.rows.length && r.tokens > 0) await refundAdTokens(db, r.owner_id, r.tokens);
   };
   let kept = 0;
@@ -153,7 +155,9 @@ export async function collectTalks(db: Db, viewer: string): Promise<number> {
       await countUse(db, viewer, "clips");
       kept++;
     }
-    await releaseVideo(keys.venice, r.model, r.queue_id);
+    // Venice's copy goes only once ours is the talk's (another poll may have kept it first); otherwise it stays there.
+    const ours = claimed.rows.length > 0 || (await db.query(`select 1 from adult_talks where id = $1 and status = 'ready'`, [r.id])).rows.length > 0;
+    if (ours) await releaseVideo(keys.venice, r.model, r.queue_id);
   }
   return kept;
 }
