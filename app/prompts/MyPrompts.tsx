@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PROMPT_MAX } from "@/lib/studio/library";
+import { PROMPT_MAX } from "@/lib/studio/library-limits";
 import CopyPrompt from "./CopyPrompt";
 import { useMyPrompts } from "./MyPromptsContext";
 

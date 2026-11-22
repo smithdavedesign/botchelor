@@ -3,25 +3,11 @@ import { crossesTaboo } from "@/lib/adult/acts";
 import { ROLEPLAYS, roleplayLine, roleplayRule } from "@/lib/adult/roleplays";
 import { promptRoleplay, ROLEPLAY_YOU } from "@/lib/companion";
 import { formatContextOf } from "@/lib/formats";
-import { checkCustomRoleplay, DATE_ROLEPLAYS, dateRoleplayById, premiseForYou, roleplayForActor, roleplayNote, sameTerms, termsFor } from "@/lib/roleplays";
+import { checkCustomRoleplay } from "@/lib/roleplay-check";
+import { DATE_ROLEPLAYS, dateRoleplayById, premiseForYou, roleplayForActor, roleplayNote, sameTerms, termsFor } from "@/lib/roleplays";
 import { checkAdultText, checkFields, checkShowText } from "@/lib/safety";
-import {
-  adultCardIssue,
-  adultCardTextIssue,
-  CARD_ENDING,
-  CARD_OPENING_MAX,
-  cardForYou,
-  cardShapeIssue,
-  cardTexts,
-  fillCard,
-  GENERIC_OPENINGS,
-  openedTerms,
-  openingIndex,
-  openingOf,
-  showCardIssue,
-  showCardTextIssue,
-  type SceneCard,
-} from "@/lib/scene-cards";
+import { CARD_ENDING, CARD_OPENING_MAX, cardForYou, cardShapeIssue, cardTexts, fillCard, GENERIC_OPENINGS, openedTerms, openingIndex, openingOf, type SceneCard } from "@/lib/scene-cards";
+import { adultCardIssue, adultCardTextIssue, showCardIssue, showCardTextIssue } from "@/lib/scene-card-check";
 
 // Scene cards (lib/scene-cards.ts; David, 2026-11-17): the context behind a roleplay, on the show, in a companion's scene
 // and in After Dark. The lines never move: every card is adults only, with no school, family, real people or

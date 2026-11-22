@@ -8,10 +8,12 @@ import {
   bunnyConfig,
   bunnyStore,
   bunnyToken,
+  cdnLink,
   keepBytes,
   LINK_WINDOW_MS,
   mediaKey,
   objectStore,
+  onBunny,
   readBytes,
   setObjectStoreFetchForTests,
   setObjectStoreForTests,
@@ -234,6 +236,33 @@ describe("the Bunny store", () => {
     // After Dark's own host is Bunny for everything, as before.
     vi.stubEnv("AFTER_DARK_ONLY", "1");
     expect(new URL((await objectStore()!.presign(tile.object_key!)).url).host).toBe("media.botchelor.com");
+  });
+
+  it("on the show's host, the cast's intro clips go to Bunny too, and a route can send a browser straight there", async () => {
+    for (const [k, v] of Object.entries({ ...S3, ...BUNNY })) vi.stubEnv(k, v);
+    vi.stubEnv("AFTER_DARK_ORIGIN", "https://ad.botchelor.com");
+    vi.stubEnv("AFTER_DARK_ONLY", "");
+    const files = new Map<string, Buffer>();
+    setObjectStoreFetchForTests(
+      recorder(({ url, method, body }) => {
+        const u = new URL(url);
+        if (method === "PUT") files.set(`${u.host}${u.pathname}`, body!);
+        return new Response(null, { status: 201 });
+      }).fetch,
+    );
+    const intro = await keepBytes("intros", "intro-1", MP4, "video/mp4");
+    expect(intro.object_key).toMatch(/^intros\/intro-1-[0-9a-f]{16}\.mp4$/);
+    expect([...files.keys()]).toEqual([`ny.storage.bunnycdn.com/botchelor-ad/${intro.object_key}`]);
+    expect([intro.object_key!, "after-dark/x.png"].map(onBunny)).toEqual([true, true]);
+    expect(["companion/intro-1.mp4", "clips/c.mp4", "looks/l.png", "studio-pg/s.png"].map(onBunny)).toEqual([false, false, false, false]);
+    const now = Date.UTC(2026, 10, 22, 7, 30);
+    const link = (await cdnLink(intro.object_key!, now))!;
+    expect(link).toEqual(await bunnyStore(bunnyConfig(BUNNY)!).presign(intro.object_key!, now));
+    expect(new URL(link.url).host).toBe("media.botchelor.com");
+    // None for a file Bunny doesn't hold (the route sends those itself), or where Bunny isn't set.
+    expect(await cdnLink("companion/intro-1-0123456789abcdef.mp4", now)).toBeNull();
+    expect(await cdnLink(intro.object_key!, now, S3)).toBeNull();
+    expect(await cdnLink(intro.object_key!, now, { ...BUNNY, MEDIA_BUNNY_REGION: "mars" })).toBeNull();
   });
 });
 

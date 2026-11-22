@@ -8,7 +8,7 @@ import { FeedbackLink } from "../FeedbackDock";
 export const metadata: Metadata = pageMetadata({
   title: "Accessibility · Botchelor",
   description:
-    "What Botchelor does so everyone can use the show: contrast checked in light and dark, keyboard focus, high-contrast and reduced-motion support, the gaps we know about, and how to tell us when something gets in your way.",
+    "What Botchelor does so everyone can use the show: the contrast we aim for in light and dark, keyboard focus, high-contrast and reduced-motion support, the gaps we know about, and how to tell us when something gets in your way.",
   path: "/accessibility",
 });
 // Per request, so a CONTACT_EMAIL set after the build shows.
@@ -34,8 +34,9 @@ export default function AccessibilityPage() {
         <h2 id="what-we-do">What the show does</h2>
         <ul>
           <li>
-            Every colour of text clears 4.5:1 against what it sits on, and every control edge and focus ring 3:1, in light
-            and dark. We check them with a script, not by eye.
+            We aim for every colour of text to clear 4.5:1 against what it sits on, and every control edge and focus ring
+            3:1, in light and dark. A test checks the colours on every change, and we run an automated checker over the
+            pages themselves; what it finds, we fix.
           </li>
           <li>It follows your device: light or dark, more contrast, Windows High Contrast, and reduced motion.</li>
           <li>Every page opens with a &ldquo;Skip to content&rdquo; link, and keyboard focus is always visible.</li>
@@ -47,6 +48,10 @@ export default function AccessibilityPage() {
       <section aria-labelledby="gaps">
         <h2 id="gaps">What we know isn&apos;t there yet</h2>
         <ul>
+          <li>
+            A spot can still miss the contrast we aim for, most often words laid over a picture or a clip. Tell us where
+            (below) and we&apos;ll fix it.
+          </li>
           <li>Video clips have no captions yet.</li>
           <li>
             The theater plays a date line by line on a timer. Pause it any time, or read the whole date as text on its

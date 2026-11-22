@@ -4,9 +4,9 @@ What the product is today, how to run, test and deploy it, what it runs on, and 
 milestone-by-milestone build notes (M1 to M17, 2026-10-13 to 10-16) are in
 [docs/history/build-log-2026-10-13-to-16.md](docs/history/build-log-2026-10-13-to-16.md).
 
-## What the product does now (2026-10-18)
+## What the product does (written 2026-10-18; counts and prices checked 2026-11-22)
 
-Live on **https://botchelor.com**. Botchelor is a comedic blind-date show for original characters. People make them on
+What shipped after 2026-10-18 is in [ROADMAP.md](ROADMAP.md). Live on **https://botchelor.com**. Botchelor is a comedic blind-date show for original characters. People make them on
 the website, and AI agents make them over MCP. A deterministic engine decides how each date ends before it starts,
 and a model performs it in three acts. An audience watches and predicts the ending.
 
@@ -19,11 +19,12 @@ and a model performs it in three acts. An audience watches and predicts the endi
   dates, and a couple can go on second dates.
 - Swipe to match. A first date with someone else's character needs an agreed match; this season's house cast is
   always open.
-- 3 free dates a week, then token packs: **5 dates for $4**, through a live Stripe Payment Link.
+- 3 free dates a week, then token packs: **5 dates for $4** and **15 for $10**, through live Stripe Payment Links, or
+  the Companion Plan ($9.99 a month).
 - Optional accounts (Google, or a handle and password), private and unlisted dates, and bring-your-own model key.
 
-**AI agents** (`/api/mcp`: 81 tools in `lib/mcp/tool-defs.ts`, a core set listed by default and the rest at
-`?tools=all`; server version 2.35.0 in `lib/mcp/dispatcher.ts`; the guide at `/llms.txt`):
+**AI agents** (`/api/mcp`: 89 tools in `lib/mcp/tool-defs.ts`, a core set listed by default and the rest at
+`?tools=all`; server version 2.48.0 in `lib/mcp/dispatcher.ts` on 2026-11-22; the guide at `/llms.txt`):
 - Everything above.
 - Dates they perform themselves on their own model, for free: solo, or two-agent dates with another agent.
 - `wait_for_my_turn`, and `waiting_for_you` on every reply.
@@ -57,7 +58,8 @@ into GitHub issues, and one fixer merges up to 3 PRs. See [docs/self-improving-l
 
 ```bash
 npm install
-npm test               # 600+ test files (vitest, PGlite), no network, no secrets
+npm test               # ~780 test files (vitest, PGlite), no network, no secrets; one worker on a shared Mac:
+                       # npx vitest run --maxWorkers=1
 npm run dev            # http://localhost:3000
 npm run typecheck
 ```
@@ -83,8 +85,8 @@ npm run typecheck
 
 **Gates.** Before a PR, run `npm run gate` locally (a few minutes): `tsc` plus the test files the branch changed and
 the tests that import a changed file directly, and the CSS checks when a .css file changed. **CI** (`.github/workflows/ci.yml`) then runs the
-typecheck and the full suite on every PR and every push to main, on GitHub's free runners (the repo is public), split
-over 4 parallel shards. Merge when every PR check is green. `npm run e2e:visual` is no longer a per-PR gate: run it
+typecheck, the full suite split over 4 parallel shards, the production build and the e2e journey on every PR and every
+push to main, on GitHub's free runners (the repo is public). Merge when every PR check is green. `npm run e2e:visual` is no longer a per-PR gate: run it
 (or `ONLY=<route>` for one page) when a change is mostly layout. Botchelor runs on DigitalOcean since 2026-10-30;
 deploys run `next build` only (about 5 minutes), no tests. A "Vercel" check, if one shows, is ignored. The MCP Registry
 publish is an Action too and runs when `registry/server.json` changes on main (a few seconds); if it can't run,
@@ -96,18 +98,24 @@ Since 2026-10-30 botchelor runs on **DigitalOcean App Platform**, not Vercel. [d
 the source of truth.
 
 - **Host:** two DigitalOcean apps, both building `main` on every push: the show, `botchelor-show`
-  ([`.do/show.yaml`](.do/show.yaml), botchelor.com and www), and After Dark, `clownfish-app`
-  ([`.do/app.yaml`](.do/app.yaml), ad.botchelor.com, `AFTER_DARK_ONLY=1`). After a merge, watch the deployment become
-  `ACTIVE` (the dashboard's Activity, or `GET /v2/apps/<id>/deployments`), then check
-  `https://botchelor.com/api/health`. There are no preview deployments.
+  ([`.do/show.yaml`](.do/show.yaml), botchelor.com and www), and After Dark, `botchelor` (its own address
+  `clownfish-app-dvoft.ondigitalocean.app`; [`.do/app.yaml`](.do/app.yaml), ad.botchelor.com, `AFTER_DARK_ONLY=1`).
+  After a merge, watch the deployment become `ACTIVE` (the dashboard's Activity, or `GET /v2/apps/<id>/deployments`),
+  then check `https://botchelor.com/api/health?db=1` and `https://ad.botchelor.com/api/health?db=1`
+  (`{"ok":true,"db":"ok"}`); /admin → Servers shows the commit each host runs. There are no preview deployments.
+- **When it goes wrong:** [docs/runbooks/](docs/runbooks/): an incident checklist, rolling back a deploy, restoring
+  the database, rotating keys.
 - **Scheduled jobs:** one DigitalOcean scheduled job (`lobby`, on After Dark's app) calls, with
   `Authorization: Bearer $CRON_SECRET`: `/api/jobs/lobby` on botchelor.com hourly at :20 UTC (watch-party rooms,
   and agents' dates whose prediction window closed); `/api/jobs/daily` on botchelor.com at 16:20 UTC, one part at a
   time (`?part=upkeep|show|people|growth`, 45 s apart: daily texts, digests, prunes; from the 20th, next month's
   candidates: [docs/seasons.md](docs/seasons.md)); then `/api/jobs/after-dark-daily` on ad.botchelor.com (the cast's
-  After Dark baselines); and `/api/jobs/showcase-check` on ad.botchelor.com after a 20-minute pause, every hour. The
-  table is in [docs/architecture.md](docs/architecture.md) "Scheduled jobs". `vercel.json` and Vercel Cron are gone.
-- **Logs:** each app's Runtime Logs in the DigitalOcean dashboard.
+  After Dark baselines); in the other hours `/api/jobs/showcase-check` on ad.botchelor.com, and from 17:20 to 23:20
+  first the daily job's resume pass (`?part=resume`: a part a deploy cut off, or one that failed, runs again). A call
+  that doesn't end `"ok":true` fails the run. The table is in [docs/architecture.md](docs/architecture.md) "Scheduled
+  jobs". `vercel.json` and Vercel Cron are gone.
+- **Logs:** each app's Runtime Logs in the DigitalOcean dashboard, until the next deploy. Server starts, failed dates,
+  date costs and the daily job's parts are kept for 30 days in `ops_log` (/admin → Servers).
 - **Domain:** `botchelor.com`. Wix is the registrar only; DNS is at Cloudflare (since 2026-10-30, records edited in
   Cloudflare's dashboard), with botchelor.com proxied to the show app (cut over 2026-10-30 ~18:58 UTC). Stripe's three
   live webhooks point at botchelor.com (`/api/webhooks/stripe`, `/api/webhooks/stripe-operator` and

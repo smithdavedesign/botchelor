@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
@@ -17,4 +18,18 @@ export default async function NotFoundBeforeLoading({ known }: { known: () => Pr
   if ((await headers()).get("rsc") === "1") return null;
   if ((await known().catch(() => true)) === false) notFound();
   return null;
+}
+
+/**
+ * The same answer for the route's metadata, from the layout's generateMetadata. Next streams a page's metadata after the
+ * page starts, so on a 404 the not-found page came with that page's own title and robots once a browser (or Googlebot)
+ * had read it all: "Agent nobody-here", "Character not found", "Show not found" with index, follow (2026-11-22).
+ * notFound() here gives the whole route the not-found page's metadata instead (app/not-found.tsx). The layout passes the
+ * same read it hands NotFoundBeforeLoading, through React's cache, so a page load still makes one; Next's own requests
+ * skip it as that does, and a read that fails keeps the page's own.
+ */
+export async function notFoundMetadata(known: () => Promise<boolean>): Promise<Metadata> {
+  if ((await headers()).get("rsc") === "1") return {};
+  if ((await known().catch(() => true)) === false) notFound();
+  return {};
 }

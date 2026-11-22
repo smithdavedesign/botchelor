@@ -11,6 +11,11 @@ export default function DatePhoto({ src, alt, href, track = "companion-date-phot
   return (
     <figure className="date-photo">
       <Link className="date-photo-link" href={href} data-track={track}>
+        {/* What shows while the photo is composed (a second or two on our own route): a light placeholder that says so,
+            under the picture, which covers it once it arrives (2026-11-22 audit: a dark box read as broken). */}
+        <span className="sk date-photo-wait" aria-hidden="true">
+          📸 Developing…
+        </span>
         {/* eslint-disable-next-line @next/next/no-img-element -- composed on request by our own route; next/image would proxy and re-encode it */}
         <img src={src} alt={alt} width={DATE_PHOTO_ASPECT.width * 80} height={DATE_PHOTO_ASPECT.height * 80} loading="lazy" decoding="async" />
         <figcaption>
