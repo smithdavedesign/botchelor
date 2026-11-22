@@ -165,6 +165,43 @@ describe("a cast intro", () => {
     expect(fal.length).toBe(before);
   });
 
+  it("sends a clip kept on Bunny's CDN straight there, for byte ranges from the edge; one kept in Postgres comes from here", async () => {
+    // Bunny as the show's host has it (lib/object-store.ts bunnyConfig). Nothing is fetched: the link is signed here.
+    vi.stubEnv("MEDIA_BUNNY_ZONE", "botchelor-ad");
+    vi.stubEnv("MEDIA_BUNNY_KEY", "storage-key-not-real");
+    vi.stubEnv("MEDIA_BUNNY_REGION", "ny");
+    vi.stubEnv("MEDIA_BUNNY_CDN_HOST", "https://media.botchelor.com/");
+    vi.stubEnv("MEDIA_BUNNY_TOKEN_KEY", "token-key-not-real");
+    const [onCdn, inRow] = [await withPortrait(newUserCookie(), "Ines Roe"), await withPortrait(newUserCookie(), "Odile Marsh")];
+    await t.db.query(
+      `insert into character_intros (id, character_id, line, voice, renderer, status, seconds, mime, object_key, data) values
+        ('intro-cdn', $1, 'Hi.', 'v', 'r', 'ready', 6, 'video/mp4', 'intros/intro-cdn-0123456789abcdef.mp4', null),
+        ('intro-row', $2, 'Hi.', 'v', 'r', 'ready', 6, 'video/mp4', null, $3)`,
+      [onCdn, inRow, MP4],
+    );
+    const get = (id: string) =>
+      introGet(new Request(`${BASE_URL}/api/cast-intro/${id}/intro.mp4`, { headers: { range: "bytes=0-3" } }), { params: Promise.resolve({ id, file: "intro.mp4" }) });
+    const sent = await get("intro-cdn");
+    expect(sent.status).toBe(302);
+    const to = new URL(sent.headers.get("location")!);
+    expect(to.host).toBe("media.botchelor.com");
+    expect(to.pathname).toBe("/intros/intro-cdn-0123456789abcdef.mp4");
+    expect(to.searchParams.get("token")).toMatch(/^HS256-/);
+    // Kept (by Cloudflare too) no longer than the link is handed out for, and never longer than an hour.
+    const maxAge = Number(/max-age=(\d+)/.exec(sent.headers.get("cache-control") ?? "")?.[1]);
+    expect(maxAge).toBeGreaterThan(0);
+    expect(maxAge).toBeLessThanOrEqual(3600);
+    expect(sent.headers.get("referrer-policy")).toBe("no-referrer");
+    // Not on Bunny: the bytes from here, with the range, as before.
+    const here = await get("intro-row");
+    expect(here.status).toBe(206);
+    expect(Buffer.from(await here.arrayBuffer()).toString()).toBe("ftyp");
+    // A clip that isn't ready, or isn't there, is a 404 either way.
+    await t.db.query(`update character_intros set status = 'making' where id = 'intro-cdn'`);
+    expect((await get("intro-cdn")).status).toBe(404);
+    expect((await get("intro-nobody")).status).toBe(404);
+  });
+
   it("keeps the clip under intros/, the area Bunny's CDN serves straight to the browser (the voice stays in companion/)", async () => {
     const files = new Map<string, Buffer>();
     setObjectStoreForTests({
