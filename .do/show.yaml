@@ -1,6 +1,7 @@
 # The show (botchelor.com) on DigitalOcean App Platform, since 2026-10-30 (docs/hosting.md). After Dark has its own
 # app (.do/app.yaml). Secrets are CHANGE_ME here: fill them in the dashboard (Encrypt), the same values as before.
-# Never commit real values to this file. Billing: $12 a month for the instance below.
+# Never commit real values to this file. Billing: $25 a month for the instance below (1 vCPU, 2 GB, since 2026-11-22;
+# it was apps-s-1vcpu-1gb, $12, before).
 name: botchelor-show
 region: sfo
 alerts:
@@ -23,7 +24,7 @@ services:
     build_command: npm run build
     run_command: npm start
     http_port: 8080
-    instance_size_slug: apps-s-1vcpu-1gb
+    instance_size_slug: apps-s-1vcpu-2gb
     instance_count: 1
     health_check:
       http_path: /api/health
@@ -31,6 +32,20 @@ services:
       period_seconds: 10
       timeout_seconds: 3
       failure_threshold: 3
+    # Emailed to the account: a restart loop, memory near the 2 GB limit, a pegged CPU.
+    alerts:
+      - rule: CPU_UTILIZATION
+        operator: GREATER_THAN
+        value: 90
+        window: TEN_MINUTES
+      - rule: MEM_UTILIZATION
+        operator: GREATER_THAN
+        value: 85
+        window: FIVE_MINUTES
+      - rule: RESTART_COUNT
+        operator: GREATER_THAN
+        value: 1
+        window: FIVE_MINUTES
     envs:
       # DEPLOY_ENV=production is what VERCEL_ENV=production was on Vercel (lib/deploy.ts): real payments, analytics,
       # IndexNow. SITE_URL is the show's address (lib/site.ts), read at build time as well.
