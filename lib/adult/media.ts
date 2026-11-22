@@ -41,6 +41,7 @@ import { showsLabel } from "./tag-labels";
 import { NOT_A_LIVING_PORTRAIT, TAB_WHERE, type GalleryTab } from "./gallery";
 import { sizeFor } from "../studio/formats";
 import { madeInSql, type MadeIn } from "../made-in";
+import { soft } from "../soft";
 
 /** `clip`: the picture can be made to move (it's on fal; Venice's explicit pictures can't be). */
 export type Media = {
@@ -117,14 +118,14 @@ export type PictureScene = { scene_chapter?: number | null; scene_place?: string
  */
 export async function outputCheckReady(db: Db): Promise<boolean> {
   // Hive's key, or an alternative checker the mode uses (lib/adult/moderation.ts).
-  return checkReady(db).catch(() => false);
+  return checkReady(db).catch(soft("pictures: the checker's readiness", false));
 }
 export const PICTURES_OFF_NOTE =
   "Pictures and clips are off until the output check is set up (the Hive key in after dark's settings): every image is checked after it's made, not only our prompt.";
 
 /** Logs a refusal (never the file), so the admin can see the check working. */
 async function logRejection(db: Db, ownerId: string, kind: string, reason: string): Promise<void> {
-  await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, $3, $4)`, [crypto.randomUUID(), ownerId, kind, reason.slice(0, 300)]).catch(() => {});
+  await db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, $3, $4)`, [crypto.randomUUID(), ownerId, kind, reason.slice(0, 300)]).catch(soft("pictures: record a refusal"));
 }
 
 /** On every picture: away from anyone young-looking, and from cartoon styles the face-age check can't read. */
@@ -476,7 +477,7 @@ async function makePictureLogged(db: Db, ownerId: string, opts: PictureOpts): Pr
       ? (PICTURE_PRESETS.find((p) => p.id === opts.preset) ?? PICTURE_PRESETS[0])
       : opts.character_b
         ? null
-        : await choosePreset(db, ownerId, opts.character_id).catch(() => null);
+        : await choosePreset(db, ownerId, opts.character_id).catch(soft("pictures: choose a preset", null));
   opts = { ...opts, prompt: withSteering(opts.prompt, steer, opts.kind === "scene" ? (preset?.words ?? null) : null), preset: preset?.id ?? null };
   const negative = [NEGATIVE_PROMPT, ...steer.negative].join(", ");
   const check = checkAdultText({ prompt: opts.prompt });

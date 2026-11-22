@@ -20,7 +20,7 @@ review; the money, legal and posting steps that only the owner can do are tracke
   free show launches first and Buy appears once a live Payment Link is set.
 - **Growth focus:** botchelor joined `policy.growth.focus` in idea-factory (after tiebreak), so RepoHQ's daily growth
   loop picks a mission for it from its funnel (GROWTH.md).
-- **The owner's own visits** don't count: `?repohq-notrack=1` sets a `repohq_notrack` cookie (middleware.ts). That
+- **The owner's own visits** don't count: `?repohq-notrack=1` sets a `repohq_notrack` cookie (proxy.ts). That
   covers the engagement log too, and signed-in admins' browsers are left out of it by default.
 
 ## Spend and abuse guards (`lib/limits.ts`)
@@ -60,7 +60,7 @@ The AI Gateway is prepaid, so its balance is the hard ceiling. Keep auto top-up 
 
 `scripts/e2e-live.mjs` drives the deployed site (SITE, default https://botchelor.com) like a person: the 18+ gate (in
 front of `/shop` and the other dating, chat and money pages; the PG show pages open without it since 2026-11-14, and the
-builder's 18+ box attests for a creator: `middleware.ts`, `lib/age.ts`), a
+builder's 18+ box attests for a creator: `proxy.ts`, `lib/age.ts`), a
 Stripe test purchase granted by the webhook, a character and a real private date, a swipe (a like on a house character
 is a match, and its opening chat comes in on the free model), a prediction and a rating (undone), a password account,
 the MCP endpoint, the public pages (`/swipe` among them), and a phone pass. The test character keeps a dating profile

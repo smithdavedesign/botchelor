@@ -20,6 +20,16 @@ export function describeError(data: ErrorBody): string {
   return data.message ?? "Something went wrong. Try again.";
 }
 
+/**
+ * A refusal's field messages alone, without the field names describeError puts before them ("email: …"): for a small form
+ * whose messages already say which box they're about (the Sunday letter's, app/NewsletterForm.tsx). Null when it has none.
+ */
+export function issueWords(data: Record<string, unknown>): string | null {
+  const issues = Array.isArray(data.issues) ? (data.issues as { message?: unknown }[]) : [];
+  const words = issues.map((i) => i?.message).filter((m): m is string => typeof m === "string" && m.length > 0);
+  return words.length ? words.join(" ") : null;
+}
+
 /** A refusal's "Watch it" link: a date still being filmed (date_in_progress) names its page. */
 export function watchLinkOf(data: Record<string, unknown>): { href: string; label: string } | undefined {
   return data.error === "date_in_progress" && typeof data.watch_path === "string" && data.watch_path.startsWith("/episodes/")

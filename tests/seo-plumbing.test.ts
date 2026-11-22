@@ -9,7 +9,7 @@ import { HOUSE_CHARACTERS } from "@/lib/house";
 import { recentPublicUrls } from "@/lib/indexnow";
 import { rssXml } from "@/lib/rss";
 import { contentSitemap, staticSitemap } from "@/lib/seo";
-import { middleware, UNGATED_PREFIXES } from "@/middleware";
+import { proxy as middleware, UNGATED_PREFIXES } from "@/proxy";
 import { api, episodeJson, newUserCookie, scriptedModel, scriptOutcome, startTestDb, validCharacter } from "./helpers";
 
 const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";

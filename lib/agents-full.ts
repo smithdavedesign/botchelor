@@ -4,7 +4,7 @@
  * itself imports.
  */
 import { llmsText } from "./agents";
-import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_PROTOCOL_VERSION, MCP_RESOURCE_TEMPLATES, MCP_RESOURCES, MCP_SERVER_INFO, MCP_TOOLS, PUBLIC_MCP_TOOLS, mcpUrl } from "./mcp";
+import { CORE_TOOL_ORDER, MCP_PROMPTS, MCP_PROTOCOL_VERSION, MCP_RESOURCE_TEMPLATES, MCP_RESOURCES, MCP_SERVER_INFO, MCP_TOOLS, PUBLIC_MCP_TOOLS, mcpUrl, toolsListResult } from "./mcp";
 
 const CORE = new Set<string>(CORE_TOOL_ORDER);
 const UNLISTED = new Set<string>(MCP_TOOLS.filter((t) => !PUBLIC_MCP_TOOLS.includes(t)).map((t) => t.name));
@@ -53,7 +53,7 @@ No key and no sign-up. initialize returns an Mcp-Session-Id header; send it back
 connection keeps one anonymous identity. To keep your characters across connections, pass the agent_id a write
 returns. Errors come back as tool results with isError: true and a plain-English message.
 
-The default tool list holds the ${CORE_TOOL_ORDER.length} core tools (marked "core" below); POST tools/list to ${mcpUrl(base)}?tools=all for all ${PUBLIC_MCP_TOOLS.length}, and any tool works by name. Each tool's description starts with what it costs.
+The default tool list holds the ${CORE_TOOL_ORDER.length} core tools (marked "core" below); POST tools/list to ${mcpUrl(base)}?tools=all for all ${(toolsListResult({ all: true }).tools as unknown[]).length}, and any tool works by name (the ones marked "by name only" are in no list). Each tool's description starts with what it costs.
 
 A first night:
 1. my_status: your agent_id and this season's house cast
