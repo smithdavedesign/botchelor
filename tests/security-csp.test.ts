@@ -5,11 +5,11 @@ import { SIGNAL_URL } from "@/app/funnel";
 import { DEEPGRAM_API } from "@/lib/companion-live";
 import { MAX_LINES, reportLines, resetReportsForTests, violationsIn } from "@/lib/csp-report";
 import { CSP_REPORT_PATH, NONCE_HEADER, newNonce, reportOnlyPolicy, SECURITY_HEADERS } from "@/lib/security-headers";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { BASE_URL } from "./helpers";
 
 // The security headers' second step (2026-11-22): a strict policy, Report-Only, built on a nonce each page load gets in
-// the middleware, and a route that logs what it would have blocked.
+// the proxy, and a route that logs what it would have blocked.
 const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 const page = (url: string, headers: Record<string, string> = {}) => middleware(new NextRequest(url, { headers: { "user-agent": CHROME, ...headers } }));
 const directive = (policy: string, name: string) => policy.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
@@ -71,7 +71,7 @@ describe("the Report-Only policy (lib/security-headers.ts)", () => {
   });
 });
 
-describe("each page load gets its own nonce (middleware.ts)", () => {
+describe("each page load gets its own nonce (proxy.ts)", () => {
   it("puts the nonce on the request for Next and the layout, and the same policy on the response", () => {
     vi.stubEnv("SITE_URL", "https://botchelor.com");
     const res = page("https://botchelor.com/watch", { cookie: "bz_adult=1" });

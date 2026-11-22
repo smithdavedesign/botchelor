@@ -17,7 +17,7 @@ import { NOTRACK_COOKIE } from "@/lib/tracking";
  * keep the old property verified; /.well-known/glama.json proves www is ours). That's why www isn't a domain-level
  * redirect on Vercel: that would move /api too. Preview deployments have other hosts and never move.
  */
-/** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here to keep node:crypto out of middleware. */
+/** The identity cookies (lib/http: USER_COOKIE, SESSION_COOKIE), named here so every request doesn't load lib/http. */
 const IDENTITY_COOKIES = ["bz_sess", "bz_uid"];
 
 /** A page visit on the old host: a cookieless visitor (or crawler) moves for good; a player carries their identity. */
@@ -276,7 +276,7 @@ export function badlyEncoded(pathname: string): boolean {
   }
 }
 
-export function middleware(req: NextRequest): NextResponse {
+export function proxy(req: NextRequest): NextResponse {
   if (badlyEncoded(req.nextUrl.pathname)) {
     return new NextResponse("Bad request: that address isn't encoded properly.", { status: 400, headers: { "content-type": "text/plain; charset=utf-8" } });
   }

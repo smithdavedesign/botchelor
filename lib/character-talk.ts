@@ -30,6 +30,7 @@ import { PAIR_PHRASES, type Stage } from "./relationship-stages";
 import { relationshipsOf, viewRelationship, type Relationship } from "./relationships";
 import { inFlight, shared } from "./shared-cache";
 import { listedCharacterSql } from "./public-cast";
+import { escapeRegExp } from "./text";
 
 type Env = Record<string, string | undefined>;
 
@@ -47,9 +48,8 @@ export const TALK_AFTER = 6;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const dayOf = (d: Date): string => d.toISOString().slice(0, 10);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** A whole-word mention of a name, as the scenes' own checks read one (lib/house-scenes.ts). */
-const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRe(word)}(?![\\p{L}])`, "iu").test(text);
+const mentions = (text: string, word: string): boolean => word.length > 1 && new RegExp(`(?<![\\p{L}])${escapeRegExp(word)}(?![\\p{L}])`, "iu").test(text);
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** Someone a line of talk names: public, so linkable. */

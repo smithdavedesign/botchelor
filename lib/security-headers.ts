@@ -31,14 +31,14 @@ export const SECURITY_HEADERS: readonly { key: string; value: string }[] = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
 ];
 
-/** The request header that carries a page load's nonce from the middleware to the layout (app/layout.tsx). */
+/** The request header that carries a page load's nonce from the proxy to the layout (app/layout.tsx). */
 export const NONCE_HEADER = "x-nonce";
 /** Where browsers send what the Report-Only policy would have blocked (app/api/csp-report). */
 export const CSP_REPORT_PATH = "/api/csp-report";
 /** One page load in this many asks the browser to send its reports; every load still lists them in its console. */
 export const CSP_REPORT_SAMPLE = 4;
 
-/** A fresh nonce for one page load: 128 random bits, base64 (Web Crypto, so it runs in the middleware too). */
+/** A fresh nonce for one page load: 128 random bits, base64 (Web Crypto, so it runs in the proxy too). */
 export function newNonce(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   let s = "";
@@ -48,7 +48,7 @@ export function newNonce(): string {
 
 type Env = Record<string, string | undefined>;
 
-/** The settings the policy reads, spelled out (the middleware's process.env is read name by name). */
+/** The settings the policy reads, spelled out (the proxy's process.env is read name by name). */
 function policyEnv(): Env {
   try {
     return {
@@ -88,7 +88,7 @@ const LIVE_CALLS = ["wss://api.deepgram.com", "https://api.simli.ai", "wss://api
  * of the site's hosts, the Google tag, the funnel beacon and the live calls. Nothing is blocked: each browser lists what
  * would be in its console, and one load in CSP_REPORT_SAMPLE sends it to CSP_REPORT_PATH, logged there. Once those
  * logs are quiet the policy can be enforced. The nonce goes on Next's own scripts by itself (it reads it from this
- * header on the request: middleware.ts) and on the layout's inline ones by hand (app/layout.tsx).
+ * header on the request: proxy.ts) and on the layout's inline ones by hand (app/layout.tsx).
  */
 export function reportOnlyPolicy(nonce: string, opts: { report?: boolean } = {}, env: Env = policyEnv()): string {
   const sites = [httpsOrigin(env.SITE_URL), httpsOrigin(afterDarkOrigin(env) ?? undefined)];

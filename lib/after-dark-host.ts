@@ -14,12 +14,14 @@
  *                       the 18+ gate, the sign-in hop and the APIs its pages call, and sends everything else to the show.
  *
  * Unset (the default), nothing here does anything: every function answers what the code did before the split existed
- * (tests/after-dark-host.test.ts pins that). Pages are routed in middleware.ts and APIs by next.config.ts redirects:
+ * (tests/after-dark-host.test.ts pins that). Pages are routed in proxy.ts and APIs by next.config.ts redirects:
  * the middleware never runs on /api, and making it run there would put it in front of every API call on the show. Both
  * read these at build time as well as at run time, so set them for both (Vercel does; on DigitalOcean, "Build and run").
  *
- * Edge-safe and dependency-free: middleware.ts, next.config.ts and client code (app/Nav.tsx) all import it.
+ * Edge-safe and dependency-free: proxy.ts, next.config.ts and client code (app/Nav.tsx) all import it.
  */
+import { escapeRegExp } from "./text";
+
 
 type Env = Record<string, string | undefined>;
 
@@ -157,7 +159,6 @@ export function afterDarkPageMove(pathname: string, search: string, opts: { iden
 
 type Redirect = { source: string; destination: string; permanent: false };
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * next.config.ts's part: nothing at all with the switch off. On, the two settings for client code (`env`) and the API
@@ -190,7 +191,7 @@ export function afterDarkNextConfig(env: Env, show: string): { env?: Record<stri
   }
   const keep = [...AFTER_DARK_APIS, ...AFTER_DARK_HOST_APIS]
     .map((r) => r.replace(/^\/api\//, ""))
-    .map((r) => (r.endsWith("/") ? `${escapeRe(r.slice(0, -1))}(?:/|$)` : `${escapeRe(r)}$`));
+    .map((r) => (r.endsWith("/") ? `${escapeRegExp(r.slice(0, -1))}(?:/|$)` : `${escapeRegExp(r)}$`));
   // After Dark's own tiles are in /api/looks/, kept above with the rest of the builder's tiles.
   const rules: Redirect[] = [{ source: `/api/:path((?!${keep.join("|")}).*)`, destination: `${showOrigin}/api/:path`, permanent: false }];
   return { env: { AFTER_DARK_ORIGIN: origin, AFTER_DARK_ONLY: "1" }, redirects: async () => rules };

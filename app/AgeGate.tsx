@@ -16,7 +16,7 @@ export type GatePair = { a: GateFace; b: GateFace; title: string | null; target:
  * the remembered cookie and navigates straight back, so there's no redirect round-trip. "Leave" sends anyone
  * under 18 away. A self-attestation (the standard age gate), not a security boundary.
  *
- * Since the PG show opened without it (2026-11-14, middleware.ts UNGATED_*), the gate meets visitors on their way to
+ * Since the PG show opened without it (2026-11-14, proxy.ts UNGATED_*), the gate meets visitors on their way to
  * swiping, matches, companions, the shop and the like, so it sells (2026-11-14 design audit): the date behind it at the
  * top of the card (both faces, "A × B", its title) and one line on what the show is, before the question. After Dark's
  * gate keeps its own words and never shows the show's pair. On a phone the card is a bottom sheet, the show above it.

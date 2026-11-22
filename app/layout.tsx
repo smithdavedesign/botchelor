@@ -198,7 +198,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const google = Boolean(TRACKING.gaId || TRACKING.gtmId);
   const requestHeaders = await headers();
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(requestHeaders)?.country);
-  // This load's nonce (middleware.ts, lib/security-headers.ts): Next puts it on its own scripts, these get it by hand.
+  // This load's nonce (proxy.ts, lib/security-headers.ts): Next puts it on its own scripts, these get it by hand.
   const nonce = requestHeaders.get(NONCE_HEADER) ?? undefined;
 
   return (

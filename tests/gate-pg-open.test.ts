@@ -6,7 +6,7 @@ import { POST as confirmAge } from "@/app/api/age/route";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { ADULT_COOKIE, ADULT_COOKIE_MAX_AGE, adultCookie, hasAdultCookie } from "@/lib/age";
 import { MCP_CALL_PATH } from "@/lib/http";
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 import { api, BASE_URL, startTestDb, validCharacter } from "./helpers";
 
 // David, 2026-11-14: the PG show pages open without the 18+ interstitial (the plan's Phase 0 "18+ gate" call, reversing
