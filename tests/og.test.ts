@@ -3,6 +3,7 @@ import EpisodeOg from "@/app/episodes/[id]/opengraph-image";
 import CharacterOg from "@/app/characters/[id]/opengraph-image";
 import StaticOg from "@/app/opengraph-image";
 import { recordAsset, reviewAsset } from "@/lib/assets";
+import { SHARE_IMAGE } from "@/lib/seo";
 import { api, setupEpisode, startTestDb } from "./helpers";
 
 // The 8-byte PNG signature. ImageResponse renders lazily, so reading the body is what actually runs Satori
@@ -56,5 +57,15 @@ describe("opengraph images render to PNG (next/og / Satori)", () => {
 
   it("the site card renders", async () => {
     await renderPng(await StaticOg());
+  });
+
+  it("the site card every page names is a .png address, drawn at build time and kept by the CDN (2026-11-22 audit)", async () => {
+    const card = await import("@/app/share-card.png/route");
+    expect(card.dynamic).toBe("force-static");
+    const res = card.GET();
+    expect(res.headers.get("content-type")).toBe("image/png");
+    expect(res.headers.get("cache-control")).toBe("public, max-age=86400, s-maxage=604800");
+    await renderPng(res);
+    expect(SHARE_IMAGE.url).toBe("/share-card.png");
   });
 });
