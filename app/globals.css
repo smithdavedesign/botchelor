@@ -369,7 +369,9 @@ body {
 }
 
 /* A route's loading screen (app/PageLoading.tsx): what's loading, then a grey outline of the page with a slow shimmer.
-   Under reduced motion the global rule above stills the shimmer. */
+   Under reduced motion the global rule above stills the shimmer. It takes its page's width (.page-wide or .page-full,
+   app/ux/catalog.css), so main doesn't change width under it when the page arrives; the status line stays centred
+   under .page-full's reading measure for paragraphs. */
 .page-skeleton {
   padding: var(--space-3) 0;
 }
@@ -378,7 +380,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  margin: 0 0 var(--space-4);
+  margin: 0 auto var(--space-4);
   color: var(--muted);
   font-weight: 600;
 }
@@ -539,6 +541,10 @@ body {
 
 main {
   max-width: var(--page-read);
+  /* At least the screen under the header, so the footer starts below the fold: a route's loading screen is short, and
+     the footer jumped from mid-screen to past it when the page arrived (2026-11-22 audit: a layout shift of about 0.8
+     on Watch and an episode at 1280×900). A short page's footer now sits at the bottom of the screen. */
+  min-height: calc(100svh - 4rem);
   margin: 0 auto;
   padding: 1.25rem var(--gutter) 4rem;
   scroll-margin-top: 1rem;

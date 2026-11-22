@@ -41,6 +41,9 @@ const nextConfig: NextConfig = {
   ],
   // No "X-Powered-By: Next.js": it tells a scanner what to try and tells a visitor nothing.
   poweredByHeader: false,
+  // Next's own image optimizer (/_next/image) loads sharp's CommonJS build on its first request, and loading it resets
+  // libvips's cache to the default: these put back the limits the server starts with (lib/sharp-limits.ts).
+  experimental: { imgOptConcurrency: 1, imgOptOperationCache: false },
   // After Dark on a host of its own (lib/after-dark-host.ts): adds nothing unless AFTER_DARK_ORIGIN is set at build time.
   ...afterDark,
   // The show's words as addresses (lib/site-redirects.ts), before After Dark's own moves.

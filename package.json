@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "MALLOC_ARENA_MAX=2 next start",
     "test": "vitest run",
     "gate": "node scripts/gate.mjs",
     "e2e": "node scripts/e2e.mjs",
