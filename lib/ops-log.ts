@@ -163,7 +163,8 @@ const num = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 /** One line about a row, for the admin's list: what it says, never more than the row holds. */
 export function opsDetail(event: string, p: Record<string, unknown>): string {
   if (event === "boot") {
-    const mem = num(p.memory_limit_mb);
+    // The limit when the container shows one; else the memory it sees, which on DigitalOcean is the instance's size.
+    const mem = num(p.memory_limit_mb) ?? num(p.total_memory_mb);
     return `commit ${short(p.sha)}${mem ? `, ${mem} MB` : ""}${num(p.heap_limit_mb) ? `, heap ${p.heap_limit_mb} MB` : ""}`;
   }
   if (event === "episode_generated") {

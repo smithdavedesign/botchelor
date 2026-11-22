@@ -13,7 +13,7 @@ apps: the show (`botchelor.com`, [`.do/show.yaml`](../.do/show.yaml)) and After 
 - **The commit each host runs**: /admin → Servers. Each host's commit (linked to GitHub) and since when, how often it
   started in the last day (a start on the same commit as the one before is a restart, not a deploy), and the latest
   daily job part by part. Each start is a row in `ops_log` (`lib/ops-log.ts`) with the commit, the memory the container
-  sees, its limit when it shows one (DigitalOcean's don't: the size is the spec's) and the heap limit. DigitalOcean
+  sees (on DigitalOcean, the instance's size; no separate limit shows inside) and the heap limit. DigitalOcean
   fills the commit in: `COMMIT_SHA` is `${_self.COMMIT_HASH}` in both specs.
 - **The deploy**: DigitalOcean → Apps → the app → Activity, or the API (`GET /v2/apps/<id>/deployments`). Rolling one
   back: [runbooks/rollback.md](runbooks/rollback.md).
@@ -166,7 +166,7 @@ another name shows up as a value: its doc says how it defaults.
 | `ADULT_LLM_MODEL` | `lib/adult/mode.ts` | - | docs/PRDs/after-dark.md |
 | `ADULT_MODE` | `lib/adult/mode.ts` | show.yaml, app.yaml | docs/PRDs/after-dark.md, docs/after-dark-hosting.md +2 |
 | `ADULT_TEXT_PROVIDERS` | `lib/adult/mode.ts` | - | docs/after-dark-hosting.md, docs/after-dark.md |
-| `AFTER_DARK_ORIGIN` | `lib/after-dark-host.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md, docs/after-dark.md |
+| `AFTER_DARK_ORIGIN` | `lib/after-dark-host.ts` +1 | show.yaml, app.yaml | docs/after-dark-hosting.md, docs/after-dark.md |
 | `BING_SITE_VERIFICATION` | `lib/tracking.ts` | - | BUILD.md, docs/seo-and-tracking.md |
 | `BOTCHELOR_AGENT_DAILY_DATES` | `lib/dating.ts` | - | BUILD.md, docs/PRDs/agent-world.md +1 |
 | `BOTCHELOR_AGENT_DAILY_SHARE` | `lib/dating.ts` | - | **nowhere else** |
@@ -253,14 +253,14 @@ another name shows up as a value: its doc says how it defaults.
 | `LOOKS_PORTRAITS_PER_DAY` | `lib/looks-draw.ts` | - | docs/looks.md |
 | `MALLOC_ARENA_MAX` | `lib/ops-log.ts` | - | **nowhere else** |
 | `MATCH_CHATS_DAILY` | `lib/swipes.ts` | - | BUILD.md, docs/agents-and-people.md |
-| `MEDIA_BUNNY_CDN_HOST` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md |
+| `MEDIA_BUNNY_CDN_HOST` | `lib/object-store.ts` +1 | show.yaml, app.yaml | docs/after-dark-hosting.md |
 | `MEDIA_BUNNY_KEY` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md, docs/runbooks/rotate-keys.md |
 | `MEDIA_BUNNY_REGION` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md |
 | `MEDIA_BUNNY_TOKEN_KEY` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md, docs/runbooks/rotate-keys.md |
 | `MEDIA_BUNNY_ZONE` | `lib/object-store.ts` | show.yaml, app.yaml | docs/after-dark-hosting.md |
 | `MEDIA_S3_ACCESS_KEY_ID` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/PRDs/digital-human.md +2 |
 | `MEDIA_S3_BUCKET` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/after-dark-hosting.md |
-| `MEDIA_S3_ENDPOINT` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/after-dark-hosting.md |
+| `MEDIA_S3_ENDPOINT` | `lib/object-store.ts` +1 | show.yaml | BUILD.md, docs/after-dark-hosting.md |
 | `MEDIA_S3_REGION` | `lib/object-store.ts` | show.yaml | BUILD.md |
 | `MEDIA_S3_SECRET_ACCESS_KEY` | `lib/object-store.ts` | show.yaml | BUILD.md, docs/PRDs/digital-human.md +2 |
 | `NAME` | `lib/after-dark-host.ts` | show.yaml | AGENTS.md, docs/discord.md +2 |
@@ -292,7 +292,7 @@ another name shows up as a value: its doc says how it defaults.
 | `SESSION_SECRET` | `lib/account-recovery.ts` +13 | show.yaml, app.yaml | BUILD.md, README.md +8 |
 | `SIMLI_API_KEY` | `lib/live-face/compare.ts` +1 | show.yaml | docs/PRDs/digital-human.md, docs/companions.md +1 |
 | `SIMLI_BACKGROUND_ID` | `lib/live-face/index.ts` | - | **nowhere else** |
-| `SITE_URL` | `lib/show-shots.ts` +1 | show.yaml, app.yaml | LAUNCH-READY.md, docs/after-dark-hosting.md +2 |
+| `SITE_URL` | `lib/security-headers.ts` +2 | show.yaml, app.yaml | LAUNCH-READY.md, docs/after-dark-hosting.md +2 |
 | `SPEED_DATE_MODEL` | `lib/fast-date.ts` | show.yaml | docs/date-quality.md, docs/hosting.md |
 | `SPEED_DATE_REASONING` | `lib/fast-date.ts` | show.yaml | docs/date-quality.md, docs/hosting.md |
 | `STAND_IN_TEXTS` | `lib/texting.ts` | - | docs/PRDs/connections.md |
@@ -308,7 +308,7 @@ another name shows up as a value: its doc says how it defaults.
 | `VAPID_PUBLIC_KEY` | `lib/push.ts` | show.yaml | BUILD.md, docs/relationship-graph.md +1 |
 | `VERCEL` | `lib/deploy.ts` +2 | - | docs/PRDs/connections.md, docs/after-dark-hosting.md +1 |
 | `VERCEL_ENV` | `lib/deploy.ts` | show.yaml | docs/PRDs/connections.md, docs/PRDs/reel-storyboard.md +2 |
-| `VERCEL_GIT_COMMIT_SHA` | `lib/deploy.ts` +1 | - | docs/feedback.md |
+| `VERCEL_GIT_COMMIT_SHA` | `lib/deploy.ts` | - | docs/feedback.md |
 | `VERCEL_PROJECT_PRODUCTION_URL` | `lib/auth.ts` +1 | - | docs/history/build-log-2026-10-13-to-16.md |
 | `VEROTEL_PERIOD` | `lib/adult/billing-verotel.ts` | - | docs/after-dark.md |
 | `VEROTEL_SHOP_ID` | `lib/adult/billing-verotel.ts` | - | docs/after-dark.md |
