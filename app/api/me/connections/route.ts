@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
-import { MODEL_ID as REPLICATE_MODEL } from "@/lib/adult/replicate";
 import { checkKey, currentUsage, listConnections, removeConnection, saveConnection, assignJob, unassignJob } from "@/lib/connections";
 import { checkLimit, connectionsGate, ModelId, PastedKey } from "@/lib/connections-http";
 import { ADULT_JOBS, CAP_MAX_USD, JOB_INFO, JOBS, jobCards, ON_CAP, PRESET_IDS, PROVIDER_INFO, isUserProvider, providersFor, type Feel, type Job } from "@/lib/connections-shared";
+import { REPLICATE_MODEL_ID } from "@/lib/replicate-model";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { lockedForRequest } from "@/lib/adult/privacy";
 
@@ -80,7 +80,7 @@ export const PUT = handle(async (req) => {
   const provider = input.provider;
   // A Replicate picture or video model is the path a prediction is created at: only `owner/name`, `owner/name:version` or
   // a version id (a live-face renderer is one of the listed `replicate:…` ids instead).
-  if (provider === "replicate" && input.model && (input.job === "after_dark" || input.job === "after_dark_video") && !REPLICATE_MODEL.test(input.model)) {
+  if (provider === "replicate" && input.model && (input.job === "after_dark" || input.job === "after_dark_video") && !REPLICATE_MODEL_ID.test(input.model)) {
     return json({ error: "invalid_connection", message: "That isn't a Replicate model: use owner/name, or owner/name:version." }, 422);
   }
   const jobs: Job[] = [...new Set([...(input.job ? [input.job] : []), ...(input.also ?? [])])];
