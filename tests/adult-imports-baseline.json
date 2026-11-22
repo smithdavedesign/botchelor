@@ -96,6 +96,9 @@
   "app/prompts/page.tsx": [
     "mode"
   ],
+  "app/showcase/reels/feed.tsx": [
+    "billing"
+  ],
   "app/studio/CreateLibrary.tsx": [
     "scene-catalog"
   ],

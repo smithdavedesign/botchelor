@@ -92,7 +92,8 @@ describe("ShowcaseFeature", () => {
     const html = renderToStaticMarkup(createElement(ShowcaseFeature, { reel: featureReel(top, [top, post({ id: "a", partner: { id: "c2", name: "Dex Arlo" } })]) }));
     expect(html).toContain("Also showing");
     expect(html).toContain('aria-label="Watch: Azimuth Reed × Dex Arlo"');
-    expect(html).toContain('<img src="/api/showcase/a/media?size=tile" alt="" loading="lazy"');
+    // Named for search and for a picture that doesn't load (2026-11-22 audit); the link's own name is its aria-label.
+    expect(html).toContain('<img src="/api/showcase/a/media?size=tile" alt="Azimuth Reed × Dex Arlo: a still from their reel" loading="lazy"');
     expect(renderToStaticMarkup(createElement(ShowcaseFeature, { reel: featureReel(top) }))).not.toContain("Also showing");
   });
 
@@ -134,6 +135,15 @@ describe("isUnfiltered", () => {
 describe("the page and its styles", () => {
   it("shows it on the unfiltered gallery only, from the shared copy", () => {
     expect(page).toContain('isUnfiltered(filters) ? await shared("showcase:feature", () => showcaseFeature(db)) : null');
+  });
+
+  it("opens the gallery's own Watch full screen on it too, so the reels start where the page does (2026-11-22)", () => {
+    expect(page).toContain("href={`/showcase/reels${feature ? `?start=${encodeURIComponent(feature.id)}` : reelsQuery(sp)}`}");
+  });
+
+  it("fills the active chip with the button pink, whose white label passes contrast (2026-11-22)", () => {
+    expect(css).toMatch(/a\.showcase-side\.on \{\s*background: var\(--accent-btn\);/);
+    expect(css).not.toMatch(/a\.showcase-side\.on \.showcase-count \{[^}]*opacity/);
   });
 
   it("only twinkles where motion is welcome", () => {

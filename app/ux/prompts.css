@@ -198,3 +198,11 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Every tag with a page of its own (/prompts, under the list), by group: links to /prompts/tag/…, where the chips above
+   filter this page. */
+.prompts-by-tag h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

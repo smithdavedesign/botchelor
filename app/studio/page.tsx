@@ -61,7 +61,7 @@ export default async function MyStudioPage({ searchParams }: Props = {}) {
                   <div className="studio-proof-row">
                     {proof.posts.map((postId) => (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img key={postId} src={`/api/showcase/${postId}/media?size=tile`} alt="" loading="lazy" decoding="async" />
+                      <img key={postId} src={`/api/showcase/${postId}/media?size=tile`} alt={`${shortName(proof.name)} in a Studio picture`} loading="lazy" decoding="async" />
                     ))}
                   </div>
                   <figcaption className="muted small">

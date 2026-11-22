@@ -12,7 +12,7 @@ import { CLAMP_GUESS } from "@/app/prompts/PromptText";
 import { promptTone } from "@/app/prompts/PromptCard";
 import { pageCount } from "@/lib/paging";
 import { namesArtist } from "@/lib/prompt-artists";
-import { ALL_PROMPTS, findPrompts, indexablePromptTags, PROMPTS_PER_PAGE, type PromptTag } from "@/lib/prompts-library";
+import { ALL_PROMPTS, findPrompts, indexablePromptTags, PROMPTS_PER_PAGE, promptTagPath, type PromptTag } from "@/lib/prompts-library";
 import { startTestDb } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -90,6 +90,16 @@ describe("/prompts", () => {
     expect(items(last)).toBe(ALL_PROMPTS.length - (pages - 1) * PROMPTS_PER_PAGE);
     // A page past the end shows the last one.
     expect(items(await render({ page: "9999" }))).toBe(items(last));
+  });
+
+  it("links every tag page, by group, under the list (the chips filter in place, so nothing else led there)", async () => {
+    const html = await render();
+    const paged = indexablePromptTags();
+    expect(paged.length).toBeGreaterThan(0);
+    expect(html).toContain('<h2 id="prompts-by-tag-title">Prompts by tag</h2>');
+    for (const t of paged) expect(html, t.id).toContain(`href="${promptTagPath(t.id)}"`);
+    const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+    for (const g of new Set(paged.map((t) => t.group))) expect(html).toContain(`<h3>${esc(g)}</h3>`);
   });
 
   it("a tag's own page uses the same grid, one page of whole texts with the Copy · Save row, and the library under its intro", async () => {

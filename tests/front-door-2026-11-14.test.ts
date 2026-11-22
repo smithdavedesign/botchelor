@@ -102,7 +102,8 @@ describe("the hero", () => {
     expect(SITE_DESCRIPTION).toContain("Give your original character a love life");
     expect(SITE_DESCRIPTION).not.toContain(OLD);
     expect(SHARE_IMAGE_ALT).toContain("give your character a love life");
-    for (const file of ["app/gate/page.tsx", "app/opengraph-image.tsx", "app/characters/[id]/opengraph-image.tsx", "app/page.tsx"]) {
+    // The site card is drawn in app/site-card.tsx (app/opengraph-image.tsx and app/share-card.png/route.tsx serve it).
+    for (const file of ["app/gate/page.tsx", "app/site-card.tsx", "app/characters/[id]/opengraph-image.tsx", "app/page.tsx"]) {
       const src = readFileSync(join(__dirname, "..", file), "utf8");
       expect(src, file).not.toContain(OLD);
       expect(src, file).toContain("Give your character a love life.");

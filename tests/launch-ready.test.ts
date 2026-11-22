@@ -151,7 +151,8 @@ describe("search and sharing: every public page", () => {
 
   it("names the site's 1200×630 card with the card's own size and alt", () => {
     expect(ogImage.size).toEqual({ width: SHARE_IMAGE.width, height: SHARE_IMAGE.height });
-    expect(SHARE_IMAGE).toMatchObject({ url: "/opengraph-image", width: 1200, height: 630, alt: ogImage.alt });
+    // Named by its .png address, which the CDN keeps (app/share-card.png/route.tsx): the same card as /opengraph-image.
+    expect(SHARE_IMAGE).toMatchObject({ url: "/share-card.png", width: 1200, height: 630, alt: ogImage.alt });
   });
 
   it("keeps the pages behind the 18+ gate (a result there landed people on the gate) and /legal out of search, links followed", async () => {
@@ -177,7 +178,9 @@ describe("search and sharing: every public page", () => {
   });
 
   it("leaves og:title and twitter:title to each page, so a page that sets neither never borrows the home page's", () => {
-    expect(rootMetadata.openGraph).toEqual({ type: "website", siteName: "Botchelor", locale: "en_US" });
+    // The share card is named, though: the .png the CDN keeps, so no page falls back to /opengraph-image, which it
+    // doesn't (app/opengraph-image.tsx, 2026-11-22 audit).
+    expect(rootMetadata.openGraph).toEqual({ type: "website", siteName: "Botchelor", locale: "en_US", images: [SHARE_IMAGE] });
     expect(rootMetadata.twitter).toEqual({ card: "summary_large_image" });
   });
 });

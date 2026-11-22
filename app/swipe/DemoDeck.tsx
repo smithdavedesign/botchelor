@@ -99,7 +99,7 @@ export default function DemoDeck({ cards, makeHref }: { cards: DeckCard[]; makeH
       ) : (
         <>
           <div className="swipe-stack">
-            {next && <Card card={next} className="swipe-card swipe-next" />}
+            {next && <Card card={next} className="swipe-card swipe-next" behind />}
             <Card
               key={top.id}
               card={top}
