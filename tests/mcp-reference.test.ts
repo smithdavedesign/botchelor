@@ -14,11 +14,12 @@ import McpChangelogPage, { metadata as changelogMeta } from "@/app/agents/change
 import { toolSummary } from "@/app/agents/summary";
 import ToolReferencePage, { metadata as toolsMeta } from "@/app/agents/tools/page";
 import { AGENT_TOOL_GROUPS, llmsText } from "@/lib/agents";
-import { CORE_TOOL_ORDER, MCP_SERVER_INFO, MCP_TOOLS, PUBLIC_MCP_TOOLS } from "@/lib/mcp";
+import { llmsFullText } from "@/lib/agents-full";
+import { CORE_TOOL_ORDER, MCP_SERVER_INFO, MCP_TOOLS, PUBLIC_MCP_TOOLS, toolsListResult } from "@/lib/mcp";
 import { LATEST_RELEASE, MCP_CHANGELOG } from "@/lib/mcp/changelog";
 import { HOUSE_TOOL_NAMES } from "@/lib/mcp/house";
 import { OC_TOOL_NAMES } from "@/lib/mcp/oc-tools";
-import { argType, BY_NAME_GROUP, TOOL_IDENTITY, toolReference } from "@/lib/mcp/reference";
+import { argType, BY_NAME_GROUP, listedToolCount, TOOL_IDENTITY, toolReference } from "@/lib/mcp/reference";
 import { PUBLIC_PATHS } from "@/lib/site";
 import { proxy as middleware } from "@/proxy";
 import { BASE_URL } from "./helpers";
@@ -164,6 +165,24 @@ describe("/agents/tools", () => {
     vi.stubEnv("MCP_HOUSE", "0");
     const off = renderToStaticMarkup(createElement(ToolReferencePage));
     for (const name of HOUSE_TOOL_NAMES) expect(off).not.toContain(`id="${name}"`);
+  });
+
+  // The 2026-11-22 audit: the page said "All 89" while tools/list at ?tools=all sent 82. The count is the list's own; the
+  // tools that answer by name only are counted apart, and /agents and llms-full.txt say the same number.
+  it("counts what tools/list sends at ?tools=all, and the by-name-only tools apart", () => {
+    // tools/list's reply, as the server sends it to anyone (lib/mcp/dispatcher.ts: reply(toolsListResult(msg.params, ctx))).
+    const listed = (toolsListResult({ all: true }).tools as unknown[]).length;
+    const byName = toolReference().find((g) => g.title === BY_NAME_GROUP)!.tools.length;
+    expect(listedToolCount()).toBe(listed);
+    expect(listed).toBe(PUBLIC_MCP_TOOLS.length);
+    expect(byName).toBe(MCP_TOOLS.length - PUBLIC_MCP_TOOLS.length);
+    expect(byName).toBeGreaterThan(0);
+    expect(html).toContain(`All ${listed} tools on the show`);
+    expect(html).toContain(`at the end the ${byName} older ones that are in no list but still answer by name.`);
+    const agents = readFileSync(join(ROOT, "app/agents/page.tsx"), "utf8");
+    expect(agents).toContain("lists all {listedToolCount()}");
+    expect(agents).not.toContain("lists all {MCP_TOOLS.length}");
+    expect(llmsFullText("https://botchelor.com")).toContain(`?tools=all for all ${listed}, and any tool works by name (the ones marked "by name only" are in no list)`);
   });
 });
 

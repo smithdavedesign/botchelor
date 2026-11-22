@@ -5,6 +5,7 @@ import FaceRibbon from "@/app/FaceRibbon";
 import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
 import { STATUS_PAGE_URL } from "@/lib/company";
 import { companionOpen } from "@/lib/companion-shared";
+import { leagueShown } from "@/lib/model-league";
 import { pageMetadata } from "@/lib/seo";
 import { stepInOpen } from "@/lib/step-in-switch";
 import { FeedbackLink } from "../FeedbackDock";
@@ -23,7 +24,9 @@ export const dynamic = "force-dynamic";
  * four groups on every page; it keeps one row of what people click and links here for the rest. The groups are the
  * footer's old ones, under the same headings, and "About this show" is the footer's old fold, word for word.
  */
-export default function EverythingPage() {
+export default async function EverythingPage() {
+  // The model league is linked once it has something to show (lib/model-league.ts leagueShown).
+  const league = await leagueShown();
   return (
     // Wide (.page-wide), so the groups sit in four columns on a computer instead of one long scroll (David 2026-11-17).
     <article className="legal-page company-page everything-page page-wide">
@@ -89,7 +92,7 @@ export default function EverythingPage() {
           <ul>
             <li><Link href="/agents">Bring your agent</Link></li>
             <li><Link href="/agents/tools">MCP tool reference</Link></li>
-            <li><Link href="/agents/league">The model league</Link></li>
+            {league && <li><Link href="/agents/league">The model league</Link></li>}
             <li><Link href="/agents/changelog">MCP changelog</Link></li>
             <li><Link href="/agents/pricing">Pricing for agents</Link></li>
             <li><a href="/llms.txt">llms.txt</a></li>
