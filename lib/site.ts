@@ -54,7 +54,7 @@ export function requestBase(req: Request, env: Record<string, string | undefined
 
 /**
  * The pages worth listing for search engines: public, and the same for every visitor. Not a page behind the 18+ gate:
- * crawlers pass it (middleware.ts), people don't, so a search result there landed on the gate (2026-11-22 audit: /shop,
+ * crawlers pass it (proxy.ts), people don't, so a search result there landed on the gate (2026-11-22 audit: /shop,
  * whose prices /pricing shows in the open, and the prompts library).
  */
 export const PUBLIC_PATHS = [
