@@ -28,7 +28,8 @@ const pageTag = (id: string) => indexablePromptTags().find((t) => t.id === decod
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const tag = pageTag((await params).id);
-  if (!tag) return { title: "Prompts · Botchelor", robots: { index: false, follow: false } };
+  // No page for it, title and all: the not-found page's own (app/not-found.tsx), as the page itself turns it away below.
+  if (!tag) notFound();
   const heading = promptTagHeading(tag);
   // Behind the 18+ gate like the library, so out of search too (app/prompts/page.tsx).
   return {

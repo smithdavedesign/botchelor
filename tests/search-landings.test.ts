@@ -79,9 +79,8 @@ describe("prompt tag pages", () => {
     expect(html).toContain(`<h1>${heading}</h1>`);
     expect(html.match(/class="prompt-item"/g)!.length).toBeLessThanOrEqual(24);
     expect(html).toContain('href="/prompts"');
-    // A small or NSFW tag has no page.
-    const nsfwMeta = await generateMetadata({ params: Promise.resolve({ id: small.id }) });
-    expect(nsfwMeta.robots).toEqual({ index: false, follow: false });
+    // A small or NSFW tag has no page, and its metadata is the not-found page's too (not a title of its own).
+    await expect(generateMetadata({ params: Promise.resolve({ id: small.id }) })).rejects.toThrow();
     await expect(Page({ params: Promise.resolve({ id: small.id }) })).rejects.toThrow();
     // None in the sitemap (2026-11-22: the library sits behind the 18+ gate).
     for (const t of tags) expect(landingPaths()).not.toContain(promptTagPath(t.id));
