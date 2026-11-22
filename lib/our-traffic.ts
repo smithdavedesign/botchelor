@@ -58,12 +58,15 @@ export function setPublicLaunchDayForTests(day: string | null): void {
  */
 export async function loadOurIds(db: Db): Promise<string[]> {
   const ourClient = `(coalesce(client_name, '') ~* $1 or coalesce(user_agent, '') ~* $1 or coalesce(client_name, '') like $2)`;
+  // The call log's agents: its distinct (agent, client, user agent) first, then the patterns, so they run on ~18,000 pairs
+  // rather than every call (431,000 rows, 2026-11-22: 4.4 s against 0.3 s for the same ids). `offset 0` keeps the planner
+  // from pushing the patterns back down into the scan.
   const { rows } = await db.query<{ id: string }>(
     `select user_id as id from admins
      union select user_id from adult_entitlements where provider = 'reviewer'
      union select l.agent_id from agent_links l join admins a on a.user_id = l.user_id
      union select agent_id from mcp_sessions where ${ourClient}
-     union select agent_id from mcp_calls where agent_id is not null and ${ourClient}
+     union select agent_id from (select distinct agent_id, client_name, user_agent from mcp_calls where agent_id is not null offset 0) calls where ${ourClient}
      union select owner_id from characters where owner_id is not null and (name = any($5::text[]) or name ~* $6)
      union select e.creator_id from episodes e join characters c on c.id = e.character_a
             where e.creator_id is not null and (c.name = any($5::text[]) or c.name ~* $6)

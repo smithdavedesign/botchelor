@@ -294,7 +294,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                 height={PROMO.homeLoop.height}
                 watchHref="/watch"
                 caption="Juniper Vale × Nell Abiodun · How does it end?"
-                kicker="Tonight on the show"
+                kicker="From the show"
                 watchLabel="Watch episodes"
               />
             )
@@ -383,7 +383,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               height={PROMO.homeLoop.height}
               watchHref="/watch"
               caption="Juniper Vale × Nell Abiodun · How does it end?"
-              kicker="Tonight on the show"
+              kicker="From the show"
               watchLabel="Watch episodes"
             />
           </div>

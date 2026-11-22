@@ -10,6 +10,7 @@ import ForgotPassword from "./ForgotPassword";
 import MlConsent from "./MlConsent";
 import PasswordSettings from "./PasswordSettings";
 import YourDates from "./YourDates";
+import { DELETE_ACCOUNT_ID } from "./DeleteAccount";
 import Avatar from "../Avatar";
 import CharacterName from "../CharacterName";
 import Icon from "../Icon";
@@ -177,7 +178,10 @@ export default function AccountPanel({ next = null, emailConfirmed = null, perso
             Sign out
           </button>
         </div>
-        <p className="muted small">Signing out returns you to anonymous play. To delete your account and all its data, see <Link href="/privacy">Privacy</Link>.</p>
+        <p className="muted small">
+          Signing out returns you to anonymous play. To delete your account and all its data, use{" "}
+          <a href={`#${DELETE_ACCOUNT_ID}`}>Delete my account</a> at the foot of this page.
+        </p>
       </section>
     ) : !me.accounts_available ? (
       <section className="card">

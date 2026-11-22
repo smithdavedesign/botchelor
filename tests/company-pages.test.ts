@@ -180,6 +180,26 @@ describe("the company pages", () => {
     expect(ids({ STRIPE_PAYMENT_LINK: "https://buy.stripe.com/test_x" })).toContain("refund");
     expect(answerText(faqs({ STRIPE_PAYMENT_LINK: "https://buy.stripe.com/test_x" }).find((f) => f.id === "free")!.a)).toMatch(/\$4\.00|\$4\b/);
     expect(ids({ COMPANION_OPEN: "1" })).toContain("companions");
+    // The $10 pack too, once its own link is set (2026-11-22 audit: the price answer left it out), and on its own.
+    const both = answerText(faqs({ STRIPE_PAYMENT_LINK: "https://buy.stripe.com/test_x", STRIPE_LINK_PACK_15: "https://buy.stripe.com/test_y" }).find((f) => f.id === "free")!.a);
+    expect(both).toMatch(/5 more dates cost \$4(\.00)?, or 15 cost \$10(\.00)?, paid once/);
+    const bigOnly = faqs({ STRIPE_LINK_PACK_15: "https://buy.stripe.com/test_y" });
+    expect(answerText(bigOnly.find((f) => f.id === "free")!.a)).toMatch(/15 more dates cost \$10(\.00)?, paid once/);
+    expect(bigOnly.map((f) => f.id)).toContain("refund");
+  });
+
+  it("/contact's privacy line goes to the account page's delete, and feedback is where every page has it", () => {
+    vi.stubEnv("CONTACT_EMAIL", SUPPORT);
+    const html = render(ContactPage);
+    expect(html).toContain('<a href="/account#delete-account">Delete your account from your account page, or ask us.</a>');
+    // Not "in the ☰ menu": a desktop has no ☰ (2026-11-22 audit). The footer's "Give us feedback" is on every page.
+    expect(html).not.toContain("☰");
+    expect(html).toContain("at the foot of every page");
+    // Without an address /security sends people to the feedback form: where that is, too.
+    vi.stubEnv("CONTACT_EMAIL", "");
+    const security = render(SecurityPage);
+    expect(security).not.toContain("☰");
+    expect(security).toContain("link at the foot of every page");
   });
 
   it("/pricing shows the free dates, and the pack's button only while purchases are open", () => {
