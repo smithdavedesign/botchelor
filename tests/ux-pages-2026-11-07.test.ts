@@ -158,7 +158,7 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
     vi.stubEnv("COMPANION_OPEN", "1");
     vi.stubEnv("COMPANION_GUEST_REPLIES", "0");
     as(null);
-    const CompanionsPage = (await import("@/app/companion/page")).default;
+    const CompanionsPage = (await import("@/app/companion/(list)/page")).default;
     const html = renderToStaticMarkup(await CompanionsPage({ searchParams: Promise.resolve({ who: "house" }) }));
     expect(html).toContain('id="companion-cta"');
     expect(html).toContain('class="phone-action-bar"');
@@ -170,7 +170,7 @@ describe("the companions browser (app/companion/CompanionBrowser.tsx)", () => {
     vi.stubEnv("COMPANION_OPEN", "1");
     vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
     as(null);
-    const CompanionsPage = (await import("@/app/companion/page")).default;
+    const CompanionsPage = (await import("@/app/companion/(list)/page")).default;
     const html = renderToStaticMarkup(await CompanionsPage({ searchParams: Promise.resolve({ who: "house" }) }));
     expect(html).toContain("Try it now, no account needed: <strong>5 free replies</strong>");
     expect(html).toContain('href="/account?next=%2Fcompanion"');

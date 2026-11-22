@@ -16,9 +16,9 @@ import { planLink, planPrice } from "@/lib/paid-plans";
 import { companionPreview, type CompanionPreview } from "@/lib/companion-preview";
 import { sharedStale } from "@/lib/shared-cache";
 import type { Db } from "@/lib/db";
-import CompanionBrowser, { type CompanionFilters } from "./CompanionBrowser";
-import CompanionPhone from "./CompanionPhone";
-import TalkButton from "./TalkButton";
+import CompanionBrowser, { type CompanionFilters } from "@/app/companion/CompanionBrowser";
+import CompanionPhone from "@/app/companion/CompanionPhone";
+import TalkButton from "@/app/companion/TalkButton";
 
 export const metadata: Metadata = { title: "Companions · Botchelor", robots: { index: false, follow: false } };
 

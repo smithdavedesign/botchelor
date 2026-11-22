@@ -12,7 +12,7 @@ vi.mock("next/navigation", async (original) => ({
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
 }));
 import { renderToStaticMarkup } from "react-dom/server";
-import CharactersPage from "@/app/characters/page";
+import CharactersPage from "@/app/characters/(list)/page";
 import CastPage from "@/app/cast/page";
 import { DIRECTORY_PAGE, DIRECTORY_QUERY_MAX, directoryEntries, likeWord, listTab, offSeasonHouse, parseDirectoryQuery, searchDirectory, tabCounts } from "@/lib/directory";
 import { claimAdmin } from "@/lib/admins";

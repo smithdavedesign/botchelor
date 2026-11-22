@@ -730,6 +730,11 @@
 .admin-invites-list code {
   word-break: break-all;
 }
+/* /admin/season: the cast panel (SeasonPanel) loads in the browser and is taller than a screen, so its placeholder keeps a
+   screen of room and the panels under it stay put when it arrives (the page shifted 0.34 on desktop, 0.54 on a phone). */
+.admin-season-loading {
+  min-height: 100vh;
+}
 @media (max-width: 480px) {
   .casting-invite-lead {
     flex-direction: column;

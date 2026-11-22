@@ -1189,7 +1189,7 @@ details.recap-toggle[open] .recap-toggle-hide {
   font-weight: 600;
 }
 
-/* ---------------- the cast tab (app/characters/page.tsx) ---------------- */
+/* ---------------- the cast tab (app/characters/(list)/page.tsx) ---------------- */
 /* Matchmaking is a row whose button opens the form in a modal; the pairings fold under one summary. */
 .matchmaker {
   margin: var(--space-4) 0;
