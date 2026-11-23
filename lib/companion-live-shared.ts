@@ -233,6 +233,25 @@ export function liveStep(s: LiveState, e: Heard | { kind: "reply_started"; text?
   }
 }
 
+/**
+ * What a taking-turns call's listening session has heard so far, from the browser recogniser's whole result list (every
+ * result of the session, not only the ones that changed since the last event): `said`, the settled words, and `sofar`,
+ * those plus the ones still coming. Chrome re-cuts the list as it goes, and a session can end with words heard and none
+ * of them settled (the first call in a real Chrome, 2026-11-23: a session that began mid-sentence ended that way and
+ * the line was lost). So a call shows `sofar`, and sends `said` or, when nothing settled, `sofar`.
+ */
+export function heardIn(results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>): { said: string; sofar: string } {
+  let said = "";
+  let coming = "";
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.isFinal) said += ` ${r[0].transcript}`;
+    else coming += ` ${r[0].transcript}`;
+  }
+  const tidy = (s: string) => s.replace(/\s+/g, " ").trim();
+  return { said: tidy(said), sofar: tidy(`${said} ${coming}`) };
+}
+
 /** What's on screen while they talk: the settled words and the ones still coming. */
 export const heardSoFar = (s: LiveState): string => `${s.said} ${s.interim}`.replace(/\s+/g, " ").trim();
 
