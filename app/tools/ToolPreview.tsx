@@ -4,6 +4,7 @@ import { CHEMISTRY_EXAMPLE, chemistryTest } from "@/lib/chemistry-test";
 import { OC_NAMES_PATH, ocNames } from "@/lib/oc-names";
 import { OC_QUESTIONS, OC_QUESTIONS_PATH } from "@/lib/oc-questions";
 import { PLACE_NAMES_PATH, placeNames } from "@/lib/place-names";
+import { TROPES_PATH, tropes } from "@/lib/relationship-tropes";
 import { characterPortrait } from "@/lib/portraits";
 import { firstName, randomShip } from "@/lib/random-ship";
 import { ENDING_LABELS } from "@/lib/rules";
@@ -17,8 +18,8 @@ const SHIP_TURNS = 4;
 
 /**
  * What each free tool makes, shown on its own card on /tools (pass 2 of the 2026-11-20 visual pop audit): a fanned hand
- * of characters, a few names, a few places, a question, ship names turning over, a random pair's ship, the example chemistry score
- * filling. Every one is the tool's real output for a fixed input (the tools are deterministic: lib/tools.ts), never
+ * of characters, a few names, a few places, a question, ship names turning over, a random pair's ship, a few tropes, the example
+ * chemistry score filling. Every one is the tool's real output for a fixed input (the tools are deterministic: lib/tools.ts), never
  * made up for the picture. Decorative beside the card's words, so hidden from screen readers; complete at rest, and
  * still under reduced motion.
  */
@@ -48,6 +49,15 @@ export default function ToolPreview({ path }: { path: string }) {
       <ul className="tool-preview tool-names" aria-hidden="true">
         {placeNames({ style: null }).slice(0, 3).map((p) => (
           <li key={p.name}>{p.name}</li>
+        ))}
+      </ul>
+    );
+  }
+  if (path === TROPES_PATH) {
+    return (
+      <ul className="tool-preview tool-names" aria-hidden="true">
+        {tropes({}).slice(0, 3).map((tr) => (
+          <li key={tr.id}>{tr.name}</li>
         ))}
       </ul>
     );

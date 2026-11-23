@@ -11042,6 +11042,18 @@ html.ad-studio-locked {
     grid-template-columns: 1fr;
   }
 }
+/* The trope generator (app/tools/relationship-trope-generator): a few lines a trope, so two across, one on a phone. */
+.names-list.trope-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 640px) {
+  .names-list.trope-list {
+    grid-template-columns: 1fr;
+  }
+}
+.trope-names {
+  margin-top: var(--space-3);
+}
 .names-tips li + li,
 .questions-list li + li {
   margin-top: var(--space-2);
