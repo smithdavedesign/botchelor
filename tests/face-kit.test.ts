@@ -295,7 +295,7 @@ describe("a face kit", () => {
     // Collected hours late (queued, then nobody came): done on Replicate is done, and it's kept.
     const late = await withPortrait("Late Loop");
     expect(await makeFaceKit(t.db, late, BASE_URL)).toMatchObject({ ok: true, queued: true });
-    await t.db.query(`update face_kits set created_at = now() - interval '25 minutes' where character_id = $1 and part = 'loop'`, [late]);
+    await t.db.query(`update face_kits set created_at = now() - interval '25 minutes', updated_at = now() - interval '25 minutes' where character_id = $1 and part = 'loop'`, [late]);
     expect(await collectFaceKits(t.db, late)).toBe(1);
     expect((await faceKitOf(t.db, late, BASE_URL))!.loop).toMatch(/^\/api\/face-kit\//);
   });
@@ -316,13 +316,27 @@ describe("a face kit", () => {
     setReplicateFetchForTests(inner);
     expect(await collectFaceKits(t.db, id)).toBe(0);
     expect((await faceKitOf(t.db, id, BASE_URL))!).toMatchObject({ making: true, failed: null });
-    await t.db.query(`update face_kits set created_at = now() - interval '25 minutes' where character_id = $1 and part = 'loop'`, [id]);
+    // Queued twenty-five minutes ago (the row was made days before: only when it was queued counts).
+    await t.db.query(`update face_kits set created_at = now() - interval '3 days', updated_at = now() - interval '25 minutes' where character_id = $1 and part = 'loop'`, [id]);
     expect(await collectFaceKits(t.db, id)).toBe(0);
     expect((await faceKitOf(t.db, id, BASE_URL))!.failed).toBe("the living portrait: gave up waiting");
     // The next call draws the loop again at once: nothing was wrong with the picture, nobody saw it.
     const before = asked.length;
     expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 0, queued: true });
     expect(asked).toHaveLength(before + 1);
+    // And the second try gets its own twenty minutes: the row is days old, the loop was queued just now. Read from the
+    // row's age, a loop that had failed once was given up at its first check and could never be drawn again.
+    expect(await collectFaceKits(t.db, id)).toBe(0);
+    expect((await faceKitOf(t.db, id, BASE_URL))!).toMatchObject({ making: true, failed: null });
+    // Replicate finishes it: kept.
+    setReplicateFetchForTests(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith(".mp4")) return new Response(new Uint8Array(MP4), { headers: { "content-type": "video/mp4" } });
+      if (init?.method === "GET" || !init?.body) return Response.json({ id: url.split("/").pop(), status: "succeeded", output: `https://replicate.delivery/x/${url.split("/").pop()}.mp4` });
+      return Response.json({ id: "unused", status: "starting" });
+    });
+    expect(await followFaceKit(t.db, id)).toBe(true);
+    expect((await faceKitOf(t.db, id, BASE_URL))!.loop).toMatch(/^\/api\/face-kit\//);
   });
 
   it("draws a few a day on calls (FACE_KIT_PER_DAY), never more; one being made isn't started twice", async () => {
