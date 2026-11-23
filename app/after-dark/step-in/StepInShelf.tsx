@@ -16,7 +16,8 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 /**
  * Step in's roleplays as cards (lib/adult/step-in-shelf.ts; David, 2026-11-23, after Chub.ai's scene cards): each one a
  * situation told from the viewer's side, cast with someone from their own After Dark, and one click from being in it.
- * It opens on tonight's eight (a different eight tomorrow); a kind, or all of them, is a tap. "Someone else" recasts
+ * It opens on tonight's eight (a different eight tomorrow); all of them is a tap, and a kind is one pick from a list
+ * (fifteen kinds as chips filled a phone's first screen before any card: the first live check). "Someone else" recasts
  * a card on the spot; "Set it up" takes the pair to the set-up form below for the other side, another place or a
  * written opening. Nothing here costs anything until a card is started (one reply, like any opening).
  *
@@ -35,8 +36,9 @@ export default function StepInShelf({ cast, recent, day, with_ = null }: { cast:
   const groups = useMemo(() => roleplayGroups(ROLEPLAYS, demand ?? undefined), [demand]);
   const shown = show === "tonight" ? shelfTonight(ROLEPLAYS, day) : show === "all" ? ROLEPLAYS : (groups.find((g) => g.id === show)?.roleplays ?? []);
   if (!who.order.length) return null;
+  const kind = groups.some((g) => g.id === show) ? show : "";
   const chip = (id: string, label: string, n?: number) => (
-    <button key={id} type="button" className="ad-chip" aria-pressed={show === id} onClick={() => setShow(id)} data-step-in-shelf-show={id}>
+    <button key={id} type="button" className={show === id ? "ad-chip on" : "ad-chip"} aria-pressed={show === id} onClick={() => setShow(id)} data-step-in-shelf-show={id}>
       {label}
       {n !== undefined && <span className="ad-si-shelf-n"> {n}</span>}
     </button>
@@ -47,10 +49,20 @@ export default function StepInShelf({ cast, recent, day, with_ = null }: { cast:
       <p className="muted small">
         {ROLEPLAYS.length} stories, each ready to play with {asked ? first(asked.name) : "someone from your After Dark"}. One click and you&apos;re in it.
       </p>
-      <div className="ad-chip-row ad-si-shelf-kinds" role="group" aria-label="Which roleplays to show">
+      <div className="ad-si-shelf-kinds" role="group" aria-label="Which roleplays to show">
         {chip("tonight", `Tonight's ${SHELF_TONIGHT}`)}
-        {groups.map((g) => chip(g.id, g.label, g.roleplays.length))}
         {chip("all", "All", ROLEPLAYS.length)}
+        <label htmlFor="ad-si-shelf-kind" className="sr-only">
+          A kind of roleplay
+        </label>
+        <select id="ad-si-shelf-kind" className={kind ? "on" : undefined} value={kind} onChange={(e) => setShow(e.target.value || "tonight")} data-step-in-shelf-kind>
+          <option value="">A kind…</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.label} ({g.roleplays.length})
+            </option>
+          ))}
+        </select>
       </div>
       <ul className="ad-si-shelf-cards">
         {shown.map((rp) => {

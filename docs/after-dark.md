@@ -3609,8 +3609,9 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
   card and three openings) behind a dropdown in step 3 of the set-up. So no character is made for a scene: Step in's
   front page (`/after-dark/step-in`) now opens on **Step into a roleplay** (`app/after-dark/step-in/StepInShelf.tsx`,
   `lib/adult/step-in-shelf.ts`):
-  - **Tonight's eight**, a different eight tomorrow (`shelfTonight`, by the UTC day); a chip for each kind of roleplay
-    (who the two are to each other, most wanted first: `roleplayGroups`) and one for all of them.
+  - **Tonight's eight**, a different eight tomorrow (`shelfTonight`, by the UTC day); **All 45**; and a list of the
+    kinds (who the two are to each other, most wanted first: `roleplayGroups`). The kinds were chips at first: fifteen
+    of them filled a phone's first screen before any card (the first live check), so they're one pick from a list.
   - **Each card** is the story from the viewer's side (`cardForYou`: "Tonight you knock on Juniper's door…"), who plays
     which role, and who it's cast with: someone from the viewer's own After Dark, the same person all day
     (`shelfLead`). The people they've already stepped in with come first, then the house cast, then everyone else
@@ -3623,6 +3624,9 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
   - **What it costs:** nothing to show; a started card is one reply, like any opening.
   - **Not built:** a cover picture per card (the character dressed for the role: about 3.5¢ each), a goal the viewer
     can see and an ending, and a person's own roleplays on the shelf.
+  - **Known rough edge:** a card starts at the character's place, like any one-click start, whatever its story says.
+    The writer follows the story (the wedding card opened at the reception, on the live check), but the scene's
+    header still reads "Their place" and the backdrop is their home. Each roleplay wants a place of its own.
 - **From an episode** (2026-11-23; row 13 of the field audit: a short video is the door into a chat on every site in
   the field): under an episode's night (`app/after-dark/shorts/[id]/page.tsx`, "Your turn"), **Step in with {name}**
   for each of the two the viewer may step in with, or **Continue with {name}** where they have a scene running. The

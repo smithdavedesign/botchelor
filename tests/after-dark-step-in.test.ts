@@ -1493,6 +1493,10 @@ describe("a roleplay's card, started in one click", () => {
     const page = (await html(await StepInSetupPage())).replace(/<!-- -->/g, "");
     expect(page).toContain("data-step-in-shelf");
     expect(page.match(/data-step-in-card="/g)).toHaveLength(SHELF_TONIGHT);
+    // Tonight's, all of them, and one list of the kinds (a chip for each kind filled a phone's first screen).
+    expect(page.match(/data-step-in-shelf-show=/g)).toHaveLength(2);
+    expect(page).toMatch(/<select id="ad-si-shelf-kind"[^>]*data-step-in-shelf-kind/);
+    expect(page).toMatch(/<button type="button" class="ad-chip on" aria-pressed="true"[^>]*data-step-in-shelf-show="tonight"/);
     // Every card is cast with someone they may step in with, and has both ways in.
     const cast = new Set((await stepInCast(t.db, a.id)).map((c) => c.id));
     const withs = [...page.matchAll(/data-step-in-card-with="([^"]+)"/g)].map((m) => m[1]);
