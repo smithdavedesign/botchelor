@@ -3735,6 +3735,49 @@ fieldset.ad-si-step {
 .ad-si-hear > button[aria-pressed="true"] {
   color: var(--night-ink-on);
 }
+/* A picture of the moment under a reply (app/after-dark/step-in/[id]/StepInPicture.tsx): a quiet button beside Hear it,
+   its price on it; once made, the picture above the button, in the shape every After Dark picture is drawn in (3:4),
+   no wider than a phone holds it. */
+.ad-si-picture {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.ad-si-hear:has(+ .ad-si-picture) {
+  display: inline-flex;
+  margin-right: var(--space-2);
+  vertical-align: top;
+}
+.ad-si-picture[data-step-in-picture="drawn"] {
+  display: flex;
+}
+.ad-si-picture > button {
+  margin: 0;
+  padding-inline: var(--space-2);
+  color: var(--night-muted);
+}
+.ad-si-picture > button:hover,
+.ad-si-picture > button:focus-visible {
+  color: var(--night-ink-on);
+}
+.ad-si-picture-frame {
+  display: block;
+  flex: 0 0 100%;
+  max-width: 20rem;
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--night-card);
+}
+.ad-si-picture-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
 .ad-si-called {
   display: block;
   margin-bottom: var(--space-1);

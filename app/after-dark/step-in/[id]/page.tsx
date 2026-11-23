@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { mediaAllowedFor } from "@/lib/adult/place";
 import { drawnSets, getStepInScene, stepInPlaces, stepInViewerFromCookies } from "@/lib/adult/step-in";
+import { stepInPictureState } from "@/lib/adult/step-in-picture";
 import { cutoutsReady, cutoutUrl, stageCutout } from "@/lib/cutout";
 import { getDb } from "@/lib/db";
 import { faceKitOf } from "@/lib/face-kit";
@@ -45,9 +46,12 @@ export default async function StepInScenePage({ params, searchParams }: Props) {
   // The call's face: the show's living loop of them, when the show has drawn one (lib/face-kit.ts: a PG loop made for
   // its own calls; nothing is drawn from here). Its files are the show's, so their links are on the show's address.
   const kit = voice ? await showKit(db, scene.view.character.id, show) : null;
+  // The scene's pictures of a moment (lib/adult/step-in-picture.ts): the ones made, and what the next would cost.
+  // Never where only text is allowed, as the picture route itself refuses.
+  const pictures = mediaOk ? await stepInPictureState(db, viewer, id).catch(() => null) : null;
   return (
     <div className="after-dark-mode ad-si-page page-full">
-      <StepInScene initial={scene.view} places={places} cutout={cutout} personaHref={`${show}/account#persona`} autoOpen={autoOpen} voice={voice} kit={kit} />
+      <StepInScene initial={scene.view} places={places} cutout={cutout} personaHref={`${show}/account#persona`} autoOpen={autoOpen} voice={voice} kit={kit} pictures={pictures} />
     </div>
   );
 }

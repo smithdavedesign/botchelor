@@ -26,12 +26,12 @@ import { hivePausedErrorMessage, hivePausedMessage, HivePausedError } from "./hi
 import { checkMedia, checkReady, mediaGate } from "./moderation";
 import { mediaLimits, nightStands } from "./clips";
 import { isPublicPlace } from "./continuity";
-import { ensureBaseline, signedMediaUrl, type Media } from "./media";
+import { ensureBaseline, ensureNudeBaseline, signedMediaUrl, type Media } from "./media";
 import { shownNude } from "./attire";
-import { baselines, drawKeyframe, drawReplicateKeyframe, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, povPrompt, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
+import { baselines, drawKeyframe, drawReplicateKeyframe, faceEdit, KEYFRAME_MODEL, keyframePrompt, NUDE_FROM, nudeBaselines, placeWords, povPrompt, reelCast, reelNight, replicateSetImage, setPictures, type ReelPerson } from "./reels";
 import { framingScores } from "./framing";
 import { levelForStage, tagNow, tagOnCreate } from "./media-tags";
-import { NO_STEERING, steeringFor } from "./steering";
+import { faceReferenceId, NO_STEERING, steeringFor } from "./steering";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type MediaProvider } from "./settings";
 import { requestJson, withRequestLog } from "./request-log";
@@ -260,11 +260,10 @@ export async function makeMenuPicture(db: Db, ownerId: string, x: string, y: str
   return { ok: true, picture: kept.picture };
 }
 
-/** Why a picture of both wasn't kept; `pausedErr` when a baseline made first found Hive out. */
 /** From "undressing" (stage 4 of 5) on, a night's picture starts from their body references. */
 const BODY_FROM = 3;
 /** Each one's body reference set in the Studio (adult_identity.body_image_id, ready), and whether it shows them nude; or null. */
-async function bodyReferences(db: Db, ownerId: string, ids: readonly [string, string]): Promise<[BodyReference | null, BodyReference | null]> {
+async function bodyReferences(db: Db, ownerId: string, ids: readonly string[]): Promise<(BodyReference | null)[]> {
   const { rows } = await db.query<{ character_id: string; id: string }>(
     `select d.character_id, i.id from adult_identity d join adult_images i on i.id = d.body_image_id and i.status = 'ready' where d.owner_id = $1 and d.character_id = any($2)`,
     [ownerId, [...ids]],
@@ -273,11 +272,111 @@ async function bodyReferences(db: Db, ownerId: string, ids: readonly [string, st
     const id = rows.find((r) => r.character_id === c)?.id;
     return id ? { id, nude: await shownNude(db, id) } : null;
   };
-  return [await of(ids[0]), await of(ids[1])];
+  const out: (BodyReference | null)[] = [];
+  for (const c of ids) out.push(await of(c));
+  return out;
 }
 type BodyReference = { id: string; nude: boolean };
 
+/** Why a picture wasn't kept; `pausedErr` when a baseline made first found Hive out. */
 export type KeepFailure = { ok: false; status: number; error: "hive_paused" | "check_busy" | "discarded" | "not_made"; message: string; pausedErr?: HivePausedError };
+
+type KeepContext = {
+  keys: Awaited<ReturnType<typeof adultKeys>>;
+  settings: Awaited<ReturnType<typeof getAdultSettings>>;
+  baseUrl: string;
+  reject: (reason: string) => Promise<unknown>;
+};
+
+/**
+ * One picture from the multi-image edit on the configured provider (the other when it's limited, lib/adult/fallback.ts):
+ * the pictures of who's in it first, then the place's drawn set when there is one. What it sent comes back with it
+ * (lib/adult/request-log.ts): both providers' when it fell back.
+ */
+async function editFromPictures(db: Db, ctx: Pick<KeepContext, "keys" | "settings" | "baseUrl">, prompt: string, faces: string[], set: string | null, place: string | null) {
+  const { keys, settings, baseUrl } = ctx;
+  const logged = await withRequestLog(() => runMedia(db, "keyframe", (p) => {
+    if (p === "replicate") {
+      const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
+      return drawReplicateKeyframe(r, prompt, set && place ? [...faces, replicateSetImage(set, place, baseUrl)] : faces);
+    }
+    return drawKeyframe(keys.venice!, prompt, set ? [...faces, set] : faces);
+  }));
+  const drawn = logged.value;
+  return { file: drawn.value, made: { provider: drawn.provider, fell_back: drawn.fell_back }, sent: requestJson(logged.requests) };
+}
+
+/** Why drawing one didn't come to a picture: Hive found out while a baseline was made first (the pause's own message), or the provider's error. */
+function notMade(err: unknown): KeepFailure {
+  if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: err.message, pausedErr: err };
+  return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).` };
+}
+
+/**
+ * The output check on a drawn picture (Hive: moderation and the age question), before anything is kept, whoever made
+ * it: a refusal is discarded, never stored. One that passes is stored in the gallery as a scene picture, tagged and
+ * counted for the month. Pictures of both and of one end here, so both are checked, kept and counted the same way.
+ */
+async function checkAndKeep(
+  db: Db,
+  ownerId: string,
+  file: { bytes: Buffer; mime: string },
+  made: { provider: MediaProvider; fell_back: boolean },
+  row: {
+    a: string;
+    b: string | null;
+    prompt: string;
+    sent: string | null;
+    scene?: { chapter: number | null; place: string | null };
+    stage?: number;
+    act?: string;
+    eyes?: Eyes;
+    /** A Step in scene's picture: the scene and the reply it's of (lib/adult/step-in-picture.ts). */
+    stepIn?: { scene: string; message: string };
+  },
+  ctx: Pick<KeepContext, "settings" | "reject">,
+): Promise<{ ok: true; picture: Media } | KeepFailure> {
+  const { settings, reject } = ctx;
+  const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: file.mime }, "image", { owner: ownerId });
+  if (!verdict.ok) {
+    // Hive out of its daily allowance: discarded, logged, and the pause says until when.
+    if (verdict.paused) {
+      await reject(verdict.reason);
+      return { ok: false, status: 503, error: "hive_paused", message: hivePausedMessage(verdict.paused, { discarded: true }) };
+    }
+    const busy = verdict.reason.startsWith("the check couldn't run");
+    if (!busy) await reject(verdict.reason);
+    return busy
+      ? { ok: false, status: 503, error: "check_busy", message: "The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes." }
+      : { ok: false, status: 422, error: "discarded", message: `The safety check discarded that picture (${verdict.reason}).` };
+  }
+  const id = crypto.randomUUID();
+  const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
+  await db.query(
+    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place, model, request, step_in_scene, step_in_message)
+     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13, $14::jsonb, $15, $16)`,
+    [
+      id, ownerId, row.a, row.b, row.prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back, row.scene?.chapter ?? null, row.scene?.place ?? null,
+      made.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL,
+      row.sent,
+      row.stepIn?.scene ?? null,
+      row.stepIn?.message ?? null,
+    ],
+  );
+  // What it shows, known now (lib/adult/media-tags.ts tagOnCreate; the framing scores read it), and how far it goes.
+  await tagOnCreate(db, id, ownerId, { pair: row.b !== null, act: row.act ?? null, eyes: row.eyes ?? null, stage: row.stage ?? null }).catch(() => {});
+  if (typeof row.stage === "number") await db.query(`update adult_images set level = $2 where id = $1`, [id, levelForStage(row.stage)]);
+  // …and the rest of what it shows (its place), now rather than when it's next looked up.
+  await tagNow(db, [id]);
+  await countUse(db, ownerId, "pictures");
+  return {
+    ok: true,
+    picture: {
+      id, character_id: row.a, character_b: row.b, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false,
+      provider: made.provider, fell_back: made.fell_back, note: fallbackNote(made.provider, made.fell_back),
+    },
+  };
+}
 
 /**
  * A picture of both of them, drawn and kept: their two baselines (made first if they have none) and the place's drawn
@@ -291,19 +390,11 @@ export async function keepPictureOfBoth(
   ownerId: string,
   [ca, cb]: [Character, Character],
   plan: { promptFor: (withSet: boolean) => string; place: string | null; stage?: number; act?: string; eyes?: Eyes },
-  ctx: {
-    keys: Awaited<ReturnType<typeof adultKeys>>;
-    settings: Awaited<ReturnType<typeof getAdultSettings>>;
-    baseUrl: string;
-    reject: (reason: string) => Promise<unknown>;
-    scene?: { chapter: number; place: string | null };
-  },
+  ctx: KeepContext & { scene?: { chapter: number; place: string | null } },
 ): Promise<{ ok: true; picture: Media } | KeepFailure> {
-  const { keys, settings, baseUrl, reject } = ctx;
-  let file: { bytes: Buffer; mime: string };
-  let made: { provider: MediaProvider; fell_back: boolean };
+  const { baseUrl } = ctx;
+  let drawn: Awaited<ReturnType<typeof editFromPictures>>;
   let prompt = plan.promptFor(false);
-  let sent: string | null = null;
   try {
     for (const c of [ca, cb]) await ensureBaseline(db, ownerId, c);
     // At sex (NUDE_FROM), from their nude baselines: an edit keeps what the pictures it starts from wear (lib/adult/attire.ts).
@@ -323,59 +414,57 @@ export async function keepPictureOfBoth(
     // With the place's drawn set as Picture 3, the prompt says to keep its room and its light.
     prompt = plan.promptFor(Boolean(set));
     // One picture, one job: drawn on the other provider when the configured one is limited (lib/adult/fallback.ts).
-    // What it sent is kept with it (lib/adult/request-log.ts): both providers' when it fell back.
-    const logged = await withRequestLog(() => runMedia(db, "keyframe", (p) => {
-      if (p === "replicate") {
-        const r = { token: keys.replicate!, keyframe: settings.replicate_keyframe_model, video: settings.replicate_video_model, videoLora: settings.replicate_video_lora };
-        return drawReplicateKeyframe(r, prompt, set && plan.place ? [...faces, replicateSetImage(set, plan.place, baseUrl)] : faces);
-      }
-      return drawKeyframe(keys.venice!, prompt, set ? [...faces, set] : faces);
-    }));
-    sent = requestJson(logged.requests);
-    const drawn = logged.value;
-    file = drawn.value;
-    made = { provider: drawn.provider, fell_back: drawn.fell_back };
+    drawn = await editFromPictures(db, ctx, prompt, faces, set, plan.place);
   } catch (err) {
     // A baseline made first found Hive out (lib/adult/hive-limit.ts): the pause's own message.
-    if (err instanceof HivePausedError) return { ok: false, status: 503, error: "hive_paused", message: err.message, pausedErr: err };
-    return { ok: false, status: 502, error: "not_made", message: `The picture couldn't be made (${err instanceof Error ? err.message.slice(0, 160) : "error"}).` };
+    return notMade(err);
   }
-  // The output check on the picture itself, before anything is kept, whoever made it: a refusal is discarded, never stored.
-  const verdict = await checkMedia(db, { base64: file.bytes.toString("base64"), mime: file.mime }, "image", { owner: ownerId });
-  if (!verdict.ok) {
-    // Hive out of its daily allowance: discarded, logged, and the pause says until when.
-    if (verdict.paused) {
-      await reject(verdict.reason);
-      return { ok: false, status: 503, error: "hive_paused", message: hivePausedMessage(verdict.paused, { discarded: true }) };
+  return checkAndKeep(db, ownerId, drawn.file, drawn.made, { a: ca.id, b: cb.id, prompt, sent: drawn.sent, scene: ctx.scene, stage: plan.stage, act: plan.act, eyes: plan.eyes }, ctx);
+}
+
+/**
+ * A picture of one of them, drawn and kept, the way a first-person picture of two is (one face to keep): the face this
+ * viewer keeps for them (their baseline, made first if they have none; their nude one from sex on; their Studio body
+ * reference from undressing on, as above) and the place's drawn set when there is one, made into one picture by the
+ * same edit, checked by Hive before anything is kept, stored as a scene picture and counted for the month. The caller
+ * has held its words to the lines and limits, checked the gate and the cap, and taken any price. Step in's pictures of
+ * a moment come through here (lib/adult/step-in-picture.ts): `stepIn` is the scene and the reply it's of.
+ */
+export async function keepPictureOfOne(
+  db: Db,
+  ownerId: string,
+  c: Character,
+  plan: { promptFor: (withSet: boolean) => string; place: string | null; stage?: number },
+  ctx: KeepContext & { stepIn?: { scene: string; message: string } },
+): Promise<{ ok: true; picture: Media } | KeepFailure> {
+  const { baseUrl } = ctx;
+  const stage = plan.stage ?? 0;
+  let drawn: Awaited<ReturnType<typeof editFromPictures>>;
+  let prompt = plan.promptFor(false);
+  try {
+    await ensureBaseline(db, ownerId, c);
+    // At sex (NUDE_FROM), from their nude baseline (made first for one who wears something and has none yet): an edit
+    // keeps what the picture it starts from wears. When it can't be had, the dressed face, as for two.
+    let nude: string | null = null;
+    if (stage >= NUDE_FROM) {
+      try {
+        await ensureNudeBaseline(db, ownerId, c, faceEdit(db, baseUrl));
+      } catch (err) {
+        if (err instanceof HivePausedError) throw err;
+        console.log(JSON.stringify({ event: "after_dark_nude_baseline_failed", detail: err instanceof Error ? err.message.slice(0, 200) : "error" }));
+      }
+      nude = await faceReferenceId(db, ownerId, c.id, { nude: true });
     }
-    const busy = verdict.reason.startsWith("the check couldn't run");
-    if (!busy) await reject(verdict.reason);
-    return busy
-      ? { ok: false, status: 503, error: "check_busy", message: "The safety check couldn't look at it just now, so it wasn't kept. Try again in a few minutes." }
-      : { ok: false, status: 422, error: "discarded", message: `The safety check discarded that picture (${verdict.reason}).` };
+    const face = nude ?? (await faceReferenceId(db, ownerId, c.id));
+    if (!face) throw new Error("a picture of them is needed first");
+    const body = stage >= BODY_FROM ? (await bodyReferences(db, ownerId, [c.id]))[0] : null;
+    const from = body && (body.nude || stage < NUDE_FROM) ? body.id : face;
+    const set = plan.place ? ((await setPictures(db, [plan.place])).get(plan.place) ?? null) : null;
+    // With the place's drawn set as Picture 2, the prompt says to keep its room and its light.
+    prompt = plan.promptFor(Boolean(set));
+    drawn = await editFromPictures(db, ctx, prompt, [signedMediaUrl(from, baseUrl)], set, plan.place);
+  } catch (err) {
+    return notMade(err);
   }
-  const id = crypto.randomUUID();
-  const kept = await keepBytes("after-dark", id, file.bytes, file.mime);
-  await db.query(
-    `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, object_key, status, provider, fell_back, scene_chapter, scene_place, model, request)
-     values ($1, $2, $3, $4, 'scene', $5, $6, $7, $8, 'ready', $9, $10, $11, $12, $13, $14::jsonb)`,
-    [
-      id, ownerId, ca.id, cb.id, prompt.slice(0, 2000), file.mime, kept.data, kept.object_key, made.provider, made.fell_back, ctx.scene?.chapter ?? null, ctx.scene?.place ?? null,
-      made.provider === "replicate" ? settings.replicate_keyframe_model : KEYFRAME_MODEL,
-      sent,
-    ],
-  );
-  // What it shows, known now (lib/adult/media-tags.ts tagOnCreate; the framing scores read it), and how far it goes.
-  await tagOnCreate(db, id, ownerId, { pair: true, act: plan.act ?? null, eyes: plan.eyes ?? null, stage: plan.stage ?? null }).catch(() => {});
-  if (typeof plan.stage === "number") await db.query(`update adult_images set level = $2 where id = $1`, [id, levelForStage(plan.stage)]);
-  // …and the rest of what it shows (its place), now rather than when it's next looked up.
-  await tagNow(db, [id]);
-  await countUse(db, ownerId, "pictures");
-  return {
-    ok: true,
-    picture: {
-      id, character_id: ca.id, character_b: cb.id, kind: "scene", status: "ready", created_at: new Date().toISOString(), mime: file.mime, clip: false,
-      provider: made.provider, fell_back: made.fell_back, note: fallbackNote(made.provider, made.fell_back),
-    },
-  };
+  return checkAndKeep(db, ownerId, drawn.file, drawn.made, { a: c.id, b: null, prompt, sent: drawn.sent, scene: { chapter: null, place: plan.place }, stage: plan.stage, stepIn: ctx.stepIn }, ctx);
 }

@@ -40,17 +40,18 @@ export const madeLabel = (m: MadeIn, kind: Kind, place: MadePlace = "after_dark"
 /**
  * Where adult_images row `i` was made, as SQL ('night' or 'studio'):
  * - the Studio: a Studio shoot or animation (its shoot; a fix of one keeps it), a face, an SFW twin (the twin tool
- *   draws it), one of them alone (a night is always two of them), and a living portrait (lib/showcase-loops.ts: a
- *   picture post made to move, never on a night);
+ *   draws it), one of them alone (a night is always two of them) unless it's a picture of a moment in a Step in scene
+ *   (step_in_scene: the viewer was the other one there, lib/adult/step-in-picture.ts), and a living portrait
+ *   (lib/showcase-loops.ts: a picture post made to move, never on a night);
  * - cut from a clip (a boomerang, a loop, clips joined, a still saved from one) or fixed: where that one was made;
  * - anything else on a night: its pictures, its clips, the shots of its video (one filmed from a picture pinned from
  *   the Studio too: it was filmed on the night).
  */
 export function madeInSql(i: string): string {
-  return `(case when ${i}.shoot_id is not null or ${i}.kind = 'baseline' or ${i}.twin_of is not null or ${i}.character_b is null
+  return `(case when ${i}.shoot_id is not null or ${i}.kind = 'baseline' or ${i}.twin_of is not null or (${i}.character_b is null and ${i}.step_in_scene is null)
        or ((${i}.derived is not null or ${i}.moment_at is not null or ${i}.fixed_from is not null)
            and exists (select 1 from adult_images made_src where made_src.id = coalesce(${i}.fixed_from, ${i}.source_image)
-                         and (made_src.shoot_id is not null or made_src.twin_of is not null or made_src.character_b is null)))
+                         and (made_src.shoot_id is not null or made_src.twin_of is not null or (made_src.character_b is null and made_src.step_in_scene is null))))
        or exists (select 1 from showcase_loops made_loop where made_loop.media_id = ${i}.id)
      then 'studio' else 'night' end)`;
 }

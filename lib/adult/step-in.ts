@@ -1383,10 +1383,11 @@ export async function endStepIn(db: Db, viewer: string, sceneId: string, now: Da
   return sent(db, s);
 }
 
-/** Deletes a scene with every message of it. */
+/** Deletes a scene with every message of it, and the pictures made of its moments (lib/adult/step-in-picture.ts: their files follow, lib/media-deletions.ts). */
 export async function deleteStepIn(db: Db, viewer: string, sceneId: string): Promise<{ ok: true } | StepInFail> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
+  await db.query(`delete from adult_images where step_in_scene = $1 and owner_id = $2`, [s.id, viewer]);
   await db.query(`delete from adult_step_in_messages where scene_id = $1`, [s.id]);
   await db.query(`delete from adult_step_in_scenes where id = $1`, [s.id]);
   return { ok: true };

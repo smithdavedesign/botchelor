@@ -3887,7 +3887,7 @@ Dark's own voice and nothing of the show's:
   and none settled, those (the first call in a real Chrome: a session that began mid-sentence ended that way and the
   line was dropped).
 - **Not built, on purpose or yet:** talking over them outside desktop Chrome (above); Firefox (no speech recognition
-  there); and pictures in a scene. **Not tested on a real iPhone:** every call here was checked in Chrome with a faked
+  there). **Not tested on a real iPhone:** every call here was checked in Chrome with a faked
   or a file-fed microphone. One thing to watch for there: reports that Safari on an iPhone stops hearing after an
   `<audio>` element has played (the call's voice is one). If a call on an iPhone hears the first line and nothing
   after it, that's the cause, and the fix is to play the voice through Web Audio buffers instead.
@@ -3904,6 +3904,65 @@ as a call's; her living loop on the call's face; no page errors on a desktop or 
 | The cards | ![After Dark's character cards with Step in](screenshots/after-dark-characters-step-in-desktop.png) | ![The cards on a phone](screenshots/after-dark-characters-step-in-phone.png) |
 | A scene, one click later; heard | ![A Step in scene one click later](screenshots/after-dark-step-in-one-click-desktop.png) | ![The scene on a phone, a reply being heard](screenshots/after-dark-step-in-hear-phone.png) |
 | A call | ![A call in a Step in scene](screenshots/after-dark-step-in-call-desktop.png) | ![The call on a phone](screenshots/after-dark-step-in-call-phone.png) |
+
+**A picture of this moment** (2026-11-23; row 7 of the field audit, "a photo on request, from the composer"; David:
+"I am open to any of these ideas"). Under every reply that stands in a running scene there's **🖼 Picture this**, with
+its price on the button before anything is made (`app/after-dark/step-in/[id]/StepInPicture.tsx`,
+`lib/adult/step-in-picture.ts`). About half a minute later the picture is under that reply, and it stays there.
+
+- **It's After Dark's own picture, not a second pipeline.** `keepPictureOfOne` (`lib/adult/pictures-menu.ts`, beside
+  `keepPictureOfBoth`) draws it the way a night's first-person picture is drawn: the face this viewer keeps for the
+  character as Picture 1 (their baseline, made first if they have none; their nude one once they're naked; their
+  Studio body reference from undressing on), the place's drawn set as Picture 2 when there is one, the same
+  multi-image edit on the configured provider (the other when it's limited), Hive's check (moderation and the age
+  question) on the file before anything is kept, an age refusal drawn once more plainly older through the same check,
+  then the gallery (`adult_images`, kind `scene`), its tags, and one of the month's pictures. Both functions now end in
+  the same `checkAndKeep`, so a picture of one and a picture of two are checked, stored and counted by the same code.
+- **The viewer is never drawn.** The viewer is a person. The picture is of the character alone, as the viewer sees
+  them: `povPrompt`'s new `alone` asks for one person and "no part of anyone else's body anywhere in the frame, not
+  even a hand" (a night's first-person picture lets the other character's hands show at the frame's edge; this
+  doesn't). Nothing the viewer wrote about how they look (`lib/persona.ts`) is read; what they go by is read only to
+  keep it out; and a field of the brief that says "you", "your", a partner or their name isn't used
+  (`pictureWordsOk`). `tests/after-dark-step-in-picture.test.ts` pins that none of it reaches the prompt.
+- **The moment is read, not guessed.** One short call on the fast writer (`stepInBrief`, a night's
+  `lib/adult/picture-brief.ts` for one person) reads the scene's last ten turns up to the reply and says, of the
+  character only: where they are, what they have on, what's still on once they're undressed, how they're posed and
+  where they're looking, the mood, and whether they're dressed, half undressed or naked. It's kept
+  (`adult_picture_briefs`), so the same reply reads the same and "Draw it again" changes the draw, not the reading.
+  When it can't be read (no key, ten seconds, an answer that isn't the JSON), a plain still for how far the reply
+  goes stands in: the character close, looking into the camera, in their everyday clothes or their part's costume.
+- **The scene's limits and the lines.** How far the picture goes is how the brief says they're dressed. Past the
+  viewer's intensity for the scene, it's refused before anything is drawn ("would go past kissing, as far as slow
+  burn goes"); out in public it goes no further than a kiss and is never undressed; a brief's field that crosses a
+  hard no, one of the lines that never move, a picture taboo or Step in's own net isn't used; and the whole prompt is
+  read once more by `checkAdultText`. Below explicit the picture is "sensual and tasteful, nothing graphic", as a
+  night's is.
+- **Whose it is.** Only a reply standing in the viewer's own running scene (asked for by its id, never by words: not
+  their own line, not a draw set aside, not the narrator's stand-in), of a character still in their After Dark and
+  set up for pictures (`lib/adult/readiness.ts`: their own character needs a face picked and a body reference, as for
+  a night). An ended scene keeps its pictures and makes no new ones.
+- **The price is a picture's, said first.** `includedPrice` on the settings' `menu_picture_tokens`, exactly as a menu
+  picture: included with the subscription, free for an admin, tokens otherwise, taken before the draw and given back
+  when nothing is kept. The month's pictures (`cap_pictures`) bound it, and the button's row says how many are left
+  once one is made. Nothing is spent or counted for a refusal, a failed draw or a picture the check discards.
+- **One at a time for a reply.** `adult_step_in_messages.picture_at` is a claim: a second ask while one is being drawn
+  is told so, the page shows "Drawing…" and asks again until it lands (a reload in the middle included). A claim cut
+  off is let go after three minutes. Asked again later, it's drawn again and the newest picture is the reply's.
+- **Kept with the scene.** The picture's row carries its scene and its reply (`adult_images.step_in_scene`,
+  `step_in_message`): it shows under that reply, in the Gallery as a night's picture (`lib/made-in.ts`: one of them
+  alone is otherwise the Studio's), and it goes when its scene is deleted (`deleteStepIn`; its file follows,
+  `lib/media-deletions.ts`). A reply taken back leaves its picture in the Gallery. Not where only text is allowed
+  (`mediaRefusal`), like every picture: the page then shows neither the button nor the pictures.
+- **Counted:** a row in the step log (`flags.action: "picture"`, with how far it went, whether the brief was read, the
+  provider, and a refusal's kind), with no word of the scene.
+- **What it costs us:** the brief about a tenth of a cent, the picture about 4¢ on Venice's edit (the same as a night's
+  picture), Hive's check. No new provider, key or setting.
+- **Not built:** making it move from the scene itself (the Studio's Animate already takes it, as it takes any
+  picture of one: an admin's of anyone in the cast, a person's of their own character; a subscriber's picture of a
+  house character has no Studio to open), a picture the character sends unasked, and the viewer's own words for the
+  picture.
+
+**Proof:** `tests/after-dark-step-in-picture.test.ts`.
 
 **Counted.** Every reply and every refusal is a row in the step log (`adult_steps`, kind `step_in`, the pair being the
 character and `viewer`): the move, how it ended, why a draft was redrawn (`flags.redrawn`), whether the stand-in was
@@ -3922,6 +3981,8 @@ the consent with them.
 `GET|POST|DELETE /api/admin/after-dark/step-in/<id>` (`action`: `send`, `regenerate`, `swipe`, `continue`,
 `take_back`, `limits`, `move`, `end`, `carry_on`, and `say`: a line said out loud on a call);
 `POST /api/admin/after-dark/step-in/<id>/voice` (a piece of a reply's voice);
+`GET|POST /api/admin/after-dark/step-in/<id>/picture` (the scene's pictures and a picture's price; `{message_id}`
+draws one);
 `GET|POST /api/admin/after-dark/step-in/memory` (what a character remembers about the viewer).
 
 **Proof:** `tests/after-dark-step-in.test.ts`.
