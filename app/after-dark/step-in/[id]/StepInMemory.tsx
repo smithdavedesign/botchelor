@@ -183,7 +183,7 @@ export default function StepInMemory({ characterId, name, initial, onCrisis }: {
                 id="ad-si-fact-new"
                 value={adding}
                 maxLength={data.fact_max}
-                placeholder={`Something ${name} should remember about you`}
+                placeholder="Something about you"
                 onChange={(e) => setAdding(e.target.value)}
                 onKeyDown={onEnter(add)}
               />

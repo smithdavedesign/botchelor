@@ -342,3 +342,10 @@
   align-items: center;
   margin: 0;
 }
+
+/* "Continue with …" is a link and "Step in with …" a button: the button's own top margin sat it lower than the link
+   beside it (the first live check, 2026-11-23). */
+.doorRow > a,
+.doorRow > button {
+  margin: 0;
+}
