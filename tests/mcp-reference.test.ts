@@ -243,8 +243,8 @@ describe("the changelog", () => {
     for (const r of MCP_CHANGELOG) for (const tool of r.added_tools ?? []) expect(names.has(tool), `${r.version}: ${tool}`).toBe(true);
     // A release can add a field and no tool (2.34.0): the newest one that added tools still names them.
     expect((MCP_CHANGELOG.find((r) => (r.added_tools ?? []).length > 0)?.added_tools ?? []).length).toBeGreaterThan(0);
-    // The free OC tools came in 2.32.0, and random_oc in 2.44.0.
-    const ocAdded = ["2.32.0", "2.44.0"].flatMap((v) => MCP_CHANGELOG.find((r) => r.version === v)?.added_tools ?? []);
+    // The free OC tools came in 2.32.0, random_oc in 2.44.0 and place_names in 2.50.0.
+    const ocAdded = ["2.32.0", "2.44.0", "2.50.0"].flatMap((v) => MCP_CHANGELOG.find((r) => r.version === v)?.added_tools ?? []);
     expect(ocAdded.sort()).toEqual([...OC_TOOL_NAMES].sort());
     expect(MCP_CHANGELOG.find((r) => r.version === "2.31.0")?.added_tools).toEqual([...HOUSE_TOOL_NAMES]);
   });

@@ -1,5 +1,5 @@
 /**
- * The site's free OC tools over MCP (2.32.0; random_oc 2.44.0): the same code the /tools pages run, so an agent gets the
+ * The site's free OC tools over MCP (2.32.0; random_oc 2.44.0; place_names 2.50.0): the same code the /tools pages run, so an agent gets the
  * page's answer.
  *
  *  - random_oc: six whole characters in a genre, each ready for create_character (lib/random-oc.ts,
@@ -8,6 +8,8 @@
  *  - oc_chemistry_test: two character sheets in; a 0–100 score, the ending the date engine predicts for their first
  *    date and three reasons out (lib/chemistry-test.ts, /tools/oc-chemistry-test).
  *  - oc_names: a page of twelve names in a style (lib/oc-names.ts, /tools/oc-name-generator).
+ *  - place_names: a page of twelve places in a style and kind, towns and realms with a hometown ready
+ *    (lib/place-names.ts, /tools/place-name-generator).
  *  - oc_question: questions to ask an OC, one or a theme's worth (lib/oc-questions.ts, /tools/oc-questions).
  *
  * Pure and deterministic: no model, no database, no identity needed, nothing stored. The content filter (lib/safety.ts)
@@ -15,12 +17,13 @@
  */
 import { chemistryResultHref, createPairHref, chemistryTest, errorPlace, fieldParam, readChemistry, SHEET_FIELDS } from "../chemistry-test";
 import { createWithName, OC_NAME_STYLE_INFO, OC_NAMES_MAX_BATCH, ocNames, ocNamesHref, readBatch, readKind, readStyle } from "../oc-names";
+import { createFromPlace, isHometown, PLACE_NAMES_MAX_BATCH, PLACE_STYLE_INFO, placeNames, placeNamesHref, readPlaceBatch, readPlaceKind, readPlaceStyle } from "../place-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS, OC_QUESTIONS_PATH, ocQuestionHref, nextQuestion, readQuestion, type OcQuestion } from "../oc-questions";
 import { SHIP_ERRORS, shipPair, shipPath } from "../ship-names";
 import { createFromOc, ocSentence, RANDOM_OC_GENRE_INFO, RANDOM_OC_MAX_BATCH, randomOcHref, randomOcs, readGenre, readOcBatch, roleLine, type RandomOc } from "../random-oc";
 import { siteUrl } from "../site";
 
-export const OC_TOOL_NAMES = ["ship_names", "oc_chemistry_test", "oc_names", "oc_question", "random_oc"] as const;
+export const OC_TOOL_NAMES = ["ship_names", "oc_chemistry_test", "oc_names", "oc_question", "random_oc", "place_names"] as const;
 export type OcToolName = (typeof OC_TOOL_NAMES)[number];
 const OC_TOOLS = new Set<string>(OC_TOOL_NAMES);
 export const isOcTool = (name: string): name is OcToolName => OC_TOOLS.has(name);
@@ -104,6 +107,34 @@ export function ocNamesTool(args: Args): Outcome {
       url: link(ocNamesHref(style, kind, batch)),
       more: { batch: (batch % OC_NAMES_MAX_BATCH) + 1, note: "The same style, kind and batch always give the same names; another batch gives twelve more." },
       use_one: "create_character takes the name; the names here are filtered and free to use.",
+    },
+  };
+}
+
+/** place_names: style (or none for a mix), kind (any, town, wild, realm, venue), batch. */
+export function placeNamesTool(args: Args): Outcome {
+  // A style or kind outside the enum never gets here: the dispatcher drops it to the default with a warning.
+  const style = readPlaceStyle(args.style);
+  const kind = readPlaceKind(args.kind);
+  const batch = readPlaceBatch(args.batch === undefined ? undefined : String(args.batch));
+  const places = placeNames({ style, kind, batch });
+  return {
+    data: {
+      style: style ?? "mixed",
+      ...(style ? { about: PLACE_STYLE_INFO[style].blurb } : {}),
+      kind,
+      batch,
+      places: places.map((p) => ({
+        name: p.name,
+        style: p.style,
+        kind: p.kind,
+        what: p.what,
+        // A town or a realm can be someone's hometown: create_character's extras, ready, and the builder with it in.
+        ...(isHometown(p) ? { extras: { hometown: p.name }, create_url: link(createFromPlace(p.name)) } : {}),
+      })),
+      url: link(placeNamesHref(style, kind, batch)),
+      more: { batch: (batch % PLACE_NAMES_MAX_BATCH) + 1, note: "The same style, kind and batch always give the same places; another batch gives twelve more." },
+      use_one: "A town or realm is a hometown: pass its extras to create_character or update_character. Any place can be where a character works, drinks or grew up in its bio.",
     },
   };
 }
@@ -200,5 +231,7 @@ export function runOcTool(name: OcToolName, args: Args): Outcome {
       return ocQuestionTool(args);
     case "random_oc":
       return randomOcTool(args);
+    case "place_names":
+      return placeNamesTool(args);
   }
 }
