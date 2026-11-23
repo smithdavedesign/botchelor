@@ -3601,6 +3601,11 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
 - **Roleplay is one step away, not gone:** "Roleplay or place" under each card's button, "set the scene first" on a
   character's page and "🎭 A roleplay or a new scene with {name}" in a scene's ⋯ menu all open the set-up page with them
   picked (`/after-dark/step-in?with=<id>`), and a running scene can still move somewhere else.
+- **From an episode** (2026-11-23; row 13 of the field audit: a short video is the door into a chat on every site in
+  the field): under an episode's night (`app/after-dark/shorts/[id]/page.tsx`, "Your turn"), **Step in with {name}**
+  for each of the two the viewer may step in with, or **Continue with {name}** where they have a scene running. The
+  same button, the same rule (`eligibleIds`), a scene of the viewer's own: never the episode's night, which belongs to
+  whoever made it. Only where Step in is open to the viewer; the teaser has none.
 The competitor read behind it ([audits/2026-11-22-companion-field.md](audits/2026-11-22-companion-field.md)): on every
 top companion site the catalog's card opens the chat directly; a profile or a set-up step first is the exception.
 

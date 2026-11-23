@@ -45,7 +45,7 @@ joi.com has its own teardown ([2026-11-20-joi-teardown.md](2026-11-20-joi-teardo
 | 10 | Unlimited text on the plan; tokens for media; every price published | After Dark: a monthly count of scene steps, pictures, clips and voiced lines, tokens for extras, prices shown before anything is made, costs published at /costs. | **Suggest:** make text feel unlimited (a reply costs about a tenth of a cent) and keep the meter for media |
 | 11 | Proactive messages, inside quiet hours | The show: opt-in texts from your own character. After Dark: none. | Later, and only discreetly worded |
 | 12 | A visible relationship that progresses, earned | The show's graph and dates. After Dark: nights and pictures counted per character. | Later; never sold as a level skip |
-| 13 | Short videos as a door into chat | After Dark's Episodes and Shorts. | **Next, cheap:** "Step in with {name}" on an Episode's cast |
+| 13 | Short videos as a door into chat | After Dark's Episodes and Shorts. **Built 2026-11-23:** "Step in with {name}" for each of the two under an episode's night ([after-dark.md](../after-dark.md), "One click": from an episode). | Done |
 | 14 | A paywall that names the character and lists four or five concrete perks | The locked preview and the subscribe page. | Copy pass when a processor is live |
 | 15 | A trust block by the pay button: statement name, cancel path, renewal price | Partly. | With #14 |
 
