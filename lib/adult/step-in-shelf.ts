@@ -87,12 +87,13 @@ export function shelfLead(roleplayId: string, day: string, cast: ShelfCast, turn
 
 /**
  * Tonight's cards: `n` of them, a different set each day, in an order that holds for the day. `first`: the ones that
- * have a cover picture: half of tonight's are taken from them (as many as there are, up to half) and shown first, so
- * the shelf opens on pictures and its rows are of a kind; the rest are from the others.
+ * have a cover picture: three quarters of tonight's are taken from them (as many as there are, up to that) and shown
+ * first, the rest from the others. Six of eight, so the shelf opens on pictures and its rows are of a kind whether
+ * it's laid out three across or two (six is three rows of two and two rows of three; four was a mixed second row).
  */
 export function shelfTonight<R extends { id: string }>(roleplays: readonly R[], day: string, n = SHELF_TONIGHT, first: ReadonlySet<string> = new Set()): R[] {
   const byDay = (list: readonly R[]) => list.map((r) => ({ r, k: hash(`${day}:${r.id}`) })).sort((x, y) => x.k - y.k || x.r.id.localeCompare(y.r.id)).map((x) => x.r);
-  const pictured = byDay(roleplays.filter((r) => first.has(r.id))).slice(0, Math.floor(n / 2));
+  const pictured = byDay(roleplays.filter((r) => first.has(r.id))).slice(0, Math.floor((n * 3) / 4));
   const others = byDay(roleplays.filter((r) => !pictured.includes(r))).slice(0, n - pictured.length);
   return [...pictured, ...others];
 }

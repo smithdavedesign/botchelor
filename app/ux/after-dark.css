@@ -3467,6 +3467,13 @@ button.ad-pp-face:hover:not(:disabled) {
 .ad-si-shelf {
   margin: var(--space-5) 0;
 }
+/* On a screen with the room, the shelf runs wider than the page's reading column (to 64rem, three cards across): the
+   cards are pictures now, and two across left half a desktop empty beside them. Centred on the column it sits in. */
+@media (min-width: 900px) {
+  .ad-si-shelf {
+    margin-inline: calc(50% - min(32rem, 50vw - 1.5rem));
+  }
+}
 .ad-si-shelf h2 {
   margin-bottom: var(--space-1);
 }

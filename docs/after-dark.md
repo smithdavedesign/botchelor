@@ -3658,8 +3658,10 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
       has stepped in with before, and on the side the picture implies (`you`: with the vampire on the doorstep, the
       viewer is the guest). "Someone else" recasts it, the people they know first, and the cover goes: it's a picture
       of one person. A page opened for one person (`?with=`) shows a cover only where it's theirs.
-    - **Tonight's eight lead with four of them** (`shelfTonight`'s `first`), a different four each day, so the shelf
-      opens on pictures and its rows are of a kind; "All" and each kind list the pictured ones first.
+    - **Tonight's eight lead with six of them** (`shelfTonight`'s `first`), a different six each day, so the shelf
+      opens on pictures and its rows are of a kind whether it's three across or two; "All" and each kind list the
+      pictured ones first. On a screen with the room the shelf runs wider than the page's reading column (to 64rem,
+      three cards across): two across left half a desktop empty beside the pictures.
     - **How they were made:** `~/.claude/botchelor-bin/covers/cover.py`: one image edit each on Replicate's
       `qwen/qwen-image-edit-2511` (the app's own edit model) from the character's PG house portrait, fully clothed,
       Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 80 KB,

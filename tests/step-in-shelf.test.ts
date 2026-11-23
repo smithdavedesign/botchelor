@@ -101,23 +101,26 @@ describe("a card with a cover", () => {
     expect(shelfLead("neighbours", DAY, one, 3, "fay")?.id).toBe("fay");
   });
 
-  it("leads tonight's: half of the eight have pictures and come first, the same all day", () => {
+  it("leads tonight's: six of the eight have pictures and come first, the same all day", () => {
     const pictured = new Set(Object.keys(ROLEPLAY_COVERS));
     const tonight = shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, pictured).map((r) => r.id);
     expect(tonight).toHaveLength(SHELF_TONIGHT);
     expect(new Set(tonight).size).toBe(SHELF_TONIGHT);
-    expect(tonight.slice(0, SHELF_TONIGHT / 2).every((id) => pictured.has(id))).toBe(true);
-    expect(tonight.slice(SHELF_TONIGHT / 2).some((id) => pictured.has(id))).toBe(false);
+    // Six: three rows of two, or two rows of three, so a row is all pictures or none whichever way it's laid out.
+    const lead = (SHELF_TONIGHT * 3) / 4;
+    expect(lead).toBe(6);
+    expect(tonight.slice(0, lead).every((id) => pictured.has(id))).toBe(true);
+    expect(tonight.slice(lead).some((id) => pictured.has(id))).toBe(false);
     expect(shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, pictured).map((r) => r.id)).toEqual(tonight);
     expect(shelfTonight(ROLEPLAYS, "2026-11-24", SHELF_TONIGHT, pictured).map((r) => r.id)).not.toEqual(tonight);
-    // Fewer pictures than half: all of them first, the rest from the others; none: as before.
+    // Fewer pictures than that: all of them first, the rest from the others; none: as before.
     const two = new Set(["vampire", "royal"]);
     expect(new Set(shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, two).slice(0, 2).map((r) => r.id))).toEqual(two);
     expect(shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, new Set()).map((r) => r.id)).toEqual(shelfTonight(ROLEPLAYS, DAY).map((r) => r.id));
     // Every pictured roleplay has had a night within a week.
     const seen = new Set<string>();
-    for (let d = 1; d <= 7; d++) for (const r of shelfTonight(ROLEPLAYS, `2026-12-0${d}`, SHELF_TONIGHT, pictured).slice(0, SHELF_TONIGHT / 2)) seen.add(r.id);
-    expect(seen.size).toBeGreaterThanOrEqual(10);
+    for (let d = 1; d <= 7; d++) for (const r of shelfTonight(ROLEPLAYS, `2026-12-0${d}`, SHELF_TONIGHT, pictured).slice(0, lead)) seen.add(r.id);
+    expect(seen.size).toBe(pictured.size);
   });
 
   it("is only with the one in the picture", () => {
