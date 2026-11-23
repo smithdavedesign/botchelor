@@ -3979,9 +3979,11 @@ its price on the button before anything is made (`app/after-dark/step-in/[id]/St
   picture: included with the subscription, free for an admin, tokens otherwise, taken before the draw and given back
   when nothing is kept. The month's pictures (`cap_pictures`) bound it, and the button's row says how many are left
   once one is made. Nothing is spent or counted for a refusal, a failed draw or a picture the check discards.
-- **One at a time for a reply.** `adult_step_in_messages.picture_at` is a claim: a second ask while one is being drawn
-  is told so, the page shows "Drawing…" and asks again until it lands (a reload in the middle included). A claim cut
-  off is let go after three minutes. Asked again later, it's drawn again and the newest picture is the reply's.
+- **One at a time for a reply.** `adult_step_in_messages.picture_at` is a claim, taken from the press on (before the
+  moment is read) and let go when the draw ends either way: a second ask while one is being drawn is told so, and the
+  scene opened anywhere else in that time shows "Drawing…" and asks again until the picture lands (a reload in the
+  middle included). A claim cut off is let go after three minutes. Asked again later, it's drawn again and the newest
+  picture is the reply's.
 - **Kept with the scene.** The picture's row carries its scene and its reply (`adult_images.step_in_scene`,
   `step_in_message`): it shows under that reply, in the Gallery as a night's picture (`lib/made-in.ts`: one of them
   alone is otherwise the Studio's), and it goes when its scene is deleted (`deleteStepIn`; its file follows,

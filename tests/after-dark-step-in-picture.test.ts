@@ -600,8 +600,30 @@ describe("whose it is, and when", () => {
     expect(venice).toHaveLength(0);
     await t.db.query(`update adult_step_in_messages set picture_at = now() - interval '${PICTURE_CLAIM_MINUTES + 1} minutes' where id = $1`, [s.reply]);
     expect((await stepInPictureState(t.db, a.id, s.id))!.drawing).toEqual([]);
-    expect(await draw(a.id, s)).toMatchObject({ ok: true });
+    // The claim is held from the press on, while the moment is still being read (the first live check with a second
+    // device: a page opened in the brief's few seconds said nothing was being drawn), and through the draw.
+    const during: { brief: string[]; draw: string[] } = { brief: [], draw: [] };
+    setBriefModelForTests({
+      complete: async () => {
+        during.brief = (await stepInPictureState(t.db, a.id, s.id))!.drawing;
+        return JSON.stringify(BRIEF);
+      },
+    });
+    setReelFetchForTests(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      venice.push({ path: "/image/multi-edit", body: JSON.parse(String(init?.body ?? "{}")) });
+      during.draw = (await stepInPictureState(t.db, a.id, s.id))!.drawing;
+      return new Response(new Uint8Array(PNG), { headers: { "content-type": "image/png" } });
+    });
+    expect(await draw(a.id, s)).toMatchObject({ ok: true, state: { drawing: [] } });
+    expect(during).toEqual({ brief: [s.reply], draw: [s.reply] });
     expect(venice).toHaveLength(1);
+    // A refusal lets the claim go too: past the scene's limits, nothing stays "being drawn".
+    await t.db.query(`update adult_step_in_scenes set intensity = 'slow_burn' where id = $1`, [s.id]);
+    const next = await sendStepInLine(t.db, a.id, s.id, "Tell me about the market.");
+    if (!next.ok) throw new Error(next.message);
+    setBriefModelForTests({ complete: async () => JSON.stringify({ ...BRIEF, state: "naked" }) });
+    expect(await draw(a.id, { id: s.id, reply: next.view.messages.at(-1)!.id })).toMatchObject({ ok: false, status: 422, error: "past_limits" });
+    expect((await stepInPictureState(t.db, a.id, s.id))!.drawing).toEqual([]);
   });
 
   it("offers nothing where pictures aren't set up, and the old ones still show", async () => {
