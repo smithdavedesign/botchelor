@@ -3710,6 +3710,10 @@ its rating paragraph and in what it says about the character, not in its craft.
 [audits/2026-11-20-joi-teardown.md](audits/2026-11-20-joi-teardown.md)). The character stands in the place with the
 viewer (`app/stage/CharacterFigure.tsx`). On a wide screen they stand at the right edge and the prose moves over; on a
 tablet they stand behind the prose's right side; on a phone they fill the screen behind it, under a veil of the night.
+Where they're behind the column (a tablet or a phone) the scene's header has no card under it, so its quiet lines
+carry the night under each letter (`.ad-si-head`'s `text-shadow`, 2026-11-23): over a light apron or shirt the muted
+lines had measured 2.3 to 3.2:1 against the picture; with it, letters against the pixels beside them went from
+3.2-4.0 to 4.6-4.7 on the live page, and the picture is untouched.
 They stand on the window's bottom edge, where the newest lines are, wherever the scene is scrolled, and the stage is
 cut to the scene's edges, so neither they nor the place spill onto the footer. The picture is their PG portrait with the background taken out by our Cloudflare zone (`lib/cutout.ts`:
 `segment=foreground`, free up to 5,000 unique pictures a month, never billed). The zone's transformations are on
@@ -4025,6 +4029,14 @@ ran until the viewer tired of it, with nothing to play for and nothing that ever
   beats of "The neighbour next door" after two exchanges, the last of them generously, and the ending was offered
   before the scene had been a story. The viewer sees how many have played, never the beats themselves:
   they'd give the story away. **The writer's own prompt and reply are unchanged.**
+- **The dots are under the newest reply too** (`StoryHere`, at the end of the row with Continue and ↻ Again…): the
+  header, with the goal, is a screen or more up by the third reply, and a beat is ticked a moment after a reply lands,
+  so the story used to move on out of sight and the first a viewer knew of it was the ending (the last live check's
+  "playing" screenshot showed no story at all). The dot that has just been filled is marked for five seconds (it
+  arrives rather than appears; it simply appears where motion is turned down), "The story" beside it brightens for as
+  long (the words never change, so nothing in the row moves), and a screen reader is told the new count. Pressing it
+  says what they're playing for again, and how far it's got, on a row of its own. It's a plain button: nothing here
+  asks for anything or counts as anything.
 - **The ending:** once the last beat has played, a card above the composer offers **Bring it to a close**: one last
   reply from the character that lands the story (`closeStepIn`, `CLOSE_CUE`: "Don't start anything new, don't ask them
   a question"), then the scene ends and is filed exactly as End files it. **Keep going** is beside it, and once it's

@@ -3738,6 +3738,19 @@ fieldset.ad-si-step {
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
   }
+  /* The header has no card under it: its quiet lines (the tagline, the level, the roleplay and its goal, who you are
+     here) sit straight on the character, and over a light apron or shirt they measured 2.3 to 3.2:1 against the
+     picture on a phone (2026-11-23; the rows under a reply, over the darker middle of the figure, measured 5 to
+     7.7:1). The night under each letter keeps both the muted colour and the picture: measured on the live page with
+     this rule injected, letters against the pixels beside them went from 3.2-4.0 to 4.6-4.7. */
+  .ad-si-scene:has(.ad-si-figure) .ad-si-head {
+    text-shadow:
+      0 0 0.1rem var(--night-bg),
+      0 0 0.2rem var(--night-bg),
+      0 0 0.45rem var(--night-bg),
+      0 0 0.45rem var(--night-bg),
+      0 0 0.9rem var(--night-bg);
+  }
 }
 /* A phone: the character fills the stage behind the scene, the night drawn over them (joi's chat on a phone is its
    character under a 70% veil). */
@@ -3896,6 +3909,43 @@ fieldset.ad-si-step {
 .ad-si-story-beats > span.on {
   border-color: var(--night-hot);
   background: var(--night-hot);
+}
+/* The story's dots again, at the end of the row under the newest reply (StoryHere): where the viewer is reading when a
+   beat is ticked. A quiet text button (the row's others are actions on the reply; this one only tells); pressed, what
+   they're playing for is said again on a row of its own. */
+.ad-si-under .ad-si-story-here {
+  gap: var(--space-2);
+  min-height: var(--control-h-sm);
+  margin: 0 0 0 auto;
+  padding: 0 var(--space-1);
+  color: var(--night-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.ad-si-under .ad-si-story-here:hover:not(:disabled),
+.ad-si-under .ad-si-story-here[aria-expanded="true"],
+.ad-si-under .ad-si-story-here[data-step-in-story-here="fresh"] {
+  color: var(--night-accent-text);
+}
+.ad-si-story-said {
+  flex-basis: 100%;
+  margin: 0;
+}
+/* The beat that has just been ticked: it arrives rather than appears (and simply appears where motion is turned down). */
+@media (prefers-reduced-motion: no-preference) {
+  .ad-si-story-beats > span.new {
+    animation: ad-si-beat 0.9s ease-out 2;
+  }
+}
+@keyframes ad-si-beat {
+  from {
+    box-shadow: 0 0 0 0 var(--night-hot);
+    transform: scale(1.6);
+  }
+  to {
+    box-shadow: 0 0 0 0.45rem transparent;
+    transform: scale(1);
+  }
 }
 .ad-si-ending {
   margin-block: var(--space-3);
