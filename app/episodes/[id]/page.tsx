@@ -11,6 +11,7 @@ import { ENDING_CARD, endingCardAllowed, episodeCardPath, pageTitle, SHARE_QUEST
 import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { reportCardPath } from "@/lib/report-card";
+import { shareNextCard } from "@/lib/share-next";
 import { getDb } from "@/lib/db";
 import { dateListed } from "@/lib/public-cast";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
@@ -56,6 +57,7 @@ import Afterglow, { SecondDate } from "./Afterglow";
 import EndingSeen from "./EndingSeen";
 import EpisodeTheater, { type TheaterVerdict } from "./EpisodeTheater";
 import ShareEnding from "./ShareEnding";
+import ShareNext from "./ShareNext";
 import BoxScore from "./BoxScore";
 import DiaryCam from "./DiaryCam";
 import ConfessionalShare from "./ConfessionalShare";
@@ -366,13 +368,14 @@ export default async function EpisodePage({
     ready && (dateNumberOf(episode) ?? 0) > 1 ? previouslyOn(db, episode.id).catch(() => null) : null,
     // The creator's own side: which one is theirs (the header's face follows it, below) and, arriving from sending the
     // date (?play=1), that side's reflection (the preview of the first text on the verdict card, VerdictCard.tsx) and
-    // whether this is that character's first date.
+    // whether this is that character's first date; and whether both characters are public (the "who's next" card).
     episode.is_creator && viewerId
       ? db
-          .query<{ side: 0 | 1 | null; reflection: string | null; dates: number }>(
+          .query<{ side: 0 | 1 | null; reflection: string | null; dates: number; both_public: boolean }>(
             `select case when a.owner_id = $2 then 0 when b.owner_id = $2 then 1 end as side,
                     case when a.owner_id = $2 then e.reflections->>'a' when b.owner_id = $2 then e.reflections->>'b' end as reflection,
-                    coalesce((select count(*)::int from episodes x where x.character_a = m.id or x.character_b = m.id), 0) as dates
+                    coalesce((select count(*)::int from episodes x where x.character_a = m.id or x.character_b = m.id), 0) as dates,
+                    (a.visibility = 'public' and b.visibility = 'public') as both_public
                from episodes e
                join characters a on a.id = e.character_a
                join characters b on b.id = e.character_b
@@ -518,6 +521,9 @@ export default async function EpisodePage({
       : null;
   // The date's report card (lib/report-card.ts): only once it has aired, and never for a date only its creator sees.
   const reportCard = episode.revealed && episode.box_score && episode.visibility !== "private" && !episode.hidden ? reportCardPath(episode.id) : null;
+  // "Whose character should go next?" (lib/share-next.ts): the owner's card once the date aired publicly between two
+  // public characters, on the page and at the theater's end. SHARE_NEXT=0: never.
+  const shareNext = shareNextCard(episode, creatorSide?.both_public === true, reportCard);
   // A creator's first date, just filmed: the page under the theater stays clear of the games (the card is the next step).
   const firstDateJustFilmed = play && episode.is_creator && (creatorSide?.dates ?? 0) <= 1;
   // What comes next, at the foot of the date and on the theater's ending; not on a first date just filmed, whose next
@@ -627,6 +633,7 @@ export default async function EpisodePage({
               coldOpen={coldOpen}
               cut={cut ? { src: cut.src, poster_src: cut.poster_src, seconds: cut.seconds } : null}
               reportCard={reportCard}
+              shareNext={shareNext}
               upNext={next[0] ? { href: `${next[0].share_path}?play=1`, characters: next[0].characters } : null}
             />
           ) : (
@@ -698,6 +705,7 @@ export default async function EpisodePage({
             )}
           </p>
         )}
+        {shareNext && <ShareNext card={shareNext} place="page" />}
         {episode.creators && (
           <p className="creators">
             Made by{" "}
