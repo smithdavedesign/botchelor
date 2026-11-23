@@ -18,7 +18,12 @@
 // own (whole sentences, gaps marked); the show's words (title, tonight) are the host's, never a character's.
 // Out: CLIPS_DIR/posts/<day>-<a>-<b>/ with post.mp4, cover.png (the "Day N" card), caption.txt, edl.json, checklist.md:
 // the folder post-kit.mjs always wrote, so the marketing loop (idea-factory buildVideoKit) takes it as it is.
-//   node scripts/clips/daily-episode.mjs <episode_id> [--out <dir>] [--day-number N]     (CROWD_BASE, SAY=1 as elsewhere)
+//
+// Since 2026-11-23 that cut is `--format full` (or EPISODE_FORMAT=full), and the day's episode is the cliffhanger by
+// default (cliffhanger.mjs): 12 to 20 s, both faces big and moving, the best line and its reply, then "How did it end?",
+// with the answer in the next day's caption. A date the cliffhanger can't be cut from gets the full cut instead.
+//   node scripts/clips/daily-episode.mjs <episode_id> [--out <dir>] [--day-number N] [--format cliffhanger|full]
+//   (CROWD_BASE, SAY=1 as elsewhere)
 import { readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -290,17 +295,42 @@ export function nextDayNumber(postsDir) {
 
 const slug = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 
-/** Builds the day's episode for one aired public date into CLIPS_DIR/posts (or `out`). Returns the folder. */
-export async function buildDailyEpisode(id, { out = null, n = null } = {}) {
+/** The day's episode's cuts: the cliffhanger (the default since 2026-11-23) and the full episode it replaced. */
+export const EPISODE_FORMATS = ["cliffhanger", "full"];
+
+/** Which cut to make (pure): `--format`, else EPISODE_FORMAT, else the cliffhanger. Throws on a name it doesn't know. */
+export function episodeFormat(asked, env = process.env) {
+  const f = String(asked || env.EPISODE_FORMAT || "").trim().toLowerCase() || "cliffhanger";
+  if (!EPISODE_FORMATS.includes(f)) throw new Error(`the format is ${EPISODE_FORMATS.join(" or ")}, not "${f}"`);
+  return f;
+}
+
+/**
+ * Builds the day's episode for one aired public date into CLIPS_DIR/posts (or `out`). Returns the folder. The format is
+ * episodeFormat's; when the cliffhanger was only the default and can't be cut, the full episode is cut instead.
+ */
+export async function buildDailyEpisode(id, { out = null, n = null, format = null } = {}) {
   const base = (process.env.CROWD_BASE || "https://botchelor.com").replace(/\/$/, "");
+  const chosen = episodeFormat(format);
   const [e] = await fetchEpisodes([id], base);
   if (e.featurable === false) throw new Error("the story check found this date's ending contradicting its lines; it isn't featured");
-  const [story, report] = await Promise.all([fetchDayStory(base), fetchReport(base, e.id)]);
   const posts = join(process.env.CLIPS_DIR || join(homedir(), "BotchelorClips"), "posts");
   const day = n ?? nextDayNumber(posts);
-  const edl = autoEdl(e, { story, n: day, report });
   const [a, b] = (e.characters ?? []).map((c) => c.name);
   const dir = out ?? join(posts, `${new Date().toISOString().slice(0, 10)}-${slug(a)}-${slug(b)}`);
+  if (chosen === "cliffhanger") {
+    const { buildCliffhanger } = await import("./cliffhanger.mjs");
+    try {
+      const { total, answer } = await buildCliffhanger(e, { base, posts, out: dir, day });
+      console.log(`Daily episode (cliffhanger): ${dir}\n  Day ${day}, post.mp4 (${total.toFixed(1)} s), cover.png, caption.txt, checklist.md${answer ? `\n  ${answer}` : ""}`);
+      return dir;
+    } catch (err) {
+      if (format || process.env.EPISODE_FORMAT) throw err;
+      console.error(`cliffhanger: ${err?.message ?? err}; cutting the full episode instead`);
+    }
+  }
+  const [story, report] = await Promise.all([fetchDayStory(base), fetchReport(base, e.id)]);
+  const edl = autoEdl(e, { story, n: day, report });
   const caption = dailyCaption(e, edl, { story, n: day, base });
   const { total } = await renderCut(edl, [e], {
     base,
@@ -333,10 +363,10 @@ function arg(name) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const id = process.argv[2];
   if (!id || id.startsWith("--")) {
-    console.error("usage: node scripts/clips/daily-episode.mjs <episode_id> [--out <dir>] [--day-number N]");
+    console.error("usage: node scripts/clips/daily-episode.mjs <episode_id> [--out <dir>] [--day-number N] [--format cliffhanger|full]");
     process.exit(1);
   }
-  buildDailyEpisode(id, { out: arg("out") ?? null, n: arg("day-number") ? Number(arg("day-number")) : null }).catch((err) => {
+  buildDailyEpisode(id, { out: arg("out") ?? null, n: arg("day-number") ? Number(arg("day-number")) : null, format: arg("format") ?? null }).catch((err) => {
     console.error(err?.message ?? err);
     process.exit(1);
   });
