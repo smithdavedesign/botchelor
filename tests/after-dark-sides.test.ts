@@ -5,6 +5,11 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
   headers: async () => new Headers({ "user-agent": jar.ua }),
 }));
+// "Step in with …" under an episode is a client button that reads the router.
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+}));
 
 import { renderToStaticMarkup } from "react-dom/server";
 import ShortPage from "@/app/after-dark/shorts/[id]/page";

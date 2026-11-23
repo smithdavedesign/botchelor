@@ -6,6 +6,11 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
   headers: async () => new Headers({ "user-agent": jar.ua }),
 }));
+// "Step in with …" under an episode is a client button that reads the router.
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
+}));
 
 import { renderToStaticMarkup } from "react-dom/server";
 import ShortPage from "@/app/after-dark/shorts/[id]/page";
@@ -16,9 +21,12 @@ import { GET as panelGet, PATCH as panelPatch, POST as panelPost } from "@/app/a
 import { spoken } from "@/lib/adult/reels";
 import { dropForeignActions } from "@/lib/adult/scenes";
 import { filmed, groupNights, listShorts, teaserShorts, viewShort, type NightRow } from "@/lib/adult/shorts";
+import { saveAdultSettings } from "@/lib/adult/settings";
+import { quickStepIn } from "@/lib/adult/step-in";
 import { claimAdmin } from "@/lib/admins";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { sessionCookies } from "@/lib/http";
+import { shortName } from "@/lib/names";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { api, BASE_URL, newUserCookie, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -450,6 +458,37 @@ describe("the pages", () => {
     expect(after).toContain("The night&#x27;s video");
     expect(after).not.toContain("PRIVATE");
     expect(await list()).toContain("watched");
+  });
+
+  it("offers Step in with each of the two under the night, to whoever Step in is open to", async () => {
+    const { ad, short } = await seeded();
+    const [nameA, nameB] = [A, B].map((id) => esc(shortName(HOUSE_CHARACTERS.find((c) => c.id === id)!.name)));
+    // Step in is admins only until its rollout piece is opened: a subscriber sees the night and no door.
+    const sub = await subscriber();
+    as(sub.cookie);
+    expect(await one(short.id)).not.toContain("data-short-step-in");
+    as(ad.cookie);
+    const mine = await one(short.id);
+    expect(mine).toContain("data-short-step-in");
+    expect(mine).toContain("either of them");
+    expect(mine).toContain(`Step in with ${nameA}`);
+    expect(mine).toContain(`Step in with ${nameB}`);
+    // A scene already running with one of them is picked up, never started again.
+    const running = await quickStepIn(t.db, ad.id, A);
+    if (!running.ok) throw new Error(running.message);
+    const again = await one(short.id);
+    expect(again).toContain(`href="/after-dark/step-in/${running.id}"`);
+    expect(again).toContain(`Continue with ${nameA}`);
+    expect(again).toContain(`Step in with ${nameB}`);
+    // Opened to everyone After Dark opens for: the subscriber gets the doors, to scenes of their own.
+    await saveAdultSettings(t.db, { rollout: { companion: "everyone" } });
+    as(sub.cookie);
+    const theirs = await one(short.id);
+    expect(theirs).toContain(`Step in with ${nameA}`);
+    expect(theirs).not.toContain(running.id);
+    // The teaser has none.
+    as(null);
+    expect(await one(short.id)).not.toContain("data-short-step-in");
   });
 
   it("gives a bot not found, a Short that doesn't exist not found, and the owner the undo", async () => {
