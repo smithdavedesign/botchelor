@@ -6,7 +6,7 @@ import { hasSubscription, clipPrice } from "@/lib/adult/pricing";
 import { rolloutConfigOf } from "@/lib/adult/rollout";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { isTasting, startTaste, TASTE_PER_DAY, TASTE_WRITES, tasteOpen, tasteRefusal } from "@/lib/adult/taste";
-import { countUse, overCap, TASTE_DONE } from "@/lib/adult/usage";
+import { countUse, overCap, TASTE_DONE, usageLeft } from "@/lib/adult/usage";
 import { afterDarkAccess } from "@/lib/jurisdiction";
 import { setPlaceForTests } from "@/lib/place";
 import { jsonRequest, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf } from "./helpers";
@@ -138,6 +138,20 @@ describe("what a taste includes", () => {
     await countUse(t.db, p.id, "writes", new Date(), TASTE_WRITES - 1);
     expect(await overCap(t.db, p.id, "writes")).toBeNull();
     await countUse(t.db, p.id, "writes");
+    expect(await overCap(t.db, p.id, "writes")).toBe(TASTE_DONE);
+  });
+
+  it("counts a Step in reply against the same allowance, and says what's left of the taste, never of the month", async () => {
+    const p = person();
+    await startTaste(t.db, p.id, "CA");
+    expect(await usageLeft(t.db, p.id, "step_in")).toBe(TASTE_WRITES);
+    await countUse(t.db, p.id, "writes", new Date(), TASTE_WRITES - 2);
+    await countUse(t.db, p.id, "step_in");
+    expect(await usageLeft(t.db, p.id, "step_in")).toBe(1);
+    expect(await usageLeft(t.db, p.id, "writes")).toBe(1);
+    expect(await overCap(t.db, p.id, "step_in")).toBeNull();
+    await countUse(t.db, p.id, "step_in");
+    expect(await overCap(t.db, p.id, "step_in")).toBe(TASTE_DONE);
     expect(await overCap(t.db, p.id, "writes")).toBe(TASTE_DONE);
   });
 

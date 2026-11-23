@@ -255,7 +255,7 @@ describe("nothing to suggest", () => {
     const seen = scripted();
     const a = await admin();
     const sub = await subscriber();
-    await saveAdultSettings(t.db, { rollout: { companion: "everyone" }, caps: { writes: 1 } });
+    await saveAdultSettings(t.db, { rollout: { companion: "everyone" }, caps: { step_in: 1 } });
     // The subscriber's one step this month went on the opening.
     const theirs = await start(sub.id);
     expect(await stepInIdeas(t.db, sub.id, theirs.id)).toMatchObject({ ok: false, status: 429 });

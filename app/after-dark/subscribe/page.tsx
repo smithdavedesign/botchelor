@@ -114,6 +114,8 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   // What the subscription includes, from the settings (#1005; David, 2026-10-30: an allowance, tokens for extras).
   const plan = includedPlan(settings);
   const narratedOpen = settings?.rollout.narrated === "everyone";
+  // Step in (lib/adult/step-in.ts) is part of what's sold once its switch opens it to everyone.
+  const stepInIncluded = settings?.rollout.companion === "everyone";
   return (
     <div className="after-dark-mode">
       <article className="after-dark" data-subscribe>
@@ -143,6 +145,11 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
             <li data-included-chapters>
               Unlimited chapters, no tokens (fair use: {plan.steps} scene steps a month).
             </li>
+            {stepInIncluded && (
+              <li data-included-step-in>
+                Step in: you in the scene with one of them, one to one. Unlimited replies (fair use: {plan.replies.toLocaleString("en-US")} a month).
+              </li>
+            )}
             {/* Narrated nights and chapter stories (docs/writing-styles.md): said once the "narrated" rollout switch opens them. */}
             {narratedOpen && <li data-included-narrated>Narrated nights: your scenes told as prose, like a novel, and any chapter as a story. Included.</li>}
             {textOnly ? (

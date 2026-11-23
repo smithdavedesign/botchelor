@@ -81,7 +81,7 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   return r.ok ? json({ scene: r.view }) : hidden();
 });
 
-/** One move in a scene (lib/adult/step-in.ts). A reply counts one of the month's scene steps, written or said out loud; a swipe, a move and the rest are free. */
+/** One move in a scene (lib/adult/step-in.ts). A reply counts one of the month's Step in replies, written or said out loud; a swipe, a move and the rest are free. */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const db = await getDb();

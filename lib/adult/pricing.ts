@@ -63,12 +63,15 @@ export async function clipPrice(db: Db, viewer: string, settings?: AdultSettings
 
 /**
  * What the subscription includes and what the extras cost, as the settings have them (the defaults when they can't be
- * read), for the subscribe page: the month's scene steps (fair use on unlimited chapters), pictures and included clips,
+ * read), for the subscribe page: the month's scene steps (fair use on unlimited chapters), Step in's replies (the same,
+ * on unlimited replies), pictures and included clips,
  * and the price of a clip past those and of the video of the night.
  */
 export function includedPlan(s: AdultSettings | null) {
   return {
     steps: s?.caps.writes ?? DEFAULT_CAPS.writes,
+    // Step in's replies, counted apart from the steps (lib/adult/usage.ts).
+    replies: s?.caps.step_in ?? DEFAULT_CAPS.step_in,
     pictures: s?.caps.pictures ?? DEFAULT_CAPS.pictures,
     clips: s?.included_clips ?? DEFAULT_INCLUDED_CLIPS,
     clipTokens: s?.clip_tokens ?? DEFAULT_CLIP_TOKENS,
