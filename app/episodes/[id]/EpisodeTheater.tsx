@@ -12,10 +12,12 @@ import { delayBefore, useReplay } from "@/app/useReplay";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
+import type { ShareNextCard } from "@/lib/share-next";
 import { placeAt, type PlaceId } from "@/lib/venues";
 import CharacterName from "@/app/CharacterName";
 import { dateWatchedLive, msSinceDateStarted, theaterLeftProps } from "@/lib/engagement-keys";
 import ShareEnding from "./ShareEnding";
+import ShareNext from "./ShareNext";
 import VerdictCard from "./VerdictCard";
 import { latestFace } from "@/lib/show-shots-shared";
 import type { ColdOpen } from "@/lib/cold-open";
@@ -65,6 +67,8 @@ type Props = {
   reportCard?: string | null;
   /** What to watch next (the page's "Up next", lib/up-next.ts): offered on a viewer's end screen, or null. */
   upNext?: TheaterNext | null;
+  /** The owner's "who should go next?" card (lib/share-next.ts), once it aired publicly: in place of the viewer's share. */
+  shareNext?: ShareNextCard | null;
 };
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
@@ -122,7 +126,7 @@ function playMsOf(transcript: Turn[]): number {
   return ms;
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, reportCard, upNext, onExit }: Props & { onExit: () => void }) {
+function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, reportCard, upNext, shareNext, onExit }: Props & { onExit: () => void }) {
   // The cold open comes first for anyone starting from the top (never the creator just filmed, nor picking up live).
   const intro = Boolean(coldOpen) && !justFilmed && !(startAt && startAt > 0);
   const [card, setCard] = useState<"first" | "again" | null>(intro ? "first" : null);
@@ -283,6 +287,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
               onRestart={replay.restart}
               afterDark={verdict.afterDark ?? null}
               reportCard={reportCard ?? null}
+              shareNext={shareNext ?? null}
             />
           ) : (
             <div className="theater-verdict">
@@ -294,7 +299,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
                 </button>
               </p>
               {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
-              <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />
+              {shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />}
               {reportCard && (
                 <p className="theater-report">
                   <Link className="button-ghost" href={reportCard} data-track="report-card-open">

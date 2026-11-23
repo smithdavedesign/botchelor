@@ -2582,3 +2582,53 @@ main:has(> .couple-page) {
   display: grid;
   gap: var(--space-1);
 }
+
+/* "Whose character should go next?" (app/episodes/[id]/ShareNext.tsx, lib/share-next.ts): the owner's card once their
+   date aired, on the page (a card) and at the theater's end (on the dark stage, in place of the viewer's share). */
+.share-next {
+  display: grid;
+  gap: var(--space-2);
+}
+.share-next p {
+  margin: 0;
+}
+.share-next-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.share-next-head h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.share-next-x {
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0 0;
+}
+.share-next-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.share-next-actions input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.share-next-theater {
+  width: 100%;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  text-align: left;
+  color: var(--on-photo);
+  border: 1px solid color-mix(in srgb, var(--on-photo) 18%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--on-photo) 8%, transparent);
+}
+.share-next-theater h2 {
+  color: var(--on-photo);
+  font-size: var(--text-md);
+}
+.verdict-card .share-next-theater {
+  margin: 0;
+}

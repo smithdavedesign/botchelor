@@ -8,9 +8,11 @@ import { queueEvent } from "@/app/engagement";
 import PushToggle from "@/app/notifications/PushToggle";
 import { requestJson } from "@/app/request";
 import type { CharacterRef } from "@/lib/game";
+import type { ShareNextCard } from "@/lib/share-next";
 import AfterDarkBridge from "./AfterDarkBridge";
 import CastingVerdictLine from "./CastingVerdictLine";
 import ShareEnding from "./ShareEnding";
+import ShareNext from "./ShareNext";
 
 export type VerdictCardProps = {
   episodeId: string;
@@ -33,6 +35,8 @@ export type VerdictCardProps = {
   afterDark?: { href: string } | null;
   /** The date's report card (lib/report-card.ts), once it has aired: graded, with its own share. Else nothing. */
   reportCard?: string | null;
+  /** The owner's "who should go next?" card (lib/share-next.ts), once it aired publicly: in place of the viewer's share. */
+  shareNext?: ShareNextCard | null;
 };
 
 const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -45,7 +49,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
  * every viewer gets, and Watch again. Keeps `.theater-verdict` and `.ending`: scripts/clips/daily-clip.mjs records up to
  * them.
  */
-export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false, afterDark = null, reportCard = null }: VerdictCardProps) {
+export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false, afterDark = null, reportCard = null, shareNext = null }: VerdictCardProps) {
   const router = useRouter();
   const first = firstNameOf(you.name);
   const [busy, setBusy] = useState(false);
@@ -137,7 +141,7 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
         </button>
       </p>
       {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
-      <ShareEnding episodeId={episodeId} names={[you.name, partner.name]} kind="viewer" />
+      {shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[you.name, partner.name]} kind="viewer" />}
       {afterDark && <AfterDarkBridge href={afterDark.href} />}
     </div>
   );
