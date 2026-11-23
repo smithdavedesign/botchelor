@@ -123,7 +123,9 @@ costs down let's just have a loop of the character like a gif."
   held against the kit for a day, as a picture that failed its check is). One more thing kept a failed loop from ever
   coming back: a loop queued again kept its row's first creation time, and "too late" was read from that, so a second
   try was given up at its first check, seconds after it was queued. It's read from when the loop was queued now.
-- **Lip-sync is switched off, not removed.** `LIVE_FACE_PROVIDER` unset (or `off`) is this. Setting it back
+- **Lip-sync is switched off, not removed.** Production's `LIVE_FACE_PROVIDER` went from `ditto:plan` to `off` on
+  2026-11-23 (the show app's setting): left on, every call by a member or an admin booted a GPU worker that a short
+  call never used, and a longer one switched face partway through. Unset (or `off`) is the loop alone. Setting it back
   (`ditto:plan`, `ditto:admins`, `musetalk`…) brings the clips back exactly as before, over the same loop; while
   Ditto is set a kit also draws Ditto's talking still (`kitParts`). Worth turning on again when calls are frequent
   enough that a worker stays warm on its own, or on our own hardware ("With our own hardware", below).

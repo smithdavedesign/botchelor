@@ -3773,6 +3773,17 @@ Dark's own voice and nothing of the show's:
 
 **Proof:** `tests/after-dark-step-in-voice.test.ts`.
 
+**Live** (ad.botchelor.com, the audit account, 2026-11-23, after #2082; a faked microphone for the call): one click
+from Juniper's card to her scene in 1.3 s, her opening 5 s after the click; Hear it on the opening (four pieces, kept:
+half a second each on a replay); the call's spoken answer on screen 3.4 s after pressing Call, voiced, both lines kept
+as a call's; her living loop on the call's face; no page errors on a desktop or a phone.
+
+| | Desktop | Phone |
+| --- | --- | --- |
+| The cards | ![After Dark's character cards with Step in](screenshots/after-dark-characters-step-in-desktop.png) | ![The cards on a phone](screenshots/after-dark-characters-step-in-phone.png) |
+| A scene, one click later; heard | ![A Step in scene one click later](screenshots/after-dark-step-in-one-click-desktop.png) | ![The scene on a phone, a reply being heard](screenshots/after-dark-step-in-hear-phone.png) |
+| A call | ![A call in a Step in scene](screenshots/after-dark-step-in-call-desktop.png) | ![The call on a phone](screenshots/after-dark-step-in-call-phone.png) |
+
 **Counted.** Every reply and every refusal is a row in the step log (`adult_steps`, kind `step_in`, the pair being the
 character and `viewer`): the move, how it ended, why a draft was redrawn (`flags.redrawn`), whether the stand-in was
 used (`flags.aside`), and a refusal's own sentence (the line that was crossed, never the word that crossed it). Never
