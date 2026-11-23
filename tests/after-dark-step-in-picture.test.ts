@@ -561,7 +561,7 @@ describe("whose it is, and when", () => {
   it("says what a picture costs before it's made, and stops at the month's pictures", async () => {
     scripted();
     briefs();
-    await setUp({ rollout: { companion: "everyone" }, caps: { writes: 50, pictures: 1 } });
+    await setUp({ rollout: { companion: "everyone" }, caps: { step_in: 50, pictures: 1 } });
     const sub = await subscriber();
     await faces(sub.id);
     const s = await scene(sub.id);
@@ -683,7 +683,7 @@ describe("the route", () => {
   it("is closed like the rest of Step in, answers with the picture and the scene's pictures, and refuses where only text is allowed", async () => {
     scripted();
     briefs();
-    await setUp({ caps: { writes: 50, pictures: 5 } });
+    await setUp({ caps: { step_in: 50, pictures: 5 } });
     const a = await admin();
     await faces(a.id);
     const s = await scene(a.id);

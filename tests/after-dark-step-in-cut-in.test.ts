@@ -116,15 +116,15 @@ describe("the call's screen", () => {
   });
 });
 
-describe("the month's scene steps, in a scene and on a call", () => {
+describe("the month's replies, in a scene and on a call", () => {
   it("are fair use, not a countdown: how many are left is said only once they're running low", () => {
     // An admin is never capped.
     expect(stepsLeftLine(null)).toBeNull();
     expect(stepsLeftLine(300)).toBeNull();
     expect(stepsLeftLine(STEPS_LOW + 1)).toBeNull();
-    expect(stepsLeftLine(STEPS_LOW)).toBe(`${STEPS_LOW} scene steps left this month`);
-    expect(stepsLeftLine(1)).toBe("1 scene step left this month");
-    expect(stepsLeftLine(0)).toBe("0 scene steps left this month");
+    expect(stepsLeftLine(STEPS_LOW)).toBe(`${STEPS_LOW} replies left this month`);
+    expect(stepsLeftLine(1)).toBe("1 reply left this month");
+    expect(stepsLeftLine(0)).toBe("0 replies left this month");
     for (const file of ["app/after-dark/step-in/[id]/StepInScene.tsx", "app/after-dark/step-in/[id]/StepInCall.tsx"]) {
       const src = readFileSync(file, "utf8");
       expect(src, file).toContain("stepsLeftLine(");

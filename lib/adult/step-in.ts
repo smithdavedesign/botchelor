@@ -20,7 +20,8 @@
  * the viewer. A reply that fails is drawn once more with a note of what to avoid; if that fails too, a neutral
  * narrator's line stands in (ASIDES) and nothing of either draft is kept.
  *
- * Each reply counts one of the month's scene steps (lib/adult/usage.ts), regenerate and Continue included; flipping
+ * Each reply counts one of the month's Step in replies (lib/adult/usage.ts "step_in": their own count and cap, apart
+ * from a night's scene steps), regenerate and Continue included; flipping
  * through kept draws doesn't. Every reply and every refusal is a row in the step log (lib/adult/steps.ts, kind
  * "step_in"), with no word of either side in it. Memory, v1: the scene's own turns, a rolling recap once it's long, and
  * one line about each earlier scene with the character that the viewer ended. No fact extraction, no pictures or
@@ -563,7 +564,7 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     allMessages(db, s.id),
     drawnSets(db),
     stepInPersona(db, s.owner_id),
-    usageLeft(db, s.owner_id, "writes"),
+    usageLeft(db, s.owner_id, "step_in"),
     eligibleIds(db, s.owner_id),
     memoryOn(db, s.owner_id),
     countFacts(db, s.owner_id, s.character_id).catch(() => 0),
@@ -648,7 +649,7 @@ export async function ideasScene(db: Db, viewer: string, sceneId: string, now: D
   if (!s) return NOT_FOUND;
   const closed = await writable(db, s);
   if (closed) return closed;
-  const capped = await overCap(db, viewer, "writes", now);
+  const capped = await overCap(db, viewer, "step_in", now);
   if (capped) return fail(429, "capped", capped);
   const rows = await allMessages(db, s.id);
   const ctx = await drawContext(db, s, rows);
@@ -929,7 +930,7 @@ async function reply(
     // The reply it replaces, and the draws that one already had, all point at the new current draw: exactly one is current.
     await db.query(`update adult_step_in_messages set replaced_by = $3 where scene_id = $1 and (id = $2 or replaced_by = $2)`, [s.id, o.replaces.id, id]);
   }
-  await countUse(db, s.owner_id, "writes", now);
+  await countUse(db, s.owner_id, "step_in", now);
   await logMove(db, who, { ok: true, added: drawn.paragraphs, flags: { action: o.action, ...(drawn.form ? { [drawn.form]: true } : {}), ...drawn.flags }, text: { model: drawn.model, provider: drawn.provider } });
   return { ok: true, id, aside: drawn.kind === "aside" };
 }
@@ -1000,7 +1001,7 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
       opening = text;
     }
   } else opening = openingOf({ openings: openingsFor(rp) }, pick === "surprise" ? null : pick, id);
-  const capped = await overCap(db, viewer, "writes", now);
+  const capped = await overCap(db, viewer, "step_in", now);
   if (capped) {
     await logMove(db, who, { ok: false, http: 429, message: capped, flags: { action: "start", refused: "cap" } });
     return fail(429, "capped", capped);
@@ -1114,7 +1115,7 @@ export async function sendStepInLine(db: Db, viewer: string, sceneId: string, in
   const rows = await allMessages(db, s.id);
   const limited = lineLimitRefusal(text, limitsOf(s), stageOf(rows));
   if (limited) return refuse(db, s, 422, "limits", limited, "limits", action);
-  const capped = await overCap(db, viewer, "writes", now);
+  const capped = await overCap(db, viewer, "step_in", now);
   if (capped) return refuse(db, s, 429, "capped", capped, "cap", action);
   const character = await characterRef(db, s.character_id);
   if (!character) return NOT_FOUND;
@@ -1134,7 +1135,7 @@ export async function continueStepIn(db: Db, viewer: string, sceneId: string, no
   if (!s) return NOT_FOUND;
   const closed = await writable(db, s);
   if (closed) return closed;
-  const capped = await overCap(db, viewer, "writes", now);
+  const capped = await overCap(db, viewer, "step_in", now);
   if (capped) return refuse(db, s, 429, "capped", capped, "cap", "continue");
   const character = await characterRef(db, s.character_id);
   if (!character) return NOT_FOUND;
@@ -1155,7 +1156,7 @@ export async function regenerateStepIn(db: Db, viewer: string, sceneId: string, 
   if (!s) return NOT_FOUND;
   const closed = await writable(db, s);
   if (closed) return closed;
-  const capped = await overCap(db, viewer, "writes", now);
+  const capped = await overCap(db, viewer, "step_in", now);
   if (capped) return refuse(db, s, 429, "capped", capped, "cap", "regenerate");
   const rows = await allMessages(db, s.id);
   const spoken = spokenOf(rows);

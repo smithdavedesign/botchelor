@@ -8,6 +8,7 @@ import { FieldNote, blurOnEnter, useSettings } from "./autosave";
 
 const CAP_LABEL: Record<UsageKind, string> = {
   writes: "Scene steps",
+  step_in: "Step in replies",
   pictures: "Scene pictures",
   clips: "Clips",
   voice_lines: "Voiced lines",

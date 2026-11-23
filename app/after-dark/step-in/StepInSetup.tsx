@@ -291,7 +291,7 @@ export default function StepInSetup({
           {busy ? `${name} is on the way…` : character ? `Step in with ${name}` : "Pick who first"}
         </button>
         <span className="muted small">
-          Each reply uses one of the month&apos;s scene steps. Both of you can stop at any time. <Link href="/after-dark/account">Your writer and privacy</Link>
+          Replies are included (fair use). Both of you can stop at any time. <Link href="/after-dark/account">Your writer and privacy</Link>
         </span>
       </p>
     </div>
