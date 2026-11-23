@@ -5,11 +5,13 @@ import { useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
+import type { BondMark } from "@/lib/adult/step-in-bond";
 import type { StepInCharacter } from "@/lib/adult/step-in-shared";
 import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight } from "@/lib/adult/step-in-shelf";
 import { storyGoal } from "@/lib/adult/step-in-story";
 import { roleplayGroups } from "@/lib/adult/tags";
 import { cardForYou } from "@/lib/scene-cards";
+import { BondMarkTag } from "./[id]/StepInBond";
 import StepInButton from "./StepInButton";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -31,6 +33,7 @@ export default function StepInShelf({
   day,
   with_ = null,
   played = {},
+  bonds = {},
 }: {
   cast: StepInCharacter[];
   recent: string[];
@@ -38,6 +41,8 @@ export default function StepInShelf({
   with_?: string | null;
   /** The roleplays this viewer has played to their last beat, and how many times (lib/adult/step-in.ts playedRoleplays). */
   played?: Record<string, number>;
+  /** How well the viewer knows each of them (lib/adult/step-in-bond-data.ts bondMarks): the level's name beside a face. */
+  bonds?: Record<string, BondMark>;
 }) {
   // Which cards show: tonight's, one kind of them (who the two are to each other), or all.
   const [show, setShow] = useState("tonight");
@@ -115,6 +120,7 @@ export default function StepInShelf({
               )}
               <p className="ad-si-shelf-who">
                 <CharacterName character={them} link={false} size={34} strong />
+                <BondMarkTag mark={bonds[them.id]} className="ad-si-shelf-bond" />
                 {who.order.length > 1 && (
                   <button type="button" className="link-button small" onClick={() => setTurns((t) => ({ ...t, [rp.id]: turn + 1 }))} aria-label={`Play ${rp.title} with someone else`} data-step-in-card-next>
                     Someone else
