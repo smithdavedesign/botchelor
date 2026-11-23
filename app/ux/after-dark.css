@@ -3897,6 +3897,43 @@ fieldset.ad-si-step {
   border-color: var(--night-hot);
   background: var(--night-hot);
 }
+/* The story's dots again, at the end of the row under the newest reply (StoryHere): where the viewer is reading when a
+   beat is ticked. A quiet text button (the row's others are actions on the reply; this one only tells); pressed, what
+   they're playing for is said again on a row of its own. */
+.ad-si-under .ad-si-story-here {
+  gap: var(--space-2);
+  min-height: var(--control-h-sm);
+  margin: 0 0 0 auto;
+  padding: 0 var(--space-1);
+  color: var(--night-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.ad-si-under .ad-si-story-here:hover:not(:disabled),
+.ad-si-under .ad-si-story-here[aria-expanded="true"],
+.ad-si-under .ad-si-story-here[data-step-in-story-here="fresh"] {
+  color: var(--night-accent-text);
+}
+.ad-si-story-said {
+  flex-basis: 100%;
+  margin: 0;
+}
+/* The beat that has just been ticked: it arrives rather than appears (and simply appears where motion is turned down). */
+@media (prefers-reduced-motion: no-preference) {
+  .ad-si-story-beats > span.new {
+    animation: ad-si-beat 0.9s ease-out 2;
+  }
+}
+@keyframes ad-si-beat {
+  from {
+    box-shadow: 0 0 0 0 var(--night-hot);
+    transform: scale(1.6);
+  }
+  to {
+    box-shadow: 0 0 0 0.45rem transparent;
+    transform: scale(1);
+  }
+}
 .ad-si-ending {
   margin-block: var(--space-3);
   border-color: var(--night-hot);

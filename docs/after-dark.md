@@ -4025,6 +4025,14 @@ ran until the viewer tired of it, with nothing to play for and nothing that ever
   beats of "The neighbour next door" after two exchanges, the last of them generously, and the ending was offered
   before the scene had been a story. The viewer sees how many have played, never the beats themselves:
   they'd give the story away. **The writer's own prompt and reply are unchanged.**
+- **The dots are under the newest reply too** (`StoryHere`, at the end of the row with Continue and ↻ Again…): the
+  header, with the goal, is a screen or more up by the third reply, and a beat is ticked a moment after a reply lands,
+  so the story used to move on out of sight and the first a viewer knew of it was the ending (the last live check's
+  "playing" screenshot showed no story at all). The dot that has just been filled is marked for five seconds (it
+  arrives rather than appears; it simply appears where motion is turned down), "The story" beside it brightens for as
+  long (the words never change, so nothing in the row moves), and a screen reader is told the new count. Pressing it
+  says what they're playing for again, and how far it's got, on a row of its own. It's a plain button: nothing here
+  asks for anything or counts as anything.
 - **The ending:** once the last beat has played, a card above the composer offers **Bring it to a close**: one last
   reply from the character that lands the story (`closeStepIn`, `CLOSE_CUE`: "Don't start anything new, don't ask them
   a question"), then the scene ends and is filed exactly as End files it. **Keep going** is beside it, and once it's

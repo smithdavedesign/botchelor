@@ -409,9 +409,17 @@ describe("the routes and the page", () => {
     const playing = await page();
     expect(playing).toContain('data-step-in-story="playing" data-step-in-story-done="2"');
     expect(playing).toContain(storyGoal(NEIGHBOURS, 0, NAME)!.replace(/'/g, "&#x27;"));
-    expect(playing.match(/<span class="on"><\/span>/g)).toHaveLength(2);
     expect(playing).toContain(`aria-label="2 of ${BEATS} of the story&#x27;s beats played"`);
     expect(playing).not.toContain("data-step-in-ending");
+    // The dots are there twice: in the header with the goal, and under the newest reply, where the viewer is reading
+    // when a beat is ticked (a plain button in the reply's own row: pressed, it says the goal again). A page that
+    // arrives with two beats played marks neither as new, and the goal is said once until they ask.
+    expect(playing.match(/<span class="on"><\/span>/g)).toHaveLength(4);
+    expect(playing).not.toContain('class="on new"');
+    const under = playing.slice(playing.indexOf("data-step-in-under"), playing.indexOf("ad-si-composer"));
+    expect(under).toMatch(/<button type="button" class="link-button ad-si-story-here" aria-expanded="false" data-step-in-story-here="still" data-step-in-story-done="2">/);
+    expect(under.match(/<span class="on"><\/span>/g)).toHaveLength(2);
+    expect(playing).not.toContain("data-step-in-story-said");
     // The beats themselves are never on the page.
     for (const beat of NEIGHBOURS.card.beats) expect(playing).not.toContain(beatForReader(beat, 0, NAME).slice(0, 30));
     // The menu has a closing line always, as a plain button (it sits inside the composer's form).
