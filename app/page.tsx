@@ -62,7 +62,7 @@ import HomeClip from "./HomeClip";
 import { PROMO } from "@/lib/promo-videos";
 import HomeExpressBox from "./HomeExpressBox";
 import HomeOpen from "./HomeOpen";
-import { homeOpenOn, openKicker, openLine, openTonight, type OpenTonight } from "@/lib/home-open";
+import { homeOpenOn, homePhoneClipOn, openKicker, openLine, openTonight, type OpenTonight } from "@/lib/home-open";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = pageMetadata({ title: SITE_TITLE, description: SITE_DESCRIPTION, path: "/" });
@@ -231,6 +231,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       arc: openKicker(new Date(), seasonDef) !== null,
       line: openLine(onSeason, leads),
       lede: `${expressBox ? "Describe a character in a sentence." : "Make a character in a minute."} ${casting ? castingFirstDateLine(casting) : "They go on a blind date an AI writes."} You watch it air. Free, no sign-up.`,
+      // On a phone the clip stands on the stage, playing in the first screen (HOME_PHONE_CLIP=0: under the box again).
+      stage: homePhoneClipOn(),
     };
   })();
   const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} premiere={premiere} />;
@@ -286,16 +288,17 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </section>
       )}
       {/* A first visit's one screen (app/HomeOpen.tsx): the promise, the sentence box, the day's clip (the show's own loop
-          on a day without one), and one quiet way to watch first. */}
+          on a day without one; on a phone, on the stage in the first screen), and one quiet way to watch first. */}
       {open && (
         <HomeOpen
           arc={open.arc}
           line={open.line}
           lede={open.lede}
+          onStage={open.stage}
           box={expressBox ? <HomeExpressBox /> : null}
           clip={
             clip ? (
-              <HomeClip loopSrc={clip.loop_src} posterSrc={clip.poster_src} width={clip.width} height={clip.height} watchHref={clip.watch_href} caption={clipCaption(clip)} />
+              <HomeClip loopSrc={clip.loop_src} posterSrc={clip.poster_src} width={clip.width} height={clip.height} watchHref={clip.watch_href} caption={clipCaption(clip)} home={{ stage: open.stage }} />
             ) : (
               <HomeClip
                 loopSrc={PROMO.homeLoop.src}
@@ -306,6 +309,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                 caption="Juniper Vale × Nell Abiodun · How does it end?"
                 kicker="From the show"
                 watchLabel="Watch episodes"
+                home={{ stage: open.stage }}
               />
             )
           }
