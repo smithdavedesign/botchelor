@@ -11,6 +11,7 @@
  *    but the admin's consent on them is cleared. Account deletion (lib/account.ts) runs the same delete. A Step in
  *    scene itself is deleted from its own list (/after-dark/step-in), or with the account.
  */
+import { exportBonds } from "./step-in-bond-data";
 import { exportMemory, setMemory } from "./step-in-memory";
 import { clearNotePrefs, exportNotes } from "./step-in-notes";
 import type { Db } from "../db";
@@ -48,6 +49,8 @@ export type AdultProfileExport = {
   memory: Awaited<ReturnType<typeof exportMemory>>;
   /** Whether characters may write to them first (lib/adult/step-in-notes.ts): how often, their quiet hours and the time zone they gave. */
   notes_first: Awaited<ReturnType<typeof exportNotes>>;
+  /** How well they and each character they've stepped in with know each other (lib/adult/step-in-bond.ts): the level shown, and what it's made of. */
+  bonds: Awaited<ReturnType<typeof exportBonds>>;
 };
 
 /** Everything of the person's After Dark profile, for "Download it". */
@@ -89,6 +92,7 @@ export async function exportAdultProfile(db: Db, viewer: string): Promise<AdultP
     step_in: await exportStepIn(db, viewer),
     memory: await exportMemory(db, viewer),
     notes_first: await exportNotes(db, viewer),
+    bonds: await exportBonds(db, viewer),
   };
 }
 

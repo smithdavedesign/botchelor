@@ -31,6 +31,7 @@ import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
 import StepInMemory from "./StepInMemory";
 import { NoteMark, StepInNotesRows, useNoteSeen } from "./StepInNotes";
 import StepInPicture, { StepInFigure, StepInPictures, StepInPortraitBack } from "./StepInPicture";
+import { BondChip, BondReached } from "./StepInBond";
 import { StoryEnding, StoryLine, StoryPlayed, useStoryReading } from "./StepInStory";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -445,6 +446,8 @@ export default function StepInScene({
           <p className="ad-si-at" data-step-in-place>
             📍 {view.place.title}
           </p>
+          {/* How well the two know each other (./StepInBond.tsx): a quiet fold, with the place. It only ever goes up. */}
+          <BondChip bond={view.bond} name={name} />
           {voice && canCall && live && (
             <p className="ad-si-call-open">
               <button type="button" className="button-ghost small" onClick={() => setCalling(true)} disabled={Boolean(busy)} data-step-in-call-open>
@@ -490,6 +493,8 @@ export default function StepInScene({
           {view.opening && openingAt === view.messages.length && <Line m={{ id: "opening", role: "viewer", kind: null, text: view.opening, at: view.started_at }} name={name} />}
           {waiting && <li className="ad-si-system ad-si-writing">{name} is writing…</li>}
         </ol>
+        {/* A level reached by the reply just above: said once, in one line (lib/adult/step-in-bond.ts). */}
+        {!waiting && <BondReached bond={view.bond} name={name} />}
 
         {/* The opening never came (no model answered when the scene was made): one button draws it. */}
         {live && !last && !waiting && (

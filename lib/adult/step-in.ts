@@ -66,6 +66,8 @@ import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memor
 import { notePrefs, notePressure } from "./step-in-notes";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
 import { beatForReader, mergeBeats, parsePlayed, storedBeats, storyMessages, storyView, type StepInStory } from "./step-in-story";
+import { bondPromptLine, bondView, NO_BOND_SINCE } from "./step-in-bond";
+import { bondOf, markBondShown } from "./step-in-bond-data";
 import {
   placeInSentence,
   REDRAW_PRESETS,
@@ -578,8 +580,8 @@ function roleplayView(pick: SceneRow["roleplay"], characterName: string): StepIn
   };
 }
 
-async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
-  const [found, rows, drawn, who, left, eligible, remembering, facts, notes, admin] = await Promise.all([
+async function viewOf(db: Db, s: SceneRow, o: { read?: boolean } = {}): Promise<StepInSceneView> {
+  const [found, rows, drawn, who, left, eligible, remembering, facts, notes, admin, known] = await Promise.all([
     characterRef(db, s.character_id),
     allMessages(db, s.id),
     drawnSets(db),
@@ -590,6 +592,9 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     countFacts(db, s.owner_id, s.character_id).catch(() => 0),
     notePrefs(db, s.owner_id),
     isAdmin(db, s.owner_id).catch(() => false),
+    // How well the two know each other (lib/adult/step-in-bond.ts): worked out here, and the most it has ever been
+    // lifted to it, so a scene deleted later can't lower it. A failure reads as strangers, never as an error.
+    bondOf(db, s.owner_id, s.character_id).catch(() => ({ bond: bondView(0, 0, NO_BOND_SINCE), shown: Number.MAX_SAFE_INTEGER })),
   ]);
   // A character who has since been deleted: the scene stays readable (and deletable), under a name that says so.
   const character = found ?? { id: s.character_id, name: GONE_NAME, portrait: null, hue: null };
@@ -626,8 +631,22 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     memory: { on: remembering, facts },
     notes: { on: notes.pace !== null, scene_off: s.notes_off === true, waiting: Boolean(s.note_at) && !s.ended_at, try_now: admin && live },
     story: storyOf(s, rows, character.name, live),
+    bond: await bondSaid(db, s, known, { told: !o.read && live && last?.role === "character" }),
     started_at: iso(s.created_at)!,
   };
+}
+
+/**
+ * The level as this view shows it. A level that has just been reached is said once, under the reply whose response
+ * this is (`told`: a reply stands in a running scene, and this isn't a page being read): it's marked as said in the
+ * same breath, so a reload, the next reply and another device never say it again. A page that's only read says
+ * nothing and uses nothing up, so the next reply still can. Strangers are never announced.
+ */
+async function bondSaid(db: Db, s: Pick<SceneRow, "owner_id" | "character_id">, known: Awaited<ReturnType<typeof bondOf>>, o: { told: boolean }): Promise<StepInSceneView["bond"]> {
+  const { bond, shown } = known;
+  if (!o.told || bond.level < 2 || bond.level <= shown) return bond;
+  await markBondShown(db, s.owner_id, s.character_id, bond.level, bond.points).catch(() => {});
+  return { ...bond, reached: true };
 }
 
 /**
@@ -650,9 +669,9 @@ function storyOf(s: SceneRow, rows: readonly MessageRow[], characterName: string
  */
 export type StepInSend = { ok: true; view: StepInSceneView; replied?: false; message?: string } | StepInFail;
 
-async function sent(db: Db, s: SceneRow, extra: { replied?: false; message?: string } = {}): Promise<StepInSend> {
+async function sent(db: Db, s: SceneRow, extra: { replied?: false; message?: string } = {}, o: { read?: boolean } = {}): Promise<StepInSend> {
   const fresh = await ownScene(db, s.owner_id, s.id);
-  return fresh ? { ok: true, view: await viewOf(db, fresh), ...extra } : NOT_FOUND;
+  return fresh ? { ok: true, view: await viewOf(db, fresh, o), ...extra } : NOT_FOUND;
 }
 
 /**
@@ -711,7 +730,8 @@ export async function ideasScene(db: Db, viewer: string, sceneId: string, now: D
 /** The scene as its page shows it. */
 export async function getStepInScene(db: Db, viewer: string, sceneId: string): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
-  return s ? sent(db, s) : NOT_FOUND;
+  // A page being read: nothing is announced from here (lib/adult/step-in-bond.ts: a level is said under a reply).
+  return s ? sent(db, s, {}, { read: true }) : NOT_FOUND;
 }
 
 /** The viewer's scenes for the set-up page: the ones still running (the latest first), then the ones they ended. */
@@ -765,6 +785,8 @@ type DrawContext = {
   earlier: string[];
   /** What the character remembers about the viewer, when they have memory on (lib/adult/step-in-memory.ts). */
   facts: string[];
+  /** How well the two know each other, as the character is told it (lib/adult/step-in-bond.ts bondPromptLine); null for a first scene. */
+  bond: string | null;
 };
 
 const turnOf = (m: MessageRow): StepInTurn =>
@@ -781,12 +803,14 @@ async function earlierScenes(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "char
 }
 
 async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], replacing: readonly string[] = []): Promise<DrawContext | null> {
-  const [character, drawn, persona, earlier, facts] = await Promise.all([
+  const [character, drawn, persona, earlier, facts, known] = await Promise.all([
     sceneCharacter(db, s.character_id),
     drawnSets(db),
     adultPersona(db, s.owner_id),
     earlierScenes(db, s),
     factsForPrompt(db, s.owner_id, s.character_id).catch(() => [] as string[]),
+    // Read only (the view lifts what's kept): a failure tells the character nothing, as for strangers.
+    bondOf(db, s.owner_id, s.character_id, { lift: false }).catch(() => null),
   ]);
   if (!character) return null;
   const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
@@ -801,6 +825,7 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     said: current.filter((m) => m.role === "character" && !isAside(m)).map((m) => m.text).reverse().slice(0, 150),
     earlier,
     facts,
+    bond: known ? bondPromptLine(known.bond, { roleplay: Boolean(rp && s.roleplay) }) : null,
   };
 }
 
@@ -869,6 +894,7 @@ async function draw(
       recap: s.recap,
       earlier: ctx.earlier,
       facts: ctx.facts,
+      bond: ctx.bond,
       // The opening is for the scene's first reply only.
       opening: opening ? s.opening : null,
       cue: o.cue,

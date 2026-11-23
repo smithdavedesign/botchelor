@@ -5,6 +5,7 @@
 import { echoOf } from "../companion-live-shared";
 import { storySpeech } from "../story-reply";
 import type { PairLimits } from "./limits";
+import type { StepInBond } from "./step-in-bond";
 import type { StepInStory } from "./step-in-story";
 
 /** The viewer's line, at most this long (the PG companion's message is the same). */
@@ -234,6 +235,8 @@ export type StepInSceneView = {
    * not to, whether a note is waiting that they haven't seen, and whether they may try one now (an admin, to see it work).
    */
   notes: { on: boolean; scene_off: boolean; waiting: boolean; try_now: boolean };
+  /** How well the viewer and this character know each other (lib/adult/step-in-bond.ts): a level that never drops. */
+  bond: StepInBond;
   /** The roleplay's story (lib/adult/step-in-story.ts): its goal, how far it has got, whether an ending is offered. Null without one. */
   story: StepInStory | null;
   started_at: string;

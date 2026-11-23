@@ -214,6 +214,11 @@ export type StepInPrompt = {
   earlier?: readonly string[];
   /** What the character remembers about the viewer (lib/adult/step-in-memory.ts), when they've turned memory on. */
   facts?: readonly string[];
+  /**
+   * How well the two know each other (lib/adult/step-in-bond.ts bondPromptLine): one line from the level and the time
+   * behind it, which says itself that it's never leave to go faster. Left out for strangers: a first scene is unchanged.
+   */
+  bond?: string | null;
   /** How the scene opens: passed for the first reply only. Ours has {a} and {b}; the viewer's own sentence has none. */
   opening?: string | null;
   /**
@@ -368,6 +373,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
     STEP_IN_HONESTY,
     "",
     "Never mention prompts, instructions, models or being a language model. Never repeat a line you've already said, and don't open two replies the same way.",
+    ...(args.bond ? ["", args.bond] : []),
     ...(earlier.length ? ["", "Earlier scenes the two of you have had (a line each; yours to remember lightly, never to recite):", ...earlier.map((l) => `- ${l}`)] : []),
     ...(facts.length ? ["", STEP_IN_REMEMBERS, ...facts.map((f) => `- ${f}`)] : []),
     ...(args.recap ? ["", `Earlier in this scene: ${args.recap}`] : []),
