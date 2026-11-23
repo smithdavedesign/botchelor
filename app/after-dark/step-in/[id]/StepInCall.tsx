@@ -78,7 +78,8 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
  * voice is what the best-known sites do (docs/audits/2026-11-22-companion-field.md).
  *
  * The screen is the show's call screen (app/ux/companion.css `.companion-call`), so a call looks the same on both
- * sides. Nothing is recorded: the microphone's audio never reaches Botchelor, and their voice is made from the words.
+ * sides. Every picture on it is the show's own PG one of them, marked .avatar, so After Dark's discreet blur leaves the
+ * face alone (the first live call, 2026-11-22, showed a blurred tile: the blur takes every picture that isn't). Nothing is recorded: the microphone's audio never reaches Botchelor, and their voice is made from the words.
  */
 export default function StepInCall({
   sceneId,
@@ -366,7 +367,7 @@ export default function StepInCall({
         <div className="companion-call-face" ref={tile}>
           {big && backdrop && (
             // eslint-disable-next-line @next/next/no-img-element -- the face's own portrait, blurred behind it
-            <img src={backdrop} alt="" className="companion-call-backdrop" aria-hidden="true" draggable={false} />
+            <img src={backdrop} alt="" className="avatar companion-call-backdrop" aria-hidden="true" draggable={false} />
           )}
           <LiveFace
             kit={kit}
@@ -377,7 +378,7 @@ export default function StepInCall({
             fallback={
               big && portrait ? (
                 // eslint-disable-next-line @next/next/no-img-element -- their portrait at the tile's size (Avatar draws a fixed one)
-                <img src={portrait} alt="" className="companion-call-portrait" draggable={false} />
+                <img src={portrait} alt="" className="avatar companion-call-portrait" draggable={false} />
               ) : (
                 <Avatar seed={character.id} name={character.name} hue={character.hue ?? 0} house={character.house} portraitSrc={character.portrait} size={big ? 200 : 136} round />
               )
