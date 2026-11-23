@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "@/lib/adult/limits";
+import { mediaRefusal } from "@/lib/adult/place";
 import {
   carryOnStepIn,
   continueStepIn,
@@ -29,6 +30,9 @@ export const maxDuration = 300;
 const Action = z.discriminatedUnion("action", [
   // What the viewer says and does: checked (lib/adult/step-in.ts) before it's kept, then the character answers.
   z.object({ action: z.literal("send"), text: z.string().max(STEP_IN_LINE_MAX * 2) }),
+  // What the viewer said out loud on a call (the words the browser heard): the same checks, and the character answers
+  // out loud (a few spoken sentences; its voice is the voice route's).
+  z.object({ action: z.literal("say"), text: z.string().max(STEP_IN_LINE_MAX * 2) }),
   // The newest reply drawn again (the earlier draws kept), and flipping through the draws kept (free).
   z.object({ action: z.literal("regenerate") }),
   z.object({ action: z.literal("swipe"), to: z.enum(["prev", "next"]) }),
@@ -75,7 +79,7 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
   return r.ok ? json({ scene: r.view }) : hidden();
 });
 
-/** One move in a scene (lib/adult/step-in.ts). A reply counts one of the month's scene steps; a swipe, a move and the rest are free. */
+/** One move in a scene (lib/adult/step-in.ts). A reply counts one of the month's scene steps, written or said out loud; a swipe, a move and the rest are free. */
 export const POST = handle(async (req: Request, ctx: Ctx) => {
   const { id } = await ctx.params;
   const db = await getDb();
@@ -87,6 +91,13 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     case "send":
       r = await sendStepInLine(db, viewer, id, input.text);
       break;
+    case "say": {
+      // A call is voice: not where only text is allowed (lib/adult/place.ts), like the voice route itself.
+      const refused = await mediaRefusal(db, viewer);
+      if (refused) return refused;
+      r = await sendStepInLine(db, viewer, id, input.text, new Date(), { call: true });
+      break;
+    }
     case "regenerate":
       r = await regenerateStepIn(db, viewer, id);
       break;
@@ -113,7 +124,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
   }
   // The rolling recap, past the response, once the scene is long (never in the way of a reply).
-  if (r.ok && (input.action === "send" || input.action === "continue" || input.action === "regenerate")) inBackground(() => stepInFollowUp(db, id));
+  if (r.ok && (input.action === "send" || input.action === "say" || input.action === "continue" || input.action === "regenerate")) inBackground(() => stepInFollowUp(db, id));
   return answer(db, viewer, id, r);
 });
 

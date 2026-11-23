@@ -22,6 +22,8 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 /** Room for a reply: up to four paragraphs, and a thinking writer's thinking before them (the caller adds its own). */
 export const STEP_IN_REPLY_TOKENS = storyModeTokens("long");
+/** Room for a reply said out loud: a few short sentences. */
+export const STEP_IN_CALL_TOKENS = 260;
 /** The turns of the scene a reply's prompt carries. */
 export const STEP_IN_TURNS = 30;
 
@@ -75,6 +77,26 @@ export const STEP_IN_KEEP_OUT =
 /** Honest about what it is (New York GBL Art. 47 and California SB 243 are written for exactly this kind of scene). */
 export const STEP_IN_HONESTY =
   "Be honest about what you are: an AI character in a piece of fiction. If they sincerely ask whether you are real, step out of the story for a sentence, say plainly that you are an AI character and that this is fiction, then carry on. Never suggest meeting, never claim a body or a life outside this scene, and never say you remember anything you weren't told. If they seem to be in real trouble or talk about hurting themselves, being kind matters more than the scene: say you care and that there is help in the app.";
+
+/**
+ * A call (David, 2026-11-22: "we should have the ability to live call in after dark"): the same scene, said out loud.
+ * The viewer speaks and the character answers in its own voice, so a reply is only what the character says: nothing
+ * else can be voiced, and narration read out in a character's voice is nobody talking. Everything else in the prompt
+ * (its will and consent, the pace, the limits, the lines, honesty) is the scene's own and unchanged.
+ */
+export const STEP_IN_CALL =
+  "Right now the two of you are talking out loud: they speak, and you answer in your own voice. Everything you write is said aloud, and it is all they get: no narration, no description of what you do or how you look, no stage directions, no asterisks, brackets or emoji. If something happens that they should know about, say it the way you would to someone who can only hear you.";
+/** How long a spoken reply is. */
+export const STEP_IN_CALL_LENGTH = "One to three short sentences, the way people actually talk: plain words, contractions, at most one question. Never a list and never a speech.";
+/** A spoken reply's shape (every call to the model is in JSON mode: lib/model.ts). */
+export const STEP_IN_CALL_ANSWER = 'Reply with a JSON object and nothing else: {"say": "what you say out loud"}';
+/** The user turn that tells a spoken line from a written one. */
+export const CALL_CUE = "(They said that out loud. Answer out loud: only what you say.)";
+
+/** How a spoken reply is made: the call's rules where a written reply has story mode's. */
+export function stepInCallCraft(): string[] {
+  return [STEP_IN_CALL, STEP_IN_CALL_LENGTH, STEP_IN_NEVER_WRITE, "Never say you can't be heard or seen, and never read out punctuation or a name for the call itself. Speak English."];
+}
 
 /** How long a reply is (the brief: two to four short paragraphs), in place of story mode's own count. */
 export const STEP_IN_PARAGRAPHS = "Two to four short paragraphs, a few sentences each. No headings, no lists, no asterisks.";
@@ -174,6 +196,8 @@ export type StepInPrompt = {
   insteadOf?: string | null;
   /** Why the last draft couldn't be used, in a few words and never the draft itself: this one avoids it. */
   avoid?: string | null;
+  /** "call": the reply is said out loud (stepInCallCraft), in answer to a line the viewer spoke. Left out: prose. */
+  form?: "call" | null;
 };
 
 const OPENS = (opening: string | null) => (opening ? ` It opens like this: ${opening} Play your own part of that; whatever your scene partner does in it is theirs to play.` : "");
@@ -224,9 +248,12 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   const persona = args.persona?.name ? args.persona : null;
   const viewerIs = args.roleplay?.you === 1 ? "b" : "a";
   const earlier = (args.earlier ?? []).filter(Boolean);
+  const call = args.form === "call";
   const sheet = sheetLines(c);
   const system = [
-    `You are ${c.name}, ${c.age}${c.pronouns ? `, ${c.pronouns}` : ""}: a fictional adult, a character in Botchelor's After Dark. Tonight is a private scene between you and one person, the two of you imagining you are both at ${place.label}. It is a story you tell together: they write what they say and do, and you write your side of it.`,
+    `You are ${c.name}, ${c.age}${c.pronouns ? `, ${c.pronouns}` : ""}: a fictional adult, a character in Botchelor's After Dark. Tonight is a private scene between you and one person, the two of you imagining you are both at ${place.label}. It is a story you tell together: ${
+      call ? "so far they have written what they say and do and you have written your side of it, and now you are talking" : "they write what they say and do, and you write your side of it"
+    }.`,
     "",
     "Your sheet:",
     ...sheet.map((l) => `- ${l}`),
@@ -244,9 +271,9 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
     "",
     STEP_IN_WILL,
     "",
-    "How it's written:",
-    ...stepInCraft(c.name, c.pronouns).map((rule) => `- ${rule}`),
-    STORY_MODE_ANSWER,
+    ...(call
+      ? ["How you answer:", ...stepInCallCraft().map((rule) => `- ${rule}`), STEP_IN_CALL_ANSWER]
+      : ["How it's written:", ...stepInCraft(c.name, c.pronouns).map((rule) => `- ${rule}`), STORY_MODE_ANSWER]),
     "",
     STEP_IN_RATING,
     "",
@@ -288,6 +315,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   };
   if (cue) say(cue);
   else if (messages[messages.length - 1].role !== "user") say("(They're waiting for your reply.)");
+  if (call) say(CALL_CUE);
   if (args.avoid) say(`(Your last draft couldn't be used: ${args.avoid}. Write this reply again without that.)`);
   return messages;
 }
