@@ -3964,7 +3964,8 @@ with something easy to answer. `lib/adult/step-in-notes.ts` (the choice, the dec
   isn't tried every hour. Bounded three ways: 25 notes a run, 150 seconds of starting new ones, and 300 notes across
   the site in any 24 hours.
 - **Running it**: `GET /api/jobs/step-in-notes` on After Dark's host (the scheduler's secret or the internal token; 404
-  otherwise). The scheduler's spec (`.do/app.yaml`) reaches the live app only by hand, so until it has a line of its
+  otherwise). The route is on that host's own list (`AFTER_DARK_HOST_APIS`, `lib/after-dark-host.ts`) since the first
+  time it was called there, 2026-11-23: until then that host answered 307 to the show, like any API it doesn't keep. The scheduler's spec (`.do/app.yaml`) reaches the live app only by hand, so until it has a line of its
   own the same pass rides along on the two routes it already calls there every hour: `showcase-check`, and
   `after-dark-daily` at 16 UTC (`NOTES_RIDE_ALONG`: 10 notes and 60 seconds, since it shares those routes' five
   minutes). A pass that fails never fails the job it rides on.
