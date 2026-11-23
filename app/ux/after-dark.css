@@ -3934,7 +3934,58 @@ fieldset.ad-si-step {
   }
 }
 .ad-char-card {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+}
+/* With Step in open to the viewer, a card's one button sits under its link, joined to it as one card
+   (app/after-dark/step-in/StepInButton.tsx): the link loses its bottom edge and the button's strip carries it. */
+.after-dark-mode .ad-char-card.has-ways a.ad-char-link {
+  flex: 1 1 auto;
+  height: auto;
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.ad-char-step {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: stretch;
+  padding: 0 var(--space-3) var(--space-3);
+  border: 1px solid var(--ad-line);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--ad-card);
+  transition: border-color 0.15s ease;
+}
+.ad-char-card.has-ways:hover .ad-char-step,
+.ad-char-card.has-ways:focus-within .ad-char-step,
+.after-dark-mode .ad-char-card.has-ways:hover a.ad-char-link,
+.after-dark-mode .ad-char-card.has-ways:focus-within a.ad-char-link {
+  border-color: var(--ad-accent);
+}
+.ad-char-step > .button {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+.after-dark-mode a.ad-char-setup {
+  justify-self: center;
+  color: var(--ad-muted);
+  font-size: var(--text-xs);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.after-dark-mode a.ad-char-setup:hover,
+.after-dark-mode a.ad-char-setup:focus-visible {
+  color: var(--ad-ink);
+}
+.ad-step-in-error {
+  display: block;
+}
+@media (max-width: 40rem) {
+  .ad-char-step {
+    padding: 0 var(--space-2) var(--space-2);
+  }
 }
 .after-dark-mode a.ad-char-link {
   display: grid;
@@ -4075,6 +4126,10 @@ fieldset.ad-si-step {
 }
 .after-dark .ad-char-ways {
   margin: var(--space-4) 0 var(--space-2);
+}
+.after-dark .ad-char-setup-line {
+  margin: 0 0 var(--space-2);
+  max-width: 44rem;
 }
 .ad-char-page .showcase-grid {
   margin-top: 0;

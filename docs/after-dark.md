@@ -3571,6 +3571,24 @@ the crisis list, the model client, the text checks.
 **The way in.** A "Step in" tile on the hub and a row on the pair picker ("Or step in yourself, with …"), both only
 where it's open to the viewer.
 
+**One click** (2026-11-22; David: "make it so the characters page in nsfw all have similar ux to the characters page on
+sfw where it's one click step in, but still allow for role play"). The show's Characters page has "Text {name}" on
+every card; After Dark's now has **Step in** on every card and at the top of every character's page
+(`app/after-dark/step-in/StepInButton.tsx`), where Step in is open to the viewer:
+- **With a scene already running with them** it reads **Continue** and is a plain link back into it (`runningStepIns`:
+  the latest unended scene per character).
+- **Otherwise** it posts `{character_id, quick: true}` (`quickStepIn`): a new scene with nothing to choose first, at the
+  character's own place (`QUICK_PLACE`, private, so nothing is held to a kiss), no roleplay, any of the three generic
+  openings. The scene is made **without its opening and without a model call**, so the click lands on the scene at
+  once; its page (`?open=1`) has the character open it as it arrives (the same `continue` that draws an opening that
+  never came: one scene step, as an opening always is), then drops the `?open=1` from the address so a reload never
+  asks twice. The same eligibility and the month's cap as any start.
+- **Roleplay is one step away, not gone:** "Roleplay or place" under each card's button, "set the scene first" on a
+  character's page and "🎭 A roleplay or a new scene with {name}" in a scene's ⋯ menu all open the set-up page with them
+  picked (`/after-dark/step-in?with=<id>`), and a running scene can still move somewhere else.
+The competitor read behind it ([audits/2026-11-22-companion-field.md](audits/2026-11-22-companion-field.md)): on every
+top companion site the catalog's card opens the chat directly; a profile or a set-up step first is the exception.
+
 **Set-up** (`/after-dark/step-in`, one page, four small steps; `startStepIn`):
 1. **Who:** anyone the viewer may have in a pair (`eligibleIds`: the house cast, the agent cast that passed After
    Dark's check, their own switched-in characters). Never anyone else's.
@@ -3709,7 +3727,8 @@ own download (`exportAdultProfile`, `step_in`), and "Delete it" there puts every
 the consent with them.
 
 **Routes.** `GET /api/admin/after-dark/step-in` (the viewer's scenes, and who they may step in with), `POST` there
-(start: `character_id`, `place`, `roleplay: {id, you}`, `opening: 0|1|2|"surprise"|{written}`);
+(start: `character_id`, `place`, `roleplay: {id, you}`, `opening: 0|1|2|"surprise"|{written}`; or one click:
+`{character_id, quick: true}` → `{id, resumed}`);
 `GET|POST|DELETE /api/admin/after-dark/step-in/<id>` (`action`: `send`, `regenerate`, `swipe`, `continue`,
 `take_back`, `limits`, `move`, `end`, `carry_on`).
 
@@ -3726,7 +3745,8 @@ its door says **Who's in** (it was "Characters", the old name of that page: `lib
   someone else's private character whatever put its id in the list (`lib/adult/character-list.ts peopleOf`).
 - **The grid** (`/after-dark/characters`): a tall card each with the face After Dark keeps for this viewer (their
   `adult_face_refs` picture, under the discreet blur; else the show's PG portrait, which the blur leaves alone), the
-  name, up to two type tags, a two-line bio, and the viewer's nights and pictures with them. Search by name, Everyone ·
+  name, up to two type tags, a two-line bio, and the viewer's nights and pictures with them. Under each card, where
+  Step in is open to the viewer, its one button: **Step in** (or **Continue**), and "Roleplay or place". Search by name, Everyone ·
   House cast · Yours where that splits the cast, and the type tags this cast has. Theirs under way first, then A to Z.
   Two to a row on a phone.
 - **Small pages.** Filtering and paging happen on the server (`?q=&whose=&tag=&page=`, 36 a page), and faces and picture
@@ -3734,9 +3754,11 @@ its door says **Who's in** (it was "Characters", the old name of that page: `lib
 - **A character's page** (`/after-dark/characters/<id>`): their PG portrait standing as Step in's figure does
   (`app/stage/CharacterFigure.tsx`: cut out of its background where the zone makes cutouts, else faded at its edges),
   name, tags and bio, then the ways in:
+  - **Step in with them**, only where Step in is open to the viewer: one click into a scene with them, or
+    **Continue** back into the one that's running (above, "One click"), with a line under it linking the set-up page
+    for a roleplay, a place or a written opening;
   - **A night with them** opens the hub's picker with them picked (`/after-dark?with=<id>#scenes`, `PairPicker`'s
-    `preselect`);
-  - **Step in** shows only where Step in is open to the viewer.
+    `preselect`).
   - Then three sections:
     - **Your nights with them** (the hub's Continue cards, `NightList`, only nights whose two are both still in);
     - **Yours of them** (`ownMedia` with `character`);

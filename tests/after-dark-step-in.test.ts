@@ -17,6 +17,8 @@ vi.mock("next/navigation", async (original) => ({
 }));
 import type { ReactElement } from "react";
 import { prerender } from "react-dom/static";
+import AfterDarkCharacterPage from "@/app/after-dark/characters/[id]/page";
+import AfterDarkCharactersPage from "@/app/after-dark/characters/page";
 import AfterDarkHome from "@/app/after-dark/page";
 import StepInScenePage from "@/app/after-dark/step-in/[id]/page";
 import StepInSetupPage from "@/app/after-dark/step-in/page";
@@ -40,7 +42,10 @@ import {
   lineLimitRefusal,
   moveStepIn,
   noticeDue,
+  QUICK_PLACE,
+  quickStepIn,
   regenerateStepIn,
+  runningStepIns,
   saveStepInLimits,
   sendStepInLine,
   setStepInRandomForTests,
@@ -402,6 +407,126 @@ describe("setting it up", () => {
     expect(made.view.opening).toBe("I am halfway through a crossword when she sits down.");
     const b = await admin();
     expect((await start(b.id, { place: CAFE, opening: 0 })).view.opening).toBeNull();
+  });
+});
+
+describe("one click", () => {
+  it("makes a scene at the character's own place with nothing to choose and no model asked; the page has the character open it, one step", async () => {
+    const seen = scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const q = await quickStepIn(t.db, a.id, WHO);
+    expect(q).toMatchObject({ ok: true, resumed: false });
+    const id = (q as { id: string }).id;
+    // Nothing was drawn and nothing counted: the click lands on the scene at once.
+    expect(seen.prompts).toHaveLength(0);
+    expect(await writes(a.id)).toBe(0);
+    let view = await viewOf(a.id, id);
+    expect(view.place.id).toBe(QUICK_PLACE);
+    expect(view.place.public).toBe(false);
+    expect(view.roleplay).toBeNull();
+    expect(view.opening).toBeNull();
+    // The AI notice is already there; nothing has been said.
+    expect(view.messages.map((m) => m.kind)).toEqual(["notice"]);
+    expect(view.messages[0].text).toBe(stepInNotice(NAME));
+    expect(said(view)).toEqual([]);
+    // The page asks for the opening (Continue with nothing said is the opening that's due): one scene step.
+    const opened = await continueStepIn(t.db, a.id, id);
+    expect(opened.ok).toBe(true);
+    view = await viewOf(a.id, id);
+    expect(said(view)).toEqual(["character"]);
+    expect(seen.prompts).toHaveLength(1);
+    expect(lastUser(seen.prompts[0])).toMatch(/^\(The two of you have just got to your place\./);
+    expect(lastUser(seen.prompts[0])).toContain("Open the scene");
+    expect(lastUser(seen.prompts[0])).not.toBe(CONTINUE_CUE);
+    expect(await writes(a.id)).toBe(1);
+  });
+
+  it("goes back into the scene that's running with them, and makes a new one only once that one has ended", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const first = await start(a.id, { place: CAFE });
+    expect(await quickStepIn(t.db, a.id, WHO)).toEqual({ ok: true, id: first.id, resumed: true });
+    expect(await count("adult_step_in_scenes")).toBe(1);
+    expect([...(await runningStepIns(t.db, a.id))]).toEqual([[WHO, first.id]]);
+    // Someone else in the cast has no scene running: theirs is new.
+    const other = HOUSE_CHARACTERS[1].id;
+    const q = await quickStepIn(t.db, a.id, other);
+    expect(q).toMatchObject({ ok: true, resumed: false });
+    expect(new Map(await runningStepIns(t.db, a.id)).get(other)).toBe((q as { id: string }).id);
+    // Ended: the next click starts another, and it remembers the last in a line (endStepIn's).
+    await endStepIn(t.db, a.id, first.id);
+    const again = await quickStepIn(t.db, a.id, WHO);
+    expect(again).toMatchObject({ ok: true, resumed: false });
+    expect((again as { id: string }).id).not.toBe(first.id);
+    expect(new Map(await runningStepIns(t.db, a.id)).get(WHO)).toBe((again as { id: string }).id);
+    // Another viewer's running scenes are never theirs to pick up.
+    const b = await admin();
+    expect((await runningStepIns(t.db, b.id)).size).toBe(0);
+    expect(await quickStepIn(t.db, b.id, WHO)).toMatchObject({ ok: true, resumed: false });
+  });
+
+  it("is refused for someone who isn't in their After Dark, and when the month's steps are used; nothing is made", async () => {
+    scripted();
+    await saveAdultSettings(t.db, { caps: { writes: 1 }, rollout: { companion: "everyone" } });
+    const sub = await subscriber();
+    const stranger = (await (await api.createCharacter(validCharacter({ name: "Not In Here" }), signedInCookie(randomUUID()))).json()).id as string;
+    expect(await quickStepIn(t.db, sub.id, stranger)).toMatchObject({ ok: false, status: 404 });
+    expect(await quickStepIn(t.db, sub.id, "nobody-at-all")).toMatchObject({ ok: false, status: 404 });
+    expect(await count("adult_step_in_scenes")).toBe(0);
+    // One step a month, used by a first scene's opening.
+    await start(sub.id);
+    await endStepIn(t.db, sub.id, (await runningStepIns(t.db, sub.id)).get(WHO)!);
+    expect(await quickStepIn(t.db, sub.id, WHO)).toMatchObject({ ok: false, status: 429, error: "capped" });
+    expect(await count("adult_step_in_scenes")).toBe(1);
+  });
+
+  it("the route: quick with only who, closed like the rest; the Characters page has the button on every card, Continue where a scene is running", async () => {
+    const seen = scripted();
+    await saveAdultSettings(t.db, {});
+    const sub = await subscriber();
+    const quick = (cookie: string, character_id = WHO) => setupPost(post("/api/admin/after-dark/step-in", { character_id, quick: true }, cookie));
+    expect((await quick(sub.cookie)).status).toBe(404);
+    // Closed to them: the grid and a character's page have no way in.
+    let grid = await html(await AfterDarkCharactersPage({ searchParams: Promise.resolve({}) }));
+    expect(grid).toContain(`data-character="${WHO}"`);
+    expect(grid).not.toContain("data-character-step-in");
+    expect(grid).not.toContain("/after-dark/step-in");
+
+    const a = await admin();
+    grid = await html(await AfterDarkCharactersPage({ searchParams: Promise.resolve({}) }));
+    // One button a card, and the set-up page beside it for a roleplay or a place.
+    expect(grid.match(/data-character-step-in/g)).toHaveLength(grid.match(/class="ad-char-card has-ways"/g)!.length);
+    expect(grid).toContain('data-step-in-quick="start"');
+    expect(grid).not.toContain('data-step-in-quick="resume"');
+    expect(grid).toContain(`aria-label="Step in with ${NAME}"`);
+    expect(grid).toContain(`href="/after-dark/step-in?with=${WHO}"`);
+    expect(grid).toContain("Step in puts you in a scene with them in one click.");
+    let profile = await html(await AfterDarkCharacterPage({ params: Promise.resolve({ id: WHO }) }));
+    expect(profile).toContain(`>Step in with ${NAME}</button>`);
+    expect(profile).toContain(`href="/after-dark/step-in?with=${WHO}"`);
+
+    const made = await quick(a.cookie);
+    expect(made.status).toBe(200);
+    const body = (await made.json()) as { id: string; resumed: boolean };
+    expect(body.resumed).toBe(false);
+    expect(seen.prompts).toHaveLength(0);
+    expect(await (await quick(a.cookie)).json()).toEqual({ id: body.id, resumed: true });
+    expect((await quick(a.cookie, "nobody-at-all")).status).toBe(404);
+    expect((await setupPost(post("/api/admin/after-dark/step-in", { quick: true }, a.cookie))).status).toBe(422);
+    // Their card and their page now go straight back into it.
+    grid = await html(await AfterDarkCharactersPage({ searchParams: Promise.resolve({}) }));
+    expect(grid).toContain(`href="/after-dark/step-in/${body.id}"`);
+    expect(grid).toContain(`aria-label="Continue your scene with ${NAME}"`);
+    profile = await html(await AfterDarkCharacterPage({ params: Promise.resolve({ id: WHO }) }));
+    expect(profile).toContain(`href="/after-dark/step-in/${body.id}"`);
+    expect(profile).toContain(`Continue with ${NAME}`);
+    // The scene's page, come to by the click: nothing said yet, and the way to a roleplay in its menu.
+    const page = await html(await StepInScenePage({ params: Promise.resolve({ id: body.id }), searchParams: Promise.resolve({ open: "1" }) }));
+    expect(page).toContain(STEP_IN_TAGLINE);
+    expect(page).toContain("data-step-in-new");
+    expect(page).toContain(`href="/after-dark/step-in?with=${WHO}"`);
   });
 });
 

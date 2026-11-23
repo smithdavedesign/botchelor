@@ -10,16 +10,18 @@ import StepInScene from "./StepInScene";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Step in · After Dark · Botchelor", robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams?: Promise<{ open?: string }> };
 
 /**
  * One Step in scene (lib/adult/step-in.ts): the place's backdrop behind a reading-size column of prose, the character
  * standing beside it (their portrait cut out of its background when the zone makes cutouts: lib/cutout.ts), the
  * viewer's lines set apart, the composer at the bottom. The whole screen wide (.page-full), so the figure stands at its
- * right edge. Its viewer's alone, and not found for anyone Step in isn't open to.
+ * right edge. Its viewer's alone, and not found for anyone Step in isn't open to. `?open=1` (one click from a
+ * character's card: app/after-dark/step-in/StepInButton.tsx) has the character open a scene nothing has been said in.
  */
-export default async function StepInScenePage({ params }: Props) {
+export default async function StepInScenePage({ params, searchParams }: Props) {
   const { id } = await params;
+  const autoOpen = (await searchParams)?.open === "1";
   const db = await getDb();
   const viewer = await stepInViewerFromCookies(db, await cookies());
   if (!viewer) notFound();
@@ -33,7 +35,7 @@ export default async function StepInScenePage({ params }: Props) {
   const cutout = (await stageCutout(db, portrait)) ?? ((await cutoutsReady()) ? cutoutUrl(portrait) : null);
   return (
     <div className="after-dark-mode ad-si-page page-full">
-      <StepInScene initial={scene.view} places={places} cutout={cutout} personaHref={`${showHome().replace(/\/$/, "")}/account#persona`} />
+      <StepInScene initial={scene.view} places={places} cutout={cutout} personaHref={`${showHome().replace(/\/$/, "")}/account#persona`} autoOpen={autoOpen} />
     </div>
   );
 }

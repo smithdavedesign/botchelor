@@ -82,8 +82,23 @@ function Line({ m, name }: { m: StepInMessageView; name: string }) {
  * The character stands in the scene with them (app/stage/CharacterFigure.tsx; joi.com's chat, 2026-11-20): on a wide
  * screen at the right edge, the column moved over to make room; on a tablet behind the column's right side; on a
  * phone behind everything, the night drawn over it so the prose stays readable (app/ux/after-dark.css, "Step in").
+ *
+ * `autoOpen`: the viewer came by one click (app/after-dark/step-in/StepInButton.tsx, `?open=1`), so the scene was made
+ * without its opening; the character opens it as the page arrives, once, and the address loses the `?open=1`.
  */
-export default function StepInScene({ initial, places, personaHref, cutout = null }: { initial: StepInSceneView; places: { id: string; title: string; public: boolean }[]; personaHref: string; cutout?: string | null }) {
+export default function StepInScene({
+  initial,
+  places,
+  personaHref,
+  cutout = null,
+  autoOpen = false,
+}: {
+  initial: StepInSceneView;
+  places: { id: string; title: string; public: boolean }[];
+  personaHref: string;
+  cutout?: string | null;
+  autoOpen?: boolean;
+}) {
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [text, setText] = useState("");
@@ -126,8 +141,11 @@ export default function StepInScene({ initial, places, personaHref, cutout = nul
   }
 
   /** One move (app/api/admin/after-dark/step-in/[id]): the scene as it stands comes back with a refusal too. Whether it went through. */
+  const acting = useRef(false);
   async function act(body: Action): Promise<boolean> {
-    if (busy) return false;
+    // The ref as well as the state: two moves asked for in the same tick (the opening, as the page arrives) are one.
+    if (busy || acting.current) return false;
+    acting.current = true;
     setBusy(body.action);
     setError(null);
     try {
@@ -151,9 +169,27 @@ export default function StepInScene({ initial, places, personaHref, cutout = nul
       setError("That didn't go through. Check your connection and try again.");
       return false;
     } finally {
+      acting.current = false;
       setBusy(null);
     }
   }
+
+  // Come by one click, with nothing said yet: the character opens the scene, once. The address drops its ?open=1 first
+  // (Next keeps the router in step with replaceState), so going back or reloading never asks for a second opening.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || opened.current) return;
+    opened.current = true;
+    try {
+      window.history.replaceState(null, "", `/after-dark/step-in/${encodeURIComponent(initial.id)}`);
+    } catch {
+      /* the address stays as it is */
+    }
+    const said = initial.messages.some((m) => m.role !== "system");
+    if (!said && !initial.ended && !initial.paused && !initial.character_out) void act({ action: "continue" });
+    // Once, as the page arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function send() {
     const line = text.trim();
@@ -360,6 +396,9 @@ export default function StepInScene({ initial, places, personaHref, cutout = nul
                     busy={Boolean(busy)}
                     onSave={(limits, consent) => act({ action: "limits", limits, ...(consent ? { consent: true as const } : {}) })}
                   />
+                  <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(view.character.id)}`} data-step-in-new>
+                    🎭 A roleplay or a new scene with {name}
+                  </Link>
                   {hasFigure && (
                     <button type="button" className="button-ghost small" onClick={toggleFigure} aria-pressed={!figureOn} data-step-in-figure-toggle>
                       {figureOn ? `Hide ${name}'s picture` : `Show ${name}'s picture`}

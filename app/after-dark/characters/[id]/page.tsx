@@ -15,7 +15,7 @@ import { latestMade, NEW_FOR_MS } from "@/lib/adult/latest";
 import { ownMedia } from "@/lib/adult/media";
 import { adultAvailable } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
-import { stepInOpen } from "@/lib/adult/step-in";
+import { runningStepIns, stepInOpen } from "@/lib/adult/step-in";
 import { cutoutsReady, cutoutUrl } from "@/lib/cutout";
 import { getDb, type Db } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -24,6 +24,7 @@ import { listShowcase } from "@/lib/showcase";
 import { showcasePaths } from "@/lib/showcase-paths";
 import { tagById } from "@/lib/tags";
 import { NightList } from "../../PairPicker";
+import StepInButton from "../../step-in/StepInButton";
 import { currentHere, currentView } from "../../view";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +52,9 @@ async function showcaseOf(db: Db, id: string): Promise<{ posts: Awaited<ReturnTy
 
 /**
  * One character's After Dark page (David, 2026-11-20, from joi.com's character pages): their portrait, name, type tags
- * and bio; the ways in (a night with them, the hub's picker with them picked; Step in where it's open to this viewer);
+ * and bio; the ways in (Step in, where it's open to this viewer: one click into a scene with them, or back into the
+ * one that's running, with the set-up page beside it for a roleplay or a place; a night with them, the hub's picker
+ * with them picked);
  * then this viewer's nights with them, what they've made of them, and what creators published of them to After Dark's
  * showcase (joi's "Community"). Only for someone After Dark may pair them with this viewer (lib/adult/character-list.ts
  * adCharacter): not found for anyone else, whatever the id. Someone After Dark isn't open to lands on the locked
@@ -73,6 +76,8 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
   const c = await adCharacter(db, viewer, id);
   if (!c) notFound();
   const [here, doors, stepIn, cutouts] = await Promise.all([currentHere(), afterDarkDoors(db, viewer), stepInOpen(db, viewer), cutoutsReady()]);
+  // The scene they have running with this character, when Step in is open to them: the button goes back into it.
+  const running = stepIn ? ((await runningStepIns(db, viewer)).get(c.id) ?? null) : null;
   // Their whole portrait (a house character's reviewed file first, as their avatar has it), standing as Step in's figure
   // does (app/stage/CharacterFigure.tsx): cut out of its background where the zone makes cutouts (lib/cutout.ts).
   const portrait = characterPortrait(c.id) ?? c.portrait;
@@ -119,15 +124,20 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
             )}
             {c.bio && <p className="ad-char-bio-full">{c.bio}</p>}
             <p className="ad-home-actions ad-char-ways">
-              <Link className="button" href={`/after-dark?with=${encodeURIComponent(c.id)}#scenes`} data-start-night>
+              {stepIn && <StepInButton characterId={c.id} name={name} sceneId={running} />}
+              <Link className={stepIn ? "button-ghost" : "button"} href={`/after-dark?with=${encodeURIComponent(c.id)}#scenes`} data-start-night>
                 <Icon name="moon" /> A night with {name}
               </Link>
-              {stepIn && (
-                <Link className="button-ghost" href={`/after-dark/step-in?with=${encodeURIComponent(c.id)}`} data-step-in>
-                  Step in with {name}
-                </Link>
-              )}
             </p>
+            {stepIn && (
+              <p className="muted small ad-char-setup-line">
+                Step in is you and {name}, in one click. For a roleplay, a place or your own opening line,{" "}
+                <Link href={`/after-dark/step-in?with=${encodeURIComponent(c.id)}`} data-step-in>
+                  set the scene first
+                </Link>
+                .
+              </p>
+            )}
             <p className="muted small">An AI character. Fiction between adults.</p>
           </div>
         </section>
