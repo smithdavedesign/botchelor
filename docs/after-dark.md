@@ -3649,8 +3649,10 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
   - **What it costs:** nothing to show; a started card is one reply, like any opening.
   - **Not built:** a cover picture per card (the character dressed for the role: about 3.5¢ each), a goal the viewer
     can see and an ending, and a person's own roleplays on the shelf.
-  - **Still rough:** a scene that starts out in public stays held to a kiss until the viewer moves it from the ⋯ menu
-    ("Go somewhere else"); the character can say where the evening is heading, but saying so doesn't move the scene.
+  - **Out in public, one tap from somewhere private:** a scene that starts out in public (15 of the 45) is held to a
+    kiss until it moves, and the way out was only in the ⋯ menu. The scene's header now has **Take it to {name}'s
+    place** right where it says it's held to a kiss (the same `move` the menu makes, to the catalog's home). The
+    character saying where the evening is heading still doesn't move the scene by itself.
 - **From an episode** (2026-11-23; row 13 of the field audit: a short video is the door into a chat on every site in
   the field): under an episode's night (`app/after-dark/shorts/[id]/page.tsx`, "Your turn"), **Step in with {name}**
   for each of the two the viewer may step in with, or **Continue with {name}** where they have a scene running. The
@@ -3992,6 +3994,10 @@ from what the two have actually done together, it only ever goes up, and nothing
   | 5 | Close | 320 | two to three weeks of evenings |
   | 6 | Confidants | 600 | about a month of evenings |
 
+- **An evening is one day wherever it's spent.** The day turns over at 10:00 UTC, not at midnight
+  (`BOND_DAY_TURNS_AT_UTC_HOUR`, `lib/adult/step-in-bond-data.ts`): midnight UTC is 7pm in New York and 4pm in Los
+  Angeles, so an evening there straddled two UTC days and counted twice. At 10:00 UTC it's 5am in New York, 2am in Los
+  Angeles and 11am in Berlin, so an evening anywhere in the Americas or Europe is one day.
 - **It never drops, and that's why there's a table.** A person who deletes a scene takes its lines with it, so what's
   derived can fall. `adult_step_in_bonds` keeps the most it has ever been for each viewer and character (`points`,
   `level`, only ever raised: `greatest` in one statement), and what's shown is the greater of the two (`bondView`;

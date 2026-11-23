@@ -1616,3 +1616,28 @@ describe("a roleplay's card, started in one click", () => {
     expect([...setUp.matchAll(/data-step-in-card-with="([^"]+)"/g)].map((m) => m[1])).toEqual(Array(SHELF_TONIGHT).fill(WHO));
   });
 });
+
+// A story set at a bar or a wedding starts held to a kiss (15 of the 45 roleplays). The way out was only in the ⋯ menu.
+describe("out in public", () => {
+  it("the scene offers the way somewhere private where it says it's held to a kiss, and nowhere else", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    signIn(a.id);
+    const out = await start(a.id, { place: CAFE });
+    const page = async (id: string) => (await html(await StepInScenePage({ params: Promise.resolve({ id }) }))).replace(/<!-- -->/g, "");
+    const publicPage = await page(out.id);
+    expect(publicPage).toContain("Out in public: a kiss at most");
+    expect(publicPage).toMatch(new RegExp(`<button type="button"[^>]*data-step-in-go-private[^>]*>Take it to ${NAME}&#x27;s place</button>`));
+    // One tap is the same move the menu makes: the scene is at their place, and nothing is held to a kiss any more.
+    const moved = await moveStepIn(t.db, a.id, out.id, HOME);
+    expect(moved).toMatchObject({ ok: true, view: { place: { id: HOME, public: false } } });
+    const privatePage = await page(out.id);
+    expect(privatePage).not.toContain("data-step-in-go-private");
+    expect(privatePage).not.toContain("Out in public");
+    // A scene that has ended offers nothing.
+    const again = await start(a.id, { place: CAFE });
+    await endStepIn(t.db, a.id, again.id);
+    expect(await page(again.id)).not.toContain("data-step-in-go-private");
+  });
+});

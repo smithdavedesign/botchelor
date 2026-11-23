@@ -409,6 +409,8 @@ export default function StepInScene({
     else setError("That didn't delete. Try again in a moment.");
   }
 
+  // Their place: where a scene out in public can go in one tap (the catalog's own home, never public).
+  const somewherePrivate = places.find((p) => p.id === "venue:home" && !p.public) ?? null;
   const waiting = busy === "send" || busy === "continue" || busy === "regenerate" || busy === "close";
   // The roleplay's story (./StepInStory.tsx): read for the newest reply once it has landed and nothing else is going on.
   useStoryReading(view, setView, live && !busy && !calling);
@@ -498,6 +500,15 @@ export default function StepInScene({
             )}
             {view.place.public ? " Out in public: a kiss at most, until the scene moves somewhere private." : ""}
           </p>
+          {/* The way out of a public place, where the scene says it's held to a kiss: a story set at a bar or a wedding
+              (15 of the 45 roleplays) otherwise stays there until the viewer finds "Go somewhere else" in the ⋯ menu. */}
+          {live && view.place.public && somewherePrivate && (
+            <p className="ad-si-go-private">
+              <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void act({ action: "move", place: somewherePrivate.id })} data-step-in-go-private>
+                Take it to {name}&apos;s place
+              </button>
+            </p>
+          )}
         </header>
 
         <ol className="ad-reader ad-si-lines" aria-live="polite" aria-busy={waiting}>

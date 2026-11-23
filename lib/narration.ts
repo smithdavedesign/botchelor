@@ -676,6 +676,7 @@ export function thinksForThePerson(sentence: string): boolean {
  * above, which read "you", can't see it write the person. Only for a character whose pronouns are he or she: with
  * they, or a character the same as the person, the two can't be told apart.
  */
+const THEIR_PERSON = /\b(?:his|her|their) (guest|visitor|companion|date|partner|lover|caller)\b/i;
 export function tellsThemInThirdPerson(text: string, ownPronouns: string | null | undefined): string | null {
   const own = /^\s*she\b/i.test(ownPronouns ?? "") ? "she" : /^\s*he\b/i.test(ownPronouns ?? "") ? "he" : null;
   if (!own) return null;
@@ -683,7 +684,9 @@ export function tellsThemInThirdPerson(text: string, ownPronouns: string | null 
   if (/\b(?:you|your|yours|yourself)\b/i.test(prose)) return null;
   const [mine, theirs] = own === "she" ? [/\b(?:she|her|hers|herself)\b/i, /\b(he|him|his|himself)\b/i] : [/\b(?:he|him|his|himself)\b/i, /\b(she|her|hers|herself)\b/i];
   if (!mine.test(prose)) return null;
-  return prose.match(theirs)?.[1].toLowerCase() ?? null;
+  // The person as a noun of the character's ("He found his guest already inside": a live redraw, 2026-11-23): with no
+  // "you" anywhere in the prose, the one other person in a scene for two is them.
+  return prose.match(theirs)?.[1].toLowerCase() ?? prose.match(THEIR_PERSON)?.[1].toLowerCase() ?? null;
 }
 
 /**
