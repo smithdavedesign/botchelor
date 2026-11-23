@@ -19,7 +19,7 @@ import StepInShelf from "./StepInShelf";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Step in · After Dark · Botchelor", robots: { index: false, follow: false } };
 
-type Props = { searchParams?: Promise<{ with?: string; roleplay?: string }> };
+type Props = { searchParams?: Promise<{ with?: string; roleplay?: string; you?: string }> };
 
 /** When a scene was last played or ended, as a day in the viewer's own clock (LocalTime writes it in the browser). */
 const WHEN = { day: "numeric", month: "short" } as const;
@@ -90,7 +90,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
         {cast.length ? (
           // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.
           <StepInSetup
-            key={`${sp?.with ?? ""}:${sp?.roleplay ?? ""}`}
+            key={`${sp?.with ?? ""}:${sp?.roleplay ?? ""}:${sp?.you ?? ""}`}
             cast={cast}
             recent={recent}
             places={stepInPlaces(drawn)}
@@ -99,6 +99,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
             personaHref={personaHref}
             preselect={sp?.with ?? null}
             preselectRoleplay={sp?.roleplay ?? null}
+            preselectYou={sp?.you === "1" ? 1 : 0}
             storyPlaces={stories}
           />
         ) : (

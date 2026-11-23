@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
+import { coverFor, ROLEPLAY_COVERS } from "@/lib/adult/roleplay-covers";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import type { StepInCharacter, StoryPlace } from "@/lib/adult/step-in-shared";
@@ -15,6 +16,9 @@ import { BondMarkTag } from "./[id]/StepInBond";
 import StepInButton from "./StepInButton";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
+/** The roleplays with a cover picture (lib/adult/roleplay-covers.ts): they lead tonight's, and come first in any list. */
+const PICTURED: ReadonlySet<string> = new Set(Object.keys(ROLEPLAY_COVERS));
+const picturedFirst = <R extends { id: string }>(list: readonly R[]): R[] => [...list.filter((r) => PICTURED.has(r.id)), ...list.filter((r) => !PICTURED.has(r.id))];
 const NO_PLACES: Record<string, StoryPlace> = {};
 
 /**
@@ -58,7 +62,7 @@ export default function StepInShelf({
   const asked = with_ && who.order[0]?.id === with_ ? who.order[0] : null;
   const demand = useAdultTagDemand();
   const groups = useMemo(() => roleplayGroups(ROLEPLAYS, demand ?? undefined), [demand]);
-  const shown = show === "tonight" ? shelfTonight(ROLEPLAYS, day) : show === "all" ? ROLEPLAYS : (groups.find((g) => g.id === show)?.roleplays ?? []);
+  const shown = show === "tonight" ? shelfTonight(ROLEPLAYS, day, SHELF_TONIGHT, PICTURED) : picturedFirst(show === "all" ? ROLEPLAYS : (groups.find((g) => g.id === show)?.roleplays ?? []));
   const playedCount = ROLEPLAYS.filter((r) => played[r.id]).length;
   if (!who.order.length) return null;
   const kind = groups.some((g) => g.id === show) ? show : "";
@@ -98,13 +102,22 @@ export default function StepInShelf({
       <ul className="ad-si-shelf-cards">
         {shown.map((rp) => {
           const turn = turns[rp.id] ?? 0;
-          const them = shelfLead(rp.id, day, who, turn);
+          // A card with a cover opens on the one in its picture (the people they know come next, with "Someone else").
+          const them = shelfLead(rp.id, day, who, turn, ROLEPLAY_COVERS[rp.id]?.character ?? null);
           if (!them) return null;
           const name = first(them.name);
+          // With the one in the picture, the card is as the picture shows it: they play that side, the viewer the other.
+          const cover = coverFor(rp.id, them.id);
+          const you: 0 | 1 = cover ? cover.you : 0;
           // The story as the viewer reads it: they're "you", the other is whoever is on the card.
-          const card = cardForYou(rp.card, "a", name);
+          const card = cardForYou(rp.card, you === 1 ? "b" : "a", name);
           return (
-            <li key={rp.id} className="card ad-si-shelf-card" data-step-in-card={rp.id} data-step-in-card-with={them.id}>
+            <li key={rp.id} className={cover ? "card ad-si-shelf-card has-cover" : "card ad-si-shelf-card"} data-step-in-card={rp.id} data-step-in-card-with={them.id} data-step-in-card-you={you}>
+              {cover && (
+                // The show's own picture (public/cast), so discreet mode leaves it alone like any house portrait.
+                // eslint-disable-next-line @next/next/no-img-element -- a small static file, already the size it's shown at
+                <img className="ad-si-shelf-cover" src={cover.src} alt={cover.alt} width={960} height={720} loading="lazy" decoding="async" data-step-in-card-cover />
+              )}
               <h3>
                 <span aria-hidden="true">{rp.icon}</span> {rp.title}
                 {played[rp.id] ? (
@@ -122,11 +135,11 @@ export default function StepInShelf({
               )}
               {/* What their side of it wants: what they're playing for (the card's own words, told to them). */}
               <p className="muted small ad-si-shelf-goal" data-step-in-card-goal>
-                {storyGoal(rp, 0, name)}
+                {storyGoal(rp, you, name)}
               </p>
               {rp.roles && (
                 <p className="muted small ad-si-shelf-roles">
-                  You play {rp.roles[0]}; {name} plays {rp.roles[1]}.
+                  You play {rp.roles[you]}; {name} plays {rp.roles[you === 0 ? 1 : 0]}.
                 </p>
               )}
               <p className="ad-si-shelf-who">
@@ -139,8 +152,8 @@ export default function StepInShelf({
                 )}
               </p>
               <p className="ad-si-shelf-go">
-                <StepInButton characterId={them.id} name={name} roleplay={{ id: rp.id, you: 0 }} className="button small" label={`Step in with ${name}`} about={rp.title} />
-                <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(them.id)}&roleplay=${encodeURIComponent(rp.id)}#ad-si-set`} data-step-in-card-setup>
+                <StepInButton characterId={them.id} name={name} roleplay={{ id: rp.id, you }} className="button small" label={`Step in with ${name}`} about={rp.title} />
+                <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(them.id)}&roleplay=${encodeURIComponent(rp.id)}${you === 1 ? "&you=1" : ""}#ad-si-set`} data-step-in-card-setup>
                   Set it up
                 </Link>
               </p>
