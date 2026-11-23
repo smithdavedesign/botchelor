@@ -4072,6 +4072,10 @@ from what the two have actually done together, it only ever goes up, and nothing
   | 5 | Close | 320 | two to three weeks of evenings |
   | 6 | Confidants | 600 | about a month of evenings |
 
+- **Their own people come first on the Characters page** (`yourPeopleFirst`, 2026-11-23): whoever has written to them
+  and is waiting, then whoever they have a scene running with, then by level, the highest first; everyone else keeps
+  the cast's own order. The page is 36 cards of a few hundred: before this, someone they'd spent a week with could
+  sit on page five.
 - **It never drops, and that's why there's a table.** A person who deletes a scene takes its lines with it, so what's
   derived can fall. `adult_step_in_bonds` keeps the most it has ever been for each viewer and character (`points`,
   `level`, only ever raised: `greatest` in one statement), and what's shown is the greater of the two (`bondView`;

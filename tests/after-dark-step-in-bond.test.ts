@@ -32,6 +32,7 @@ import {
   BOND_LEVELS,
   BOND_NEVER_FASTER,
   BOND_WORTH,
+  type BondCounted,
   bondLevel,
   bondMark,
   bondName,
@@ -41,7 +42,7 @@ import {
   bondSinceWords,
   bondView,
   NO_BOND_SINCE,
-  type BondCounted,
+  yourPeopleFirst,
 } from "@/lib/adult/step-in-bond";
 import { bondMarks, bondOf, exportBonds } from "@/lib/adult/step-in-bond-data";
 import { STEP_IN_PACE, STEP_IN_WILL, stepInMessages } from "@/lib/adult/step-in-prompt";
@@ -462,6 +463,30 @@ describe("in the lists", () => {
     // Opened for someone they don't know: no mark on any card.
     const other = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: OTHER }) }));
     expect(other).not.toContain("data-bond-level");
+  });
+
+  it("the Characters page lists their own people first: a note waiting, a scene running, then how well they know each other", async () => {
+    const list = ["ana", "bo", "cy", "dee", "eli", "fay"].map((id) => ({ id }));
+    const order = (yours: { wrote?: string[]; running?: string[]; levels?: Record<string, number> }) =>
+      yourPeopleFirst(list, { wrote: new Set(yours.wrote ?? []), running: new Set(yours.running ?? []), level: (id) => yours.levels?.[id] ?? 0 }).map((c) => c.id);
+    // Nobody yet: the cast's own order.
+    expect(order({})).toEqual(["ana", "bo", "cy", "dee", "eli", "fay"]);
+    // Whoever wrote comes first, then a running scene, then the levels, highest first; the rest as they were.
+    expect(order({ wrote: ["eli"], running: ["cy"], levels: { fay: 4, bo: 2, eli: 2, dee: 1 } })).toEqual(["eli", "cy", "fay", "bo", "ana", "dee"]);
+    // Inside a group the better known is first, and level 1 (nothing done yet) is nobody's.
+    expect(order({ running: ["ana", "fay"], levels: { fay: 3, ana: 2 } })).toEqual(["fay", "ana", "bo", "cy", "dee", "eli"]);
+    // On the page: the one they know leads it, wherever the cast's order had them.
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    signIn(a.id);
+    const firstCard = async () => (await html(await AfterDarkCharactersPage({ searchParams: Promise.resolve({}) }))).match(/data-character="([^"]+)"/)?.[1];
+    const before = await firstCard();
+    const known = before === WHO ? OTHER : WHO;
+    const s = await startStepIn(t.db, a.id, { character_id: known, place: HOME }, day(2));
+    if (!s.ok) throw new Error("start failed");
+    await say(a.id, s.id, "I sit down across from you.", day(2, 21));
+    expect(await firstCard()).toBe(known);
   });
 });
 

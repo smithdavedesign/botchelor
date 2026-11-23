@@ -13,7 +13,7 @@ import { whoseCounts, whoseFilters, type Whose } from "@/lib/adult/pair-pick";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { runningStepIns, stepInOpen } from "@/lib/adult/step-in";
 import { notesWaiting } from "@/lib/adult/step-in-notes";
-import type { BondMark } from "@/lib/adult/step-in-bond";
+import { yourPeopleFirst, type BondMark } from "@/lib/adult/step-in-bond";
 import { bondMarks } from "@/lib/adult/step-in-bond-data";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -130,7 +130,10 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
   // A filter that doesn't split this cast (or an old link's) reads as Everyone.
   const whose: Whose = filters.includes(f.whose) ? f.whose : "all";
   const chips = tagChips(cast);
-  const shown = filterCast(cast, { q: f.q, whose, tag: f.tag });
+  const found = filterCast(cast, { q: f.q, whose, tag: f.tag });
+  // Their own people first (lib/adult/step-in-bond.ts yourPeopleFirst): whoever has written to them, then whoever they
+  // have a scene running with, then by how well they know each other. Everyone else keeps the cast's own order.
+  const shown = stepIn ? yourPeopleFirst(found, { wrote, running: new Set(running?.keys() ?? []), level: (id) => bonds?.get(id)?.level ?? 0 }) : found;
   const paged = pageOf(shown, f.page, CHARACTERS_PAGE);
   // Where only the scenes are allowed (lib/jurisdiction.ts): the PG portraits, and no counts of pictures.
   const cards = await cardsFor(db, viewer, paged.items, { pictures: here.mode !== "text_only" });

@@ -217,3 +217,15 @@ export function bondPromptLine(bond: Pick<StepInBond, "level" | "since" | "kept"
   const played = stories > 0 ? ` and played ${inWords(stories)} ${stories === 1 ? "story" : "stories"} to the end` : "";
   return `${spent}${played}: ${feels}. ${BOND_NEVER_FASTER}${o.roleplay ? " In a roleplay the role comes first; this is who the two of you are underneath it." : ""}`;
 }
+
+/**
+ * A list of characters with the viewer's own people first (After Dark's Characters page): whoever has written to them
+ * and is waiting for an answer, then whoever they have a scene running with, then by how well they know each other,
+ * the highest level first. Everyone else, and everyone within a group who is level with another, keeps the order the
+ * list came in. Someone who has never stepped in gets the list back as it was.
+ */
+export function yourPeopleFirst<C extends { id: string }>(list: readonly C[], yours: { wrote: ReadonlySet<string>; running: ReadonlySet<string>; level: (id: string) => number }): C[] {
+  // Three groups (a note waiting, a scene running, neither), and inside each the higher level first; level 1 is nobody yet.
+  const rank = (c: C) => (yours.wrote.has(c.id) ? 0 : yours.running.has(c.id) ? 10 : 20) - Math.min(9, Math.max(0, yours.level(c.id) - 1));
+  return list.map((c, i) => ({ c, i, r: rank(c) })).sort((x, y) => x.r - y.r || x.i - y.i).map((x) => x.c);
+}
