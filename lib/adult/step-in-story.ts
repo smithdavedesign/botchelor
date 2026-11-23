@@ -13,7 +13,8 @@
  *  - **How far it's got**: after a reply lands, the page asks for the story to be read (readStepInStory in
  *    lib/adult/step-in.ts): one small call on After Dark's own model, which is shown the card's beats and the scene's
  *    last stretch and says which beats have happened on the page. Beats only ever get ticked (a later reading can't
- *    untick one), and the viewer sees how many of them have played, never the beats themselves (they'd be spoilers).
+ *    untick one) and one at most a reading (mergeBeats), so a story takes at least as many of the viewer's lines as it
+ *    has beats; the viewer sees how many of them have played, never the beats themselves (they'd be spoilers).
  *    Nothing in the writer's own prompt changes: its reply is exactly what it was.
  *  - **The ending**: once every beat has played, the scene offers to bring the story to a close: one last reply from
  *    the character that lands it (lib/adult/step-in-prompt.ts CLOSE_CUE), and the scene ends and is filed like any
@@ -54,9 +55,16 @@ export function storedBeats(raw: unknown, n: number): boolean[] {
   return Array.from({ length: n }, (_, i) => kept[i] === true);
 }
 
-/** Beats only ever get ticked: what was played stays played, whatever a later reading says. */
+/**
+ * Beats only ever get ticked: what was played stays played, whatever a later reading says. And one reading ticks one
+ * beat at most, the earliest it names that wasn't ticked: a story takes at least as many of the viewer's lines as it
+ * has beats. (The first live check, 2026-11-23: the reader named all four beats of "The neighbour next door" after two
+ * exchanges, the last of them generously, and the scene offered its ending before it had been a story.) A beat that
+ * really did play in the same exchange is still on the page at the next reading, and is ticked then.
+ */
 export function mergeBeats(before: readonly boolean[], played: readonly number[]): boolean[] {
-  return before.map((was, i) => was || played.includes(i + 1));
+  const next = before.findIndex((was, i) => !was && played.includes(i + 1));
+  return before.map((was, i) => was || i === next);
 }
 
 /** What the viewer's side of the roleplay wants, told to them; null for a roleplay with no card (a person's own). */
@@ -95,7 +103,7 @@ export function storyMessages(input: { name: string; beats: readonly string[]; r
         `The story's beats, in order:\n${input.beats.map((b, i) => `${i + 1}. ${b}`).join("\n")}\n\n` +
         (input.recap ? `The scene so far, in brief: ${input.recap}\n\n` : "") +
         `The latest stretch:\n${said}\n\n` +
-        `Which of the beats have clearly happened by now? A beat counts once what it describes has happened in the scene, in any words; it doesn't count because the scene is heading there. ` +
+        `Which of the beats have clearly happened by now? Be strict: a beat counts only when you could point to the lines where what it describes happened, in any words. It doesn't count because the scene is heading there, because it was hinted at, or because it would fit; when you're unsure, leave it out. ` +
         `Reply with a JSON object: {"played": [the beats' numbers]} (an empty list when none has).`,
     },
   ];
