@@ -61,6 +61,11 @@ describe("the reunion special", () => {
     expect(fav.chars[0].origin).toBe("person");
     expect(r.couples.every((c) => c.a.origin && c.b.origin)).toBe(true);
     expect(r.confessionals.every((c) => c.character.origin === "person" || c.character.origin === "cast")).toBe(true);
+
+    // In the character's own pronouns (2026-11-22 audit: "10 viewers called them the most likable" about a he/him).
+    await t.db.query(`update characters set pronouns = 'he/him' where id = $1`, [a.character.id]);
+    const his = (await getReunion(t.db)).awards.find((x) => x.title.includes("Fan favourite"))!;
+    expect(his.count_line).toBe("1 viewer called him the most likable.");
   });
 
   it("a deleted account's character never wins: its disaster is not the Biggest disaster, its dates don't count", async () => {

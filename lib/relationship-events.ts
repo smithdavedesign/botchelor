@@ -13,6 +13,7 @@ import { overnightAired } from "./overnight";
 import { justSplit, STAGE_NEWS, steppedUp as movedUp } from "./relationship-stages";
 import { pairKey, refreshRelationship, STAGE_LABELS, storedStages, viewRelationship } from "./relationships";
 import { endingLabel } from "./rules";
+import { midSentence } from "./sentence-case";
 import { socialHook } from "./social/hook";
 
 /**
@@ -78,8 +79,9 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
       await notifyAll(db, followers, {
         kind: "couple_date",
         title: firstDate ? `${couple} went on a date` : `${couple} went on another date`,
-        // Its own date number (a follow-up's), so a happy third date reads "A fourth date", as on its page.
-        body: `It ended: ${endingLabel(aired.ending, aired.date_number)}.`,
+        // Its own date number (a follow-up's), so a happy third date reads "a fourth date", as on its page; in a sentence's
+        // case, as home's clip says it (2026-11-22 audit: "It ended: A fifth date" read as two headings).
+        body: `How it ended: ${midSentence(endingLabel(aired.ending, aired.date_number))}.`,
         link: `/episodes/${opts.episodeId}`,
       });
     }

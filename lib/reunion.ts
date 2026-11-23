@@ -17,6 +17,7 @@ import { publicDateSql } from "./date-number";
 import type { Db } from "./db";
 import { relationshipStage } from "./mechanics";
 import { originSql, type Origin } from "./origin";
+import { pronounForms } from "./pronoun-forms";
 import { listedDateSql } from "./public-cast";
 import { shownStage } from "./relationship-stages";
 import { healRelationships, STAGE_LABELS, type Stage } from "./relationships";
@@ -185,7 +186,8 @@ export async function seasonAwards(db: Db, span: SeasonSpan): Promise<ReunionAwa
       name: likable.name,
       detail: "Called the most likable of the season.",
       count: likable.count,
-      count_line: `${likable.count} ${likable.count === 1 ? "viewer" : "viewers"} called them the most likable.`,
+      // In their own pronouns (2026-11-22 audit: "10 viewers called them the most likable" about Barnaby, he/him).
+      count_line: `${likable.count} ${likable.count === 1 ? "viewer" : "viewers"} called ${pronounForms(likable.pronouns).obj} the most likable.`,
       chars: [{ id: likable.id, name: likable.name, house: likable.house, hue: likable.hue, portrait: likable.portrait, origin: likable.origin }],
     });
   }
