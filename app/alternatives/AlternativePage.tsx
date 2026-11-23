@@ -8,6 +8,7 @@ import SetHero from "@/app/SetHero";
 import ShowClip from "@/app/ShowClip";
 import { ALTERNATIVE_APPS, appsItemList, listedApps, noteFor, type AlternativeApp } from "@/lib/alternative-apps";
 import { ALTERNATIVES, alternativeFaq, alternativePath, alternativeWords, type Alternative } from "@/lib/alternatives";
+import { CAI_GUIDE_PATH, caiGuideOn } from "@/lib/cai-guide";
 import { IMPORT_PATH } from "@/lib/import-character";
 import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
@@ -71,7 +72,7 @@ export default function AlternativePage({ alt, apps = ALTERNATIVE_APPS, now = ne
       </SetHero>
       {/* Right under the hero, before the ribbon: the dated note, if this page has one, then what people searching
           "<app> alternatives" came for. */}
-      {note && <AlternativeNote note={note} importHref={importHref} />}
+      {note && <AlternativeNote note={note} importHref={importHref} guideHref={caiGuideOn() ? CAI_GUIDE_PATH : undefined} />}
       {list && <AlternativeApps alt={alt} apps={list} now={now} />}
       <FaceRibbon title="Who your character could meet" />
 

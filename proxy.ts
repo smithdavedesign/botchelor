@@ -178,6 +178,8 @@ export const UNGATED_PREFIXES: readonly string[] = [
   "/showcase/",
   "/shows/",
   "/graph/world/",
+  // How-to guides (2026-11-23: saving your Character.AI characters and chats), search landings like /alternatives.
+  "/guides/",
 ];
 
 const UNGATED_PAGES: ReadonlySet<string> = new Set([

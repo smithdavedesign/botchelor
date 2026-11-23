@@ -6,6 +6,7 @@
  */
 import type { Metadata, MetadataRoute } from "next";
 import { ALTERNATIVES, alternativePath } from "./alternatives";
+import { CAI_GUIDE_PATH, caiGuideOn } from "./cai-guide";
 import { OC_NAME_STYLES, ocNamesHref } from "./oc-names";
 import { PLACE_STYLES, placeNamesHref } from "./place-names";
 import { closedSeasons } from "./season-ref";
@@ -104,7 +105,7 @@ export function pageMetadata({
 /** The policy pages: they change when the rules do, not daily. */
 const POLICY_PATHS: ReadonlySet<string> = new Set(["/terms", "/privacy", "/content-policy", "/report", "/cancel", "/2257", "/safety", "/security", "/accessibility"]);
 // /import and the Character.AI landing are the rescue door (2026-11-14): as findable as the agents page.
-const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/import": 0.8, "/alternatives/character-ai": 0.8, "/characters": 0.7 };
+const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/import": 0.8, "/alternatives/character-ai": 0.8, [CAI_GUIDE_PATH]: 0.8, "/characters": 0.7 };
 
 /**
  * The search landings beside PUBLIC_PATHS: the other /alternatives pages and the OC and place name generators' style pages. Not
@@ -112,7 +113,8 @@ const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9
  * the library sits behind the 18+ gate, so a search result sent people to the gate (app/prompts: noindex now).
  */
 export function landingPaths(): string[] {
-  return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...OC_NAME_STYLES.map((s) => ocNamesHref(s)), ...PLACE_STYLES.map((s) => placeNamesHref(s))];
+  // The Character.AI guide (lib/cai-guide.ts) while CAI_GUIDE is on: off, it 404s, so it leaves the sitemap too.
+  return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...(caiGuideOn() ? [CAI_GUIDE_PATH] : []), ...OC_NAME_STYLES.map((s) => ocNamesHref(s)), ...PLACE_STYLES.map((s) => placeNamesHref(s))];
 }
 
 export function staticSitemap(base: string = siteUrl(), now: Date = new Date()): MetadataRoute.Sitemap {
