@@ -133,9 +133,8 @@ export default async function ShipPage({ params }: Props) {
         {/* The other two ship tools (2026-11-23): this pair on the compatibility test (a result is no page for search, so
             not for crawlers), and a pair picked at random. */}
         <p className="small ship-more">
-          {`How compatible are ${a.display} and ${b.display}? `}
           <Link href={compatibilityHref(a.display, b.display)} rel="nofollow" data-track="ship-compat">
-            Test them
+            {`How compatible are ${a.display} and ${b.display}?`}
           </Link>
           {" · "}
           <Link href={RANDOM_SHIP_TOOL_PATH} data-track="ship-random">
