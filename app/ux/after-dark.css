@@ -3912,9 +3912,15 @@ fieldset.ad-si-step {
   bottom: calc(100% + var(--space-2));
   z-index: 3;
   display: grid;
+  /* One column that never grows past the menu: a wide item (a long place name, the memory panel's rows) wraps inside
+     it. Left to size itself, the column took the widest item's width and the menu scrolled sideways, with the memory
+     panel's Add out of view (the first live check, 2026-11-23). */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
-  width: min(24rem, calc(100vw - 2 * var(--space-4)));
-  max-height: 70vh;
+  /* Inside the page's gutters on a phone (the menu starts a gutter in), and never taller than the room above the
+     composer: past 30rem its top went under the header. */
+  width: min(24rem, calc(100vw - 4rem));
+  max-height: min(70vh, 30rem);
   overflow-y: auto;
   padding: var(--space-3);
   border: 1px solid var(--night-line);

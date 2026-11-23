@@ -118,9 +118,13 @@ export async function factsForPrompt(db: Db, viewer: string, characterId: string
   return used.map((r) => r.text);
 }
 
-/** Why the viewer's own words can't be kept as a fact, or null: the self-harm check first, then the lines. */
+/**
+ * Why the viewer's own words can't be kept as a fact, or null: the self-harm check first, then the lines. Anything
+ * about hurting oneself gets the resources, said as themselves ("I want to…") or as a fact is written ("They want
+ * to…": the first live check, 2026-11-23, answered that one with the lines' message, which it isn't about).
+ */
 function refusal(text: string): MemoryFail | null {
-  if (crisisIntent(text)) return { ...fail(200, "crisis", CRISIS_RESOURCES.message), crisis_resources: CRISIS_RESOURCES };
+  if (crisisIntent(text) || maybeCrisis(text) || SELF_HARM_NOTE.test(text)) return { ...fail(200, "crisis", CRISIS_RESOURCES.message), crisis_resources: CRISIS_RESOURCES };
   if (!factOk(text)) return fail(422, "refused", "That can't be kept: it crosses one of the lines that never move (nobody under 18, no family, nobody who can't say no, no real people).");
   return null;
 }
