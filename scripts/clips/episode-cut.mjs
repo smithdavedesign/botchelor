@@ -159,7 +159,7 @@ export function resolveBeats(edl, episodes) {
     const e = episodes[s.ep ?? 0];
     if (!e) throw new Error(`${where}: no episode ${s.ep ?? 0}`);
     const lines = e.transcript ?? [];
-    const base = { kind: s.kind, ep: s.ep ?? 0, episode: e, secs: s.secs ?? null, label: s.label ?? null };
+    const base = { kind: s.kind, ep: s.ep ?? 0, episode: e, secs: s.secs ?? null, label: s.label ?? null, headline: s.headline ?? null };
     switch (s.kind) {
       case "cold":
       case "line": {
