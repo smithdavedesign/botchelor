@@ -95,10 +95,10 @@ describe("the cliffhanger's two lines", () => {
   });
 
   it("puts the best line second when it closes the date or its reply would tell the ending", () => {
-    const last = { ...date, best_line: "Next time, the hypocaust.", transcript: [...date.transcript.slice(0, 8), { side: "a" as const, dialogue: "Quiet isn't a plan. It's the room listening." }] };
+    const last = { ...date, best_line: "Next time, the hypocaust.", transcript: [...date.transcript!.slice(0, 8), { side: "a" as const, dialogue: "Quiet isn't a plan. It's the room listening." }] };
     const lastPick = pickPair({ ...last, best_line: "Quiet isn't a plan. It's the room listening." });
     expect(lastPick).toMatchObject({ how: "best last", hook: { line: 7 }, reply: { line: 8, keep: [0, 1] } });
-    const spoilt = { ...date, transcript: date.transcript.map((t, i) => (i === 5 ? { ...t, dialogue: "Another date? Yes. Only in empty rooms." } : t)) };
+    const spoilt = { ...date, transcript: date.transcript!.map((t, i) => (i === 5 ? { ...t, dialogue: "Another date? Yes. Only in empty rooms." } : t)) };
     expect(pickPair(spoilt)).toEqual({ how: "best last", hook: { line: 3, keep: [0, 1] }, reply: { line: 4, keep: [4] } });
   });
 
