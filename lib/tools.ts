@@ -1,7 +1,7 @@
 /**
  * The free tools for original characters (app/tools/*), in the order someone making a character reaches for them: a
- * whole random character, a name, where they are from, getting to know them, a ship name, a ship picked for you, then whether the ship
- * holds. One list for the hub (/tools), the line of other tools at the end of each tool's page and the ship pages
+ * whole random character, a name, where they are from, getting to know them, a ship name, a ship picked for you, the
+ * story their romance follows, then whether the ship holds. One list for the hub (/tools), the line of other tools at the end of each tool's page and the ship pages
  * (app/tools/MoreTools.tsx), and /everything.
  *
  * The hub exists for search (2026-11-19): the tools are the pages that match what people type ("oc ship generator",
@@ -12,6 +12,7 @@
 import { OC_NAMES_PATH } from "./oc-names";
 import { PLACE_NAMES_PATH } from "./place-names";
 import { OC_QUESTIONS, OC_QUESTIONS_PATH } from "./oc-questions";
+import { TROPES, TROPES_PATH } from "./relationship-tropes";
 
 /** lib/random-oc.ts RANDOM_OC_PATH, written out so the line of tools doesn't load the generator's lists (tests/random-oc.test.ts holds them equal). */
 export const RANDOM_OC_TOOL_PATH = "/tools/random-oc-generator";
@@ -71,6 +72,12 @@ export const FREE_TOOLS: readonly FreeTool[] = [
     name: "Random ship generator",
     inline: "random ship generator",
     blurb: "One click pairs two characters, from the show's cast or the random OC generator, with their ship name and how well they'd get on.",
+  },
+  {
+    path: TROPES_PATH,
+    name: "Relationship trope generator",
+    inline: "relationship trope generator",
+    blurb: `${TROPES.length} romance tropes for your ship, six at a time: sweet, slow burn, angsty, funny or flirty, each with a first scene your two characters can star in.`,
   },
   {
     path: CHEMISTRY_TOOL_PATH,

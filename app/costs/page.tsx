@@ -20,16 +20,18 @@ export const metadata: Metadata = pageMetadata({
 type Row = { what: string; cost: string; note?: string };
 
 /**
- * The running costs (docs/costs.md, measured 2026-10-21 to 2026-11-09): update both together. Plain monthly ranges; the
- * ledger above them is the record.
+ * The running costs (docs/costs.md, "Steady-state fixed cost", updated 2026-11-23): update both together. Plain monthly
+ * ranges; the ledger above them is the record.
  */
 const MONTHLY: Row[] = [
-  { what: "DigitalOcean App Platform", cost: "about $20–27", note: "Two small servers, the show and After Dark, plus the scheduled jobs." },
-  { what: "Neon Postgres", cost: "about $3–6", note: "The database, billed by use." },
+  { what: "DigitalOcean App Platform", cost: "about $36", note: "Two small servers, the show ($25) and After Dark ($10), plus the scheduled jobs (under $1)." },
+  { what: "Neon Postgres", cost: "about $26", note: "The database. Nearly all of it is compute: visits and jobs keep it awake around the clock." },
   { what: "Bunny", cost: "about $1–6", note: "After Dark's media storage and delivery, capped at 500 GB of traffic a month." },
-  { what: "Cloudflare", cost: "$0", note: "DNS and the proxy in front of botchelor.com, on the free plan." },
+  { what: "Cloudflare", cost: "$5", note: "DNS and the proxy are free; the $5 Workers plan is shared with the founder's other products." },
   { what: "GitHub, Resend, Google Analytics and Search Console", cost: "$0", note: "Free plans: code, email and search." },
   { what: "The domain", cost: "about $15–25 a year" },
+  { what: "Botchelor LLC", cost: "$800 a year", note: "California's yearly franchise tax, first due February 2027. Forming the company cost $70 in November 2026." },
+  { what: "Marketing", cost: "$0", note: "Free channels only. One $20 payment, in October 2026, for two MCP directory listings." },
   { what: "Claude Code (the building)", cost: "not billed to the project", note: "The founder's own Claude subscription, never API credit." },
 ];
 
@@ -110,7 +112,7 @@ export default async function CostsPage() {
 
       <section id="monthly">
         <h2>Every month, to keep it running</h2>
-        <p className="muted">Small, cheap and boring on purpose: about $25–40 a month before anyone uses it.</p>
+        <p className="muted">Small, cheap and boring on purpose: about $70–75 a month before anyone uses it, plus the company's $800 a year.</p>
         <Table rows={MONTHLY} caption="Monthly running costs" />
       </section>
 
@@ -147,7 +149,7 @@ export default async function CostsPage() {
       </section>
 
       <p className="muted">
-        Where we post and what each post brought in is on <Link href="/marketing">marketing, in the open</Link>.
+        Where we post, and what marketing has cost, is on <Link href="/marketing">marketing, in the open</Link>.
       </p>
 
       <p className="muted">

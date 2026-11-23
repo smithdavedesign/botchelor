@@ -26,6 +26,8 @@ export const LANDING_CHANGES: readonly LandingChange[] = [
   ...["character-ai", "janitor-ai", "spicychat", "chai"].map((slug) => ({ path: `/alternatives/${slug}`, changedAt: "2026-11-24T00:00:00Z" })),
   // How to save your Character.AI characters and chats (2026-11-23, lib/cai-guide.ts): a new page. The day after the merge.
   { path: "/guides/save-character-ai", changedAt: "2026-11-24T00:00:00Z" },
+  // The relationship trope generator (2026-11-23, lib/relationship-tropes.ts): a new tool. The day after the merge.
+  { path: "/tools/relationship-trope-generator", changedAt: "2026-11-24T00:00:00Z" },
 ];
 
 const DAY_MS = 86_400_000;

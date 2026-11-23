@@ -73,7 +73,7 @@ describe("the cliffhanger's two lines", () => {
   it("opens on the best line in its own sentences, then the opening of the reply that answers it", () => {
     expect(pickPair(date)).toEqual({ hook: { line: 4, keep: [4] }, reply: { line: 5, keep: [0, 1] }, how: "best" });
     const edl = cliffhangerEdl(date, { n: 3 });
-    expect(edl.segments[0]).toEqual({ kind: "cold", line: 4, keep: [4], label: "Their seventh date · Nell" });
+    expect(edl.segments[0]).toEqual({ kind: "cold", line: 4, keep: [4], label: "Their seventh date · Nell", headline: `Watch what ${edl.segments[1].label} says back` });
     const [hook, reply] = resolveBeats(edl, [date]);
     expect(hook.text).toBe("Is thinking always the enemy of fun, or just in empty rooms?");
     expect(reply.text).toBe("Honest answer? Only in empty rooms.");
@@ -225,6 +225,10 @@ describe("the frame", () => {
     expect(first).toContain('class="tile dim b"');
     expect(first).toContain("Their seventh date · Nell");
     expect(first).toContain("AI dating show · Day 3");
+    // The cast hook (2026-11-23): one big line over the faces on the first frame only, naming who answers next.
+    expect(first).toContain(`class="headline"`);
+    expect(first).toContain(`Watch what ${reply.label} says back ↓`);
+    expect(layerHtml(reply, { e: date, n: 3, shown: 1 })).not.toContain(`class="headline"`);
     expect(layerHtml(reply, { e: date, n: 3, shown: 1 })).toContain('class="tile lit b"');
     const end = layerHtml(ask, { e: date, n: 3 });
     for (const s of ["How did it end?", "<span>Eighth date</span>", "<span>Just friends</span>", "<span>Disaster</span>", "Call it in the comments", "botchelor.com", "AI-generated fiction"]) expect(end).toContain(s);
