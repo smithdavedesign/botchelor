@@ -300,6 +300,19 @@ describe("where the ideas sit", () => {
     // The ideas are a starter row with its own tones.
     expect(readFileSync("app/after-dark/step-in/[id]/StepInScene.tsx", "utf8")).toContain('className="ad-si-starters ad-si-ideas"');
   });
+
+  it("keep to where a person can see them: their place is held while they're thought of, and what's added above the composer is followed", () => {
+    // The composer is held to the window's foot, so anything added above it at the scene's end landed under it (the
+    // first live measurement, 2026-11-23: the whole ideas row, hidden until a scroll, on a desktop and a phone).
+    const src = readFileSync("app/after-dark/step-in/[id]/StepInScene.tsx", "utf8");
+    expect(src).toContain("data-step-in-ideas-wait");
+    expect(src).toMatch(/ideasFor && ideas\?\.for !== ideasFor && ideasAsked !== ideasFor && !text/);
+    expect(src).toContain("new ResizeObserver(");
+    expect(src).toMatch(/foot - grew <= window\.innerHeight \+ SCENE_END_SLACK_PX/);
+    expect(src).toContain('<div className="ad-si-col" ref={col}>');
+    const css = readFileSync("app/ux/after-dark.css", "utf8");
+    expect(css).toMatch(/\.ad-si-ideas-wait \{[^}]*min-height: 12rem;/);
+  });
 });
 
 describe("the route and the page", () => {

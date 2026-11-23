@@ -4081,6 +4081,17 @@ fieldset.ad-si-step {
   margin-top: 0;
   margin-bottom: var(--space-3);
 }
+/* The ideas' place, held while they're being thought of (about the room three of them take), so nothing jumps when
+   they arrive a moment after the reply. */
+.ad-si-ideas-wait {
+  align-content: flex-start;
+  min-height: 12rem;
+}
+@media (max-width: 700px) {
+  .ad-si-ideas-wait {
+    min-height: 16rem;
+  }
+}
 .ad-si-starters > button {
   margin: 0;
   text-align: left;
