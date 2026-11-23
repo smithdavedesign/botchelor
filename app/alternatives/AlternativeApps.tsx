@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { alternativePath, type Alternative } from "@/lib/alternatives";
-import { ALTERNATIVE_APPS_CHECKED, checkedDay, FACT_LABELS, NAMES_NOTE, pageForApp, shownFacts, type AlternativeApp } from "@/lib/alternative-apps";
+import { ALTERNATIVE_APPS_CHECKED, checkedDay, FACT_LABELS, NAMES_NOTE, pageForApp, shownFacts, type AlternativeApp, type AppFact } from "@/lib/alternative-apps";
 
-/** A quiet link to the page that says something: ours in the site, another app's in a new tab and never followed. */
-function Source({ app, href, what }: { app: AlternativeApp; href: string; what: string }) {
+/**
+ * A quiet link to the page that says something: ours in the site, another app's in a new tab and never followed. A
+ * fact that rests on two pages has "source" and "source 2".
+ */
+function Source({ app, href, what, second = false }: { app: AlternativeApp; href: string; what: string; second?: boolean }) {
   const label = (
     <>
-      source<span className="sr-only">{`: ${app.name}, ${what}`}</span>
+      {second ? "source 2" : "source"}
+      <span className="sr-only">{`: ${app.name}, ${what}`}</span>
     </>
   );
   return app.self ? (
@@ -24,9 +28,9 @@ function Source({ app, href, what }: { app: AlternativeApp; href: string; what: 
  * The apps people use instead of the page's own (lib/alternative-apps.ts), under the hero: alphabetical, each a block
  * of facts from its own site with a link to where it says so, and no pictures, marks, scores or verdicts. Blocks stack
  * at every width; each app's facts use the press page's list, one column on a phone. Its links are quiet: the page's
- * one loud button stays "Bring your character".
+ * one loud button stays "Bring your character". `now` decides which dated facts still show (lib/alternative-apps.ts).
  */
-export default function AlternativeApps({ alt, apps }: { alt: Alternative; apps: readonly AlternativeApp[] }) {
+export default function AlternativeApps({ alt, apps, now = new Date() }: { alt: Alternative; apps: readonly AlternativeApp[]; now?: Date }) {
   return (
     <section className="card alt-apps" aria-labelledby="alt-apps-title">
       <h2 id="alt-apps-title">{`${apps.length} apps people use instead of ${alt.name}`}</h2>
@@ -38,7 +42,7 @@ export default function AlternativeApps({ alt, apps }: { alt: Alternative; apps:
       <ul className="alt-apps-list">
         {apps.map((app) => {
           const page = app.self ? undefined : pageForApp(app.id);
-          const facts = shownFacts(app);
+          const facts = shownFacts(app, now);
           return (
             <li key={app.id} className="alt-app">
               <h3>
@@ -57,7 +61,7 @@ export default function AlternativeApps({ alt, apps }: { alt: Alternative; apps:
               {facts.length > 0 && (
                 <dl className="press-facts">
                   {facts.map((f) => (
-                    <FactRow key={`${f.kind}-${f.source}-${f.value}`} app={app} label={FACT_LABELS[f.kind]} value={f.value} source={f.source} />
+                    <FactRow key={`${f.kind}-${f.source}-${f.value}`} app={app} label={FACT_LABELS[f.kind]} fact={f} />
                   ))}
                 </dl>
               )}
@@ -75,12 +79,19 @@ export default function AlternativeApps({ alt, apps }: { alt: Alternative; apps:
   );
 }
 
-function FactRow({ app, label, value, source }: { app: AlternativeApp; label: string; value: string; source: string }) {
+function FactRow({ app, label, fact }: { app: AlternativeApp; label: string; fact: AppFact }) {
+  const what = label.toLowerCase();
   return (
     <>
       <dt>{label}</dt>
       <dd>
-        {value} <Source app={app} href={source} what={label.toLowerCase()} />
+        {fact.value} <Source app={app} href={fact.source} what={what} />
+        {fact.also && (
+          <>
+            <span className="muted small"> · </span>
+            <Source app={app} href={fact.also} what={what} second />
+          </>
+        )}
       </dd>
     </>
   );

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AlternativeApps from "@/app/alternatives/AlternativeApps";
+import AlternativeNote from "@/app/alternatives/AlternativeNote";
 import FaceRibbon from "@/app/FaceRibbon";
 import JsonLd from "@/app/JsonLd";
 import SetHero from "@/app/SetHero";
 import ShowClip from "@/app/ShowClip";
-import { ALTERNATIVE_APPS, appsItemList, listedApps, type AlternativeApp } from "@/lib/alternative-apps";
+import { ALTERNATIVE_APPS, appsItemList, listedApps, noteFor, type AlternativeApp } from "@/lib/alternative-apps";
 import { ALTERNATIVES, alternativeFaq, alternativePath, alternativeWords, type Alternative } from "@/lib/alternatives";
 import { IMPORT_PATH } from "@/lib/import-character";
 import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
@@ -22,14 +23,17 @@ export function alternativeMetadata(alt: Alternative, now: Date = new Date()): M
  * A landing page for people moving their characters out of a chat app (searches like "<app> alternative"): what
  * Botchelor is, plainly, and the way in (/import). It names the app to say what you can bring from it and uses none of
  * its marks. Under the hero, the apps people use instead (app/alternatives/AlternativeApps.tsx), each fact from that
- * app's own site, nothing compared; ALTERNATIVES_LIST=0 takes the list away and brings back the earlier heading. One
- * template for every app in lib/alternatives.ts. `apps` is for tests: the pages list lib/alternative-apps.ts.
+ * app's own site, nothing compared, and on the Character.AI page a dated note above them (AlternativeNote.tsx);
+ * ALTERNATIVES_LIST=0 takes both away and brings back the earlier heading. One template for every app in
+ * lib/alternatives.ts. `apps` and `now` are for tests: the pages list lib/alternative-apps.ts, as of the request.
  */
-export default function AlternativePage({ alt, apps = ALTERNATIVE_APPS }: { alt: Alternative; apps?: readonly AlternativeApp[] }) {
+export default function AlternativePage({ alt, apps = ALTERNATIVE_APPS, now = new Date() }: { alt: Alternative; apps?: readonly AlternativeApp[]; now?: Date }) {
   const base = siteUrl();
   const path = alternativePath(alt.slug);
   const faq = alternativeFaq(alt);
   const list = listedApps(alt.slug, process.env, apps);
+  const note = noteFor(alt.slug, now);
+  const importHref = alt.importHref ?? IMPORT_PATH;
   const { heading } = alternativeWords(alt, { apps });
   return (
     <>
@@ -59,14 +63,16 @@ export default function AlternativePage({ alt, apps = ALTERNATIVE_APPS }: { alt:
       >
         {alt.now && <p>{alt.now}</p>}
         <p>
-          <Link className="button" href={alt.importHref ?? IMPORT_PATH} data-track="alternative-import">
+          <Link className="button" href={importHref} data-track="alternative-import">
             Bring your character
           </Link>
         </p>
         <p className="muted small">Free to start. Nothing is saved until you press Create.</p>
       </SetHero>
-      {/* The list right under the hero, before the ribbon: what people searching "<app> alternatives" came for. */}
-      {list && <AlternativeApps alt={alt} apps={list} />}
+      {/* Right under the hero, before the ribbon: the dated note, if this page has one, then what people searching
+          "<app> alternatives" came for. */}
+      {note && <AlternativeNote note={note} importHref={importHref} />}
+      {list && <AlternativeApps alt={alt} apps={list} now={now} />}
       <FaceRibbon title="Who your character could meet" />
 
       <section className="card">

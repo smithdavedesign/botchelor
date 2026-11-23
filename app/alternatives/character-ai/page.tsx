@@ -4,6 +4,13 @@ import { alternativeBySlug } from "@/lib/alternatives";
 
 const ALT = alternativeBySlug("character-ai")!;
 
+/**
+ * The page reads the date: its dated note and Status fact hide from their `until` day, and the title drops the month
+ * once the list is stale (lib/alternative-apps.ts). It renders per request (the layout reads cookies); if it is ever
+ * built ahead instead, it's built again every hour, so the switch-over still needs no deploy. Like app/seasons.
+ */
+export const revalidate = 3600;
+
 /** Per request, like the page: the title names the month the list was checked while it's fresh (lib/alternatives.ts). */
 export async function generateMetadata(): Promise<Metadata> {
   return alternativeMetadata(ALT);

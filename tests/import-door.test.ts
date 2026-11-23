@@ -195,7 +195,9 @@ describe("the Character.AI landing", () => {
     expect(button).toBeLessThan(html.indexOf("What your character does here"));
     expect(html).toContain('href="/import"');
     expect(html).toContain("Copy its creator fields (Name, Tagline, Description, Greeting, Definition)");
-    expect(html).not.toMatch(/bankrupt|chapter 11|shut(?:ting)? down/i);
+    // Nothing about Character.AI's affairs but the dated note quoting its own announcements, which hides itself
+    // (tests/search-landings.test.ts).
+    expect(html.replace(/<section class="card alt-note"[\s\S]*?<\/section>/, "")).not.toMatch(/bankrupt|chapter 11|shut(?:ting)? down/i);
     // The switching pages link each other, never themselves.
     expect(html).toContain('href="/alternatives/janitor-ai"');
     expect(html).not.toContain('href="/alternatives/character-ai"');

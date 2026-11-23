@@ -11,10 +11,14 @@ import {
   ALTERNATIVES_FRESH_DAYS,
   ALTERNATIVES_LIST_MIN,
   alternativesFresh,
+  beforeUntil,
   botchelorApp,
+  characterAiNote,
   checkedDay,
   checkedMonth,
+  listedApps,
   NAMES_NOTE,
+  noteFor,
   onOwnSite,
   PAGE_APP_IDS,
   shownFacts,
@@ -24,6 +28,7 @@ import {
 import { ALTERNATIVE_HEADING, ALTERNATIVES, alternativeBySlug, alternativeFaq, alternativePath, alternativeWords, type Alternative } from "@/lib/alternatives";
 import { formatPrice, PACK_5 } from "@/lib/catalog";
 import { COMPANION_FREE_PER_DAY } from "@/lib/companion-shared";
+import { IMPORT_CAI_PATH } from "@/lib/import-character";
 import { indexablePromptTags, promptTagHeading, promptTagPath, TAG_PAGE_MIN, tagCounts } from "@/lib/prompts-library";
 import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { DESCRIPTION_MAX, landingPaths, staticSitemap } from "@/lib/seo";
@@ -63,11 +68,16 @@ const FAKE_APPS: readonly AlternativeApp[] = [
 const madeUp = (n: number): AlternativeApp[] =>
   Array.from({ length: n }, (_, i) => ({ id: `made-up-${i}`, name: `Made-up ${i}`, home: `https://app${i}.example/`, domains: [`app${i}.example`], about: "Made up.", facts: [] }));
 
-const render = (alt: Alternative, apps?: readonly AlternativeApp[]) => text(renderToStaticMarkup(createElement(AlternativePage, { alt, apps })));
+const render = (alt: Alternative, apps?: readonly AlternativeApp[], now?: Date) => text(renderToStaticMarkup(createElement(AlternativePage, { alt, apps, now })));
 const jsonLd = (html: string) => JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1].replace(/\\u0026/g, "&")) as Record<string, unknown>[];
 /** The list's section, or null when the page has none (nothing nests a section inside it). */
 const listSection = (html: string): string | null => {
   const start = html.indexOf('<section class="card alt-apps"');
+  return start < 0 ? null : html.slice(start, html.indexOf("</section>", start) + "</section>".length);
+};
+/** The Character.AI page's dated note, or null when the page has none. */
+const noteSection = (html: string): string | null => {
+  const start = html.indexOf('<section class="card alt-note"');
   return start < 0 ? null : html.slice(start, html.indexOf("</section>", start) + "</section>".length);
 };
 /** What a person reads, screen-reader text included: the tags gone. */
@@ -76,6 +86,10 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const day0 = new Date(`${ALTERNATIVE_APPS_CHECKED}T00:00:00Z`).getTime();
 /** A moment this many days after the facts were read. */
 const daysAfter = (days: number) => new Date(day0 + days * 86_400_000);
+/** The last second before the Character.AI note's day, the start of it, and a while after. */
+const untilDay = new Date(`${characterAiNote.until}T00:00:00Z`);
+const BEFORE = new Date(untilDay.getTime() - 1000);
+const AFTER = new Date(untilDay.getTime() + 30 * 86_400_000);
 type ItemList = { name: string; itemListOrder: string; numberOfItems: number; itemListElement: { "@type": string; position: number; name: string; url: string }[] };
 
 afterEach(() => {
@@ -181,13 +195,16 @@ describe("the /alternatives lists", () => {
       expect(app.self, app.name).toBeFalsy();
       expect(app.domains.length, app.name).toBeGreaterThan(0);
       expect(app.about.trim(), app.name).not.toBe("");
-      for (const url of [app.home, app.aboutSource ?? app.home, ...app.facts.map((f) => f.source)]) {
+      for (const url of [app.home, app.aboutSource ?? app.home, ...app.facts.flatMap((f) => (f.also === undefined ? [f.source] : [f.source, f.also]))]) {
         const { protocol, hostname } = new URL(url);
         expect(protocol, `${app.name}: ${url}`).toBe("https:");
         expect(app.domains.some((d) => hostname === d || hostname.endsWith(`.${d}`)), `${app.name}: ${url}`).toBe(true);
         expect(onOwnSite(app, url)).toBe(true);
       }
-      for (const f of app.facts) expect(f.value.trim(), `${app.name} ${f.kind}`).not.toBe("");
+      for (const f of app.facts) {
+        expect(f.value.trim(), `${app.name} ${f.kind}`).not.toBe("");
+        if (f.until !== undefined) expect(new Date(`${f.until}T00:00:00Z`).toISOString().slice(0, 10), `${app.name} ${f.kind}`).toBe(f.until);
+      }
     }
     // Botchelor's sources are this site's own pages.
     const self = botchelorApp();
@@ -197,7 +214,15 @@ describe("the /alternatives lists", () => {
     }
     // A fact from anywhere else is never shown, and a look-alike host isn't the app's own.
     const [, aardvark] = FAKE_APPS;
-    const stray: AlternativeApp = { ...aardvark, facts: [...aardvark.facts, { kind: "cards", value: "Made-up export", source: "https://elsewhere.example/aardvark" }] };
+    const stray: AlternativeApp = {
+      ...aardvark,
+      facts: [
+        ...aardvark.facts,
+        { kind: "cards", value: "Made-up export", source: "https://elsewhere.example/aardvark" },
+        // Its second page elsewhere: not shown either.
+        { kind: "free", value: "Made-up trial", source: "https://www.aardvark.example/free", also: "https://elsewhere.example/free" },
+      ],
+    };
     expect(shownFacts(stray)).toEqual(aardvark.facts);
     for (const url of ["http://www.aardvark.example/", "https://aardvark.example.elsewhere.example/", "https://notaardvark.example/", "not a url"]) {
       expect(onOwnSite(aardvark, url), url).toBe(false);
@@ -265,11 +290,12 @@ describe("the /alternatives lists", () => {
   it("build Botchelor's own entry from the code's numbers, marked as this site, the PG show only", () => {
     const self = botchelorApp();
     const value = (kind: FactKind) => self.facts.find((f) => f.kind === kind)!.value;
-    expect(value("free")).toBe(`${FREE_EPISODES_PER_SEASON} dates a week, and ${COMPANION_FREE_PER_DAY} Companion replies a day with a free account`);
-    expect(value("paid")).toBe(`Optional, from ${formatPrice(PACK_5.price_cents)} (${PACK_5.episodes} more dates, paid once)`);
-    expect(value("adult")).toBe("The show is PG");
-    expect(value("age")).toBe("18");
-    expect(value("cards")).toBe("Imports TavernAI cards (V1, V2 or V3, JSON or PNG) and Character.AI creator fields");
+    expect(value("free")).toBe(`${FREE_EPISODES_PER_SEASON} dates a week, and ${COMPANION_FREE_PER_DAY} Companion replies a day with a free account.`);
+    expect(value("paid")).toBe(`Optional, from ${formatPrice(PACK_5.price_cents)} (${PACK_5.episodes} more dates, paid once).`);
+    expect(value("adult")).toBe("The show is PG.");
+    // "18+", like the other apps' minimum ages.
+    expect(value("age")).toBe("18+.");
+    expect(value("cards")).toBe("Imports TavernAI cards (V1, V2 or V3, JSON or PNG) and Character.AI creator fields.");
     expect(JSON.stringify(self)).not.toMatch(/after.?dark|nsfw|explicit/i);
     // The pages it links say so.
     const says = (file: string) => readFileSync(file, "utf8");
@@ -289,12 +315,109 @@ describe("the /alternatives lists", () => {
     }
   });
 
-  it("ALTERNATIVES_LIST=0 gives each page as it was: no list or ItemList, and the earlier title, description and h1", async () => {
-    const before = ALTERNATIVES.map((alt) => render(alt, []));
+  it("list as many apps on every page: each page's own app is among them, and the title counts them", () => {
+    for (const alt of ALTERNATIVES) {
+      expect(ALTERNATIVE_APPS.some((a) => a.id === PAGE_APP_IDS[alt.slug]), alt.slug).toBe(true);
+      expect(listedApps(alt.slug)?.length, alt.slug).toBe(ALTERNATIVE_APPS.length);
+      expect(alternativeWords(alt).title).toMatch(new RegExp(`^${ALTERNATIVE_APPS.length} ${esc(alt.name)} alternatives`));
+    }
+  });
+
+  it('link a second page as "source 2", and show a dated fact (a Status) first, until its day', () => {
+    expect(beforeUntil(undefined, AFTER)).toBe(true);
+    expect(beforeUntil("2026-12-05", new Date("2026-12-04T23:59:59Z"))).toBe(true);
+    expect(beforeUntil("2026-12-05", new Date("2026-12-05T00:00:00Z"))).toBe(false);
+    const [, aardvark] = FAKE_APPS;
+    const dated: AlternativeApp = {
+      ...aardvark,
+      facts: [...aardvark.facts, { kind: "status", value: "A made-up sale.", source: "https://www.aardvark.example/news", also: "https://help.aardvark.example/sale", until: characterAiNote.until }],
+    };
+    expect(shownFacts(dated, BEFORE).map((f) => f.kind)).toEqual(["status", "paid"]);
+    expect(shownFacts(dated, untilDay).map((f) => f.kind)).toEqual(["paid"]);
+    // Character.AI's block, on every page that lists it: its Status first, on two of its own pages, gone with the note.
+    const cai = ALTERNATIVE_APPS.find((a) => a.id === "character-ai")!;
+    const status = cai.facts.find((f) => f.kind === "status")!;
+    expect(status.until).toBe(characterAiNote.until);
+    expect(status.also).toBeDefined();
+    const others = ALTERNATIVES.filter((a) => a.slug !== "character-ai");
+    expect(others).toHaveLength(3);
+    for (const alt of others) {
+      const block = (now: Date) => {
+        const section = listSection(render(alt, undefined, now))!;
+        const at = section.indexOf(`>${cai.name}</a></h3>`);
+        expect(at, alt.slug).toBeGreaterThan(0);
+        return section.slice(at, section.indexOf("</li>", at));
+      };
+      const before = block(BEFORE);
+      expect(before.match(/<dt>[^<]*<\/dt>/)![0], alt.slug).toBe("<dt>Status</dt>");
+      expect(before).toContain(`<dd>${status.value} <a class="muted small" href="${status.source}" rel="nofollow noopener" target="_blank">source<span class="sr-only">: ${cai.name}, status</span></a>`);
+      expect(before).toContain(`<a class="muted small" href="${status.also}" rel="nofollow noopener" target="_blank">source 2<span class="sr-only">: ${cai.name}, status</span></a>`);
+      for (const now of [untilDay, AFTER]) {
+        const after = block(now);
+        expect(after).not.toContain("<dt>Status</dt>");
+        expect(after).not.toContain(status.value);
+        expect(after.match(/<dt>[^<]*<\/dt>/)![0]).toBe("<dt>Free</dt>");
+      }
+    }
+  });
+
+  it("put a dated note on the Character.AI page only, between the hero and the list, until its day", () => {
+    const note = characterAiNote;
+    const alt = alternativeBySlug("character-ai")!;
+    const app = ALTERNATIVE_APPS.find((a) => a.id === "character-ai")!;
+    expect(note.slug).toBe(alt.slug);
+    expect(noteFor(alt.slug, BEFORE)).toBe(note);
+    expect(noteFor(alt.slug, untilDay)).toBeNull();
+    expect(noteFor(alt.slug, BEFORE, { ALTERNATIVES_LIST: "0" })).toBeNull();
+    // It quotes Character.AI's own pages.
+    for (const l of note.links) expect(onOwnSite(app, l.href), l.href).toBe(true);
+    const html = render(alt, undefined, BEFORE);
+    const section = noteSection(html)!;
+    expect(section).toContain(`<h2 id="alt-note-title">${note.heading}</h2>`);
+    // Its paragraphs word for word, in order; "paste them here" a plain link to the Character.AI door.
+    expect([...section.matchAll(/<p>(.*?)<\/p>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""))).toEqual(note.body);
+    expect(section).toContain(`<a href="${IMPORT_CAI_PATH}">${note.paste}</a>`);
+    // Right under the hero, above the list, once.
+    expect(html.indexOf(section)).toBeGreaterThan(html.indexOf("</header>"));
+    expect(html.indexOf(section)).toBeLessThan(html.indexOf('<section class="card alt-apps"'));
+    expect(html.split('class="card alt-note"')).toHaveLength(2);
+    // Quiet: its sources never followed, no button in it; the hero's button stays the page's first.
+    for (const l of note.links) expect(section).toContain(`<a href="${l.href}" rel="nofollow noopener" target="_blank">${l.text}</a>`);
+    expect(section).not.toContain("button");
+    expect(html.indexOf('class="button"')).toBeLessThan(html.indexOf(section));
+    // Not part of the FAQ, on the page or in its structured data.
+    const faqLd = JSON.stringify(jsonLd(html).find((d) => d["@type"] === "FAQPage"));
+    const faqDl = html.slice(html.indexOf('<dl class="import-faq">'));
+    for (const words of [note.heading, ...note.body]) {
+      expect(faqLd).not.toContain(words);
+      expect(faqDl).not.toContain(words);
+    }
+    expect(faqLd).not.toMatch(/chapter 11|auction/i);
+    // The description doesn't change for it: with the sale added it runs past DESCRIPTION_MAX.
+    expect(alternativeWords(alt, { now: BEFORE }).description).toBe(alternativeWords(alt, { now: untilDay }).description);
+    // From its day on it's gone, and nothing on the page speaks of the sale.
+    for (const now of [untilDay, AFTER]) {
+      const later = render(alt, undefined, now);
+      expect(noteSection(later)).toBeNull();
+      expect(later).not.toMatch(/chapter 11|auction|wound down|shutting down/i);
+    }
+    // Never on the other pages.
+    for (const other of ALTERNATIVES.filter((a) => a.slug !== alt.slug)) {
+      for (const now of [BEFORE, untilDay]) {
+        expect(noteFor(other.slug, now), other.slug).toBeNull();
+        expect(noteSection(render(other, undefined, now)), other.slug).toBeNull();
+      }
+    }
+  });
+
+  it("ALTERNATIVES_LIST=0 gives each page as it was: no list, note or ItemList, and the earlier title, description and h1", async () => {
+    // As it was: too few apps for a list, after the note's day.
+    const before = ALTERNATIVES.map((alt) => render(alt, [], AFTER));
     vi.stubEnv("ALTERNATIVES_LIST", "0");
     ALTERNATIVES.forEach((alt, i) => {
-      const html = render(alt, FAKE_APPS);
+      const html = render(alt, FAKE_APPS, BEFORE);
       expect(listSection(html)).toBeNull();
+      expect(noteSection(html)).toBeNull();
       expect(html).toContain(`<h1>${ALTERNATIVE_HEADING}</h1>`);
       expect(jsonLd(html).map((d) => d["@type"])).toEqual(["BreadcrumbList", "FAQPage"]);
       expect(html).toBe(before[i]);

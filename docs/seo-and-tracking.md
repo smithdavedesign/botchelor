@@ -122,11 +122,20 @@ a page about one app. So each of the four /alternatives pages now lists the apps
 Botchelor among them, directly under the hero (`app/alternatives/AlternativeApps.tsx`, data in
 `lib/alternative-apps.ts`). The rules, David's call:
 
-- **Every fact comes from that app's own site**, with a link to the page that says it, and the date it was read
-  (`ALTERNATIVE_APPS_CHECKED`). The kinds: what it is, what's free, what's paid and its prices, its rule on adult
-  content, its minimum age, where it runs and character cards. A record holds only what was confirmed there; a test
-  checks every source and home is on one of the app's own `domains`. Botchelor's own entry is built from the code's
-  numbers, so it says what /pricing says.
+- **Every fact comes from that app's own site**, with a link to the page that says it ("source", and "source 2" when it
+  rests on two), and the date it was read (`ALTERNATIVE_APPS_CHECKED`). The kinds: what it is, its status, what's
+  free, what's paid and its prices, its rule on adult content, its minimum age, where it runs and character cards. A
+  record holds only what was confirmed there, word for word; a kind its site didn't confirm is left out on purpose. A
+  test checks every source and home is on one of the app's own `domains`. Botchelor's own entry is built from the
+  code's numbers, so it says what /pricing says.
+- **Dated facts hide themselves.** A fact that may soon be out of date has an `until` day (UTC) and hides from that
+  day on. Only Character.AI's Status has one (its Chapter 11 sale, until 2026-12-05, the day after the sale hearing),
+  shown first in its block. The Character.AI page also carries a dated note under the hero, above the list,
+  quoting Character.AI's own announcements about the sale (`characterAiNote`, `app/alternatives/AlternativeNote.tsx`),
+  with quiet, unfollowed links to them, gone from the same day. It isn't part of the FAQ or its structured data. The
+  pages render per request, and both routes also set `revalidate = 3600`, like `app/seasons`, so the note, the Status
+  line and the titles' month switch over with no deploy. The description stays as it was: with the sale added it
+  would run past `DESCRIPTION_MAX`. To keep either after its day, re-check Character.AI's pages and move `until`.
 - **Nothing compared:** no logos, marks or pictures of other apps, no ratings, scores or stars, no "best", nothing
   better or worse, no verdicts and no ranking. The list is alphabetical and says so; the names are used only to say
   which app is meant, and a line under the list says they belong to their owners, with no affiliation. "Bring your
@@ -134,8 +143,8 @@ Botchelor among them, directly under the hero (`app/alternatives/AlternativeApps
 - **Titles count the apps from the data**, so dropping one keeps them true: "10 Character.AI alternatives, checked
   November 2026 · Botchelor" for 45 days after the check (`ALTERNATIVES_FRESH_DAYS`), then "… alternatives and what
   they cost". The h1 is "<App> alternatives", and an `ItemList` joins the page's JSON-LD (no ratings anywhere).
-- **`ALTERNATIVES_LIST`**: on by default. `0` takes the list and its `ItemList` off every page and brings back the
-  titles, descriptions and h1 from before, without a deploy of code (in case an app objects). With fewer than three
+- **`ALTERNATIVES_LIST`**: on by default. `0` takes the list, its `ItemList` and the Character.AI note off every page
+  and brings back the titles, descriptions and h1 from before, without a deploy of code (in case an app objects). With fewer than three
   apps to list (`ALTERNATIVES_LIST_MIN`), a page keeps its earlier words too.
 
 IndexNow hears of the four pages the day after the merge (`lib/indexnow.ts` `LANDING_CHANGES`). Re-check the facts

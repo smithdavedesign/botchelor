@@ -9,6 +9,8 @@ export function generateStaticParams() {
 }
 
 export const dynamicParams = false;
+/** Dated, like app/alternatives/character-ai: if built ahead, built again every hour, so a fact's `until` and the title's month switch over with no deploy. */
+export const revalidate = 3600;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const alt = alternativeBySlug((await params).slug);
