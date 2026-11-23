@@ -3,6 +3,7 @@ import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "@/lib/adult/limits";
 import { mediaRefusal } from "@/lib/adult/place";
 import {
   carryOnStepIn,
+  closeStepIn,
   continueStepIn,
   deleteStepIn,
   endStepIn,
@@ -55,6 +56,8 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("move"), place: z.string().min(1).max(120) }),
   // Ended and filed: kept, readable, with its recap.
   z.object({ action: z.literal("end") }),
+  // Brought to a close: one last reply from the character that lands the scene, then ended and filed (one reply).
+  z.object({ action: z.literal("close") }),
   // Carry on after the crisis resources.
   z.object({ action: z.literal("carry_on") }),
 ]);
@@ -121,6 +124,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     case "end":
       r = await endStepIn(db, viewer, id);
       break;
+    case "close":
+      r = await closeStepIn(db, viewer, id);
+      break;
     case "carry_on":
       r = await carryOnStepIn(db, viewer, id);
       break;
@@ -128,7 +134,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   // The rolling recap, past the response, once the scene is long (never in the way of a reply).
   if (r.ok && (input.action === "send" || input.action === "say" || input.action === "continue" || input.action === "regenerate")) inBackground(() => stepInFollowUp(db, id));
   // A scene that ends is read once more for what its character should remember (only for a viewer with memory on).
-  if (r.ok && input.action === "end") inBackground(() => stepInRemember(db, id, { atEnd: true }));
+  if (r.ok && (input.action === "end" || input.action === "close")) inBackground(() => stepInRemember(db, id, { atEnd: true }));
   return answer(db, viewer, id, r);
 });
 
