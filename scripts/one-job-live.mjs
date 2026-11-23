@@ -44,7 +44,17 @@ const read = (page, scope) =>
     return {
       h1: document.querySelector("h1")?.textContent?.trim() ?? null,
       loud: loud.map((el) => el.textContent.trim().replace(/\s+/g, " ").slice(0, 40)),
-      links: new Set([...document.querySelectorAll("main a[href]")].map((a) => a.getAttribute("href"))).size,
+      // Home's quiet row (app/page.tsx .home-more-links) is counted on its own below: it is the way on to the free tools,
+      // the alternatives and the show's pages for people and crawlers, under the first screen, not part of the page's job.
+      links: new Set([...document.querySelectorAll("main a[href]")].filter((a) => !a.closest(".home-more-links")).map((a) => a.getAttribute("href"))).size,
+      more: (() => {
+        const row = document.querySelector("main .home-more-links");
+        if (!row) return null;
+        return {
+          links: new Set([...row.querySelectorAll("a[href]")].map((a) => a.getAttribute("href"))).size,
+          below: row.getBoundingClientRect().top + window.scrollY >= window.innerHeight,
+        };
+      })(),
       height: document.documentElement.scrollHeight,
       sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
       text: (document.querySelector("main")?.textContent ?? "").replace(/\s+/g, " "),
@@ -109,7 +119,10 @@ try {
     const homeBar = await headerLoud(page);
     check(homeBar.length === 0, `${label} /: nothing loud in the header (${JSON.stringify(homeBar)})`);
     check(clip === 1, `${label} /: the clip plays beside it (${clip})`);
-    check(home.links <= 12, `${label} /: ${home.links} links on the page, ${home.height}px tall`);
+    check(home.links <= 12, `${label} /: ${home.links} links on the page besides the quiet row, ${home.height}px tall`);
+    // The quiet row may grow a little, never into a wall of links, and never up into the first screen (2026-11-23).
+    const more = home.more;
+    check(more !== null && more.links <= 18 && more.below, `${label} /: the quiet row under the first screen (${more ? `${more.links} links${more.below ? "" : ", starting inside the first screen"}` : "missing"})`);
     check(!home.sideways, `${label} /: no sideways scroll`);
     await shoot("home-first-visit");
 
