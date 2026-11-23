@@ -8,7 +8,7 @@ import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import Icon from "@/app/Icon";
 import CharacterFigure from "@/app/stage/CharacterFigure";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
-import { IDEA_TONE_LABELS, placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, type StepInIdea, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
+import { IDEA_TONE_LABELS, placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, stepsLeftLine, type StepInIdea, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { storyParagraphs, storySegments } from "@/lib/story-reply";
@@ -645,7 +645,8 @@ export default function StepInScene({
               >
                 💬 Talk{talk ? ": on" : ""}
               </button>
-              <span className="muted small ad-si-left">{view.steps_left !== null ? `${view.steps_left} scene step${view.steps_left === 1 ? "" : "s"} left this month` : ""}</span>
+              {/* Fair use, not a countdown: the count shows once it's running low (stepsLeftLine); it's always on the tokens page. */}
+              <span className="muted small ad-si-left">{stepsLeftLine(view.steps_left) ?? ""}</span>
               <button type="submit" className="primary" disabled={!live || Boolean(busy) || !text.trim()}>
                 {busy === "send" ? "Sending…" : "Send"}
               </button>
