@@ -11,6 +11,7 @@ import { closedSeasons } from "./season-ref";
 import { canonicalShipPath, readName } from "./ship-names";
 import { formatPrice, onSale } from "./catalog";
 import { BOILERPLATE, COMPANY, FOUNDER, socialLinks } from "./company";
+import { landingLastModified } from "./landing-changes";
 import { contactEmail } from "./legal-entity";
 import type { Db } from "./db";
 import { FREE_EPISODES_PER_SEASON, REPORT_HIDE_THRESHOLD } from "./rules";
@@ -113,18 +114,23 @@ export function landingPaths(): string[] {
   return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...OC_NAME_STYLES.map((s) => ocNamesHref(s))];
 }
 
-export function staticSitemap(base: string = siteUrl()): MetadataRoute.Sitemap {
+export function staticSitemap(base: string = siteUrl(), now: Date = new Date()): MetadataRoute.Sitemap {
   // A switch that takes a page away takes it out of the sitemap too: MODEL_LEAGUE=0 the league (lib/model-league.ts),
   // SHOW_IDEAS=0 /shows and the show's own page, STEP_IN_OPEN=0 /step-in (each 404s for people then).
   const off = new Set<string>([...(modelLeagueOn() ? [] : [LEAGUE_PATH]), ...(showIdeasOn() ? [] : ["/shows"]), ...(stepInOpen() ? [] : ["/step-in"])]);
   const shows = showIdeasOn() ? [`/shows/${SHOW_ID}`] : [];
   // /feed.xml is announced in every page's head and in robots.txt, not listed here as a page (2026-11-22 audit).
   const paths = [...PUBLIC_PATHS, ...shows, ...landingPaths()].filter((path) => !off.has(path));
-  return paths.map((path) => ({
-    url: `${base}${path}`,
-    changeFrequency: POLICY_PATHS.has(path) ? "monthly" : "daily",
-    priority: PRIORITY[path] ?? 0.5,
-  }));
+  return paths.map((path): MetadataRoute.Sitemap[number] => {
+    // A landing rewritten on a known day says so (lib/landing-changes.ts); every other page says nothing rather than guess.
+    const lastModified = landingLastModified(path, now);
+    return {
+      url: `${base}${path}`,
+      ...(lastModified ? { lastModified } : {}),
+      changeFrequency: POLICY_PATHS.has(path) ? "monthly" : "daily",
+      priority: PRIORITY[path] ?? 0.5,
+    };
+  });
 }
 
 /**
