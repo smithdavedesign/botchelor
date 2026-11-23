@@ -93,6 +93,9 @@ describe("the guide", () => {
       expect(tag, href).toContain('rel="nofollow noopener"');
     }
     for (const href of Object.values(CAI_SOURCES)) expect(html).toContain(`href="${href}"`);
+    // No email address in the markup outside the structured data: Cloudflare's email obfuscation rewrites one and the
+    // page fails to hydrate (React #418, docs/company.md); it did on the first deploy.
+    expect(html.replace(/<script[\s\S]*?<\/script>/g, "")).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
     // No pictures of Character.AI: the set behind the hero is the page's only image, and it's ours.
     expect([...html.matchAll(/<img [^>]*src="([^"]+)"/g)].map((m) => m[1]).every((src) => src.startsWith("/"))).toBe(true);
   });
