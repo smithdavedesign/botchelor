@@ -7,7 +7,7 @@ import Icon from "@/app/Icon";
 import { isAdmin } from "@/lib/admins";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
-import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, type StepInSceneRef } from "@/lib/adult/step-in";
+import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, storyPlaces, type StepInSceneRef } from "@/lib/adult/step-in";
 import { notesWaiting, type NoteWaiting } from "@/lib/adult/step-in-notes";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import { bondMarks } from "@/lib/adult/step-in-bond-data";
@@ -60,6 +60,8 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const adminsOnly = admin && !rolloutOn(settings.rollout, "companion", false);
   // Who they've had scenes with, the latest first: the picker shows them first.
   const recent = [...scenes.running, ...scenes.ended].sort((x, y) => y.last_at.localeCompare(x.last_at)).map((s) => s.character.id);
+  // Where each roleplay's own story is set, and whether that's out in public (the cards, and the set-up's "Where").
+  const stories = storyPlaces();
   return (
     <div className="after-dark-mode">
       <article className="after-dark ad-si" data-step-in-setup>
@@ -87,7 +89,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
           </section>
         )}
         {/* The roleplays, each cast and ready (UTC's day, so this page and the browser agree on who's on each card). */}
-        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} played={played} bonds={bonds} />}
+        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} places={stories} played={played} bonds={bonds} />}
         <h2 id="ad-si-set">{cast.length ? "Or set the scene yourself" : "Set the scene"}</h2>
         {cast.length ? (
           // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.
@@ -101,6 +103,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
             personaHref={personaHref}
             preselect={sp?.with ?? null}
             preselectRoleplay={sp?.roleplay ?? null}
+            storyPlaces={stories}
           />
         ) : (
           <p className="muted">Nobody is in your After Dark yet. This season&apos;s cast is in by default; your own characters are switched in on the Studio page.</p>

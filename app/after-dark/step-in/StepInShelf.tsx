@@ -6,7 +6,7 @@ import CharacterName from "@/app/CharacterName";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import type { BondMark } from "@/lib/adult/step-in-bond";
-import type { StepInCharacter } from "@/lib/adult/step-in-shared";
+import type { StepInCharacter, StoryPlace } from "@/lib/adult/step-in-shared";
 import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight } from "@/lib/adult/step-in-shelf";
 import { storyGoal } from "@/lib/adult/step-in-story";
 import { roleplayGroups } from "@/lib/adult/tags";
@@ -15,6 +15,7 @@ import { BondMarkTag } from "./[id]/StepInBond";
 import StepInButton from "./StepInButton";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
+const NO_PLACES: Record<string, StoryPlace> = {};
 
 /**
  * Step in's roleplays as cards (lib/adult/step-in-shelf.ts; David, 2026-11-23, after Chub.ai's scene cards): each one a
@@ -26,12 +27,15 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
  *
  * `day` is the server's (UTC), so the page it sends and the browser agree on who is on each card. `with_`: the page was
  * opened for one of them (?with=<id>, "Roleplay or place" on their card), so every card opens on that person.
+ * `places`: where each roleplay's own story is set (lib/adult/step-in.ts storyPlaces): a card says where, and that it's
+ * out in public when it is, since a scene started from it starts there.
  */
 export default function StepInShelf({
   cast,
   recent,
   day,
   with_ = null,
+  places = NO_PLACES,
   played = {},
   bonds = {},
 }: {
@@ -39,6 +43,7 @@ export default function StepInShelf({
   recent: string[];
   day: string;
   with_?: string | null;
+  places?: Record<string, StoryPlace>;
   /** The roleplays this viewer has played to their last beat, and how many times (lib/adult/step-in.ts playedRoleplays). */
   played?: Record<string, number>;
   /** How well the viewer knows each of them (lib/adult/step-in-bond-data.ts bondMarks): the level's name beside a face. */
@@ -109,6 +114,12 @@ export default function StepInShelf({
                 ) : null}
               </h3>
               <p className="ad-si-shelf-setup">{card.setup}</p>
+              {places[rp.id] && (
+                <p className="muted small ad-si-shelf-at" data-step-in-card-at={places[rp.id].public ? "public" : "private"}>
+                  📍 {places[rp.id].title}
+                  {places[rp.id].public ? " · out in public" : ""}
+                </p>
+              )}
               {/* What their side of it wants: what they're playing for (the card's own words, told to them). */}
               <p className="muted small ad-si-shelf-goal" data-step-in-card-goal>
                 {storyGoal(rp, 0, name)}
