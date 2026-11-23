@@ -927,6 +927,12 @@ body:has(.home-open--arc) .season-strip {
     width: var(--stage-back);
     height: var(--stage-back);
   }
+  /* Three of tonight's people: two stand on one side, wider than its share of the row, and the phone slid off the heart
+     (18px at 390px wide). On such a night every lead is the size two fit side by side in a side's share, so the phone
+     stays in the middle and the three stay one size. */
+  .home-open--on-stage:has(.home-open-lead + .home-open-lead) {
+    --stage-lead: min(clamp(3rem, 14.5vw, 4.25rem), (100vw - 2 * var(--gutter) - var(--stage-clip) - 1.5rem) / 4);
+  }
   /* Under the field: what the clip is, and its way to watch; then the small print (order 2, above). */
   .home-open--on-stage .home-clip-cap {
     order: 1;
