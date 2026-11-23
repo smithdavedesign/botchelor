@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CAI_GUIDE_PATH, caiGuideOn } from "@/lib/cai-guide";
 import { pageMetadata } from "@/lib/seo";
 import { CAI_SOURCE, IMPORT_PATH } from "@/lib/import-character";
 import { importDoor } from "@/lib/import-events";
@@ -90,6 +91,11 @@ export default async function ImportPage({ searchParams }: { searchParams: Searc
                 month&apos;s cast: six lines, {WRITE_TIME_SPEED}. Free, no sign-up.
               </li>
             </ol>
+            {caiGuideOn() && (
+              <p className="muted small">
+                Want to keep everything you made there? <Link href={CAI_GUIDE_PATH}>How to save your Character.AI characters and chats</Link>.
+              </p>
+            )}
           </>
         )}
         <ImportForm from={from} history={history} />

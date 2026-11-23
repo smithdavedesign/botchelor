@@ -1,5 +1,6 @@
 import { checkPortraits, checkSheets, SHEETS_PER_DAY } from "@/lib/adult/agent-cast";
 import { tellShowNightsOver } from "@/lib/adult/overnight";
+import { NOTES_RIDE_ALONG, writeDueNotes } from "@/lib/adult/step-in-notes-pass";
 import { getDb } from "@/lib/db";
 import { handle, json, jsonWhenDone } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
@@ -31,7 +32,10 @@ async function run(req: Request): Promise<Response> {
     // Nights that continued an overnight date and were simply left (lib/adult/overnight.ts): the show gets its one fact
     // for each, ids and a time. One that ended is told when it's filed; this is the sweep for the rest.
     const overnights_told = await tellShowNightsOver(db).catch(() => 0);
-    return { ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast_sheets: sheets, agent_cast: portraits, overnights_told };
+    // At 16 UTC the scheduler calls this route in place of the hourly showcase check, so the hour's pass of Step in's
+    // first notes (lib/adult/step-in-notes-pass.ts) rides here too: without it that hour would be skipped every day.
+    const step_in_notes = await writeDueNotes(db, new Date(), NOTES_RIDE_ALONG).catch(() => null);
+    return { ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast_sheets: sheets, agent_cast: portraits, overnights_told, step_in_notes };
   });
 }
 

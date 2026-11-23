@@ -18,6 +18,7 @@ import { coverKey, listCastPairs, pairCovers, type CastMember } from "@/lib/adul
 import { sharedWithMe } from "@/lib/adult/shares";
 import { listShorts, watchedOf } from "@/lib/adult/shorts";
 import { stepInOpen } from "@/lib/adult/step-in";
+import { notesWaiting, type NoteWaiting } from "@/lib/adult/step-in-notes";
 import { afterDarkOnly } from "@/lib/after-dark-host";
 import { getDb, type Db } from "@/lib/db";
 import { listShowcase } from "@/lib/showcase";
@@ -91,6 +92,8 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
     listShorts(db, EPISODES_SHOWN),
   ]);
   const textOnly = here.mode === "text_only";
+  // Who wrote to them first in a Step in scene while they were away (lib/adult/step-in-notes.ts): the tile says so.
+  const wrote = stepIn ? await notesWaiting(db, owner).catch(() => [] as NoteWaiting[]) : [];
   // What the picker needs, not every pair (lib/adult/pair-pick.ts): the cast and the nights under way.
   const { cast, nights, firstScene } = pickerData(pairs);
   // The pictures (none where only the scenes are allowed): each night's newest, and the showcase's most liked this week.
@@ -274,6 +277,17 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
           <section className="card ad-si-tile" aria-labelledby="ad-si-tile" data-step-in-tile>
             <h2 id="ad-si-tile">Step in</h2>
             <p>You, in the scene with one of them: a date or a roleplay, told as a story. You write what you say and do; they answer in their own voice.</p>
+            {/* Someone wrote first while they were away (lib/adult/step-in-notes.ts): who, and the way to the note. */}
+            {wrote.length > 0 && (
+              <p className="ad-si-tile-notes" data-step-in-tile-notes>
+                {wrote.slice(0, 3).map((n) => (
+                  <Link key={n.scene} href={`/after-dark/step-in/${n.scene}`}>
+                    <span aria-hidden="true">✉ </span>
+                    {n.name} wrote to you
+                  </Link>
+                ))}
+              </p>
+            )}
             <p className="ad-si-go">
               <Link className="button" href="/after-dark/step-in">
                 Step in

@@ -6,8 +6,11 @@
 /**
  * `showcase`: the Gallery shows its Showcase room, the showcase's After Dark side (app/after-dark/GalleryTabs.tsx; a
  * door of the header's own until 2026-11-18).
+ *
+ * `notes`: how many Step in scenes have a note waiting that the viewer hasn't seen (lib/adult/step-in-notes.ts: a
+ * character wrote first while they were away). The Scenes door carries it as a small count; 0 or left out: nothing.
  */
-export type AdDoors = { studio: boolean; showcase: boolean };
+export type AdDoors = { studio: boolean; showcase: boolean; notes?: number };
 export const NO_AD_DOORS: AdDoors = { studio: false, showcase: false };
 
 /**

@@ -1,4 +1,5 @@
 import { adminAuthorized } from "@/lib/admin-auth";
+import { NOTES_RIDE_ALONG, writeDueNotes } from "@/lib/adult/step-in-notes-pass";
 import { getDb } from "@/lib/db";
 import { handle, json, jsonWhenDone } from "@/lib/http";
 import { internalJobAuthorized } from "@/lib/jobs";
@@ -31,7 +32,12 @@ async function run(req: Request): Promise<Response> {
   const batch = async () => ({ ...(await checkBatch(db)), posters: await posterBatch(db), audio: await audioBatch(db) });
   // The scheduled job's call is streamed (lib/http.ts jsonWhenDone): a batch of new clips can outlast the edge's 100 s
   // cutoff, and the job reads the answer's ok: true. /admin/showcase's button keeps the plain answer its loop reads.
-  return internalJobAuthorized(req) ? jsonWhenDone(req, batch) : json(await batch());
+  if (!internalJobAuthorized(req)) return json(await batch());
+  // The hourly call also has Step in's characters write first (lib/adult/step-in-notes-pass.ts), after the checks. It
+  // rides here because this is the one route the scheduler calls every hour on After Dark's host, and its spec
+  // (.do/app.yaml) reaches the live app only by hand; app/api/jobs/step-in-notes is the route of its own. A pass that
+  // fails never fails the checks.
+  return jsonWhenDone(req, async () => ({ ...(await batch()), step_in_notes: await writeDueNotes(db, new Date(), NOTES_RIDE_ALONG).catch(() => null) }));
 }
 
 export const GET = handle(run);

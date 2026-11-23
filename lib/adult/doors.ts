@@ -14,12 +14,16 @@
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
 import { mediaAllowedFor } from "./place";
+import { rolloutOn } from "./rollout";
 import { getAdultSettings } from "./settings";
+import { notesWaitingCount } from "./step-in-notes";
 import type { AdDoors } from "./door-links";
 
 export async function afterDarkDoors(db: Db, userId: string): Promise<AdDoors> {
   const [admin, settings] = await Promise.all([isAdmin(db, userId), getAdultSettings(db)]);
-  if (admin) return { studio: true, showcase: true };
+  // A character wrote first in a Step in scene (lib/adult/step-in-notes.ts): counted only where Step in is open to them.
+  const notes = rolloutOn(settings.rollout, "companion", admin) ? await notesWaitingCount(db, userId).catch(() => 0) : 0;
+  if (admin) return { studio: true, showcase: true, notes };
   const showcase = settings.studio.showcase.explicit_open && (await mediaAllowedFor(db, userId));
-  return { studio: settings.studio.open_to === "entitled", showcase };
+  return { studio: settings.studio.open_to === "entitled", showcase, notes };
 }

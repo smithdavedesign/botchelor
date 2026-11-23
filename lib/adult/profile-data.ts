@@ -13,6 +13,7 @@
  */
 import { exportBonds } from "./step-in-bond-data";
 import { exportMemory, setMemory } from "./step-in-memory";
+import { clearNotePrefs, exportNotes } from "./step-in-notes";
 import type { Db } from "../db";
 import { HAS_HARD_NOS_SQL, PROFILE_CONSENT_TEXT, storedTurnOns, TURN_ONS } from "./profile";
 import { storedHardNos } from "./limits";
@@ -46,6 +47,8 @@ export type AdultProfileExport = {
   step_in: StepInSceneExport[];
   /** What the characters they step in with remember about them (lib/adult/step-in-memory.ts): when they turned it on, and every fact. */
   memory: Awaited<ReturnType<typeof exportMemory>>;
+  /** Whether characters may write to them first (lib/adult/step-in-notes.ts): how often, their quiet hours and the time zone they gave. */
+  notes_first: Awaited<ReturnType<typeof exportNotes>>;
   /** How well they and each character they've stepped in with know each other (lib/adult/step-in-bond.ts): the level shown, and what it's made of. */
   bonds: Awaited<ReturnType<typeof exportBonds>>;
 };
@@ -88,6 +91,7 @@ export async function exportAdultProfile(db: Db, viewer: string): Promise<AdultP
       .filter((l) => l.intensity !== null || l.hard_nos.chips.length + l.hard_nos.own.length > 0),
     step_in: await exportStepIn(db, viewer),
     memory: await exportMemory(db, viewer),
+    notes_first: await exportNotes(db, viewer),
     bonds: await exportBonds(db, viewer),
   };
 }
@@ -148,5 +152,9 @@ export async function deleteAdultProfile(db: Db, viewer: string): Promise<{ turn
   // What the characters they step in with remember about them (lib/adult/step-in-memory.ts): all of it, and the switch
   // with it (the consent goes with what it covered, so it's asked again).
   await setMemory(db, viewer, false);
+  // Whether characters may write to them first (lib/adult/step-in-notes.ts): off, and the time zone and quiet hours they
+  // gave with it gone; a scene told not to is like any other again.
+  await clearNotePrefs(db, viewer);
+  await db.query(`update adult_step_in_scenes set notes_off = false where owner_id = $1 and notes_off`, [viewer]);
   return { turn_ons: turnOns.rows.length, limits: limits.rows.length + stepIn.rows.length };
 }

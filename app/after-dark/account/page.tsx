@@ -10,10 +10,13 @@ import { billingOn, subscriptionState } from "@/lib/adult/billing";
 import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark, passEnds } from "@/lib/adult/entitlement";
 import { getPrivacy, lockedForCookies } from "@/lib/adult/privacy";
+import { stepInOpen } from "@/lib/adult/step-in";
+import { notePrefs } from "@/lib/adult/step-in-notes";
 import { writerOptions } from "@/lib/adult/writer";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import PrivacyCard from "../PrivacyCard";
+import StepInNotesCard from "../StepInNotesCard";
 import WriterPicker from "../WriterPicker";
 import { currentView } from "../view";
 
@@ -43,13 +46,16 @@ export default async function AfterDarkAccountPage() {
   if (!entitled.ok) notFound();
   if (await lockedForCookies(db, auth!.userId, store)) notFound();
   const owner = auth!.userId;
-  const [privacy, writer, sub, adultStyle, passEnd] = await Promise.all([
+  const [privacy, writer, sub, adultStyle, passEnd, notes] = await Promise.all([
     getPrivacy(db, owner),
     writerOptions(db, owner),
     subscriptionState(db, owner),
     // Writing styles (lib/writing-style.ts): admins, and everyone once the "narrated" rollout switch opens it.
     adultNarratedOpen(db, owner).then(async (open) => (open ? (await storedStyles(db, owner)).adult : null)),
     PASS[entitled.why] ? passEnds(db, owner) : null,
+    // Whether the characters they have scenes with may write first (lib/adult/step-in-notes.ts): theirs to set where
+    // Step in is open to them.
+    stepInOpen(db, owner).then((open) => (open ? notePrefs(db, owner) : null)),
   ]);
   // Why it's open, when it isn't a subscription: an admin, a beta pass, a free taste (lib/adult/entitlement.ts).
   const why = entitled.why;
@@ -107,6 +113,7 @@ export default async function AfterDarkAccountPage() {
         </div>
         <WriterPicker initial={writer} />
         {adultStyle && <WritingStylePicker side="adult" initial={adultStyle} />}
+        {notes && <StepInNotesCard initial={notes} />}
         <p className="muted small">
           Your profile, theme and notifications are on the show&apos;s{" "}
           <Link prefetch={false} href="/account">
