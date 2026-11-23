@@ -1,14 +1,100 @@
 // Search landings (the 2026-11-11 growth plan): one /alternatives template for several chat apps, and the prompt
 // library's big PG tags as pages of their own.
+import { existsSync, readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import AlternativePage from "@/app/alternatives/AlternativePage";
-import { ALTERNATIVES, alternativeFaq, alternativePath } from "@/lib/alternatives";
+import {
+  ALTERNATIVE_APPS,
+  ALTERNATIVE_APPS_CHECKED,
+  ALTERNATIVES_FRESH_DAYS,
+  ALTERNATIVES_LIST_MIN,
+  alternativesFresh,
+  beforeUntil,
+  botchelorApp,
+  characterAiNote,
+  checkedDay,
+  checkedMonth,
+  listedApps,
+  NAMES_NOTE,
+  noteFor,
+  onOwnSite,
+  PAGE_APP_IDS,
+  shownFacts,
+  type AlternativeApp,
+  type FactKind,
+} from "@/lib/alternative-apps";
+import { ALTERNATIVE_HEADING, ALTERNATIVES, alternativeBySlug, alternativeFaq, alternativePath, alternativeWords, type Alternative } from "@/lib/alternatives";
+import { formatPrice, PACK_5 } from "@/lib/catalog";
+import { COMPANION_FREE_PER_DAY } from "@/lib/companion-shared";
+import { IMPORT_CAI_PATH } from "@/lib/import-character";
 import { indexablePromptTags, promptTagHeading, promptTagPath, TAG_PAGE_MIN, tagCounts } from "@/lib/prompts-library";
-import { landingPaths, staticSitemap } from "@/lib/seo";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
+import { DESCRIPTION_MAX, landingPaths, staticSitemap } from "@/lib/seo";
+import { siteUrl } from "@/lib/site";
 
 const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+
+/**
+ * Two made-up apps on the reserved .example domain (RFC 2606), standing in for the real ones, whose facts are checked
+ * on each app's own site before they go in lib/alternative-apps.ts. "Example Talk" takes the place of the app the Chai
+ * page is about, so it's left off that page.
+ */
+const FAKE_APPS: readonly AlternativeApp[] = [
+  {
+    id: "chai",
+    name: "Example Talk",
+    home: "https://example-talk.example/",
+    domains: ["example-talk.example"],
+    about: "A made-up chat app, for this test only.",
+    facts: [
+      { kind: "age", value: "17", source: "https://help.example-talk.example/age" },
+      { kind: "free", value: "Made-up free messages", source: "https://example-talk.example/pricing" },
+    ],
+  },
+  {
+    id: "aardvark-example",
+    name: "aardvark Example",
+    home: "https://www.aardvark.example/",
+    domains: ["aardvark.example"],
+    about: "Another made-up chat app.",
+    aboutSource: "https://www.aardvark.example/about",
+    facts: [{ kind: "paid", value: "A made-up plan at $1 a month", source: "https://www.aardvark.example/plans" }],
+  },
+];
+
+/** Made-up apps, as many as asked: for the counts in titles and headings. */
+const madeUp = (n: number): AlternativeApp[] =>
+  Array.from({ length: n }, (_, i) => ({ id: `made-up-${i}`, name: `Made-up ${i}`, home: `https://app${i}.example/`, domains: [`app${i}.example`], about: "Made up.", facts: [] }));
+
+const render = (alt: Alternative, apps?: readonly AlternativeApp[], now?: Date) => text(renderToStaticMarkup(createElement(AlternativePage, { alt, apps, now })));
+const jsonLd = (html: string) => JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1].replace(/\\u0026/g, "&")) as Record<string, unknown>[];
+/** The list's section, or null when the page has none (nothing nests a section inside it). */
+const listSection = (html: string): string | null => {
+  const start = html.indexOf('<section class="card alt-apps"');
+  return start < 0 ? null : html.slice(start, html.indexOf("</section>", start) + "</section>".length);
+};
+/** The Character.AI page's dated note, or null when the page has none. */
+const noteSection = (html: string): string | null => {
+  const start = html.indexOf('<section class="card alt-note"');
+  return start < 0 ? null : html.slice(start, html.indexOf("</section>", start) + "</section>".length);
+};
+/** What a person reads, screen-reader text included: the tags gone. */
+const visible = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const day0 = new Date(`${ALTERNATIVE_APPS_CHECKED}T00:00:00Z`).getTime();
+/** A moment this many days after the facts were read. */
+const daysAfter = (days: number) => new Date(day0 + days * 86_400_000);
+/** The last second before the Character.AI note's day, the start of it, and a while after. */
+const untilDay = new Date(`${characterAiNote.until}T00:00:00Z`);
+const BEFORE = new Date(untilDay.getTime() - 1000);
+const AFTER = new Date(untilDay.getTime() + 30 * 86_400_000);
+type ItemList = { name: string; itemListOrder: string; numberOfItems: number; itemListElement: { "@type": string; position: number; name: string; url: string }[] };
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("the /alternatives pages", () => {
   it("one per app, each with its FAQ in the page and in its structured data, word for word", () => {
@@ -32,16 +118,315 @@ describe("the /alternatives pages", () => {
   });
 
   it("the Character.AI page keeps its words and address; the others are in the sitemap", async () => {
-    const { default: Page, metadata } = await import("@/app/alternatives/character-ai/page");
+    const { default: Page, generateMetadata } = await import("@/app/alternatives/character-ai/page");
     const html = text(renderToStaticMarkup(createElement(Page)));
     expect(html).toContain("<dt>Can I bring a character I made on Character.AI?</dt>");
     expect(html).toContain("Copy its creator fields (Name, Tagline, Description, Greeting, Definition)");
+    const metadata = await generateMetadata();
     expect(metadata.alternates?.canonical).toBe("/alternatives/character-ai");
-    const { generateStaticParams } = await import("@/app/alternatives/[slug]/page");
+    // Both routes' titles come from the one helper (lib/alternatives.ts alternativeWords).
+    expect(metadata.title).toBe(alternativeWords(alternativeBySlug("character-ai")!).title);
+    const { generateStaticParams, generateMetadata: slugMetadata } = await import("@/app/alternatives/[slug]/page");
     expect(generateStaticParams().map((p) => p.slug)).toEqual(["janitor-ai", "spicychat", "chai"]);
+    const chai = await slugMetadata({ params: Promise.resolve({ slug: "chai" }) });
+    expect(chai.title).toBe(alternativeWords(alternativeBySlug("chai")!).title);
+    expect(chai.alternates?.canonical).toBe("/alternatives/chai");
     const urls = staticSitemap("https://botchelor.com").map((e) => e.url);
     for (const slug of ["character-ai", "janitor-ai", "spicychat", "chai"]) expect(urls).toContain(`https://botchelor.com${alternativePath(slug)}`);
     expect(urls.filter((u) => u.endsWith("/alternatives/character-ai"))).toHaveLength(1);
+  });
+});
+
+// The lists (2026-11-23, lib/alternative-apps.ts): the apps people use instead of each page's own, every fact from that
+// app's own site with its source and the date it was read, alphabetical, nothing rated or compared. Each test runs on
+// the made-up apps above and on whatever lib/alternative-apps.ts lists.
+describe("the /alternatives lists", () => {
+  it("list every app but the page's own, and Botchelor, alphabetically; the ItemList is the same list", () => {
+    expect(Object.keys(PAGE_APP_IDS).sort()).toEqual(ALTERNATIVES.map((a) => a.slug).sort());
+    const base = siteUrl();
+    let shown = 0;
+    for (const apps of [FAKE_APPS, ALTERNATIVE_APPS]) {
+      for (const alt of ALTERNATIVES) {
+        const expected = [...apps.filter((a) => a.id !== PAGE_APP_IDS[alt.slug]), botchelorApp()];
+        const names = expected.map((a) => a.name).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+        const html = render(alt, apps);
+        const section = listSection(html);
+        const list = jsonLd(html).find((d) => d["@type"] === "ItemList") as ItemList | undefined;
+        if (names.length < ALTERNATIVES_LIST_MIN) {
+          // Too few to make a list (the Chai page, with the made-up apps): the page stays as it was.
+          expect(section, alt.slug).toBeNull();
+          expect(list, alt.slug).toBeUndefined();
+          expect(html).toContain(`<h1>${ALTERNATIVE_HEADING}</h1>`);
+          continue;
+        }
+        shown++;
+        expect([...section!.matchAll(/<h3><a [^>]*>([^<]+)<\/a>/g)].map((m) => m[1]), alt.slug).toEqual(names);
+        expect(section).toContain(`<h2 id="alt-apps-title">${names.length} apps people use instead of ${alt.name}</h2>`);
+        expect(section).not.toMatch(new RegExp(`>${esc(alt.name)}</a></h3>`));
+        expect(html).toContain(`<h1>${alt.name} alternatives</h1>`);
+        // Right under the hero, before the ribbon of faces.
+        expect(html.indexOf('<section class="card alt-apps"')).toBeGreaterThan(html.indexOf("</header>"));
+        expect(html.indexOf('<section class="card alt-apps"')).toBeLessThan(html.indexOf("face-ribbon"));
+        expect(list!.name).toBe(`${alt.name} alternatives`);
+        expect(list!.itemListOrder).toBe("https://schema.org/ItemListOrderAscending");
+        expect(list!.numberOfItems).toBe(names.length);
+        expect(list!.itemListElement.map((e) => e.name)).toEqual(names);
+        expect(list!.itemListElement.map((e) => e.position)).toEqual(names.map((_, i) => i + 1));
+        for (const e of list!.itemListElement) {
+          const app = expected.find((a) => a.name === e.name)!;
+          expect(e["@type"]).toBe("ListItem");
+          expect(e.url).toBe(app.self ? `${base}/` : app.home);
+        }
+        // An app with a page of its own links it, quietly; the page's own app never shows.
+        for (const app of expected) {
+          const slug = Object.keys(PAGE_APP_IDS).find((s) => PAGE_APP_IDS[s] === app.id);
+          if (slug) expect(section).toContain(`<a href="${alternativePath(slug)}">Moving from ${app.name}</a>`);
+        }
+        expect(section).not.toContain(`href="${alternativePath(alt.slug)}"`);
+      }
+    }
+    expect(shown).toBeGreaterThanOrEqual(3);
+  });
+
+  it("take every fact from the app's own site: each source and home on one of its domains, Botchelor's on ours", () => {
+    const ids = [...ALTERNATIVE_APPS, botchelorApp()].map((a) => a.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const app of [...ALTERNATIVE_APPS, ...FAKE_APPS]) {
+      expect(app.self, app.name).toBeFalsy();
+      expect(app.domains.length, app.name).toBeGreaterThan(0);
+      expect(app.about.trim(), app.name).not.toBe("");
+      for (const url of [app.home, app.aboutSource ?? app.home, ...app.facts.flatMap((f) => (f.also === undefined ? [f.source] : [f.source, f.also]))]) {
+        const { protocol, hostname } = new URL(url);
+        expect(protocol, `${app.name}: ${url}`).toBe("https:");
+        expect(app.domains.some((d) => hostname === d || hostname.endsWith(`.${d}`)), `${app.name}: ${url}`).toBe(true);
+        expect(onOwnSite(app, url)).toBe(true);
+      }
+      for (const f of app.facts) {
+        expect(f.value.trim(), `${app.name} ${f.kind}`).not.toBe("");
+        if (f.until !== undefined) expect(new Date(`${f.until}T00:00:00Z`).toISOString().slice(0, 10), `${app.name} ${f.kind}`).toBe(f.until);
+      }
+    }
+    // Botchelor's sources are this site's own pages.
+    const self = botchelorApp();
+    for (const url of [self.home, self.aboutSource!, ...self.facts.map((f) => f.source)]) {
+      expect(onOwnSite(self, url), url).toBe(true);
+      expect(existsSync(`app${url === "/" ? "" : url}/page.tsx`), url).toBe(true);
+    }
+    // A fact from anywhere else is never shown, and a look-alike host isn't the app's own.
+    const [, aardvark] = FAKE_APPS;
+    const stray: AlternativeApp = {
+      ...aardvark,
+      facts: [
+        ...aardvark.facts,
+        { kind: "cards", value: "Made-up export", source: "https://elsewhere.example/aardvark" },
+        // Its second page elsewhere: not shown either.
+        { kind: "free", value: "Made-up trial", source: "https://www.aardvark.example/free", also: "https://elsewhere.example/free" },
+      ],
+    };
+    expect(shownFacts(stray)).toEqual(aardvark.facts);
+    for (const url of ["http://www.aardvark.example/", "https://aardvark.example.elsewhere.example/", "https://notaardvark.example/", "not a url"]) {
+      expect(onOwnSite(aardvark, url), url).toBe(false);
+    }
+    expect(onOwnSite(self, "https://botchelor.com/pricing")).toBe(false);
+    expect(onOwnSite(self, "//elsewhere.example/")).toBe(false);
+  });
+
+  it("are dated, picture-free and quiet, with nothing rated, ranked or compared", () => {
+    expect(checkedDay("2026-11-23")).toBe("November 23, 2026");
+    for (const apps of [FAKE_APPS, ALTERNATIVE_APPS]) {
+      for (const alt of ALTERNATIVES) {
+        const html = render(alt, apps);
+        const section = listSection(html);
+        if (!section) continue;
+        expect(section).toMatch(new RegExp(`<time [^>]*>${checkedDay()}</time>`));
+        expect(section).toContain(ALTERNATIVE_APPS_CHECKED);
+        expect(section).toContain("In alphabetical order.");
+        expect(section).not.toMatch(/<img|<svg|<picture|<table/i);
+        expect(visible(section)).not.toMatch(/\bbest\b|★|☆|\/10\b|\brated\b|\bratings?\b|\bscor(?:e|es|ed|ing)\b| vs\.? /i);
+        expect(html).not.toMatch(/better than|worse than|official|™|®|partner/i);
+        // Under the list: whose names these are.
+        expect(section.indexOf(NAMES_NOTE)).toBeGreaterThan(section.lastIndexOf("</ul>"));
+        // The page's one loud button comes first and stays the import; every link in the list is quiet, and another
+        // app's site is never followed.
+        expect(html.indexOf('class="button"')).toBeLessThan(html.indexOf('<section class="card alt-apps"'));
+        expect(section).not.toContain("button");
+        for (const [, attrs] of section.matchAll(/<a ([^>]*)>/g)) {
+          if (/href="https?:/.test(attrs)) expect(attrs).toContain('rel="nofollow noopener"');
+        }
+        // No ratings or reviews in the structured data either.
+        expect(JSON.stringify(jsonLd(html))).not.toMatch(/Rating|"review"|"@type":"Review"/);
+      }
+    }
+  });
+
+  it("count the apps in the title and heading from the data, and name the month only while the list is fresh", () => {
+    expect(checkedMonth("2026-11-23")).toBe("November 2026");
+    expect(alternativesFresh(new Date("2027-01-06T23:59:59Z"), "2026-11-23")).toBe(true);
+    expect(alternativesFresh(new Date("2027-01-07T00:00:00Z"), "2026-11-23")).toBe(false);
+    const cai = alternativeBySlug("character-ai")!;
+    const fresh = alternativeWords(cai, { apps: FAKE_APPS, now: daysAfter(1) });
+    expect(fresh).toEqual({
+      title: `3 Character.AI alternatives, checked ${checkedMonth()} · Botchelor`,
+      description: "3 apps people use instead of Character.AI: what's free, prices and rules, each from the app's own site. Or bring your characters here to go on dates.",
+      heading: "Character.AI alternatives",
+    });
+    expect(alternativeWords(cai, { apps: FAKE_APPS, now: new Date(daysAfter(ALTERNATIVES_FRESH_DAYS).getTime() - 1000) }).title).toBe(fresh.title);
+    expect(alternativeWords(cai, { apps: FAKE_APPS, now: daysAfter(ALTERNATIVES_FRESH_DAYS) }).title).toBe("3 Character.AI alternatives and what they cost · Botchelor");
+    // Ten apps on every page (nine others and Botchelor), then one dropped: the words follow, and fit a search result.
+    for (const alt of ALTERNATIVES) {
+      for (const [apps, n] of [[madeUp(9), 10], [madeUp(8), 9]] as const) {
+        for (const now of [daysAfter(1), daysAfter(ALTERNATIVES_FRESH_DAYS + 30)]) {
+          const w = alternativeWords(alt, { apps, now });
+          expect(w.title).toMatch(new RegExp(`^${n} ${esc(alt.name)} alternatives`));
+          expect(w.title.length, w.title).toBeLessThanOrEqual(65);
+          expect(w.description).toMatch(new RegExp(`^${n} apps people use instead of ${esc(alt.name)}:`));
+          expect(w.description.length, w.description).toBeLessThanOrEqual(DESCRIPTION_MAX);
+        }
+        expect(listSection(render(alt, apps))).toContain(`>${n} apps people use instead of ${alt.name}</h2>`);
+      }
+    }
+  });
+
+  it("build Botchelor's own entry from the code's numbers, marked as this site, the PG show only", () => {
+    const self = botchelorApp();
+    const value = (kind: FactKind) => self.facts.find((f) => f.kind === kind)!.value;
+    expect(value("free")).toBe(`${FREE_EPISODES_PER_SEASON} dates a week, and ${COMPANION_FREE_PER_DAY} Companion replies a day with a free account.`);
+    expect(value("paid")).toBe(`Optional, from ${formatPrice(PACK_5.price_cents)} (${PACK_5.episodes} more dates, paid once).`);
+    expect(value("adult")).toBe("The show is PG.");
+    // "18+", like the other apps' minimum ages.
+    expect(value("age")).toBe("18+.");
+    expect(value("cards")).toBe("Imports TavernAI cards (V1, V2 or V3, JSON or PNG) and Character.AI creator fields.");
+    expect(JSON.stringify(self)).not.toMatch(/after.?dark|nsfw|explicit/i);
+    // The pages it links say so.
+    const says = (file: string) => readFileSync(file, "utf8");
+    expect(says("app/pricing/page.tsx")).toContain("{FREE_EPISODES_PER_SEASON} dates a week for your characters");
+    expect(says("app/pricing/page.tsx")).toContain("companion replies a day with a free account");
+    expect(says("app/pricing/page.tsx")).toContain("packs from ${formatPrice(PACK_5.price_cents)}");
+    expect(says("app/import/page.tsx")).toContain("The show is PG");
+    expect(says("app/import/page.tsx")).toContain("V1, V2 or V3");
+    expect(says("app/legal/sections.tsx")).toContain("Botchelor is for adults (18+)");
+    expect(says("app/accessibility/page.tsx")).toContain("We test the main pages in real browsers, at phone and desktop sizes.");
+    // On the page: marked as this site, its links ours and followed.
+    const html = render(alternativeBySlug("janitor-ai")!, FAKE_APPS);
+    const section = listSection(html)!;
+    expect(section).toContain('<h3><a href="/">Botchelor</a><span class="muted small"> (this site)</span></h3>');
+    for (const kind of ["free", "paid"] as const) {
+      expect(section).toMatch(new RegExp(`<dd>${esc(value(kind))} <a (?![^>]*nofollow)[^>]*href="/pricing"[^>]*>source`));
+    }
+  });
+
+  it("list as many apps on every page: each page's own app is among them, and the title counts them", () => {
+    for (const alt of ALTERNATIVES) {
+      expect(ALTERNATIVE_APPS.some((a) => a.id === PAGE_APP_IDS[alt.slug]), alt.slug).toBe(true);
+      expect(listedApps(alt.slug)?.length, alt.slug).toBe(ALTERNATIVE_APPS.length);
+      expect(alternativeWords(alt).title).toMatch(new RegExp(`^${ALTERNATIVE_APPS.length} ${esc(alt.name)} alternatives`));
+    }
+  });
+
+  it('link a second page as "source 2", and show a dated fact (a Status) first, until its day', () => {
+    expect(beforeUntil(undefined, AFTER)).toBe(true);
+    expect(beforeUntil("2026-12-05", new Date("2026-12-04T23:59:59Z"))).toBe(true);
+    expect(beforeUntil("2026-12-05", new Date("2026-12-05T00:00:00Z"))).toBe(false);
+    const [, aardvark] = FAKE_APPS;
+    const dated: AlternativeApp = {
+      ...aardvark,
+      facts: [...aardvark.facts, { kind: "status", value: "A made-up sale.", source: "https://www.aardvark.example/news", also: "https://help.aardvark.example/sale", until: characterAiNote.until }],
+    };
+    expect(shownFacts(dated, BEFORE).map((f) => f.kind)).toEqual(["status", "paid"]);
+    expect(shownFacts(dated, untilDay).map((f) => f.kind)).toEqual(["paid"]);
+    // Character.AI's block, on every page that lists it: its Status first, on two of its own pages, gone with the note.
+    const cai = ALTERNATIVE_APPS.find((a) => a.id === "character-ai")!;
+    const status = cai.facts.find((f) => f.kind === "status")!;
+    expect(status.until).toBe(characterAiNote.until);
+    expect(status.also).toBeDefined();
+    const others = ALTERNATIVES.filter((a) => a.slug !== "character-ai");
+    expect(others).toHaveLength(3);
+    for (const alt of others) {
+      const block = (now: Date) => {
+        const section = listSection(render(alt, undefined, now))!;
+        const at = section.indexOf(`>${cai.name}</a></h3>`);
+        expect(at, alt.slug).toBeGreaterThan(0);
+        return section.slice(at, section.indexOf("</li>", at));
+      };
+      const before = block(BEFORE);
+      expect(before.match(/<dt>[^<]*<\/dt>/)![0], alt.slug).toBe("<dt>Status</dt>");
+      expect(before).toContain(`<dd>${status.value} <a class="muted small" href="${status.source}" rel="nofollow noopener" target="_blank">source<span class="sr-only">: ${cai.name}, status</span></a>`);
+      expect(before).toContain(`<a class="muted small" href="${status.also}" rel="nofollow noopener" target="_blank">source 2<span class="sr-only">: ${cai.name}, status</span></a>`);
+      for (const now of [untilDay, AFTER]) {
+        const after = block(now);
+        expect(after).not.toContain("<dt>Status</dt>");
+        expect(after).not.toContain(status.value);
+        expect(after.match(/<dt>[^<]*<\/dt>/)![0]).toBe("<dt>Free</dt>");
+      }
+    }
+  });
+
+  it("put a dated note on the Character.AI page only, between the hero and the list, until its day", () => {
+    const note = characterAiNote;
+    const alt = alternativeBySlug("character-ai")!;
+    const app = ALTERNATIVE_APPS.find((a) => a.id === "character-ai")!;
+    expect(note.slug).toBe(alt.slug);
+    expect(noteFor(alt.slug, BEFORE)).toBe(note);
+    expect(noteFor(alt.slug, untilDay)).toBeNull();
+    expect(noteFor(alt.slug, BEFORE, { ALTERNATIVES_LIST: "0" })).toBeNull();
+    // It quotes Character.AI's own pages.
+    for (const l of note.links) expect(onOwnSite(app, l.href), l.href).toBe(true);
+    const html = render(alt, undefined, BEFORE);
+    const section = noteSection(html)!;
+    expect(section).toContain(`<h2 id="alt-note-title">${note.heading}</h2>`);
+    // Its paragraphs word for word, in order; "paste them here" a plain link to the Character.AI door.
+    expect([...section.matchAll(/<p>(.*?)<\/p>/g)].map((m) => m[1].replace(/<[^>]+>/g, ""))).toEqual(note.body);
+    expect(section).toContain(`<a href="${IMPORT_CAI_PATH}">${note.paste}</a>`);
+    // Right under the hero, above the list, once.
+    expect(html.indexOf(section)).toBeGreaterThan(html.indexOf("</header>"));
+    expect(html.indexOf(section)).toBeLessThan(html.indexOf('<section class="card alt-apps"'));
+    expect(html.split('class="card alt-note"')).toHaveLength(2);
+    // Quiet: its sources never followed, no button in it; the hero's button stays the page's first.
+    for (const l of note.links) expect(section).toContain(`<a href="${l.href}" rel="nofollow noopener" target="_blank">${l.text}</a>`);
+    expect(section).not.toContain("button");
+    expect(html.indexOf('class="button"')).toBeLessThan(html.indexOf(section));
+    // Not part of the FAQ, on the page or in its structured data.
+    const faqLd = JSON.stringify(jsonLd(html).find((d) => d["@type"] === "FAQPage"));
+    const faqDl = html.slice(html.indexOf('<dl class="import-faq">'));
+    for (const words of [note.heading, ...note.body]) {
+      expect(faqLd).not.toContain(words);
+      expect(faqDl).not.toContain(words);
+    }
+    expect(faqLd).not.toMatch(/chapter 11|auction/i);
+    // The description doesn't change for it: with the sale added it runs past DESCRIPTION_MAX.
+    expect(alternativeWords(alt, { now: BEFORE }).description).toBe(alternativeWords(alt, { now: untilDay }).description);
+    // From its day on it's gone, and nothing on the page speaks of the sale.
+    for (const now of [untilDay, AFTER]) {
+      const later = render(alt, undefined, now);
+      expect(noteSection(later)).toBeNull();
+      expect(later).not.toMatch(/chapter 11|auction|wound down|shutting down/i);
+    }
+    // Never on the other pages.
+    for (const other of ALTERNATIVES.filter((a) => a.slug !== alt.slug)) {
+      for (const now of [BEFORE, untilDay]) {
+        expect(noteFor(other.slug, now), other.slug).toBeNull();
+        expect(noteSection(render(other, undefined, now)), other.slug).toBeNull();
+      }
+    }
+  });
+
+  it("ALTERNATIVES_LIST=0 gives each page as it was: no list, note or ItemList, and the earlier title, description and h1", async () => {
+    // As it was: too few apps for a list, after the note's day.
+    const before = ALTERNATIVES.map((alt) => render(alt, [], AFTER));
+    vi.stubEnv("ALTERNATIVES_LIST", "0");
+    ALTERNATIVES.forEach((alt, i) => {
+      const html = render(alt, FAKE_APPS, BEFORE);
+      expect(listSection(html)).toBeNull();
+      expect(noteSection(html)).toBeNull();
+      expect(html).toContain(`<h1>${ALTERNATIVE_HEADING}</h1>`);
+      expect(jsonLd(html).map((d) => d["@type"])).toEqual(["BreadcrumbList", "FAQPage"]);
+      expect(html).toBe(before[i]);
+      expect(alternativeWords(alt, { apps: FAKE_APPS })).toEqual({ title: alt.title, description: alt.description, heading: ALTERNATIVE_HEADING });
+    });
+    const { generateMetadata } = await import("@/app/alternatives/character-ai/page");
+    const meta = await generateMetadata();
+    expect(meta.title).toBe("A Character.AI alternative for the characters you made · Botchelor");
+    expect(meta.openGraph?.description).toBe(alternativeBySlug("character-ai")!.description);
   });
 });
 

@@ -20,6 +20,7 @@ import { POST as rememberRoute } from "@/app/api/characters/[id]/import-history/
 import { GET as memoryGet } from "@/app/api/companion/[id]/memory/route";
 import AlternativePage from "@/app/alternatives/AlternativePage";
 import ImportPage from "@/app/import/page";
+import { NAMES_NOTE } from "@/lib/alternative-apps";
 import { alternativeBySlug } from "@/lib/alternatives";
 import { signSession } from "@/lib/auth";
 import { COMPANION_OPEN_LIMITS, openThread, setCompanionModelForTests } from "@/lib/companion";
@@ -787,7 +788,8 @@ describe("the pages", () => {
     expect(html).toMatch(/we never store or log it/);
     expect(html).toContain("We never store or log the paste itself.");
     expect(html).not.toContain("stay behind");
-    expect(html).not.toMatch(/official|partner|affiliated|endorsed/i);
+    // The only such word is the apps list's line saying the opposite: no affiliation, no endorsement.
+    expect(html.replace(NAMES_NOTE, "")).not.toMatch(/official|partner|affiliated|endorsed/i);
     vi.stubEnv("IMPORT_MEMORIES", "0");
     const off = text(renderToStaticMarkup(AlternativePage({ alt: cai })));
     expect(off).toContain("Chat histories, scenarios and long roleplay setups stay behind");

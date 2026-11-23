@@ -40,6 +40,9 @@ export const LANDING_CHANGES: readonly { path: string; changedAt: string }[] = [
   // The ship tools (2026-11-23): the new random ship generator, and the chemistry test re-aimed as the ship
   // compatibility test. A day after they ship, so the job never sends a search engine to a page not yet deployed.
   ...["/tools/random-ship-generator", "/tools/oc-chemistry-test"].map((path) => ({ path, changedAt: "2026-11-24T00:00:00Z" })),
+  // The /alternatives pages as dated lists of the apps people use instead (2026-11-23, lib/alternative-apps.ts): new
+  // titles, a new heading and the list. The day after the merge, as above.
+  ...["character-ai", "janitor-ai", "spicychat", "chai"].map((slug) => ({ path: `/alternatives/${slug}`, changedAt: "2026-11-24T00:00:00Z" })),
 ];
 
 /** The landing pages whose words changed inside the window (LANDING_CHANGES), as full URLs. */

@@ -106,7 +106,9 @@ describe("the import and landing pages", () => {
     expect(html).toMatch(/Companion/);
     expect(html).toMatch(/"@type":"FAQPage"/);
     expect(html).toMatch(/isn&#x27;t connected to Character\.AI|isn't connected to Character\.AI/);
-    expect(html).not.toMatch(/bankrupt|chapter 11|shut(?:ting)? down/i);
+    // Nothing about Character.AI's affairs but the dated note quoting its own announcements, which hides itself
+    // (tests/search-landings.test.ts).
+    expect(html.replace(/<section class="card alt-note"[\s\S]*?<\/section>/, "")).not.toMatch(/bankrupt|chapter 11|shut(?:ting)? down/i);
     // No other app's logo or screenshot: its only pictures are the show's own set and house cast (the visual pop
     // audit's hero and ribbon, 2026-11-20).
     const pictures = [...html.matchAll(/<img[^>]*\ssrc="([^"]+)"/g)].map((m) => m[1]);

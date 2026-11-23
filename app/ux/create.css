@@ -611,6 +611,29 @@
 .import-faq dd {
   margin: var(--space-1) 0 var(--space-4);
 }
+/* The /alternatives pages' list of apps (app/alternatives/AlternativeApps.tsx): one block per app, stacked at every
+   width and parted by a rule. Each app's facts are the press page's list (app/ux/company.css .press-facts), which goes
+   to one column on a phone. Every link in it is quiet. */
+.alt-apps-list {
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+}
+.alt-app {
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--line);
+}
+.alt-app h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.alt-app p {
+  margin: var(--space-1) 0 0;
+}
+.alt-app .press-facts {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
 .import-prefill p + p {
   margin-top: var(--space-2);
 }
