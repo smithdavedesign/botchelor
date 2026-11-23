@@ -60,6 +60,52 @@ export function StoryLine({ story }: { story: StepInStory | null }) {
   );
 }
 
+/** How long a dot that has just been filled is marked as new. */
+const FRESH_MS = 5000;
+
+/**
+ * The story where the viewer is reading: its dots again, at the end of the row under the newest reply. The header,
+ * with the goal, is a screen or more up by the third reply, and a beat is ticked a moment after a reply lands: without
+ * this the story moved on out of sight, and the first a viewer knew of it was the ending. A dot that has just been
+ * filled is marked for a few seconds (the words beside it never change, so nothing in the row moves); pressing it
+ * says what they're playing for again, and how far it's got, in words.
+ */
+export function StoryHere({ story }: { story: StepInStory | null }) {
+  const done = story?.done ?? 0;
+  const [open, setOpen] = useState(false);
+  // The beats this row has already shown filled: one more than that is news for a few seconds.
+  const [seen, setSeen] = useState(done);
+  useEffect(() => {
+    if (done <= seen) return;
+    const t = setTimeout(() => setSeen(done), FRESH_MS);
+    return () => clearTimeout(t);
+  }, [done, seen]);
+  if (!story) return null;
+  const fresh = done > seen;
+  const said = story.complete ? "The story has played its last beat" : `${story.done} of ${story.beats} of the story's beats played`;
+  return (
+    <>
+      <button type="button" className="link-button ad-si-story-here" aria-expanded={open} onClick={() => setOpen((was) => !was)} data-step-in-story-here={fresh ? "fresh" : "still"} data-step-in-story-done={story.done}>
+        <span>The story</span>
+        <span className="ad-si-story-beats" role="img" aria-label={said}>
+          {Array.from({ length: story.beats }, (_, i) => (
+            <span key={i} className={i < story.done ? (i >= seen ? "on new" : "on") : undefined} />
+          ))}
+        </span>
+      </button>
+      {/* Said aloud to a screen reader when a beat is ticked: the dots filling is otherwise silent. */}
+      <span className="sr-only" role="status">
+        {fresh ? said : ""}
+      </span>
+      {open && (
+        <span className="muted small ad-si-story-said" data-step-in-story-said>
+          {story.goal} {said}.
+        </span>
+      )}
+    </>
+  );
+}
+
 /**
  * The ending, offered once every beat has played: one last reply from the character that lands the story, then the
  * scene ends and is filed. Or keep going, for as long as they like: it's an offer, never a stop, and once it's turned

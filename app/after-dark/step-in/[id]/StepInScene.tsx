@@ -32,7 +32,7 @@ import StepInMemory from "./StepInMemory";
 import { NoteMark, StepInNotesRows, useNoteSeen } from "./StepInNotes";
 import StepInPicture, { StepInFigure, StepInPictures, StepInPortraitBack } from "./StepInPicture";
 import { BondChip, BondReached } from "./StepInBond";
-import { StoryEnding, StoryLine, StoryPlayed, useStoryReading } from "./StepInStory";
+import { StoryEnding, StoryHere, StoryLine, StoryPlayed, useStoryReading } from "./StepInStory";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -563,6 +563,8 @@ export default function StepInScene({
                 ↻ Again…
               </button>
             )}
+            {/* The roleplay's story where they're reading: its dots again (the goal's in the header, a screen up by now). */}
+            <StoryHere story={view.story} />
           </p>
         )}
         {/* The change to ask of it: one tap on a chip draws it again that way; or a few words of their own. Plain
