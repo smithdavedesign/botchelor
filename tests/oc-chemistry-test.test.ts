@@ -312,6 +312,24 @@ describe("2. the score: deterministic, 0–100, one of three endings, no model",
     expect(reasons.join(" ")).toContain("curious");
   });
 
+  it("names a trait both have word for word whole, and scores its words as the engine does", () => {
+    // Two of the show's cast on the random ship generator, 2026-11-23: “big” and “hearted” read like two things.
+    const niamh: OcSheet = { name: "Niamh", traits: ["mischievous", "capable", "Big-hearted"], want: "Mud", dealbreaker: "" };
+    const kenta: OcSheet = { name: "Kenta", traits: ["rough around the edges", "big-hearted", "loyal"], want: "Tofu", dealbreaker: "" };
+    const whole = chemistryTest(niamh, kenta);
+    expect(whole.reasons).toContain("They have “big-hearted” in common.");
+    // The same two words, not as the same trait: named one by one, as written, and the same score (wording only).
+    const words = chemistryTest({ ...niamh, traits: ["mischievous", "capable", "hearted, big"] }, kenta);
+    expect(words.reasons).toContain("They have “hearted” and “big” in common.");
+    expect(words.score).toBe(whole.score);
+    // A long trait, even the same one, keeps the line short with its words.
+    const long = "takes a long walk on the pier";
+    const both = chemistryTest({ ...niamh, traits: ["mischievous", "capable", long] }, { ...kenta, traits: ["rough around the edges", long, "loyal"] });
+    const line = both.reasons.find((r) => r.endsWith("in common.")) ?? "";
+    expect(line).toContain("“long”");
+    expect(line).not.toContain(`“${long}”`);
+  });
+
   it("renders the result with every model variable unset, no model and no network call", async () => {
     const fetchSpy = unsetEveryModel();
     const html = await renderResult(chemistryQuery(JUNIPER, DEX));

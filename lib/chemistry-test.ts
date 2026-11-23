@@ -232,6 +232,8 @@ const MARGIN_FLOOR = -40;
 const MARGIN_CEILING = 32;
 /** How far a temperament has to move the margin before it's worth a reason. */
 const TEMPERAMENT_MIN = 1;
+/** The longest trait a reason quotes whole when both have it ("rough around the edges"); three fit in a short line. */
+const WHOLE_TRAIT_MAX = 24;
 /** The seed only draws the engine's luck, which the test leaves out. */
 const SEED = 0;
 
@@ -362,8 +364,20 @@ function reasonsFor(a: OcSheet, b: OcSheet, signals: readonly [SoulSignals, Soul
     }
   }
 
+  // Every word their traits share counts (the engine reads words), but a short trait both have word for word is named
+  // whole: "big-hearted", not "big" and "hearted" (the random ship generator's cast, 2026-11-23). Wording only: the
+  // score is the engine's, from the words. A long one keeps the line short with its words.
   const traitsB = cues(b.traits.join(" "));
-  const shared = [...cues(a.traits.join(" "))].filter((w) => traitsB.has(w)).map((w) => wordFor(w, a.traits.join(" ")));
+  const sharedWords = new Set([...cues(a.traits.join(" "))].filter((w) => traitsB.has(w)));
+  const same = (t: string) => t.trim().length <= WHOLE_TRAIT_MAX && b.traits.some((u) => u.trim().toLowerCase() === t.trim().toLowerCase());
+  const named = new Set<string>();
+  const shared: string[] = [];
+  for (const t of a.traits) {
+    const own = [...cues(t)].filter((w) => sharedWords.has(w) && !named.has(w));
+    own.forEach((w) => named.add(w));
+    if (own.length && same(t)) shared.push(t.trim().toLowerCase());
+    else shared.push(...own.map((w) => wordFor(w, t)));
+  }
   if (shared.length) {
     const named = shared.length > 3 ? `${quoted(shared.slice(0, 3))} and ${shared.length - 3} more` : quoted(shared);
     found.push({ text: `They have ${named} in common.`, weight: worth(trace, "traits", weights) });
