@@ -224,8 +224,12 @@ export type StepInPrompt = {
   /**
    * What the reply answers when the viewer hasn't just written: the scene's opening, or carrying on. "close": the
    * scene's last reply, asked for by the viewer (lib/adult/step-in-story.ts): it lands the story and nothing follows it.
+   * "note": the character writes first while they're away (lib/adult/step-in-notes.ts), with `away` saying how long
+   * it's been.
    */
-  cue?: "open" | "continue" | "close" | null;
+  cue?: "open" | "continue" | "close" | "note" | null;
+  /** How long they've been away, in words ("a few hours", "since yesterday", "a few days"): for a note's cue only. */
+  away?: string | null;
   /** A reply drawn again because the viewer asked: what it said (it passed every check), so this one is different. */
   insteadOf?: string | null;
   /** Why the last draft couldn't be used, in a few words and never the draft itself: this one avoids it. */
@@ -270,6 +274,24 @@ export const CONTINUE_CUE =
  */
 export const CLOSE_CUE =
   "(They've asked you to bring the scene to a close. Write its last moment: what you do and say as it ends, and where it leaves the two of you. Land what the scene has been about. Don't start anything new, don't ask them a question, and stay within how far they have taken things.)";
+
+/**
+ * What a note must never do (lib/adult/step-in-notes.ts: the guard on the finished note is NOTE_PRESSURE, the same list
+ * said to the writer here). A character who makes someone feel bad for being away, or presses them to come back, is
+ * the thing people dislike most about this kind of product, so it's said plainly and checked afterwards.
+ */
+export const NOTE_NEVER =
+  "Never make them feel bad for being away, and never press them to come back: don't ask where they've been or why they left, don't say you've been waiting or how long it's been, don't say you can't do without them or that you're hurt, don't ask whether you did something wrong, and don't ask them to promise anything. Don't move the scene on or decide anything without them: nothing happens that they'd have had a say in.";
+
+/**
+ * The user turn that has the character write first (lib/adult/step-in.ts writeStepInNote): one short note, left in the
+ * scene for when they're back. Asked for by the pass, never by the writer; held to NOTE_NEVER after it's written.
+ */
+export function noteCue(away: string, inRoleplay: boolean): string {
+  return `(They aren't here: it has been ${away} since they were. Write to them first, a note they'll find when they're back: one short paragraph in your own voice, about something small from your own time since or a thought about where the two of you left it, ending on something easy to answer.${
+    inRoleplay ? " Stay inside the story the two of you are playing." : ""
+  } ${NOTE_NEVER})`;
+}
 
 function sheetLines(c: Character): string[] {
   return [
@@ -373,7 +395,9 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
         ? CONTINUE_CUE
         : args.cue === "close"
           ? CLOSE_CUE
-          : null;
+          : args.cue === "note"
+            ? noteCue(args.away || "a while", Boolean(args.roleplay))
+            : null;
   // The model answers a user turn: the opening, a carry-on, or a scene whose last word was the character's gets one
   // (after the scene has just moved, it goes on the end of that turn).
   const say = (text: string) => {

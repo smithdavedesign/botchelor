@@ -8,6 +8,7 @@ import { isAdmin } from "@/lib/admins";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, storyPlaces, type StepInSceneRef } from "@/lib/adult/step-in";
+import { notesWaiting, type NoteWaiting } from "@/lib/adult/step-in-notes";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import { bondMarks } from "@/lib/adult/step-in-bond-data";
 import { getDb } from "@/lib/db";
@@ -50,6 +51,9 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
       .then((m) => Object.fromEntries(m))
       .catch(() => ({}) as Record<string, BondMark>),
   ]);
+  // Who wrote to them first while they were away (lib/adult/step-in-notes.ts): those scenes come first, and say so.
+  const waiting = new Map((await notesWaiting(db, viewer).catch(() => [] as NoteWaiting[])).map((n) => [n.scene, n]));
+  const running = [...scenes.running.filter((s) => waiting.has(s.id)), ...scenes.running.filter((s) => !waiting.has(s.id))];
   // The persona is the show's to edit (app/account/PersonaCard.tsx): one for every scene, on either side.
   const personaHref = `${showHome().replace(/\/$/, "")}/account#persona`;
   // Still closed to everyone else: an admin is told so, and where the switch is.
@@ -81,7 +85,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
         {scenes.running.length > 0 && (
           <section aria-labelledby="ad-si-running">
             <h2 id="ad-si-running">Pick up where you left off</h2>
-            <SceneList scenes={scenes.running} />
+            <SceneList scenes={running} waiting={waiting} />
           </section>
         )}
         {/* The roleplays, each cast and ready (UTC's day, so this page and the browser agree on who's on each card). */}
@@ -116,13 +120,20 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   );
 }
 
-function SceneList({ scenes }: { scenes: StepInSceneRef[] }) {
+function SceneList({ scenes, waiting }: { scenes: StepInSceneRef[]; waiting?: Map<string, NoteWaiting> }) {
   return (
     <ul className="list ad-si-scenes">
       {scenes.map((s) => (
         <li key={s.id} className="card ad-si-scene-row" data-step-in-scene={s.id}>
           <Link href={`/after-dark/step-in/${s.id}`} className="ad-si-scene-link">
             <CharacterName character={{ id: s.character.id, name: s.character.name, portrait: s.character.portrait, hue: s.character.hue }} link={false} size={34} strong />
+            {/* They wrote first while the viewer was away: said here, with how the note starts. */}
+            {waiting?.has(s.id) && (
+              <span className="ad-si-scene-note" data-step-in-note-waiting>
+                <span aria-hidden="true">✉ </span>
+                <strong>{waiting.get(s.id)!.name} wrote to you.</strong> {waiting.get(s.id)!.line}
+              </span>
+            )}
             <span className="ad-si-scene-meta muted small">
               {s.place}
               {s.roleplay ? ` · ${s.roleplay}` : ""} · <LocalTime iso={s.ended_at ?? s.last_at} format={WHEN} />

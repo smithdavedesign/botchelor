@@ -29,6 +29,7 @@ import Limits from "../../[a]/[b]/Limits";
 import HearIt from "./HearIt";
 import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
 import StepInMemory from "./StepInMemory";
+import { NoteMark, StepInNotesRows, useNoteSeen } from "./StepInNotes";
 import StepInPicture, { StepInFigure, StepInPictures, StepInPortraitBack } from "./StepInPicture";
 import { BondChip, BondReached } from "./StepInBond";
 import { StoryEnding, StoryLine, StoryPlayed, useStoryReading } from "./StepInStory";
@@ -106,8 +107,10 @@ function Line({ m, name, hear = null }: { m: StepInMessageView; name: string; he
     );
   }
   return (
-    <li className="ad-si-them" data-kind={called ? "call" : talked ? "talk" : undefined}>
+    <li className="ad-si-them" data-kind={called ? "call" : talked ? "talk" : m.kind === "note" ? "note" : undefined}>
       <span className="sr-only">{called ? `${name}, out loud: ` : `${name}: `}</span>
+      {/* They wrote this one first, while the viewer was away (./StepInNotes.tsx). */}
+      {m.kind === "note" && <NoteMark at={m.at} />}
       {called && (
         <span className="ad-si-called muted small" aria-hidden="true">
           📞 on a call
@@ -179,6 +182,8 @@ export default function StepInScene({
   // The reply the ideas were last asked for, answered or not: until then their place is held under it.
   const [ideasAsked, setIdeasAsked] = useState<string | null>(null);
   const [calling, setCalling] = useState(false);
+  // A note was waiting here when the page arrived: now it's been seen (./StepInNotes.tsx).
+  useNoteSeen(initial.id, initial.notes.waiting);
   const [canCall, setCanCall] = useState(false);
   // "↻ Again…" under the newest reply: whether its directions are showing, the viewer's own words for one, and why
   // the last one asked for was refused.
@@ -766,6 +771,8 @@ export default function StepInScene({
                   />
                   {/* What they remember about you between scenes: off until turned on, and every line of it yours to change. */}
                   <StepInMemory characterId={view.character.id} name={name} initial={view.memory} onCrisis={setCrisis} />
+                  {/* Whether they write first while the viewer's away: the viewer's switch, and this scene's own. */}
+                  <StepInNotesRows view={view} name={name} onScene={setView} />
                   <button type="button" className="button-ghost small" onClick={toggleIdeas} aria-pressed={ideasOn} data-step-in-ideas-toggle>
                     {ideasOn ? "💡 Ideas for what to say: on" : "💡 Ideas for what to say"}
                   </button>
