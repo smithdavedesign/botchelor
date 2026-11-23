@@ -3,6 +3,7 @@ import JsonLd from "@/app/JsonLd";
 import ToolPreview from "./ToolPreview";
 import { OC_NAME_STYLE_INFO, OC_NAME_STYLES, OC_NAMES_PATH, ocNamesHref } from "@/lib/oc-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS_PATH } from "@/lib/oc-questions";
+import { PLACE_NAMES_PATH, PLACE_STYLE_INFO, PLACE_STYLES, placeNamesHref } from "@/lib/place-names";
 import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { RANDOM_OC_GENRE_INFO, RANDOM_OC_GENRES, randomOcHref } from "@/lib/random-oc";
 import { FREE_TOOLS, RANDOM_OC_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
@@ -10,9 +11,9 @@ import { FREE_TOOLS, RANDOM_OC_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } from "@/l
 const LIST_NAME = "Free tools for original characters";
 
 export const metadata = pageMetadata({
-  title: "Free OC tools: random OCs, names, questions, ships and chemistry · Botchelor",
+  title: "Free OC tools: random OCs, names, places, questions, ships and chemistry · Botchelor",
   description:
-    "Free tools for original characters: random OCs, OC names, questions to ask, ship names, random ships and a ship " +
+    "Free tools for original characters: random OCs, names, places, questions to ask, ship names, random ships and a ship " +
     "compatibility test. No sign-up, no AI.",
   path: TOOLS_PATH,
   // Its own card beside it (app/tools/opengraph-image.tsx).
@@ -38,6 +39,17 @@ function Extras({ path }: { path: string }) {
         {OC_NAME_STYLES.map((s) => (
           <Link key={s} href={ocNamesHref(s)}>
             {`${OC_NAME_STYLE_INFO[s].label} names`}
+          </Link>
+        ))}
+      </nav>
+    );
+  }
+  if (path === PLACE_NAMES_PATH) {
+    return (
+      <nav className="tools-links" aria-label="Place styles">
+        {PLACE_STYLES.map((s) => (
+          <Link key={s} href={placeNamesHref(s)}>
+            {`${PLACE_STYLE_INFO[s].label} places`}
           </Link>
         ))}
       </nav>

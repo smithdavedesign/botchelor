@@ -86,6 +86,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/tools/random-ship-generator": meta(() => import("@/app/tools/random-ship-generator/page")),
   "/tools/oc-chemistry-test": meta(() => import("@/app/tools/oc-chemistry-test/page")),
   "/tools/oc-name-generator": meta(() => import("@/app/tools/oc-name-generator/page")),
+  "/tools/place-name-generator": meta(() => import("@/app/tools/place-name-generator/page")),
   "/tools/oc-questions": meta(() => import("@/app/tools/oc-questions/page")),
   "/about": meta(() => import("@/app/about/page")),
   "/costs": meta(() => import("@/app/costs/page")),

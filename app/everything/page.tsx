@@ -83,6 +83,7 @@ export default async function EverythingPage() {
             <li><Link href="/tools/ship-name-generator">Ship name generator</Link></li>
             <li><Link href="/tools/random-ship-generator">Random ship generator</Link></li>
             <li><Link href="/tools/oc-name-generator">OC name generator</Link></li>
+            <li><Link href="/tools/place-name-generator">Place name generator</Link></li>
             <li><Link href="/tools/oc-questions">Questions to ask your OC</Link></li>
             <li><Link href="/tools">All the free OC tools</Link></li>
           </ul>

@@ -20,6 +20,7 @@ import { OC_NAME_STYLES, OC_NAMES_PATH, ocNamesHref } from "@/lib/oc-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS_PATH } from "@/lib/oc-questions";
 import { staticSitemap } from "@/lib/seo";
 import { PUBLIC_PATHS } from "@/lib/site";
+import { PLACE_NAMES_PATH } from "@/lib/place-names";
 import { CHEMISTRY_TOOL_PATH, FREE_TOOLS, RANDOM_OC_TOOL_PATH, RANDOM_SHIP_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
 
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -82,7 +83,7 @@ describe("robots.txt and the framework's prefetch requests", () => {
 describe("the free tools hub (/tools, lib/tools.ts)", () => {
   it("lists tools that exist, each in the sitemap with the hub", () => {
     expect(CHEMISTRY_TOOL_PATH).toBe(CHEMISTRY_TEST_PATH);
-    expect(FREE_TOOLS.map((t) => t.path)).toEqual([RANDOM_OC_TOOL_PATH, OC_NAMES_PATH, OC_QUESTIONS_PATH, SHIP_TOOL_PATH, RANDOM_SHIP_TOOL_PATH, CHEMISTRY_TOOL_PATH]);
+    expect(FREE_TOOLS.map((t) => t.path)).toEqual([RANDOM_OC_TOOL_PATH, OC_NAMES_PATH, PLACE_NAMES_PATH, OC_QUESTIONS_PATH, SHIP_TOOL_PATH, RANDOM_SHIP_TOOL_PATH, CHEMISTRY_TOOL_PATH]);
     const sitemap = staticSitemap("https://botchelor.com").map((e) => new URL(e.url).pathname);
     for (const path of [TOOLS_PATH, ...FREE_TOOLS.map((t) => t.path)]) {
       expect(PUBLIC_PATHS, path).toContain(path);
@@ -133,7 +134,7 @@ describe("each tool links the others and the hub (app/tools/MoreTools.tsx)", () 
       expect(html).toContain(`href="${TOOLS_PATH}"`);
     }
     expect(words(renderToStaticMarkup(createElement(MoreTools, { current: SHIP_TOOL_PATH })))).toBe(
-      "More free tools: the random OC generator, the OC name generator, the questions to ask your OC, the random ship generator and the ship compatibility test. All the free OC tools.",
+      "More free tools: the random OC generator, the OC name generator, the place name generator, the questions to ask your OC, the random ship generator and the ship compatibility test. All the free OC tools.",
     );
   });
 

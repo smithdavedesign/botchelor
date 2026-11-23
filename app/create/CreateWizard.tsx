@@ -372,6 +372,7 @@ export default function CreateWizard({
   startSample = false,
   startCharacterId = null,
   startName = null,
+  startHometown = null,
   startPair = null,
   startImported = false,
   startMeet = null,
@@ -400,6 +401,8 @@ export default function CreateWizard({
   startCharacterId?: string | null;
   /** A new character with this name already in (/create?name=, from a ship name page: app/ship/[a]/[b]). */
   startName?: string | null;
+  /** A new character from this place (/create?hometown=, from the place name generator: app/tools/place-name-generator). */
+  startHometown?: string | null;
   /** Two characters from the OC chemistry test's "Watch the real date" (/create?a_name=…&b_name=…). */
   startPair?: StartPair | null;
   /** From "Bring your character" (/import, then /create?imported=1): the draft it left in this browser goes in. */
@@ -475,7 +478,7 @@ export default function CreateWizard({
   const [imageSignals, setImageSignals] = useState<ImageSignals | null>(null);
   const [styledFromImage, setStyledFromImage] = useState(false);
   const [soul, setSoul] = useState<Soul>(init?.soul ?? EMPTY_SOUL);
-  const [extras, setExtrasState] = useState<CharacterExtras>(init?.extras ?? {});
+  const [extras, setExtrasState] = useState<CharacterExtras>(init?.extras ?? (startHometown ? { hometown: startHometown } : {}));
   const setExtras = useCallback((update: (prev: CharacterExtras) => CharacterExtras) => setExtrasState(update), []);
   // The appearance line the looks builder last wrote: replaced as the picks change, unless it's been typed over.
   const autoAppearance = useRef<string | null>(init?.extras.looks ? looksAppearance(init.extras.looks) : null);
@@ -508,7 +511,7 @@ export default function CreateWizard({
   const [temperamentCleared, setTemperamentCleared] = useState(false);
   // One-sentence create (lib/express-create.ts): offered to someone making their first character who arrived with
   // nothing in hand (no sample, name, pair, import or character to send). `expressOpen`: the one box is the screen.
-  const expressOffered = express && firstCharacter && !startSample && !startCharacterId && !startName && !startPair && !startImported;
+  const expressOffered = express && firstCharacter && !startSample && !startCharacterId && !startName && !startHometown && !startPair && !startImported;
   const [expressOpen, setExpressOpen] = useState(expressOffered);
   const [expressText, setExpressText] = useState("");
   // Where the sentence was typed when it wasn't here: the express events carry it (place: "home").
@@ -598,9 +601,9 @@ export default function CreateWizard({
       void applySample();
       return;
     }
-    // Arrived with a name to make (a ship name page) or a pair (the chemistry test): start that character fresh, not an
-    // older draft.
-    if (startName || startPair) return;
+    // Arrived with a name to make (a ship name page), a hometown (the place name generator) or a pair (the chemistry
+    // test): start that character fresh, not an older draft.
+    if (startName || startHometown || startPair) return;
     if (startImported && applyImport()) return;
     // A sentence from the home page starts that character fresh too.
     if (fromHome) return;

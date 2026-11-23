@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { CastingProvider, type CastingForClient } from "@/app/CastingContext";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { TEXT_DETAILS } from "@/lib/extras";
 import { pastPgDoorFor } from "@/lib/adult/past-pg-viewer";
 import { ADULT_COOKIE, safeFrom } from "@/lib/age";
 import { episodeAllowance, freshAllowance } from "@/lib/allowance";
@@ -125,6 +126,7 @@ export default async function CreatePage({ searchParams }: { searchParams: Searc
       startSample={sp.sample === "1"}
       startCharacterId={typeof sp.character === "string" ? sp.character : null}
       startName={typeof sp.name === "string" ? sp.name.trim().slice(0, 40) || null : null}
+      startHometown={typeof sp.hometown === "string" ? sp.hometown.trim().slice(0, TEXT_DETAILS.hometown.max) || null : null}
       startPair={pair.ok ? { a: pair.a, b: pair.b, otherHref: createPairHref(pair.b, pair.a) } : null}
       startImported={sp.imported === "1"}
       startMeet={typeof sp.meet === "string" ? sp.meet.slice(0, 64) : null}
