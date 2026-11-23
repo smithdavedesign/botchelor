@@ -3835,6 +3835,15 @@ fieldset.ad-si-step {
   text-align: left;
   white-space: normal;
 }
+/* An idea's tone, before its words: a small label, not part of the line. */
+.ad-si-idea-tone {
+  margin-right: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
 .ad-si-paused {
   margin-bottom: var(--space-3);
 }

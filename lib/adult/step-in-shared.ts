@@ -20,6 +20,15 @@ export const STEP_IN_TAGLINE = "An AI character. Fiction between adults.";
  */
 export const STEP_IN_STARTERS: readonly string[] = ["Hi. I've been looking forward to this.", "Tell me what you've been up to tonight.", "I look around, then at you. \"So this is where you hide.\""];
 
+/**
+ * Something the viewer could write next (lib/adult/step-in-ideas.ts), with the tone it's in: three under the
+ * character's newest reply, one of each. A tap puts it in the box; nothing is sent for them.
+ */
+export const IDEA_TONES = ["warm", "playful", "bold"] as const;
+export type IdeaTone = (typeof IDEA_TONES)[number];
+export const IDEA_TONE_LABELS: Record<IdeaTone, string> = { warm: "Warm", playful: "Playful", bold: "Bold" };
+export type StepInIdea = { tone: IdeaTone; text: string };
+
 /** A piece of speech a voice says in one go: about a sentence or two, so the first words are heard soon. */
 export const VOICE_PIECE_MAX = 220;
 /** The most pieces of one reply that are voiced (a reply is two to four short paragraphs; a call line a few sentences). */
