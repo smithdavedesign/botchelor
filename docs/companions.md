@@ -839,7 +839,10 @@ David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and t
   ([PRDs/digital-human.md](PRDs/digital-human.md), "The loop is the face"). Those six stills are no longer drawn or
   shown. The loop stays off with reduced motion. No kit yet: their portrait as before.
 - **Who starts a kit:** an account with the plan, or an admin, starting a call (live or taking turns) with a character
-  that has none, at most `FACE_KIT_PER_DAY` (12) a day across everyone; a failed kit waits a day. An admin draws or
+  that has none, at most `FACE_KIT_PER_DAY` (12) a day across everyone; a failed kit waits a day (a loop that simply
+  wasn't collected doesn't). Whoever starts a kit follows its loop until it's kept (`followFaceKit`), so it lands with
+  no page open: a call ends long before a loop is ready, and until 2026-11-22 that meant loops were given up unseen
+  and no character had one. An admin draws or
   redraws one with `POST /api/admin/face-kit {character_id}`. Guests' calls draw nothing. The page polls
   `GET /api/face-kit?character=` every 15 s while a kit is on its way (that route collects the loop, so it carries
   ffmpeg: `next.config.ts`).

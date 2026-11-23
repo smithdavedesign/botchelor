@@ -3916,6 +3916,24 @@ fieldset.ad-si-step {
   border-color: var(--ad-accent);
   background: color-mix(in srgb, var(--ad-accent) 22%, var(--ad-card));
 }
+/* On a phone the type chips are one sideways row (.scroll-row's way, app/ux/catalog.css): wrapped, ten of them were a
+   whole screen between the search box and the first face (the 2026-11-22 live check). */
+@media (max-width: 40rem) {
+  .ad-chars-tags {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  }
+  .ad-chars-tags::-webkit-scrollbar {
+    display: none;
+  }
+  .ad-chars-tags > a {
+    flex-shrink: 0;
+  }
+}
 .after-dark .ad-chars-count {
   margin: var(--space-2) 0;
 }

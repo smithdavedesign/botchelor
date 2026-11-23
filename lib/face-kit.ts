@@ -114,8 +114,23 @@ export function faceKitLimits(env: Record<string, string | undefined> = process.
 
 /** A still "making" this long was lost with its request: it counts as failed, and is drawn again next time. */
 const STILL_LOST_MS = 10 * 60 * 1000;
-/** A loop not back from Replicate by then is given up. */
+/** A loop not back from Replicate by then is given up. One that is back is kept however late it's collected. */
 const LOOP_GIVE_UP_MS = 20 * 60 * 1000;
+/**
+ * Once a loop is queued, whoever started it follows it (followFaceKit): asked about this often, for this long. A call
+ * here lasts 20 to 60 seconds and the loop takes a minute or more, so the page that polls while a call is on had nearly
+ * always gone by the time it was ready, and the next poll (the next call, hours later) gave up on it: on 2026-11-22 no
+ * character had a loop at all.
+ */
+const FOLLOW_EVERY_MS = 10 * 1000;
+const FOLLOW_FOR_MS = 8 * 60 * 1000;
+
+let pauseScale = 1;
+/** Tests don't wait between asks. */
+export function setFaceKitPausesForTests(on: boolean): void {
+  pauseScale = on ? 1 : 0;
+}
+const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms * pauseScale));
 /**
  * A loop still "making" this long was never collected (collectFaceKits runs only while a page polls): it counts as
  * failed, so the next call draws it again. Two characters' loops sat "making" for days and kept them from ever getting
@@ -124,6 +139,8 @@ const LOOP_GIVE_UP_MS = 20 * 60 * 1000;
 const LOOP_LOST_MS = 30 * 60 * 1000;
 /** A kit that failed is not tried again on a call for this long (an admin can at once). */
 const RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
+/** Failures that say nothing about the picture: the loop was fine or never seen, and nobody collected it. The next call draws it again at once. */
+const UNCOLLECTED = /gave up waiting|couldn't be collected|never collected/;
 /** Stills kept at this width (they show at 136 px or less), as WebP. */
 const STILL_WIDTH = 512;
 
@@ -329,13 +346,15 @@ export async function collectFaceKits(db: Db, characterId?: string): Promise<num
   let kept = 0;
   for (const r of rows) {
     const fail = (why: string) => db.query(`update face_kits set status = 'failed', error = $2, updated_at = now() where id = $1 and status = 'making'`, [r.id, why.slice(0, 200)]);
-    if (Date.now() - new Date(r.created_at).getTime() > LOOP_GIVE_UP_MS) {
-      await fail("gave up waiting");
-      continue;
-    }
+    // Asked of Replicate first, however long it's been: a loop that's done is kept even when nobody came for it in
+    // time (it used to be given up unseen, 2026-11-22). Only one that still isn't done after LOOP_GIVE_UP_MS is.
+    const late = Date.now() - new Date(r.created_at).getTime() > LOOP_GIVE_UP_MS;
     try {
       const p = await getPrediction(token, r.queue_id);
-      if (!isDone(p)) continue;
+      if (!isDone(p)) {
+        if (late) await fail("gave up waiting");
+        continue;
+      }
       const missing = noOutput(p);
       if (missing) {
         await fail(missing);
@@ -369,18 +388,49 @@ export async function collectFaceKits(db: Db, characterId?: string): Promise<num
       ]);
       if (claimed.rows.length) kept++;
     } catch (err) {
-      // Replicate unreachable: asked again on the next poll.
+      // Replicate unreachable: asked again on the next poll. Long past its time (its file has gone from Replicate, which
+      // keeps one about an hour): given up, so the next call draws it again.
       console.error(`[face-kit] collecting ${r.character_id}'s loop: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
+      if (late) await fail("it couldn't be collected in time").catch(() => {});
     }
   }
   return kept;
 }
 
 /**
+ * Follows a character's queued loop until it's kept or given up (whoever queued it calls this after their response:
+ * the routes' inBackground), so a loop lands whether or not a page is still open to poll for it. Asks every
+ * FOLLOW_EVERY_MS, for FOLLOW_FOR_MS at the most; never throws. Whether the kit has its loop at the end.
+ */
+export async function followFaceKit(db: Db, characterId: string): Promise<boolean> {
+  const count = async (status: "making" | "ready") =>
+    (await db.query<{ n: number }>(`select count(*)::int as n from face_kits where character_id = $1 and part = 'loop' and status = $2 and ($2 <> 'making' or queue_id is not null)`, [characterId, status])).rows[0]?.n ?? 0;
+  try {
+    for (let asks = 0; asks < FOLLOW_FOR_MS / FOLLOW_EVERY_MS; asks++) {
+      if (!(await count("making"))) break;
+      await pause(FOLLOW_EVERY_MS);
+      await collectFaceKits(db, characterId);
+    }
+    return (await count("ready")) > 0;
+  } catch (err) {
+    console.error(`[face-kit] following ${characterId}'s loop: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
+    return false;
+  }
+}
+
+/**
  * A call started with this character: their kit is made if they have none from the portrait they have now, nothing
  * failed in the last day, and the day's few aren't used up. Quiet about everything: the call doesn't wait for it.
+ * `follow`: once the loop is queued, it's followed here until it's kept (followFaceKit), which is how the routes call
+ * it, after their response; a loop someone else left queued is followed too.
  */
-export async function ensureFaceKit(db: Db, characterId: string, baseUrl: string, env: Env = process.env): Promise<FaceKitResult | null> {
+export async function ensureFaceKit(db: Db, characterId: string, baseUrl: string, env: Env = process.env, opts: { follow?: boolean } = {}): Promise<FaceKitResult | null> {
+  const made = await ensureKitParts(db, characterId, baseUrl, env);
+  if (opts.follow) await followFaceKit(db, characterId);
+  return made;
+}
+
+async function ensureKitParts(db: Db, characterId: string, baseUrl: string, env: Env): Promise<FaceKitResult | null> {
   const source = await faceSource(db, characterId, baseUrl);
   if (!source) return null;
   // Only what a kit is made of now counts: a still an older kit holds (a mouth shape that failed, say) is neither here nor there.
@@ -388,7 +438,7 @@ export async function ensureFaceKit(db: Db, characterId: string, baseUrl: string
   const have = (await rowsFor(db, characterId, source.id)).filter((r) => parts.includes(r.part));
   if (have.length && have.every((r) => r.status === "ready") && parts.every((p) => have.some((r) => r.part === p))) return null;
   if (have.some((r) => r.status === "making")) return null;
-  const lately = have.filter((r) => r.status === "failed" && Date.now() - new Date(r.updated_at).getTime() < RETRY_AFTER_MS);
+  const lately = have.filter((r) => r.status === "failed" && !UNCOLLECTED.test(r.error ?? "") && Date.now() - new Date(r.updated_at).getTime() < RETRY_AFTER_MS);
   if (lately.length) return null;
   const made = await makeFaceKit(db, characterId, baseUrl, { count: true, env });
   if (!made.ok) return made;

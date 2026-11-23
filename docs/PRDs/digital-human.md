@@ -114,6 +114,13 @@ costs down let's just have a loop of the character like a gif."
   reply as the tenth, and has no provider's terms in it, so After Dark's calls can use the same face.
 - **A kit is two parts now:** the portrait and the loop, about 5–8¢ (was ~29¢ with the six mouth and look stills).
   Kits drawn before keep those rows (`RETIRED_STILLS`); nothing shows or redraws them.
+- **The loop has to actually land (found on the live check, 2026-11-22).** With the face fixed, a call as the audit
+  account showed a portrait and the ring but no loop: no character had one. A loop takes a minute or more on Replicate
+  and was only collected while a call's page polled for it; calls here last under a minute, so the page had gone, and
+  the next poll (the next call, hours later) gave up on it unseen ("gave up waiting"). Now whoever queues a loop
+  follows it after their response until it's kept (`followFaceKit`: every 10 s, up to 8 minutes), a loop that's done
+  is kept however late it's collected, and a loop nobody collected is drawn again on the next call at once (it isn't
+  held against the kit for a day, as a picture that failed its check is).
 - **Lip-sync is switched off, not removed.** `LIVE_FACE_PROVIDER` unset (or `off`) is this. Setting it back
   (`ditto:plan`, `ditto:admins`, `musetalk`…) brings the clips back exactly as before, over the same loop; while
   Ditto is set a kit also draws Ditto's talking still (`kitParts`). Worth turning on again when calls are frequent

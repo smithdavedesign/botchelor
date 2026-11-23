@@ -150,7 +150,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     track("companion_call", { stage: input.event, seconds: input.seconds, turns: input.turns, voice: input.voice, guest: !sess.authenticated || undefined });
     // A call starting on the plan (or an admin's): their face for it (lib/face-kit.ts), drawn once if they have none.
     if (input.event === "start" && sess.authenticated && (await companionAllowance(db, sess.userId, new Date(), process.env)).unlimited) {
-      inBackground(() => ensureFaceKit(db, t.view.character.id, requestBase(req)));
+      inBackground(() => ensureFaceKit(db, t.view.character.id, requestBase(req), process.env, { follow: true }));
     }
     return json({ ok: true }, 200, sess);
   }
