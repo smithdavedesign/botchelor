@@ -3658,8 +3658,10 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
       has stepped in with before, and on the side the picture implies (`you`: with the vampire on the doorstep, the
       viewer is the guest). "Someone else" recasts it, the people they know first, and the cover goes: it's a picture
       of one person. A page opened for one person (`?with=`) shows a cover only where it's theirs.
-    - **Tonight's eight lead with four of them** (`shelfTonight`'s `first`), a different four each day, so the shelf
-      opens on pictures and its rows are of a kind; "All" and each kind list the pictured ones first.
+    - **Tonight's eight lead with six of them** (`shelfTonight`'s `first`), a different six each day, so the shelf
+      opens on pictures and its rows are of a kind whether it's three across or two; "All" and each kind list the
+      pictured ones first. On a screen with the room the shelf runs wider than the page's reading column (to 64rem,
+      three cards across): two across left half a desktop empty beside the pictures.
     - **How they were made:** `~/.claude/botchelor-bin/covers/cover.py`: one image edit each on Replicate's
       `qwen/qwen-image-edit-2511` (the app's own edit model) from the character's PG house portrait, fully clothed,
       Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 80 KB,
@@ -4080,6 +4082,9 @@ from what the two have actually done together, it only ever goes up, and nothing
   (`BOND_DAY_TURNS_AT_UTC_HOUR`, `lib/adult/step-in-bond-data.ts`): midnight UTC is 7pm in New York and 4pm in Los
   Angeles, so an evening there straddled two UTC days and counted twice. At 10:00 UTC it's 5am in New York, 2am in Los
   Angeles and 11am in Berlin, so an evening anywhere in the Americas or Europe is one day.
+- **The privacy notice says so** (`app/legal/sections.tsx`, "How well a character knows you", added 2026-11-23): the
+  level is a number kept about a person, and it outlives a deleted scene, so the notice names it, says why it's
+  kept, and that After Dark's download has it and After Dark's delete removes it.
 - **Their own people come first on the Characters page** (`yourPeopleFirst`, 2026-11-23): whoever has written to them
   and is waiting, then whoever they have a scene running with, then by level, the highest first; everyone else keeps
   the cast's own order. The page is 36 cards of a few hundred: before this, someone they'd spent a week with could
