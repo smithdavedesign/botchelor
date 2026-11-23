@@ -4615,6 +4615,22 @@ alter table adult_step_in_messages add column if not exists ideas jsonb;
 -- Step in's replies counted apart from a night's scene steps, with their own monthly cap (lib/adult/usage.ts "step_in").
 alter table adult_usage add column if not exists step_in integer not null default 0;
 alter table adult_settings add column if not exists cap_step_in integer not null default 3000;
+-- The character writes first (lib/adult/step-in-notes.ts): off until the person turns it on. adult_prefs.step_in_notes
+-- is how often ('sometimes' | 'daily'; null: off), step_in_notes_at when they turned it on, step_in_quiet_from/_to their
+-- quiet hours as two whole hours in their own clock, and step_in_tz the IANA time zone their browser gave when they
+-- turned it on (what the quiet hours are judged in). On a scene: notes_off (this scene is never written to first),
+-- note_at (a note is waiting that they haven't seen: cleared when they open the scene or write in it), and
+-- notes_claimed_at (the lease a pass takes before it writes, so two passes can't write the same scene; a failed try
+-- keeps it for a while, so one scene isn't tried every hour).
+alter table adult_prefs add column if not exists step_in_notes text;
+alter table adult_prefs add column if not exists step_in_notes_at timestamptz;
+alter table adult_prefs add column if not exists step_in_quiet_from smallint;
+alter table adult_prefs add column if not exists step_in_quiet_to smallint;
+alter table adult_prefs add column if not exists step_in_tz text;
+alter table adult_step_in_scenes add column if not exists notes_off boolean not null default false;
+alter table adult_step_in_scenes add column if not exists note_at timestamptz;
+alter table adult_step_in_scenes add column if not exists notes_claimed_at timestamptz;
+create index if not exists adult_step_in_messages_notes_idx on adult_step_in_messages (owner_id, created_at desc) where kind = 'note';
 alter table adult_step_in_messages add column if not exists idea_draws integer;
 
 -- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared

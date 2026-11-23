@@ -306,6 +306,12 @@ export default function Nav({
                   {texts > 99 ? "99+" : texts}
                 </span>
               )}
+              {/* After Dark's host: someone wrote first in a Step in scene (lib/adult/step-in-notes.ts). Scenes is the door to it. */}
+              {adHost && l.href === "/after-dark" && (adDoors.notes ?? 0) > 0 && (
+                <span className="nav-count" aria-label={`${adDoors.notes} ${adDoors.notes === 1 ? "note" : "notes"} waiting`} data-ad-notes>
+                  {adDoors.notes}
+                </span>
+              )}
             </Door>
             {/* NAV_CHAT=0, phone menu only: the companions' directory under Characters (in the desktop bar it's a tab). */}
             {l.href === "/characters" && companions && !chat && !adHost && (

@@ -3833,6 +3833,67 @@ nothing is ever sent for them, and nothing is counted until they send a line.
 - **What it costs:** one small call a reply on After Dark's own model, a few hundredths of a cent, only for a viewer
   who has the scene open and hasn't switched ideas off.
 
+**They write first** (2026-11-23; David: "Messages sent first, with quiet hours (Kindroid, Nomi). This is the biggest,
+and the one most tied to people coming back."; row 9 of
+[audits/2026-11-23-scenes-and-side-pictures.md](audits/2026-11-23-scenes-and-side-pictures.md): Kindroid's are opt-in
+and stop after three go unanswered, Nomi has four frequencies). A person who has a scene running with a character and
+has been away a while comes back to find the character wrote first: one short note, in the scene, in their own voice,
+with something easy to answer. `lib/adult/step-in-notes.ts` (the choice, the decision, the guard),
+`lib/adult/step-in-notes-pass.ts` (the pass), `writeStepInNote` in `lib/adult/step-in.ts`.
+- **Off until the person turns it on.** After Dark's account page has the card ("✉ They can write to you first",
+  `#notes`), with what it means in its own words (`NOTES_ABOUT`): how often, their quiet hours, and their time zone,
+  which the browser gives when they turn it on (`Intl.DateTimeFormat().resolvedOptions().timeZone`; one the server
+  doesn't know is kept as UTC). Kept in `adult_prefs` (`step_in_notes`, `step_in_notes_at`, `step_in_quiet_from`,
+  `step_in_quiet_to`, `step_in_tz`). Off stops everything at once and deletes nothing that was written. It's in After
+  Dark's download (`notes_first`) and goes with "delete my profile" and with the account.
+- **How often** (`PACES`): *Sometimes*, at most one note every three days from any one character and one a day in all;
+  *Daily*, at most one a day from any one character and two a day in all.
+- **Quiet hours**: two whole hours in their own clock, 22:00 to 08:00 to start with; they may wrap midnight, and the
+  same hour twice means none. Judged in their zone at the moment of writing (`inQuietHours`, `localHour`).
+- **One scene can be told not to**: "✉ {name} doesn't write first in this scene" in its ⋯ menu
+  (`adult_step_in_scenes.notes_off`).
+- **When a note is written** (`noteDecision`, pure, with its reason when it isn't): the scene is running, not paused and
+  not told off; its character is still in the person's After Dark; After Dark and Step in are still open to them;
+  something has been said in it; it has been left 8 hours or more; no note is waiting there that they haven't seen;
+  it isn't their quiet hours; their pace allows it; the month's replies aren't used up; and it hasn't had two notes in
+  a row with no line from them between (`NOTES_UNANSWERED`: then no more until they write again).
+- **What a note is**: one reply through the same draw and the same checks as any reply (`cue: "note"`, `noteCue`),
+  written by the person's own writer, its first two paragraphs at most, kept as the character's line of kind `note`,
+  and counted as one of the month's replies. The cue says how long it has been in three plain steps ("a few hours",
+  "since yesterday", "a few days") and what never to do (`NOTE_NEVER`).
+- **Never guilt, never pressure.** The finished note is read by `notePressure` (`NOTE_PRESSURE`: asking where they went
+  or why, saying they were waited for, counting the time, asking them not to go or to come back, saying they can't do
+  without them, blame, hurt, a promise asked), in what the character says and in the narration around it. A draft
+  that trips it is drawn once more with a note of why; if that one trips too, **nothing is written and nothing is
+  counted**: a note has no narrator's stand-in. The step log keeps which way it pressed (`flags.redrawn`), never a word.
+- **The AI notice** isn't added by a note. It goes in on the person's own next line, as after any time away, and the
+  scene's header says "An AI character" throughout.
+- **The pass** (`writeDueNotes`): every scene that could be due, the most recently left first, each decided on what's
+  true that minute. It takes the scene's claim in one statement before writing (`notes_claimed_at`), so two passes at
+  once write one note; a try that writes nothing keeps its claim for 6 hours, so a scene whose note can't be written
+  isn't tried every hour. Bounded three ways: 25 notes a run, 150 seconds of starting new ones, and 300 notes across
+  the site in any 24 hours.
+- **Running it**: `GET /api/jobs/step-in-notes` on After Dark's host (the scheduler's secret or the internal token; 404
+  otherwise). The scheduler's spec (`.do/app.yaml`) reaches the live app only by hand, so until it has a line of its
+  own the same pass rides along on the two routes it already calls there every hour: `showcase-check`, and
+  `after-dark-daily` at 16 UTC (`NOTES_RIDE_ALONG`: 10 notes and 60 seconds, since it shares those routes' five
+  minutes). A pass that fails never fails the job it rides on.
+- **Where they see it** (After Dark's own pages; the show never reads any of it): the note in the scene with "✉ wrote
+  first" and when; Step in's front page, where a scene with a note waiting comes first and says "{name} wrote to you"
+  with how it starts; a mark on that character's card on the Characters page; the hub's Step in tile; and a small
+  count on the header's Scenes door (`afterDarkDoors().notes`). The mark goes when they write in the scene or open its
+  page (the page says so from the browser, `action: "seen"`, so a prefetched link never clears it). Nothing is put in
+  the tab's title.
+- **An admin can have one written now**, to see it work: "✉ Have {name} write first now (admins)" in a scene's ⋯ menu
+  (`writeNoteNow`). Only how long the scene has been left is waived; every other rule holds.
+- **What it costs**: one reply a note, on the person's own writer; a draft that presses costs its call and writes
+  nothing. Nothing leaves the site.
+- **Not built**: email and push (the show has both, but a note from After Dark in someone's inbox or on a lock screen
+  needs its own consent and its own discreet wording); a pace for each character; a note in a scene that has ended;
+  and a line in `.do/app.yaml` (it needs applying to the live app by hand).
+
+**Proof:** `tests/after-dark-step-in-notes.test.ts`.
+
 **The month's count is quiet** (2026-11-23; one of the ideas David said he's open to; row 10 of the field audit: text
 is unlimited on every site in the field and only media is metered). The plan already says "Unlimited chapters, no
 tokens (fair use: N scene steps a month)", but a scene's composer and a call counted the steps down on every reply.

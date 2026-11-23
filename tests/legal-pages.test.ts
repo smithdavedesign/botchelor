@@ -224,6 +224,10 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toContain("<strong>What a character remembers about you.</strong>");
     expect(strip(render(PrivacyPage))).toMatch(/In a scene you step into yourself, a character can keep a\s+short list of things you said about yourself/);
     expect(strip(render(PrivacyPage))).toMatch(/turning it off deletes all of it; and it's in After Dark's download/);
+    // A character writing first (lib/adult/step-in-notes.ts): opt-in, what's kept to time it, nothing leaves the site.
+    expect(strip(render(PrivacyPage))).toMatch(/and deleted when you turn it off; and what we keep if you let a character there write to you first \(your time zone, the quiet hours you pick and how often\), which is off until you turn it on; nothing else changes\./);
+    expect(render(PrivacyPage)).toContain("<strong>When a character writes to you first.</strong>");
+    expect(strip(render(PrivacyPage))).toMatch(/If you turn this on in After Dark, a character you have a\s+scene running with can leave you a short note in that scene while you're away, and to time it we keep your\s+time zone, the quiet hours you pick and how often you chose; nothing is emailed or sent to your phone, and\s+turning it off stops it at once\./);
     expect(strip(render(PrivacyPage))).toMatch(/Before that \(22 November\): a short version now opens the terms and the privacy notice, and the notice says that the home page's LaunchNest badge is loaded from LaunchNest's own site/);
     expect(render(PrivacyPage)).toMatch(/Before that \(19 November\): Botchelor is now run by Botchelor LLC/);
     expect(render(PrivacyPage)).toMatch(/Before that \(18 November\): the terms say Botchelor owns the characters it makes for the show/);

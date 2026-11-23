@@ -132,7 +132,8 @@ export type StepInPlace = {
 export type StepInMessageView = {
   id: string;
   role: "viewer" | "character" | "system";
-  kind: "aside" | "notice" | "place" | "call" | "call_aside" | "talk" | "talk_aside" | null;
+  /** "note": the character wrote first while the viewer was away (lib/adult/step-in-notes.ts). */
+  kind: "aside" | "notice" | "place" | "call" | "call_aside" | "talk" | "talk_aside" | "note" | null;
   text: string;
   at: string;
   spoken?: number;
@@ -171,6 +172,11 @@ export type StepInSceneView = {
   steps_left: number | null;
   /** The viewer's memory switch (off until they agree), and how many things this character remembers about them. */
   memory: { on: boolean; facts: number };
+  /**
+   * The character writing first (lib/adult/step-in-notes.ts): whether the viewer has it on, whether this scene was told
+   * not to, whether a note is waiting that they haven't seen, and whether they may try one now (an admin, to see it work).
+   */
+  notes: { on: boolean; scene_off: boolean; waiting: boolean; try_now: boolean };
   started_at: string;
 };
 

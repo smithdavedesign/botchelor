@@ -23,7 +23,8 @@
   ],
   "app/api/jobs/after-dark-daily/route.ts": [
     "agent-cast",
-    "overnight"
+    "overnight",
+    "step-in-notes-pass"
   ],
   "app/api/jobs/daily/route.ts": [
     "billing"
@@ -34,6 +35,12 @@
   ],
   "app/api/jobs/faststart-backfill/route.ts": [
     "faststart-backfill"
+  ],
+  "app/api/jobs/showcase-check/route.ts": [
+    "step-in-notes-pass"
+  ],
+  "app/api/jobs/step-in-notes/route.ts": [
+    "step-in-notes-pass"
   ],
   "app/api/library/route.ts": [
     "entitlement"

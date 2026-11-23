@@ -12,6 +12,7 @@ import { adultAvailable } from "@/lib/adult/mode";
 import { whoseCounts, whoseFilters, type Whose } from "@/lib/adult/pair-pick";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { runningStepIns, stepInOpen } from "@/lib/adult/step-in";
+import { notesWaiting } from "@/lib/adult/step-in-notes";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { pageOf } from "@/lib/paging";
@@ -48,7 +49,7 @@ const first = (n: string) => n.trim().split(/\s+/)[0] || n;
  * once (app/after-dark/step-in/StepInButton.tsx; "Continue" when they have one running), as the show's Characters page
  * has "Text {name}" on every card, and a quiet link to the set-up page for a place, a roleplay or a written opening.
  */
-function CharacterCard({ c, eager, stepIn }: { c: AdCharacterCard; eager: boolean; stepIn: { scene: string | null } | null }) {
+function CharacterCard({ c, eager, stepIn }: { c: AdCharacterCard; eager: boolean; stepIn: { scene: string | null; wrote?: boolean } | null }) {
   const tags = c.tags
     .slice(0, 2)
     .map((t) => tagById(t))
@@ -75,6 +76,13 @@ function CharacterCard({ c, eager, stepIn }: { c: AdCharacterCard; eager: boolea
       </Link>
       {stepIn && (
         <div className="ad-char-step" data-character-step-in>
+          {/* They wrote first while the viewer was away (lib/adult/step-in-notes.ts): Continue opens the scene it's in. */}
+          {stepIn.wrote && (
+            <span className="ad-char-note" data-character-note>
+              <span aria-hidden="true">✉ </span>
+              {first(c.name)} wrote to you
+            </span>
+          )}
           <StepInButton characterId={c.id} name={first(c.name)} sceneId={stepIn.scene} className="button" label="Step in" resumeLabel="Continue" />
           <Link className="ad-char-setup" href={`/after-dark/step-in?with=${encodeURIComponent(c.id)}`} aria-label={`Set a scene or a roleplay with ${first(c.name)}`}>
             Roleplay or place
@@ -107,6 +115,8 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
   const [cast, here, stepIn] = await Promise.all([adCast(db, viewer), currentHere(), stepInOpen(db, viewer)]);
   // Where Step in is open to them: who they already have a scene running with, so that card says Continue.
   const running = stepIn ? await runningStepIns(db, viewer) : null;
+  // And who has written to them first since they were last here (one query for the page: lib/adult/step-in-notes.ts).
+  const wrote = new Set(stepIn ? (await notesWaiting(db, viewer).catch(() => [])).map((n) => n.character) : []);
   const counts = whoseCounts(cast);
   const filters = whoseFilters(counts);
   // A filter that doesn't split this cast (or an old link's) reads as Everyone.
@@ -180,7 +190,7 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
         {cards.length > 0 ? (
           <ul className="ad-chars-grid" data-ad-characters>
             {cards.map((c, i) => (
-              <CharacterCard key={c.id} c={c} eager={i < EAGER_CARDS} stepIn={running ? { scene: running.get(c.id) ?? null } : null} />
+              <CharacterCard key={c.id} c={c} eager={i < EAGER_CARDS} stepIn={running ? { scene: running.get(c.id) ?? null, wrote: wrote.has(c.id) } : null} />
             ))}
           </ul>
         ) : cast.length > 0 ? (

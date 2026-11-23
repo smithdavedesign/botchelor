@@ -63,6 +63,7 @@ import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
 import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memory";
+import { notePrefs, notePressure } from "./step-in-notes";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
 import { placeInSentence, spokenPieces, STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
 import { storySpeech } from "../story-reply";
@@ -165,11 +166,14 @@ type SceneRow = {
   ended_at: string | Date | null;
   created_at: string | Date;
   last_at: string | Date;
+  /** The character writing first (lib/adult/step-in-notes.ts): this scene told not to, and a note waiting unseen. */
+  notes_off?: boolean;
+  note_at?: string | Date | null;
 };
 
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null; created_at: string | Date };
 
-const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at";
+const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, notes_off, note_at";
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer])).rows[0] ?? null;
@@ -523,7 +527,7 @@ async function pauseForCrisis(db: Db, s: SceneRow, now: Date): Promise<StepInFai
 /* ------------------------------------------------ the view ------------------------------------------------ */
 
 const messageKind = (m: Pick<MessageRow, "kind">): StepInMessageView["kind"] =>
-  m.kind === "aside" || m.kind === "notice" || m.kind === "place" || m.kind === "call" || m.kind === "call_aside" || m.kind === "talk" || m.kind === "talk_aside" ? m.kind : null;
+  m.kind === "aside" || m.kind === "notice" || m.kind === "place" || m.kind === "call" || m.kind === "call_aside" || m.kind === "talk" || m.kind === "talk_aside" || m.kind === "note" ? m.kind : null;
 /** A stand-in, written or spoken: never something to steer away from, and never a line the character "said before". */
 const isAside = (m: Pick<MessageRow, "kind">): boolean => m.kind === "aside" || m.kind === "call_aside" || m.kind === "talk_aside";
 /**
@@ -559,7 +563,7 @@ function roleplayView(pick: SceneRow["roleplay"], characterName: string): StepIn
 }
 
 async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
-  const [found, rows, drawn, who, left, eligible, remembering, facts] = await Promise.all([
+  const [found, rows, drawn, who, left, eligible, remembering, facts, notes, admin] = await Promise.all([
     characterRef(db, s.character_id),
     allMessages(db, s.id),
     drawnSets(db),
@@ -568,6 +572,8 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     eligibleIds(db, s.owner_id),
     memoryOn(db, s.owner_id),
     countFacts(db, s.owner_id, s.character_id).catch(() => 0),
+    notePrefs(db, s.owner_id),
+    isAdmin(db, s.owner_id).catch(() => false),
   ]);
   // A character who has since been deleted: the scene stays readable (and deletable), under a name that says so.
   const character = found ?? { id: s.character_id, name: GONE_NAME, portrait: null, hue: null };
@@ -602,6 +608,7 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     },
     steps_left: left,
     memory: { on: remembering, facts },
+    notes: { on: notes.pace !== null, scene_off: s.notes_off === true, waiting: Boolean(s.note_at) && !s.ended_at, try_now: admin && live },
     started_at: iso(s.created_at)!,
   };
 }
@@ -705,6 +712,9 @@ export function setStepInRandomForTests(fn: (() => number) | null): void {
   random = fn ?? Math.random;
 }
 
+/** A note the character writes first is short: this many paragraphs of the draft at most. */
+export const NOTE_PARAGRAPHS = 2;
+
 /** A reply's second draw goes to the fast writer once the first has taken this long, so the request ends in time. */
 export const REDRAW_ON_FAST_AFTER_MS = 45_000;
 
@@ -782,7 +792,7 @@ async function draw(
   db: Db,
   s: SceneRow,
   ctx: DrawContext,
-  o: { cue: "open" | "continue" | null; insteadOf?: string | null; form?: SpokenForm | null },
+  o: { cue: "open" | "continue" | "note" | null; insteadOf?: string | null; form?: SpokenForm | null; away?: string | null },
 ): Promise<Drawn> {
   const settings = await getAdultSettings(db);
   const opening = o.cue === "open";
@@ -831,6 +841,7 @@ async function draw(
       // The opening is for the scene's first reply only.
       opening: opening ? s.opening : null,
       cue: o.cue,
+      away: o.away ?? null,
       insteadOf: o.insteadOf ?? null,
       avoid,
       form,
@@ -885,19 +896,30 @@ async function draw(
       avoid = verdict.avoid;
       continue;
     }
-    if (repeatsEarlier(verdict.paragraphs.join(" "), ctx.said)) {
-      repeat ??= verdict.paragraphs;
+    // A note that makes them feel bad for being away, or presses them to come back, isn't kept (lib/adult/step-in-notes.ts
+    // NOTE_PRESSURE; the log says which way, never a word of it). It's short: its first two paragraphs at most.
+    const paragraphs = o.cue === "note" ? verdict.paragraphs.slice(0, NOTE_PARAGRAPHS) : verdict.paragraphs;
+    const pressed = o.cue === "note" ? notePressure(paragraphs.join(" ")) : null;
+    if (pressed) {
+      reasons.push(`note:${pressed}`);
+      avoid = "it made them feel bad for being away, or pressed them to come back: write a lighter note that asks nothing of them";
+      continue;
+    }
+    if (repeatsEarlier(paragraphs.join(" "), ctx.said)) {
+      repeat ??= paragraphs;
       reasons.push("repeat");
       avoid = "you've said this before: write something new";
       continue;
     }
-    kept = verdict.paragraphs;
+    kept = paragraphs;
   }
   kept ??= repeat;
   const cost = usage.some((u) => typeof u.cost === "number") ? usage.reduce((n, u) => n + (u.cost ?? 0), 0) : null;
   const modelId = served.model ?? (await adultModelId(db, process.env, { model: flags.fell_back_to ? FALLBACK_WRITER : writer }));
   const out = { model: modelId, provider: served.provider, cost, flags: { ...flags, ...(reasons.length ? { redrawn: reasons } : {}) } };
   if (kept) return { ok: true, text: kept.join("\n\n"), kind: "reply", form, paragraphs: kept.length, ...out };
+  // A note has no stand-in: when neither draft can be kept, nothing is written (and nothing is counted).
+  if (o.cue === "note") return { ok: false, fail: fail(409, "no_note", "No note was written."), flags: { ...out.flags, no_note: true } };
   // Twice unusable: the narrator changes the subject (on a call, the character does, out loud), and nothing of either draft is kept.
   const pool = call ? CALL_ASIDES : ASIDES;
   const aside = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
@@ -914,17 +936,18 @@ async function reply(
   s: SceneRow,
   rows: readonly MessageRow[],
   now: Date,
-  o: { action: string; cue: "open" | "continue" | null; insteadOf?: string | null; replaces?: MessageRow | null; form?: SpokenForm | null },
+  o: { action: string; cue: "open" | "continue" | "note" | null; insteadOf?: string | null; replaces?: MessageRow | null; form?: SpokenForm | null; away?: string | null },
 ): Promise<StepInFail | { ok: true; id: string; aside: boolean }> {
   const ctx = await drawContext(db, s, rows, o.replaces ? [o.replaces.id] : []);
   if (!ctx) return NOT_FOUND;
   const who = { owner: s.owner_id, character: s.character_id, scene: s.id };
-  const drawn = await draw(db, s, ctx, { cue: o.cue, insteadOf: o.insteadOf, form: o.form });
+  const drawn = await draw(db, s, ctx, { cue: o.cue, insteadOf: o.insteadOf, form: o.form, away: o.away });
   if (!drawn.ok) {
     await logMove(db, who, { ok: false, http: drawn.fail.status, message: drawn.fail.message, flags: { action: o.action, ...drawn.flags } });
     return drawn.fail;
   }
-  const kind = drawn.form ? (drawn.kind === "aside" ? `${drawn.form}_aside` : drawn.form) : drawn.kind === "aside" ? "aside" : null;
+  // A note the character wrote first is kept as one (it never has a stand-in: draw writes nothing instead).
+  const kind = o.cue === "note" ? "note" : drawn.form ? (drawn.kind === "aside" ? `${drawn.form}_aside` : drawn.form) : drawn.kind === "aside" ? "aside" : null;
   const id = await addMessage(db, s, "character", drawn.text, now, { kind, model: drawn.model, cost: drawn.cost });
   if (o.replaces) {
     // The reply it replaces, and the draws that one already had, all point at the new current draw: exactly one is current.
@@ -1128,6 +1151,8 @@ export async function sendStepInLine(db: Db, viewer: string, sceneId: string, in
   if (!character) return NOT_FOUND;
   if (noticeDue(s, now)) await putNotice(db, s, character.name, now);
   await addMessage(db, s, "viewer", text, tick(now, 1), { kind: opts.call ? "call" : null });
+  // They've written: a note that was waiting here (lib/adult/step-in-notes.ts) isn't waiting any more.
+  if (s.note_at) await db.query(`update adult_step_in_scenes set note_at = null where id = $1`, [s.id]);
   const r = await reply(db, s, await allMessages(db, s.id), tick(now, 2), { action, cue: null, form: opts.call ? "call" : opts.talk ? "talk" : null });
   // No model answered: their line is kept, and Continue draws the reply that's due.
   return sent(db, s, r.ok ? {} : { replied: false, message: r.message });
@@ -1369,6 +1394,25 @@ export async function stepInRemember(db: Db, sceneId: string, opts: { atEnd?: bo
   } catch {
     return 0;
   }
+}
+
+/**
+ * The character writes first (lib/adult/step-in-notes.ts): one note in a scene that has been left, for its viewer to
+ * find. The caller (the pass, lib/adult/step-in-notes-pass.ts) has decided it's due and holds the scene's claim. This
+ * draws it through the same draw and the same checks as any reply (its own cue, then the guard on pressure), keeps it
+ * as a line of the character's of kind "note", counts one of the month's replies, and marks the scene as having a note
+ * waiting. When no draft can be kept (no model answered, or both drafts pressed), nothing is written and nothing is
+ * counted. The AI notice isn't added here: it goes in on the viewer's own next line, as after any time away.
+ */
+export async function writeStepInNote(db: Db, sceneId: string, now: Date = new Date(), opts: { away: string }): Promise<{ ok: true; id: string } | StepInFail> {
+  const s = (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1`, [sceneId])).rows[0];
+  if (!s) return NOT_FOUND;
+  const closed = await writable(db, s);
+  if (closed) return closed;
+  const r = await reply(db, s, await allMessages(db, s.id), now, { action: "note", cue: "note", away: opts.away });
+  if (!r.ok) return r;
+  await db.query(`update adult_step_in_scenes set note_at = $2, notes_claimed_at = null where id = $1`, [s.id, now.toISOString()]);
+  return { ok: true, id: r.id };
 }
 
 /**
