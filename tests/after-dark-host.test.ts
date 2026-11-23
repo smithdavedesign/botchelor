@@ -308,6 +308,11 @@ describe("on After Dark's own host (AFTER_DARK_ONLY=1)", () => {
       "/api/line-feedback?kind=after_dark&ref=x",
       "/api/library",
       "/api/content-reports",
+      // The jobs that run on this host: the two the scheduler calls every hour, and the notes pass's own route, which
+      // answered 307 to the show the first time it was called here (2026-11-23).
+      "/api/jobs/after-dark-daily",
+      "/api/jobs/showcase-check",
+      "/api/jobs/step-in-notes",
     ];
     for (const path of kept) expect(`${path} ${await go(path)}`).toBe(`${path} 200 -`);
     const sent = ["/api/episodes/e1/reveal?x=1", "/api/auth/login", "/api/auth/google/start", "/api/auth/carry2", "/api/admin/after-darkness", "/api/webhooks/stripe", "/api/jobs/daily", "/api/me/keys"];
