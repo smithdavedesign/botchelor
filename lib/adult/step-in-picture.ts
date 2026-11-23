@@ -90,6 +90,11 @@ export type StepInPictureState = {
   pictures: Record<string, string>;
   /** The replies whose picture is being drawn right now. */
   drawing: string[];
+  /**
+   * The reply whose picture stands in the character's place beside the scene (the viewer's choice: setStepInBeside);
+   * null: the character's own portrait. Always a reply that has a picture.
+   */
+  beside: string | null;
 };
 
 type SceneRow = {
@@ -102,12 +107,13 @@ type SceneRow = {
   hard_nos: unknown;
   paused_at: string | Date | null;
   ended_at: string | Date | null;
+  side_message: string | null;
 };
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null };
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (
-    (await db.query<SceneRow>(`select id, owner_id, character_id, place, roleplay, intensity, hard_nos, paused_at, ended_at from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer]))
+    (await db.query<SceneRow>(`select id, owner_id, character_id, place, roleplay, intensity, hard_nos, paused_at, ended_at, side_message from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer]))
       .rows[0] ?? null
   );
 }
@@ -141,13 +147,36 @@ export async function stepInPictureState(db: Db, viewer: string, sceneId: string
     ),
     db.query<{ id: string }>(`select id from adult_step_in_messages where scene_id = $1 and picture_at > now() - interval '${PICTURE_CLAIM_MINUTES} minutes'`, [s.id]),
   ]);
+  const pictures: Record<string, string> = Object.fromEntries(kept.rows.map((r) => [r.message, r.id]));
   return {
     can: ready.ok && !s.ended_at && !s.paused_at && eligible.has(s.character_id),
     price,
     left,
-    pictures: Object.fromEntries(kept.rows.map((r) => [r.message, r.id])),
+    pictures,
     drawing: drawing.rows.map((r) => r.id),
+    beside: s.side_message && pictures[s.side_message] ? s.side_message : null,
   };
+}
+
+/**
+ * Which picture stands beside the scene, in the character's place (David, 2026-11-23: "do we have a option to change
+ * the image on the right with one from the scene"): the picture made of one of the scene's replies, named by the
+ * reply so a picture drawn again takes its place there; null puts the character's own portrait back. It only chooses
+ * among pictures already made and checked, so it's free, and the viewer's to change in a scene that has ended too.
+ */
+export async function setStepInBeside(db: Db, viewer: string, sceneId: string, messageId: string | null): Promise<{ ok: true; state: StepInPictureState } | StepInPictureFail> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  if (messageId !== null) {
+    const kept = await db.query(
+      `select 1 from adult_images where step_in_scene = $1 and owner_id = $2 and step_in_message = $3 and status = 'ready' and kind = 'scene' limit 1`,
+      [s.id, viewer, messageId],
+    );
+    if (!kept.rows.length) return fail(409, "no_picture", "There's no picture of that moment yet.");
+  }
+  await db.query(`update adult_step_in_scenes set side_message = $2 where id = $1 and owner_id = $3`, [s.id, messageId, viewer]);
+  const state = await stepInPictureState(db, viewer, sceneId);
+  return state ? { ok: true, state } : NOT_FOUND;
 }
 
 /* ------------------------------------------------ the moment, read ------------------------------------------------ */
@@ -544,6 +573,6 @@ export async function drawStepInPicture(db: Db, viewer: string, sceneId: string,
     await db.query(`update adult_step_in_messages set picture_at = null where id = $1`, [messageId]).catch(() => {});
   }
   if (!("id" in made)) return made;
-  const state = (await stepInPictureState(db, viewer, s.id)) ?? { can: false, price: { tokens: 0, included: false }, left: null, pictures: { [messageId]: made.id }, drawing: [] };
+  const state = (await stepInPictureState(db, viewer, s.id)) ?? { can: false, price: { tokens: 0, included: false }, left: null, pictures: { [messageId]: made.id }, drawing: [], beside: null };
   return { ok: true, id: made.id, message: messageId, state };
 }

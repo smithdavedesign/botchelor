@@ -3649,10 +3649,33 @@ fieldset.ad-si-step {
     inset: 0;
     background: color-mix(in srgb, var(--night-bg) 50%, transparent);
   }
-  /* A portrait keeps its own background, often a light one: a heavier veil, so the muted lines over it stay readable. */
-  .ad-si-view:has(.ad-si-figure[data-figure="portrait"])::after {
+  /* A portrait keeps its own background, often a light one: a heavier veil, so the muted lines over it stay readable.
+     One of the scene's own pictures does too. */
+  .ad-si-view:has(.ad-si-figure[data-figure="portrait"])::after,
+  .ad-si-view:has(.ad-si-figure[data-figure="picture"])::after {
     background: color-mix(in srgb, var(--night-bg) 65%, transparent);
   }
+}
+/* One of the scene's own pictures in the character's place (app/after-dark/step-in/[id]/StepInPicture.tsx StepInFigure:
+   the viewer's choice, "Use as the scene's picture"). Beside or behind the column it's a framed picture standing on
+   the same floor, not a cutout; on a phone it fills the stage under the veil as any figure does (the rules above). */
+@media (min-width: 701px) {
+  .ad-si-figure[data-figure="picture"] .character-figure-img {
+    right: var(--space-4);
+    bottom: var(--space-4);
+    left: auto;
+    width: calc(100% - var(--space-5));
+    max-height: calc(100% - var(--space-5));
+    border: 1px solid var(--night-line);
+    border-radius: var(--radius-md);
+    object-position: center;
+    box-shadow: var(--shadow);
+  }
+}
+/* Discreet mode: blurred here by a veil of its own (data-ad-own-veil), since behind the column nobody could tap it to
+   show it. The one under its reply is the one a tap shows (app/after-dark/discreet.css). */
+[data-ad-discreet="blur"] .ad-si-figure[data-figure="picture"] .character-figure-img {
+  filter: blur(28px) saturate(0.5) brightness(0.8);
 }
 .ad-si-head h1 {
   margin-bottom: var(--space-1);

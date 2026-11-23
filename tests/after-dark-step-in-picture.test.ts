@@ -20,7 +20,7 @@ vi.mock("@/lib/sets", async (orig) => ({ ...((await orig()) as object), inBackgr
 import type { ReactElement } from "react";
 import { prerender } from "react-dom/static";
 import StepInScenePage from "@/app/after-dark/step-in/[id]/page";
-import { GET as pictureGet, POST as picturePost } from "@/app/api/admin/after-dark/step-in/[id]/picture/route";
+import { GET as pictureGet, POST as picturePost, PUT as picturePut } from "@/app/api/admin/after-dark/step-in/[id]/picture/route";
 import { DELETE as sceneDelete } from "@/app/api/admin/after-dark/step-in/[id]/route";
 import { claimAdmin } from "@/lib/admins";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
@@ -30,7 +30,7 @@ import { setBriefModelForTests } from "@/lib/adult/picture-brief";
 import { povPrompt, reelPerson, setReelFetchForTests, setReelPausesForTests, type ReelPerson } from "@/lib/adult/reels";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { endStepIn, getStepInScene, sendStepInLine, setStepInRandomForTests, startStepIn, takeBackStepIn } from "@/lib/adult/step-in";
-import { drawStepInPicture, OLDER_ONE, parseStepInBrief, PICTURE_CLAIM_MINUTES, pictureWordsOk, placeAt, stepInBriefMessages, stepInPictureState } from "@/lib/adult/step-in-picture";
+import { drawStepInPicture, OLDER_ONE, parseStepInBrief, PICTURE_CLAIM_MINUTES, pictureWordsOk, placeAt, setStepInBeside, stepInBriefMessages, stepInPictureState } from "@/lib/adult/step-in-picture";
 import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { madeInSql } from "@/lib/made-in";
@@ -178,6 +178,7 @@ async function scene(viewer: string, opts: { who?: string; place?: string; line?
 const draw = (viewer: string, s: { id: string; reply: string }, message = s.reply) => drawStepInPicture(t.db, viewer, s.id, message, BASE_URL);
 const post = (path: string, body: unknown, cookie: string) => new Request(`${BASE_URL}${path}`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) });
 const get = (path: string, cookie: string) => new Request(`${BASE_URL}${path}`, { headers: { cookie } });
+const put = (path: string, body: unknown, cookie: string) => new Request(`${BASE_URL}${path}`, { method: "PUT", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 const html = async (el: ReactElement) => (await new Response((await prerender(el)).prelude).text()).replace(/<!-- -->/g, "");
 
@@ -568,7 +569,7 @@ describe("whose it is, and when", () => {
     const venice = fakeVenice();
     fakeHive();
     // A subscriber: included, one left this month, on the page before anything is made.
-    expect(await stepInPictureState(t.db, sub.id, s.id)).toEqual({ can: true, price: { tokens: 0, included: true }, left: 1, pictures: {}, drawing: [] });
+    expect(await stepInPictureState(t.db, sub.id, s.id)).toEqual({ can: true, price: { tokens: 0, included: true }, left: 1, pictures: {}, drawing: [], beside: null });
     const page = await html(await StepInScenePage({ params: Promise.resolve({ id: s.id }) }));
     expect(page).toContain("data-step-in-picture-ask");
     expect(page).toMatch(/🖼 Picture this · <span class="token-price">included<\/span>/);
@@ -719,5 +720,110 @@ describe("the route", () => {
     expect((await refused.json()).error).toBe("media_not_available_here");
     expect((await pictureGet(get(there, sub.cookie), ctx(theirs.id))).status).toBe(451);
     expect(await html(await StepInScenePage({ params: Promise.resolve({ id: theirs.id }) }))).not.toContain("data-step-in-picture");
+  });
+});
+
+// David, 2026-11-23: "do we have a option to change the image on the right with one from the scene". The character's
+// portrait stands beside a scene; the viewer can put one of the scene's own pictures there instead, and take it back.
+describe("the scene's own picture, in the character's place", () => {
+  it("is one the scene already has, named by its reply: drawn again it stays there, null puts the portrait back, and only the scene's owner chooses", async () => {
+    scripted();
+    briefs();
+    await setUp();
+    const a = await admin();
+    await faces(a.id);
+    const s = await scene(a.id);
+    fakeVenice();
+    fakeHive();
+    // Nothing made yet: nothing to put there, and the portrait stands.
+    expect(await setStepInBeside(t.db, a.id, s.id, s.reply)).toMatchObject({ ok: false, status: 409, error: "no_picture" });
+    expect((await stepInPictureState(t.db, a.id, s.id))?.beside).toBeNull();
+    const first = await draw(a.id, s);
+    if (!first.ok) throw new Error(`${first.status} ${first.message}`);
+    // Making a picture doesn't move anything by itself: it's the viewer's choice.
+    expect(first.state.beside).toBeNull();
+    expect(await setStepInBeside(t.db, a.id, s.id, s.reply)).toMatchObject({ ok: true, state: { beside: s.reply, pictures: { [s.reply]: first.id } } });
+    // Drawn again: the newest picture of that reply is the one that stands there.
+    const second = await draw(a.id, s);
+    if (!second.ok) throw new Error(`${second.status} ${second.message}`);
+    expect(second.id).not.toBe(first.id);
+    expect(await stepInPictureState(t.db, a.id, s.id)).toMatchObject({ beside: s.reply, pictures: { [s.reply]: second.id } });
+    // Never a reply with no picture, and never someone else's scene.
+    expect(await setStepInBeside(t.db, a.id, s.id, "no-such-reply")).toMatchObject({ ok: false, status: 409 });
+    const other = await admin();
+    expect(await setStepInBeside(t.db, other.id, s.id, s.reply)).toMatchObject({ ok: false, status: 404 });
+    expect(await setStepInBeside(t.db, other.id, s.id, null)).toMatchObject({ ok: false, status: 404 });
+    expect((await stepInPictureState(t.db, a.id, s.id))?.beside).toBe(s.reply);
+    // Still theirs to change once the scene has ended, and nothing was drawn or counted by choosing.
+    const before = await drawn(a.id);
+    await endStepIn(t.db, a.id, s.id);
+    expect(await setStepInBeside(t.db, a.id, s.id, null)).toMatchObject({ ok: true, state: { beside: null } });
+    expect(await setStepInBeside(t.db, a.id, s.id, s.reply)).toMatchObject({ ok: true, state: { beside: s.reply } });
+    expect(await drawn(a.id)).toBe(before);
+  });
+
+  it("stands where the portrait stood, under a veil of its own; the picture's button says so, and the menu has the way back", async () => {
+    scripted();
+    briefs();
+    await setUp();
+    const a = await admin();
+    await faces(a.id);
+    const s = await scene(a.id);
+    fakeVenice();
+    fakeHive();
+    const made = await draw(a.id, s);
+    if (!made.ok) throw new Error(`${made.status} ${made.message}`);
+    signIn(a.id);
+    const page = async () => html(await StepInScenePage({ params: Promise.resolve({ id: s.id }) }));
+    // Their portrait, until the viewer chooses: the button offers it, the menu has nothing to take back.
+    const portrait = await page();
+    expect(portrait).toContain('data-step-in-picture-beside="off"');
+    expect(portrait).toContain("Use as the scene&#x27;s picture");
+    expect(portrait).not.toContain('data-figure="picture"');
+    expect(portrait).not.toContain("data-step-in-portrait-back");
+    await setStepInBeside(t.db, a.id, s.id, s.reply);
+    const chosen = await page();
+    // The picture, whole (not the small copy under the reply), marked so discreet mode's blur leaves it to its own veil.
+    expect(chosen).toMatch(new RegExp(`<div class="character-figure ad-si-figure" data-figure="picture" data-step-in-beside="${s.reply}" data-ad-own-veil="" aria-hidden="true"><img class="character-figure-img" src="/api/admin/after-dark/media/${made.id}" alt=""`));
+    expect(chosen).toContain('data-step-in-picture-beside="on"');
+    expect(chosen).toContain("✓ The scene&#x27;s picture");
+    expect(chosen).toContain("data-step-in-portrait-back");
+    // The way back is a plain button: the scene's menu sits inside the composer's form.
+    expect(chosen).toMatch(/<button type="button"[^>]*data-step-in-portrait-back/);
+    const css = readFileSync("app/ux/after-dark.css", "utf8");
+    expect(css).toContain('[data-ad-discreet="blur"] .ad-si-figure[data-figure="picture"] .character-figure-img');
+  });
+
+  it("the route: closed like the rest of Step in, a reply's id or null, and refused where only text is allowed", async () => {
+    scripted();
+    briefs();
+    await setUp();
+    const a = await admin();
+    await faces(a.id);
+    const s = await scene(a.id);
+    fakeVenice();
+    fakeHive();
+    const made = await draw(a.id, s);
+    if (!made.ok) throw new Error(`${made.status} ${made.message}`);
+    const path = `/api/admin/after-dark/step-in/${s.id}/picture`;
+    const sub = await subscriber();
+    expect((await picturePut(put(path, { beside: s.reply }, sub.cookie), ctx(s.id))).status).toBe(404);
+    expect((await picturePut(put(path, {}, a.cookie), ctx(s.id))).status).toBe(422);
+    const none = await picturePut(put(path, { beside: "no-such-reply" }, a.cookie), ctx(s.id));
+    expect(none.status).toBe(409);
+    expect(await none.json()).toMatchObject({ error: "no_picture" });
+    const res = await picturePut(put(path, { beside: s.reply }, a.cookie), ctx(s.id));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ pictures: { beside: s.reply, pictures: { [s.reply]: made.id } } });
+    expect(await (await picturePut(put(path, { beside: null }, a.cookie), ctx(s.id))).json()).toMatchObject({ pictures: { beside: null } });
+    // Text only where the viewer connects from: pictures aren't shown at all, so there's nothing to choose (an admin
+    // is open wherever they are, so this is a subscriber's own scene).
+    await saveAdultSettings(t.db, { rollout: { companion: "everyone" } });
+    await faces(sub.id);
+    signIn(sub.id);
+    const theirs = await scene(sub.id);
+    setPlaceForTests({ country: "GB", region: null });
+    const refused = await picturePut(put(`/api/admin/after-dark/step-in/${theirs.id}/picture`, { beside: theirs.reply }, sub.cookie), ctx(theirs.id));
+    expect(refused.status).toBe(451);
   });
 });
