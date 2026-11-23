@@ -65,6 +65,7 @@ import { STAGES } from "./stages";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
 import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memory";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
+import { beatForReader, mergeBeats, parsePlayed, storedBeats, storyMessages, storyView, type StepInStory } from "./step-in-story";
 import {
   placeInSentence,
   REDRAW_PRESETS,
@@ -180,11 +181,14 @@ type SceneRow = {
   ended_at: string | Date | null;
   created_at: string | Date;
   last_at: string | Date;
+  /** The roleplay's story (lib/adult/step-in-story.ts): the beats that have played, and the reply it was last read at. */
+  story_beats?: unknown;
+  story_upto?: string | null;
 };
 
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null; created_at: string | Date };
 
-const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at";
+const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, story_beats, story_upto";
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer])).rows[0] ?? null;
@@ -651,8 +655,23 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     },
     steps_left: left,
     memory: { on: remembering, facts },
+    story: storyOf(s, rows, character.name, live),
     started_at: iso(s.created_at)!,
   };
+}
+
+/**
+ * The roleplay's story as the viewer sees it (lib/adult/step-in-story.ts): its goal, how many beats have played, and
+ * whether the newest reply is still to be read. Null without a roleplay that has a card.
+ */
+function storyOf(s: SceneRow, rows: readonly MessageRow[], characterName: string, live: boolean): StepInStory | null {
+  const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
+  if (!rp || !s.roleplay) return null;
+  const spoken = spokenOf(rows);
+  const newest = spoken.filter((m) => m.role === "character").at(-1)?.id ?? null;
+  // An opening alone has played nothing of the story: it's read once the viewer has written a line.
+  const canRead = live && spoken.some((m) => m.role === "viewer");
+  return storyView(rp, s.roleplay.you, first(characterName), { beats: s.story_beats, upto: s.story_upto ?? null }, { newest, canRead });
 }
 
 /**
@@ -831,7 +850,7 @@ async function draw(
   db: Db,
   s: SceneRow,
   ctx: DrawContext,
-  o: { cue: "open" | "continue" | null; insteadOf?: string | null; form?: SpokenForm | null; direction?: string | null },
+  o: { cue: "open" | "continue" | "close" | null; insteadOf?: string | null; form?: SpokenForm | null; direction?: string | null },
 ): Promise<Drawn> {
   const settings = await getAdultSettings(db);
   const opening = o.cue === "open";
@@ -966,7 +985,7 @@ async function reply(
   now: Date,
   o: {
     action: string;
-    cue: "open" | "continue" | null;
+    cue: "open" | "continue" | "close" | null;
     insteadOf?: string | null;
     replaces?: MessageRow | null;
     form?: SpokenForm | null;
@@ -1515,6 +1534,82 @@ export async function endStepIn(db: Db, viewer: string, sceneId: string, now: Da
   const notes = stretch.length ? await writeNotes(db, first(character?.name ?? "the character"), s.recap, stretch) : { recap: null, line: null };
   await db.query(`update adult_step_in_scenes set ended_at = $2, paused_at = null, recap = $3, line = $4 where id = $1`, [s.id, now.toISOString(), notes.recap ?? s.recap ?? fallback, notes.line ?? fallback]);
   return sent(db, s);
+}
+
+/**
+ * Brings the scene to a close (lib/adult/step-in-story.ts "The ending"): one last reply from the character that lands
+ * it (CLOSE_CUE), then the scene ends and is filed exactly as End files it. One reply, like any other, checked like any
+ * other. Asked for by the viewer, in any scene: a roleplay offers it once its last beat has played, and the ⋯ menu has
+ * it always. If no model answers, nothing is written and the scene stays open; with nothing said yet, it simply ends.
+ */
+export async function closeStepIn(db: Db, viewer: string, sceneId: string, now: Date = new Date()): Promise<StepInSend> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  const closed = await writable(db, s);
+  if (closed) return closed;
+  const rows = await allMessages(db, s.id);
+  if (!spokenOf(rows).some((m) => m.role === "character")) return endStepIn(db, viewer, sceneId, now);
+  const capped = await overCap(db, viewer, "step_in", now);
+  if (capped) return refuse(db, s, 429, "capped", capped, "cap", "close");
+  const character = await characterRef(db, s.character_id);
+  if (!character) return NOT_FOUND;
+  // The viewer is here and asking for a reply: the notice is due on their time, as on a line of theirs.
+  if (noticeDue(s, now)) await putNotice(db, s, character.name, now);
+  const r = await reply(db, s, await allMessages(db, s.id), tick(now, 1), { action: "close", cue: "close" });
+  if (!r.ok) return r;
+  return endStepIn(db, viewer, sceneId, tick(now, 2));
+}
+
+/**
+ * Reads how far the roleplay's story has got (lib/adult/step-in-story.ts), for the newest reply: one small call on
+ * After Dark's own model, asked for by the scene's page once a reply has landed. Free and never counted (like the
+ * ideas for what to say); at most one reading a reply. Nothing is read without a roleplay that has a card, once every
+ * beat has played, before the viewer has written a line, or in a scene that isn't running. A reader that doesn't
+ * answer leaves the story where it was. The story as it now stands, or null when the scene has none.
+ */
+export async function readStepInStory(db: Db, viewer: string, sceneId: string, now: Date = new Date()): Promise<{ ok: true; story: StepInStory | null } | StepInFail> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
+  const [character, rows, eligible] = await Promise.all([characterRef(db, s.character_id), allMessages(db, s.id), eligibleIds(db, s.owner_id)]);
+  const live = !s.ended_at && !s.paused_at && Boolean(character) && eligible.has(s.character_id);
+  const name = first(character?.name ?? "the character");
+  const before = storyOf(s, rows, name, live);
+  if (!before?.due || !rp?.card || !s.roleplay) return { ok: true, story: before };
+  const spoken = spokenOf(rows);
+  const newest = spoken.filter((m) => m.role === "character").at(-1)!;
+  const you = s.roleplay.you;
+  let played: number[];
+  try {
+    const raw = await (await adultModel(db)).complete(
+      storyMessages({
+        name,
+        beats: rp.card.beats.map((b) => beatForReader(b, you, name)),
+        recap: s.recap,
+        turns: spoken.map((m) => ({ who: m.role === "viewer" ? ("them" as const) : isAside(m) ? ("narrator" as const) : ("character" as const), text: m.text })),
+      }),
+      { temperature: 0, maxTokens: 120 },
+    );
+    played = parsePlayed(raw, rp.card.beats.length);
+  } catch {
+    // The reader didn't answer: the story stays where it was, and the next reply asks again.
+    return { ok: true, story: { ...before, due: false } };
+  }
+  const beats = mergeBeats(storedBeats(s.story_beats, rp.card.beats.length), played);
+  await db.query(
+    `update adult_step_in_scenes set story_beats = $2::jsonb, story_upto = $3, story_done_at = case when $4::boolean then coalesce(story_done_at, $5::timestamptz) else story_done_at end where id = $1`,
+    [s.id, JSON.stringify(beats), newest.id, beats.every(Boolean), now.toISOString()],
+  );
+  return { ok: true, story: storyView(rp, you, name, { beats, upto: newest.id }, { newest: newest.id, canRead: true }) };
+}
+
+/** The roleplays whose story this viewer has played to its last beat, and how many times each (the front page's shelf). */
+export async function playedRoleplays(db: Db, viewer: string): Promise<Record<string, number>> {
+  const { rows } = await db.query<{ id: string | null; n: number }>(
+    `select roleplay->>'id' as id, count(*)::int as n from adult_step_in_scenes where owner_id = $1 and story_done_at is not null and roleplay is not null group by 1`,
+    [viewer],
+  );
+  return Object.fromEntries(rows.filter((r) => r.id).map((r) => [r.id as string, Number(r.n)]));
 }
 
 /** Deletes a scene with every message of it, and the pictures made of its moments (lib/adult/step-in-picture.ts: their files follow, lib/media-deletions.ts). */

@@ -7,6 +7,7 @@ import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import type { StepInCharacter, StoryPlace } from "@/lib/adult/step-in-shared";
 import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight } from "@/lib/adult/step-in-shelf";
+import { storyGoal } from "@/lib/adult/step-in-story";
 import { roleplayGroups } from "@/lib/adult/tags";
 import { cardForYou } from "@/lib/scene-cards";
 import StepInButton from "./StepInButton";
@@ -33,12 +34,15 @@ export default function StepInShelf({
   day,
   with_ = null,
   places = NO_PLACES,
+  played = {},
 }: {
   cast: StepInCharacter[];
   recent: string[];
   day: string;
   with_?: string | null;
   places?: Record<string, StoryPlace>;
+  /** The roleplays this viewer has played to their last beat, and how many times (lib/adult/step-in.ts playedRoleplays). */
+  played?: Record<string, number>;
 }) {
   // Which cards show: tonight's, one kind of them (who the two are to each other), or all.
   const [show, setShow] = useState("tonight");
@@ -50,6 +54,7 @@ export default function StepInShelf({
   const demand = useAdultTagDemand();
   const groups = useMemo(() => roleplayGroups(ROLEPLAYS, demand ?? undefined), [demand]);
   const shown = show === "tonight" ? shelfTonight(ROLEPLAYS, day) : show === "all" ? ROLEPLAYS : (groups.find((g) => g.id === show)?.roleplays ?? []);
+  const playedCount = ROLEPLAYS.filter((r) => played[r.id]).length;
   if (!who.order.length) return null;
   const kind = groups.some((g) => g.id === show) ? show : "";
   const chip = (id: string, label: string, n?: number) => (
@@ -63,6 +68,12 @@ export default function StepInShelf({
       <h2 id="ad-si-shelf-h">{asked ? `Step into a roleplay with ${first(asked.name)}` : "Step into a roleplay"}</h2>
       <p className="muted small">
         {ROLEPLAYS.length} stories, each ready to play with {asked ? first(asked.name) : "someone from your After Dark"}. One click and you&apos;re in it.
+        {playedCount > 0 && (
+          <span data-step-in-shelf-played>
+            {" "}
+            You&apos;ve played {playedCount} of them to the end.
+          </span>
+        )}
       </p>
       <div className="ad-si-shelf-kinds" role="group" aria-label="Which roleplays to show">
         {chip("tonight", `Tonight's ${SHELF_TONIGHT}`)}
@@ -91,6 +102,11 @@ export default function StepInShelf({
             <li key={rp.id} className="card ad-si-shelf-card" data-step-in-card={rp.id} data-step-in-card-with={them.id}>
               <h3>
                 <span aria-hidden="true">{rp.icon}</span> {rp.title}
+                {played[rp.id] ? (
+                  <span className="ad-si-shelf-played" data-step-in-card-played>
+                    ✓ Played
+                  </span>
+                ) : null}
               </h3>
               <p className="ad-si-shelf-setup">{card.setup}</p>
               {places[rp.id] && (
@@ -99,6 +115,10 @@ export default function StepInShelf({
                   {places[rp.id].public ? " · out in public" : ""}
                 </p>
               )}
+              {/* What their side of it wants: what they're playing for (the card's own words, told to them). */}
+              <p className="muted small ad-si-shelf-goal" data-step-in-card-goal>
+                {storyGoal(rp, 0, name)}
+              </p>
               {rp.roles && (
                 <p className="muted small ad-si-shelf-roles">
                   You play {rp.roles[0]}; {name} plays {rp.roles[1]}.

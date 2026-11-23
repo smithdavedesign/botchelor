@@ -7,7 +7,7 @@ import Icon from "@/app/Icon";
 import { isAdmin } from "@/lib/admins";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
-import { drawnSets, listStepInScenes, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, storyPlaces, type StepInSceneRef } from "@/lib/adult/step-in";
+import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, storyPlaces, type StepInSceneRef } from "@/lib/adult/step-in";
 import { getDb } from "@/lib/db";
 import { showHome } from "@/lib/site";
 import LocalTime from "../LocalTime";
@@ -33,7 +33,17 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const db = await getDb();
   const viewer = await stepInViewerFromCookies(db, await cookies());
   if (!viewer) notFound();
-  const [cast, drawn, who, scenes, admin, settings, sp] = await Promise.all([stepInCast(db, viewer), drawnSets(db), stepInPersona(db, viewer), listStepInScenes(db, viewer), isAdmin(db, viewer), getAdultSettings(db), searchParams]);
+  const [cast, drawn, who, scenes, admin, settings, sp, played] = await Promise.all([
+    stepInCast(db, viewer),
+    drawnSets(db),
+    stepInPersona(db, viewer),
+    listStepInScenes(db, viewer),
+    isAdmin(db, viewer),
+    getAdultSettings(db),
+    searchParams,
+    // Which roleplays they've played to the end (lib/adult/step-in-story.ts): said on the shelf's cards.
+    playedRoleplays(db, viewer).catch(() => ({}) as Record<string, number>),
+  ]);
   // The persona is the show's to edit (app/account/PersonaCard.tsx): one for every scene, on either side.
   const personaHref = `${showHome().replace(/\/$/, "")}/account#persona`;
   // Still closed to everyone else: an admin is told so, and where the switch is.
@@ -69,7 +79,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
           </section>
         )}
         {/* The roleplays, each cast and ready (UTC's day, so this page and the browser agree on who's on each card). */}
-        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} places={stories} />}
+        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} places={stories} played={played} />}
         <h2 id="ad-si-set">{cast.length ? "Or set the scene yourself" : "Set the scene"}</h2>
         {cast.length ? (
           // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.
