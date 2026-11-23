@@ -32,7 +32,7 @@ describe("the PG tool pages open to a search visitor", () => {
       "/shows/",
       "/graph/world/",
     ]);
-    for (const p of ["/tools/ship-name-generator", "/tools/oc-chemistry-test", "/ship/juniper/dex", "/alternatives/character-ai", "/tools", "/create", "/episodes/abc", "/characters/abc", "/watch", "/graph", "/graph/world/abc"]) {
+    for (const p of ["/tools/ship-name-generator", "/tools/random-ship-generator", "/tools/oc-chemistry-test", "/ship/juniper/dex", "/alternatives/character-ai", "/tools", "/create", "/episodes/abc", "/characters/abc", "/watch", "/graph", "/graph/world/abc"]) {
       expect(page(p).headers.get("location"), p).toBeNull();
     }
     for (const p of ["/swipe", "/matches", "/shop", "/after-dark"]) {

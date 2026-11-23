@@ -2,7 +2,7 @@
 /**
  * npm run screenshots:chemistry — visual proof of the OC chemistry test (lib/chemistry-test.ts). Builds the app and
  * starts the production build on a throwaway local database with every model variable removed (the test never calls a
- * model). It checks over HTTP that the tool answers 200 with "Chemistry Test" in its <title>, sitemap.xml lists it, a
+ * model). It checks over HTTP that the tool answers 200 with "compatibility test" in its <title>, sitemap.xml lists it, a
  * result shows the same score on every load with both names in its og:title and a PNG share card, a refused name gets
  * no score and noindex, and "Send {first} on a real date" opens /create with both characters in. Then it drives Chromium like a
  * visitor: the tool with two sample characters typed in, their result, and "Send {first} on a real date" into /create.
@@ -57,8 +57,10 @@ async function check(base) {
   const tool = await fetch(`${base}${TOOL}`, { headers: ADULT, redirect: "manual" });
   assert(tool.status === 200, `${TOOL} answered ${tool.status}`);
   const toolHtml = await tool.text();
-  assert(/<title>[^<]*Chemistry Test/.test(toolHtml), `${TOOL} has no "Chemistry Test" in its <title>`);
-  assert((toolHtml.match(/name="[ab]_(name|trait[123]|want|dealbreaker)"/g) ?? []).length === 12, "the form doesn't have 6 fields for each of two characters");
+  // The ship compatibility test since 2026-11-23, at the same address: two names first, then the full form.
+  assert(/<title>[^<]*compatibility test/i.test(toolHtml), `${TOOL} has no "compatibility test" in its <title>`);
+  assert((toolHtml.match(/name="[ab]_(trait[123]|want|dealbreaker)"/g) ?? []).length === 10, "the full form doesn't have 6 fields for each of two characters");
+  assert((toolHtml.match(/name="[ab]_name"/g) ?? []).length === 4, "the page doesn't have two names in each of its two forms");
 
   const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
   assert(sitemap.includes(TOOL), "sitemap.xml doesn't list the tool");

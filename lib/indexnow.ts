@@ -37,6 +37,9 @@ export const LANDING_CHANGES: readonly { path: string; changedAt: string }[] = [
   // New titles that say "AI" (2026-11-22 audit), and the landings search engines had listed but never fetched.
   ...["/", "/create", "/pricing", "/faq", "/seasons", "/contact", "/press", "/security", "/import", "/reviews"].map((path) => ({ path, changedAt: "2026-11-23T00:00:00Z" })),
   ...["character-ai", "janitor-ai", "spicychat", "chai"].map((slug) => ({ path: `/alternatives/${slug}`, changedAt: "2026-11-23T00:00:00Z" })),
+  // The ship tools (2026-11-23): the new random ship generator, and the chemistry test re-aimed as the ship
+  // compatibility test. A day after they ship, so the job never sends a search engine to a page not yet deployed.
+  ...["/tools/random-ship-generator", "/tools/oc-chemistry-test"].map((path) => ({ path, changedAt: "2026-11-24T00:00:00Z" })),
 ];
 
 /** The landing pages whose words changed inside the window (LANDING_CHANGES), as full URLs. */

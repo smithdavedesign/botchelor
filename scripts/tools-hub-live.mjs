@@ -20,7 +20,7 @@ const OUT = process.env.OUT_DIR ?? "docs/screenshots";
 const PHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 botchelor-live-check/1.0 (Claude)";
 const DESKTOP_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 botchelor-live-check/1.0 (Claude)";
 const QUIET = /\/api\/e(?:\?|$)|google-analytics\.com|googletagmanager\.com|\/api\/ideas\/signal|\/_vercel\/(insights|speed-insights)\//;
-const TOOLS = ["/tools/random-oc-generator", "/tools/oc-name-generator", "/tools/oc-questions", "/tools/ship-name-generator", "/tools/oc-chemistry-test"];
+const TOOLS = ["/tools/random-oc-generator", "/tools/oc-name-generator", "/tools/oc-questions", "/tools/ship-name-generator", "/tools/random-ship-generator", "/tools/oc-chemistry-test"];
 
 const problems = [];
 const check = (ok, what) => {
