@@ -106,9 +106,9 @@ export default function CaiGuide({ now = new Date(), history }: { now?: Date; hi
           <li>
             <strong>Copy each character you made.</strong> Open its edit page and copy each field with its label in front:{" "}
             <code>Name:</code>, <code>Tagline:</code>, <code>Description:</code>, <code>Greeting:</code> and{" "}
-            <code>Definition:</code> (
-            <Quote words={CAI_QUOTES.definitionSpecs} href={CAI_SOURCES.definition} source="Character Definition" />
-            ). Paste them into a document you keep. Characters other people made may not show a Definition:{" "}
+            <code>Definition:</code>. For the Definition its help center gives{" "}
+            <Quote words={CAI_QUOTES.definitionSpecs} href={CAI_SOURCES.definition} source="Character Definition" />.
+            Paste them into a document you keep. Characters other people made may not show a Definition:{" "}
             <Quote words={CAI_QUOTES.fieldsVisible} href={CAI_SOURCES.fields} source="Character fields" />
           </li>
           <li>
