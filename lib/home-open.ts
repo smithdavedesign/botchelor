@@ -8,6 +8,7 @@
  * only who is on the stage and whether the season strip steps aside; tonight's story stays the producer's and /watch's.
  *
  * Data only. HOME_OPEN=0 turns it off and the page is as it was: the hero leads, with the band and the vote under it.
+ * HOME_PHONE_CLIP=0 keeps the screen but puts a phone's clip back under the box (homePhoneClipOn, stageSides).
  * Someone with a character never sees it: their home opens on their character's phone.
  */
 import type { Db } from "@/lib/db";
@@ -23,6 +24,12 @@ type Env = Record<string, string | undefined>;
 
 /** HOME_OPEN=0: no first screen; a stranger's home opens on the hero again. */
 export const homeOpenOn = (env: Env = process.env): boolean => env.HOME_OPEN?.trim() !== "0";
+
+/**
+ * HOME_PHONE_CLIP=0: on a phone the day's clip goes back under the box, below the fold (the first screen of 2026-11-21).
+ * On by default: the clip stands on the stage, where the neon heart hangs, playing in the first screen (app/HomeOpen.tsx).
+ */
+export const homePhoneClipOn = (env: Env = process.env): boolean => env.HOME_PHONE_CLIP?.trim() !== "0";
 
 export type OpenFace = { id: string; name: string; hue: number | null; portrait: string | null };
 
@@ -137,4 +144,31 @@ export function openLine(cast: readonly OpenFace[], leads: readonly OpenFace[], 
   const left = back.slice(0, Math.ceil(back.length / 2));
   const right = back.slice(left.length);
   return [...left.map((face) => ({ face, lead: false })), ...leads.map((face) => ({ face, lead: true })), ...right.map((face) => ({ face, lead: false }))];
+}
+
+export type StageFace = { face: OpenFace; lead: boolean; far: boolean };
+
+/**
+ * The cast line either side of the clip, on a phone where the clip stands on the stage (HOME_PHONE_CLIP): the line as
+ * openLine says it, cut in the middle of tonight's people so they stand nearest the phone (two leads: one a side). A
+ * phone has room for two faces a side, so the rest are `far` and step out there; three leads take the room of the
+ * faces stepped back, so all three stay; and each side keeps as many stepped-back faces as the other, so the phone
+ * stays in the middle. Read left then right, the two sides are the line itself: from 861px it is one row again.
+ */
+export function stageSides(line: readonly { face: OpenFace; lead: boolean }[]): { left: StageFace[]; right: StageFace[] } {
+  const leads = line.filter((s) => s.lead).length;
+  const first = line.findIndex((s) => s.lead);
+  const cut = first < 0 ? Math.ceil(line.length / 2) : first + Math.ceil(leads / 2);
+  const roomy = (s: { lead: boolean }) => s.lead || leads < 3;
+  // The two nearest the phone on each side: the left side's last two, the right side's first two.
+  let left = line.slice(0, cut).slice(-2).filter(roomy);
+  let right = line.slice(cut, cut + 2).filter(roomy);
+  // The stepped-back faces are a side's outer ones (openLine puts them there): the side with more lets its outermost go.
+  const backs = (side: typeof left) => side.filter((s) => !s.lead).length;
+  const even = Math.min(backs(left), backs(right));
+  left = left.slice(backs(left) - even);
+  right = right.slice(0, right.length - (backs(right) - even));
+  const near = new Set([...left, ...right].map((s) => s.face.id));
+  const mark = (side: readonly { face: OpenFace; lead: boolean }[]) => side.map(({ face, lead }) => ({ face, lead, far: !near.has(face.id) }));
+  return { left: mark(line.slice(0, cut)), right: mark(line.slice(cut)) };
 }
