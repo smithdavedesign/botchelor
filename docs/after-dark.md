@@ -3976,6 +3976,34 @@ buttons sat at different heights (#2101).
 | Talking over a call (both on a computer) | ![The call's first screen with Talking over Juniper ticked](screenshots/after-dark-step-in-call-talk-over-ready-desktop.png) | ![In the real Chrome: Listening, with wait hold heard while she was talking](screenshots/after-dark-step-in-call-cut-in-desktop.png) |
 | The door under an episode | ![Your turn: Step in with Juniper and Step in with Sable](screenshots/after-dark-episode-step-in-desktop.png) | ![The door on a phone](screenshots/after-dark-episode-step-in-phone.png) |
 
+**Live, round three** (ad.botchelor.com, the audit account, 2026-11-23, after #2114; the scene's picture, the
+roleplays as cards, and the replies' own count). The live checks found two things the tests couldn't, both fixed the
+same day: a framed picture standing behind the column on a tablet was half under the lines and half under the ideas
+and the composer, readable in neither (#2113: it fills the stage under the night from 701 to 1099px), and fifteen
+kinds as chips filled a phone's first screen before any card (#2114: one list).
+- **The scene's picture** (`~/.claude/botchelor-bin/step-in-proof/side-picture.mjs`): a new scene with Sable, one
+  line, a picture of her reply in 16 s. Her portrait still stood (it never moves by itself) and the picture's button
+  read "Use as the scene's picture". 1.5 s after the press the picture stood beside the column, 466 by 626 px in a
+  1440 by 900 window, clear of the lines; the button read "✓ The scene's picture" and the menu had "Show Sable's
+  portrait again", a plain button. It was still there on a reload, blurred there under the audit account's discreet
+  mode, and filled the stage on a tablet (900 wide) and a phone. The menu put the portrait back without the page
+  reloading; the picture's own button put it there and took it away again. Nothing sideways, no page errors.
+- **The roleplays as cards** (`shelf.mjs`): the front page opened on eight cards, two across at 1440 and one at 390,
+  their buttons level across a row, every card told to "you" with no placeholder left; two chips and a list of
+  fifteen kinds; "On a dating show" showed 2, "All" 45. "Someone else" turned Wedding guests from Juniper to Barnaby
+  on the spot, story and button. "Set it up" opened the set-up on Barnaby and Wedding guests, with every card on the
+  page cast with him. "Step in with Juniper" landed in a new scene in 1.1 s, and she had opened it, at the singles'
+  table, 6 s after the click. Its header still read "Their place": the rough edge named above.
+- **The replies' own count:** across two of these runs the audit account's `adult_usage.writes` stayed at 91 while
+  `step_in` went from 0 to 4 (two openings, two replies), read from production.
+- Every test scene was deleted, its picture with it. Three pictures were drawn for these checks, about 11¢.
+
+| | Desktop | Phone |
+| --- | --- | --- |
+| The scene's picture | ![A scene with Sable: the picture's button pressed, and its framed place beside the column where her portrait stood](screenshots/after-dark-step-in-scene-picture-desktop.png) | ![The same scene on a phone: the picture's frame under the reply, The scene's picture pressed](screenshots/after-dark-step-in-scene-picture-phone.png) |
+| Step into a roleplay | ![Tonight's 8, All 45 and a list of kinds over cards two across, each cast with Juniper](screenshots/after-dark-step-in-shelf-desktop.png) | ![The shelf on a phone: the two chips, the list, then the Wedding guests card](screenshots/after-dark-step-in-shelf-phone.png) |
+| One click from a card | ![The Wedding guests scene with Juniper, opened by her at the singles' table](screenshots/after-dark-step-in-shelf-started-desktop.png) | |
+
 **A picture of this moment** (2026-11-23; row 7 of the field audit, "a photo on request, from the composer"; David:
 "I am open to any of these ideas"). Under every reply that stands in a running scene there's **🖼 Picture this**, with
 its price on the button before anything is made (`app/after-dark/step-in/[id]/StepInPicture.tsx`,
