@@ -25,8 +25,8 @@
  * for an admin, else the menu picture's tokens, given back when nothing is kept), and it counts as one of the month's
  * pictures (lib/adult/usage.ts). The page shows both before anything is made (stepInPictureState).
  *
- * A reply's picture is drawn once at a time (adult_step_in_messages.picture_at is the claim); asked again later it's
- * drawn again, and the newest one shows. The pictures carry their scene (adult_images.step_in_scene) and go with it
+ * A reply's picture is drawn once at a time (adult_step_in_messages.picture_at is the claim, taken before the moment is
+ * read and let go when the draw ends either way); asked again later it's drawn again, and the newest one shows. The pictures carry their scene (adult_images.step_in_scene) and go with it
  * when it's deleted.
  */
 import { createHash } from "node:crypto";
@@ -490,19 +490,12 @@ export async function drawStepInPicture(db: Db, viewer: string, sceneId: string,
     await logPicture(db, s, { ok: false, http: f.status, message: f.error, flags: { refused: f.error, ...flags } });
     return f;
   };
-  const plan = await planStepInPicture(db, s, messages, target, character);
-  if (!plan.ok) return refused(plan);
   const reject = (reason: string) =>
     db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), viewer, `step in picture: ${reason}`.slice(0, 300)]).catch(() => {});
-  // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
-  const gate = await mediaGate(db, { owner: viewer });
-  if (!gate.ok) {
-    await reject(gate.reason);
-    return refused(fail(503, "hive_paused", gate.message));
-  }
-  const capped = await overCap(db, viewer, "pictures");
-  if (capped) return refused(fail(429, "over_cap", capped));
-  // One at a time for a reply: a second ask while it's drawing waits for the first (the page shows it when it lands).
+  // One at a time for a reply, claimed before the moment is even read: from the press on, a second ask is told it's
+  // being drawn, and the scene opened anywhere else says so and shows the picture when it lands. (The first live check
+  // with a second device, 2026-11-23: the claim came after the brief's few seconds, and a page opened in them showed
+  // nothing until a reload.)
   const claimed = await db.query(
     `update adult_step_in_messages set picture_at = now() where id = $1 and scene_id = $2 and (picture_at is null or picture_at <= now() - interval '${PICTURE_CLAIM_MINUTES} minutes') returning id`,
     [target.id, s.id],
@@ -511,6 +504,16 @@ export async function drawStepInPicture(db: Db, viewer: string, sceneId: string,
   let made: { id: string } | StepInPictureFail;
   try {
     made = await (async () => {
+      const plan = await planStepInPicture(db, s, messages, target, character);
+      if (!plan.ok) return refused(plan);
+      // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
+      const gate = await mediaGate(db, { owner: viewer });
+      if (!gate.ok) {
+        await reject(gate.reason);
+        return refused(fail(503, "hive_paused", gate.message));
+      }
+      const capped = await overCap(db, viewer, "pictures");
+      if (capped) return refused(fail(429, "over_cap", capped));
       // Free for an admin, included with a subscription, else the menu picture's tokens (lib/adult/pricing.ts).
       const price = (await includedPrice(db, viewer, settings.menu_picture_tokens)).tokens;
       if (price > 0 && !(await spendAdTokens(db, viewer, price))) return refused(fail(402, "needs_tokens", `A picture costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}`));
