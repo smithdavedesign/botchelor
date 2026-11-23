@@ -14,6 +14,14 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### Place name generator: towns, wilds, realms and taverns for a story's world (2026-11-23)
+
+- **The tool** ([#2116](https://github.com/smithdavedesign/botchelor/pull/2116)). [/tools/place-name-generator](https://botchelor.com/tools/place-name-generator) gives twelve places a page in the OC name generator's five styles (fantasy, modern, sci-fi, gothic, cozy) and four kinds: towns, wilds, realms, and inns & cafés. Each place says what it is ("Fantasy · walled city"). No AI, nothing stored, and the same page always shows the same places, so a link can be shared.
+- **From a place to a character.** Towns and realms carry "Make a character from here", which opens /create with the hometown already in: Bramblecombe shows on the new character's card before anything else is filled in (the card sits beside the form on wider screens).
+- Shot on botchelor.com after the deploy, at 1280×900 and on a phone (390×844). It was made for the worldbuilding lists, which asked for a place-name tool.
+
+<img src="docs/screenshots/place-names-desktop.png" width="420" alt="The fantasy place name generator at 1280 wide: style and kind chips, then twelve places in cards, such as Caelcrest (walled city), The Shattered Vale (frontier) and The Bashful Tankard (alehouse), towns and realms with Make a character from here"> <img src="docs/screenshots/place-names-phone.png" width="180" alt="The cozy village name generator on a phone, Towns picked: Bramblecombe (village) and Lavenderbrook (market town), each with Make a character from here"> <img src="docs/screenshots/place-names-hometown-desktop.png" width="420" alt="The character builder at 1280 wide after Make a character from here: the How others will see them card shows Bramblecombe under Your character, before anything else is filled in">
+
 ### After Dark: the scene's own picture beside it, roleplays as cards, and replies counted apart (2026-11-23)
 
 - **The scene's picture** ([#2111](https://github.com/smithdavedesign/botchelor/pull/2111), [#2113](https://github.com/smithdavedesign/botchelor/pull/2113)). Under every picture made in a Step in scene there's "Use as the scene's picture". It stands where the character's portrait stood (framed beside the column on a wide screen, filling the stage under the night on a tablet or a phone), in that scene on every device. Pressed again, or "Show {name}'s portrait again" in the ⋯ menu, puts the portrait back. It never moves there by itself, and discreet mode blurs it.
