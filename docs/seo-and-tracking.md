@@ -149,3 +149,16 @@ Botchelor among them, directly under the hero (`app/alternatives/AlternativeApps
 
 IndexNow hears of the four pages the day after the merge (`lib/indexnow.ts` `LANDING_CHANGES`). Re-check the facts
 before the 45 days are up: open each source, update what changed, and move `ALTERNATIVE_APPS_CHECKED`.
+
+### Saving your Character.AI characters and chats (2026-11-23)
+
+`/guides/save-character-ai` (`lib/cai-guide.ts`, `app/guides/save-character-ai/`) answers "how do I export / save my
+Character.AI characters and chats": request the export, copy each character's fields, save the chats, bring them
+anywhere (its one button goes to `/import?from=cai`). Every claim is a quote from Character.AI's own pages, linked
+beside it and checked on `CAI_GUIDE_CHECKED`. A box with its sale announcements hides itself from
+`CAI_GUIDE_SALE_UNTIL` (2026-12-06); the steps and the FAQ stay. `/guides/` is open without the 18+ gate (`proxy.ts`).
+It's in the sitemap, `LANDING_CHANGES` and llms.txt, and linked quietly from the `/alternatives/character-ai` note and
+`/import?from=cai`.
+
+- **`CAI_GUIDE`**: on by default. `0` makes the page a 404 and takes it out of the sitemap and llms.txt, along with
+  both links to it, without a deploy of code.
