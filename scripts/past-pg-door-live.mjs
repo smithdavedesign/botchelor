@@ -37,7 +37,7 @@ try {
     const page = await ctx.newPage();
     await page.goto(`${BASE}/create`, { waitUntil: "domcontentloaded" });
     await page.locator("#express-text").fill(SENTENCE);
-    await page.getByRole("button", { name: "Meet them" }).click();
+    await page.getByRole("button", { name: "Make them", exact: true }).click();
     const door = page.locator('[data-past-pg-door="express"]');
     try {
       await door.waitFor({ timeout: 20_000 });
