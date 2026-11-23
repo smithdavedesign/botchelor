@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { SHIP_TOOL_PATH } from "@/lib/tools";
+import { RANDOM_SHIP_TOOL_PATH, SHIP_TOOL_PATH } from "@/lib/tools";
 import ShipForm from "../../ship/ShipForm";
 import MoreTools from "../MoreTools";
 import JsonLd from "@/app/JsonLd";
@@ -36,7 +36,8 @@ export default function ShipNameGeneratorPage() {
         <ShipForm />
         <p className="muted small">
           Free, no sign-up. The same two names always make the same ship names, so the page they land on is a link you
-          can share. Try <Link href="/ship/juniper/dex">Juniper × Dex</Link>.
+          can share. Try <Link href="/ship/juniper/dex">Juniper × Dex</Link>. No pair in mind? The{" "}
+          <Link href={RANDOM_SHIP_TOOL_PATH}>random ship generator</Link> picks one.
         </p>
       </section>
 

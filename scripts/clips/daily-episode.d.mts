@@ -30,4 +30,6 @@ export function autoEdl(e: DailyEpisode, opts?: { story?: DayStory; n?: number; 
 export function dailyCaption(e: DailyEpisode, edl: Edl, opts?: { story?: DayStory; n?: number; base?: string }): string;
 export function fetchDayStory(base: string, headers?: Record<string, string>): Promise<DayStory>;
 export function nextDayNumber(postsDir: string): number;
-export function buildDailyEpisode(id: string, opts?: { out?: string | null; n?: number | null }): Promise<string>;
+export const EPISODE_FORMATS: readonly ["cliffhanger", "full"];
+export function episodeFormat(asked: string | null | undefined, env?: Record<string, string | undefined>): "cliffhanger" | "full";
+export function buildDailyEpisode(id: string, opts?: { out?: string | null; n?: number | null; format?: string | null }): Promise<string>;

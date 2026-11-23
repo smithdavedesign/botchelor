@@ -10,10 +10,10 @@ import { FREE_TOOLS, RANDOM_OC_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } from "@/l
 const LIST_NAME = "Free tools for original characters";
 
 export const metadata = pageMetadata({
-  title: "Free OC tools: random OCs, names, questions, ship names and chemistry · Botchelor",
+  title: "Free OC tools: random OCs, names, questions, ships and chemistry · Botchelor",
   description:
-    "Free tools for original characters: a random OC generator, OC names, questions to ask your OC, ship names and a " +
-    "chemistry test. No sign-up, no AI.",
+    "Free tools for original characters: random OCs, OC names, questions to ask, ship names, random ships and a ship " +
+    "compatibility test. No sign-up, no AI.",
   path: TOOLS_PATH,
   // Its own card beside it (app/tools/opengraph-image.tsx).
   image: null,
@@ -76,8 +76,8 @@ export default function ToolsPage() {
         <p className="kicker">Free, no sign-up</p>
         <h1>{LIST_NAME}</h1>
         <p className="lede">
-          Roll a character, name them, get to know them, ship them, and see if the ship holds. Five tools for people who make characters,
-          free and with no sign-up.
+          Roll a character, name them, get to know them, ship them (or let a random pair ship themselves), and see if the
+          ship holds. Six tools for people who make characters, free and with no sign-up.
         </p>
         <p className="muted">
           None of them uses AI: the same names and answers go in, the same results come out, every time, on a link you can

@@ -11,7 +11,8 @@ vi.mock("@/lib/adult/moderation", async (orig) => ({
   },
 }));
 import { GET as statusGet, POST as castPost } from "@/app/api/admin/after-dark/agent-cast/route";
-import { agentCastStatus, checkPortraits, checkSheets, PORTRAITS_PER_DAY, setAgentCastModelForTests, sheetVerdict } from "@/lib/adult/agent-cast";
+import { readFileSync } from "node:fs";
+import { agentCastStatus, checkPortraits, checkSheets, PORTRAITS_PER_DAY, setAgentCastModelForTests, SHEETS_PER_DAY, sheetVerdict } from "@/lib/adult/agent-cast";
 import { eligibleIds, isShowsOwn } from "@/lib/adult/characters";
 import { readinessOf } from "@/lib/adult/readiness";
 import type { ChatMessage, Model } from "@/lib/model";
@@ -147,6 +148,20 @@ describe("the portrait check", () => {
     await checkSheets(t.db);
     expect((await checkPortraits(t.db)).checked).toBe(PORTRAITS_PER_DAY);
     expect((await checkPortraits(t.db)).checked).toBe(2);
+  });
+});
+
+describe("by itself", () => {
+  it("After Dark's daily job reads the day's sheets before it asks about portraits, so new cast joins without an admin (2026-11-23)", () => {
+    // Nothing made after 11-19 had been read (the sheet check was an admin's button), so none of it could be opened.
+    const job = readFileSync("app/api/jobs/after-dark-daily/route.ts", "utf8");
+    const sheets = job.indexOf("await checkSheets(db, { limit: SHEETS_PER_DAY })");
+    const portraits = job.indexOf("await checkPortraits(db)");
+    expect(sheets).toBeGreaterThan(0);
+    expect(portraits).toBeGreaterThan(sheets);
+    expect(job).toContain("agent_cast_sheets: sheets");
+    // A day reads at least as many sheets as it can open portraits for.
+    expect(SHEETS_PER_DAY).toBeGreaterThanOrEqual(PORTRAITS_PER_DAY);
   });
 });
 

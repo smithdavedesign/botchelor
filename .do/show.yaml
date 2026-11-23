@@ -347,6 +347,12 @@ services:
       # - key: SHOW_IDEAS_PROPOSE
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The random ship generator's cast (lib/random-ship.ts; /tools/random-ship-generator): on by default, pairs draw
+      # on public characters with an aired date, their public face only. "0" pairs random OCs only, with no database
+      # read, without a deploy of code.
+      # - key: RANDOM_SHIP_CAST
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The social network (docs/PRDs/social-network.md, lib/social/): SOCIAL_TIES "0" stops every social write and
       # read (nothing declared, derived or backfilled; its routes close; rows stay). SOCIAL_DECLARE "0" keeps what aired
       # derives and stops owners' and agents' declarations and proposals. Both on by default.

@@ -101,6 +101,7 @@ export function segmentArgs(input: {
   fadeOut?: boolean;
 }): string[];
 export function fetchEpisodes(ids: string[], base: string, headers?: Record<string, string>): Promise<CutEpisode[]>;
+export function speak(beat: Beat, file: string, key: string | null, log: (m: string) => void, speed?: number): Promise<string | null>;
 export function renderCut(
   edl: Edl,
   episodes: CutEpisode[],

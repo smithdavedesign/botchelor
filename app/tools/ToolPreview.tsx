@@ -4,9 +4,10 @@ import { CHEMISTRY_EXAMPLE, chemistryTest } from "@/lib/chemistry-test";
 import { OC_NAMES_PATH, ocNames } from "@/lib/oc-names";
 import { OC_QUESTIONS, OC_QUESTIONS_PATH } from "@/lib/oc-questions";
 import { characterPortrait } from "@/lib/portraits";
+import { firstName, randomShip } from "@/lib/random-ship";
 import { ENDING_LABELS } from "@/lib/rules";
 import { shipNames } from "@/lib/ship-names";
-import { CHEMISTRY_TOOL_PATH, RANDOM_OC_TOOL_PATH, SHIP_TOOL_PATH } from "@/lib/tools";
+import { CHEMISTRY_TOOL_PATH, RANDOM_OC_TOOL_PATH, RANDOM_SHIP_TOOL_PATH, SHIP_TOOL_PATH } from "@/lib/tools";
 
 /** The three house faces the random generator's preview fans out (reviewed PG portraits). */
 const FAN = ["house-juniper", "house-dex", "house-nell"];
@@ -15,9 +16,10 @@ const SHIP_TURNS = 4;
 
 /**
  * What each free tool makes, shown on its own card on /tools (pass 2 of the 2026-11-20 visual pop audit): a fanned hand
- * of characters, a few names, a question, ship names turning over, the example chemistry score filling. Every one is
- * the tool's real output for a fixed input (the tools are deterministic: lib/tools.ts), never made up for the picture.
- * Decorative beside the card's words, so hidden from screen readers; complete at rest, and still under reduced motion.
+ * of characters, a few names, a question, ship names turning over, a random pair's ship, the example chemistry score
+ * filling. Every one is the tool's real output for a fixed input (the tools are deterministic: lib/tools.ts), never
+ * made up for the picture. Decorative beside the card's words, so hidden from screen readers; complete at rest, and
+ * still under reduced motion.
  */
 export default function ToolPreview({ path }: { path: string }) {
   if (path === RANDOM_OC_TOOL_PATH) {
@@ -61,6 +63,21 @@ export default function ToolPreview({ path }: { path: string }) {
               <span key={`${n}-${i}`}>{n}</span>
             ))}
           </span>
+        </span>
+      </div>
+    );
+  }
+  if (path === RANDOM_SHIP_TOOL_PATH) {
+    // The first pair the tool makes from its own characters alone (lib/random-ship.ts; the page adds the show's cast).
+    const ship = randomShip(1);
+    const [a, b] = [ship.a, ship.b].map((s) => firstName(s.kind === "cast" ? s.cast.name : s.oc.name));
+    const top = ship.ships[0]?.name;
+    return (
+      <div className="tool-preview tool-ship" aria-hidden="true">
+        <span className="tool-ship-pair">{`${a} × ${b}`}</span>
+        {top && <span className="tool-ship-window">{top}</span>}
+        <span className="tool-chem-track">
+          <span className="fill-in" style={{ width: `${ship.chemistry.score}%` }} />
         </span>
       </div>
     );

@@ -7,7 +7,7 @@ import { breadcrumbJsonLd, fitDescription } from "@/lib/seo";
 import { canonicalShipPath, nameFromSegment, SHIP_ERRORS, shipMerge, shipPair, shipPath, type ShipBlend, type ShipMerge, type ShipPair } from "@/lib/ship-names";
 import ShipForm from "../../ShipForm";
 import MoreTools from "@/app/tools/MoreTools";
-import { SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
+import { compatibilityHref, RANDOM_SHIP_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } from "@/lib/tools";
 import { getDb } from "@/lib/db";
 import { STAGE_LABELS } from "@/lib/relationship-stages";
 import { shipCouple, type ShipCouple } from "@/lib/ship-couple";
@@ -130,6 +130,17 @@ export default async function ShipPage({ params }: Props) {
           <p>No blend of these two reads like a name. Try another spelling, or another name.</p>
         )}
         <ShareLink path={shipPath(a, b)} label="Link to these ship names" />
+        {/* The other two ship tools (2026-11-23): this pair on the compatibility test (a result is no page for search, so
+            not for crawlers), and a pair picked at random. */}
+        <p className="small ship-more">
+          <Link href={compatibilityHref(a.display, b.display)} rel="nofollow" data-track="ship-compat">
+            {`How compatible are ${a.display} and ${b.display}?`}
+          </Link>
+          {" · "}
+          <Link href={RANDOM_SHIP_TOOL_PATH} data-track="ship-random">
+            Get a random ship
+          </Link>
+        </p>
       </section>
 
       <section className="card">

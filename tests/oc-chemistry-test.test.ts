@@ -32,6 +32,7 @@ import {
   chemistryResultHref,
   chemistryTest,
   createPairHref,
+  namesQuery,
   readChemistry,
   SCORE_BANDS,
   SHEET_FIELDS,
@@ -140,24 +141,26 @@ afterEach(() => {
 });
 
 describe("1. the tool page: /tools/oc-chemistry-test", () => {
-  it("has a <title> naming the chemistry test, a description and a canonical link to itself, and is indexable", () => {
-    // In sentence case, as the footer names the tools (the 2026-11-22 audit).
-    expect(String(toolMetadata.title)).toMatch(/chemistry test/i);
+  it("has a <title> naming the ship compatibility test and the love calculator, a description and a canonical link to itself, and is indexable", () => {
+    // Re-aimed 2026-11-23 at what people search ("ship compatibility test", "love calculator"), at the same address.
+    expect(String(toolMetadata.title)).toMatch(/^Ship compatibility test: a love calculator/);
     expect(toolMetadata.description).toBeTruthy();
     expect(toolMetadata.alternates?.canonical).toBe(TOOL);
-    expect(String(toolMetadata.openGraph?.title)).toMatch(/chemistry test/i);
+    expect(String(toolMetadata.openGraph?.title)).toMatch(/compatibility test/i);
     expect(toolMetadata.robots).toBeUndefined();
   });
 
-  it("renders an h1 and one GET form for two characters, each with a name, three traits, a want and a dealbreaker", () => {
+  it("renders an h1 and two GET forms: two names for the quick test, then two characters with a name, three traits, a want and a dealbreaker", () => {
     const html = renderTool();
-    expect(html).toMatch(/<h1[^>]*>[^<]*chemistry test[^<]*<\/h1>/i);
+    expect(html).toMatch(/<h1[^>]*>Ship compatibility test<\/h1>/);
     const forms = [...html.matchAll(/<form[^>]*>/g)].map((m) => m[0]);
-    expect(forms).toHaveLength(1);
-    expect(attr(forms[0], "action")).toBe(CHEMISTRY_RESULT_PATH);
-    expect(attr(forms[0], "method")).toBe("get");
+    expect(forms).toHaveLength(2);
+    for (const form of forms) {
+      expect(attr(form, "action")).toBe(CHEMISTRY_RESULT_PATH);
+      expect(attr(form, "method")).toBe("get");
+    }
     const names = inputs(html).map((i) => attr(i, "name"));
-    expect(names).toEqual(["a", "b"].flatMap((side) => SHEET_FIELDS.map((f) => `${side}_${f}`)));
+    expect(names).toEqual(["a_name", "b_name", ...["a", "b"].flatMap((side) => SHEET_FIELDS.map((f) => `${side}_${f}`))]);
     for (const input of inputs(html)) expect(input).toContain("required");
     // Two fieldsets, one per character, each with the builder's labels.
     expect(html.match(/<fieldset/g)).toHaveLength(2);
@@ -168,9 +171,10 @@ describe("1. the tool page: /tools/oc-chemistry-test", () => {
 
   it("shows its examples as examples, never as answers already given (2026-11-22)", () => {
     const html = renderTool();
-    // Each box's own example starts "e.g."; the three traits share one "e.g." line, which each trait box points to.
+    // Each box's own example starts "e.g." (the quick form's two names, then the full form's six boxes); the three
+    // traits share one "e.g." line, which each trait box points to.
     const shown = inputs(html).map((i) => attr(i, "placeholder"));
-    expect(shown.filter(Boolean)).toHaveLength(6);
+    expect(shown.filter(Boolean)).toHaveLength(8);
     for (const p of shown.filter(Boolean)) expect(p).toMatch(/^e\.g\. /);
     for (const side of ["a", "b"]) {
       expect(html).toMatch(new RegExp(`<small class="muted chem-eg" id="chem-eg-${side}">e\\.g\\. [^<,]+, [^<,]+, [^<,]+</small>`));
@@ -308,6 +312,24 @@ describe("2. the score: deterministic, 0–100, one of three endings, no model",
     expect(reasons.join(" ")).toContain("curious");
   });
 
+  it("names a trait both have word for word whole, and scores its words as the engine does", () => {
+    // Two of the show's cast on the random ship generator, 2026-11-23: “big” and “hearted” read like two things.
+    const niamh: OcSheet = { name: "Niamh", traits: ["mischievous", "capable", "Big-hearted"], want: "Mud", dealbreaker: "" };
+    const kenta: OcSheet = { name: "Kenta", traits: ["rough around the edges", "big-hearted", "loyal"], want: "Tofu", dealbreaker: "" };
+    const whole = chemistryTest(niamh, kenta);
+    expect(whole.reasons).toContain("They have “big-hearted” in common.");
+    // The same two words, not as the same trait: named one by one, as written, and the same score (wording only).
+    const words = chemistryTest({ ...niamh, traits: ["mischievous", "capable", "hearted, big"] }, kenta);
+    expect(words.reasons).toContain("They have “hearted” and “big” in common.");
+    expect(words.score).toBe(whole.score);
+    // A long trait, even the same one, keeps the line short with its words.
+    const long = "takes a long walk on the pier";
+    const both = chemistryTest({ ...niamh, traits: ["mischievous", "capable", long] }, { ...kenta, traits: ["rough around the edges", long, "loyal"] });
+    const line = both.reasons.find((r) => r.endsWith("in common.")) ?? "";
+    expect(line).toContain("“long”");
+    expect(line).not.toContain(`“${long}”`);
+  });
+
   it("renders the result with every model variable unset, no model and no network call", async () => {
     const fetchSpy = unsetEveryModel();
     const html = await renderResult(chemistryQuery(JUNIPER, DEX));
@@ -348,7 +370,7 @@ describe("3. the result: a shareable, server-rendered address", () => {
     expect(og).toContain("Juniper");
     expect(og).toContain("Dex");
     expect(String(meta.twitter?.title ?? "")).toContain("Dex");
-    expect(String(meta.title)).toMatch(/chemistry test/i);
+    expect(String(meta.title)).toMatch(/compatibility test/i);
     expect(meta.alternates?.canonical).toBe(chemistryResultHref(JUNIPER, DEX));
     expect(meta.robots).toMatchObject({ index: false, follow: true });
     const images = JSON.stringify(meta.openGraph?.images ?? "");
@@ -380,7 +402,7 @@ describe("3. the result: a shareable, server-rendered address", () => {
 
   it("has a share card for a pair (and for the tool) that renders to PNG", async () => {
     const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    for (const query of [chemistryQuery(JUNIPER, DEX), "", formQuery({ name: "Taylor Swift" }, DEX)]) {
+    for (const query of [chemistryQuery(JUNIPER, DEX), "", formQuery({ name: "Taylor Swift" }, DEX), namesQuery("Juniper", "Dex"), namesQuery("Taylor", "Swift")]) {
       const res = await chemistryCard(new NextRequest(`http://localhost:3000/api/og/chemistry?${query}`));
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toBe("image/png");

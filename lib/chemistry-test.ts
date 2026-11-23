@@ -1,7 +1,8 @@
 /**
- * The OC chemistry test (app/tools/oc-chemistry-test): two original characters in; a 0–100 chemistry score, the ending
- * Botchelor's date engine predicts for their first date (a second date, just friends or a disaster) and three one-line
- * reasons out.
+ * The OC chemistry test (app/tools/oc-chemistry-test, the ship compatibility test since 2026-11-23): two original
+ * characters in; a 0–100 chemistry score, the ending the date engine's rules give their first date on paper (a second
+ * date, just friends or a disaster) and three one-line reasons out. Two names and nothing else get the quick reading
+ * instead (readNamePair below, lib/true-love.ts).
  *
  * Pure and deterministic: no model, no randomness, no database. It runs the show's own engine (lib/engine.ts) on the
  * fields a character starts with on /create (a name, three traits, a want and a dealbreaker), leaving out the two things
@@ -161,6 +162,50 @@ export function readChemistry(params: Record<string, string | string[] | undefin
   return { ok: true, a: sheet("a"), b: sheet("b") };
 }
 
+/* ------------------------------------------------------------------------------------------------------------
+ * The quick test: two names and nothing else (lib/true-love.ts reads them).
+ * ---------------------------------------------------------------------------------------------------------- */
+
+export type NamePairRead = { ok: true; a: string; b: string } | { ok: false; error: ChemistryError; form: ChemistryForm };
+
+/** The quick test's query: the two names alone, the first first. */
+export const namesQuery = (a: string, b: string) => new URLSearchParams({ a_name: a, b_name: b }).toString();
+/** The quick test's result: a link to share, like a full one. */
+export const namesResultHref = (a: string, b: string) => `${CHEMISTRY_RESULT_PATH}?${namesQuery(a, b)}`;
+
+/**
+ * Two names and nothing else of a sheet (the quick form, or a ship page's link), checked the way /create checks a name:
+ * each on its own, then the two read together, as the ship name generator does ("Taylor" and "Swift" are fine apart).
+ * Null when the address carries any other field (the full test reads it) or no name at all (the tool's own address).
+ */
+export function readNamePair(params: Record<string, string | string[] | undefined>): NamePairRead | null {
+  const value = (key: FieldParam) => {
+    const v = params[key];
+    return ((Array.isArray(v) ? v[0] : v) ?? "").trim();
+  };
+  for (const side of SIDES) for (const f of SHEET_FIELDS) if (f !== "name" && value(fieldParam(side, f))) return null;
+  const names: Record<Side, string> = { a: value("a_name"), b: value("b_name") };
+  if (!names.a && !names.b) return null;
+
+  // Nothing the filter refuses goes back into the form (or anywhere on the page).
+  const form: ChemistryForm = {};
+  for (const side of SIDES) if (names[side] && checkFields({ name: names[side] }).ok) form[fieldParam(side, "name")] = names[side].slice(0, SHEET_LIMITS.name);
+  for (const side of SIDES) {
+    const message = shapeError("name", names[side]);
+    if (message) return { ok: false, error: { kind: "invalid", side, field: "name", message }, form };
+  }
+  for (const side of SIDES) {
+    const verdict = checkFields({ name: names[side] });
+    if (!verdict.ok) return { ok: false, error: { kind: "rejected", side, field: "name", reason: verdict.reason, message: CHARACTER_REJECTION_MESSAGES[verdict.reason] }, form };
+  }
+  const together = checkFields({ name: `${names.a} ${names.b}` });
+  if (!together.ok) {
+    const error: ChemistryError = { kind: "rejected", side: "b", field: "name", reason: together.reason, message: CHARACTER_REJECTION_MESSAGES[together.reason] };
+    return { ok: false, error, form: { a_name: form.a_name } };
+  }
+  return { ok: true, a: names.a, b: names.b };
+}
+
 const FIELD_LABELS: Record<SheetField, string> = { name: "name", trait1: "first trait", trait2: "second trait", trait3: "third trait", want: "want", dealbreaker: "dealbreaker" };
 
 /** Where an error is, in words: "Dex's want", or "the second character's name" when the name can't be shown. */
@@ -176,11 +221,19 @@ export function errorPlace(error: ChemistryError, form: ChemistryForm): string {
 
 export type ChemistryResult = { score: number; ending: Ending; reasons: [string, string, string] };
 
+/**
+ * The reason a pair gets when neither dealbreaker trips. A page that leaves a dealbreaker out (the random ship
+ * generator: a show character's stays private) drops this line, since it can't know.
+ */
+export const NO_DEALBREAKER_REASON = "Neither one's dealbreaker comes up.";
+
 /** The margins (the engine's deciding score against an ordinary date) that read as 0 and 100: about the worst and best five fields can do. */
 const MARGIN_FLOOR = -40;
 const MARGIN_CEILING = 32;
 /** How far a temperament has to move the margin before it's worth a reason. */
 const TEMPERAMENT_MIN = 1;
+/** The longest trait a reason quotes whole when both have it ("rough around the edges"); three fit in a short line. */
+const WHOLE_TRAIT_MAX = 24;
 /** The seed only draws the engine's luck, which the test leaves out. */
 const SEED = 0;
 
@@ -311,8 +364,20 @@ function reasonsFor(a: OcSheet, b: OcSheet, signals: readonly [SoulSignals, Soul
     }
   }
 
+  // Every word their traits share counts (the engine reads words), but a short trait both have word for word is named
+  // whole: "big-hearted", not "big" and "hearted" (the random ship generator's cast, 2026-11-23). Wording only: the
+  // score is the engine's, from the words. A long one keeps the line short with its words.
   const traitsB = cues(b.traits.join(" "));
-  const shared = [...cues(a.traits.join(" "))].filter((w) => traitsB.has(w)).map((w) => wordFor(w, a.traits.join(" ")));
+  const sharedWords = new Set([...cues(a.traits.join(" "))].filter((w) => traitsB.has(w)));
+  const same = (t: string) => t.trim().length <= WHOLE_TRAIT_MAX && b.traits.some((u) => u.trim().toLowerCase() === t.trim().toLowerCase());
+  const named = new Set<string>();
+  const shared: string[] = [];
+  for (const t of a.traits) {
+    const own = [...cues(t)].filter((w) => sharedWords.has(w) && !named.has(w));
+    own.forEach((w) => named.add(w));
+    if (own.length && same(t)) shared.push(t.trim().toLowerCase());
+    else shared.push(...own.map((w) => wordFor(w, t)));
+  }
   if (shared.length) {
     const named = shared.length > 3 ? `${quoted(shared.slice(0, 3))} and ${shared.length - 3} more` : quoted(shared);
     found.push({ text: `They have ${named} in common.`, weight: worth(trace, "traits", weights) });
@@ -326,7 +391,7 @@ function reasonsFor(a: OcSheet, b: OcSheet, signals: readonly [SoulSignals, Soul
   // Stable: equal weights keep the order above (dealbreakers, wants, shared traits, temperament).
   const reasons = found.sort((x, y) => y.weight - x.weight).map((r) => r.text);
   const missing = [
-    ...(dealbreakers === 0 ? ["Neither one's dealbreaker comes up."] : []),
+    ...(dealbreakers === 0 ? [NO_DEALBREAKER_REASON] : []),
     ...(wants === 0 ? ["Neither has what the other says they want."] : []),
     ...(shared.length === 0 ? ["They have no trait in common."] : []),
   ];
