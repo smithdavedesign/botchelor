@@ -2,6 +2,7 @@
  * What Step in's pages and its engine share (lib/adult/step-in.ts; docs/after-dark.md "Step in"): the scene as its page
  * shows it, and the few limits and words both sides say. Client-safe: no server imports.
  */
+import { echoOf } from "../companion-live-shared";
 import { storySpeech } from "../story-reply";
 import type { PairLimits } from "./limits";
 
@@ -45,6 +46,37 @@ export function spokenPieces(text: string): string[] {
     if (piece) out.push(piece);
   }
   return out.slice(0, VOICE_PIECES_MAX);
+}
+
+/** Words heard while the character talks that count as the viewer cutting in (one is too often a cough or "mm"). */
+export const CUT_IN_WORDS = 2;
+
+/**
+ * Whether what the microphone heard while the character talks is the viewer cutting in (the call stops the character
+ * and listens): CUT_IN_WORDS or more, and not the character's own voice coming back through the speaker
+ * (lib/companion-live-shared.ts echoOf: most of the words are in what's being said). The show's live call decides it
+ * the same way.
+ */
+export function cutsIn(heard: string, replying: string): boolean {
+  const said = heard.trim().split(/\s+/).filter(Boolean);
+  return said.length >= CUT_IN_WORDS && !echoOf(heard, replying);
+}
+
+/** Chrome's first version whose speech recognition listens on a microphone track of the page's own (SpeechRecognition.start(audioTrack)). */
+export const CUT_IN_CHROME = 135;
+
+/**
+ * Whether a browser can hear the viewer while the character talks without taking the character's voice for theirs
+ * (`ua`: its navigator.userAgentData): Google Chrome on a computer, CUT_IN_CHROME or later. There the call opens its own
+ * microphone track with the browser's echo cancelling on, and Chrome's speech recognition listens on that track, so
+ * what the speakers play is taken out before anything is heard. Everywhere else (a phone or tablet, where the system's
+ * own recogniser does the hearing; Safari and Firefox; Edge and the other Chromium browsers, whose recognisers aren't
+ * known to take the track) the recogniser listens on the plain microphone, so a call takes turns there, as before.
+ */
+export function cutInCapable(ua: { mobile?: boolean; platform?: string; brands?: readonly { brand: string; version: string }[] } | null | undefined): boolean {
+  if (!ua || ua.mobile || ua.platform === "Android") return false;
+  const chrome = ua.brands?.find((b) => b.brand === "Google Chrome");
+  return Boolean(chrome && Number.parseInt(chrome.version, 10) >= CUT_IN_CHROME);
 }
 
 /** A line said on a call, as the page's captions show it: without the quote marks it's kept in. */

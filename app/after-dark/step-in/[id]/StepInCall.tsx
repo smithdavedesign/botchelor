@@ -5,7 +5,7 @@ import Avatar, { sized } from "@/app/Avatar";
 import LiveFace from "@/app/companion/[id]/LiveFace";
 import { newAudioContext, PcmPlayer } from "@/app/companion/[id]/live-audio";
 import { useVoiceRing } from "@/app/stage/useVoiceRing";
-import { callWords, type StepInCharacter, type StepInMessageView } from "@/lib/adult/step-in-shared";
+import { callWords, cutInCapable, cutsIn, type StepInCharacter, type StepInMessageView } from "@/lib/adult/step-in-shared";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { characterPortrait } from "@/lib/portraits";
 import { fetchVoicePiece, playOn } from "./voice-client";
@@ -16,7 +16,8 @@ type Recognition = {
   continuous: boolean;
   interimResults: boolean;
   maxAlternatives: number;
-  start(): void;
+  /** `track`: the microphone track to listen on (Chrome 135 and later); without one, the browser's own microphone. */
+  start(track?: MediaStreamTrack): void;
   abort(): void;
   onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
@@ -32,6 +33,33 @@ function recognition(): (new () => Recognition) | null {
 /** A call needs the browser to hear the viewer (Chrome, Edge and Safari can; Firefox can't). */
 export function stepInCallSupported(): boolean {
   return recognition() !== null;
+}
+
+/** Whether talking over them is switched off on this browser (the call's first screen); on unless they said so. */
+const CUT_IN_KEY = "bz_step_in_cut_in";
+/** A listening session that ends this soon after it starts never listened; this many in a row while they talk, and the call stops trying for that reply. */
+const DEAF_MS = 400;
+const DEAF_TRIES = 3;
+
+function stored(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function store(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Not remembered (a private window): it still works for this call.
+  }
+}
+
+/** Whether this browser can hear the viewer over the character (lib/adult/step-in-shared.ts cutInCapable), and hands out microphone tracks at all. */
+function canCutIn(): boolean {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return false;
+  return cutInCapable((navigator as Navigator & { userAgentData?: { mobile?: boolean; platform?: string; brands?: { brand: string; version: string }[] } }).userAgentData);
 }
 
 /** What saying a line came to: the character's spoken reply, or why not, and what the call does about it. */
@@ -69,8 +97,16 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
  * recognition turns it into words (Chrome sends the audio to Google for that, Safari to Apple; Botchelor gets only the
  * words), the words go in as a line of the scene (`onSay`: the scene's `say` move, with every check a written line
  * gets), and the character answers in a few spoken sentences, in their own voice, a piece at a time (./voice-client.ts,
- * lib/adult/step-in-voice.ts). Then it listens again. It takes turns: it doesn't listen while they talk, so it never
- * hears itself; ✋ Interrupt stops them and listens.
+ * lib/adult/step-in-voice.ts). Then it listens again.
+ *
+ * Talking over them (David, 2026-11-23, on a call where neither can cut in: "figure it out"): in Google Chrome on a
+ * computer (lib/adult/step-in-shared.ts cutInCapable) the call opens its own microphone track with the browser's echo
+ * cancelling on, and the browser's recognition listens on that track while the character talks. Two words of the
+ * viewer's (cutsIn) stop the character at once, and what the viewer goes on to say is their next line. It's on unless
+ * they untick it on the call's first screen. Everywhere else the recogniser can only listen on the plain microphone,
+ * which would hear the character, so the call takes turns there: it doesn't listen while they talk, and ✋ Interrupt
+ * stops them and listens. No speech-to-text service is involved either way (the ones whose terms allow adult talk
+ * aren't many: docs/after-dark.md "Talking over them").
  *
  * Their face is the show's living loop of them when they have one (app/companion/[id]/LiveFace.tsx: a PG loop, drawn
  * for the show's calls, playing the whole call), else their portrait, with the ring around it swelling with their
@@ -107,6 +143,12 @@ export default function StepInCall({
   const [note, setNote] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
   const [left, setLeft] = useState(stepsLeft);
+  // Talking over them: whether this browser can (canCutIn), whether they want it (on unless they switched it off), and
+  // whether this call is listening while the character talks.
+  // Read as it opens (the call screen only ever renders in the browser, after a tap).
+  const [capable] = useState(canCutIn);
+  const [overTalk, setOverTalk] = useState(() => stored(CUT_IN_KEY) !== "off");
+  const [cutInOn, setCutInOn] = useState(false);
 
   const phaseNow = useRef<Phase>("ready");
   const ended = useRef(false);
@@ -119,6 +161,17 @@ export default function StepInCall({
   const ctx = useRef<AudioContext | null>(null);
   const player = useRef<PcmPlayer | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
+  // The call's own microphone track, echo cancelled (where the browser can listen on one: canCutIn): what lets it hear
+  // the viewer while the character talks. Null: the call takes turns. `noTrack`: asked for and refused, or the browser
+  // wouldn't listen on it, so this call stops asking.
+  const mic = useRef<MediaStream | null>(null);
+  const noTrack = useRef(false);
+  /** Each time the call starts listening for a turn (from Call, from Tap to talk): a later one makes an earlier one stale. */
+  const opening = useRef(0);
+  /** What the character is saying right now: what tells a cut-in from their own voice coming back. */
+  const saying = useRef("");
+  /** Listening sessions in a row that ended the moment they started, while the character talked. */
+  const deaf = useRef(0);
   const tile = useRef<HTMLDivElement>(null);
   const mainButton = useRef<HTMLButtonElement>(null);
   const endButton = useRef<HTMLButtonElement>(null);
@@ -146,7 +199,20 @@ export default function StepInCall({
 
   function stopTalking() {
     talk.current += 1;
+    saying.current = "";
     audio.current?.pause();
+  }
+
+  /** Lets the microphone go (the browser's "in use" light goes out): on a pause, and when the call ends. */
+  function closeMic() {
+    mic.current?.getTracks().forEach((t) => t.stop());
+    mic.current = null;
+  }
+
+  /** The call's own microphone track, while it's open and working. */
+  function liveTrack(): MediaStreamTrack | null {
+    const t = mic.current?.getAudioTracks()[0];
+    return t && t.readyState === "live" ? t : null;
   }
 
   function end(message: string | null = null) {
@@ -154,27 +220,39 @@ export default function StepInCall({
     ended.current = true;
     stopListening();
     stopTalking();
+    closeMic();
     void ctx.current?.close().catch(() => {});
     handlers.current.onClose(message);
   }
 
-  /** Stops listening (or talking) and waits for a tap, saying why when there's a reason. */
+  /** Stops listening (or talking) and waits for a tap, saying why when there's a reason. The microphone is let go meanwhile. */
   function pause(why: string | null) {
     go("paused");
     stopListening();
     stopTalking();
+    closeMic();
     setHeard("");
     setNote(why);
   }
 
-  function listen() {
+  /**
+   * Listens for what they say next. `during`: while the character is still talking, on the call's own microphone track
+   * (only where there is one: begin()). Nothing changes on screen then unless they cut in (cutsIn: two words or more
+   * that aren't the character's own voice coming back): the character stops at once, the call is listening, and what
+   * they go on to say is their next line. A quiet stretch, or the character's echo, listens again while they still talk.
+   */
+  function listen(opts: { during?: boolean } = {}) {
     if (ended.current) return;
+    const during = opts.during === true;
+    const track = liveTrack();
+    // Without the call's own track, listening while they talk would hear them: it waits its turn.
+    if (during && !track) return setCutInOn(false);
     // Their answer came while the tab was in the background: wait for them to come back rather than listen to the room.
     if (document.visibilityState === "hidden") return pause("Paused while you were away.");
     const Ctor = recognition();
     if (!Ctor) return end("This browser can't hear you, so calls don't work here. Try Chrome, Edge or Safari.");
     stopListening();
-    go("listening");
+    if (!during) go("listening");
     const r = new Ctor();
     // After Dark is English only (lib/safety.ts checkAdultText refuses anything else), so it listens for English.
     r.lang = /^en\b/i.test(navigator.language || "") ? navigator.language : "en-US";
@@ -183,6 +261,9 @@ export default function StepInCall({
     r.maxAlternatives = 1;
     let said = "";
     let error: string | null = null;
+    // While they talk, what's heard counts for nothing until it's the viewer cutting in.
+    let theirs = !during;
+    const began = Date.now();
     r.onresult = (e) => {
       let interim = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -190,7 +271,16 @@ export default function StepInCall({
         if (result.isFinal) said += result[0].transcript;
         else interim += result[0].transcript;
       }
-      setHeard(`${said} ${interim}`.trim());
+      const sofar = `${said} ${interim}`.trim();
+      if (!theirs) {
+        if (phaseNow.current !== "speaking" || !cutsIn(sofar, saying.current)) return;
+        // They're talking over the character: it stops at once, and this is their line from here on.
+        theirs = true;
+        stopTalking();
+        setNote(null);
+        go("listening");
+      }
+      setHeard(sofar);
     };
     r.onerror = (e) => {
       error = e.error;
@@ -198,7 +288,18 @@ export default function StepInCall({
     r.onend = () => {
       if (rec.current !== r) return;
       rec.current = null;
-      if (ended.current || phaseNow.current !== "listening") return;
+      if (ended.current) return;
+      if (!theirs) {
+        // Nothing of theirs was heard (quiet, or the character's own voice): it keeps an ear open while they still
+        // talk. Not when the microphone is the trouble (the turn after the reply says so), nor when sessions keep
+        // ending the moment they start (it isn't listening: the rest of this reply takes turns).
+        if (phaseNow.current !== "speaking" || (error && RECOGNITION_ERRORS[error])) return;
+        if (Date.now() - began >= DEAF_MS) deaf.current = 0;
+        else if (++deaf.current >= DEAF_TRIES) return;
+        listen({ during: true });
+        return;
+      }
+      if (phaseNow.current !== "listening") return;
       const text = said.replace(/\s+/g, " ").trim();
       if (text) {
         silences.current = 0;
@@ -212,10 +313,49 @@ export default function StepInCall({
     };
     rec.current = r;
     try {
-      r.start();
+      // On the call's own track where there is one: its echo cancelling is what keeps the character's voice out.
+      if (track) r.start(track);
+      else r.start();
     } catch {
-      pause("The microphone didn't start. Tap to talk to try again.");
+      rec.current = null;
+      if (track) {
+        // This browser wouldn't listen on the call's track after all: the call lets it go and takes turns.
+        noTrack.current = true;
+        closeMic();
+        setCutInOn(false);
+        if (!during) listen();
+        return;
+      }
+      if (!during) pause("The microphone didn't start. Tap to talk to try again.");
     }
+  }
+
+  /**
+   * Starts listening for their turn, from Call and from Tap to talk. Where they can talk over the character (canCutIn,
+   * and they haven't switched it off), it first opens the call's own microphone track with the browser's echo
+   * cancelling on: the browser's speech recognition listens on that track, so it can stay open while the character
+   * talks without hearing the character. Refused, or not there: the call takes turns.
+   */
+  async function begin() {
+    go("listening");
+    const mine = ++opening.current;
+    if (capable && overTalk && !noTrack.current && !liveTrack()) {
+      closeMic();
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+      } catch {
+        noTrack.current = true;
+      }
+      // Paused, ended or started again while the browser was asking: this one lets the microphone go.
+      if (ended.current || opening.current !== mine || phaseNow.current !== "listening") {
+        stream?.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      mic.current = stream;
+    }
+    setCutInOn(liveTrack() !== null);
+    listen();
   }
 
   /** What they said goes in as a line of the scene, the character's answer comes back and is said aloud, then it listens again. */
@@ -244,7 +384,11 @@ export default function StepInCall({
     const jobs = Array.from({ length: pieces }, (_, i) => fetchVoicePiece(sceneId, r.reply.id, i));
     const letGo = (from: number) => jobs.slice(from).forEach((j) => void j.then((v) => v.ok && URL.revokeObjectURL(v.url)));
     setThem(words);
+    saying.current = words;
+    deaf.current = 0;
     go("speaking");
+    // Where the call has its own microphone track, it listens from their first word: the viewer can talk over them.
+    listen({ during: true });
     const el = audio.current;
     for (let i = 0; i < jobs.length; i++) {
       const v = await jobs[i];
@@ -265,6 +409,7 @@ export default function StepInCall({
     lastAt.current = Date.now();
     // Stopped by Interrupt: it's listening already. Paused or ended meanwhile: stay that way.
     if (ended.current || phaseNow.current !== "speaking" || talk.current !== mine) return;
+    saying.current = "";
     listen();
   }
 
@@ -284,7 +429,7 @@ export default function StepInCall({
     startedAt.current = Date.now();
     lastAt.current = Date.now();
     silences.current = 0;
-    listen();
+    void begin();
   }
 
   function interrupt() {
@@ -296,7 +441,12 @@ export default function StepInCall({
     setNote(null);
     silences.current = 0;
     lastAt.current = Date.now();
-    listen();
+    void begin();
+  }
+
+  function setTalkOver(on: boolean) {
+    setOverTalk(on);
+    store(CUT_IN_KEY, on ? "on" : "off");
   }
 
   /** How loud their voice is right now, for the ring; -1 when it can't be measured. */
@@ -331,13 +481,15 @@ export default function StepInCall({
     return () => document.removeEventListener("visibilitychange", away);
   }, []);
 
-  // Leaving the page ends the call: nothing keeps listening or talking.
+  // Leaving the page ends the call: nothing keeps listening or talking, and the microphone is let go.
   useEffect(
     () => () => {
       ended.current = true;
       stopListening();
       talk.current += 1;
       audio.current?.pause();
+      mic.current?.getTracks().forEach((t) => t.stop());
+      mic.current = null;
       void ctx.current?.close().catch(() => {});
     },
     [],
@@ -346,7 +498,7 @@ export default function StepInCall({
   const big = phase !== "ready";
   const portrait = characterPortrait(character.id) ?? sized(character.portrait, BIG_FACE);
   const backdrop = kit?.stills.portrait ?? portrait;
-  const status = phase === "listening" ? "Listening…" : phase === "thinking" ? `${first} is thinking…` : phase === "speaking" ? `${first} is talking` : phase === "paused" ? "Paused" : `Call ${first}`;
+  const status = phase === "listening" ? "Listening…" : phase === "thinking" ? `${first} is thinking…` : phase === "speaking" ? (cutInOn ? `${first} is talking · talk to cut in` : `${first} is talking`) : phase === "paused" ? "Paused" : `Call ${first}`;
 
   return (
     <div
@@ -355,6 +507,7 @@ export default function StepInCall({
       aria-modal="true"
       aria-label={`Call with ${first}`}
       data-step-in-call={phase}
+      data-step-in-call-cut-in={cutInOn ? "on" : "off"}
       onKeyDown={(e) => {
         if (e.key === "Escape") end();
       }}
@@ -398,6 +551,18 @@ export default function StepInCall({
               limits and checks. {first} is an AI character, and the voice is made from {first}&apos;s words, never a real person&apos;s. Each answer is one scene step.
               {left !== null ? ` You have ${left} left this month.` : ""}
             </p>
+            {capable && (
+              <fieldset className="companion-call-voices" data-step-in-call-over>
+                <legend>Talking over {first}</legend>
+                <label className="check">
+                  <input type="checkbox" checked={overTalk} onChange={(e) => setTalkOver(e.target.checked)} />
+                  <span>
+                    Start talking and {first} stops to listen
+                    <span className="muted small"> (your microphone stays on while {first} talks; best with headphones)</span>
+                  </span>
+                </label>
+              </fieldset>
+            )}
             <p className="companion-call-controls">
               <button type="button" className="button companion-call-go" onClick={start} ref={mainButton} data-step-in-call-start>
                 📞 Call {first}
