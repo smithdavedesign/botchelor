@@ -20,6 +20,7 @@ import {
   takeBackStepIn,
   type StepInSend,
 } from "@/lib/adult/step-in";
+import { REDRAW_PRESET_IDS, REDRAW_TEXT_MAX } from "@/lib/adult/step-in-shared";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { inBackground } from "@/lib/sets";
@@ -36,8 +37,13 @@ const Action = z.discriminatedUnion("action", [
   // What the viewer said out loud on a call (the words the browser heard): the same checks, and the character answers
   // out loud (a few spoken sentences; its voice is the voice route's).
   z.object({ action: z.literal("say"), text: z.string().max(STEP_IN_LINE_MAX * 2) }),
-  // The newest reply drawn again (the earlier draws kept), and flipping through the draws kept (free).
-  z.object({ action: z.literal("regenerate") }),
+  // The newest reply drawn again (the earlier draws kept), and flipping through the draws kept (free). `direction`: the
+  // one change asked of it ("↻ Again…"), a preset of ours and/or a few words of the viewer's own, which are checked as a
+  // line of theirs is before anything is drawn and never kept (lib/adult/step-in.ts regenerateStepIn).
+  z.object({
+    action: z.literal("regenerate"),
+    direction: z.object({ preset: z.enum(REDRAW_PRESET_IDS).optional(), text: z.string().max(REDRAW_TEXT_MAX).optional() }).strict().optional(),
+  }),
   z.object({ action: z.literal("swipe"), to: z.enum(["prev", "next"]) }),
   // The character carries on without the viewer writing anything.
   z.object({ action: z.literal("continue") }),
@@ -104,7 +110,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
     }
     case "regenerate":
-      r = await regenerateStepIn(db, viewer, id);
+      r = await regenerateStepIn(db, viewer, id, new Date(), { direction: input.direction });
       break;
     case "swipe":
       r = await swipeStepIn(db, viewer, id, input.to);

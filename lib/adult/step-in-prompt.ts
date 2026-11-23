@@ -226,6 +226,12 @@ export type StepInPrompt = {
   /** Why the last draft couldn't be used, in a few words and never the draft itself: this one avoids it. */
   avoid?: string | null;
   /**
+   * The one change the viewer asked for when they asked for this reply again (lib/adult/step-in-shared.ts
+   * REDRAW_PRESETS, and their own few words, already through every check a line of theirs gets): said once, after the
+   * cue (redrawCue). Only on the draw they asked it of.
+   */
+  direction?: string | null;
+  /**
    * "call": the reply is said out loud (stepInCallCraft), in answer to a line the viewer spoke. "talk": the same short
    * spoken reply to a line they wrote (stepInTalkCraft). Left out: prose.
    */
@@ -240,6 +246,14 @@ export function openCue(place: string, roleplayTitle: string | null, opening: st
     ? `(The two of you have just got to ${place}, and the roleplay "${roleplayTitle}" starts now.${OPENS(opening)} Open the scene in character: what you do and say as it begins, setting up the story and playing off the place. Don't ask more than one question.)`
     : `(The two of you have just got to ${place}.${OPENS(opening)} Open the scene: what you do and say as it begins, playing off the place. Don't ask more than one question.)`;
 }
+
+/**
+ * The user turn that says how the viewer asked for a reply again ("↻ Again…": lib/adult/step-in-shared.ts
+ * REDRAW_PRESETS). A change to how the reply is told, never leave to go further: it says so, since the rules it mustn't
+ * outrank are a long way up the prompt by now.
+ */
+export const redrawCue = (direction: string): string =>
+  `(They asked you to write that reply again with one change: ${direction}. Write it that way. Everything above still holds: their limits and how far they have taken things, the pace, and never writing what they do, say, think or feel.)`;
 
 /** The user turn that has the character carry on without the viewer writing anything. */
 export const CONTINUE_CUE =
@@ -365,6 +379,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   else if (messages[messages.length - 1].role !== "user") say("(They're waiting for your reply.)");
   if (call) say(CALL_CUE);
   else if (talk) say(TALK_CUE);
+  if (args.direction) say(redrawCue(args.direction));
   if (args.avoid) say(`(Your last draft couldn't be used: ${args.avoid}. Write this reply again without that.)`);
   return messages;
 }
