@@ -4287,6 +4287,78 @@ kinds as chips filled a phone's first screen before any card (#2114: one list).
 | Step into a roleplay | ![Tonight's 8, All 45 and a list of kinds over cards two across, each cast with Juniper](screenshots/after-dark-step-in-shelf-desktop.png) | ![The shelf on a phone: the two chips, the list, then the Wedding guests card](screenshots/after-dark-step-in-shelf-phone.png) |
 | One click from a card | ![The Wedding guests scene with Juniper, opened by her at the singles' table](screenshots/after-dark-step-in-shelf-started-desktop.png) | |
 
+**Live, round four** (ad.botchelor.com, the audit account, 2026-11-23, after #2137; David's six: a direction on a
+redraw, a place and a cover for the cards, a goal and an ending, messages sent first, and a level). Each has a script
+of its own in `~/.claude/botchelor-bin/step-in-proof/`, run against the live site in a scene it makes and deletes.
+The live checks found five things the tests couldn't, all fixed the same day:
+- what's added at a scene's end (ideas, directions, the ending) landed under the sticky composer (#2125);
+- the story's reader ticked all four beats after two exchanges, so the ending was offered before the scene had been a
+  story (#2126: one beat a reading, and a strict reader);
+- two covers showed characters who aren't in After Dark's cast, so their cards had none (#2131: redrawn with Rafe and
+  Nell, and a test holds every cover's face to the cast);
+- the story's goal and dots were a screen up by the third reply, so it moved on out of sight (#2135: the dots again
+  under the newest reply);
+- an ended scene's recap spoke about the viewer as "They…" (#2137: it's told to them), and the header's quiet lines
+  over a light apron measured 2.3 to 3.2:1 on a phone (#2136).
+
+What was measured:
+- **↻ Again…** (`redraw.mjs`, with Barnaby): the directions opened under the reply, level with the lines; "Slower"
+  drew it again in 3.4 s (834 characters became 1,068, "2 of 2"); the viewer's own words ("more about the room, and
+  one question for me"), by Enter, in 3.0 s without the page reloading. With Spitting saved as a hard no, "then spits
+  out an olive pit" was refused in the box ("That direction asks for one of your hard limits for this scene
+  (Spitting). Change it, or the limits, first."), nothing drawn, the words still there to change. ‹ flipped back to
+  the first draw. On a phone: six chips, the box on a row of its own (268 by 44 px), no form, nothing sideways.
+- **A goal and an ending** (`story.mjs`, "The neighbour next door" with Juniper, from its card): the goal on the card
+  and under the roleplay's name; four lines walked the four beats, one dot a reply, each reading under 2 s. The
+  dots under the newest reply filled with the header's, the new one marked; pressed, the row said the goal again and
+  "2 of 4 of the story's beats played". The ending card came after the fourth reply and not before, inside the
+  column and above the composer, on a phone too (where the story's dots take a row of their own under Continue and
+  ↻ Again…). "Bring it to a close" drew Juniper's last line, which asked nothing, and filed the scene in 4.8 s:
+  "Played to the end: The neighbour next door", the composer gone, and the recap told to the viewer ("You brought a
+  parcel to Juniper's door, admitting you'd invented reasons to visit since spring. She recalled each excuse, then
+  invited you inside…"). Back on the shelf: "You've played 1 of them to the end." and ✓ Played on its card.
+- **A place for each card** (`places.mjs`): all eight of tonight's cards and all 45 said where they're set; 15 read
+  "out in public". "The last fitting" landed in 1.4 s at "A closed tailor's shop" (its own drawn set behind), private,
+  opened by Orin on the fitting block 4.6 s after the click; "Strangers at the bar" landed at "A quiet bar on a
+  weeknight" with the kiss-at-most note. The set-up's place followed the roleplay ("Where the story is set: …") until
+  the viewer picked one, and then their pick stood. From the bar, **Take it to Sable's place** moved the scene in
+  0.4 s: "📍 Their place", the note and the button gone, "The scene moves to their place." (`probe/private.mjs`).
+- **A cover for the top twelve** (`shelf.mjs`): six covers led tonight's eight (Lior for Wedding guests, Orin for
+  The last fitting, Rafe for The vampire's invitation, Nell for Captain and pilot, Imogen for The bodyguard, Dex for
+  Boss and employee, after hours), three across at 1440 and one at 390, every one loaded. "Someone else" took a card's cover away with its character (a cover is only ever
+  shown with the character on it). A card's click landed in 1.4 s and the opening was there 4.0 s after the click.
+- **A level** (`bond.mjs`, with Imogen): "Acquainted" in the header, a quiet fold; opened, "1 evening · 1 scene ·
+  2 lines. Next: Familiar. It comes from the time you spend together, and it only ever goes up." The same on a
+  phone, where the header's letters measured 4.65 against the pixels beside them over her apron (#2136; 3.2 before).
+  After the scene was deleted her page still read Acquainted. Three of tonight's cards carried the mark, and the
+  Characters page opened on the five people the audit account is Acquainted with (#2132), then everyone else.
+- **They write first** (`notes.mjs`, with Nell): the card off by default; turned to Daily it showed the time zone the
+  quiet hours are kept in; the scene's ⋯ menu had "✉ Nell can write first here: on", a plain button. Written on
+  request (the admins' "write first now"), a note arrived in 2.3 s, marked "✉ wrote first · Mon 1:57 PM", in her own
+  voice about something from the scene. A second try while it waited: 409, "A note is already waiting here." The
+  front page said "✉ Nell wrote to you" with its first words, the header and the hub carried the mark; all three
+  cleared once the scene was opened. Told not to write in that scene: the row said so and a try answered 409. The
+  audit account's choice was put back to off.
+- **Not shown:** the hourly pass writing a note by itself (it needs a scene left idle for hours with notes on; nobody
+  has turned it on yet, and its own log line carries what it decided), Step in as a member (it's still admins only),
+  and a note reaching anyone outside the app (nothing is emailed or pushed).
+- Every test scene was deleted. Fifteen cover edits were drawn for the twelve covers, about 45¢ (the amount David
+  approved); the checks themselves drew no pictures.
+
+| | Desktop | Phone |
+| --- | --- | --- |
+| Covers on the shelf | ![Tonight's 8 three across at 1440, the first row opening on covers of Lior, Orin and Rafe dressed for their roles](screenshots/after-dark-step-in-covers-desktop.png) | ![The shelf on a phone: the chips, the list, then the Wedding guests card with its cover, place and goal](screenshots/after-dark-step-in-covers-phone.png) |
+| ↻ Again… | ![Under Barnaby's reply: Again, but, six chips, a box for your own words and Go](screenshots/after-dark-step-in-redraw-desktop.png) | ![The same on a phone after two redraws: 1 of 3, the chips over two rows, the box on its own row](screenshots/after-dark-step-in-redraw-phone.png) |
+| The story, playing | ![Two beats in: The story and its dots at the end of the row under the reply, opened to say what you're playing for](screenshots/after-dark-step-in-story-playing-desktop.png) | |
+| The ending, offered | ![The story has played its last beat: Bring it to a close, or Keep going, above the composer](screenshots/after-dark-step-in-story-ending-desktop.png) | ![The same card on a phone](screenshots/after-dark-step-in-story-ending-phone.png) |
+| Played to the end | ![This scene has ended: Played to the end, The neighbour next door, and the recap told to you](screenshots/after-dark-step-in-story-closed-desktop.png) | |
+| A place of its own | ![The last fitting with Orin: a closed tailor's shop, the goal and four empty dots in the header](screenshots/after-dark-step-in-place-desktop.png) | ![The same scene on a phone, at its end](screenshots/after-dark-step-in-place-phone.png) |
+| Out of a public place | ![Strangers at the bar with Sable: out in public, and one button, Take it to Sable's place](screenshots/after-dark-step-in-go-private-desktop.png) | |
+| The level | ![Imogen's header: Acquainted, opened to what it's made of](screenshots/after-dark-step-in-bond-desktop.png) | ![The same header on a phone, over her picture](screenshots/after-dark-step-in-bond-phone.png) |
+| They write first: the choice | ![The card on the account page, Daily picked, with quiet hours and their time zone](screenshots/after-dark-step-in-notes-card-desktop.png) | |
+| A note in the scene | ![Nell's note under her last reply, marked wrote first with the time](screenshots/after-dark-step-in-note-desktop.png) | ![The same note on a phone, with ideas for an answer](screenshots/after-dark-step-in-note-phone.png) |
+| A note waiting | ![Step in's front page: Nell wrote to you, with the note's first words](screenshots/after-dark-step-in-notes-front-desktop.png) | ![The same line on a phone](screenshots/after-dark-step-in-notes-front-phone.png) |
+
 **A picture of this moment** (2026-11-23; row 7 of the field audit, "a photo on request, from the composer"; David:
 "I am open to any of these ideas"). Under every reply that stands in a running scene there's **🖼 Picture this**, with
 its price on the button before anything is made (`app/after-dark/step-in/[id]/StepInPicture.tsx`,
