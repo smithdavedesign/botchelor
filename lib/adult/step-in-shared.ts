@@ -79,6 +79,9 @@ export type StepInPlace = {
  */
 export type StepInMessageView = { id: string; role: "viewer" | "character" | "system"; kind: "aside" | "notice" | "place" | "call" | "call_aside" | null; text: string; at: string; spoken?: number };
 
+/** One thing a character remembers about the viewer (lib/adult/step-in-memory.ts). `yours`: the viewer wrote or changed it. */
+export type StepInFact = { id: string; text: string; pinned: boolean; yours: boolean; at: string };
+
 export type StepInSceneView = {
   id: string;
   character: StepInCharacter;
@@ -107,6 +110,8 @@ export type StepInSceneView = {
   can: { regenerate: boolean; carry_on: boolean; take_back: boolean };
   /** Scene steps left this month; null for an admin, who's never capped. */
   steps_left: number | null;
+  /** The viewer's memory switch (off until they agree), and how many things this character remembers about them. */
+  memory: { on: boolean; facts: number };
   started_at: string;
 };
 

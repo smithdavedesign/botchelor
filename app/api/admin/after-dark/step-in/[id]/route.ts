@@ -13,6 +13,7 @@ import {
   sendStepInLine,
   STEP_IN_LINE_MAX,
   stepInFollowUp,
+  stepInRemember,
   stepInViewer,
   swipeStepIn,
   takeBackStepIn,
@@ -125,6 +126,8 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   }
   // The rolling recap, past the response, once the scene is long (never in the way of a reply).
   if (r.ok && (input.action === "send" || input.action === "say" || input.action === "continue" || input.action === "regenerate")) inBackground(() => stepInFollowUp(db, id));
+  // A scene that ends is read once more for what its character should remember (only for a viewer with memory on).
+  if (r.ok && input.action === "end") inBackground(() => stepInRemember(db, id, { atEnd: true }));
   return answer(db, viewer, id, r);
 });
 

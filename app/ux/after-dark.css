@@ -3742,6 +3742,63 @@ fieldset.ad-si-step {
 .ad-si-call-open > button {
   margin: 0;
 }
+/* What they remember (app/after-dark/step-in/[id]/StepInMemory.tsx): a fold in the scene's menu, a fact a row. */
+.ad-si-memory {
+  width: 100%;
+}
+.ad-si-memory > summary {
+  cursor: pointer;
+  padding-block: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.ad-si-memory-body {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+.ad-si-memory-body p {
+  margin: 0;
+}
+.ad-si-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ad-si-facts > li {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-sm);
+}
+.ad-si-fact-text {
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.ad-si-fact-tools,
+.ad-si-fact-edit,
+.ad-si-fact-add,
+.ad-si-memory-out {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.ad-si-fact-tools > button,
+.ad-si-fact-edit > button,
+.ad-si-fact-add > button,
+.ad-si-memory-out > button,
+.ad-si-memory-body > button {
+  margin: 0;
+}
+.ad-si-fact-edit > input,
+.ad-si-fact-add > input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
 /* What the call says before it starts: a paragraph, read once, a size down. */
 .ad-si-call .companion-call-how {
   margin: 0;
