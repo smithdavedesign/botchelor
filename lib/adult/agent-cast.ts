@@ -3,7 +3,8 @@
  * opportunity"): the show's own agent-made characters (lib/recast.ts; made over MCP by our own agents, lib/our-traffic.ts
  * loadOurIds) join every person's After Dark like the house cast, once they pass two checks:
  *  1. Their sheet, read by a model: an adult who reads as one, with a person's body (an alien or a vampire is fine), not based on a real person, and
- *     written so a romantic, adult scene suits them. One cheap call each, run by an admin (/api/admin/after-dark/agent-cast).
+ *     written so a romantic, adult scene suits them. One cheap call each, SHEETS_PER_DAY a day by After Dark's daily
+ *     job (since 2026-11-23; an admin can still run it at /api/admin/after-dark/agent-cast).
  *  2. Their portrait, asked Hive's age question (lib/adult/moderation.ts checkMedia, "keyframe": the question alone),
  *     the same one every After Dark picture gets. Hive self-serve stops at 100 checks a day for all of After Dark, so
  *     After Dark's daily job asks PORTRAITS_PER_DAY at most and the rest wait for the next day.
@@ -23,6 +24,12 @@ import { checkMedia } from "./moderation";
 
 /** Portraits asked a day: about a third of Hive's 100, leaving the rest to the people using After Dark. */
 export const PORTRAITS_PER_DAY = 30;
+/**
+ * Sheets read a day by After Dark's daily job (one cheap call each, about a tenth of a cent): the day's new cast and
+ * then some. It was an admin's button too (2026-11-23: nothing made after 11-19 had been read, so none of it was in
+ * After Dark); a day's portraits can only open what a sheet check passed first.
+ */
+export const SHEETS_PER_DAY = 100;
 
 /**
  * The show's own agent-made characters, by the same rule companions open them by (lib/companion.ts openOurAgentCast),

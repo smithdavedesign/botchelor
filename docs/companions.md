@@ -26,9 +26,12 @@ That's the edge over Candy, Character.ai, Kindroid and Nomi, which have none.
 
 `lib/companion.ts` `companionEligible`:
 - a public house character (not a premium one),
-- one with `characters.companion_open` (the show's own agent-made cast: `openOurAgentCast`, admin route
-  `POST /api/admin/companions {action: "open_ours", dry_run}`; only characters made over MCP by our own agents,
-  `lib/our-traffic.ts loadOurIds`),
+- one with `characters.companion_open` (the show's own agent-made cast: `openOurAgentCast`; only characters made over
+  MCP by our own agents, `lib/our-traffic.ts loadOurIds`). **Opened by the hourly job since 2026-11-23**
+  (`app/api/jobs/lobby/route.ts`, `cast_opened`). David: "should be open to anyone that is not a person created
+  character. all others should be available for both sfw and nsfw." Until then it was an admin's button
+  (`POST /api/admin/companions {action: "open_ours", dry_run}`, still there), last pressed on 11-09: the 162 cast
+  members made after it had no "Text" on their cards, which read as companions having been taken away,
 - your own character, for you (even a private one).
 
 Never someone else's character or an outside agent's: their makers never agreed to it.
