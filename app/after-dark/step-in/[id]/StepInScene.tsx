@@ -6,7 +6,6 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import Icon from "@/app/Icon";
-import CharacterFigure from "@/app/stage/CharacterFigure";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
 import type { StepInPictureState } from "@/lib/adult/step-in-picture";
 import { IDEA_TONE_LABELS, placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, stepsLeftLine, type StepInIdea, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
@@ -17,7 +16,7 @@ import Limits from "../../[a]/[b]/Limits";
 import HearIt from "./HearIt";
 import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
 import StepInMemory from "./StepInMemory";
-import StepInPicture, { StepInPictures } from "./StepInPicture";
+import StepInPicture, { StepInFigure, StepInPictures, StepInPortraitBack } from "./StepInPicture";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -365,11 +364,15 @@ export default function StepInScene({
   }, [ideasFor]);
   return (
     <article className="after-dark ad-si-scene" data-step-in-scene={view.id}>
+      {/* The scene's pictures of a moment, held once for the whole scene (./StepInPicture.tsx): each reply's own under
+          it, and the one the viewer put beside the scene in the character's place. */}
+      <StepInPictures sceneId={view.id} initial={pictures} live={live}>
       {/* The place itself, empty (the show's own backdrop, or a drawn set), and the character in it, behind the column. */}
       <div className="ad-si-stage" aria-hidden="true">
         <div className="ad-si-view">
           {view.place.backdrop && <div className="ad-si-backdrop" style={{ backgroundImage: `url("${view.place.backdrop}")` }} data-step-in-backdrop />}
-          {hasFigure && figureOn && <CharacterFigure portrait={view.character.portrait} cutout={cutout} className="ad-si-figure" />}
+          {/* Their portrait, or the picture of the scene the viewer put in its place (which needs no portrait to stand there). */}
+          {figureOn && <StepInFigure portrait={view.character.portrait} cutout={cutout} />}
         </div>
       </div>
       <div className="ad-si-col">
@@ -417,8 +420,6 @@ export default function StepInScene({
           </p>
         </header>
 
-        {/* The scene's pictures of a moment, held once for every reply under it (./StepInPicture.tsx). */}
-        <StepInPictures sceneId={view.id} initial={pictures} live={live}>
         <ol className="ad-reader ad-si-lines" aria-live="polite" aria-busy={waiting}>
           {view.messages.map((m, i) => (
             <Fragment key={m.id}>
@@ -431,7 +432,6 @@ export default function StepInScene({
           {view.opening && openingAt === view.messages.length && <Line m={{ id: "opening", role: "viewer", kind: null, text: view.opening, at: view.started_at }} name={name} />}
           {waiting && <li className="ad-si-system ad-si-writing">{name} is writing…</li>}
         </ol>
-        </StepInPictures>
 
         {/* The opening never came (no model answered when the scene was made): one button draws it. */}
         {live && !last && !waiting && (
@@ -631,6 +631,8 @@ export default function StepInScene({
                   <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(view.character.id)}`} data-step-in-new>
                     🎭 A roleplay or a new scene with {name}
                   </Link>
+                  {/* While one of the scene's pictures stands beside it: the way back to their own portrait. */}
+                  <StepInPortraitBack name={name} />
                   {hasFigure && (
                     <button type="button" className="button-ghost small" onClick={toggleFigure} aria-pressed={!figureOn} data-step-in-figure-toggle>
                       {figureOn ? `Hide ${name}'s picture` : `Show ${name}'s picture`}
@@ -680,6 +682,7 @@ export default function StepInScene({
           }}
         />
       )}
+      </StepInPictures>
     </article>
   );
 }

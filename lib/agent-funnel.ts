@@ -210,7 +210,7 @@ export function referrerBucket(
     if (onDomain(host, "discord.com", "discord.gg")) return "discord";
     if (onDomain(host, "reddit.com", "redd.it")) return "reddit";
     if (onDomain(host, "x.com", "twitter.com", "t.co")) return "twitter";
-    if (host.includes("modelcontextprotocol") || host.includes("smithery.ai") || host.includes("pulsemcp") || host.includes("glama.ai") || host === "mcp.so") return "mcp_registry";
+    if (host.includes("modelcontextprotocol") || host.includes("smithery.ai") || host.includes("pulsemcp") || host.includes("glama.ai") || host === "mcp.so" || onDomain(host, "tensorblock.co", "mcptry.com", "mcprush.com")) return "mcp_registry";
     return "other";
   } catch {
     return "other";

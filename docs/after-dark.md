@@ -4031,6 +4031,24 @@ its price on the button before anything is made (`app/after-dark/step-in/[id]/St
   house character has no Studio to open), a picture the character sends unasked, and the viewer's own words for the
   picture.
 
+**The scene's picture, in the character's place** (2026-11-23; David: "do we have a option to change the image on the
+right with one from the scene"). Until now the figure beside a scene was always the character's portrait, and the
+only choice was to hide it. Under every picture made in a scene there's now **Use as the scene's picture**: that
+picture stands where the portrait stood (beside the column on a wide screen, behind it on a tablet, filling the stage
+under the veil on a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**), or **Show
+{name}'s portrait again** in the ⋯ menu, puts the portrait back.
+- **What's kept:** `adult_step_in_scenes.side_message`, the *reply* whose picture stands there, so a picture drawn
+  again takes its place. `setStepInBeside` (`lib/adult/step-in-picture.ts`) takes only a reply of that scene that has a
+  picture, or null; the scene's pictures carry it as `beside`; the route is `PUT …/step-in/<id>/picture
+  { beside: <reply id> | null }`.
+- **Free, and never by itself:** it chooses among pictures already made and checked, so nothing is drawn, spent or
+  counted, and it works in a scene that has ended. Making a picture never moves it there: the viewer chooses.
+- **Discreet mode:** the portrait is the show's own PG picture and was never blurred; this one is After Dark's, so it
+  is, under a veil of its own (`data-ad-own-veil`, `.ad-si-figure[data-figure="picture"]`). Behind the column nobody
+  could tap it to show it; the one under its reply is the one a tap shows.
+- **Not built:** a picture from a night with the same character (a role look, a chapter's picture) in that place, and
+  the scene's picture on its card in the list of scenes.
+
 **Proof:** `tests/after-dark-step-in-picture.test.ts`.
 
 **Live** (ad.botchelor.com, the audit account, 2026-11-23, after #2100; `~/.claude/botchelor-bin/step-in-proof/picture.mjs`):
