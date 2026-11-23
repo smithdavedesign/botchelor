@@ -518,6 +518,19 @@ describe("whose it is, and when", () => {
     expect(await draw(a.id, s)).toMatchObject({ ok: false, status: 409, error: "character_out" });
     expect((await stepInPictureState(t.db, a.id, s.id))!.can).toBe(false);
     expect(venice).toHaveLength(0);
+    // The claim is the first thing taken and the last thing let go: this refusal came after it, and left none.
+    const claims = async () => (await rows(`select id from adult_step_in_messages where scene_id = $1 and picture_at is not null`, [s.id])).map((r) => r.id);
+    expect(await claims()).toEqual([]);
+    // While one is being drawn, an ask is told so before anything else about the scene is read (the second live check
+    // with another device: the claim came after a dozen reads, and a page opened in that second showed nothing).
+    await t.db.query(`update adult_step_in_messages set picture_at = now() where id = $1`, [s.reply]);
+    expect(await draw(a.id, s)).toMatchObject({ ok: false, status: 409, error: "drawing" });
+    await t.db.query(`update adult_step_in_messages set picture_at = null where id = $1`, [s.reply]);
+    // What can't be pictured is never claimed: the viewer's own line, a reply that isn't there.
+    const theirs = s.view.messages.find((m) => m.role === "viewer");
+    if (theirs) expect(await draw(a.id, s, theirs.id)).toMatchObject({ ok: false, status: 404 });
+    expect(await draw(a.id, s, "no-such-reply")).toMatchObject({ ok: false, status: 404 });
+    expect(await claims()).toEqual([]);
     // The viewer's own character with no face picked and no body reference: never a guess.
     await t.db.query(
       `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, pronouns, extras)
