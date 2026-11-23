@@ -3,6 +3,7 @@
 // written line gets; nothing for a scene that can't be written; and closed like the rest of Step in.
 // The fixtures are mild lines plus the short phrases the checks must refuse.
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
@@ -284,6 +285,20 @@ describe("nothing to suggest", () => {
     const made = await start(a.id);
     expect((await ideasOf(a.id, made.id)).ideas).toEqual([]);
     expect((await sendStepInLine(t.db, a.id, made.id, "Hello again.")).ok).toBe(true);
+  });
+});
+
+describe("where the ideas sit", () => {
+  it("in the scene's column, like the lines above them and the box below", () => {
+    // The first live check (2026-11-23): the row ran the page's width and began left of the scene's column, because
+    // the rule that keeps the column's parts to 42rem names each part and didn't name this one.
+    const css = readFileSync("app/ux/after-dark.css", "utf8");
+    const at = css.indexOf("  max-width: 42rem;\n  margin-inline: auto;");
+    expect(at).toBeGreaterThan(0);
+    const selectors = css.slice(css.lastIndexOf("}", at) + 1, at);
+    for (const part of [".ad-si-lines", ".ad-si-under", ".ad-si-starters", ".ad-si-composer"]) expect(selectors, part).toContain(`${part},`);
+    // The ideas are a starter row with its own tones.
+    expect(readFileSync("app/after-dark/step-in/[id]/StepInScene.tsx", "utf8")).toContain('className="ad-si-starters ad-si-ideas"');
   });
 });
 

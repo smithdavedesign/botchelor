@@ -3806,6 +3806,16 @@ nothing is ever sent for them, and nothing is counted until they send a line.
 - **What it costs:** one small call a reply on After Dark's own model, a few hundredths of a cent, only for a viewer
   who has the scene open and hasn't switched ideas off.
 
+**The month's count is quiet** (2026-11-23; one of the ideas David said he's open to; row 10 of the field audit: text
+is unlimited on every site in the field and only media is metered). The plan already says "Unlimited chapters, no
+tokens (fair use: N scene steps a month)", but a scene's composer and a call counted the steps down on every reply.
+Now they say how many are left **only once 25 or fewer remain** (`lib/adult/step-in-shared.ts` `STEPS_LOW`,
+`stepsLeftLine`); the number is always on `/after-dark/tokens`, and the cap, the refusal at the cap and what counts as
+a step are unchanged. **Still open, David's call:** the cap itself. `cap_writes` (300 a month in production) counts a
+night's scene step (six lines, 0.25 to 0.5¢) and a Step in reply (one reply, about 0.1¢) alike, and a long conversation
+uses 300 in two evenings. A separate fair-use number for Step in replies, an order of magnitude higher, would make
+text feel unlimited for about the same worst-case cost as today's night steps.
+
 **Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
 the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After
 Dark's own voice and nothing of the show's:

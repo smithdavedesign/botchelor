@@ -6,7 +6,7 @@ import LiveFace from "@/app/companion/[id]/LiveFace";
 import { newAudioContext, PcmPlayer } from "@/app/companion/[id]/live-audio";
 import { useVoiceRing } from "@/app/stage/useVoiceRing";
 import { heardIn } from "@/lib/companion-live-shared";
-import { callWords, cutInCapable, cutsIn, type StepInCharacter, type StepInMessageView } from "@/lib/adult/step-in-shared";
+import { callWords, cutInCapable, cutsIn, stepsLeftLine, type StepInCharacter, type StepInMessageView } from "@/lib/adult/step-in-shared";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { characterPortrait } from "@/lib/portraits";
 import { fetchVoicePiece, playOn } from "./voice-client";
@@ -546,7 +546,7 @@ export default function StepInCall({
               The same scene, said out loud: you talk, {first} answers in {first}&apos;s own voice, a few sentences at a time. Your browser turns what you say into words
               (Chrome sends your voice to Google to do it, Safari to Apple); only the words come to Botchelor, kept in this scene like the lines you write, with the same
               limits and checks. {first} is an AI character, and the voice is made from {first}&apos;s words, never a real person&apos;s. Each answer is one scene step.
-              {left !== null ? ` You have ${left} left this month.` : ""}
+              {stepsLeftLine(left) ? ` You have ${left} left this month.` : ""}
             </p>
             {capable && (
               <fieldset className="companion-call-voices" data-step-in-call-over>
@@ -577,7 +577,7 @@ export default function StepInCall({
               {(phase === "speaking" || phase === "paused") && them && <p className="companion-call-said">{them}</p>}
             </div>
             {note && <p className="companion-call-note">{note}</p>}
-            {left !== null && <p className="companion-call-left">{left === 1 ? "1 scene step left this month" : `${left} scene steps left this month`}</p>}
+            {stepsLeftLine(left) && <p className="companion-call-left">{stepsLeftLine(left)}</p>}
             <p className="companion-call-controls">
               {phase === "speaking" && (
                 <button type="button" className="button-ghost" onClick={interrupt}>
