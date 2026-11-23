@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { StepInPictureState } from "@/lib/adult/step-in-picture";
+import { okJson } from "@/lib/ok-json";
 import TokenPrice from "../../TokenPrice";
 
 /** How often the page asks whether a picture drawn somewhere else has landed, and for how long at most. */
@@ -26,7 +27,7 @@ export function StepInPictures({ sceneId, initial, live, children }: { sceneId: 
     const timer = setInterval(() => {
       if (++asked > ASK_TIMES) return clearInterval(timer);
       void fetch(`/api/admin/after-dark/step-in/${encodeURIComponent(sceneId)}/picture`)
-        .then((res) => (res.ok ? res.json() : null))
+        .then(okJson)
         .then((d: { pictures?: StepInPictureState } | null) => {
           if (d?.pictures) setState(d.pictures);
         })

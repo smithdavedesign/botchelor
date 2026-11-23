@@ -33,6 +33,7 @@ import { createHash } from "node:crypto";
 import { loadCharacter, type Character } from "../character";
 import type { Db } from "../db";
 import { checkAdultText } from "../safety";
+import { escapeRegExp } from "../text";
 import { normalizeScene, venueName } from "../venues";
 import { crossesTaboo } from "./acts";
 import { ageRefused } from "./beats";
@@ -246,7 +247,7 @@ export function pictureWordsOk(words: string, limits: { hit: (text: string) => s
   if (!words.trim()) return true;
   if (!checkAdultText({ words }).ok || crossesTaboo(words) || stepInNever(words) || limits.hit(words)) return false;
   if (THE_VIEWER.test(words)) return false;
-  return !viewerNames.some((n) => n.length >= 2 && new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(words));
+  return !viewerNames.some((n) => n.length >= 2 && new RegExp(`\\b${escapeRegExp(n)}\\b`, "i").test(words));
 }
 
 /** The brief's fields that may be used: one that fails `ok` is "" (that field's plain stand-in is used). Pure. */
