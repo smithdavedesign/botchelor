@@ -3592,9 +3592,12 @@ fieldset.ad-si-step {
 .ad-si-col {
   position: relative;
 }
+/* Every part of the column keeps to its 42rem: one missing from this list runs the page's full width and starts to the
+   left of everything else (the starter lines and the ideas did, until the first live check of the ideas, 2026-11-23). */
 .ad-si-head,
 .ad-si-lines,
 .ad-si-under,
+.ad-si-starters,
 .ad-si-paused,
 .ad-si-ended,
 .ad-si-composer,
