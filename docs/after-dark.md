@@ -3954,6 +3954,18 @@ its price on the button before anything is made (`app/after-dark/step-in/[id]/St
 
 **Proof:** `tests/after-dark-step-in-picture.test.ts`.
 
+**Live** (ad.botchelor.com, the audit account, 2026-11-23, after #2100; `~/.claude/botchelor-bin/step-in-proof/picture.mjs`):
+a new scene with Nell, one line, then 🖼 Picture this on her reply ("free" on the button: an admin). The picture was
+under the reply **15 s** after the press. The brief read the moment (dressed, standing by the window in her living
+room, a coat half-hung by the door, her hands clasped, a shy smile; $0.0007), Replicate's edit drew it from her one
+baseline, the check passed it, and it was kept (`flags`: `stage: 1`, `briefed: true`, `provider: "replicate"`). It
+showed her alone, in the navy zip jacket the brief named, with nobody else and no part of anyone else in the frame.
+It was in the page on a reload ("Draw it again"), fitted a phone (300 px wide, nothing sideways), counted one of the
+month's pictures, and went with the scene when the scene was deleted: its link then answered not found and its file
+was queued for deletion. No page errors on a desktop or a phone. About 3.5¢ in all. **Not drawn live:** an undressed
+moment. It makes the same edit call a night's undressed pictures make, from the same baseline, and the tests cover
+the path; the first one someone draws is worth a look.
+
 **Counted.** Every reply and every refusal is a row in the step log (`adult_steps`, kind `step_in`, the pair being the
 character and `viewer`): the move, how it ended, why a draft was redrawn (`flags.redrawn`), whether the stand-in was
 used (`flags.aside`), and a refusal's own sentence (the line that was crossed, never the word that crossed it). Never
