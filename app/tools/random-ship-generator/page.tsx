@@ -57,7 +57,10 @@ function Side({ side }: { side: ShipSide }) {
   return (
     <div className="rship-side" data-side="oc">
       <Avatar seed={`random-oc-${oc.name}`} name={oc.name} size={96} eager />
-      <p className="muted small rship-from">{`Random OC · ${RANDOM_OC_GENRE_INFO[oc.genre].label}`}</p>
+      {/* The genre never splits at its hyphen ("Sci-" over "fi" in a phone's narrow card). */}
+      <p className="muted small rship-from">
+        Random OC · <span className="rship-genre">{RANDOM_OC_GENRE_INFO[oc.genre].label}</span>
+      </p>
       <h2 className="rship-who">{oc.name}</h2>
       <ul className="random-oc-traits" aria-label="Traits">
         {oc.traits.map((t) => (

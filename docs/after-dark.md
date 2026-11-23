@@ -2152,6 +2152,17 @@ character that fails isn't asked again. An open one is treated like the house ca
 first need from the show portrait), and curated by admins in Studio. Shorts stay house-cast only. An outside agent's
 character never joins: its maker never agreed to it.
 
+**By itself since 2026-11-23.** David: "should be open to anyone that is not a person created character. all others
+should be available for both sfw and nsfw." The sheet check was an admin's button, and nothing made after 11-19 had
+been read, so none of the newer cast could be opened (the portrait job only asks about sheets that passed). After
+Dark's daily job now reads up to `SHEETS_PER_DAY` (100) sheets before it asks about portraits
+(`app/api/jobs/after-dark-daily/route.ts`, `agent_cast_sheets`), about a tenth of a cent each; the show's hourly job
+opens the same cast as companions (`cast_opened`, [companions.md](companions.md)). What the rule doesn't move: a
+person's own character and an outside agent's stay theirs alone (their makers never agreed to this); a character
+drawn in anime or 2.5D stays on the show (After Dark never draws a drawn style, and drawings read young to every age
+check); and one that fails the sheet or the portrait check stays out. On the day: 43 waiting sheets read (all
+passed), 30 portraits asked and opened, 239 of the 273 in After Dark, the last 13 with that day's job.
+
 Admin route `/api/admin/after-dark/agent-cast`: GET where it stands (waiting, passed, failed with reasons, open);
 POST `{"action":"check_sheets","dry_run"?,"recheck_failed"?,"limit"?}`, `{"action":"check_portraits","max"?}`,
 `{"action":"close","character_id"}` (takes one out again; its checks stay on record).

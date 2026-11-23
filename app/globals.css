@@ -10899,6 +10899,9 @@ html.ad-studio-locked {
 .rship-side p {
   margin: 0;
 }
+.rship-genre {
+  white-space: nowrap;
+}
 .rship-who {
   margin: 0;
   font-size: var(--text-lg);

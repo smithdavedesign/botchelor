@@ -44,7 +44,7 @@ import { backfillSocial } from "@/lib/social/derive";
 import { lapseProposals } from "@/lib/social/declare";
 import { resumeSocialMetrics } from "@/lib/social/metrics-job";
 import { fillWorldWords, WORLD_WORDS_PER_HOUR } from "@/lib/world-words";
-import { companionWriter } from "@/lib/companion";
+import { companionWriter, openOurAgentCast } from "@/lib/companion";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -227,6 +227,11 @@ async function pass(): Promise<Record<string, unknown>> {
   // A house couple's overnight date (lib/overnight-house.ts): one that has earned it, at most one a day, before the
   // lobby's own refresh so its room is the open one. One date on the show's model, so not on a run that's already long.
   const overnight = Date.now() - started > LONG_RUN_MS ? null : await bookHouseOvernight(db).catch(() => null);
+  // The show's own agent-made cast, open to text (lib/companion.ts openOurAgentCast). David, 2026-11-23: every
+  // character that isn't a person's is there to talk with, on the show and in After Dark. It was an admin's button,
+  // last pressed on 11-09, so the 162 cast members made after it had no "Text" on their cards and he took companions
+  // for gone. One update an hour; never a person's character or an outside agent's.
+  const castOpened = await openOurAgentCast(db).catch(() => 0);
   const lobby = await refreshLobby(db, new Date(), { ensureFresh: true });
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
@@ -234,7 +239,7 @@ async function pass(): Promise<Record<string, unknown>> {
   // The story check (lib/story-check.ts): aired dates whose lines and ending disagree are kept off the featured places,
   // a few short paid calls a pass (featured first), within its own time budget; not on a run that's already long.
   const storyCheck = Date.now() - started > LONG_RUN_MS ? null : await storyCheckSweep(db).catch(() => null);
-  return { ok: true, ...lobby, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, stale_edges_healed: staleHealed, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away };
+  return { ok: true, ...lobby, cast_opened: castOpened, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, stale_edges_healed: staleHealed, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away };
 }
 
 export const GET = handle(run);

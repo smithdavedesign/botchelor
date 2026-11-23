@@ -100,6 +100,9 @@ only for someone with no character:
   episode with `?play=1`). The typed-in date with its "call the ending" card moves under the hero. **No clip from the last
   14 days** (or its date was taken down, or `HOME_HERO_CLIP=0`): the hero is exactly what it was. The row comes through
   the shared cache inside the page's one `Promise.all`; a stranger's home stays at depth 3 (`tests/perf-pages.test.ts`).
+  Since 2026-11-23 (`HOME_PHONE_CLIP`), on a phone it stands on the stage in the first screen, where the neon heart
+  hangs, with the cast either side, and plays by itself while on screen; a tap on it opens the date. Its plays count as
+  `cut_play` / `cut_ended` / `cut_left` with `place: "home"` ([analytics.md](analytics.md), "Home's clip").
 - **The sentence box** (`app/HomeExpressBox.tsx`): "Describe someone in a sentence" and **Meet them**, right under the
   headline. Submitting opens `/create` with the one box filled and the draft already running: the same route, limits, PG
   checks and events as one-sentence create below, each event carrying `place: "home"`. The sentence crosses in the

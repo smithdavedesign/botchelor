@@ -133,6 +133,11 @@ the container. Ways to cut the restarts themselves, each David's call because it
   was before: a hero of its own, the tonight band, the situation vote, the cast and the map. An owner's home is the
   same either way. `HOME_HERO_CLIP=0` plays the show's own loop in place of the day's clip, and `HOME_EXPRESS_BOX=0`
   puts a plain "Make your character" button where the sentence box is.
+- **`HOME_PHONE_CLIP`** (the show's app, not a secret; on unless `0`): on a phone, that first screen's clip stands on
+  the stage where the neon heart hangs, in its phone, with the cast either side, and plays muted while it is on screen;
+  a tap on it opens the date (`lib/home-open.ts` `homePhoneClipOn`, `app/HomeOpen.tsx`; 2026-11-23). Less motion or
+  Save-Data: the poster with a play button. `0` puts the clip back under the sentence box, below the fold, as it was on
+  2026-11-21. From 861px wide the screen is the same either way.
 - **`IMPORT_HISTORY_MODEL`** (the show's app, not a secret; unset in production): a pasted history is read by the paid model (`FRONTIER_LLM_*`) and by nothing when there is none; `free` puts the reading on the free model, for a local setup without a paid key. Never set it to `free` in production: a history is a private chat log.
 - **`IMPORT_MEMORIES`** (the show's app, not a secret; on unless `0`): "Bring their history" on `/import`
   (`lib/import-history.ts`, [flows.md](flows.md), "Bringing a character from another app"). `0` removes the second box,

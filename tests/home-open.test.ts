@@ -109,7 +109,8 @@ describe("home's first screen", () => {
   it("opens a stranger's home as one screen: the stage, the promise, the box and the clip (2026-11-21)", async () => {
     await arcNight();
     const html = await home();
-    expect(html).toContain('class="home-open home-open--one home-open--arc"');
+    // On a phone the clip stands on the stage, playing in the first screen (HOME_PHONE_CLIP, 2026-11-23).
+    expect(html).toContain('class="home-open home-open--one home-open--arc home-open--on-stage"');
     expect(html).toContain("An AI blind-date show where nobody steers.");
     // Plain words where the season's number and night stood, and tonight's two step forward on the stage without their
     // story being told: a stranger has no season yet (the growth plan's "assumed context").
@@ -131,6 +132,19 @@ describe("home's first screen", () => {
     expect(screen.indexOf('class="home-open-clip"')).toBeGreaterThan(screen.indexOf('class="home-express"'));
     expect(screen.match(/<a\b/g)?.length).toBe(1); // the clip's own way to watch
     expect(screen).not.toContain('data-track="open-watch"');
+  });
+
+  it("with HOME_PHONE_CLIP=0 keeps the screen, the cast as one line and the clip under the box (2026-11-21)", async () => {
+    await arcNight();
+    vi.stubEnv("HOME_PHONE_CLIP", "0");
+    const html = await home();
+    expect(html).toContain('class="home-open home-open--one home-open--arc"');
+    expect(html).not.toContain("home-open--on-stage");
+    expect(html).not.toContain("home-open-side");
+    expect(html).toContain('<ul class="home-open-cast" aria-hidden="true">');
+    expect(html.match(/class="home-open-lead"/g)?.length).toBe(2);
+    const screen = html.slice(html.indexOf('class="home-open home-open--one'), html.indexOf('class="home-open-tail"'));
+    expect(screen.indexOf('class="home-open-clip"')).toBeGreaterThan(screen.indexOf('class="home-express"'));
   });
 
   it("with one-sentence create off, the screen's one action is a plain button", async () => {
