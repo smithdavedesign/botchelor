@@ -424,7 +424,7 @@ describe("5. the compatibility test's page: a love calculator for OCs and ships"
   it("answers what people ask, in the page and in its FAQPage data alike", () => {
     const raw = renderToStaticMarkup(createElement(ChemistryToolPage));
     const html = text(raw);
-    const ld = [...raw.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].flatMap((m) => [JSON.parse(m[1])].flat()) as Record<string, any>[];
+    const ld = [...raw.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].flatMap((m) => [JSON.parse(m[1])].flat()) as Record<string, unknown>[];
     const faq = ld.find((d) => d["@type"] === "FAQPage");
     expect(faq).toBeTruthy();
     expect(faq!.mainEntity).toHaveLength(4);

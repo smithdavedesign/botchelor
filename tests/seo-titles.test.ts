@@ -31,6 +31,8 @@ import { FREE_TOOLS, TOOLS_PATH } from "@/lib/tools";
 import { startTestDb } from "./helpers";
 
 const source = (path: string) => readFileSync(path, "utf8");
+/** A block of JSON-LD as these tests read it. */
+type Ld = Record<string, unknown> & { itemListElement?: { item: string }[] };
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
   t = await startTestDb();
@@ -145,10 +147,10 @@ describe("every page of the show: the RSS feed and llms.txt in its head, every f
 describe("structured data", () => {
   it("each free tool is a free web app under the tools hub, and each tool's page carries it", () => {
     for (const tool of FREE_TOOLS) {
-      const [app, crumbs] = toolJsonLd(tool.path, "https://b.test") as Record<string, any>[];
+      const [app, crumbs] = toolJsonLd(tool.path, "https://b.test") as Ld[];
       expect(app).toMatchObject({ "@type": "WebApplication", name: tool.name, url: `https://b.test${tool.path}`, isAccessibleForFree: true, offers: { price: "0" } });
       expect(crumbs["@type"]).toBe("BreadcrumbList");
-      expect(crumbs.itemListElement.map((i: { item: string }) => new URL(i.item).pathname)).toEqual(["/", TOOLS_PATH, tool.path]);
+      expect(crumbs.itemListElement?.map((i) => new URL(i.item).pathname)).toEqual(["/", TOOLS_PATH, tool.path]);
     }
     expect(toolJsonLd("/not-a-tool")).toEqual([]);
     for (const page of ["app/tools/random-oc-generator/page.tsx", "app/tools/oc-name-generator/page.tsx", "app/tools/oc-questions/page.tsx", "app/tools/ship-name-generator/page.tsx", "app/tools/random-ship-generator/page.tsx", "app/tools/oc-chemistry-test/page.tsx"]) {
@@ -158,7 +160,7 @@ describe("structured data", () => {
 
   it("a character's profile names their portrait when they have one, as a full address", () => {
     const c = { id: "c-1", name: "Ira Fenn", bio: "Bakes at night.", house: false };
-    const person = (ld: Record<string, any>) => ld.mainEntity as Record<string, unknown>;
+    const person = (ld: Record<string, unknown>) => ld.mainEntity as Record<string, unknown>;
     expect(person(characterJsonLd(c, "https://b.test", "/api/assets/a-1.webp?w=384")).image).toBe("https://b.test/api/assets/a-1.webp?w=384");
     expect(person(characterJsonLd(c, "https://b.test")).image).toBeUndefined();
     expect(source("app/characters/[id]/page.tsx")).toContain("characterJsonLd(c, undefined, faceSrc)");
@@ -178,10 +180,10 @@ describe("structured data", () => {
       ["dex", "juniper"],
     ]) {
       const html = renderToStaticMarkup(await ShipPage({ params: Promise.resolve({ a, b }) }));
-      const blocks = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]) as Record<string, any>);
+      const blocks = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map((m) => JSON.parse(m[1]) as Ld | Ld[]);
       const crumbs = blocks.flat().find((d) => d["@type"] === "BreadcrumbList");
       expect(crumbs, `${a}/${b}`).toBeTruthy();
-      expect(crumbs?.itemListElement.map((i: { item: string }) => new URL(i.item).pathname)).toEqual(["/", TOOLS_PATH, "/tools/ship-name-generator", "/ship/dex/juniper"]);
+      expect(crumbs?.itemListElement?.map((i) => new URL(i.item).pathname)).toEqual(["/", TOOLS_PATH, "/tools/ship-name-generator", "/ship/dex/juniper"]);
     }
   });
 });
