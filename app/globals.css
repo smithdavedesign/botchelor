@@ -10867,6 +10867,113 @@ html.ad-studio-locked {
   background: var(--paper-2);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
 }
+/* Under a pair's ship names: the pair on the compatibility test, and a random ship (2026-11-23). */
+.ship-more {
+  margin: var(--space-3) 0 0;
+}
+
+/* ---------------- the random ship generator (/tools/random-ship-generator, lib/random-ship.ts) ---------------- */
+
+/* Two characters face to face with a × between them, side by side on a phone too: the pair is the point. */
+.rship {
+  margin-top: var(--space-4);
+}
+.rship-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: stretch;
+}
+.rship-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  text-align: center;
+}
+.rship-side p {
+  margin: 0;
+}
+.rship-who {
+  margin: 0;
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
+.rship-side .random-oc-traits {
+  justify-content: center;
+}
+/* What they want, or the OC's role: three lines at most, so the two sides stay a pair. */
+.rship-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: var(--muted);
+}
+.rship-x {
+  align-self: center;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+/* Their ship name, big, under the pair. */
+.rship-name {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  margin: var(--space-4) 0 0;
+  text-align: center;
+}
+.rship-name .kicker {
+  margin: 0;
+}
+.rship-name strong {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-display);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.rship-why {
+  margin: 0 0 var(--space-2);
+}
+.rship-why li + li {
+  margin-top: var(--space-1);
+}
+@media (max-width: 520px) {
+  .rship-pair {
+    gap: var(--space-2);
+  }
+  .rship-side {
+    padding: var(--space-3) var(--space-2);
+  }
+  .rship-who {
+    font-size: var(--text-md);
+  }
+  .rship-x {
+    font-size: var(--text-xl);
+  }
+  /* Both buttons across the width, under the thumb. */
+  .rship-actions > a {
+    flex: 1 1 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Each pair is dealt in, one side after the other, as the random OC generator deals its characters. */
+  .rship-side {
+    animation: oc-deal 0.55s var(--ease-out) backwards;
+  }
+  .rship-side:last-child {
+    animation-delay: 120ms;
+  }
+}
 
 /* ---------------- the OC name generator (/tools/oc-name-generator, lib/oc-names.ts) ---------------- */
 
@@ -11509,6 +11616,61 @@ html.ad-studio-locked {
 }
 .chem-cta .button {
   margin-bottom: var(--space-2);
+}
+/* The quick test (two names), the love calculator's way in, above the full one. */
+.chem-names {
+  margin-bottom: var(--space-3);
+}
+.chem-faq-item + .chem-faq-item {
+  margin-top: var(--space-4);
+}
+.chem-faq h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-md);
+}
+.chem-faq p {
+  margin: 0;
+}
+.chem-more {
+  margin: var(--space-3) 0 0;
+}
+/* Two names' working, the playground way: TRUE LOVE over its counts, each row the sums of the one above, down to the
+   two digits that make the score. */
+.true-love {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-3) 0;
+  font-variant-numeric: tabular-nums;
+}
+.true-love-row {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-1);
+  margin: 0;
+}
+.true-love-row span {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--paper-2);
+  font-weight: 700;
+}
+.true-love-head span {
+  background: var(--soft);
+  color: var(--accent-text);
+  font-family: "Fraunces", Georgia, serif;
+}
+.true-love-row:last-child span {
+  background: var(--grad);
+  color: var(--accent-ink);
+}
+@media (max-width: 400px) {
+  .true-love-row span {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
 }
 
 /* /create, opened from a chemistry result: the second character beside the builder's first. */

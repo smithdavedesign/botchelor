@@ -151,7 +151,7 @@ describe("structured data", () => {
       expect(crumbs.itemListElement.map((i: { item: string }) => new URL(i.item).pathname)).toEqual(["/", TOOLS_PATH, tool.path]);
     }
     expect(toolJsonLd("/not-a-tool")).toEqual([]);
-    for (const page of ["app/tools/random-oc-generator/page.tsx", "app/tools/oc-name-generator/page.tsx", "app/tools/oc-questions/page.tsx", "app/tools/ship-name-generator/page.tsx", "app/tools/oc-chemistry-test/page.tsx"]) {
+    for (const page of ["app/tools/random-oc-generator/page.tsx", "app/tools/oc-name-generator/page.tsx", "app/tools/oc-questions/page.tsx", "app/tools/ship-name-generator/page.tsx", "app/tools/random-ship-generator/page.tsx", "app/tools/oc-chemistry-test/page.tsx"]) {
       expect(source(page), page).toMatch(/<JsonLd data=\{toolJsonLd\([A-Z_]+\)\} \/>/);
     }
   });

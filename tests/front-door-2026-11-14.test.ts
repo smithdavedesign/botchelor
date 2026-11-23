@@ -91,7 +91,7 @@ describe("the hero", () => {
     // the free tools or the other apps' landings for a first visit): never on the screen, nothing to do but follow.
     const more = html.indexOf('class="home-more-links"');
     expect(more).toBeGreaterThan(html.indexOf('class="cta-row cta-final"'));
-    for (const href of ["/tools/random-oc-generator", "/tools/oc-name-generator", "/tools/oc-questions", "/tools/ship-name-generator", "/tools/oc-chemistry-test", "/alternatives/character-ai", "/alternatives/chai", "/import", "/seasons", "/casting", "/step-in", "/reviews"]) {
+    for (const href of ["/tools/random-oc-generator", "/tools/oc-name-generator", "/tools/oc-questions", "/tools/ship-name-generator", "/tools/random-ship-generator", "/tools/oc-chemistry-test", "/alternatives/character-ai", "/alternatives/chai", "/import", "/seasons", "/casting", "/step-in", "/reviews"]) {
       expect(html.slice(more), href).toContain(`href="${href}"`);
       expect(screen, href).not.toContain(`href="${href}"`);
     }
