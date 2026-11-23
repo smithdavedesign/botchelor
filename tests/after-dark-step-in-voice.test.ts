@@ -30,7 +30,7 @@ import { CALL_ASIDES, CALL_REPLY_MAX, checkCallReply, getStepInScene, lineLimitR
 import { stepInNever } from "@/lib/adult/step-in-lines";
 import { checkAdultText } from "@/lib/safety";
 import { BLURRED_MEDIA_SELECTORS } from "@/lib/adult/discreet";
-import { CALL_CUE, STEP_IN_CALL, STEP_IN_CALL_ANSWER, STEP_IN_CALL_LENGTH, STEP_IN_HONESTY, STEP_IN_LINES, STEP_IN_NEVER_WRITE, STEP_IN_PACE, STEP_IN_RATING, STEP_IN_WILL, stepInMessages } from "@/lib/adult/step-in-prompt";
+import { CALL_CUE, STEP_IN_CALL, STEP_IN_CALL_ANSWER, STEP_IN_CALL_LENGTH, STEP_IN_TALK, TALK_CUE, STEP_IN_HONESTY, STEP_IN_LINES, STEP_IN_NEVER_WRITE, STEP_IN_PACE, STEP_IN_RATING, STEP_IN_WILL, stepInMessages } from "@/lib/adult/step-in-prompt";
 import { callWords, spokenPieces, STEP_IN_LINE_MAX, STEP_IN_STARTERS, VOICE_PIECE_MAX, VOICE_PIECES_MAX } from "@/lib/adult/step-in-shared";
 import { stepInVoice } from "@/lib/adult/step-in-voice";
 import { sceneCharacter } from "@/lib/adult/voice";
@@ -325,6 +325,101 @@ describe("a line said out loud", () => {
     expect(((await ok.json()) as { scene: StepInSceneView }).scene.messages.at(-1)).toMatchObject({ role: "character", kind: "call" });
     const sub = await subscriber();
     expect((await scenePost(post(`/api/admin/after-dark/step-in/${made.id}`, { action: "say", text: "Hello." }, sub.cookie), ctx(made.id))).status).toBe(404);
+  });
+});
+
+describe("Talk: a written line answered out loud", () => {
+  const isTalk = (m: ChatMessage[]) => m[0].content.includes(STEP_IN_TALK);
+  /** The scripted model for Talk: prose prompts get the opening's story, Talk prompts `talked` in order (the last one again). */
+  function scriptedTalk(...talked: unknown[]) {
+    const seen = { written: [] as ChatMessage[][], talked: [] as ChatMessage[][] };
+    let i = 0;
+    setAdultModelForTests({
+      complete: async (m) => {
+        if (isCrisisCheck(m)) return '{"risk": false}';
+        if (isNotes(m)) return JSON.stringify({ recap: "They met and talked.", line: "An evening of talk." });
+        if (!isTalk(m)) {
+          seen.written.push(m);
+          return JSON.stringify(OPENING);
+        }
+        seen.talked.push(m);
+        const r = talked.length ? talked[Math.min(i++, talked.length - 1)] : { say: "Stay a while. I just put the kettle on." };
+        return typeof r === "string" ? r : JSON.stringify(r);
+      },
+    });
+    return seen;
+  }
+  const talk = (viewer: string, id: string, text: string) => sendStepInLine(t.db, viewer, id, text, new Date(), { talk: true });
+
+  it("its prompt is a call's reply without the call: speech only, a line or two, the scene's own rules, and a cue that doesn't say they spoke", async () => {
+    await setUp();
+    const character = (await sceneCharacter(t.db, WHO))!;
+    const base = { character, place: { label: "your place", situation: null, public: false }, roleplay: null, persona: null, limits: NO_LIMITS, turns: [{ role: "viewer" as const, text: "I sit down next to you. Long day?" }] };
+    const talked = stepInMessages({ ...base, form: "talk" });
+    const system = talked[0].content;
+    for (const rule of [STEP_IN_TALK, STEP_IN_CALL_LENGTH, STEP_IN_CALL_ANSWER, STEP_IN_NEVER_WRITE, STEP_IN_WILL, STEP_IN_PACE, STEP_IN_RATING, STEP_IN_LINES, STEP_IN_HONESTY]) expect(system).toContain(rule);
+    expect(system).not.toContain(STEP_IN_CALL);
+    expect(system).not.toContain(STORY_MODE_ANSWER);
+    expect(system).toContain("you answer them out loud");
+    expect(talked.at(-1)!.content).toBe(`I sit down next to you. Long day?\n\n${TALK_CUE}`);
+    expect(talked.at(-1)!.content).not.toContain(CALL_CUE);
+  });
+
+  it("the line is a written line like any other; the answer is a line or two out loud, kept as Talk's, hearable, one step", async () => {
+    const seen = scriptedTalk({ say: "Long enough. *leans back* Sit, I saved you the good chair." });
+    await setUp();
+    const a = await admin();
+    const made = await start(a.id);
+    const before = await used(a.id, "writes");
+    const r = await talk(a.id, made.id, "I sit down next to you. Long day?");
+    expect(r.ok).toBe(true);
+    const view = await viewOf(a.id, made.id);
+    const [mine, theirs] = view.messages.slice(-2);
+    // Nothing was said out loud by the viewer: their line isn't a call's.
+    expect(mine).toMatchObject({ role: "viewer", kind: null, text: "I sit down next to you. Long day?" });
+    expect(theirs).toMatchObject({ role: "character", kind: "talk", text: '"Long enough. Sit, I saved you the good chair."', spoken: 1 });
+    expect(await used(a.id, "writes")).toBe(before + 1);
+    expect(seen.talked).toHaveLength(1);
+    expect(seen.talked[0].at(-1)!.content).toBe(`I sit down next to you. Long day?\n\n${TALK_CUE}`);
+    expect((await steps(a.id)).at(-1)).toMatchObject({ status: "ok", flags: { action: "send", talk: true } });
+    // Without the switch the same line gets prose, as it always did.
+    const prose = await sendStepInLine(t.db, a.id, made.id, "I pour us both a glass.");
+    expect(prose.ok).toBe(true);
+    expect((await viewOf(a.id, made.id)).messages.at(-1)).toMatchObject({ role: "character", kind: null });
+    expect(seen.talked).toHaveLength(1);
+  });
+
+  it("drawn again it's a Talk answer again; one that fails twice is a spoken stand-in, kept as Talk's", async () => {
+    const seen = scriptedTalk({ say: "Stay a while. I just put the kettle on." }, { say: "Or we walk down to the water, your call." }, { say: "You remind me of my sister." }, { say: "Like a kid in a candy store." });
+    await setUp();
+    const a = await admin();
+    const made = await start(a.id);
+    expect((await talk(a.id, made.id, "What now?")).ok).toBe(true);
+    const again = await regenerateStepIn(t.db, a.id, made.id);
+    expect(again.ok).toBe(true);
+    expect(seen.talked).toHaveLength(2);
+    expect((await viewOf(a.id, made.id)).messages.at(-1)).toMatchObject({ kind: "talk", text: '"Or we walk down to the water, your call."' });
+    // Both drafts cross a line: the character changes the subject out loud, with nothing of either draft.
+    expect((await talk(a.id, made.id, "Tell me something about you.")).ok).toBe(true);
+    const last = (await viewOf(a.id, made.id)).messages.at(-1)!;
+    expect(last.kind).toBe("talk_aside");
+    expect(CALL_ASIDES.map((l) => `"${l}"`)).toContain(last.text);
+    expect(last.text).not.toMatch(/sister|kid/);
+  });
+
+  it("the route takes the switch with a written line, and the scene's composer has it", async () => {
+    scriptedTalk();
+    await setUp();
+    const a = await admin();
+    const made = await start(a.id);
+    const res = await scenePost(post(`/api/admin/after-dark/step-in/${made.id}`, { action: "send", text: "Hello, you.", talk: true }, a.cookie), ctx(made.id));
+    expect(res.status).toBe(200);
+    const { scene } = (await res.json()) as { scene: StepInSceneView };
+    expect(scene.messages.at(-1)).toMatchObject({ role: "character", kind: "talk" });
+    expect(scene.messages.at(-2)).toMatchObject({ role: "viewer", kind: null });
+    const page = await html(await StepInScenePage({ params: Promise.resolve({ id: made.id }) }));
+    expect(page).toContain('data-step-in-talk="off"');
+    expect(page).toContain('data-kind="talk"');
   });
 });
 

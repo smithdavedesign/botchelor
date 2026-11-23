@@ -106,10 +106,18 @@ export type StepInPlace = {
 
 /**
  * `kind`: "call" is a line said out loud (the viewer's on a call, or the character's answer, which is all speech);
- * "call_aside" the character's spoken stand-in when a spoken reply couldn't be used. `spoken`: how many pieces of a
- * character's reply can be heard (spokenPieces), 0 when nothing in it is said out loud.
+ * "call_aside" the character's spoken stand-in when a spoken reply couldn't be used. "talk" is the character's short
+ * spoken answer to a line the viewer wrote (Talk, the composer's switch), "talk_aside" its stand-in. `spoken`: how many
+ * pieces of a character's reply can be heard (spokenPieces), 0 when nothing in it is said out loud.
  */
-export type StepInMessageView = { id: string; role: "viewer" | "character" | "system"; kind: "aside" | "notice" | "place" | "call" | "call_aside" | null; text: string; at: string; spoken?: number };
+export type StepInMessageView = {
+  id: string;
+  role: "viewer" | "character" | "system";
+  kind: "aside" | "notice" | "place" | "call" | "call_aside" | "talk" | "talk_aside" | null;
+  text: string;
+  at: string;
+  spoken?: number;
+};
 
 /** One thing a character remembers about the viewer (lib/adult/step-in-memory.ts). `yours`: the viewer wrote or changed it. */
 export type StepInFact = { id: string; text: string; pinned: boolean; yours: boolean; at: string };
