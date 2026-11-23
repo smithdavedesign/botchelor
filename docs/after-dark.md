@@ -3946,6 +3946,17 @@ against `adult_settings.cap_step_in` (`lib/adult/usage.ts` kind `step_in`, 3,000
 - a free taste keeps its own small allowance for both kinds together (`TASTED` in `lib/adult/usage.ts`), and what's
   left on a taste is the taste's number, never the month's.
 
+**What arrives under a reply stays in view** (2026-11-23, found on the first live check of "↻ Again…"). The composer
+is held to the window's foot (`position: sticky`), so anything added above it while the person was at the end of the
+scene landed *under* it: measured live, the whole ideas row sat behind the composer on a desktop and on a phone until
+the person scrolled, and so did the directions for another reply. Two things fix it
+(`app/after-dark/step-in/[id]/StepInScene.tsx`):
+- **The scene follows what's added at its end.** A `ResizeObserver` on the column: when it grows and the scene's end
+  was at the window's foot (within 48 px) before it grew, the end is scrolled back into view. Someone who has scrolled
+  up to read is left where they are.
+- **The ideas' place is held while they're thought of** (`.ad-si-ideas-wait`, about the room three of them take), so
+  the scene is scrolled to its end with room for them and the reply being read doesn't jump when they arrive.
+
 **A goal and an ending** (2026-11-23; David: "A goal and an ending for a scene (Character.AI, CrushOn)"; row 5 of
 [audits/2026-11-23-scenes-and-side-pictures.md](audits/2026-11-23-scenes-and-side-pictures.md): Character.AI's Scenes
 give the player a goal and say "Goal Complete", CrushOn's Target Play has a score and a progress bar). A roleplay's
