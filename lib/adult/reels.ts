@@ -443,31 +443,36 @@ const voiceWords = (noun: ReelPerson["noun"], age: number) =>
   noun === "man" ? (age >= 35 ? "a deep, warm man's voice" : "a man's voice") : noun === "woman" ? (age >= 35 ? "a low, warm woman's voice" : "a bright woman's voice") : "a soft voice";
 
 /**
+ * One character as a picture or a shot names them: "the woman", "the man" or "the person" (`tag` when two of them need
+ * telling apart), never by name. On their own it's a picture of one (lib/adult/step-in-picture.ts).
+ */
+export function reelPerson(c: Character, viewer?: string | null, tag: string | null = null): ReelPerson {
+  const noun = nounOf(c.pronouns);
+  return {
+    id: c.id,
+    pronouns: c.pronouns,
+    noun,
+    tag: tag ?? `the ${noun}`,
+    look: lookWords(c, false, viewer),
+    voice: voiceWords(noun, c.age),
+    details: keptDetailWords(c.extras?.looks),
+    full: c.name.trim(),
+    names: c.name
+      .split(/[\s-]+/)
+      .map((w) => w.replace(/[^\p{L}'’]/gu, ""))
+      .filter((w) => w.length >= 3 && !NAME_SKIP.has(w.toLowerCase()))
+      .map(cap),
+  };
+}
+
+/**
  * The two of them as a reel names them: "the woman" and "the man"; two women (or two men) by what tells them apart
  * (tellApart), so a picture model can tell who's who; and, when even that reads the same, first and second.
  */
 export function reelCast(a: Character, b: Character, viewer?: string | null): [ReelPerson, ReelPerson] {
   const same = nounOf(a.pronouns) === nounOf(b.pronouns);
   const tags = same ? tellApart([lookWords(a, true, viewer, true), lookWords(b, true, viewer, true)], nounOf(a.pronouns)) : null;
-  const one = (c: Character, tag: string | null): ReelPerson => {
-    const noun = nounOf(c.pronouns);
-    return {
-      id: c.id,
-      pronouns: c.pronouns,
-      noun,
-      tag: tag ?? `the ${noun}`,
-      look: lookWords(c, false, viewer),
-      voice: voiceWords(noun, c.age),
-      details: keptDetailWords(c.extras?.looks),
-      full: c.name.trim(),
-      names: c.name
-        .split(/[\s-]+/)
-        .map((w) => w.replace(/[^\p{L}'’]/gu, ""))
-        .filter((w) => w.length >= 3 && !NAME_SKIP.has(w.toLowerCase()))
-        .map(cap),
-    };
-  };
-  const pair: [ReelPerson, ReelPerson] = [one(a, tags?.[0] ?? null), one(b, tags?.[1] ?? null)];
+  const pair: [ReelPerson, ReelPerson] = [reelPerson(a, viewer, tags?.[0] ?? null), reelPerson(b, viewer, tags?.[1] ?? null)];
   if (pair[0].tag === pair[1].tag) {
     pair[0].tag = `the first ${pair[0].noun}`;
     pair[1].tag = `the second ${pair[1].noun}`;
@@ -906,7 +911,7 @@ export function povPrompt(
   place: string | null,
   stage: number,
   withSet: boolean,
-  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; steer?: string; continueFrom?: "same" | "after"; older?: string } = {},
+  opts: { explicit?: boolean; clothes?: string; light?: string; custom?: string; extra?: string; dialog?: string; steer?: string; continueFrom?: "same" | "after"; older?: string; alone?: boolean } = {},
 ): string {
   const viewer = cast[eyes === "a" ? 0 : 1];
   const shown = cast[eyes === "a" ? 1 : 0];
@@ -926,9 +931,15 @@ export function povPrompt(
   const keep =
     `Keep ${shown.tag} as in Picture 1, the same face, hair, skin tone and body, but not their clothes: ${shownClothes(opts.clothes ?? clothesAt(stage), shown, viewer)}, ${shown.tag}'s face clearly visible.${keptDetails([shown])}` +
     `${withSet && !opts.continueFrom ? " Keep the place, its furniture and its light from Picture 2." : ""}` +
-    ` Only this one person in full: of the viewer, whose eyes these are, at most hands, arms, hips or thighs at the edge of the frame, never a face, never a second person.`;
+    // `alone` (Step in, lib/adult/step-in-picture.ts: the viewer is a person, and is never drawn): nobody but the one
+    // shown, not even a hand of whoever's eyes these are.
+    (opts.alone
+      ? ` Only this one person in the picture: nobody else, no second person, and no part of anyone else's body anywhere in the frame, not even a hand.`
+      : ` Only this one person in full: of the viewer, whose eyes these are, at most hands, arms, hips or thighs at the edge of the frame, never a face, never a second person.`);
   const steer = opts.steer?.trim() ? `${cap(opts.steer.trim().replace(/[.\s]*$/, ""))}.` : "";
-  return fitPrompt([head, opts.older ?? ""], `${custom}${asViewer(still)}${extra}${dialog}`, [where, light, keep, steer, tailAt(stage, opts.explicit ?? true)]);
+  // One person in it: "An adult.", not "Both are adults."
+  const tail = opts.alone ? tailAt(stage, opts.explicit ?? true).replace("Both are adults.", "An adult.") : tailAt(stage, opts.explicit ?? true);
+  return fitPrompt([head, opts.older ?? ""], `${custom}${asViewer(still)}${extra}${dialog}`, [where, light, keep, steer, tail]);
 }
 
 /**

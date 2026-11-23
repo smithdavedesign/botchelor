@@ -52,6 +52,11 @@ async function world(me: string) {
   // A living portrait: a picture post made to move (lib/showcase-loops.ts), never on a night.
   await add("living", { kind: "video" });
   await t.db.query(`insert into showcase_loops (id, owner_id, source, source_id, character_id, status, media_id) values ('loop-1', $1, 'post', 'src-1', $2, 'ready', 'living')`, [me, A.id]);
+  // A picture of a moment in a Step in scene (lib/adult/step-in-picture.ts): one of them alone, but made on a night
+  // (the viewer was the other one there). Animated in the Studio, it's the Studio's like any animation.
+  await add("step-in-pic", { b: null });
+  await t.db.query(`update adult_images set step_in_scene = 'scene-1', step_in_message = 'reply-1' where id = 'step-in-pic'`);
+  await add("step-in-animated", { kind: "video", b: null, shoot: "shoot-3", source: "step-in-pic" });
 }
 
 const MADE: Record<string, "night" | "studio"> = {
@@ -69,6 +74,8 @@ const MADE: Record<string, "night" | "studio"> = {
   "night-fix": "night",
   "night-shot-of-studio-pic": "night",
   living: "studio",
+  "step-in-pic": "night",
+  "step-in-animated": "studio",
 };
 
 describe("where it was made", () => {
