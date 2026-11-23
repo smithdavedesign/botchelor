@@ -3710,9 +3710,9 @@ fieldset.ad-si-step {
   }
 }
 /* One of the scene's own pictures in the character's place (app/after-dark/step-in/[id]/StepInPicture.tsx StepInFigure:
-   the viewer's choice, "Use as the scene's picture"). Beside or behind the column it's a framed picture standing on
-   the same floor, not a cutout; on a phone it fills the stage under the veil as any figure does (the rules above). */
-@media (min-width: 701px) {
+   the viewer's choice, "Use as the scene's picture"). Beside the column, on a wide screen, it's a framed picture
+   standing on the same floor, not a cutout. */
+@media (min-width: 1100px) {
   .ad-si-figure[data-figure="picture"] .character-figure-img {
     right: var(--space-4);
     bottom: var(--space-4);
@@ -3723,6 +3723,30 @@ fieldset.ad-si-step {
     border-radius: var(--radius-md);
     object-position: center;
     box-shadow: var(--shadow);
+  }
+}
+/* A tablet: a cutout stands behind the column's right side, but a whole picture there is half under the lines and
+   half under the ideas and the composer, where neither can be read (the first live check, 2026-11-23). So it fills
+   the stage under the night, as it does on a phone (the rules above cover a phone for any figure). */
+@media (min-width: 701px) and (max-width: 1099px) {
+  .ad-si-figure[data-figure="picture"] {
+    left: 0;
+    width: auto;
+  }
+  .ad-si-stage .ad-si-figure[data-figure="picture"] .character-figure-img {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: cover;
+    object-position: center 18%;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%);
+    mask-image: linear-gradient(to bottom, transparent, black 12%);
+  }
+  .ad-si-view:has(.ad-si-figure[data-figure="picture"])::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--night-bg) 65%, transparent);
   }
 }
 /* Discreet mode: blurred here by a veil of its own (data-ad-own-veil), since behind the column nobody could tap it to

@@ -22,6 +22,7 @@ export default function StepInButton({
   label,
   resumeLabel,
   roleplay = null,
+  about,
 }: {
   characterId: string;
   /** Their first name, for the button's words and its accessible name. */
@@ -34,6 +35,8 @@ export default function StepInButton({
   resumeLabel?: string;
   /** One of After Dark's roleplays and the viewer's side of it (0: its first role): a new scene in it, whatever is running. */
   roleplay?: { id: string; you: 0 | 1 } | null;
+  /** What the button starts, for its accessible name where several say the same words (a shelf of cards with one person). */
+  about?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -65,7 +68,7 @@ export default function StepInButton({
   }
   return (
     <>
-      <button type="button" className={className} onClick={() => void go()} disabled={busy} aria-label={`Step in with ${name}`} data-step-in-quick="start">
+      <button type="button" className={className} onClick={() => void go()} disabled={busy} aria-label={about ? `Step in with ${name}: ${about}` : `Step in with ${name}`} data-step-in-quick="start">
         {busy ? "Stepping in…" : (label ?? `Step in with ${name}`)}
       </button>
       {error && (

@@ -80,7 +80,7 @@ export default function StepInShelf({ cast, recent, day, with_ = null }: { cast:
                 )}
               </p>
               <p className="ad-si-shelf-go">
-                <StepInButton characterId={them.id} name={name} roleplay={{ id: rp.id, you: 0 }} className="button small" label={`Step in with ${name}`} />
+                <StepInButton characterId={them.id} name={name} roleplay={{ id: rp.id, you: 0 }} className="button small" label={`Step in with ${name}`} about={rp.title} />
                 <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(them.id)}&roleplay=${encodeURIComponent(rp.id)}#ad-si-set`} data-step-in-card-setup>
                   Set it up
                 </Link>

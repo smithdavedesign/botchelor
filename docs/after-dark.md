@@ -4034,8 +4034,8 @@ its price on the button before anything is made (`app/after-dark/step-in/[id]/St
 **The scene's picture, in the character's place** (2026-11-23; David: "do we have a option to change the image on the
 right with one from the scene"). Until now the figure beside a scene was always the character's portrait, and the
 only choice was to hide it. Under every picture made in a scene there's now **Use as the scene's picture**: that
-picture stands where the portrait stood (beside the column on a wide screen, behind it on a tablet, filling the stage
-under the veil on a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**), or **Show
+picture stands where the portrait stood (framed beside the column on a wide screen; filling the stage under the night
+on a tablet or a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**), or **Show
 {name}'s portrait again** in the ⋯ menu, puts the portrait back.
 - **What's kept:** `adult_step_in_scenes.side_message`, the *reply* whose picture stands there, so a picture drawn
   again takes its place. `setStepInBeside` (`lib/adult/step-in-picture.ts`) takes only a reply of that scene that has a
