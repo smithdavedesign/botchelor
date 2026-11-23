@@ -8,6 +8,7 @@ import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import Icon from "@/app/Icon";
 import CharacterFigure from "@/app/stage/CharacterFigure";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
+import type { StepInPictureState } from "@/lib/adult/step-in-picture";
 import { IDEA_TONE_LABELS, placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, type StepInIdea, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import type { FaceKit } from "@/lib/face-kit-shared";
@@ -16,6 +17,7 @@ import Limits from "../../[a]/[b]/Limits";
 import HearIt from "./HearIt";
 import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
 import StepInMemory from "./StepInMemory";
+import StepInPicture, { StepInPictures } from "./StepInPicture";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -95,6 +97,8 @@ function Line({ m, name, hear = null }: { m: StepInMessageView; name: string; he
       )}
       <Prose text={m.text} />
       {hear && (m.spoken ?? 0) > 0 && <HearIt sceneId={hear.scene} messageId={m.id} pieces={m.spoken!} name={name} auto={hear.auto} />}
+      {/* A picture of this moment: the one made of it, and the button that asks for one (where pictures are shown). */}
+      <StepInPicture messageId={m.id} name={name} />
     </li>
   );
 }
@@ -124,6 +128,7 @@ export default function StepInScene({
   autoOpen = false,
   voice = false,
   kit = null,
+  pictures = null,
 }: {
   initial: StepInSceneView;
   places: { id: string; title: string; public: boolean }[];
@@ -132,6 +137,8 @@ export default function StepInScene({
   autoOpen?: boolean;
   voice?: boolean;
   kit?: FaceKit | null;
+  /** The scene's pictures of a moment (lib/adult/step-in-picture.ts); null where pictures aren't shown (text only). */
+  pictures?: StepInPictureState | null;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -333,7 +340,7 @@ export default function StepInScene({
   }
 
   async function remove() {
-    if (!window.confirm("Delete this scene and every line of it? This can't be undone.")) return;
+    if (!window.confirm("Delete this scene, every line of it and the pictures made in it? This can't be undone.")) return;
     const res = await fetch(`/api/admin/after-dark/step-in/${encodeURIComponent(view.id)}`, { method: "DELETE" }).catch(() => null);
     if (res?.ok) router.push("/after-dark/step-in");
     else setError("That didn't delete. Try again in a moment.");
@@ -410,6 +417,8 @@ export default function StepInScene({
           </p>
         </header>
 
+        {/* The scene's pictures of a moment, held once for every reply under it (./StepInPicture.tsx). */}
+        <StepInPictures sceneId={view.id} initial={pictures} live={live}>
         <ol className="ad-reader ad-si-lines" aria-live="polite" aria-busy={waiting}>
           {view.messages.map((m, i) => (
             <Fragment key={m.id}>
@@ -422,6 +431,7 @@ export default function StepInScene({
           {view.opening && openingAt === view.messages.length && <Line m={{ id: "opening", role: "viewer", kind: null, text: view.opening, at: view.started_at }} name={name} />}
           {waiting && <li className="ad-si-system ad-si-writing">{name} is writing…</li>}
         </ol>
+        </StepInPictures>
 
         {/* The opening never came (no model answered when the scene was made): one button draws it. */}
         {live && !last && !waiting && (

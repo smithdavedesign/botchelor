@@ -4597,6 +4597,15 @@ create table if not exists adult_step_in_facts (
 create index if not exists adult_step_in_facts_owner_idx on adult_step_in_facts (owner_id, character_id, updated_at desc);
 alter table adult_prefs add column if not exists step_in_memory_at timestamptz;
 alter table adult_step_in_scenes add column if not exists facts_upto timestamptz;
+-- A picture of the moment in a Step in scene (lib/adult/step-in-picture.ts, 2026-11-23): the scene and the reply an
+-- adult_images picture was made of, so it shows under that reply, goes when its scene is deleted (lib/adult/step-in.ts
+-- deleteStepIn), and reads as made on a night, not in the Studio (lib/made-in.ts). A picture is its owner's like any
+-- other (owner_id); these two only say where in their scenes it belongs. adult_step_in_messages.picture_at: when a
+-- reply's picture started drawing, cleared when it's done: two asks for the same reply draw one.
+alter table adult_images add column if not exists step_in_scene text;
+alter table adult_images add column if not exists step_in_message text;
+create index if not exists adult_images_step_in_idx on adult_images (step_in_scene) where step_in_scene is not null;
+alter table adult_step_in_messages add column if not exists picture_at timestamptz;
 -- What the viewer could write next (lib/adult/step-in-ideas.ts): up to three suggested lines kept on the character's
 -- reply they answer (so a reload shows the same ones), and how many times they've been drawn for it.
 alter table adult_step_in_messages add column if not exists ideas jsonb;

@@ -138,6 +138,9 @@ async function briefModel(db: Db): Promise<Model | null> {
   return openrouter ? adultModel(db, process.env, { model: FALLBACK_WRITER, timeoutMs: BRIEF_TIMEOUT_MS, retryDelaysMs: [] }) : null;
 }
 
+/** The fast writer a brief is read on, for the other kind of brief (lib/adult/step-in-picture.ts: one character, seen by the viewer); null when there's none. */
+export const briefWriter = (db: Db): Promise<Model | null> => briefModel(db);
+
 /** What a brief is kept by: everything it read, so the same moment reads the same, and changed lines read again. */
 const keyOf = (input: BriefInput) =>
   createHash("sha256")
