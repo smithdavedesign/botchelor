@@ -2103,9 +2103,9 @@ function PairPrefill({ pair }: { pair: StartPair }) {
   const first = shortName(pair.a.name);
   const second = shortName(pair.b.name);
   return (
-    <section className="card pair-prefill" aria-label="From the OC chemistry test">
+    <section className="card pair-prefill" aria-label="From the ship compatibility test">
       <p>
-        <strong>{`From the OC chemistry test: ${pair.a.name} × ${pair.b.name}.`}</strong>{" "}
+        <strong>{`From the ship compatibility test: ${pair.a.name} × ${pair.b.name}.`}</strong>{" "}
         {`${first}'s name, traits, want and dealbreaker are in below. Add an age and a short bio; the rest is optional.`}
       </p>
       <dl className="pair-prefill-sheet">
@@ -2585,7 +2585,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       )}
       {buildNext && (
         <p className="card pair-prefill">
-          {`${shortName(buildNext.name)}, from the chemistry test, is waiting to be built: `}
+          {`${shortName(buildNext.name)}, from the compatibility test, is waiting to be built: `}
           <Link href={buildNext.href}>{`Build ${shortName(buildNext.name)} next`}</Link>
           <span className="muted small">{` (${shortName(buildNext.name)} goes on dates of their own: one creator's characters don't date each other.)`}</span>
         </p>
