@@ -162,6 +162,15 @@ describe("who can talk with a companion", () => {
     expect(await openOurAgentCast(t.db)).toBe(1);
     expect(await companionEligible(t.db, stranger.id, ours)).toBe(true);
     expect(await companionEligible(t.db, stranger.id, outside)).toBe(false);
+    // Opened once is opened: a second pass finds nobody new, and never a person's own character made on the site.
+    expect(await openOurAgentCast(t.db)).toBe(0);
+    expect(await companionEligible(t.db, stranger.id, mine)).toBe(false);
+  });
+
+  it("the cast is opened by the hourly job, not by an admin remembering to (2026-11-23: 162 cast members had no Text on their cards)", () => {
+    const job = readFileSync("app/api/jobs/lobby/route.ts", "utf8");
+    expect(job).toContain("await openOurAgentCast(db)");
+    expect(job).toContain("cast_opened: castOpened");
   });
 
   it("lists your threads, your characters and the cast", async () => {

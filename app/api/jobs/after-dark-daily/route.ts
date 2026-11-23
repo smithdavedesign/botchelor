@@ -1,4 +1,4 @@
-import { checkPortraits } from "@/lib/adult/agent-cast";
+import { checkPortraits, checkSheets, SHEETS_PER_DAY } from "@/lib/adult/agent-cast";
 import { tellShowNightsOver } from "@/lib/adult/overnight";
 import { getDb } from "@/lib/db";
 import { handle, json, jsonWhenDone } from "@/lib/http";
@@ -22,12 +22,16 @@ async function run(req: Request): Promise<Response> {
   return jsonWhenDone(req, async () => {
     const db = await getDb();
     const baselines = await ensureCastBaselines(db).catch(() => ({ made: 0, errors: ["error"] }));
+    // The agent cast's sheets, read first (lib/adult/agent-cast.ts checkSheets: one cheap call each, the day's new cast),
+    // so the portraits below have someone to open: everyone who isn't a person's character joins After Dark by itself
+    // once both checks pass (David, 2026-11-23), where it used to wait for an admin to press the sheet check.
+    const sheets = await checkSheets(db, { limit: SHEETS_PER_DAY }).catch(() => ({ checked: 0, passed: 0, failed: 0 }));
     // The agent cast's portraits, 30 a day of Hive's 100 (lib/adult/agent-cast.ts): each that passes joins After Dark.
     const portraits = await checkPortraits(db).catch(() => ({ checked: 0, opened: 0, failed: 0, stopped: "error" }));
     // Nights that continued an overnight date and were simply left (lib/adult/overnight.ts): the show gets its one fact
     // for each, ids and a time. One that ended is told when it's filed; this is the sweep for the rest.
     const overnights_told = await tellShowNightsOver(db).catch(() => 0);
-    return { ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast: portraits, overnights_told };
+    return { ok: true, cast_baselines_made: baselines.made, errors: baselines.errors, agent_cast_sheets: sheets, agent_cast: portraits, overnights_told };
   });
 }
 
