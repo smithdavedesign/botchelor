@@ -25,8 +25,8 @@
  * for an admin, else the menu picture's tokens, given back when nothing is kept), and it counts as one of the month's
  * pictures (lib/adult/usage.ts). The page shows both before anything is made (stepInPictureState).
  *
- * A reply's picture is drawn once at a time (adult_step_in_messages.picture_at is the claim, taken before the moment is
- * read and let go when the draw ends either way); asked again later it's drawn again, and the newest one shows. The pictures carry their scene (adult_images.step_in_scene) and go with it
+ * A reply's picture is drawn once at a time (adult_step_in_messages.picture_at is the claim, the first thing taken
+ * and let go when the draw ends either way); asked again later it's drawn again, and the newest one shows. The pictures carry their scene (adult_images.step_in_scene) and go with it
  * when it's deleted.
  */
 import { createHash } from "node:crypto";
@@ -471,39 +471,43 @@ export async function drawStepInPicture(db: Db, viewer: string, sceneId: string,
   if (!s) return NOT_FOUND;
   if (s.ended_at) return fail(409, "ended", "This scene has ended. Its pictures are still here; a new scene can have new ones.");
   if (s.paused_at) return fail(409, "paused", "This scene is paused. Carry on first.");
-  const messages = (await db.query<MessageRow>(`select id, role, kind, text, replaced_by from adult_step_in_messages where scene_id = $1 order by created_at asc, id asc`, [s.id])).rows;
-  const target = messages.find((m) => m.id === messageId);
-  // Only a reply that stands in the scene: never the viewer's own line, a draw set aside, or the narrator's stand-in
-  // (a spoken stand-in on a call or in Talk is still the character's line, at a moment like any other).
-  if (!target || target.role !== "character" || target.replaced_by || target.kind === "aside") return NOT_FOUND;
-  if (!(await eligibleIds(db, viewer)).has(s.character_id)) return fail(409, "character_out", "They aren't in your After Dark any more, so nothing new of them is made.");
-  const ready = await setUp(db);
-  if (!ready.ok) return fail(409, "not_set_up", ready.message);
-  const { settings, keys } = ready;
-  const character = await loadCharacter(db, s.character_id);
-  if (!character) return NOT_FOUND;
-  // Never a picture of a character nobody has set up: it would only be a guess (lib/adult/readiness.ts).
-  const setup = await readinessOf(db, viewer, character.id);
-  const missing = setup ? missingNote([setup]) : null;
-  if (missing) return fail(409, "not_ready", missing);
+  // One at a time for a reply, and claimed first, in the same statement that says it's a reply that can be pictured
+  // (one standing in the scene: never the viewer's own line, a draw set aside, or the narrator's stand-in; a spoken
+  // stand-in on a call or in Talk is still the character's line, at a moment like any other). From the press on, a
+  // second ask is told it's being drawn, and the scene opened anywhere else says so and shows the picture when it
+  // lands. (The live checks with a second device, 2026-11-23: the claim came seconds in, after the moment was read
+  // and then after a dozen reads, and a page opened in those seconds showed nothing until a reload.)
+  const reply = `id = $1 and scene_id = $2 and role = 'character' and replaced_by is null and coalesce(kind, '') <> 'aside'`;
+  const claimed = await db.query(
+    `update adult_step_in_messages set picture_at = now() where ${reply} and (picture_at is null or picture_at <= now() - interval '${PICTURE_CLAIM_MINUTES} minutes') returning id`,
+    [messageId, s.id],
+  );
+  if (!claimed.rows.length) {
+    const there = await db.query(`select 1 from adult_step_in_messages where ${reply}`, [messageId, s.id]);
+    return there.rows.length ? fail(409, "drawing", "That picture is already being drawn. It shows here as soon as it's ready.") : NOT_FOUND;
+  }
   const refused = async (f: StepInPictureFail, flags: Record<string, unknown> = {}) => {
     await logPicture(db, s, { ok: false, http: f.status, message: f.error, flags: { refused: f.error, ...flags } });
     return f;
   };
   const reject = (reason: string) =>
     db.query(`insert into adult_rejections (id, owner_id, kind, reason) values ($1, $2, 'scene', $3)`, [crypto.randomUUID(), viewer, `step in picture: ${reason}`.slice(0, 300)]).catch(() => {});
-  // One at a time for a reply, claimed before the moment is even read: from the press on, a second ask is told it's
-  // being drawn, and the scene opened anywhere else says so and shows the picture when it lands. (The first live check
-  // with a second device, 2026-11-23: the claim came after the brief's few seconds, and a page opened in them showed
-  // nothing until a reload.)
-  const claimed = await db.query(
-    `update adult_step_in_messages set picture_at = now() where id = $1 and scene_id = $2 and (picture_at is null or picture_at <= now() - interval '${PICTURE_CLAIM_MINUTES} minutes') returning id`,
-    [target.id, s.id],
-  );
-  if (!claimed.rows.length) return fail(409, "drawing", "That picture is already being drawn. It shows here as soon as it's ready.");
   let made: { id: string } | StepInPictureFail;
   try {
     made = await (async () => {
+      const messages = (await db.query<MessageRow>(`select id, role, kind, text, replaced_by from adult_step_in_messages where scene_id = $1 order by created_at asc, id asc`, [s.id])).rows;
+      const target = messages.find((m) => m.id === messageId);
+      if (!target) return NOT_FOUND;
+      if (!(await eligibleIds(db, viewer)).has(s.character_id)) return fail(409, "character_out", "They aren't in your After Dark any more, so nothing new of them is made.");
+      const ready = await setUp(db);
+      if (!ready.ok) return fail(409, "not_set_up", ready.message);
+      const { settings, keys } = ready;
+      const character = await loadCharacter(db, s.character_id);
+      if (!character) return NOT_FOUND;
+      // Never a picture of a character nobody has set up: it would only be a guess (lib/adult/readiness.ts).
+      const setup = await readinessOf(db, viewer, character.id);
+      const missing = setup ? missingNote([setup]) : null;
+      if (missing) return fail(409, "not_ready", missing);
       const plan = await planStepInPicture(db, s, messages, target, character);
       if (!plan.ok) return refused(plan);
       // Hive over its daily limit (lib/adult/hive-limit.ts): refused before anything is drawn or spent.
@@ -537,9 +541,9 @@ export async function drawStepInPicture(db: Db, viewer: string, sceneId: string,
     })();
   } finally {
     // Done either way: the reply can be asked again.
-    await db.query(`update adult_step_in_messages set picture_at = null where id = $1`, [target.id]).catch(() => {});
+    await db.query(`update adult_step_in_messages set picture_at = null where id = $1`, [messageId]).catch(() => {});
   }
   if (!("id" in made)) return made;
-  const state = (await stepInPictureState(db, viewer, s.id)) ?? { can: false, price: { tokens: 0, included: false }, left: null, pictures: { [target.id]: made.id }, drawing: [] };
-  return { ok: true, id: made.id, message: target.id, state };
+  const state = (await stepInPictureState(db, viewer, s.id)) ?? { can: false, price: { tokens: 0, included: false }, left: null, pictures: { [messageId]: made.id }, drawing: [] };
+  return { ok: true, id: made.id, message: messageId, state };
 }
