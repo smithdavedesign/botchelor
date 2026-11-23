@@ -55,12 +55,16 @@ afterEach(() => {
 // against the time passed in, so the two have to agree.
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = new Date();
-/** This coming Sunday (today, late, when today is one): the recap's day, with this week's rows inside its window. */
+/**
+ * This coming Sunday (today, late, when today is one): the recap's day, with this week's rows inside its window.
+ * Run within 10 minutes of a Sunday's 23:50 UTC or after it, that 23:50 lands before the rows the tests write (CI hit it
+ * at 23:56), so the week ends a week from now instead: still a Sunday, and its 7 days start just before now.
+ */
 const SUNDAY = (() => {
   const d = new Date(NOW);
   d.setUTCDate(d.getUTCDate() + ((7 - d.getUTCDay()) % 7));
   d.setUTCHours(23, 50, 0, 0);
-  return d;
+  return d.getTime() - NOW.getTime() > 10 * 60_000 ? d : new Date(NOW.getTime() + 7 * DAY - 60_000);
 })();
 /** A day that isn't a Sunday, no earlier than now. */
 const WEEKDAY = NOW.getUTCDay() === 0 ? new Date(NOW.getTime() + DAY) : NOW;
