@@ -30,7 +30,8 @@ export const maxDuration = 300;
 
 const Action = z.discriminatedUnion("action", [
   // What the viewer says and does: checked (lib/adult/step-in.ts) before it's kept, then the character answers.
-  z.object({ action: z.literal("send"), text: z.string().max(STEP_IN_LINE_MAX * 2) }),
+  // `talk`: the answer is the short spoken kind (the composer's Talk switch), not prose.
+  z.object({ action: z.literal("send"), text: z.string().max(STEP_IN_LINE_MAX * 2), talk: z.boolean().optional() }),
   // What the viewer said out loud on a call (the words the browser heard): the same checks, and the character answers
   // out loud (a few spoken sentences; its voice is the voice route's).
   z.object({ action: z.literal("say"), text: z.string().max(STEP_IN_LINE_MAX * 2) }),
@@ -90,7 +91,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   let r: StepInSend;
   switch (input.action) {
     case "send":
-      r = await sendStepInLine(db, viewer, id, input.text);
+      r = await sendStepInLine(db, viewer, id, input.text, new Date(), { talk: input.talk === true });
       break;
     case "say": {
       // A call is voice: not where only text is allowed (lib/adult/place.ts), like the voice route itself.

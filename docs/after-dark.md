@@ -3601,6 +3601,11 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
 - **Roleplay is one step away, not gone:** "Roleplay or place" under each card's button, "set the scene first" on a
   character's page and "🎭 A roleplay or a new scene with {name}" in a scene's ⋯ menu all open the set-up page with them
   picked (`/after-dark/step-in?with=<id>`), and a running scene can still move somewhere else.
+- **From an episode** (2026-11-23; row 13 of the field audit: a short video is the door into a chat on every site in
+  the field): under an episode's night (`app/after-dark/shorts/[id]/page.tsx`, "Your turn"), **Step in with {name}**
+  for each of the two the viewer may step in with, or **Continue with {name}** where they have a scene running. The
+  same button, the same rule (`eligibleIds`), a scene of the viewer's own: never the episode's night, which belongs to
+  whoever made it. Only where Step in is open to the viewer; the teaser has none.
 The competitor read behind it ([audits/2026-11-22-companion-field.md](audits/2026-11-22-companion-field.md)): on every
 top companion site the catalog's card opens the chat directly; a profile or a set-up step first is the exception.
 
@@ -3761,6 +3766,21 @@ has had memory you can see and edit since it opened; Step in had the recap and o
 - **Routes:** `GET /api/admin/after-dark/step-in/memory?character=<id>` (the switch, the consent's words, the facts),
   `POST` there (`on` with `consent: true`, `off`, `add`, `edit`, `forget`).
 - **Proof:** `tests/after-dark-step-in-memory.test.ts`.
+
+**Talk** (2026-11-23; one of the ideas David said he's open to; row 6 of the field audit: every site in the field has
+a texting/prose switch). **💬 Talk** in the composer's row (`StepInScene.tsx`, kept in the browser as
+`bz_step_in_talk`): while it's on, a written line is answered **the short spoken way**, a line or two of only what the
+character says, not two to four paragraphs of prose. The viewer still writes what they say and do.
+- It is a call's reply without the call (`lib/adult/step-in-prompt.ts` `STEP_IN_TALK`, `TALK_CUE`,
+  `stepInTalkCraft`; `draw`'s `form: "talk"`): the same shape and length, read by `parseCallReply` and held to
+  `checkCallReply` (both nets, the crisis list, the hard nos, the intensity, a public place's cap), drawn once more on
+  a failure and then one of the spoken stand-ins. Everything that makes the character a person is the scene's own.
+- The viewer's line is a written line like any other, with every check a written line gets. The reply is kept as
+  Talk's (`kind: "talk"`, the stand-in `talk_aside`), one quoted line, so ↻ draws a Talk answer again, 🔊 Hear it says
+  all of it, and the reader, the recap and the next prompt read it as speech. No 📞: nobody was on a call.
+- The viewer's own writer writes it, as it does their prose (a call's reply is always the fast writer's: someone is
+  holding a phone). One scene step, like any reply; the route's `send` carries `talk: true`.
+- Per line, not per scene: the switch can be flipped mid-scene, and a scene can mix prose and Talk.
 
 **Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
 the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After

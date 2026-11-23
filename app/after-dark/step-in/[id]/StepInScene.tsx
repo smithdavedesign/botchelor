@@ -25,9 +25,11 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 const FIGURE_KEY = "bz_step_in_figure";
 /** Whether new replies are read aloud as they arrive (the ⋯ menu): this browser's choice, for every scene. */
 const ALOUD_KEY = "bz_step_in_aloud";
+/** Whether the character answers a written line the short spoken way (the composer's Talk switch): this browser's choice, for every scene. */
+const TALK_KEY = "bz_step_in_talk";
 
 type Action =
-  | { action: "send"; text: string }
+  | { action: "send"; text: string; talk?: true }
   | { action: "regenerate" | "continue" | "take_back" | "end" | "carry_on" }
   | { action: "swipe"; to: "prev" | "next" }
   | { action: "move"; place: string }
@@ -62,8 +64,10 @@ function Line({ m, name, hear = null }: { m: StepInMessageView; name: string; he
       </li>
     );
   }
-  // Said out loud on a call: marked, and otherwise a line like any other.
+  // Said out loud on a call: marked, and otherwise a line like any other. Talk's short spoken answers aren't marked:
+  // they read as what they are.
   const called = m.kind === "call" || m.kind === "call_aside";
+  const talked = m.kind === "talk" || m.kind === "talk_aside";
   if (m.role === "viewer") {
     return (
       <li className="ad-si-you" data-kind={called ? "call" : undefined}>
@@ -82,7 +86,7 @@ function Line({ m, name, hear = null }: { m: StepInMessageView; name: string; he
     );
   }
   return (
-    <li className="ad-si-them" data-kind={called ? "call" : undefined}>
+    <li className="ad-si-them" data-kind={called ? "call" : talked ? "talk" : undefined}>
       <span className="sr-only">{called ? `${name}, out loud: ` : `${name}: `}</span>
       {called && (
         <span className="ad-si-called muted small" aria-hidden="true">
@@ -143,6 +147,8 @@ export default function StepInScene({
   const [moveTo, setMoveTo] = useState("");
   const [figureOn, setFigureOn] = useState(true);
   const [aloud, setAloud] = useState(false);
+  // Talk: a written line gets a line or two said out loud back, not prose (the composer's switch).
+  const [talk, setTalk] = useState(false);
   const [calling, setCalling] = useState(false);
   const [canCall, setCanCall] = useState(false);
   // The lines that were here when the page arrived: only a reply that comes after them is read aloud by itself.
@@ -174,11 +180,21 @@ export default function StepInScene({
   useEffect(() => {
     try {
       if (localStorage.getItem(ALOUD_KEY) === "on") setAloud(true);
+      if (localStorage.getItem(TALK_KEY) === "on") setTalk(true);
     } catch {
       /* storage blocked (a private window): not remembered */
     }
     setCanCall(stepInCallSupported());
   }, []);
+  function toggleTalk() {
+    const next = !talk;
+    setTalk(next);
+    try {
+      localStorage.setItem(TALK_KEY, next ? "on" : "off");
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
+  }
   function toggleAloud() {
     const next = !aloud;
     setAloud(next);
@@ -283,7 +299,7 @@ export default function StepInScene({
   async function send() {
     const line = text.trim();
     if (!line || busy) return;
-    if (await act({ action: "send", text: line })) setText("");
+    if (await act({ action: "send", text: line, ...(talk ? { talk: true as const } : {}) })) setText("");
   }
 
   async function remove() {
@@ -475,7 +491,7 @@ export default function StepInScene({
               value={text}
               maxLength={STEP_IN_LINE_MAX}
               disabled={!live}
-              placeholder={view.paused ? "Paused" : view.character_out ? "This scene can't go on" : `What you say and do. ${name} answers.`}
+              placeholder={view.paused ? "Paused" : view.character_out ? "This scene can't go on" : talk ? `What you say and do. ${name} answers in a line or two.` : `What you say and do. ${name} answers.`}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key !== "Enter" || e.shiftKey) return;
@@ -542,6 +558,17 @@ export default function StepInScene({
                   </button>
                 </div>
               </details>
+              {/* Talk: a written line answered the short spoken way, not in prose (kept in the browser). */}
+              <button
+                type="button"
+                className="button-ghost small ad-si-talk"
+                onClick={toggleTalk}
+                aria-pressed={talk}
+                title={talk ? `${name} answers in a line or two. Press for full prose.` : `Have ${name} answer in a line or two, like talking, not in prose.`}
+                data-step-in-talk={talk ? "on" : "off"}
+              >
+                💬 Talk{talk ? ": on" : ""}
+              </button>
               <span className="muted small ad-si-left">{view.steps_left !== null ? `${view.steps_left} scene step${view.steps_left === 1 ? "" : "s"} left this month` : ""}</span>
               <button type="submit" className="primary" disabled={!live || Boolean(busy) || !text.trim()}>
                 {busy === "send" ? "Sending…" : "Send"}

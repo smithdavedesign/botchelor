@@ -327,3 +327,18 @@
   gap: var(--space-2);
   align-items: center;
 }
+
+/* "Your turn" under an episode: Step in with either of the two (the door from watching into a scene of your own). */
+.doors {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.doorRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+}

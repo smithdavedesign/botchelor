@@ -472,8 +472,9 @@ export async function drawStepInPicture(db: Db, viewer: string, sceneId: string,
   if (s.paused_at) return fail(409, "paused", "This scene is paused. Carry on first.");
   const messages = (await db.query<MessageRow>(`select id, role, kind, text, replaced_by from adult_step_in_messages where scene_id = $1 order by created_at asc, id asc`, [s.id])).rows;
   const target = messages.find((m) => m.id === messageId);
-  // Only a reply that stands in the scene: never the viewer's own line, a draw set aside, or the narrator's stand-in.
-  if (!target || target.role !== "character" || target.replaced_by || target.kind === "aside" || target.kind === "call_aside") return NOT_FOUND;
+  // Only a reply that stands in the scene: never the viewer's own line, a draw set aside, or the narrator's stand-in
+  // (a spoken stand-in on a call or in Talk is still the character's line, at a moment like any other).
+  if (!target || target.role !== "character" || target.replaced_by || target.kind === "aside") return NOT_FOUND;
   if (!(await eligibleIds(db, viewer)).has(s.character_id)) return fail(409, "character_out", "They aren't in your After Dark any more, so nothing new of them is made.");
   const ready = await setUp(db);
   if (!ready.ok) return fail(409, "not_set_up", ready.message);

@@ -198,6 +198,8 @@ describe("the stylesheet", () => {
     expect(block.slice(0, media)).toMatch(/\.home-clip-tap \{\s*display: none;/);
     expect(block.slice(media)).toContain(".home-open--on-stage .home-clip .phone {\n    grid-area: 1 / 2;");
     expect(block.slice(media)).toContain(".home-open--on-stage .home-open-side .is-far {\n    display: none;");
+    // Three leads put two on one side: then every lead shrinks to fit two in a side's share, so the phone stays centred.
+    expect(block.slice(media)).toContain(".home-open--on-stage:has(.home-open-lead + .home-open-lead) {\n    --stage-lead: min(clamp(3rem, 14.5vw, 4.25rem), (100vw - 2 * var(--gutter) - var(--stage-clip) - 1.5rem) / 4);");
     // The wide screen's own rules never name the stage.
     const wide = front.slice(front.indexOf("@media (min-width: 861px) {"), start);
     expect(wide).not.toContain("on-stage");

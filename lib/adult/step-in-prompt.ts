@@ -99,6 +99,23 @@ export function stepInCallCraft(): string[] {
 }
 
 /**
+ * Talk (David, 2026-11-23, one of the ideas he said he's open to; row 6 of docs/audits/2026-11-22-companion-field.md: a
+ * texting/prose switch is on every site in the field): the viewer still writes what they say and do, and the character
+ * answers the way it does on a call, in only what it says, a line or two. A call's reply in everything that's checked
+ * (the same shape, length and rules, so parseCallReply and checkCallReply read it); what differs is that nobody spoke,
+ * so neither the rule nor the cue says they did.
+ */
+export const STEP_IN_TALK =
+  "Right now you answer them out loud, in your own voice, the way you would across a table: everything you write is what you say, and it is all they get. No narration, no description of what you do or how you look, no stage directions, no asterisks, brackets or emoji. If something happens that they should know about, say it.";
+/** The user turn that asks for a spoken answer to a written line. */
+export const TALK_CUE = "(Answer out loud, in a line or two: only what you say.)";
+
+/** How a Talk reply is made: a call's rules, without the call. */
+export function stepInTalkCraft(): string[] {
+  return [STEP_IN_TALK, STEP_IN_CALL_LENGTH, STEP_IN_NEVER_WRITE, "Speak English."];
+}
+
+/**
  * What the character remembers about them (lib/adult/step-in-memory.ts): true things they said about themselves on
  * other nights, to be used the way someone who was listening would, and never as a list read back.
  */
@@ -205,8 +222,11 @@ export type StepInPrompt = {
   insteadOf?: string | null;
   /** Why the last draft couldn't be used, in a few words and never the draft itself: this one avoids it. */
   avoid?: string | null;
-  /** "call": the reply is said out loud (stepInCallCraft), in answer to a line the viewer spoke. Left out: prose. */
-  form?: "call" | null;
+  /**
+   * "call": the reply is said out loud (stepInCallCraft), in answer to a line the viewer spoke. "talk": the same short
+   * spoken reply to a line they wrote (stepInTalkCraft). Left out: prose.
+   */
+  form?: "call" | "talk" | null;
 };
 
 const OPENS = (opening: string | null) => (opening ? ` It opens like this: ${opening} Play your own part of that; whatever your scene partner does in it is theirs to play.` : "");
@@ -259,10 +279,15 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   const earlier = (args.earlier ?? []).filter(Boolean);
   const facts = (args.facts ?? []).filter(Boolean);
   const call = args.form === "call";
+  const talk = args.form === "talk";
   const sheet = sheetLines(c);
   const system = [
     `You are ${c.name}, ${c.age}${c.pronouns ? `, ${c.pronouns}` : ""}: a fictional adult, a character in Botchelor's After Dark. Tonight is a private scene between you and one person, the two of you imagining you are both at ${place.label}. It is a story you tell together: ${
-      call ? "so far they have written what they say and do and you have written your side of it, and now you are talking" : "they write what they say and do, and you write your side of it"
+      call
+        ? "so far they have written what they say and do and you have written your side of it, and now you are talking"
+        : talk
+          ? "they write what they say and do, and you answer them out loud"
+          : "they write what they say and do, and you write your side of it"
     }.`,
     "",
     "Your sheet:",
@@ -281,8 +306,8 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
     "",
     STEP_IN_WILL,
     "",
-    ...(call
-      ? ["How you answer:", ...stepInCallCraft().map((rule) => `- ${rule}`), STEP_IN_CALL_ANSWER]
+    ...(call || talk
+      ? ["How you answer:", ...(call ? stepInCallCraft() : stepInTalkCraft()).map((rule) => `- ${rule}`), STEP_IN_CALL_ANSWER]
       : ["How it's written:", ...stepInCraft(c.name, c.pronouns).map((rule) => `- ${rule}`), STORY_MODE_ANSWER]),
     "",
     STEP_IN_RATING,
@@ -327,6 +352,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   if (cue) say(cue);
   else if (messages[messages.length - 1].role !== "user") say("(They're waiting for your reply.)");
   if (call) say(CALL_CUE);
+  else if (talk) say(TALK_CUE);
   if (args.avoid) say(`(Your last draft couldn't be used: ${args.avoid}. Write this reply again without that.)`);
   return messages;
 }
