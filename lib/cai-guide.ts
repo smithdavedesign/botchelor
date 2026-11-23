@@ -60,9 +60,6 @@ export const CAI_QUOTES = {
 export const CAI_EXPORT_WEB = ["Profile", "Profile Settings", "Account", "Manage Account & Data", "Export Data"] as const;
 export const CAI_EXPORT_APP = ["Profile", "Settings icon", "Legal & Privacy", "Export Data"] as const;
 
-/** The creator fields to copy from a character's edit page. */
-export const CAI_FIELDS = ["Name", "Tagline", "Description", "Greeting", "Definition"] as const;
-
 /** The sale box shows until the start of this day (UTC), then hides itself: the route revalidates hourly, so no deploy. */
 export const CAI_GUIDE_SALE_UNTIL = "2026-12-06";
 
