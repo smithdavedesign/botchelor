@@ -4606,6 +4606,10 @@ alter table adult_images add column if not exists step_in_scene text;
 alter table adult_images add column if not exists step_in_message text;
 create index if not exists adult_images_step_in_idx on adult_images (step_in_scene) where step_in_scene is not null;
 alter table adult_step_in_messages add column if not exists picture_at timestamptz;
+-- What the viewer could write next (lib/adult/step-in-ideas.ts): up to three suggested lines kept on the character's
+-- reply they answer (so a reload shows the same ones), and how many times they've been drawn for it.
+alter table adult_step_in_messages add column if not exists ideas jsonb;
+alter table adult_step_in_messages add column if not exists idea_draws integer;
 
 -- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared
 -- vocabulary (lib/tags.ts, type facet only). One source at a time per character: the owner's pick, the house's hand

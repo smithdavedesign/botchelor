@@ -347,6 +347,18 @@ export function lineLimitRefusal(text: string, limits: PairLimits, stage: number
 
 const KISSING = STAGES.indexOf("kissing");
 
+/**
+ * Whether a line someone might write next would go in as the viewer's (lib/adult/step-in-ideas.ts holds every
+ * suggestion to it before it's shown): the checks a written line gets that need no model (the lines that never move,
+ * Step in's own net, their limits at the scene's stage), and, out in public, nothing past a kiss: what the character
+ * would have to turn down isn't worth suggesting.
+ */
+export function lineWouldGoIn(text: string, limits: PairLimits, stage: number, publicPlace: boolean): boolean {
+  if (!checkAdultText({ line: text }).ok || stepInNever(text)) return false;
+  if (lineLimitRefusal(text, limits, stage)) return false;
+  return !(publicPlace && (stageShown(text) ?? 0) > KISSING);
+}
+
 /** Why a text is past the viewer's limits or the place's cap, as a note for the next draft, or null. */
 function limitsNote(text: string, limits: PairLimits, publicPlace: boolean): { why: string; avoid: string } | null {
   const hard = hardNoHit(text, limits.hard_nos);
@@ -614,6 +626,47 @@ async function writable(db: Db, s: SceneRow): Promise<StepInFail | null> {
   if (s.paused_at) return PAUSED;
   if ((await eligibleIds(db, s.owner_id)).has(s.character_id)) return null;
   return fail(409, "character_out", "They aren't in your After Dark any more, so this scene can't go on. It's still here to read, and you can end it.");
+}
+
+/**
+ * What suggesting the viewer's next line needs of a scene (lib/adult/step-in-ideas.ts): the reply they'd be answering
+ * (the newest turn, when it's the character's), who and where, their part in a roleplay, the limits and the stage a
+ * line of theirs is held to, and the last few turns. A scene that can't be written (ended, paused, its character
+ * gone), or a viewer at the month's cap, gets the reason instead: there is nothing to suggest.
+ */
+export type IdeasScene = {
+  reply: string | null;
+  name: string;
+  place: { label: string; public: boolean };
+  roleplay: { title: string; part: string | null } | null;
+  limits: PairLimits;
+  stage: number;
+  turns: StepInTurn[];
+};
+export async function ideasScene(db: Db, viewer: string, sceneId: string, now: Date = new Date()): Promise<({ ok: true } & IdeasScene) | StepInFail> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  const closed = await writable(db, s);
+  if (closed) return closed;
+  const capped = await overCap(db, viewer, "writes", now);
+  if (capped) return fail(429, "capped", capped);
+  const rows = await allMessages(db, s.id);
+  const ctx = await drawContext(db, s, rows);
+  if (!ctx) return NOT_FOUND;
+  const last = spokenOf(rows).at(-1) ?? null;
+  const name = first(ctx.character.name);
+  const where = promptPlace(ctx.place.place).label;
+  return {
+    ok: true,
+    reply: last?.role === "character" ? last.id : null,
+    name,
+    // The character's home is "your place" in its own prompt; here it's theirs.
+    place: { label: where === "your place" ? `${name}'s place` : where, public: ctx.place.public },
+    roleplay: ctx.roleplay ? { title: ctx.roleplay.rp.title, part: ctx.roleplay.rp.roles?.[ctx.roleplay.you] ?? null } : null,
+    limits: ctx.limits,
+    stage: stageOf(rows),
+    turns: ctx.turns,
+  };
 }
 
 /** The scene as its page shows it. */

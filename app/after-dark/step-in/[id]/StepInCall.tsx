@@ -5,6 +5,7 @@ import Avatar, { sized } from "@/app/Avatar";
 import LiveFace from "@/app/companion/[id]/LiveFace";
 import { newAudioContext, PcmPlayer } from "@/app/companion/[id]/live-audio";
 import { useVoiceRing } from "@/app/stage/useVoiceRing";
+import { heardIn } from "@/lib/companion-live-shared";
 import { callWords, cutInCapable, cutsIn, type StepInCharacter, type StepInMessageView } from "@/lib/adult/step-in-shared";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { characterPortrait } from "@/lib/portraits";
@@ -260,18 +261,13 @@ export default function StepInCall({
     r.interimResults = true;
     r.maxAlternatives = 1;
     let said = "";
+    let sofar = "";
     let error: string | null = null;
     // While they talk, what's heard counts for nothing until it's the viewer cutting in.
     let theirs = !during;
     const began = Date.now();
     r.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const result = e.results[i];
-        if (result.isFinal) said += result[0].transcript;
-        else interim += result[0].transcript;
-      }
-      const sofar = `${said} ${interim}`.trim();
+      ({ said, sofar } = heardIn(e.results));
       if (!theirs) {
         if (phaseNow.current !== "speaking" || !cutsIn(sofar, saying.current)) return;
         // They're talking over the character: it stops at once, and this is their line from here on.
@@ -300,7 +296,8 @@ export default function StepInCall({
         return;
       }
       if (phaseNow.current !== "listening") return;
-      const text = said.replace(/\s+/g, " ").trim();
+      // What they said: the settled words, or what was heard when the session ended with none settled (heardIn).
+      const text = said || sofar;
       if (text) {
         silences.current = 0;
         void turn(text);

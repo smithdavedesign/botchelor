@@ -3782,6 +3782,30 @@ character says, not two to four paragraphs of prose. The viewer still writes wha
   holding a phone). One scene step, like any reply; the route's `send` carries `talk: true`.
 - Per line, not per scene: the switch can be flipped mid-scene, and a scene can mix prose and Talk.
 
+**Ideas for what to say** (2026-11-23; one of the ideas David said he's open to; row 5 of the field audit: three
+suggested replies with a tone label are on every site in the field). Under the character's newest reply, **"You could
+say:"** and up to three lines the viewer could write next, one **warm**, one **playful**, one **bold**, each with its
+tone before it; **↻ Other ideas** draws others. A tap puts the line in the box to send or change, as a starter does;
+nothing is ever sent for them, and nothing is counted until they send a line.
+- **Drawn when the page asks**, half a second after a reply has landed, never in a reply's way
+  (`lib/adult/step-in-ideas.ts` `stepInIdeas`, `POST /api/admin/after-dark/step-in/<id>/ideas {again?}`): one call to
+  After Dark's own model with the scene's last six turns, where they are, their part in a roleplay and their limits,
+  and nothing else about them (no profile, no memory, no earlier scenes). Kept on the reply's row
+  (`adult_step_in_messages.ideas`, `idea_draws`), so a reload shows the same three; drawn three times a reply at most.
+- **Each idea is a line the viewer would be writing**, so each is held to the checks a written line gets before it's
+  shown, and again when it's read back (their limits may have tightened since): the crisis list, the lines that never
+  move and Step in's own net, their limits at the scene's stage, and, out in public, nothing past a kiss
+  (`lineWouldGoIn`: what the character would have to turn down isn't worth suggesting). Plain words only: no emoji, no
+  markup, 160 characters. One that fails is dropped; three that fail show nothing. What they then send goes through
+  every check again, the model's included.
+- **Where they show:** from the second reply on (a new scene's opening has the free starter lines above), while the
+  scene can be written and the box is empty; never during a call. **💡 Ideas for what to say** in the ⋯ menu turns
+  them off (kept in the browser as `bz_step_in_ideas`; on unless switched off).
+- **Nothing to suggest** for a scene that's ended or paused, a character who has left, a viewer at the month's cap, or
+  a newest turn that's the viewer's own: the route answers an empty list, never an error.
+- **What it costs:** one small call a reply on After Dark's own model, a few hundredths of a cent, only for a viewer
+  who has the scene open and hasn't switched ideas off.
+
 **Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
 the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After
 Dark's own voice and nothing of the show's:
@@ -3848,6 +3872,10 @@ Dark's own voice and nothing of the show's:
 - **What it costs:** the reply, about a tenth of a cent on the fast writer; the voice, about $0.0004 a piece on Venice's
   Kokoro (more on a better voice model); hearing the viewer, nothing (it's their browser's). No new provider, key or
   processor: Venice already voices the nights.
+- **What was heard** (`lib/companion-live-shared.ts` `heardIn`, both calls): the session's whole result list, the
+  settled words then the ones still coming. A call sends the settled words, or, when a session ends with words heard
+  and none settled, those (the first call in a real Chrome: a session that began mid-sentence ended that way and the
+  line was dropped).
 - **Not built, on purpose or yet:** talking over them outside desktop Chrome (above); Firefox (no speech recognition
   there). **Not tested on a real iPhone:** every call here was checked in Chrome with a faked
   or a file-fed microphone. One thing to watch for there: reports that Safari on an iPhone stops hearing after an

@@ -9,7 +9,7 @@ import Icon from "@/app/Icon";
 import CharacterFigure from "@/app/stage/CharacterFigure";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
 import type { StepInPictureState } from "@/lib/adult/step-in-picture";
-import { placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
+import { IDEA_TONE_LABELS, placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, type StepInIdea, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { storyParagraphs, storySegments } from "@/lib/story-reply";
@@ -27,6 +27,8 @@ const FIGURE_KEY = "bz_step_in_figure";
 const ALOUD_KEY = "bz_step_in_aloud";
 /** Whether the character answers a written line the short spoken way (the composer's Talk switch): this browser's choice, for every scene. */
 const TALK_KEY = "bz_step_in_talk";
+/** Whether ideas for what to say show under the newest reply (the ⋯ menu): this browser's choice, for every scene. On unless switched off. */
+const IDEAS_KEY = "bz_step_in_ideas";
 
 type Action =
   | { action: "send"; text: string; talk?: true }
@@ -149,6 +151,12 @@ export default function StepInScene({
   const [aloud, setAloud] = useState(false);
   // Talk: a written line gets a line or two said out loud back, not prose (the composer's switch).
   const [talk, setTalk] = useState(false);
+  // Ideas for what to say next (lib/adult/step-in-ideas.ts): asked for once a reply has landed, for that reply.
+  // `settled`: this browser's choices have been read, so nothing is asked for that they'd switched off.
+  const [ideasOn, setIdeasOn] = useState(true);
+  const [settled, setSettled] = useState(false);
+  const [ideas, setIdeas] = useState<{ for: string; items: StepInIdea[]; more: boolean } | null>(null);
+  const [ideasBusy, setIdeasBusy] = useState(false);
   const [calling, setCalling] = useState(false);
   const [canCall, setCanCall] = useState(false);
   // The lines that were here when the page arrived: only a reply that comes after them is read aloud by itself.
@@ -181,11 +189,40 @@ export default function StepInScene({
     try {
       if (localStorage.getItem(ALOUD_KEY) === "on") setAloud(true);
       if (localStorage.getItem(TALK_KEY) === "on") setTalk(true);
+      if (localStorage.getItem(IDEAS_KEY) === "off") setIdeasOn(false);
     } catch {
       /* storage blocked (a private window): not remembered */
     }
     setCanCall(stepInCallSupported());
+    setSettled(true);
   }, []);
+  function toggleIdeas() {
+    const next = !ideasOn;
+    setIdeasOn(next);
+    try {
+      localStorage.setItem(IDEAS_KEY, next ? "on" : "off");
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
+  }
+  /** Asks for the ideas under the newest reply (`again`: other ones). They're an extra: when they don't come, nothing is said. */
+  async function loadIdeas(again: boolean, signal?: AbortSignal) {
+    setIdeasBusy(true);
+    try {
+      const res = await fetch(`/api/admin/after-dark/step-in/${encodeURIComponent(view.id)}/ideas`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(again ? { again: true } : {}),
+        signal,
+      });
+      const d = (await res.json().catch(() => null)) as { for?: string | null; ideas?: StepInIdea[]; more?: boolean } | null;
+      if (res.ok && d && typeof d.for === "string") setIdeas({ for: d.for, items: Array.isArray(d.ideas) ? d.ideas : [], more: Boolean(d.more) });
+    } catch {
+      /* no ideas this time */
+    } finally {
+      setIdeasBusy(false);
+    }
+  }
   function toggleTalk() {
     const next = !talk;
     setTalk(next);
@@ -310,6 +347,22 @@ export default function StepInScene({
   }
 
   const waiting = busy === "send" || busy === "continue" || busy === "regenerate";
+  // The starter lines are for a new scene's opening (free, and the same for everyone); ideas are for every reply after.
+  const firstLine = live && !view.roleplay && !view.opening && last?.role === "character" && !view.messages.some((m) => m.role === "viewer");
+  // The reply ideas are wanted for: the newest one, once it has landed, while the viewer could write next.
+  const ideasFor = settled && ideasOn && live && !waiting && !calling && !firstLine && last?.role === "character" ? last.id : null;
+  useEffect(() => {
+    if (!ideasFor || ideas?.for === ideasFor) return;
+    const stop = new AbortController();
+    // A moment after the reply lands: reading it comes first.
+    const t = setTimeout(() => void loadIdeas(false, stop.signal), 500);
+    return () => {
+      clearTimeout(t);
+      stop.abort();
+    };
+    // Asked once per reply, not again when the ideas themselves arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ideasFor]);
   return (
     <article className="after-dark ad-si-scene" data-step-in-scene={view.id}>
       {/* The place itself, empty (the show's own backdrop, or a drawn set), and the character in it, behind the column. */}
@@ -431,6 +484,36 @@ export default function StepInScene({
           </p>
         )}
 
+        {/* What to say next: up to three ideas under the newest reply, each in its tone (lib/adult/step-in-ideas.ts).
+            A tap fills the box, as a starter does; nothing is sent until they send it. Out of the way once they type. */}
+        {ideasFor && ideas?.for === ideasFor && ideas.items.length > 0 && !text && (
+          <p className="ad-si-starters ad-si-ideas" data-step-in-ideas>
+            <span className="muted small">You could say:</span>
+            {ideas.items.map((idea) => (
+              <button
+                key={idea.tone}
+                type="button"
+                className="button-ghost small"
+                disabled={Boolean(busy)}
+                data-idea={idea.tone}
+                onClick={() => {
+                  setText(idea.text);
+                  box.current?.focus();
+                }}
+              >
+                <span className="ad-si-idea-tone">{IDEA_TONE_LABELS[idea.tone]}</span>
+                <span className="sr-only">: </span>
+                {idea.text}
+              </button>
+            ))}
+            {ideas.more && (
+              <button type="button" className="button-ghost small" disabled={ideasBusy || Boolean(busy)} onClick={() => void loadIdeas(true)} data-step-in-ideas-again>
+                {ideasBusy ? "Thinking…" : "↻ Other ideas"}
+              </button>
+            )}
+          </p>
+        )}
+
         {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
         {view.character_out && !view.ended && (
           <p className="ad-si-paused muted" data-step-in-out>
@@ -537,6 +620,9 @@ export default function StepInScene({
                   />
                   {/* What they remember about you between scenes: off until turned on, and every line of it yours to change. */}
                   <StepInMemory characterId={view.character.id} name={name} initial={view.memory} onCrisis={setCrisis} />
+                  <button type="button" className="button-ghost small" onClick={toggleIdeas} aria-pressed={ideasOn} data-step-in-ideas-toggle>
+                    {ideasOn ? "💡 Ideas for what to say: on" : "💡 Ideas for what to say"}
+                  </button>
                   {voice && (
                     <button type="button" className="button-ghost small" onClick={toggleAloud} aria-pressed={aloud} data-step-in-aloud>
                       {aloud ? `🔊 Reading ${name}'s lines aloud: on` : `🔈 Read ${name}'s lines aloud`}
