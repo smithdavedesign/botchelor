@@ -148,6 +148,10 @@ async function siteLastDay(db: Db, now: Date): Promise<number> {
 /**
  * One pass: every scene that could be due (its person has notes on, it's running, nothing waits in it, it's been left
  * long enough and nobody holds its claim), the most recently left first, each decided on what's true now.
+ *
+ * It looks at the 300 most recently left. That's every candidate while Step in is open to a handful of people; with
+ * many more than 300 scenes waiting on a pace or on quiet hours, the ones left longest would never be reached, and
+ * the pass would need to remember where it stopped.
  */
 export async function writeDueNotes(db: Db, now: Date = new Date(), opts: { max?: number; budgetMs?: number; clock?: () => number; siteDayMax?: number } = {}): Promise<NotesRun> {
   const max = opts.max ?? NOTES_RUN_MAX;
