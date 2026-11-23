@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import AlternativePage from "@/app/alternatives/AlternativePage";
-import { ALTERNATIVES, alternativeBySlug, alternativePath } from "@/lib/alternatives";
-import { pageMetadata } from "@/lib/seo";
+import AlternativePage, { alternativeMetadata } from "@/app/alternatives/AlternativePage";
+import { ALTERNATIVES, alternativeBySlug } from "@/lib/alternatives";
 
 /** Every app in lib/alternatives.ts but Character.AI, which keeps its own static page (the first, and tests read it). */
 export function generateStaticParams() {
@@ -15,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const alt = alternativeBySlug((await params).slug);
   // Not one of ours: the not-found page's title and robots, as the page itself turns it away (app/not-found.tsx).
   if (!alt) notFound();
-  return pageMetadata({ title: alt.title, description: alt.description, path: alternativePath(alt.slug) });
+  return alternativeMetadata(alt);
 }
 
 export default async function AlternativeSlugPage({ params }: { params: Promise<{ slug: string }> }) {

@@ -353,6 +353,12 @@ services:
       # - key: RANDOM_SHIP_CAST
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The lists of apps on the /alternatives pages (lib/alternative-apps.ts; docs/seo-and-tracking.md): on by default.
+      # "0" takes each list and its ItemList off and brings back the pages' earlier titles, descriptions and heading,
+      # without a deploy of code.
+      # - key: ALTERNATIVES_LIST
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The social network (docs/PRDs/social-network.md, lib/social/): SOCIAL_TIES "0" stops every social write and
       # read (nothing declared, derived or backfilled; its routes close; rows stay). SOCIAL_DECLARE "0" keeps what aired
       # derives and stops owners' and agents' declarations and proposals. Both on by default.

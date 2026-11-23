@@ -1,9 +1,13 @@
 /**
  * The /alternatives/<slug> search landings (the 2026-11-11 growth plan): one template, one entry per chat app people
- * move characters from. Each page is nominative only: it names the app to say what you can bring from it, claims
+ * move characters from. Each page was nominative only: it names the app to say what you can bring from it, claims
  * nothing about it, compares nothing, and uses none of its marks. The Character.AI page's words (2026-11-08, #1391)
- * moved here unchanged. Pure data and paths; the pages render it (app/alternatives/AlternativePage.tsx).
+ * moved here unchanged. Since 2026-11-23 each page also lists the apps people use instead, with facts from each app's
+ * own site and nothing compared (lib/alternative-apps.ts); its title, description and heading then name the search,
+ * and the words below come back with ALTERNATIVES_LIST=0. Pure data and paths; the pages render it
+ * (app/alternatives/AlternativePage.tsx).
  */
+import { alternativesFresh, checkedMonth, listedApps, type AlternativeApp } from "./alternative-apps";
 import { COMPANION_FREE_PER_DAY } from "./companion-shared";
 import { IMPORT_CAI_PATH } from "./import-character";
 import { HISTORY_ITEMS_MAX, importMemoriesOn } from "./import-history";
@@ -13,6 +17,7 @@ export type Alternative = {
   slug: string;
   /** The app, as its users write it. */
   name: string;
+  /** The title and description from before the list: the page's own while the list is off (alternativeWords). */
   title: string;
   description: string;
   /** The lede's first sentence: who this page is for. */
@@ -99,6 +104,31 @@ export const ALTERNATIVES: readonly Alternative[] = [
 
 export const alternativePath = (slug: string): string => `/alternatives/${slug}`;
 export const alternativeBySlug = (slug: string): Alternative | undefined => ALTERNATIVES.find((a) => a.slug === slug);
+
+/** Every page's h1 from before the list, and again while it's off. */
+export const ALTERNATIVE_HEADING = "A new home for the characters you made";
+
+/**
+ * A page's title, description and h1. While its list shows (lib/alternative-apps.ts listedApps), they name the search
+ * and count the apps from the data, so dropping one keeps them true; the title names the month the facts were read
+ * until the list is no longer fresh, then says what the list holds instead. With the list off, the words from before.
+ */
+export function alternativeWords(
+  alt: Alternative,
+  o: { now?: Date; env?: Record<string, string | undefined>; apps?: readonly AlternativeApp[] } = {},
+): { title: string; description: string; heading: string } {
+  const list = listedApps(alt.slug, o.env, o.apps);
+  if (!list) return { title: alt.title, description: alt.description, heading: ALTERNATIVE_HEADING };
+  const n = list.length;
+  return {
+    title: alternativesFresh(o.now)
+      ? `${n} ${alt.name} alternatives, checked ${checkedMonth()} · Botchelor`
+      : `${n} ${alt.name} alternatives and what they cost · Botchelor`,
+    description: `${n} apps people use instead of ${alt.name}: what's free, prices and rules, each from the app's own site. Or bring your characters here to go on dates.`,
+    heading: `${alt.name} alternatives`,
+  };
+}
+
 /**
  * "Bring their history" (lib/import-history.ts, 2026-11-15): asked second on every page while IMPORT_MEMORIES is on,
  * since what someone leaving a chat app has most of is the chat.

@@ -1,23 +1,36 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import AlternativeApps from "@/app/alternatives/AlternativeApps";
 import FaceRibbon from "@/app/FaceRibbon";
 import JsonLd from "@/app/JsonLd";
 import SetHero from "@/app/SetHero";
 import ShowClip from "@/app/ShowClip";
-import { ALTERNATIVES, alternativeFaq, alternativePath, type Alternative } from "@/lib/alternatives";
+import { ALTERNATIVE_APPS, appsItemList, listedApps, type AlternativeApp } from "@/lib/alternative-apps";
+import { ALTERNATIVES, alternativeFaq, alternativePath, alternativeWords, type Alternative } from "@/lib/alternatives";
 import { IMPORT_PATH } from "@/lib/import-character";
 import { HISTORY_ITEMS_MAX, importMemoriesOn } from "@/lib/import-history";
-import { breadcrumbJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
+
+/** Both routes' metadata (app/alternatives/character-ai, app/alternatives/[slug]): the words the list makes, or the earlier ones. */
+export function alternativeMetadata(alt: Alternative, now: Date = new Date()): Metadata {
+  const { title, description } = alternativeWords(alt, { now });
+  return pageMetadata({ title, description, path: alternativePath(alt.slug) });
+}
 
 /**
  * A landing page for people moving their characters out of a chat app (searches like "<app> alternative"): what
- * Botchelor is, plainly, and the way in (/import). Nominative only: it names the app to say what you can bring from it,
- * claims nothing about it, and uses none of its marks. One template for every app in lib/alternatives.ts.
+ * Botchelor is, plainly, and the way in (/import). It names the app to say what you can bring from it and uses none of
+ * its marks. Under the hero, the apps people use instead (app/alternatives/AlternativeApps.tsx), each fact from that
+ * app's own site, nothing compared; ALTERNATIVES_LIST=0 takes the list away and brings back the earlier heading. One
+ * template for every app in lib/alternatives.ts. `apps` is for tests: the pages list lib/alternative-apps.ts.
  */
-export default function AlternativePage({ alt }: { alt: Alternative }) {
+export default function AlternativePage({ alt, apps = ALTERNATIVE_APPS }: { alt: Alternative; apps?: readonly AlternativeApp[] }) {
   const base = siteUrl();
   const path = alternativePath(alt.slug);
   const faq = alternativeFaq(alt);
+  const list = listedApps(alt.slug, process.env, apps);
+  const { heading } = alternativeWords(alt, { apps });
   return (
     <>
       <JsonLd
@@ -33,13 +46,14 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
             url: `${base}${path}`,
             mainEntity: faq.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
           },
+          ...(list ? [appsItemList(`${alt.name} alternatives`, list, base)] : []),
         ]}
       />
       {/* The booth set behind the words and the show itself in a phone beside them (the visual pop audit, 2026-11-20). */}
       <SetHero
         set="booth"
         kicker="Moving your characters?"
-        title="A new home for the characters you made"
+        title={heading}
         lede={<>{alt.lede} Paste them in, and they get a life here: dates on a show, and one-to-one talks.</>}
         media={<ShowClip track="alternative-clip" />}
       >
@@ -51,6 +65,8 @@ export default function AlternativePage({ alt }: { alt: Alternative }) {
         </p>
         <p className="muted small">Free to start. Nothing is saved until you press Create.</p>
       </SetHero>
+      {/* The list right under the hero, before the ribbon: what people searching "<app> alternatives" came for. */}
+      {list && <AlternativeApps alt={alt} apps={list} />}
       <FaceRibbon title="Who your character could meet" />
 
       <section className="card">
