@@ -510,11 +510,15 @@ async function pauseForCrisis(db: Db, s: SceneRow, now: Date): Promise<StepInFai
 /* ------------------------------------------------ the view ------------------------------------------------ */
 
 const messageKind = (m: Pick<MessageRow, "kind">): StepInMessageView["kind"] =>
-  m.kind === "aside" || m.kind === "notice" || m.kind === "place" || m.kind === "call" || m.kind === "call_aside" ? m.kind : null;
+  m.kind === "aside" || m.kind === "notice" || m.kind === "place" || m.kind === "call" || m.kind === "call_aside" || m.kind === "talk" || m.kind === "talk_aside" ? m.kind : null;
 /** A stand-in, written or spoken: never something to steer away from, and never a line the character "said before". */
-const isAside = (m: Pick<MessageRow, "kind">): boolean => m.kind === "aside" || m.kind === "call_aside";
-/** A line said out loud (a call's), the character's or its spoken stand-in. */
-const isCall = (m: Pick<MessageRow, "kind">): boolean => m.kind === "call" || m.kind === "call_aside";
+const isAside = (m: Pick<MessageRow, "kind">): boolean => m.kind === "aside" || m.kind === "call_aside" || m.kind === "talk_aside";
+/**
+ * The spoken form a reply was drawn in, when it was: "call" (a line said out loud on a call, the character's or its
+ * spoken stand-in), "talk" (the same short spoken answer to a line the viewer wrote: Talk); null for prose.
+ */
+type SpokenForm = "call" | "talk";
+const formOf = (m: Pick<MessageRow, "kind">): SpokenForm | null => (m.kind === "call" || m.kind === "call_aside" ? "call" : m.kind === "talk" || m.kind === "talk_aside" ? "talk" : null);
 
 /** The scene's turns as they stand (no draws set aside, no AI notice), oldest first. */
 const turnsOf = (rows: readonly MessageRow[]): MessageRow[] => rows.filter((m) => !m.replaced_by && !(m.role === "system" && m.kind !== "place"));
@@ -651,7 +655,7 @@ export function setStepInRandomForTests(fn: (() => number) | null): void {
 export const REDRAW_ON_FAST_AFTER_MS = 45_000;
 
 type Drawn =
-  | { ok: true; text: string; kind: "reply" | "aside"; call: boolean; paragraphs: number; model: string | null; provider: string | null; cost: number | null; flags: Record<string, unknown> }
+  | { ok: true; text: string; kind: "reply" | "aside"; form: SpokenForm | null; paragraphs: number; model: string | null; provider: string | null; cost: number | null; flags: Record<string, unknown> }
   | { ok: false; fail: StepInFail; flags: Record<string, unknown> };
 
 type DrawContext = {
@@ -717,18 +721,22 @@ const emptyText = (err: unknown) => err instanceof Error && /returned no text/.t
  * `form: "call"`: the reply is said out loud (lib/adult/step-in-prompt.ts STEP_IN_CALL), so it's a few spoken
  * sentences, read by parseCallReply and held to checkCallReply, and the stand-in is one of the spoken ones
  * (CALL_ASIDES). The fast writer writes it whoever the viewer's writer is: someone is waiting to hear the answer.
+ * `form: "talk"`: the same short spoken reply to a line the viewer wrote (STEP_IN_TALK), read and checked as a call's
+ * is; the viewer's own writer writes it, as it does their prose (nobody is holding a phone).
  */
 async function draw(
   db: Db,
   s: SceneRow,
   ctx: DrawContext,
-  o: { cue: "open" | "continue" | null; insteadOf?: string | null; form?: "call" | null },
+  o: { cue: "open" | "continue" | null; insteadOf?: string | null; form?: SpokenForm | null },
 ): Promise<Drawn> {
   const settings = await getAdultSettings(db);
   const opening = o.cue === "open";
-  const call = o.form === "call";
+  const form = o.form ?? null;
+  // Spoken: only what the character says (a call's reply, or Talk's).
+  const call = form !== null;
   const chosen = await writerChoice(db, s.owner_id, { opening });
-  const { id: writer, think_tokens } = call ? { id: FALLBACK_WRITER, think_tokens: 0 } : chosen;
+  const { id: writer, think_tokens } = form === "call" ? { id: FALLBACK_WRITER, think_tokens: 0 } : chosen;
   const own = await adultModel(db, process.env, { model: writer });
   const fast = writer === FALLBACK_WRITER ? null : await adultModel(db, process.env, { model: FALLBACK_WRITER });
   const usage: Usage[] = [];
@@ -771,7 +779,7 @@ async function draw(
       cue: o.cue,
       insteadOf: o.insteadOf ?? null,
       avoid,
-      form: call ? "call" : null,
+      form,
     });
     const ask = () => {
       flags.calls = Number(flags.calls) + 1;
@@ -835,11 +843,11 @@ async function draw(
   const cost = usage.some((u) => typeof u.cost === "number") ? usage.reduce((n, u) => n + (u.cost ?? 0), 0) : null;
   const modelId = served.model ?? (await adultModelId(db, process.env, { model: flags.fell_back_to ? FALLBACK_WRITER : writer }));
   const out = { model: modelId, provider: served.provider, cost, flags: { ...flags, ...(reasons.length ? { redrawn: reasons } : {}) } };
-  if (kept) return { ok: true, text: kept.join("\n\n"), kind: "reply", call, paragraphs: kept.length, ...out };
+  if (kept) return { ok: true, text: kept.join("\n\n"), kind: "reply", form, paragraphs: kept.length, ...out };
   // Twice unusable: the narrator changes the subject (on a call, the character does, out loud), and nothing of either draft is kept.
   const pool = call ? CALL_ASIDES : ASIDES;
   const aside = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
-  return { ok: true, text: call ? `"${aside}"` : aside, kind: "aside", call, paragraphs: 1, ...out, flags: { ...out.flags, aside: true } };
+  return { ok: true, text: call ? `"${aside}"` : aside, kind: "aside", form, paragraphs: 1, ...out, flags: { ...out.flags, aside: true } };
 }
 
 /**
@@ -852,7 +860,7 @@ async function reply(
   s: SceneRow,
   rows: readonly MessageRow[],
   now: Date,
-  o: { action: string; cue: "open" | "continue" | null; insteadOf?: string | null; replaces?: MessageRow | null; form?: "call" | null },
+  o: { action: string; cue: "open" | "continue" | null; insteadOf?: string | null; replaces?: MessageRow | null; form?: SpokenForm | null },
 ): Promise<StepInFail | { ok: true; id: string; aside: boolean }> {
   const ctx = await drawContext(db, s, rows, o.replaces ? [o.replaces.id] : []);
   if (!ctx) return NOT_FOUND;
@@ -862,14 +870,14 @@ async function reply(
     await logMove(db, who, { ok: false, http: drawn.fail.status, message: drawn.fail.message, flags: { action: o.action, ...drawn.flags } });
     return drawn.fail;
   }
-  const kind = drawn.call ? (drawn.kind === "aside" ? "call_aside" : "call") : drawn.kind === "aside" ? "aside" : null;
+  const kind = drawn.form ? (drawn.kind === "aside" ? `${drawn.form}_aside` : drawn.form) : drawn.kind === "aside" ? "aside" : null;
   const id = await addMessage(db, s, "character", drawn.text, now, { kind, model: drawn.model, cost: drawn.cost });
   if (o.replaces) {
     // The reply it replaces, and the draws that one already had, all point at the new current draw: exactly one is current.
     await db.query(`update adult_step_in_messages set replaced_by = $3 where scene_id = $1 and (id = $2 or replaced_by = $2)`, [s.id, o.replaces.id, id]);
   }
   await countUse(db, s.owner_id, "writes", now);
-  await logMove(db, who, { ok: true, added: drawn.paragraphs, flags: { action: o.action, ...(drawn.call ? { call: true } : {}), ...drawn.flags }, text: { model: drawn.model, provider: drawn.provider } });
+  await logMove(db, who, { ok: true, added: drawn.paragraphs, flags: { action: o.action, ...(drawn.form ? { [drawn.form]: true } : {}), ...drawn.flags }, text: { model: drawn.model, provider: drawn.provider } });
   return { ok: true, id, aside: drawn.kind === "aside" };
 }
 
@@ -1026,8 +1034,11 @@ const stageOf = (rows: readonly MessageRow[]): number => spokenOf(rows).reduce((
  * `call`: the line was said out loud on a call (what the browser heard, as words), and the reply is said out loud too
  * (draw's `form: "call"`). Every check is the same, it counts one scene step like any reply, and both lines are kept in
  * the scene marked as a call's.
+ *
+ * `talk`: a written line answered the short spoken way (Talk, the composer's switch: draw's `form: "talk"`). The line is
+ * a written line like any other; only the reply is kept as Talk's, so drawing it again draws a spoken one.
  */
-export async function sendStepInLine(db: Db, viewer: string, sceneId: string, input: string, now: Date = new Date(), opts: { call?: boolean } = {}): Promise<StepInSend> {
+export async function sendStepInLine(db: Db, viewer: string, sceneId: string, input: string, now: Date = new Date(), opts: { call?: boolean; talk?: boolean } = {}): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
   const text = clean(input);
@@ -1056,7 +1067,7 @@ export async function sendStepInLine(db: Db, viewer: string, sceneId: string, in
   if (!character) return NOT_FOUND;
   if (noticeDue(s, now)) await putNotice(db, s, character.name, now);
   await addMessage(db, s, "viewer", text, tick(now, 1), { kind: opts.call ? "call" : null });
-  const r = await reply(db, s, await allMessages(db, s.id), tick(now, 2), { action, cue: null, form: opts.call ? "call" : null });
+  const r = await reply(db, s, await allMessages(db, s.id), tick(now, 2), { action, cue: null, form: opts.call ? "call" : opts.talk ? "talk" : null });
   // No model answered: their line is kept, and Continue draws the reply that's due.
   return sent(db, s, r.ok ? {} : { replied: false, message: r.message });
 }
@@ -1105,8 +1116,8 @@ export async function regenerateStepIn(db: Db, viewer: string, sceneId: string, 
     // The narrator's stand-in isn't something to steer away from: the draw is simply made again.
     insteadOf: replaces && !isAside(replaces) ? replaces.text.slice(0, 600) : null,
     replaces,
-    // A line said on a call is drawn again as one.
-    form: replaces && isCall(replaces) ? "call" : null,
+    // A spoken reply (a call's, or Talk's) is drawn again as one.
+    form: replaces ? formOf(replaces) : null,
   });
   if (!r.ok) return r;
   return sent(db, s);
