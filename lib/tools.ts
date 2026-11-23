@@ -1,6 +1,6 @@
 /**
  * The free tools for original characters (app/tools/*), in the order someone making a character reaches for them: a
- * whole random character, a name, getting to know them, a ship name, a ship picked for you, then whether the ship
+ * whole random character, a name, where they are from, getting to know them, a ship name, a ship picked for you, then whether the ship
  * holds. One list for the hub (/tools), the line of other tools at the end of each tool's page and the ship pages
  * (app/tools/MoreTools.tsx), and /everything.
  *
@@ -10,6 +10,7 @@
  * search ("ship compatibility test", "love calculator"), at the same address.
  */
 import { OC_NAMES_PATH } from "./oc-names";
+import { PLACE_NAMES_PATH } from "./place-names";
 import { OC_QUESTIONS, OC_QUESTIONS_PATH } from "./oc-questions";
 
 /** lib/random-oc.ts RANDOM_OC_PATH, written out so the line of tools doesn't load the generator's lists (tests/random-oc.test.ts holds them equal). */
@@ -46,6 +47,12 @@ export const FREE_TOOLS: readonly FreeTool[] = [
     name: "OC name generator",
     inline: "OC name generator",
     blurb: "Names for your original character, twelve at a time: fantasy, modern, sci-fi, gothic or cozy, feminine, masculine or neutral.",
+  },
+  {
+    path: PLACE_NAMES_PATH,
+    name: "Place name generator",
+    inline: "place name generator",
+    blurb: "Names for the places in your story, twelve at a time: towns, wilds, realms and taverns, in the same five styles as the names.",
   },
   {
     path: OC_QUESTIONS_PATH,
