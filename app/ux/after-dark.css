@@ -3872,6 +3872,11 @@ fieldset.ad-si-step {
   min-width: 0;
   text-align: right;
 }
+/* Talk, on: the switch reads as pressed. */
+.ad-si-talk[aria-pressed="true"] {
+  border-color: var(--ad-accent, var(--night-accent));
+  color: var(--night-accent-text);
+}
 .ad-si-menu {
   position: relative;
 }
