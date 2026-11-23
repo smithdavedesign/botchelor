@@ -43,6 +43,8 @@ const ALOUD_KEY = "bz_step_in_aloud";
 const TALK_KEY = "bz_step_in_talk";
 /** Whether ideas for what to say show under the newest reply (the ⋯ menu): this browser's choice, for every scene. On unless switched off. */
 const IDEAS_KEY = "bz_step_in_ideas";
+/** How near the scene's end counts as reading it, when something is added there (a person a line or two up still is). */
+const SCENE_END_SLACK_PX = 48;
 
 type Action =
   | { action: "send"; text: string; talk?: true }
@@ -174,6 +176,8 @@ export default function StepInScene({
   const [settled, setSettled] = useState(false);
   const [ideas, setIdeas] = useState<{ for: string; items: StepInIdea[]; more: boolean } | null>(null);
   const [ideasBusy, setIdeasBusy] = useState(false);
+  // The reply the ideas were last asked for, answered or not: until then their place is held under it.
+  const [ideasAsked, setIdeasAsked] = useState<string | null>(null);
   const [calling, setCalling] = useState(false);
   const [canCall, setCanCall] = useState(false);
   // "↻ Again…" under the newest reply: whether its directions are showing, the viewer's own words for one, and why
@@ -184,6 +188,7 @@ export default function StepInScene({
   // The lines that were here when the page arrived: only a reply that comes after them is read aloud by itself.
   const seen = useRef(new Set(initial.messages.map((m) => m.id)));
   const end = useRef<HTMLDivElement>(null);
+  const col = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const name = first(view.character.name);
   const live = !view.ended && !view.paused && !view.character_out;
@@ -197,6 +202,25 @@ export default function StepInScene({
   useEffect(() => {
     end.current?.scrollIntoView({ block: "nearest" });
   }, [count, busy]);
+  // And so does what arrives under it a moment later, or on a tap: the ideas for what to say, the directions for
+  // another reply, an ending's offer. The composer is held to the window's foot, so anything added above it while the
+  // person is at the end of the scene landed UNDER it, out of sight until they scrolled (measured live, 2026-11-23:
+  // the whole ideas row, on a desktop and a phone). Whoever has scrolled up to read is left where they are.
+  useEffect(() => {
+    const el = col.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let height = el.getBoundingClientRect().height;
+    const watch = new ResizeObserver(() => {
+      const now = el.getBoundingClientRect().height;
+      const grew = now - height;
+      height = now;
+      const foot = end.current?.getBoundingClientRect().top;
+      // Where the scene's end was before it grew: at the window's foot (or above it) for someone reading the end.
+      if (grew > 0 && foot !== undefined && foot - grew <= window.innerHeight + SCENE_END_SLACK_PX) end.current?.scrollIntoView({ block: "nearest" });
+    });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
 
   // The picture put away stays away (a private window or blocked storage just shows it).
   useEffect(() => {
@@ -406,7 +430,7 @@ export default function StepInScene({
     if (!ideasFor || ideas?.for === ideasFor) return;
     const stop = new AbortController();
     // A moment after the reply lands: reading it comes first.
-    const t = setTimeout(() => void loadIdeas(false, stop.signal), 500);
+    const t = setTimeout(() => void loadIdeas(false, stop.signal).finally(() => setIdeasAsked(ideasFor)), 500);
     return () => {
       clearTimeout(t);
       stop.abort();
@@ -427,7 +451,7 @@ export default function StepInScene({
           {figureOn && <StepInFigure portrait={view.character.portrait} cutout={cutout} />}
         </div>
       </div>
-      <div className="ad-si-col">
+      <div className="ad-si-col" ref={col}>
         <header className="ad-si-head">
           <p className="kicker">
             <Link href="/after-dark/step-in">
@@ -594,6 +618,14 @@ export default function StepInScene({
 
         {/* What to say next: up to three ideas under the newest reply, each in its tone (lib/adult/step-in-ideas.ts).
             A tap fills the box, as a starter does; nothing is sent until they send it. Out of the way once they type. */}
+        {/* While they're being thought of, their place is held: the scene is scrolled to its end with room for them,
+            so the reply being read doesn't jump when they arrive. */}
+        {ideasFor && ideas?.for !== ideasFor && ideasAsked !== ideasFor && !text && (
+          <p className="ad-si-starters ad-si-ideas ad-si-ideas-wait" aria-hidden="true" data-step-in-ideas-wait>
+            <span className="muted small">You could say:</span>
+            <span className="muted small">…</span>
+          </p>
+        )}
         {ideasFor && ideas?.for === ideasFor && ideas.items.length > 0 && !text && (
           <p className="ad-si-starters ad-si-ideas" data-step-in-ideas>
             <span className="muted small">You could say:</span>

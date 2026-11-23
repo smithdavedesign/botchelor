@@ -46,6 +46,7 @@ import { CHARACTER_REJECTION_MESSAGES, checkAdultText, type SafetyResult } from 
 import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS, openingOf } from "../scene-cards";
 import { adultCardTextIssue } from "../scene-card-check";
 import { lineInCrisis } from "../step-in";
+import { ensureSet } from "../sets";
 import { normalizeScene, setPath, venueName } from "../venues";
 import { eligibleIds } from "./characters";
 import { stageAsked } from "./director";
@@ -54,7 +55,7 @@ import { limitOf } from "./fallback";
 import { hardNoHit, hasHardNos, INTENSITY, intensityOf, overIntensity, OWN_LEN, OWN_MAX, storedHardNos, type HardNos, type PairLimits } from "./limits";
 import { adultModel, adultModelId, adultViewer, adultViewerFromCookies } from "./mode";
 import { consentRefusal, hasProfileConsent } from "./profile";
-import { roleplayById, type Roleplay } from "./roleplays";
+import { roleplayById, ROLEPLAYS, type Roleplay } from "./roleplays";
 import { rolloutOn } from "./rollout";
 import { sceneCatalog, venueSituation } from "./scene-catalog";
 import { isPublicPlace, linesCrossed, recapFrom, samplingOf, type LimitsInput } from "./scenes";
@@ -73,12 +74,14 @@ import {
   REDRAW_TEXT_MAX,
   spokenPieces,
   STEP_IN_LINE_MAX,
+  STORY_PLACE,
   type RedrawDirection,
   type StepInCharacter,
   type StepInMessageView,
   type StepInPlace,
   type StepInSceneRef,
   type StepInSceneView,
+  type StoryPlace,
 } from "./step-in-shared";
 import { storySpeech } from "../story-reply";
 import { logStep, STEP_IN_PARTNER } from "./steps";
@@ -243,9 +246,27 @@ async function characterRef(db: Db, id: string): Promise<StepInCharacter | null>
   return (await db.query<StepInCharacter>(`select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue as hue from characters c where c.id = $1`, [id])).rows[0] ?? null;
 }
 
-/** The sets already drawn (place_sets), so a place's card and backdrop only name a picture that exists. */
+/** The roleplays' own places (lib/adult/roleplays.ts `at`) as a set is kept under them (lib/venues.ts normalizeScene). */
+const STORY_SETS: readonly string[] = ROLEPLAYS.map((r) => normalizeScene(r.at.place));
+
+/**
+ * The sets already drawn (place_sets), so a place's card and backdrop only name a picture that exists: the newest 300,
+ * and the roleplays' own places whenever theirs is drawn (45 at most, by name: a story's backdrop mustn't drop out of
+ * the list because 300 other places were drawn after it).
+ */
 export async function drawnSets(db: Db): Promise<string[]> {
-  return (await db.query<{ label: string }>(`select label from place_sets where status = 'ready' order by updated_at desc limit 300`).catch(() => ({ rows: [] as { label: string }[] }))).rows.map((r) => r.label);
+  return (
+    await db
+      .query<{ label: string }>(
+        `select label from (
+           (select label, updated_at from place_sets where status = 'ready' order by updated_at desc limit 300)
+           union
+           (select label, updated_at from place_sets where status = 'ready' and normalized = any($1::text[]))
+         ) s order by updated_at desc`,
+        [STORY_SETS],
+      )
+      .catch(() => ({ rows: [] as { label: string }[] }))
+  ).rows.map((r) => r.label);
 }
 
 /**
@@ -266,10 +287,26 @@ export function stepInPlaces(drawn: readonly string[] = []): StepInPlace[] {
     }));
 }
 
-/** The scene's place as the page shows it: the catalog's card for it, or the label alone. */
+/**
+ * The scene's place as the page shows it: the catalog's card for it; a roleplay's own place (lib/adult/roleplays.ts
+ * `at`) under its title, with its set's picture once one has been drawn; or the label alone.
+ */
 function placeOf(label: string, drawn: readonly string[]): StepInPlace {
   const key = normalizeScene(label);
-  return stepInPlaces(drawn).find((p) => normalizeScene(p.place) === key) ?? { id: "", title: label, place: label, image: null, backdrop: null, public: isPublicPlace(label) };
+  const card = stepInPlaces(drawn).find((p) => normalizeScene(p.place) === key);
+  if (card) return card;
+  const own = ROLEPLAYS.find((r) => normalizeScene(r.at.place) === key);
+  if (!own) return { id: "", title: label, place: label, image: null, backdrop: null, public: isPublicPlace(label) };
+  const ready = drawn.some((d) => normalizeScene(d) === key);
+  return { id: STORY_PLACE, title: own.at.title, place: own.at.place, image: ready ? `${setPath(own.at.place)}?w=400` : null, backdrop: ready ? setPath(own.at.place) : null, public: isPublicPlace(own.at.place) };
+}
+
+/**
+ * Each roleplay's own place as a page shows it before a scene exists (the shelf's cards, the set-up's "Where"): its
+ * name, and whether it's out in public. By the roleplay's id.
+ */
+export function storyPlaces(): Record<string, StoryPlace> {
+  return Object.fromEntries(ROLEPLAYS.map((r) => [r.id, { title: r.at.title, public: isPublicPlace(r.at.place) }]));
 }
 
 /** The home venue's label (lib/venues.ts "Their place"): in a scene with one character, that character's own home. */
@@ -1010,7 +1047,7 @@ const cueAfter = (last: MessageRow | null): "open" | "continue" | null => (!last
 export type StepInOpeningPick = 0 | 1 | 2 | "surprise" | { written: string };
 export type StepInStart = {
   character_id: string;
-  /** A place's id from stepInPlaces. */
+  /** A place's id from stepInPlaces, or STORY_PLACE: where the roleplay's own story is set (lib/adult/roleplays.ts `at`). */
   place: string;
   /** One of After Dark's roleplays and which of its two sides the viewer plays (0: its first role); null: none. */
   roleplay?: { id: string; you?: 0 | 1 } | null;
@@ -1022,8 +1059,9 @@ export type StepInStart = {
 export const openingsFor = (rp: Roleplay | null): readonly [string, string, string] => rp?.card?.openings ?? GENERIC_OPENINGS;
 
 /**
- * Starts a scene: who (someone the viewer may have in After Dark), where (a place from the catalog), the roleplay and
- * the viewer's side of it, and how it opens. A written opening is the viewer's own words, so it goes through the
+ * Starts a scene: who (someone the viewer may have in After Dark), where (a place from the catalog, or STORY_PLACE:
+ * where the roleplay's own story is set, lib/adult/roleplays.ts `at`), the roleplay and the viewer's side of it, and
+ * how it opens. A written opening is the viewer's own words, so it goes through the
  * self-harm check, the lines that never move and the roleplay theme check (lib/scene-cards.ts adultCardTextIssue: one
  * sentence of story, nothing explicit) before anything exists: refused, no scene is made and nothing is kept. Then the
  * AI notice goes in and the character opens, one scene step. If no model answers, the scene is there without its
@@ -1034,10 +1072,12 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
   if (!(await eligibleIds(db, viewer)).has(input.character_id)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
   const character = await characterRef(db, input.character_id);
   if (!character) return NOT_FOUND;
-  const place = stepInPlaces(await drawnSets(db)).find((p) => p.id === input.place);
-  if (!place) return fail(422, "invalid_place", "Pick a place from the list.");
   const rp = input.roleplay ? roleplayById(input.roleplay.id) : null;
   if (input.roleplay && !rp) return fail(422, "invalid_roleplay", "Pick a roleplay from the list, or none.");
+  const drawn = await drawnSets(db);
+  // Where: a place from the catalog, or where the roleplay's own story is set (only with a roleplay that says where).
+  const place = input.place === STORY_PLACE ? (rp?.at ? placeOf(rp.at.place, drawn) : null) : (stepInPlaces(drawn).find((p) => p.id === input.place) ?? null);
+  if (!place) return fail(422, "invalid_place", input.place === STORY_PLACE ? "Pick a roleplay first, or a place from the list." : "Pick a place from the list.");
   const you: 0 | 1 = input.roleplay?.you === 1 ? 1 : 0;
   const id = randomUUID();
   const who = { owner: viewer, character: input.character_id, scene: null };
@@ -1121,7 +1161,8 @@ export type StepInQuick = { ok: true; id: string; resumed: boolean } | StepInFai
  * place, a roleplay or a written opening, and a scene can move somewhere else once it's running.
  *
  * With `card.roleplay` (a card on the front page's shelf, lib/adult/step-in-shelf.ts): the same click starts that
- * roleplay with them, the viewer on the side named. Always a new scene, made the same way.
+ * roleplay with them, the viewer on the side named, where its story is set (STORY_PLACE). Always a new scene, made the
+ * same way.
  */
 export async function quickStepIn(db: Db, viewer: string, characterId: string, now: Date = new Date(), card: { roleplay?: { id: string; you?: 0 | 1 } } = {}): Promise<StepInQuick> {
   if (!(await eligibleIds(db, viewer)).has(characterId)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
@@ -1131,11 +1172,37 @@ export async function quickStepIn(db: Db, viewer: string, characterId: string, n
     const running = (await db.query<{ id: string }>(`select id from adult_step_in_scenes where owner_id = $1 and character_id = $2 and ended_at is null order by last_at desc limit 1`, [viewer, characterId])).rows[0];
     if (running) return { ok: true, id: running.id, resumed: true };
   }
-  const places = stepInPlaces(await drawnSets(db));
-  const place = places.find((p) => p.id === QUICK_PLACE) ?? places.find((p) => !p.public) ?? places[0];
-  if (!place) return fail(409, "no_place", "There's nowhere to be yet. Set the scene instead.");
-  const made = await startStepIn(db, viewer, { character_id: characterId, place: place.id, roleplay: card.roleplay ?? null, opening: "surprise" }, now, { defer: true });
+  // A roleplay's card starts where its story is set (lib/adult/roleplays.ts `at`); anything else, at their place.
+  const story = card.roleplay ? roleplayById(card.roleplay.id)?.at : null;
+  let where = story ? STORY_PLACE : null;
+  if (!where) {
+    const places = stepInPlaces(await drawnSets(db));
+    const place = places.find((p) => p.id === QUICK_PLACE) ?? places.find((p) => !p.public) ?? places[0];
+    if (!place) return fail(409, "no_place", "There's nowhere to be yet. Set the scene instead.");
+    where = place.id;
+  }
+  const made = await startStepIn(db, viewer, { character_id: characterId, place: where, roleplay: card.roleplay ?? null, opening: "surprise" }, now, { defer: true });
   return made.ok ? { ok: true, id: made.id, resumed: false } : made;
+}
+
+/**
+ * Asks for the picture of a scene's place when the scene is at a roleplay's own (lib/adult/roleplays.ts `at`), the way
+ * the theater asks for a set a night moves to (lib/sets.ts ensureSet): drawn once for everyone, an empty place with
+ * nobody in it, checked before it's kept, free on Workers AI while its daily budget lasts and about a third of a cent
+ * on fal after that; one that's there already, or being drawn, is left alone. The start route runs this past the
+ * response, so nothing waits on it; until the picture exists the scene paints the page's own gradient. Never throws.
+ * What happened, or null when the scene isn't at a roleplay's own place.
+ */
+export async function drawStepInSet(db: Db, viewer: string, sceneId: string): Promise<string | null> {
+  try {
+    const s = await ownScene(db, viewer, sceneId);
+    if (!s) return null;
+    const key = normalizeScene(s.place);
+    const own = ROLEPLAYS.find((r) => normalizeScene(r.at.place) === key);
+    return own ? await ensureSet(db, own.at.place) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Why a written opening isn't one, in words for the person who wrote it, or null (after the lines that never move). */

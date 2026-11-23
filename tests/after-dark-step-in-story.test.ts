@@ -143,6 +143,15 @@ const read = async (viewer: string, id: string) => {
   if (!r.ok) throw new Error(`read failed: ${r.status}`);
   return r.story;
 };
+/** Lines of the viewer's, one for each beat and one to spare. */
+const LINES = ["I hold the parcel out. I think this one is yours.", "I have run out of things to borrow.", "I step a little closer to the door.", "It was never about the corkscrew.", "I stay."];
+/** `n` exchanges, the story read after each: with a reader that names every beat, one more beat is ticked each time. */
+async function play(viewer: string, id: string, n: number, from = 0) {
+  for (let i = from; i < from + n; i++) {
+    await say(viewer, id, LINES[i]);
+    await read(viewer, id);
+  }
+}
 const post = (path: string, body: unknown, cookie: string) => new Request(`${BASE_URL}${path}`, { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body) });
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 const html = async (el: ReactElement) => (await new Response((await prerender(el)).prelude).text()).replace(/<!-- -->/g, "");
@@ -176,6 +185,10 @@ describe("the beats", () => {
     expect(mergeBeats([true, false, false, false], [3])).toEqual([true, false, true, false]);
     // A later reading that leaves one out doesn't untick it.
     expect(mergeBeats([true, true, false, false], [])).toEqual([true, true, false, false]);
+    // One reading ticks one beat at most, the earliest it names: a story is never over in a reply or two.
+    expect(mergeBeats([false, false, false, false], [1, 2, 3, 4])).toEqual([true, false, false, false]);
+    expect(mergeBeats([true, false, false, false], [1, 4, 3])).toEqual([true, false, true, false]);
+    expect(mergeBeats([true, true, true, true], [1, 2, 3, 4])).toEqual([true, true, true, true]);
   });
 
   it("takes only numbers the card has from the reader, each once, and nothing from an answer it can't read", () => {
@@ -241,19 +254,23 @@ describe("how far the story has got", () => {
     await say(a.id, s.id, "I step a little closer to the door.");
     expect(await read(a.id, s.id)).toMatchObject({ done: 2, complete: false });
     expect(await playedRoleplays(t.db, a.id)).toEqual({});
-    // The last beats play: the story is complete, it counts as played, and it isn't read again.
+    // The reader names the last two beats at once: one reading ticks one, the earliest, and the story isn't over yet.
     await say(a.id, s.id, "It was never about the corkscrew.");
+    expect(await read(a.id, s.id)).toMatchObject({ done: 3, complete: false, due: false });
+    expect(await playedRoleplays(t.db, a.id)).toEqual({});
+    // The next reading ticks the last: the story is complete, it counts as played, and it isn't read again.
+    await say(a.id, s.id, "I stay.");
     expect(await read(a.id, s.id)).toMatchObject({ done: BEATS, complete: true, due: false });
     expect(await playedRoleplays(t.db, a.id)).toEqual({ neighbours: 1 });
     const doneAt = (await rows(`select story_done_at from adult_step_in_scenes where id = $1`, [s.id]))[0].story_done_at;
     expect(doneAt).toBeTruthy();
-    await say(a.id, s.id, "I stay.");
+    await say(a.id, s.id, "And I'm glad I knocked.");
     expect((await viewOf(a.id, s.id)).story).toMatchObject({ complete: true, due: false });
     expect(await read(a.id, s.id)).toMatchObject({ complete: true });
-    expect(seen.reader).toHaveLength(4);
+    expect(seen.reader).toHaveLength(5);
     expect((await rows(`select story_done_at from adult_step_in_scenes where id = $1`, [s.id]))[0].story_done_at).toEqual(doneAt);
-    // Reading the story is free: only the replies were counted (the opening and five answers).
-    expect(await replies(a.id)).toBe(6);
+    // Reading the story is free: only the replies were counted (the opening and six answers).
+    expect(await replies(a.id)).toBe(7);
   });
 
   it("a reader that doesn't answer, or answers nonsense, leaves the story where it was", async () => {
@@ -267,7 +284,7 @@ describe("how far the story has got", () => {
     expect((await viewOf(a.id, s.id)).story).toMatchObject({ done: 0, due: true });
     expect(await read(a.id, s.id)).toMatchObject({ done: 0, due: false });
     await say(a.id, s.id, "I have run out of things to borrow.");
-    expect(await read(a.id, s.id)).toMatchObject({ done: 2 });
+    expect(await read(a.id, s.id)).toMatchObject({ done: 1 });
   });
 
   it("there is no story without a roleplay, none is read in a scene that has ended, and nobody reads someone else's", async () => {
@@ -308,8 +325,8 @@ describe("the ending", () => {
     await saveAdultSettings(t.db, { rollout: { companion: "everyone" } });
     const sub = await subscriber();
     const s = await start(sub.id);
-    await say(sub.id, s.id, "It was never about the corkscrew.");
-    await read(sub.id, s.id);
+    await play(sub.id, s.id, BEATS);
+    expect((await viewOf(sub.id, s.id)).story).toMatchObject({ done: BEATS, complete: true });
     const before = await replies(sub.id);
     const prompts = seen.prompts.length;
     const closed = await closeStepIn(t.db, sub.id, s.id);
@@ -324,7 +341,7 @@ describe("the ending", () => {
     // The closing line is the scene's last, and the scene is ended and filed with its story played.
     expect(closed.view.ended).toBeTruthy();
     expect(closed.view.messages.at(-1)).toMatchObject({ role: "character" });
-    expect(closed.view.messages.filter((m) => m.role === "character")).toHaveLength(3);
+    expect(closed.view.messages.filter((m) => m.role === "character")).toHaveLength(BEATS + 2);
     expect(closed.view.story).toMatchObject({ complete: true, due: false });
     expect(closed.view.can).toEqual({ regenerate: false, carry_on: false, take_back: false });
     expect((await rows(`select line from adult_step_in_scenes where id = $1`, [s.id]))[0].line).toBe("The night the parcel excuse ran out.");
@@ -375,19 +392,18 @@ describe("the routes and the page", () => {
     expect((await scenePost(post(path, { action: "close" }, sub.cookie), ctx(s.id))).status).toBe(404);
     const res = await storyPost(post(`${path}/story`, {}, a.cookie), ctx(s.id));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ story: { goal: storyGoal(NEIGHBOURS, 0, NAME), beats: BEATS, done: 2, complete: false, due: false } });
+    expect(await res.json()).toEqual({ story: { goal: storyGoal(NEIGHBOURS, 0, NAME), beats: BEATS, done: 1, complete: false, due: false } });
     const closed = await scenePost(post(path, { action: "close" }, a.cookie), ctx(s.id));
     expect(closed.status).toBe(200);
     expect((await closed.json()).scene.ended).toBeTruthy();
   });
 
   it("the scene shows the goal and a dot a beat, offers the ending once the last has played, and says so when it's over", async () => {
-    scripted({ played: [1, 2] }, { played: [3, 4] });
+    scripted({ played: [1, 2, 3, 4] });
     await saveAdultSettings(t.db, {});
     const a = await admin();
     const s = await start(a.id);
-    await say(a.id, s.id, "I hold the parcel out.");
-    await read(a.id, s.id);
+    await play(a.id, s.id, 2);
     signIn(a.id);
     const page = async () => html(await StepInScenePage({ params: Promise.resolve({ id: s.id }) }));
     const playing = await page();
@@ -400,8 +416,7 @@ describe("the routes and the page", () => {
     for (const beat of NEIGHBOURS.card.beats) expect(playing).not.toContain(beatForReader(beat, 0, NAME).slice(0, 30));
     // The menu has a closing line always, as a plain button (it sits inside the composer's form).
     expect(playing).toMatch(/<button type="button"[^>]*data-step-in-close-menu/);
-    await say(a.id, s.id, "It was never about the corkscrew.");
-    await read(a.id, s.id);
+    await play(a.id, s.id, BEATS - 2, 2);
     const complete = await page();
     expect(complete).toContain('data-step-in-story="complete"');
     expect(complete).toContain("data-step-in-ending");
@@ -424,8 +439,7 @@ describe("the routes and the page", () => {
     expect(fresh).not.toContain("data-step-in-card-played");
     expect(fresh).not.toContain("data-step-in-shelf-played");
     const s = await start(a.id);
-    await say(a.id, s.id, "It was never about the corkscrew.");
-    await read(a.id, s.id);
+    await play(a.id, s.id, BEATS);
     expect(await playedRoleplays(t.db, a.id)).toEqual({ neighbours: 1 });
     const after = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO }) }));
     expect(after).toContain("You&#x27;ve played 1 of them to the end.");

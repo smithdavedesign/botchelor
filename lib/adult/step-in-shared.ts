@@ -168,8 +168,17 @@ export const placeInSentence = (label: string): string => (label ? label.charAt(
 /** `house`: one of the show's own cast (set where the set-up's picker groups them, lib/adult/step-in.ts stepInCast). */
 export type StepInCharacter = { id: string; name: string; portrait: string | null; hue: number | null; house?: boolean };
 
+/**
+ * The place a scene is started at when it's started where its roleplay's own story is set (lib/adult/roleplays.ts
+ * `at`): what the set-up sends as its place, and the id such a place carries. Only with a roleplay that has one.
+ */
+export const STORY_PLACE = "story";
+
+/** A roleplay's own place as a page shows it before a scene exists: its name, and whether it's out in public. */
+export type StoryPlace = { title: string; public: boolean };
+
 export type StepInPlace = {
-  /** The catalog's id (lib/adult/scene-catalog.ts); empty for a place the catalog no longer has. */
+  /** The catalog's id (lib/adult/scene-catalog.ts); STORY_PLACE for a roleplay's own place; empty for a place the catalog no longer has. */
   id: string;
   title: string;
   /** The place as the scene keeps it and the prompt says it. */
