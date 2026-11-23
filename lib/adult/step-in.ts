@@ -800,9 +800,10 @@ export const openingsFor = (rp: Roleplay | null): readonly [string, string, stri
  * self-harm check, the lines that never move and the roleplay theme check (lib/scene-cards.ts adultCardTextIssue: one
  * sentence of story, nothing explicit) before anything exists: refused, no scene is made and nothing is kept. Then the
  * AI notice goes in and the character opens, one scene step. If no model answers, the scene is there without its
- * opening (`replied: false`) and Continue draws it.
+ * opening (`replied: false`) and Continue draws it. `defer`: the scene is made without its opening and no model is
+ * asked (quickStepIn: the click lands on the scene at once, and the page has the character open it).
  */
-export async function startStepIn(db: Db, viewer: string, input: StepInStart, now: Date = new Date()): Promise<(StepInSend & { ok: true; id: string }) | StepInFail> {
+export async function startStepIn(db: Db, viewer: string, input: StepInStart, now: Date = new Date(), opts: { defer?: boolean } = {}): Promise<(StepInSend & { ok: true; id: string }) | StepInFail> {
   if (!(await eligibleIds(db, viewer)).has(input.character_id)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
   const character = await characterRef(db, input.character_id);
   if (!character) return NOT_FOUND;
@@ -856,9 +857,51 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
   ]);
   const s = (await ownScene(db, viewer, id))!;
   await putNotice(db, s, character.name, now);
+  if (opts.defer) {
+    const made = await sent(db, s);
+    return made.ok ? { ...made, id } : made;
+  }
   const r = await reply(db, s, [], tick(now, 1), { action: "start", cue: "open" });
   const done = await sent(db, s, r.ok ? {} : { replied: false, message: r.message });
   return done.ok ? { ...done, id } : done;
+}
+
+/* ------------------------------------------------ one click ------------------------------------------------ */
+
+/** Where a scene started in one click begins: the character's own place (private, so nothing is held to a kiss). */
+export const QUICK_PLACE = "venue:home";
+
+/**
+ * The viewer's scenes still running, the latest for each character: what "Step in" on a character picks up
+ * (app/after-dark/characters), so the button can say so and go straight there.
+ */
+export async function runningStepIns(db: Db, viewer: string): Promise<Map<string, string>> {
+  const { rows } = await db.query<{ id: string; character_id: string }>(
+    `select distinct on (character_id) id, character_id from adult_step_in_scenes where owner_id = $1 and ended_at is null order by character_id, last_at desc`,
+    [viewer],
+  );
+  return new Map(rows.map((r) => [r.character_id, r.id]));
+}
+
+export type StepInQuick = { ok: true; id: string; resumed: boolean } | StepInFail;
+
+/**
+ * Step in with someone in one click (David, 2026-11-22: "one click step in, but still allow for role play", as the
+ * show's Characters page texts someone in one): the scene the viewer has running with that character, or a new one
+ * with nothing to choose first: at the character's own place, no roleplay, any of the three openings. The new scene is
+ * made without its opening, so nothing waits on a model and the click lands on the scene at once; its page has the
+ * character open it (continueStepIn: one scene step, as an opening always is). The set-up page is still there for a
+ * place, a roleplay or a written opening, and a scene can move somewhere else once it's running.
+ */
+export async function quickStepIn(db: Db, viewer: string, characterId: string, now: Date = new Date()): Promise<StepInQuick> {
+  if (!(await eligibleIds(db, viewer)).has(characterId)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
+  const running = (await db.query<{ id: string }>(`select id from adult_step_in_scenes where owner_id = $1 and character_id = $2 and ended_at is null order by last_at desc limit 1`, [viewer, characterId])).rows[0];
+  if (running) return { ok: true, id: running.id, resumed: true };
+  const places = stepInPlaces(await drawnSets(db));
+  const place = places.find((p) => p.id === QUICK_PLACE) ?? places.find((p) => !p.public) ?? places[0];
+  if (!place) return fail(409, "no_place", "There's nowhere to be yet. Set the scene instead.");
+  const made = await startStepIn(db, viewer, { character_id: characterId, place: place.id, opening: "surprise" }, now, { defer: true });
+  return made.ok ? { ok: true, id: made.id, resumed: false } : made;
 }
 
 /** Why a written opening isn't one, in words for the person who wrote it, or null (after the lines that never move). */

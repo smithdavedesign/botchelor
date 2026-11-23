@@ -11,11 +11,13 @@ import { canAfterDark } from "@/lib/adult/entitlement";
 import { adultAvailable } from "@/lib/adult/mode";
 import { whoseCounts, whoseFilters, type Whose } from "@/lib/adult/pair-pick";
 import { lockedForCookies } from "@/lib/adult/privacy";
+import { runningStepIns, stepInOpen } from "@/lib/adult/step-in";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { pageOf } from "@/lib/paging";
 import { tagById, type TagId } from "@/lib/tags";
 import LockedPreview from "../LockedPreview";
+import StepInButton from "../step-in/StepInButton";
 import { currentHere, currentView } from "../view";
 
 export const dynamic = "force-dynamic";
@@ -33,22 +35,27 @@ const EAGER_CARDS = 4;
 
 const WHOSE_LABEL: Record<Whose, string> = { all: "Everyone", house: "House cast", mine: "Yours" };
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+const first = (n: string) => n.trim().split(/\s+/)[0] || n;
 
 /**
  * One of them, as a card (joi.com's character grid, docs/audits/2026-11-20-joi-teardown.md): their face, large; their
- * name; what kind of person (their type tags); a line of bio; and the viewer's nights and pictures with them. The whole
- * card is one link to their page. The face is the one After Dark keeps for this viewer where there is one (its own file,
+ * name; what kind of person (their type tags); a line of bio; and the viewer's nights and pictures with them. The card
+ * is one link to their page. The face is the one After Dark keeps for this viewer where there is one (its own file,
  * under the privacy blur while that's on: a plain picture, so it keeps the card's corners, not a portrait's circle),
  * else the show's PG portrait (.avatar: never blurred).
+ *
+ * Under it, where Step in is open to the viewer (`stepIn`): one button that puts them in a scene with this character at
+ * once (app/after-dark/step-in/StepInButton.tsx; "Continue" when they have one running), as the show's Characters page
+ * has "Text {name}" on every card, and a quiet link to the set-up page for a place, a roleplay or a written opening.
  */
-function CharacterCard({ c, eager }: { c: AdCharacterCard; eager: boolean }) {
+function CharacterCard({ c, eager, stepIn }: { c: AdCharacterCard; eager: boolean; stepIn: { scene: string | null } | null }) {
   const tags = c.tags
     .slice(0, 2)
     .map((t) => tagById(t))
     .filter((t) => t !== undefined);
   const facts = [c.nights ? plural(c.nights, "night") : "", c.pictures ? plural(c.pictures, "picture") : ""].filter(Boolean).join(" · ");
   return (
-    <li className="ad-char-card" data-character={c.id}>
+    <li className={`ad-char-card${stepIn ? " has-ways" : ""}`} data-character={c.id}>
       <Link href={`/after-dark/characters/${encodeURIComponent(c.id)}`} className="ad-char-link">
         <span className="ad-char-art">
           {c.photo ? (
@@ -66,6 +73,14 @@ function CharacterCard({ c, eager }: { c: AdCharacterCard; eager: boolean }) {
           {facts && <span className="ad-char-facts">{facts}</span>}
         </span>
       </Link>
+      {stepIn && (
+        <div className="ad-char-step" data-character-step-in>
+          <StepInButton characterId={c.id} name={first(c.name)} sceneId={stepIn.scene} className="button small" label="Step in" resumeLabel="Continue" />
+          <Link className="ad-char-setup" href={`/after-dark/step-in?with=${encodeURIComponent(c.id)}`} aria-label={`Set a scene or a roleplay with ${first(c.name)}`}>
+            Roleplay or place
+          </Link>
+        </div>
+      )}
     </li>
   );
 }
@@ -89,7 +104,9 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
   if (!(await adultAvailable(db)) && !admin) notFound();
   const viewer = auth!.userId;
   const f = parseCharacterFilter(sp);
-  const [cast, here] = await Promise.all([adCast(db, viewer), currentHere()]);
+  const [cast, here, stepIn] = await Promise.all([adCast(db, viewer), currentHere(), stepInOpen(db, viewer)]);
+  // Where Step in is open to them: who they already have a scene running with, so that card says Continue.
+  const running = stepIn ? await runningStepIns(db, viewer) : null;
   const counts = whoseCounts(cast);
   const filters = whoseFilters(counts);
   // A filter that doesn't split this cast (or an old link's) reads as Everyone.
@@ -110,7 +127,7 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
         <h1>Characters</h1>
         <p className="muted ad-chars-lede">
           Everyone you can have a night with: this season&apos;s cast, the agent cast, and any of your own you&apos;ve added. Each has a page with your nights together and
-          what&apos;s been made of them.
+          what&apos;s been made of them.{stepIn ? " Step in puts you in a scene with them in one click." : ""}
         </p>
         {cast.length > 0 && (
           <div className="ad-chars-find" data-ad-characters-find>
@@ -163,7 +180,7 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
         {cards.length > 0 ? (
           <ul className="ad-chars-grid" data-ad-characters>
             {cards.map((c, i) => (
-              <CharacterCard key={c.id} c={c} eager={i < EAGER_CARDS} />
+              <CharacterCard key={c.id} c={c} eager={i < EAGER_CARDS} stepIn={running ? { scene: running.get(c.id) ?? null } : null} />
             ))}
           </ul>
         ) : cast.length > 0 ? (
