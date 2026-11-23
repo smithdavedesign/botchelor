@@ -3810,6 +3810,12 @@ fieldset.ad-si-step {
 .ad-si-head h1 {
   margin-bottom: var(--space-1);
 }
+.after-dark .ad-si-go-private {
+  margin: var(--space-2) 0;
+}
+.ad-si-go-private > button {
+  margin: 0;
+}
 /* How well the two know each other (app/after-dark/step-in/[id]/StepInBond.tsx): a quiet fold beside the place, its
    name and a thin bar toward the next level; what it's made of opens under it. Never a banner. */
 .ad-si-bond {

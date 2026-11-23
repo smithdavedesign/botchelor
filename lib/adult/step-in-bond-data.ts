@@ -34,12 +34,23 @@ const of = (cte: string, expr: string) => `coalesce((select ${expr} from ${cte} 
  * (lib/adult/step-in-bond.ts BOND_WORTH), and what's kept for the pair. A scene counts on the day of its first line; a
  * story on the day its last beat played; a spoken reply on a call is kind 'call'; a picture is one kept for a scene.
  */
+/**
+ * The hour (UTC) an evening's day turns over. Not midnight UTC: that falls at 7pm in New York and 4pm in Los Angeles,
+ * so an evening there straddled two UTC days and counted twice (the builder's own note on this, 2026-11-23). At 10:00
+ * UTC it's 5am in New York, 2am in Los Angeles, 10am in London and 11am in Berlin: an evening anywhere in the Americas
+ * or Europe is one day. (An evening in east Asia still straddles it; a person's own zone would settle that, and isn't
+ * kept unless they've asked for notes.)
+ */
+export const BOND_DAY_TURNS_AT_UTC_HOUR = 10;
+/** The day an evening belongs to, in SQL, from a timestamptz column. */
+const evening = (column: string) => `((${column} at time zone 'utc') - interval '${BOND_DAY_TURNS_AT_UTC_HOUR} hours')::date`;
+
 const BONDS_SQL = `
 with sc as (
   select id, character_id, story_done_at from adult_step_in_scenes where owner_id = $1 and ($2::text is null or character_id = $2)
 ),
 vl as (
-  select sc.character_id, (m.created_at at time zone 'utc')::date as day, count(*)::int as n
+  select sc.character_id, ${evening("m.created_at")} as day, count(*)::int as n
     from adult_step_in_messages m join sc on sc.id = m.scene_id
    where m.role = 'viewer'
    group by 1, 2
@@ -47,7 +58,7 @@ vl as (
 fs as (
   select character_id, day, count(*)::int as n
     from (
-      select sc.character_id, sc.id, min((m.created_at at time zone 'utc')::date) as day
+      select sc.character_id, sc.id, min(${evening("m.created_at")}) as day
         from adult_step_in_messages m join sc on sc.id = m.scene_id
        where m.role = 'viewer'
        group by 1, 2
@@ -55,16 +66,16 @@ fs as (
    group by 1, 2
 ),
 st as (
-  select character_id, (story_done_at at time zone 'utc')::date as day, count(*)::int as n from sc where story_done_at is not null group by 1, 2
+  select character_id, ${evening("story_done_at")} as day, count(*)::int as n from sc where story_done_at is not null group by 1, 2
 ),
 ca as (
-  select sc.character_id, (m.created_at at time zone 'utc')::date as day, count(*)::int as n
+  select sc.character_id, ${evening("m.created_at")} as day, count(*)::int as n
     from adult_step_in_messages m join sc on sc.id = m.scene_id
    where m.role = 'character' and m.kind = 'call'
    group by 1, 2
 ),
 pi as (
-  select sc.character_id, (i.created_at at time zone 'utc')::date as day, count(*)::int as n
+  select sc.character_id, ${evening("i.created_at")} as day, count(*)::int as n
     from adult_images i join sc on sc.id = i.step_in_scene
    where i.owner_id = $1 and i.status = 'ready' and i.kind = 'scene'
    group by 1, 2
