@@ -1646,7 +1646,7 @@ describe("out in public", () => {
 // David, 2026-11-23: "A cover picture per card, the character dressed for the role." Twelve roleplays have one
 // (lib/adult/roleplay-covers.ts): the card opens on the one in the picture, on the side the picture implies.
 describe("a card's cover picture", () => {
-  it("leads tonight's shelf: the first four cards have their picture, are cast with the one in it, and start on the side it shows", async () => {
+  it("leads tonight's shelf: the first six cards have their picture, are cast with the one in it, and start on the side it shows", async () => {
     scripted();
     await saveAdultSettings(t.db, {});
     // Everyone who's on a cover is in this season's cast here.
@@ -1656,8 +1656,8 @@ describe("a card's cover picture", () => {
     const page = (await html(await StepInSetupPage())).replace(/<!-- -->/g, "");
     const cards = [...page.matchAll(/<li class="card ad-si-shelf-card( has-cover)?" data-step-in-card="([^"]+)" data-step-in-card-with="([^"]+)" data-step-in-card-you="([01])">(<img[^>]*>)?/g)].map((m) => ({ cover: Boolean(m[1]), id: m[2], with: m[3], you: Number(m[4]), img: m[5] ?? "" }));
     expect(cards).toHaveLength(SHELF_TONIGHT);
-    expect(cards.map((c) => c.cover)).toEqual([true, true, true, true, false, false, false, false]);
-    for (const c of cards.slice(0, 4)) {
+    expect(cards.map((c) => c.cover)).toEqual([true, true, true, true, true, true, false, false]);
+    for (const c of cards.slice(0, 6)) {
       const cover = ROLEPLAY_COVERS[c.id];
       expect(cover, c.id).toBeTruthy();
       expect({ with: c.with, you: c.you }, c.id).toEqual({ with: cover.character, you: cover.you });
@@ -1667,9 +1667,9 @@ describe("a card's cover picture", () => {
       expect(c.img, c.id).toMatch(/alt="[^"]{30,}"/);
     }
     // The side it shows carries to the one-click start's set-up link.
-    for (const c of cards.slice(0, 4)) expect(page.includes(`with=${c.with}&amp;roleplay=${c.id}&amp;you=1#ad-si-set`), c.id).toBe(c.you === 1);
+    for (const c of cards.slice(0, 6)) expect(page.includes(`with=${c.with}&amp;roleplay=${c.id}&amp;you=1#ad-si-set`), c.id).toBe(c.you === 1);
     // The cards with no picture are told from the first side, as before.
-    expect(cards.slice(4).every((c) => c.you === 0 && !ROLEPLAY_COVERS[c.id])).toBe(true);
+    expect(cards.slice(6).every((c) => c.you === 0 && !ROLEPLAY_COVERS[c.id])).toBe(true);
   });
 
   it("is only shown with the one in it: a page opened for someone else has none, and its set-up starts on the side asked for", async () => {
