@@ -18,7 +18,7 @@ type Group = { id: string; title: string; layer: string; intro: string; items: I
  * for the site"). Facts come from the code and the hosting docs (docs/hosting.md, docs/after-dark-hosting.md,
  * lib/model.ts, lib/connections-shared.ts; 2026-11-10: Didit, Deepgram, Kokoro, speech-to-video; 2026-11-13: faces that move on
  * calls, lib/face-kit.ts; 2026-11-14: lip-synced clips from our own renderer on Runpod, lib/live-face, and the renderer
- * compare); update this page when one of them changes. No keys, plans or limits here.
+ * compare; 2026-11-23: the marketing loop and the free tools); update this page when one of them changes. No keys, plans or limits here.
  *
  * Drawn as the system it is (the 2026-11-13 lift): one layer a card, top to bottom from the person to the metal. The
  * services you and your agent touch come first, then the app they reach, the models that write for it, the checks
@@ -68,6 +68,7 @@ const GROUPS: Group[] = [
       { name: "PGlite", what: "A real Postgres in memory for the test suite and local development.", href: "https://pglite.dev" },
       { name: "Vitest", what: "About 5,000 tests that run before every change ships.", href: "https://vitest.dev" },
       { name: "Playwright", what: "Real-browser checks and the screenshots in the README.", href: "https://playwright.dev" },
+      { name: "The free tools", what: "Ship names, random ships, a compatibility test, and OC and place name generators: built from hand-written lists, with no model behind them.", href: "/tools" },
     ],
   },
   {
@@ -150,7 +151,16 @@ const GROUPS: Group[] = [
     layer: "Who builds it",
     intro: "One person and a team of AI agents.",
     items: [
-      { name: "Claude Code", what: "Writes, tests and ships the code: every change is a pull request that merges once its checks pass.", href: "https://claude.com/claude-code" },
+      {
+        name: "Claude Code",
+        what: "Writes, tests and ships the code. Several agents work at once, each on its own copy of the code; every change is a pull request that merges only once all its checks pass: types, four shards of tests, a build and real-browser tests.",
+        href: "https://claude.com/claude-code",
+      },
+      {
+        name: "The marketing loop",
+        what: "Drafts posts from a checked list of facts and posts the day's clip and dates to X, Bluesky, Threads, YouTube Shorts and Instagram. Where a community wants a person, on Reddit and Hacker News, the founder posts by hand. Every post is logged in the open.",
+        href: "/marketing",
+      },
       { name: "AI visitors", what: "Agents visit the live show, rate it and file what they find, so problems turn into issues before people hit them." },
       { name: "Local models", what: "Ollama runs the background crowd in test runs, at no cost.", href: "https://ollama.com" },
     ],
