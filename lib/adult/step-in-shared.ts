@@ -5,6 +5,7 @@
 import { echoOf } from "../companion-live-shared";
 import { storySpeech } from "../story-reply";
 import type { PairLimits } from "./limits";
+import type { StepInStory } from "./step-in-story";
 
 /** The viewer's line, at most this long (the PG companion's message is the same). */
 export const STEP_IN_LINE_MAX = 1000;
@@ -227,6 +228,8 @@ export type StepInSceneView = {
   steps_left: number | null;
   /** The viewer's memory switch (off until they agree), and how many things this character remembers about them. */
   memory: { on: boolean; facts: number };
+  /** The roleplay's story (lib/adult/step-in-story.ts): its goal, how far it has got, whether an ending is offered. Null without one. */
+  story: StepInStory | null;
   started_at: string;
 };
 
