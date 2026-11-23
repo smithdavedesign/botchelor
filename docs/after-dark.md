@@ -3898,7 +3898,11 @@ ran until the viewer tired of it, with nothing to play for and nothing that ever
   shown the card's beats (the viewer as "the person") and the scene's last stretch, answering which beats have
   happened on the page. At most one reading a reply; free and never counted, like the ideas; none before the viewer
   has written a line, in a scene that isn't running, or once every beat has played. Beats are only ever ticked
-  (`mergeBeats`: a later reading can't untick one). The viewer sees how many have played, never the beats themselves:
+  (`mergeBeats`: a later reading can't untick one), **one at most a reading**, the earliest the reader names, and the
+  reader is told to be strict (a beat counts only when it could point to the lines where it happened). So a story
+  takes at least as many of the viewer's lines as it has beats: on the first live check the reader had named all four
+  beats of "The neighbour next door" after two exchanges, the last of them generously, and the ending was offered
+  before the scene had been a story. The viewer sees how many have played, never the beats themselves:
   they'd give the story away. **The writer's own prompt and reply are unchanged.**
 - **The ending:** once the last beat has played, a card above the composer offers **Bring it to a close**: one last
   reply from the character that lands the story (`closeStepIn`, `CLOSE_CUE`: "Don't start anything new, don't ask them
