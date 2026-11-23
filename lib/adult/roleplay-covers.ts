@@ -11,8 +11,10 @@
  * How they were made (~/.claude/botchelor-bin/covers/cover.py, 2026-11-23): one image edit each on Replicate's
  * qwen/qwen-image-edit-2511, the app's own edit model, from the character's PG house portrait, with what the role
  * wears (the roleplay's own `costumes`) and the place in the prompt. PG: fully clothed, Replicate's own safety checker
- * left on, each one looked at before it was kept. Thirteen edits in all, about 40 cents. They're the show's own
- * pictures (public/cast, AI-marked by scripts/stamp-ai-marks.mjs), so After Dark's discreet blur leaves them alone.
+ * left on, each one looked at before it was kept. Fifteen edits in all, about 45 cents: a first try, and two redone
+ * because their faces (Vesper and Odalys, the two premium house characters) aren't in After Dark's cast, so their
+ * cards could never have shown them. Everyone on a cover is in HOUSE_CHARACTERS, the cast After Dark can have. They're
+ * the show's own pictures (public/cast, AI-marked by scripts/stamp-ai-marks.mjs), so discreet blur leaves them alone.
  * Client-safe: no imports.
  */
 export type RoleplayCover = {
@@ -31,9 +33,9 @@ export const ROLEPLAY_COVERS: Readonly<Record<string, RoleplayCover>> = {
   "strangers-bar": { character: "house-sable", you: 0, src: "/cast/roleplay-strangers-bar-sable.webp", alt: "Sable on a bar stool in a quiet bar, turned toward you, an empty glass at her elbow" },
   roommates: { character: "house-teo", you: 0, src: "/cast/roleplay-roommates-teo.webp", alt: "Teo leaning on the kitchen counter at midnight with a glass of water, the fridge open behind him" },
   bodyguard: { character: "house-imogen", you: 0, src: "/cast/roleplay-bodyguard-imogen.webp", alt: "Imogen in an evening dress on a sofa in a lamplit sitting room, one hand held out to the empty armchair" },
-  vampire: { character: "house-vesper", you: 1, src: "/cast/roleplay-vampire-vesper.webp", alt: "Vesper in dark velvet waiting on a doorstep at midnight, mist and a lantern behind him" },
+  vampire: { character: "house-rafe", you: 1, src: "/cast/roleplay-vampire-rafe.webp", alt: "Rafe in dark velvet and a high collar waiting on a doorstep at midnight, mist behind him" },
   royal: { character: "house-perpetua", you: 1, src: "/cast/roleplay-royal-perpetua.webp", alt: "Perpetua in a gold-embroidered gown and a circlet at the open door of the royal chamber, candles along the corridor" },
-  starship: { character: "house-odalys", you: 1, src: "/cast/roleplay-starship-odalys.webp", alt: "Odalys in a captain's uniform by the observation lounge's great window, a nebula behind her" },
+  starship: { character: "house-nell", you: 1, src: "/cast/roleplay-starship-nell.webp", alt: "Nell in a captain's uniform by the observation lounge's great window, a galaxy behind her" },
   exes: { character: "house-boaz", you: 0, src: "/cast/roleplay-exes-boaz.webp", alt: "Boaz laughing at the quiet end of a gallery opening, a glass of wine in his hand" },
   rivals: { character: "house-kaz", you: 0, src: "/cast/roleplay-rivals-kaz.webp", alt: "Kaz in black tie at an awards dinner, one eyebrow raised, a place card between two fingers" },
   wedding: { character: "house-lior", you: 0, src: "/cast/roleplay-wedding-lior.webp", alt: "Lior leaning in at the singles' table of a wedding with a grin and a glass, fairy lights overhead" },

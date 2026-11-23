@@ -1650,15 +1650,16 @@ describe("a card's cover picture", () => {
   it("is only shown with the one in it: a page opened for someone else has none, and its set-up starts on the side asked for", async () => {
     scripted();
     await saveAdultSettings(t.db, {});
-    setSeasonCastForTests([WHO, "house-vesper"]);
+    // Marisol is on no cover; Rafe (WHO) is on the vampire's.
+    setSeasonCastForTests([WHO, "house-marisol"]);
     const a = await admin();
     signIn(a.id);
-    const theirs = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO }) }))).replace(/<!-- -->/g, "");
+    const theirs = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: "house-marisol" }) }))).replace(/<!-- -->/g, "");
     expect(theirs).not.toContain("data-step-in-card-cover");
     expect([...theirs.matchAll(/data-step-in-card-you="([01])"/g)].every((m) => m[1] === "0")).toBe(true);
-    // "Set it up" on the vampire's cover: Vesper, the vampire's invitation, the viewer as the guest.
-    const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: "house-vesper", roleplay: "vampire", you: "1" }) }))).replace(/<!-- -->/g, "");
-    expect(setUp).toContain('data-step-in-who="house-vesper"');
+    // "Set it up" on the vampire's cover: Rafe, the vampire's invitation, the viewer as the guest.
+    const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: "vampire", you: "1" }) }))).replace(/<!-- -->/g, "");
+    expect(setUp).toContain(`data-step-in-who="${WHO}"`);
     expect(setUp).toMatch(/<option value="vampire" selected="">/);
     const sides = [...setUp.matchAll(/<input type="radio" name="ad-si-you"( checked="")?\/>/g)].map((m) => Boolean(m[1]));
     expect(sides).toEqual([false, true]);
