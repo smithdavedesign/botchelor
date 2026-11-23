@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { pageMetadata } from "@/lib/seo";
-import { BackToContents, CONTACT_HEADING, Contact, LastChanged, OnThisPageGrouped, PolicyLinks, PRIVACY_HEADINGS, PrivacyInShort, PrivacySections, TERMS_HEADINGS, TermsInShort, TermsSections } from "./sections";
+import { BackToContents, CONTACT_HEADING, Contact, LastChanged, OnThisPageGrouped, PolicyLinks, PRIVACY_HEADINGS, PrivacyInShort, PrivacySections, SectionEnd, TERMS_HEADINGS, TermsInShort, TermsSections } from "./sections";
 
 // The same words as /terms and /privacy, which search lists: this one stays out of search, its links followed (2026-11-22
 // audit). Not a canonical to /terms, which holds only half of it.
@@ -37,6 +37,7 @@ export default function LegalPage() {
       <TermsSections />
       <PrivacySections />
       <Contact />
+      <SectionEnd />
       <PolicyLinks />
       <BackToContents />
     </article>

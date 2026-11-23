@@ -202,6 +202,15 @@ describe("the company pages", () => {
     expect(security).toContain("link at the foot of every page");
   });
 
+  // On a phone the privacy row's "Email us about it" was an 18px-tall target inside the box of the two-line link before it.
+  it("/contact's \"Email us about it\" is a whole target at least 24px tall, beside the route or under it", () => {
+    vi.stubEnv("CONTACT_EMAIL", SUPPORT);
+    expect(render(ContactPage)).toMatch(/<li id="privacy"><strong>[^<]+<\/strong><span><a href="\/account#delete-account">[^<]+<\/a> <a href="mailto:[^"]+" class="muted">Email us about it<\/a><\/span><\/li>/);
+    const css = readFileSync("app/ux/company.css", "utf8");
+    expect(css).toMatch(/\.contact-routes li > span \{[^}]*display: flex;[^}]*flex-wrap: wrap;/);
+    expect(css).toMatch(/\.contact-routes li > span > a\.muted \{[^}]*min-height: 24px;[^}]*white-space: nowrap;/);
+  });
+
   // "00:00 UTC" read as a programmer's clock (2026-11-22 audit): /pricing sends it, then the browser shows the viewer's own
   // day and time (app/WeeklyTime.tsx); /faq's answer, plain text for search too, says it in words.
   it("says when free dates come back in the viewer's clock on /pricing, and in words on /faq", () => {

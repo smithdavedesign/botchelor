@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
 import Link from "next/link";
 import { AFTER_DARK_ABOUT } from "@/lib/after-dark-public";
 import { formatPrice, PACK_15, PACK_5 } from "@/lib/catalog";
@@ -150,9 +150,9 @@ export function LastChanged({ children }: { children?: ReactNode }) {
 
 /**
  * Back to the contents from anywhere in a long policy: it rides at the foot of the screen while the page is read. It
- * sat in the text column and hid a line (2026-11-22 audit), so it now rides beside the text: in the left margin on a
- * wide screen, and as a round button at the right edge where there's no margin, its word kept for screen readers
- * (app/ux/agents-footer.css).
+ * sat in the text column and hid a line (2026-11-22 audit), so it now rides beside the text, in the left margin, its
+ * word kept for screen readers where it's a round button (app/ux/agents-footer.css). Below 800px there's no margin, and
+ * its circle at the column's edge still covered the ends of two or three lines, so there it gives way to SectionEnd.
  */
 export function BackToContents() {
   return (
@@ -160,6 +160,32 @@ export function BackToContents() {
       <span aria-hidden="true">↑</span> <span className="legal-top-word">Contents</span>
     </a>
   );
+}
+
+/** "↑ Contents" at the end of a section, in the text's own flow: what a screen narrower than 800px gets instead. */
+export function SectionEnd() {
+  return (
+    <p className="legal-back">
+      <a href="#contents">
+        <span aria-hidden="true">↑</span> Contents
+      </a>
+    </p>
+  );
+}
+
+/** Ends each section of a policy with SectionEnd: before every heading but the first, and after the last section. */
+function endingEachSection(sections: ReactElement<{ children?: ReactNode }>) {
+  const out: ReactNode[] = [];
+  let headings = 0;
+  for (const child of Children.toArray(sections.props.children)) {
+    if (isValidElement(child) && child.type === "h2") {
+      if (headings > 0) out.push(<SectionEnd key={`end-${headings}`} />);
+      headings++;
+    }
+    out.push(child);
+  }
+  out.push(<SectionEnd key="end" />);
+  return <>{out}</>;
 }
 
 /**
@@ -257,7 +283,7 @@ export function PolicyLinks({ current }: { current?: string }) {
 }
 
 export function TermsSections() {
-  return (
+  return endingEachSection(
     <>
       <p>
         These terms are an agreement between you and {OPERATOR_FULL} (&ldquo;{TRADING_AS}&rdquo;, &ldquo;we&rdquo;,
@@ -685,7 +711,7 @@ export function TermsSections() {
         </li>
         <li>We aren&apos;t responsible for delays or failures caused by things outside our reasonable control.</li>
       </ul>
-    </>
+    </>,
   );
 }
 
@@ -693,7 +719,7 @@ export function PrivacySections() {
   // One message of a companion conversation can be deleted on its own (lib/companion-message-delete.ts) unless the
   // switch is off: the notice says what the code does either way (tests/call-honesty.test.ts pins both).
   const oneMessage = companionMessageDelete();
-  return (
+  return endingEachSection(
     <>
       <h2 id="who-is-responsible">Who is responsible</h2>
       <p>
@@ -1203,7 +1229,7 @@ export function PrivacySections() {
         When this notice changes, the date at the top changes, with a line saying what changed. For a change that matters,
         we&apos;ll say so on the site first, and ask again where we need your consent.
       </p>
-    </>
+    </>,
   );
 }
 

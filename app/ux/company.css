@@ -92,6 +92,21 @@
 .contact-routes strong {
   color: var(--ink);
 }
+/* Where to go, and "Email us about it" beside it where a route takes email: a row that wraps, the link kept whole and at
+   least 24px tall (WCAG 2.5.8). Inline it was 18px tall, and on a phone it sat inside the box of the two-line link
+   before it (2026-11-22 audit); it now goes under that link when the two don't fit on one line. */
+.contact-routes li > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.contact-routes li > span > a.muted {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  white-space: nowrap;
+}
 
 /* /faq: one question a row that opens. */
 .faq-list {
