@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.50.0",
+    date: "2026-11-23",
+    title: "place_names: the place name generator",
+    changes: [
+      "place_names, outside the core list like the other free OC tools: twelve places in a style (fantasy, modern, scifi, gothic, cozy, or a mix) and kind (town, wild, realm, venue, or any), the /tools/place-name-generator page's own code with no model and nothing stored. Each place says what it is; a town or realm carries create_character's extras.hometown ready and the builder's link with it in.",
+    ],
+    added_tools: ["place_names"],
+  },
+  {
     version: "2.49.0",
     date: "2026-11-23",
     title: "A reply that leads with heads_up says its own result follows",

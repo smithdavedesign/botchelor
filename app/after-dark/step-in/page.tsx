@@ -8,6 +8,8 @@ import { isAdmin } from "@/lib/admins";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, type StepInSceneRef } from "@/lib/adult/step-in";
+import type { BondMark } from "@/lib/adult/step-in-bond";
+import { bondMarks } from "@/lib/adult/step-in-bond-data";
 import { getDb } from "@/lib/db";
 import { showHome } from "@/lib/site";
 import LocalTime from "../LocalTime";
@@ -33,7 +35,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const db = await getDb();
   const viewer = await stepInViewerFromCookies(db, await cookies());
   if (!viewer) notFound();
-  const [cast, drawn, who, scenes, admin, settings, sp, played] = await Promise.all([
+  const [cast, drawn, who, scenes, admin, settings, sp, played, bonds] = await Promise.all([
     stepInCast(db, viewer),
     drawnSets(db),
     stepInPersona(db, viewer),
@@ -43,6 +45,10 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
     searchParams,
     // Which roleplays they've played to the end (lib/adult/step-in-story.ts): said on the shelf's cards.
     playedRoleplays(db, viewer).catch(() => ({}) as Record<string, number>),
+    // How well they know each of them (lib/adult/step-in-bond.ts): one statement for every card's mark.
+    bondMarks(db, viewer)
+      .then((m) => Object.fromEntries(m))
+      .catch(() => ({}) as Record<string, BondMark>),
   ]);
   // The persona is the show's to edit (app/account/PersonaCard.tsx): one for every scene, on either side.
   const personaHref = `${showHome().replace(/\/$/, "")}/account#persona`;
@@ -77,7 +83,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
           </section>
         )}
         {/* The roleplays, each cast and ready (UTC's day, so this page and the browser agree on who's on each card). */}
-        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} played={played} />}
+        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} played={played} bonds={bonds} />}
         <h2 id="ad-si-set">{cast.length ? "Or set the scene yourself" : "Set the scene"}</h2>
         {cast.length ? (
           // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.

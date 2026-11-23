@@ -12,12 +12,15 @@ import { adultAvailable } from "@/lib/adult/mode";
 import { whoseCounts, whoseFilters, type Whose } from "@/lib/adult/pair-pick";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { runningStepIns, stepInOpen } from "@/lib/adult/step-in";
+import type { BondMark } from "@/lib/adult/step-in-bond";
+import { bondMarks } from "@/lib/adult/step-in-bond-data";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { pageOf } from "@/lib/paging";
 import { tagById, type TagId } from "@/lib/tags";
 import LockedPreview from "../LockedPreview";
 import StepInButton from "../step-in/StepInButton";
+import { BondMarkTag } from "../step-in/[id]/StepInBond";
 import { currentHere, currentView } from "../view";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +51,7 @@ const first = (n: string) => n.trim().split(/\s+/)[0] || n;
  * once (app/after-dark/step-in/StepInButton.tsx; "Continue" when they have one running), as the show's Characters page
  * has "Text {name}" on every card, and a quiet link to the set-up page for a place, a roleplay or a written opening.
  */
-function CharacterCard({ c, eager, stepIn }: { c: AdCharacterCard; eager: boolean; stepIn: { scene: string | null } | null }) {
+function CharacterCard({ c, eager, stepIn, bond = null }: { c: AdCharacterCard; eager: boolean; stepIn: { scene: string | null } | null; bond?: BondMark | null }) {
   const tags = c.tags
     .slice(0, 2)
     .map((t) => tagById(t))
@@ -71,6 +74,8 @@ function CharacterCard({ c, eager, stepIn }: { c: AdCharacterCard; eager: boolea
           {tags.length > 0 && <span className="ad-char-tags">{tags.map((t) => `${t.icon} ${t.label}`).join(" · ")}</span>}
           {c.bio && <span className="ad-char-bio">{c.bio}</span>}
           {facts && <span className="ad-char-facts">{facts}</span>}
+          {/* How well they know each other (lib/adult/step-in-bond.ts): only for someone they've stepped in with. */}
+          <BondMarkTag mark={bond} className="ad-char-bond" />
         </span>
       </Link>
       {stepIn && (
@@ -105,8 +110,11 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
   const viewer = auth!.userId;
   const f = parseCharacterFilter(sp);
   const [cast, here, stepIn] = await Promise.all([adCast(db, viewer), currentHere(), stepInOpen(db, viewer)]);
+  // How well they know each of them (lib/adult/step-in-bond-data.ts): one statement for every card, asked beside the next read.
+  const bondsDue = stepIn ? bondMarks(db, viewer).catch(() => null) : null;
   // Where Step in is open to them: who they already have a scene running with, so that card says Continue.
   const running = stepIn ? await runningStepIns(db, viewer) : null;
+  const bonds = await bondsDue;
   const counts = whoseCounts(cast);
   const filters = whoseFilters(counts);
   // A filter that doesn't split this cast (or an old link's) reads as Everyone.
@@ -180,7 +188,7 @@ export default async function AfterDarkCharactersPage({ searchParams }: Props = 
         {cards.length > 0 ? (
           <ul className="ad-chars-grid" data-ad-characters>
             {cards.map((c, i) => (
-              <CharacterCard key={c.id} c={c} eager={i < EAGER_CARDS} stepIn={running ? { scene: running.get(c.id) ?? null } : null} />
+              <CharacterCard key={c.id} c={c} eager={i < EAGER_CARDS} stepIn={running ? { scene: running.get(c.id) ?? null } : null} bond={bonds?.get(c.id) ?? null} />
             ))}
           </ul>
         ) : cast.length > 0 ? (
