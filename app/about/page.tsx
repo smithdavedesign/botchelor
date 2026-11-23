@@ -40,7 +40,7 @@ const GROUPS: Group[] = [
       { name: "Deepgram", what: "Live voice calls with companions: it hears you as you talk and speaks their replies as they are written, so you can just talk, and cut in.", href: "https://deepgram.com" },
       {
         name: "A face that moves on calls",
-        what: "On a call, a companion's face comes to life in your browser: a short loop of them while they listen, and while they talk their lips say the words. Each clause of a reply comes back as a short clip of their own face rendered on our own GPU worker (MuseTalk, below); where a clip is late the mouth follows the voice's loudness instead, read off the audio as it plays, and the loop carries on between. Everything stays in the round frame; nothing of yours goes to a face vendor.",
+        what: "On a call, a companion's face is alive in your browser: a short loop of them, breathing, blinking and glancing your way, plays the whole call, and a ring around it swells with their voice as they talk. Where lip-sync is switched on, each clause of a reply comes back as a short clip of their own face saying it, rendered on our own GPU worker (MuseTalk and Ditto, below); it's off for most calls, because it only looks right with a GPU kept warm between them. Nothing of yours goes to a face vendor.",
         href: "/companion",
       },
       {
@@ -80,17 +80,17 @@ const GROUPS: Group[] = [
       { name: "Gemini 3.5 Flash and Flash-Lite", what: "The free stand-in writer and the director that plans scenes.", href: "https://ai.google.dev" },
       { name: "Gemini Embedding", what: "Spots characters that are near-copies of each other.", href: "https://ai.google.dev" },
       { name: "FLUX.1 [dev] and [schnell]", what: "Portraits, looks and the date venues' backdrops, on fal.", href: "https://fal.ai" },
-      { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot, and the seven stills of a companion's face for calls: the same portrait with the mouth parted, open or rounded, a blink, a smile, a gasp.", href: "https://replicate.com" },
+      { name: "Qwen-Image and Qwen-Image-Edit", what: "Pictures that keep a character's face from shot to shot, and the portrait a companion's face on a call starts from.", href: "https://replicate.com" },
       { name: "Wan", what: "Turns a still into a short video clip, on fal and Replicate: a companion's living loop for calls, and the showcase's living portraits. Its speech-to-video model moves their lips to a line they say.", href: "https://replicate.com" },
       { name: "Kokoro", what: "Each character's own voice: voice notes, nights and videos. Stock voices only, never a clone of a real person.", href: "https://huggingface.co/hexgrad/Kokoro-82M" },
       {
         name: "MuseTalk",
-        what: "Lip-sync on live calls: an open model (MIT) that paints the mouth onto each frame of a companion's loop as they speak, on a GPU we rent by the second (Runpod, below). Their loop is re-timed to real 25 fps first so the head moves on every frame the mouth does.",
+        what: "Lip-sync on live calls, where it's switched on: an open model (MIT) that paints the mouth onto each frame of a companion's loop as they speak, on a GPU we rent by the second (Runpod, below). Their loop is re-timed to real 25 fps first so the head moves on every frame the mouth does.",
         href: "https://github.com/TMElyralab/MuseTalk",
       },
       {
         name: "Ditto",
-        what: "The renderer behind live calls since 14 November 2026 (admins first), beside MuseTalk on the compare: an open talking-head model (Apache-2.0, Ant Group) that animates the whole head from one portrait, turns, blinks and teeth included, on the same rented GPU and in real time on TensorRT. A reply is one chain of clips, each clause continuing the last one's motion; the idle between replies, a nod and a tilt are its clips too, rendered once per character.",
+        what: "The lip-sync renderer for live calls since 14 November 2026, where lip-sync is switched on, beside MuseTalk on the compare: an open talking-head model (Apache-2.0, Ant Group) that animates the whole head from one portrait, turns, blinks and teeth included, on the same rented GPU and in real time on TensorRT. A reply is one chain of clips, each clause continuing the last one's motion; the idle between replies, a nod and a tilt are its clips too, rendered once per character.",
         href: "https://github.com/antgroup/ditto-talkinghead",
       },
       {

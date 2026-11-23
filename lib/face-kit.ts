@@ -1,17 +1,19 @@
 /**
  * A character's face kit (docs/PRDs/digital-human.md, Tier 0; David 2026-11-13): the still portrait on a companion call
- * replaced by a face that moves with the voice, for nothing a minute. Made once per approved safe portrait:
+ * replaced by a face that's alive, for nothing a minute. Made once per approved safe portrait:
  *
- *  - **The portrait:** them from the collarbones up, mouth closed, looking at the camera (an edit of the approved safe
- *    portrait, lib/adult/presence.ts PORTRAIT_PROMPT's cousin). The base of the rest, and the still the call shows.
- *  - **Six more stills** (FACE_STILLS), each an edit of that portrait with one thing changed: lips parted, mouth open,
- *    lips rounded; eyes closed; a smile; a gasp. The browser flips between them with the voice's loudness
- *    (lib/face-kit-shared.ts mouthFor), blinks, and shows a look when a line laughs or gasps.
- *  - **The talking still** (TALK_STILL): the portrait with the mouth at rest, lips together, not smiling. Never shown;
- *    Ditto animates it on calls (lib/live-face/ditto-clips.ts dittoSource), because from the smiling portrait it talks
- *    through a grin. A kit drawn before it gets just this still on its next call.
- *  - **The loop:** five seconds of them still and natural, from the portrait itself, played while they listen
- *    (Replicate's Wan 2.2 image-to-video at 480p, the showcase's living portraits' model with its safety checker on).
+ *  - **The portrait:** them from the collarbones up, mouth closed, looking at the camera (their approved safe portrait as
+ *    it is when it reads as one, else an edit of it, lib/adult/presence.ts PORTRAIT_PROMPT's cousin). The base of the
+ *    rest, and the still the call shows under the loop.
+ *  - **The loop:** five seconds of them still and natural, from the portrait itself, played the whole call (Replicate's
+ *    Wan 2.2 image-to-video at 480p, the showcase's living portraits' model with its safety checker on).
+ *  - **The talking still** (TALK_STILL), only while Ditto is the renderer that's set (kitParts): the portrait with the
+ *    mouth at rest, lips together, not smiling. Never shown; Ditto animates it on calls
+ *    (lib/live-face/ditto-clips.ts dittoSource), because from the smiling portrait it talks through a grin.
+ *
+ * Until 2026-11-22 a kit also drew six more stills (three mouth shapes, a blink, a smile, a gasp) that the call swapped
+ * with the voice while the loop stopped: the "choppy mouth" (lib/face-kit-shared.ts). They're no longer drawn or shown,
+ * which takes a kit from about 29 cents to 8 at the most; kits that have them keep the rows.
  *
  * Every still goes through the PG check (lib/adult/moderation.ts checkRating: clothing and age) before it's kept, and the
  * loop by three of its frames (start, middle, end), as the showcase's clips are (lib/showcase-loops.ts). Kept in
@@ -19,7 +21,7 @@
  * a character's public face.
  *
  * Who pays: nobody per use. A kit is drawn when an account with the plan (or an admin) starts a call with a character
- * that has none (ensureFaceKit), a few a day at most (FACE_KIT_PER_DAY, about 30¢ each on Replicate), or by an admin
+ * that has none (ensureFaceKit), a few a day at most (FACE_KIT_PER_DAY, about 8¢ each on Replicate), or by an admin
  * (/api/admin/face-kit). A new approved portrait means a new kit; the old one stays until it's made.
  *
  * A character drawn in anime or 2.5D (lib/art-style.ts) gets a kit in that style (styledFace): the same edits, kept in
@@ -39,7 +41,7 @@ import { adultKeys, getAdultSettings } from "./adult/settings";
 import { frameAt, videoDuration } from "./media-tools/ffmpeg";
 import { checkPgPictureText } from "./safety";
 import { resizedWebp } from "./thumbs";
-import { FACE_PARTS, FACE_STILLS, TALK_STILL, type FaceKit, type FacePart, type KitStill } from "./face-kit-shared";
+import { RETIRED_STILLS, TALK_STILL, type FaceKit, type FacePart, type KitStill } from "./face-kit-shared";
 
 export { FACE_PARTS, FACE_STILLS, TALK_STILL, type FaceKit, type FacePart, type FaceStill, type KitStill } from "./face-kit-shared";
 
@@ -51,14 +53,8 @@ export const FACE_PORTRAIT_PROMPT =
   "A close head-and-shoulders portrait from the collarbones up, centred, facing the camera, looking into the lens with a calm, friendly, relaxed expression, " +
   "mouth closed, eyes open, in a simple plain top, fully clothed, soft even light, a plain softly blurred background. Photorealistic. An adult, safe for work.";
 
-/** Each still's edit: the portrait, with one thing changed. */
-export const FACE_PROMPTS: Record<Exclude<KitStill, "portrait">, string> = {
-  mouth_small: `${SAME} Change only their mouth: lips slightly parted, as if in the middle of a soft word, the rest of the face relaxed. Photorealistic. An adult, safe for work.`,
-  mouth_open: `${SAME} Change only their mouth: open as if saying "ah" mid-sentence, teeth just visible, jaw relaxed, eyes unchanged. Photorealistic. An adult, safe for work.`,
-  mouth_round: `${SAME} Change only their mouth: lips rounded into a small "oh", as if mid-word, eyes unchanged. Photorealistic. An adult, safe for work.`,
-  blink: `${SAME} Change only their eyes: both eyes gently closed in a natural blink, the mouth closed and relaxed as before. Photorealistic. An adult, safe for work.`,
-  smile: `${SAME} Change only their expression: a warm, natural smile with the eyes smiling too. Photorealistic. An adult, safe for work.`,
-  surprised: `${SAME} Change only their expression: pleasantly surprised, eyebrows raised, eyes a little wider, mouth slightly open. Photorealistic. An adult, safe for work.`,
+/** The talking still's edit (Ditto's source): the portrait, with only the mouth changed. */
+export const FACE_PROMPTS: Record<typeof TALK_STILL, string> = {
   talk: `${SAME} Change only their mouth: relaxed and at rest, the lips gently together and not smiling, as between sentences in a calm conversation, the eyes and everything else unchanged. Photorealistic. An adult, safe for work.`,
 };
 
@@ -92,10 +88,21 @@ export function styledFace(prompt: string, style: ArtStyle): string {
     .replace(/Photorealistic\./g, editFinish ?? "");
 }
 
-/** What one kit costs, about: eight Qwen edits (the page's seven and the talking still) and one Wan 2.2 clip at 480p (docs/costs.md). */
+/**
+ * What one kit costs, at the most: one Qwen edit for the portrait (nothing when their own approved portrait is used as
+ * it is) and one Wan 2.2 clip at 480p (docs/costs.md). Ditto's talking still, where it's drawn, is one more edit.
+ */
 export const FACE_STILL_USD = 0.03;
 export const FACE_LOOP_USD = 0.05;
-export const FACE_KIT_USD = (FACE_STILLS.length + 1) * FACE_STILL_USD + FACE_LOOP_USD;
+export const FACE_KIT_USD = FACE_STILL_USD + FACE_LOOP_USD;
+
+type Env = Record<string, string | undefined>;
+/** Whether Ditto is the renderer that's set (lib/live-face reads the same setting; this file can't import it: it imports this one). */
+const dittoSet = (env: Env): boolean => /^ditto(?::|$)/.test((env.LIVE_FACE_PROVIDER ?? "").trim().toLowerCase());
+/** What a kit is made of here and now: the portrait and the loop, and Ditto's talking still while Ditto is set. */
+export function kitParts(env: Env = process.env): FacePart[] {
+  return ["portrait", "loop", ...(dittoSet(env) ? [TALK_STILL] : [])];
+}
 
 /** Kits started on calls across everyone: a few a day (about $3.50 at the default), never a burst. Admins' are uncounted. */
 export const FACE_KIT_LIMITS = { perHour: 4, perDay: 12 };
@@ -105,8 +112,6 @@ export function faceKitLimits(env: Record<string, string | undefined> = process.
   return Number.isFinite(n) && n >= 0 ? { perHour: Math.min(FACE_KIT_LIMITS.perHour, Math.max(1, Math.floor(n))), perDay: Math.floor(n) } : FACE_KIT_LIMITS;
 }
 
-/** Stills drawn at once. */
-const AT_ONCE = 3;
 /** A still "making" this long was lost with its request: it counts as failed, and is drawn again next time. */
 const STILL_LOST_MS = 10 * 60 * 1000;
 /** A loop not back from Replicate by then is given up. */
@@ -162,7 +167,11 @@ async function rowsFor(db: Db, characterId: string, sourceId: string): Promise<R
   });
 }
 
-function kitOf(rows: Row[]): FaceKit | null {
+/** The stills only older kits hold (lib/face-kit-shared.ts RETIRED_STILLS): their rows stay, the page never hears of them. */
+const retired = (part: FacePart): boolean => (RETIRED_STILLS as readonly string[]).includes(part);
+
+function kitOf(all: Row[]): FaceKit | null {
+  const rows = all.filter((r) => !retired(r.part));
   if (!rows.length) return null;
   const kit: FaceKit = { stills: {}, loop: null, making: false, failed: null };
   for (const r of rows) {
@@ -173,7 +182,9 @@ function kitOf(rows: Row[]): FaceKit | null {
     if (r.part === "loop") kit.loop = `${faceKitUrl(r.id)}?v=${Math.floor(new Date(r.updated_at).getTime() / 1000) || 0}`;
     else kit.stills[r.part] = faceKitUrl(r.id);
   }
-  const failed = rows.filter((r) => r.status === "failed").sort((x, y) => Number(y.part === "portrait") - Number(x.part === "portrait"))[0];
+  // A failed talking still is only news while Ditto wants one.
+  const wanted = kitParts();
+  const failed = rows.filter((r) => r.status === "failed" && wanted.includes(r.part)).sort((x, y) => Number(y.part === "portrait") - Number(x.part === "portrait"))[0];
   if (failed) kit.failed = `${failed.part === "portrait" ? "their portrait" : failed.part === "loop" ? "the living portrait" : `the ${failed.part.replace("_", " ")} still`}: ${failed.error ?? "it failed"}`;
   return kit;
 }
@@ -201,10 +212,10 @@ export async function faceKitBlocked(db: Db, characterId: string, baseUrl: strin
 
 /**
  * Makes what's missing of a character's kit from the portrait they have now: their portrait first (checked), then the
- * loop queued from it (collected by collectFaceKits as the page polls) and the stills a few at a time (each checked).
- * What's ready stays; a failed part is tried again. A new portrait starts the rest over.
+ * loop queued from it (collected by collectFaceKits as the page polls) and, while Ditto is set, its talking still
+ * (checked). What's ready stays; a failed part is tried again. A new portrait starts the rest over.
  */
-export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, opts: { count?: boolean; redo?: boolean } = {}): Promise<FaceKitResult> {
+export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, opts: { count?: boolean; redo?: boolean; env?: Env } = {}): Promise<FaceKitResult> {
   const blocked = await faceKitBlocked(db, characterId, baseUrl, opts);
   if (blocked) return blocked;
   const source = (await faceSource(db, characterId, baseUrl))!;
@@ -295,10 +306,10 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
     }
   }
 
-  // The stills, a few at a time, each marked making first so the page knows to wait.
-  const todo = [...FACE_STILLS, TALK_STILL].filter((p): p is Exclude<KitStill, "portrait"> => p !== "portrait" && !done(p));
+  // Ditto's talking still, where it's wanted, marked making first so the page knows to wait.
+  const todo = kitParts(opts.env).filter((p): p is typeof TALK_STILL => p === TALK_STILL && !done(p));
   for (const part of todo) await upsert(db, { character: characterId, source: source.id, part, status: "making", model: editModel });
-  for (let i = 0; i < todo.length; i += AT_ONCE) await Promise.all(todo.slice(i, i + AT_ONCE).map((part) => still(part, styled(FACE_PROMPTS[part]), base)));
+  await Promise.all(todo.map((part) => still(part, styled(FACE_PROMPTS[part]), base)));
   track("face_kit", { character_id: characterId, made, queued, failed: failed.length, usd: Math.round((made * FACE_STILL_USD + (queued ? FACE_LOOP_USD : 0)) * 100) / 100, ms: Date.now() - startedAt });
   return { ok: true, made, queued, failed };
 }
@@ -369,15 +380,17 @@ export async function collectFaceKits(db: Db, characterId?: string): Promise<num
  * A call started with this character: their kit is made if they have none from the portrait they have now, nothing
  * failed in the last day, and the day's few aren't used up. Quiet about everything: the call doesn't wait for it.
  */
-export async function ensureFaceKit(db: Db, characterId: string, baseUrl: string): Promise<FaceKitResult | null> {
+export async function ensureFaceKit(db: Db, characterId: string, baseUrl: string, env: Env = process.env): Promise<FaceKitResult | null> {
   const source = await faceSource(db, characterId, baseUrl);
   if (!source) return null;
-  const have = await rowsFor(db, characterId, source.id);
-  if (have.length && have.every((r) => r.status === "ready") && FACE_PARTS.every((p) => have.some((r) => r.part === p))) return null;
+  // Only what a kit is made of now counts: a still an older kit holds (a mouth shape that failed, say) is neither here nor there.
+  const parts = kitParts(env);
+  const have = (await rowsFor(db, characterId, source.id)).filter((r) => parts.includes(r.part));
+  if (have.length && have.every((r) => r.status === "ready") && parts.every((p) => have.some((r) => r.part === p))) return null;
   if (have.some((r) => r.status === "making")) return null;
   const lately = have.filter((r) => r.status === "failed" && Date.now() - new Date(r.updated_at).getTime() < RETRY_AFTER_MS);
   if (lately.length) return null;
-  const made = await makeFaceKit(db, characterId, baseUrl, { count: true });
+  const made = await makeFaceKit(db, characterId, baseUrl, { count: true, env });
   if (!made.ok) return made;
   if (made.failed.length) console.error(`[face-kit] ${characterId}: ${made.failed.join("; ").slice(0, 400)}`);
   return made;
