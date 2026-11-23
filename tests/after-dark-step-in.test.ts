@@ -32,6 +32,7 @@ import { hasProfileConsent } from "@/lib/adult/profile";
 import { ROLEPLAYS, roleplayById } from "@/lib/adult/roleplays";
 import { rolloutConfigOf, rolloutOn } from "@/lib/adult/rollout";
 import { saveAdultSettings } from "@/lib/adult/settings";
+import { SHELF_TONIGHT } from "@/lib/adult/step-in-shelf";
 import { countUse, overCap } from "@/lib/adult/usage";
 import {
   ASIDES,
@@ -1426,5 +1427,90 @@ describe("the roleplays, from the viewer's side", () => {
     expect(premise("celebrity", "a")).toBe("You are famous; Mara has no idea at all who you are, and you find that irresistible. One night of being nobody special.");
     expect(premise("bodyguard", "a")).toBe("You have guarded Mara for a year without once crossing the line. Tonight, safe behind a locked door, Mara asks you to cross it, and you have wanted to for months.");
     expect(premise("bodyguard", "b")).toBe("Mara has guarded you for a year without once crossing the line. Tonight, safe behind a locked door, you ask Mara to cross it, and Mara has wanted to for months.");
+  });
+});
+
+// David, 2026-11-23: "Chub.ai does a good job setting up dedicated scenes, might be worth exploring having dedicated
+// after dark characters for a scene?" The roleplays were behind a dropdown in step 3 of the set-up. They're cards on
+// Step in's front page now, each cast with someone from the viewer's own After Dark, one click from being in it.
+describe("a roleplay's card, started in one click", () => {
+  it("makes a new scene in that roleplay at their place, with no model asked; the page has the character open it from the card's story", async () => {
+    const seen = scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const q = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: "neighbours", you: 0 } });
+    expect(q).toMatchObject({ ok: true, resumed: false });
+    const id = (q as { id: string }).id;
+    expect(seen.prompts).toHaveLength(0);
+    expect(await replies(a.id)).toBe(0);
+    let view = await viewOf(a.id, id);
+    expect(view.place.id).toBe(QUICK_PLACE);
+    expect(view.roleplay).toMatchObject({ title: "The neighbour next door", you_play: "the neighbour who knocks", they_play: "the neighbour who answers" });
+    expect(said(view)).toEqual([]);
+    const opened = await continueStepIn(t.db, a.id, id);
+    expect(opened.ok).toBe(true);
+    view = await viewOf(a.id, id);
+    expect(said(view)).toEqual(["character"]);
+    // The writer was given the roleplay: who each of them is in it.
+    expect(JSON.stringify(seen.prompts[0])).toContain("the neighbour who answers");
+    expect(await replies(a.id)).toBe(1);
+  });
+
+  it("is always a new scene: the one already running with them stays where it was, and the other side can be played", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const running = await start(a.id);
+    const q = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: "boss", you: 1 } });
+    expect(q).toMatchObject({ ok: true, resumed: false });
+    expect((q as { id: string }).id).not.toBe(running.id);
+    expect((await viewOf(a.id, (q as { id: string }).id)).roleplay).toMatchObject({ you_play: "the employee", they_play: "the boss" });
+    expect(await count("adult_step_in_scenes")).toBe(2);
+    // One click with no card still goes back into a running scene, the latest.
+    expect(await quickStepIn(t.db, a.id, WHO)).toMatchObject({ ok: true, resumed: true });
+  });
+
+  it("the route takes who and which roleplay, and only one of After Dark's own", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const res = await setupPost(post("/api/admin/after-dark/step-in", { character_id: WHO, quick: true, roleplay: { id: "delivery" } }, a.cookie));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string; resumed: boolean };
+    expect(body.resumed).toBe(false);
+    expect((await viewOf(a.id, body.id)).roleplay).toMatchObject({ title: "The last delivery" });
+    expect((await setupPost(post("/api/admin/after-dark/step-in", { character_id: WHO, quick: true, roleplay: { id: "not-a-roleplay" } }, a.cookie))).status).toBe(422);
+    // Closed like the rest of Step in.
+    const sub = await subscriber();
+    expect((await setupPost(post("/api/admin/after-dark/step-in", { character_id: WHO, quick: true, roleplay: { id: "delivery" } }, sub.cookie))).status).toBe(404);
+  });
+
+  it("the front page shows tonight's eight as cards, each cast and told from the viewer's side, with the set-up under them", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    signIn(a.id);
+    const page = (await html(await StepInSetupPage())).replace(/<!-- -->/g, "");
+    expect(page).toContain("data-step-in-shelf");
+    expect(page.match(/data-step-in-card="/g)).toHaveLength(SHELF_TONIGHT);
+    // Every card is cast with someone they may step in with, and has both ways in.
+    const cast = new Set((await stepInCast(t.db, a.id)).map((c) => c.id));
+    const withs = [...page.matchAll(/data-step-in-card-with="([^"]+)"/g)].map((m) => m[1]);
+    expect(withs).toHaveLength(SHELF_TONIGHT);
+    for (const id of withs) expect(cast.has(id), id).toBe(true);
+    expect(page.match(/data-step-in-quick="start"/g)).toHaveLength(SHELF_TONIGHT);
+    expect(page.match(/data-step-in-card-setup/g)).toHaveLength(SHELF_TONIGHT);
+    // Told from the viewer's side: no placeholder left in, and never "{a}" or "{b}".
+    const shelf = page.slice(page.indexOf("data-step-in-shelf"), page.indexOf('id="ad-si-set"'));
+    expect(shelf).not.toMatch(/\{[ab]\}/);
+    expect(shelf).toMatch(/\byou\b/i);
+    // The set-up is still there, under the cards, and "Set it up" starts it on the card's pair.
+    expect(page.indexOf("data-step-in-shelf")).toBeLessThan(page.indexOf('id="ad-si-set"'));
+    const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: "neighbours" }) }))).replace(/<!-- -->/g, "");
+    expect(setUp).toContain(`data-step-in-who="${WHO}"`);
+    expect(setUp).toMatch(/<option value="neighbours" selected="">/);
+    // Opened for one of them ("Roleplay or place" on their card): every card is cast with that person.
+    expect(setUp).toContain(`Step into a roleplay with ${NAME}`);
+    expect([...setUp.matchAll(/data-step-in-card-with="([^"]+)"/g)].map((m) => m[1])).toEqual(Array(SHELF_TONIGHT).fill(WHO));
   });
 });

@@ -12,19 +12,22 @@ import { getDb } from "@/lib/db";
 import { showHome } from "@/lib/site";
 import LocalTime from "../LocalTime";
 import StepInSetup from "./StepInSetup";
+import StepInShelf from "./StepInShelf";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Step in · After Dark · Botchelor", robots: { index: false, follow: false } };
 
-type Props = { searchParams?: Promise<{ with?: string }> };
+type Props = { searchParams?: Promise<{ with?: string; roleplay?: string }> };
 
 /** When a scene was last played or ended, as a day in the viewer's own clock (LocalTime writes it in the browser). */
 const WHEN = { day: "numeric", month: "short" } as const;
 
 /**
- * Step in's set-up (lib/adult/step-in.ts; docs/after-dark.md "Step in"): who, where, the roleplay and how it opens, on
- * one page, then the viewer's scenes to pick up or read again. Not found for anyone Step in isn't open to (the
- * "companion" rollout piece: admins only until it's switched on), like After Dark's other closed pieces.
+ * Step in's front page (lib/adult/step-in.ts; docs/after-dark.md "Step in"): the viewer's scenes to pick up, the
+ * roleplays as cards to start in a click (./StepInShelf.tsx), the set-up for everything a card doesn't choose (who,
+ * where, the roleplay and the viewer's side of it, how it opens), then the scenes they ended. `?with=` and `?roleplay=`
+ * start the set-up on someone and on a roleplay ("Set it up" on a card). Not found for anyone Step in isn't open to
+ * (the "companion" rollout piece: admins only until it's switched on), like After Dark's other closed pieces.
  */
 export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const db = await getDb();
@@ -63,9 +66,22 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
             <SceneList scenes={scenes.running} />
           </section>
         )}
-        <h2>{scenes.running.length ? "Start a new scene" : "Set the scene"}</h2>
+        {/* The roleplays, each cast and ready (UTC's day, so this page and the browser agree on who's on each card). */}
+        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} />}
+        <h2 id="ad-si-set">{cast.length ? "Or set the scene yourself" : "Set the scene"}</h2>
         {cast.length ? (
-          <StepInSetup cast={cast} recent={recent} places={stepInPlaces(drawn)} persona={who.persona ? { name: who.persona.name } : null} personaLeftOut={who.leftOut} personaHref={personaHref} preselect={sp?.with ?? null} />
+          // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.
+          <StepInSetup
+            key={`${sp?.with ?? ""}:${sp?.roleplay ?? ""}`}
+            cast={cast}
+            recent={recent}
+            places={stepInPlaces(drawn)}
+            persona={who.persona ? { name: who.persona.name } : null}
+            personaLeftOut={who.leftOut}
+            personaHref={personaHref}
+            preselect={sp?.with ?? null}
+            preselectRoleplay={sp?.roleplay ?? null}
+          />
         ) : (
           <p className="muted">Nobody is in your After Dark yet. This season&apos;s cast is in by default; your own characters are switched in on the Studio page.</p>
         )}

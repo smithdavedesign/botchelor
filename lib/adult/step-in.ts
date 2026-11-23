@@ -1052,15 +1052,22 @@ export type StepInQuick = { ok: true; id: string; resumed: boolean } | StepInFai
  * made without its opening, so nothing waits on a model and the click lands on the scene at once; its page has the
  * character open it (continueStepIn: one scene step, as an opening always is). The set-up page is still there for a
  * place, a roleplay or a written opening, and a scene can move somewhere else once it's running.
+ *
+ * With `card.roleplay` (a card on the front page's shelf, lib/adult/step-in-shelf.ts): the same click starts that
+ * roleplay with them, the viewer on the side named. Always a new scene, made the same way.
  */
-export async function quickStepIn(db: Db, viewer: string, characterId: string, now: Date = new Date()): Promise<StepInQuick> {
+export async function quickStepIn(db: Db, viewer: string, characterId: string, now: Date = new Date(), card: { roleplay?: { id: string; you?: 0 | 1 } } = {}): Promise<StepInQuick> {
   if (!(await eligibleIds(db, viewer)).has(characterId)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
-  const running = (await db.query<{ id: string }>(`select id from adult_step_in_scenes where owner_id = $1 and character_id = $2 and ended_at is null order by last_at desc limit 1`, [viewer, characterId])).rows[0];
-  if (running) return { ok: true, id: running.id, resumed: true };
+  // A roleplay's card (the front page's shelf: app/after-dark/step-in/StepInShelf.tsx) is a story of its own: always a
+  // new scene, never the one already running with them, which stays where it was.
+  if (!card.roleplay) {
+    const running = (await db.query<{ id: string }>(`select id from adult_step_in_scenes where owner_id = $1 and character_id = $2 and ended_at is null order by last_at desc limit 1`, [viewer, characterId])).rows[0];
+    if (running) return { ok: true, id: running.id, resumed: true };
+  }
   const places = stepInPlaces(await drawnSets(db));
   const place = places.find((p) => p.id === QUICK_PLACE) ?? places.find((p) => !p.public) ?? places[0];
   if (!place) return fail(409, "no_place", "There's nowhere to be yet. Set the scene instead.");
-  const made = await startStepIn(db, viewer, { character_id: characterId, place: place.id, opening: "surprise" }, now, { defer: true });
+  const made = await startStepIn(db, viewer, { character_id: characterId, place: place.id, roleplay: card.roleplay ?? null, opening: "surprise" }, now, { defer: true });
   return made.ok ? { ok: true, id: made.id, resumed: false } : made;
 }
 
