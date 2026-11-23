@@ -15,8 +15,10 @@ const ROOT = join(__dirname, "..");
 describe("the covers", () => {
   const covers = Object.entries(ROLEPLAY_COVERS);
 
-  it("are twelve, each for a roleplay After Dark has and a house character, on a side the roleplay has", () => {
-    expect(covers).toHaveLength(12);
+  it("are one for every roleplay, each of a house character, on a side the roleplay has", () => {
+    expect(covers).toHaveLength(ROLEPLAYS.length);
+    expect(covers).toHaveLength(45);
+    for (const rp of ROLEPLAYS) expect(ROLEPLAY_COVERS[rp.id], rp.id).toBeTruthy();
     for (const [id, c] of covers) {
       const rp = ROLEPLAYS.find((r) => r.id === id);
       expect(rp, id).toBeTruthy();
@@ -24,12 +26,20 @@ describe("the covers", () => {
       // them first, 2026-11-23, and their cards could never have shown them).
       expect(HOUSE_CHARACTERS.some((h) => h.id === c.character), `${id}: ${c.character}`).toBe(true);
       expect(PREMIUM_HOUSE_CHARACTERS.some((h) => h.id === c.character), `${id}: ${c.character}`).toBe(false);
-      // The viewer is on the second side only where the roleplay has two roles to choose between.
+      // The viewer is on the second side only where the roleplay has two roles to choose between: a roleplay with no
+      // named roles is played with the viewer as its card's first person, and its picture shows the second.
       if (c.you === 1) expect(rp!.roles, id).toBeTruthy();
       expect(c.src, id).toBe(`/cast/roleplay-${id}-${c.character.replace(/^house-/, "")}.webp`);
     }
-    // Nobody is on two covers: twelve cards, twelve faces.
-    expect(new Set(covers.map(([, c]) => c.character)).size).toBe(12);
+  });
+
+  it("are shared out: every house character is on three covers, and no two covers are the same picture", () => {
+    const times = new Map<string, number>();
+    for (const [, c] of covers) times.set(c.character, (times.get(c.character) ?? 0) + 1);
+    expect([...times.keys()].sort()).toEqual(HOUSE_CHARACTERS.map((h) => h.id).sort());
+    for (const [who, n] of times) expect(n, who).toBe(3);
+    expect(new Set(covers.map(([, c]) => c.src)).size).toBe(covers.length);
+    expect(new Set(covers.map(([, c]) => c.alt)).size).toBe(covers.length);
   });
 
   it("are files the site serves: 4:3, a sensible size, marked as AI-made", async () => {

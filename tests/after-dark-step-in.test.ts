@@ -1653,10 +1653,13 @@ describe("out in public", () => {
   });
 });
 
-// David, 2026-11-23: "A cover picture per card, the character dressed for the role." Twelve roleplays have one
+// David, 2026-11-23: "A cover picture per card, the character dressed for the role." Every roleplay has one
 // (lib/adult/roleplay-covers.ts): the card opens on the one in the picture, on the side the picture implies.
+const CARD = /<li class="card ad-si-shelf-card( has-cover)?" data-step-in-card="([^"]+)" data-step-in-card-with="([^"]+)" data-step-in-card-you="([01])">(<img[^>]*>)?/g;
+const cardsOf = (page: string) => [...page.matchAll(CARD)].map((m) => ({ cover: Boolean(m[1]), id: m[2], with: m[3], you: Number(m[4]), img: m[5] ?? "" }));
+
 describe("a card's cover picture", () => {
-  it("leads tonight's shelf: the first six cards have their picture, are cast with the one in it, and start on the side it shows", async () => {
+  it("is on every card of tonight's shelf: each is cast with the one in its picture and starts on the side it shows", async () => {
     scripted();
     await saveAdultSettings(t.db, {});
     // Everyone who's on a cover is in this season's cast here.
@@ -1664,10 +1667,10 @@ describe("a card's cover picture", () => {
     const a = await admin();
     signIn(a.id);
     const page = (await html(await StepInSetupPage())).replace(/<!-- -->/g, "");
-    const cards = [...page.matchAll(/<li class="card ad-si-shelf-card( has-cover)?" data-step-in-card="([^"]+)" data-step-in-card-with="([^"]+)" data-step-in-card-you="([01])">(<img[^>]*>)?/g)].map((m) => ({ cover: Boolean(m[1]), id: m[2], with: m[3], you: Number(m[4]), img: m[5] ?? "" }));
+    const cards = cardsOf(page);
     expect(cards).toHaveLength(SHELF_TONIGHT);
-    expect(cards.map((c) => c.cover)).toEqual([true, true, true, true, true, true, false, false]);
-    for (const c of cards.slice(0, 6)) {
+    expect(cards.every((c) => c.cover)).toBe(true);
+    for (const c of cards) {
       const cover = ROLEPLAY_COVERS[c.id];
       expect(cover, c.id).toBeTruthy();
       expect({ with: c.with, you: c.you }, c.id).toEqual({ with: cover.character, you: cover.you });
@@ -1677,21 +1680,27 @@ describe("a card's cover picture", () => {
       expect(c.img, c.id).toMatch(/alt="[^"]{30,}"/);
     }
     // The side it shows carries to the one-click start's set-up link.
-    for (const c of cards.slice(0, 6)) expect(page.includes(`with=${c.with}&amp;roleplay=${c.id}&amp;you=1#ad-si-set`), c.id).toBe(c.you === 1);
-    // The cards with no picture are told from the first side, as before.
-    expect(cards.slice(6).every((c) => c.you === 0 && !ROLEPLAY_COVERS[c.id])).toBe(true);
+    for (const c of cards) expect(page.includes(`with=${c.with}&amp;roleplay=${c.id}&amp;you=1#ad-si-set`), c.id).toBe(c.you === 1);
   });
 
-  it("is only shown with the one in it: a page opened for someone else has none, and its set-up starts on the side asked for", async () => {
+  it("is only shown with the one in it: on a page opened for one person only their own covers show, and a set-up starts on the side asked for", async () => {
     scripted();
     await saveAdultSettings(t.db, {});
-    // Marisol is on no cover; Rafe (WHO) is on the vampire's.
+    // Marisol is on three covers and Rafe (WHO) on three others: a page opened for her casts every card with her.
     setSeasonCastForTests([WHO, "house-marisol"]);
     const a = await admin();
     signIn(a.id);
     const theirs = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: "house-marisol" }) }))).replace(/<!-- -->/g, "");
-    expect(theirs).not.toContain("data-step-in-card-cover");
-    expect([...theirs.matchAll(/data-step-in-card-you="([01])"/g)].every((m) => m[1] === "0")).toBe(true);
+    const hers = cardsOf(theirs);
+    expect(hers).toHaveLength(SHELF_TONIGHT);
+    for (const c of hers) {
+      expect(c.with, c.id).toBe("house-marisol");
+      // Whichever eight today's are: a card has a picture only when the picture is of her, and then it's told from the
+      // side her picture shows; every other card has none and is told from the first side.
+      const own = ROLEPLAY_COVERS[c.id]?.character === "house-marisol" ? ROLEPLAY_COVERS[c.id] : null;
+      expect({ cover: c.cover, you: c.you }, c.id).toEqual({ cover: Boolean(own), you: own ? own.you : 0 });
+      if (!own) expect(c.img, c.id).toBe("");
+    }
     // "Set it up" on the vampire's cover: Rafe, the vampire's invitation, the viewer as the guest.
     const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: "vampire", you: "1" }) }))).replace(/<!-- -->/g, "");
     expect(setUp).toContain(`data-step-in-who="${WHO}"`);
