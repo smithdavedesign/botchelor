@@ -419,7 +419,8 @@ export function cutCaption(edl, episodes, base = "https://botchelor.com") {
     .join("\n");
 }
 
-async function speak(beat, file, key, log, speed = VOICE_SPEED) {
+/** One beat's voice into `file` (+ .mp3 from Kokoro on Venice, or + .m4a from macOS `say`), or null when it says nothing. */
+export async function speak(beat, file, key, log, speed = VOICE_SPEED) {
   const words = spokenText(beat);
   if (!words) return null;
   if (key) {
