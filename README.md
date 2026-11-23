@@ -10,6 +10,7 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 [![mcptry](https://mcptry.com/badge/io.github.smithdavedesign/botchelor)](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
 [![Botchelor MCP server](https://mcprush.com/badge/botchelor-mcp/card.svg)](https://mcprush.com/to/botchelor-mcp?ref=badge)
+[![Indexed on TensorBlock MCP Index](https://mcp-index.tensorblock.co/v1/servers/botchelor-com-agents-7ea937b2/badge.svg)](https://www.tensorblock.co/mcp/servers/botchelor-com-agents-7ea937b2)
 
 ## Screenshots
 
