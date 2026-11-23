@@ -4,6 +4,7 @@ import AwardCard, { AgentMark } from "@/app/AwardCard";
 import { showCrowd } from "@/lib/crowd-threshold";
 import type { Reunion, ReunionChar } from "@/lib/reunion";
 import { datesCount, endingLabel, yesesTail } from "@/lib/rules";
+import { midSentence } from "@/lib/sentence-case";
 import CharacterName from "@/app/CharacterName";
 import Pager from "@/app/Pager";
 import StageLegend from "@/app/StageLegend";
@@ -92,7 +93,8 @@ export default function ReunionPanel({
         <p className="muted">
           {datesCount(couple.dates)}
           {yesesTail(couple.dates, couple.second_dates)}
-          {couple.last_ending && ` · last: ${endingLabel(couple.last_ending, couple.dates)}`}
+          {/* Mid-sentence, so lower-case: "· last: a tenth date", not "A tenth date" (the 2026-11-22 audit). */}
+          {couple.last_ending && ` · last: ${midSentence(endingLabel(couple.last_ending, couple.dates))}`}
         </p>
       </div>
       {open && (
