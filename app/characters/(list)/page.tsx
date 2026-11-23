@@ -27,8 +27,9 @@ import { shortName } from "@/lib/names";
 import { listCast, listMyProposals, listRelationshipEdges } from "@/lib/mechanics";
 import { isAgentMade, parseTab, TAB_LABEL, tabHref, TABS, type Tab } from "@/lib/origin";
 import { topRatedCharacters } from "@/lib/ratings";
-import { endingLabel, RATING_CATEGORIES } from "@/lib/rules";
+import { datesCount, endingLabel, RATING_CATEGORIES, yesesTail } from "@/lib/rules";
 import { seasonCastIds } from "@/lib/season-cast";
+import { midSentence } from "@/lib/sentence-case";
 import { castDatePrize } from "@/lib/cast-date";
 import CastDatePrize from "@/app/CastDatePrize";
 import { listCandidates } from "@/lib/season-gen";
@@ -582,10 +583,12 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
                   <CharacterName character={named(e.b_id, e.b)} link={false} strong />
                 </Link>
                 <span className="badge">{e.stage}</span>{" "}
+                {/* Said as the Reunion and the couple boards say it (lib/rules.ts yesesTail): "9 dates, 9 second · last: A
+                    tenth date" read as a code (the 2026-11-22 audit). */}
                 <span className="muted">
-                  {e.dates} {e.dates === 1 ? "date" : "dates"}
-                  {e.second_dates > 0 && `, ${e.second_dates} second`}
-                  {e.last_ending && ` · last: ${endingLabel(e.last_ending, e.dates)}`}
+                  {datesCount(e.dates)}
+                  {yesesTail(e.dates, e.second_dates)}
+                  {e.last_ending && ` · last: ${midSentence(endingLabel(e.last_ending, e.dates))}`}
                 </span>
               </li>
               ),
