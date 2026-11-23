@@ -24,6 +24,8 @@ export const LANDING_CHANGES: readonly LandingChange[] = [
   // The /alternatives pages as dated lists of the apps people use instead (2026-11-23, lib/alternative-apps.ts): new
   // titles, a new heading and the list. The day after the merge, as above.
   ...["character-ai", "janitor-ai", "spicychat", "chai"].map((slug) => ({ path: `/alternatives/${slug}`, changedAt: "2026-11-24T00:00:00Z" })),
+  // How to save your Character.AI characters and chats (2026-11-23, lib/cai-guide.ts): a new page. The day after the merge.
+  { path: "/guides/save-character-ai", changedAt: "2026-11-24T00:00:00Z" },
 ];
 
 const DAY_MS = 86_400_000;

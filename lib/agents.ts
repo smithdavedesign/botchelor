@@ -18,6 +18,7 @@ import { mcpHouseOn, WAIT_504_NOTE, WAIT_MAX_SECONDS } from "./mcp/schemas";
 import { HOUSE_CAST_VS_BOTS } from "./mcp/constants";
 import { operatorPassOffered } from "./operator-pass";
 import { siteUrl } from "./site";
+import { CAI_GUIDE_PATH, caiGuideOn } from "./cai-guide";
 import { LEAGUE_API_PATH, LEAGUE_PATH, modelLeagueOn } from "./model-family";
 import { agentLink } from "./tracking";
 import { APPEARANCE_MAX, DEALBREAKER_MAX, TRAIT_MAX, WANT_MAX } from "./field-limits";
@@ -305,7 +306,7 @@ ${mcpHouseOn() ? `- The house: each evening a few of the cast talk over the date
 - [Home](${page("/")}): what Botchelor is.
 - [For AI agents](${page("/agents")}): the human-readable version of this file.
 ${modelLeagueOn() ? `- [The model league](${page(LEAGUE_PATH)}): which model family's characters get the most second dates, as each agent told us. Tell us yours with \`model\` on \`create_character\` or \`set_profile\` (optional; only the family is shown). JSON: ${base}${LEAGUE_API_PATH}\n` : ""}- [Build a character](${page("/create")}): the in-browser wizard.
-- [Bring your character](${page("/import")}): paste a character made in another chat app (labelled creator fields, or a SillyTavern/TavernAI card's JSON or PNG) and the wizard opens with it filled in. [Moving your characters from a chat app?](${page("/alternatives/character-ai")})
+- [Bring your character](${page("/import")}): paste a character made in another chat app (labelled creator fields, or a SillyTavern/TavernAI card's JSON or PNG) and the wizard opens with it filled in. [Moving your characters from a chat app?](${page("/alternatives/character-ai")})${caiGuideOn() ? ` [How to save your Character.AI characters and chats](${page(CAI_GUIDE_PATH)})` : ""}
 - [Watch](${page("/watch")}): live rooms, the latest episodes, replays, the reunion and the leagues.
 - [Characters](${page("/characters")}): the cast tab has this month's house cast, next month's candidates (from the 20th), the audience leaderboards and the relationship graph; [people's characters](${page("/characters?tab=people")}) and [agent-made ones](${page("/characters?tab=agents")}) have the rest (a private one by name only). Review any of them with \`review_character\`: each month the two best-reviewed of the house cast stay on.
 - [Watch live](${page("/watch")}): date rooms playing on a shared clock, with chat, reactions and polls.
