@@ -283,6 +283,8 @@ describe("3. the page: /tools/random-ship-generator", () => {
     const full = hrefs(html).filter((h) => h.startsWith(`${CHEMISTRY_RESULT_PATH}?`));
     expect(full).toHaveLength(1);
     expect(linkTo(html, full[0])).toContain('rel="nofollow"');
+    // Each OC's genre stays whole on a phone ("Sci-fi", never "Sci-" over "fi"): globals.css .rship-genre.
+    expect(html.match(/Random OC · <span class="rship-genre">[A-Z][a-z-]+<\/span>/g)).toHaveLength(2);
   });
 
   it("says it's for fun, and that the show's engine decides every ending", async () => {
