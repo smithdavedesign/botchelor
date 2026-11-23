@@ -4307,9 +4307,11 @@ What was measured:
   and under the roleplay's name; four lines walked the four beats, one dot a reply, each reading under 2 s. The
   dots under the newest reply filled with the header's, the new one marked; pressed, the row said the goal again and
   "2 of 4 of the story's beats played". The ending card came after the fourth reply and not before, inside the
-  column and above the composer, on a phone too. "Bring it to a close" drew Juniper's last line and filed the scene
-  in 4.3 s: "Played to the end: The neighbour next door", the composer gone, and the recap told to "you". Back on the
-  shelf: "You've played 1 of them to the end." and ✓ Played on its card.
+  column and above the composer, on a phone too (where the story's dots take a row of their own under Continue and
+  ↻ Again…). "Bring it to a close" drew Juniper's last line, which asked nothing, and filed the scene in 4.8 s:
+  "Played to the end: The neighbour next door", the composer gone, and the recap told to the viewer ("You brought a
+  parcel to Juniper's door, admitting you'd invented reasons to visit since spring. She recalled each excuse, then
+  invited you inside…"). Back on the shelf: "You've played 1 of them to the end." and ✓ Played on its card.
 - **A place for each card** (`places.mjs`): all eight of tonight's cards and all 45 said where they're set; 15 read
   "out in public". "The last fitting" landed in 1.4 s at "A closed tailor's shop" (its own drawn set behind), private,
   opened by Orin on the fitting block 4.6 s after the click; "Strangers at the bar" landed at "A quiet bar on a
@@ -4322,8 +4324,9 @@ What was measured:
   shown with the character on it). A card's click landed in 1.4 s and the opening was there 4.0 s after the click.
 - **A level** (`bond.mjs`, with Imogen): "Acquainted" in the header, a quiet fold; opened, "1 evening · 1 scene ·
   2 lines. Next: Familiar. It comes from the time you spend together, and it only ever goes up." The same on a
-  phone. After the scene was deleted her page still read Acquainted. Three of tonight's cards carried the mark, and
-  the Characters page opened on the five people the audit account is Acquainted with (#2132), then everyone else.
+  phone, where the header's letters measured 4.65 against the pixels beside them over her apron (#2136; 3.2 before).
+  After the scene was deleted her page still read Acquainted. Three of tonight's cards carried the mark, and the
+  Characters page opened on the five people the audit account is Acquainted with (#2132), then everyone else.
 - **They write first** (`notes.mjs`, with Nell): the card off by default; turned to Daily it showed the time zone the
   quiet hours are kept in; the scene's ⋯ menu had "✉ Nell can write first here: on", a plain button. Written on
   request (the admins' "write first now"), a note arrived in 2.3 s, marked "✉ wrote first · Mon 1:57 PM", in her own
