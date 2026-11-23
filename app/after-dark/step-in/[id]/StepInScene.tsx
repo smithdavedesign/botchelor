@@ -8,7 +8,20 @@ import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import Icon from "@/app/Icon";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
 import type { StepInPictureState } from "@/lib/adult/step-in-picture";
-import { IDEA_TONE_LABELS, placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, stepsLeftLine, type StepInIdea, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
+import {
+  IDEA_TONE_LABELS,
+  placeInSentence,
+  REDRAW_PRESETS,
+  REDRAW_TEXT_MAX,
+  STEP_IN_LINE_MAX,
+  STEP_IN_STARTERS,
+  STEP_IN_TAGLINE,
+  stepsLeftLine,
+  type RedrawDirection,
+  type StepInIdea,
+  type StepInMessageView,
+  type StepInSceneView,
+} from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { storyParagraphs, storySegments } from "@/lib/story-reply";
@@ -32,6 +45,8 @@ const IDEAS_KEY = "bz_step_in_ideas";
 type Action =
   | { action: "send"; text: string; talk?: true }
   | { action: "regenerate" | "continue" | "take_back" | "end" | "carry_on" }
+  // The newest reply drawn again with one change asked of it ("↻ Again…").
+  | { action: "regenerate"; direction: RedrawDirection }
   | { action: "swipe"; to: "prev" | "next" }
   | { action: "move"; place: string }
   | { action: "limits"; limits: { intensity: Intensity; hard_nos: HardNos }; consent?: true };
@@ -105,7 +120,8 @@ function Line({ m, name, hear = null }: { m: StepInMessageView; name: string; he
 /**
  * One Step in scene (lib/adult/step-in.ts): the place's backdrop behind a reading-size column of prose, the viewer's
  * lines set apart, the composer at the bottom, and the rarely used controls in a quiet ⋯ menu (draw another, take
- * back, go somewhere else, the limits, the picture, end). Under the newest reply: flip through its draws, and Continue.
+ * back, go somewhere else, the limits, the picture, end). Under the newest reply: flip through its draws, Continue, and
+ * "↻ Again…", which draws it again with one change (a chip of ours, or a few words of the viewer's own).
  *
  * The character stands in the scene with them (app/stage/CharacterFigure.tsx; joi.com's chat, 2026-11-20): on a wide
  * screen at the right edge, the column moved over to make room; on a tablet behind the column's right side; on a
@@ -158,6 +174,11 @@ export default function StepInScene({
   const [ideasBusy, setIdeasBusy] = useState(false);
   const [calling, setCalling] = useState(false);
   const [canCall, setCanCall] = useState(false);
+  // "↻ Again…" under the newest reply: whether its directions are showing, the viewer's own words for one, and why
+  // the last one asked for was refused.
+  const [again, setAgain] = useState(false);
+  const [ownWords, setOwnWords] = useState("");
+  const [againError, setAgainError] = useState<string | null>(null);
   // The lines that were here when the page arrived: only a reply that comes after them is read aloud by itself.
   const seen = useRef(new Set(initial.messages.map((m) => m.id)));
   const end = useRef<HTMLDivElement>(null);
@@ -253,9 +274,12 @@ export default function StepInScene({
     }
   }
 
-  /** One move (app/api/admin/after-dark/step-in/[id]): the scene as it stands comes back with a refusal too. Whether it went through. */
+  /**
+   * One move (app/api/admin/after-dark/step-in/[id]): the scene as it stands comes back with a refusal too. Whether it
+   * went through. `refused`: where a refusal is said instead of over the composer (a redraw's direction says it by its box).
+   */
   const acting = useRef(false);
-  async function act(body: Action): Promise<boolean> {
+  async function act(body: Action, refused: (message: string) => void = setError): Promise<boolean> {
     // The ref as well as the state: two moves asked for in the same tick (the opening, as the page arrives) are one.
     if (busy || acting.current) return false;
     acting.current = true;
@@ -270,21 +294,35 @@ export default function StepInScene({
         setCrisis(help);
         // Nothing they said was kept, so it doesn't stay in the box either.
         if (body.action === "send") setText("");
+        else if (body.action === "regenerate") setOwnWords("");
         return false;
       }
       if (!res.ok || data?.replied === false) {
-        setError(data?.message ?? "That didn't go through. Try again in a moment.");
+        refused(data?.message ?? "That didn't go through. Try again in a moment.");
         // Their line was kept (only the reply is missing): the box is cleared like any line sent.
         return data?.replied === false;
       }
       return true;
     } catch {
-      setError("That didn't go through. Check your connection and try again.");
+      refused("That didn't go through. Check your connection and try again.");
       return false;
     } finally {
       acting.current = false;
       setBusy(null);
     }
+  }
+
+  /**
+   * The newest reply drawn again with one change (lib/adult/step-in-shared.ts REDRAW_PRESETS, or their own few words).
+   * One reply, like any other draw; the one it replaces is kept to flip back to. A direction that's refused (their own
+   * words are held to what a line of theirs is) says why by its box and stays there to change.
+   */
+  async function redraw(direction: RedrawDirection) {
+    const words = direction.text?.trim() ?? "";
+    if (direction.text !== undefined && !words) return;
+    setAgainError(null);
+    const went = await act({ action: "regenerate", direction: { ...(direction.preset ? { preset: direction.preset } : {}), ...(words ? { text: words } : {}) } }, setAgainError);
+    if (went) setAgain(false);
   }
 
   // Come by one click, with nothing said yet: the character opens the scene, once. The address drops its ?open=1 first
@@ -346,6 +384,16 @@ export default function StepInScene({
   }
 
   const waiting = busy === "send" || busy === "continue" || busy === "regenerate";
+  // The directions belong to the reply they were opened under: another newest reply (a new one, or another draw of it)
+  // starts with them put away.
+  const newest = last?.id ?? null;
+  useEffect(() => {
+    setAgain(false);
+    setOwnWords("");
+    setAgainError(null);
+  }, [newest]);
+  // A reply that was said out loud (a call's, or Talk's) is already all talk.
+  const spokenLast = last?.kind === "talk" || last?.kind === "talk_aside" || last?.kind === "call" || last?.kind === "call_aside";
   // The starter lines are for a new scene's opening (free, and the same for everyone); ideas are for every reply after.
   const firstLine = live && !view.roleplay && !view.opening && last?.role === "character" && !view.messages.some((m) => m.role === "viewer");
   // The reply ideas are wanted for: the newest one, once it has landed, while the viewer could write next.
@@ -459,7 +507,57 @@ export default function StepInScene({
             <button type="button" className="button-ghost small" onClick={() => void act({ action: "continue" })} disabled={Boolean(busy)}>
               Continue
             </button>
+            {/* This reply again, with one change: where a person looks for it, on the reply itself. */}
+            {view.can.regenerate && (
+              <button type="button" className="button-ghost small" onClick={() => setAgain((open) => !open)} disabled={Boolean(busy)} aria-expanded={again} aria-controls="ad-si-again" data-step-in-again-open>
+                ↻ Again…
+              </button>
+            )}
           </p>
+        )}
+        {/* The change to ask of it: one tap on a chip draws it again that way; or a few words of their own. Plain
+            buttons and an Enter handler, never a form (the page's one form is the composer's). */}
+        {live && last?.role === "character" && !waiting && view.can.regenerate && again && (
+          <div className="ad-si-again" id="ad-si-again" role="group" aria-label={`${name}'s reply again, with one change`} data-step-in-again>
+            <span className="muted small">Again, but:</span>
+            {REDRAW_PRESETS.filter((p) => !(spokenLast && p.id === "talk")).map((p) => (
+              <button key={p.id} type="button" className="ad-chip" disabled={Boolean(busy)} onClick={() => void redraw({ preset: p.id })} data-redraw={p.id}>
+                {p.label}
+              </button>
+            ))}
+            <span className="ad-si-again-own">
+              <label htmlFor="ad-si-again-own" className="sr-only">
+                Or say how, in your own words
+              </label>
+              <input
+                id="ad-si-again-own"
+                type="text"
+                value={ownWords}
+                maxLength={REDRAW_TEXT_MAX}
+                placeholder="or in your own words"
+                autoComplete="off"
+                disabled={Boolean(busy)}
+                onChange={(e) => {
+                  setOwnWords(e.target.value);
+                  setAgainError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  void redraw({ text: ownWords });
+                }}
+              />
+              <button type="button" className="button-ghost small" disabled={Boolean(busy) || !ownWords.trim()} onClick={() => void redraw({ text: ownWords })} data-redraw-go>
+                Go
+              </button>
+            </span>
+            <span className="muted small ad-si-again-note">It counts as one reply. The one it replaces is kept: ‹ and › flip between them.</span>
+            {againError && (
+              <span className="error small" role="alert" data-redraw-error>
+                {againError}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Something to say first: under the opening, until they've written a line of their own (never in a roleplay,

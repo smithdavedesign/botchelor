@@ -3662,6 +3662,7 @@ fieldset.ad-si-step {
 .ad-si-head,
 .ad-si-lines,
 .ad-si-under,
+.ad-si-again,
 .ad-si-starters,
 .ad-si-paused,
 .ad-si-ended,
@@ -3983,6 +3984,38 @@ fieldset.ad-si-step {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+}
+/* "↻ Again…" under the newest reply (app/after-dark/step-in/[id]/StepInScene.tsx; lib/adult/step-in-shared.ts
+   REDRAW_PRESETS): the one change to ask of the reply drawn again, as chips, then a short box for the viewer's own
+   words, which takes the rest of the row and a row of its own on a phone. */
+.ad-si-again {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 0;
+  margin-bottom: var(--space-3);
+}
+.ad-si-again button {
+  margin: 0;
+}
+.ad-si-again-own {
+  display: flex;
+  flex: 1 1 14rem;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ad-si-again-own input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+.ad-si-again-note,
+.ad-si-again > .error {
+  flex-basis: 100%;
+  margin: 0;
 }
 /* Something to say first, under a new scene's opening: quiet chips that fill the box (lib/adult/step-in-shared.ts). */
 .ad-si-starters {
