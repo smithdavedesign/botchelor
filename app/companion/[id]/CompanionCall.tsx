@@ -7,7 +7,7 @@ import { characterPortrait } from "@/lib/portraits";
 import { useSpeech } from "@/app/stage/useSpeech";
 import { useVoiceRing } from "@/app/stage/useVoiceRing";
 import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
-import { heardSoFar, LIVE_CONNECT_MS, LIVE_START, liveStep, withoutStageDirections, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
+import { heardIn, heardSoFar, LIVE_CONNECT_MS, LIVE_START, liveStep, withoutStageDirections, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
 import { CLIP_HOLD_MS, CLIP_LATE_MS, LISTEN_MIN_SPEECH_MS, LISTEN_PAUSE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
@@ -359,15 +359,11 @@ export default function CompanionCall({
     r.interimResults = true;
     r.maxAlternatives = 1;
     let said = "";
+    let sofar = "";
     let error: string | null = null;
     r.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const result = e.results[i];
-        if (result.isFinal) said += result[0].transcript;
-        else interim += result[0].transcript;
-      }
-      hear(`${said} ${interim}`.trim());
+      ({ said, sofar } = heardIn(e.results));
+      hear(sofar);
     };
     r.onerror = (e) => {
       error = e.error;
@@ -376,7 +372,8 @@ export default function CompanionCall({
       if (rec.current !== r) return;
       rec.current = null;
       if (ended.current || phaseNow.current !== "listening") return;
-      const text = said.replace(/\s+/g, " ").trim();
+      // What they said: the settled words, or what was heard when the session ended with none settled (heardIn).
+      const text = said || sofar;
       if (text) {
         silences.current = 0;
         void turn(text);
