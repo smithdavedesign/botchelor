@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { ROLEPLAY_COVERS } from "@/lib/adult/roleplay-covers";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import { readXmp } from "@/lib/ai-mark";
-import { ALL_HOUSE_CHARACTERS } from "@/lib/house";
+import { HOUSE_CHARACTERS, PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
 import { checkShowText } from "@/lib/safety";
 
 const ROOT = join(__dirname, "..");
@@ -20,7 +20,10 @@ describe("the covers", () => {
     for (const [id, c] of covers) {
       const rp = ROLEPLAYS.find((r) => r.id === id);
       expect(rp, id).toBeTruthy();
-      expect(ALL_HOUSE_CHARACTERS.some((h) => h.id === c.character), `${id}: ${c.character}`).toBe(true);
+      // Someone After Dark's cast can have: never a premium house character, who isn't in it (two covers were drawn of
+      // them first, 2026-11-23, and their cards could never have shown them).
+      expect(HOUSE_CHARACTERS.some((h) => h.id === c.character), `${id}: ${c.character}`).toBe(true);
+      expect(PREMIUM_HOUSE_CHARACTERS.some((h) => h.id === c.character), `${id}: ${c.character}`).toBe(false);
       // The viewer is on the second side only where the roleplay has two roles to choose between.
       if (c.you === 1) expect(rp!.roles, id).toBeTruthy();
       expect(c.src, id).toBe(`/cast/roleplay-${id}-${c.character.replace(/^house-/, "")}.webp`);

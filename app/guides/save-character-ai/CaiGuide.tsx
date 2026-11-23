@@ -100,7 +100,8 @@ export default function CaiGuide({ now = new Date(), history }: { now?: Date; hi
               <a href={CAI_SOURCES.privacyRequest} rel="nofollow noopener" target="_blank">
                 request form
               </a>{" "}
-              or to privacy@character.ai.
+              or by email to the privacy address its policy gives.
+              {/* Never an email address in a sentence: Cloudflare's email obfuscation rewrites it and hydration fails (#418, docs/company.md). */}
             </p>
           </li>
           <li>

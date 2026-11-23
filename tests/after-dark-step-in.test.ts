@@ -1618,6 +1618,31 @@ describe("a roleplay's card, started in one click", () => {
   });
 });
 
+// A story set at a bar or a wedding starts held to a kiss (15 of the 45 roleplays). The way out was only in the ⋯ menu.
+describe("out in public", () => {
+  it("the scene offers the way somewhere private where it says it's held to a kiss, and nowhere else", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    signIn(a.id);
+    const out = await start(a.id, { place: CAFE });
+    const page = async (id: string) => (await html(await StepInScenePage({ params: Promise.resolve({ id }) }))).replace(/<!-- -->/g, "");
+    const publicPage = await page(out.id);
+    expect(publicPage).toContain("Out in public: a kiss at most");
+    expect(publicPage).toMatch(new RegExp(`<button type="button"[^>]*data-step-in-go-private[^>]*>Take it to ${NAME}&#x27;s place</button>`));
+    // One tap is the same move the menu makes: the scene is at their place, and nothing is held to a kiss any more.
+    const moved = await moveStepIn(t.db, a.id, out.id, HOME);
+    expect(moved).toMatchObject({ ok: true, view: { place: { id: HOME, public: false } } });
+    const privatePage = await page(out.id);
+    expect(privatePage).not.toContain("data-step-in-go-private");
+    expect(privatePage).not.toContain("Out in public");
+    // A scene that has ended offers nothing.
+    const again = await start(a.id, { place: CAFE });
+    await endStepIn(t.db, a.id, again.id);
+    expect(await page(again.id)).not.toContain("data-step-in-go-private");
+  });
+});
+
 // David, 2026-11-23: "A cover picture per card, the character dressed for the role." Twelve roleplays have one
 // (lib/adult/roleplay-covers.ts): the card opens on the one in the picture, on the side the picture implies.
 describe("a card's cover picture", () => {
@@ -1650,15 +1675,16 @@ describe("a card's cover picture", () => {
   it("is only shown with the one in it: a page opened for someone else has none, and its set-up starts on the side asked for", async () => {
     scripted();
     await saveAdultSettings(t.db, {});
-    setSeasonCastForTests([WHO, "house-vesper"]);
+    // Marisol is on no cover; Rafe (WHO) is on the vampire's.
+    setSeasonCastForTests([WHO, "house-marisol"]);
     const a = await admin();
     signIn(a.id);
-    const theirs = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO }) }))).replace(/<!-- -->/g, "");
+    const theirs = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: "house-marisol" }) }))).replace(/<!-- -->/g, "");
     expect(theirs).not.toContain("data-step-in-card-cover");
     expect([...theirs.matchAll(/data-step-in-card-you="([01])"/g)].every((m) => m[1] === "0")).toBe(true);
-    // "Set it up" on the vampire's cover: Vesper, the vampire's invitation, the viewer as the guest.
-    const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: "house-vesper", roleplay: "vampire", you: "1" }) }))).replace(/<!-- -->/g, "");
-    expect(setUp).toContain('data-step-in-who="house-vesper"');
+    // "Set it up" on the vampire's cover: Rafe, the vampire's invitation, the viewer as the guest.
+    const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: "vampire", you: "1" }) }))).replace(/<!-- -->/g, "");
+    expect(setUp).toContain(`data-step-in-who="${WHO}"`);
     expect(setUp).toMatch(/<option value="vampire" selected="">/);
     const sides = [...setUp.matchAll(/<input type="radio" name="ad-si-you"( checked="")?\/>/g)].map((m) => Boolean(m[1]));
     expect(sides).toEqual([false, true]);

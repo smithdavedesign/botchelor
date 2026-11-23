@@ -3651,8 +3651,8 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
     45¢ for the top twelve"). Twelve roleplays have a cover (`lib/adult/roleplay-covers.ts`, `public/cast/roleplay-
     <id>-<name>.webp`): a house character dressed for one side of the story (the roleplay's own `costumes`), in the
     story's own place. The neighbour next door (Juniper), Boss and employee (Dex), Strangers at the bar (Sable),
-    Roommates (Teo), The bodyguard (Imogen), The vampire's invitation (Vesper, as the vampire), The royal and the guard
-    (Perpetua, as the royal), Captain and pilot (Odalys, as the captain), Exes (Boaz), Rivals (Kaz), Wedding guests
+    Roommates (Teo), The bodyguard (Imogen), The vampire's invitation (Rafe, as the vampire), The royal and the guard
+    (Perpetua, as the royal), Captain and pilot (Nell, as the captain), Exes (Boaz), Rivals (Kaz), Wedding guests
     (Lior) and The last fitting (Orin, as the tailor).
     - **The picture is the card's poster.** A card with a cover opens on the one in its picture, whoever the viewer
       has stepped in with before, and on the side the picture implies (`you`: with the vampire on the doorstep, the
@@ -3663,13 +3663,17 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
     - **How they were made:** `~/.claude/botchelor-bin/covers/cover.py`: one image edit each on Replicate's
       `qwen/qwen-image-edit-2511` (the app's own edit model) from the character's PG house portrait, fully clothed,
       Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 80 KB,
-      AI-marked (`scripts/stamp-ai-marks.mjs`). Thirteen edits, about 40 cents. They're the show's own pictures, so
-      discreet mode leaves them alone like a house portrait. `tests/roleplay-covers.test.ts` holds the list to the
-      files.
+      AI-marked (`scripts/stamp-ai-marks.mjs`). Fifteen edits, about 45 cents: a first try, and two redone because
+      their faces (Vesper and Odalys, the premium house characters) aren't in After Dark's cast, so the live shelf
+      showed two covers where four were due. They're the show's own pictures, so discreet mode leaves them alone
+      like a house portrait. `tests/roleplay-covers.test.ts` holds the list to the files and to the cast After Dark
+      can have.
   - **Not built:** covers for the other 33, a cover for a card recast with someone else, and a person's own roleplays
     on the shelf.
-  - **Still rough:** a scene that starts out in public stays held to a kiss until the viewer moves it from the ⋯ menu
-    ("Go somewhere else"); the character can say where the evening is heading, but saying so doesn't move the scene.
+  - **Out in public, one tap from somewhere private:** a scene that starts out in public (15 of the 45) is held to a
+    kiss until it moves, and the way out was only in the ⋯ menu. The scene's header now has **Take it to {name}'s
+    place** right where it says it's held to a kiss (the same `move` the menu makes, to the catalog's home). The
+    character saying where the evening is heading still doesn't move the scene by itself.
 - **From an episode** (2026-11-23; row 13 of the field audit: a short video is the door into a chat on every site in
   the field): under an episode's night (`app/after-dark/shorts/[id]/page.tsx`, "Your turn"), **Step in with {name}**
   for each of the two the viewer may step in with, or **Continue with {name}** where they have a scene running. The
@@ -4072,6 +4076,10 @@ from what the two have actually done together, it only ever goes up, and nothing
   | 5 | Close | 320 | two to three weeks of evenings |
   | 6 | Confidants | 600 | about a month of evenings |
 
+- **An evening is one day wherever it's spent.** The day turns over at 10:00 UTC, not at midnight
+  (`BOND_DAY_TURNS_AT_UTC_HOUR`, `lib/adult/step-in-bond-data.ts`): midnight UTC is 7pm in New York and 4pm in Los
+  Angeles, so an evening there straddled two UTC days and counted twice. At 10:00 UTC it's 5am in New York, 2am in Los
+  Angeles and 11am in Berlin, so an evening anywhere in the Americas or Europe is one day.
 - **Their own people come first on the Characters page** (`yourPeopleFirst`, 2026-11-23): whoever has written to them
   and is waiting, then whoever they have a scene running with, then by level, the highest first; everyone else keeps
   the cast's own order. The page is 36 cards of a few hundred: before this, someone they'd spent a week with could

@@ -44,7 +44,7 @@ import {
   NO_BOND_SINCE,
   yourPeopleFirst,
 } from "@/lib/adult/step-in-bond";
-import { bondMarks, bondOf, exportBonds } from "@/lib/adult/step-in-bond-data";
+import { BOND_DAY_TURNS_AT_UTC_HOUR, bondMarks, bondOf, exportBonds } from "@/lib/adult/step-in-bond-data";
 import { STEP_IN_PACE, STEP_IN_WILL, stepInMessages } from "@/lib/adult/step-in-prompt";
 import { NO_LIMITS } from "@/lib/adult/limits";
 import { sceneCharacter } from "@/lib/adult/voice";
@@ -298,6 +298,22 @@ describe("worked out from what they've done together", () => {
     // Someone else's scenes and someone else's character are nothing to do with it.
     expect((await bondOf(t.db, a.id, OTHER)).bond.points).toBe(0);
     expect((await bondOf(t.db, randomUUID(), WHO)).bond.points).toBe(0);
+  });
+
+  it("an evening is one day wherever it's spent: it turns over at 10:00 UTC, not at midnight", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const s = await start(a.id);
+    // Half past six in New York, then half past eight: one evening, though midnight UTC fell between them.
+    await say(a.id, s.id, "I sit down across from you.", new Date("2026-11-20T23:30:00Z"));
+    await say(a.id, s.id, "I'm still here.", new Date("2026-11-21T01:30:00Z"));
+    expect((await bondOf(t.db, a.id, WHO)).bond.since).toMatchObject({ days: 1, lines: 2 });
+    // Nine in the morning UTC is still that night in the Americas; eleven is the next day.
+    await say(a.id, s.id, "It's late.", new Date(`2026-11-21T0${BOND_DAY_TURNS_AT_UTC_HOUR - 1}:30:00Z`));
+    expect((await bondOf(t.db, a.id, WHO)).bond.since).toMatchObject({ days: 1, lines: 3 });
+    await say(a.id, s.id, "Good morning.", new Date(`2026-11-21T${BOND_DAY_TURNS_AT_UTC_HOUR + 1}:30:00Z`));
+    expect((await bondOf(t.db, a.id, WHO)).bond.since).toMatchObject({ days: 2, lines: 4 });
   });
 
   it("a day's scenes and stories count twice at most, however many there were", async () => {
