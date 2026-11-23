@@ -4597,6 +4597,10 @@ create table if not exists adult_step_in_facts (
 create index if not exists adult_step_in_facts_owner_idx on adult_step_in_facts (owner_id, character_id, updated_at desc);
 alter table adult_prefs add column if not exists step_in_memory_at timestamptz;
 alter table adult_step_in_scenes add column if not exists facts_upto timestamptz;
+-- What the viewer could write next (lib/adult/step-in-ideas.ts): up to three suggested lines kept on the character's
+-- reply they answer (so a reload shows the same ones), and how many times they've been drawn for it.
+alter table adult_step_in_messages add column if not exists ideas jsonb;
+alter table adult_step_in_messages add column if not exists idea_draws integer;
 
 -- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared
 -- vocabulary (lib/tags.ts, type facet only). One source at a time per character: the owner's pick, the house's hand
