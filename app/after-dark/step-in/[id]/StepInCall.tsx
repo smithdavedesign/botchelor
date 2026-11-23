@@ -545,8 +545,8 @@ export default function StepInCall({
             <p className="companion-call-how" data-step-in-call-how>
               The same scene, said out loud: you talk, {first} answers in {first}&apos;s own voice, a few sentences at a time. Your browser turns what you say into words
               (Chrome sends your voice to Google to do it, Safari to Apple); only the words come to Botchelor, kept in this scene like the lines you write, with the same
-              limits and checks. {first} is an AI character, and the voice is made from {first}&apos;s words, never a real person&apos;s. Each answer is one scene step.
-              {stepsLeftLine(left) ? ` You have ${left} left this month.` : ""}
+              limits and checks. {first} is an AI character, and the voice is made from {first}&apos;s words, never a real person&apos;s.
+              {stepsLeftLine(left) ? ` You have ${stepsLeftLine(left)}.` : ""}
             </p>
             {capable && (
               <fieldset className="companion-call-voices" data-step-in-call-over>

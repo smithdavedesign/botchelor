@@ -3723,9 +3723,10 @@ character remembers it by. A scene can be deleted from its ⋯ menu.
 is: once the character is switched out, has left the season's cast or is deleted, nothing more is written
 (`character_out`), and the scene stays to read, end or delete. A scene with last month's cast is read-only.
 
-**Caps and the model.** Each reply counts one of the month's scene steps (`overCap` / `countUse`, `writes`),
-regenerate and Continue included, the neutral stand-in too; flipping through draws, moving and ending don't. Refused
-with the cap's own sentence when they're used; admins are never capped. The viewer's own writer (`writerChoice`)
+**Caps and the model.** Each reply counts one of the month's Step in replies (`overCap` / `countUse`, `step_in`: their
+own count and cap since 2026-11-23, 3,000 a month by default, apart from a night's 300 scene steps; see "The month's
+count is quiet" below), regenerate and Continue included, the neutral stand-in too; flipping through draws, moving and
+ending don't. Refused with the cap's own sentence when they're used; admins are never capped. The viewer's own writer (`writerChoice`)
 writes it, the fast writer standing in exactly as for a scene step (limited or silent: at once; twice empty: then),
 and for the redraw once the first draw has taken 45 seconds.
 
@@ -3811,10 +3812,20 @@ is unlimited on every site in the field and only media is metered). The plan alr
 tokens (fair use: N scene steps a month)", but a scene's composer and a call counted the steps down on every reply.
 Now they say how many are left **only once 25 or fewer remain** (`lib/adult/step-in-shared.ts` `STEPS_LOW`,
 `stepsLeftLine`); the number is always on `/after-dark/tokens`, and the cap, the refusal at the cap and what counts as
-a step are unchanged. **Still open, David's call:** the cap itself. `cap_writes` (300 a month in production) counts a
-night's scene step (six lines, 0.25 to 0.5¢) and a Step in reply (one reply, about 0.1¢) alike, and a long conversation
-uses 300 in two evenings. A separate fair-use number for Step in replies, an order of magnitude higher, would make
-text feel unlimited for about the same worst-case cost as today's night steps.
+a step are unchanged.
+
+**Replies have their own cap** (2026-11-23; David: "Sure sounds good"). `cap_writes` (300 a month) used to count a
+night's scene step (six lines, 0.25 to 0.5¢) and a Step in reply (one reply, about 0.1¢) alike, so a long conversation
+used the month in two evenings and took the person's nights with it. Now a reply counts in `adult_usage.step_in`
+against `adult_settings.cap_step_in` (`lib/adult/usage.ts` kind `step_in`, 3,000 by default; Settings → Prices & caps →
+"Step in replies"), and a night's steps are untouched by it. Worst case for one person in a month: about $3 of text
+(3,000 replies at about 0.1¢), on top of $0.75 to $1.50 for 300 night steps. What reads it:
+- the scene and the call (`steps_left`, said only at 25 or fewer: "12 replies left this month");
+- `/after-dark/tokens`: "Step in replies this month: 2,988 of 3,000 left (fair use)", where Step in is open to the person;
+- the subscribe page, once the `companion` switch is on everyone: "Step in: you in the scene with one of them, one to
+  one. Unlimited replies (fair use: 3,000 a month)";
+- a free taste keeps its own small allowance for both kinds together (`TASTED` in `lib/adult/usage.ts`), and what's
+  left on a taste is the taste's number, never the month's.
 
 **Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
 the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After

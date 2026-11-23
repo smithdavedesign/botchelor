@@ -3,6 +3,12 @@
  * (lib/adult/voice-lines.ts: a line made once, a replay free), so a subscriber can't cost more than they pay. Admins
  * aren't capped. The caps are in after dark's settings (cap_writes 300, cap_pictures 60, cap_clips 5, cap_voice_lines 2000,
  * cap_monologues 20: two sides of a night written, lib/adult/monologues.ts; reading one already written doesn't count).
+ *
+ * Step in's replies have their own count and cap (cap_step_in 3,000; David, 2026-11-23: "Sure sounds good"). Until then
+ * they shared the night's 300 scene steps, though a night's step is six lines (0.25 to 0.5¢) and a reply is one (about
+ * 0.1¢): a long conversation used the month in two evenings, on every other site in the field text is unlimited, and a
+ * person who talked a lot lost their nights with it. The number is fair use, not a countdown: it's said only when it's
+ * nearly gone (lib/adult/step-in-shared.ts stepsLeftLine).
  */
 import { isAdmin } from "../admins";
 import type { Db } from "../db";
@@ -11,10 +17,12 @@ import { isTasting, TASTE_WRITES } from "./taste";
 /** What a free taste says when its steps are used. */
 export const TASTE_DONE = "That's the end of your free taste. Subscribe to carry on where you left off.";
 
-export const USAGE_KINDS = ["writes", "pictures", "clips", "voice_lines", "monologues", "studio", "studio_byok", "upscales", "moments", "captions"] as const;
+export const USAGE_KINDS = ["writes", "step_in", "pictures", "clips", "voice_lines", "monologues", "studio", "studio_byok", "upscales", "moments", "captions"] as const;
 export type UsageKind = (typeof USAGE_KINDS)[number];
 const LABEL: Record<UsageKind, string> = {
   writes: "scene steps",
+  // Step in (lib/adult/step-in.ts): each reply the character writes or says, regenerate and Continue included.
+  step_in: "Step in replies",
   pictures: "pictures",
   clips: "clips",
   voice_lines: "voiced lines",
@@ -30,18 +38,22 @@ const LABEL: Record<UsageKind, string> = {
   captions: "captions written",
 };
 /** The caps' defaults (the columns' own), for the settings page. Pictures 60 (#1005, David 2026-10-30: "60 pictures a month" with a subscription). */
-export const DEFAULT_CAPS: Record<UsageKind, number> = { writes: 300, pictures: 60, clips: 5, voice_lines: 2000, monologues: 20, studio: 400, studio_byok: 1000, upscales: 50, moments: 100, captions: 300 };
+export const DEFAULT_CAPS: Record<UsageKind, number> = { writes: 300, step_in: 3000, pictures: 60, clips: 5, voice_lines: 2000, monologues: 20, studio: 400, studio_byok: 1000, upscales: 50, moments: 100, captions: 300 };
 
 export const monthOf = (d: Date = new Date()) => d.toISOString().slice(0, 7);
+
+/**
+ * What a free taste's own small allowance covers (lib/adult/taste.ts): everything that's written for the person, a
+ * night's steps and Step in's replies alike, counted together from when the taste started.
+ */
+const TASTED: readonly UsageKind[] = ["writes", "step_in"];
+const tasteUsed = async (db: Db, ownerId: string) => (await db.query<{ n: number }>(`select writes as n from adult_tastes where user_id = $1`, [ownerId])).rows[0]?.n ?? 0;
 
 /** Null when there's room; otherwise the sentence to show. Admins always have room. */
 export async function overCap(db: Db, ownerId: string, kind: UsageKind, now: Date = new Date()): Promise<string | null> {
   if (await isAdmin(db, ownerId)) return null;
-  if (kind === "writes" && (await isTasting(db, ownerId))) {
-    // A free taste (lib/adult/taste.ts) has its own small allowance of scene steps, counted from when it started.
-    const used = (await db.query<{ n: number }>(`select writes as n from adult_tastes where user_id = $1`, [ownerId])).rows[0]?.n ?? 0;
-    return used >= TASTE_WRITES ? TASTE_DONE : null;
-  }
+  // A free taste (lib/adult/taste.ts) has its own small allowance, counted from when it started.
+  if (TASTED.includes(kind) && (await isTasting(db, ownerId))) return (await tasteUsed(db, ownerId)) >= TASTE_WRITES ? TASTE_DONE : null;
   const cap = (await db.query<Record<string, number>>(`select cap_${kind} as cap from adult_settings where id = 1`)).rows[0]?.cap ?? 0;
   const used = (await db.query<{ n: number }>(`select ${kind} as n from adult_usage where owner_id = $1 and month = $2`, [ownerId, monthOf(now)])).rows[0]?.n ?? 0;
   return used >= cap ? capSentence(cap, kind) : null;
@@ -58,6 +70,8 @@ export async function capOf(db: Db, kind: UsageKind): Promise<number> {
 /** How many of a kind are left this month: null for an admin (never capped). */
 export async function usageLeft(db: Db, ownerId: string, kind: UsageKind, now: Date = new Date()): Promise<number | null> {
   if (await isAdmin(db, ownerId)) return null;
+  // On a free taste, what's left is the taste's own (the month's number would promise far more than it gives).
+  if (TASTED.includes(kind) && (await isTasting(db, ownerId))) return Math.max(0, TASTE_WRITES - (await tasteUsed(db, ownerId)));
   const cap = (await db.query<Record<string, number>>(`select cap_${kind} as cap from adult_settings where id = 1`)).rows[0]?.cap ?? 0;
   const used = (await db.query<{ n: number }>(`select ${kind} as n from adult_usage where owner_id = $1 and month = $2`, [ownerId, monthOf(now)])).rows[0]?.n ?? 0;
   return Math.max(0, cap - used);
@@ -69,8 +83,8 @@ export async function countUse(db: Db, ownerId: string, kind: UsageKind, now: Da
      on conflict (owner_id, month) do update set ${kind} = adult_usage.${kind} + $3::int`,
     [ownerId, monthOf(now), n],
   );
-  // A free taste counts its own scene steps (lib/adult/taste.ts); no row, nothing changes.
-  if (kind === "writes") await db.query(`update adult_tastes set writes = writes + $2::int where user_id = $1`, [ownerId, n]);
+  // A free taste counts what's written for it (lib/adult/taste.ts); no row, nothing changes.
+  if (TASTED.includes(kind)) await db.query(`update adult_tastes set writes = writes + $2::int where user_id = $1`, [ownerId, n]);
 }
 
 /**

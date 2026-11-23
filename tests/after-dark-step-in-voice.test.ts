@@ -131,7 +131,7 @@ function fakeKokoro(fail = false) {
 }
 
 const rows = async (sql: string, params: unknown[] = []) => (await t.db.query<Record<string, unknown>>(sql, params)).rows;
-const used = async (id: string, kind: "writes" | "voice_lines") => Number((await rows(`select ${kind} as n from adult_usage where owner_id = $1`, [id]))[0]?.n ?? 0);
+const used = async (id: string, kind: "step_in" | "voice_lines") => Number((await rows(`select ${kind} as n from adult_usage where owner_id = $1`, [id]))[0]?.n ?? 0);
 const steps = async (id: string) => rows(`select status, http, flags from adult_steps where owner_id = $1 order by created_at`, [id]);
 async function start(viewer: string, place = HOME) {
   const r = await startStepIn(t.db, viewer, { character_id: WHO, place });
@@ -267,7 +267,7 @@ describe("a line said out loud", () => {
     await setUp();
     const a = await admin();
     const made = await start(a.id);
-    const before = await used(a.id, "writes");
+    const before = await used(a.id, "step_in");
     const r = await say(a.id, made.id, "Hi, it's me. Are you home?");
     expect(r.ok).toBe(true);
     const view = await viewOf(a.id, made.id);
@@ -275,7 +275,7 @@ describe("a line said out loud", () => {
     expect(mine).toMatchObject({ role: "viewer", kind: "call", text: "Hi, it's me. Are you home?" });
     // Kept as one quoted line (how a scene keeps anything said), its stage direction gone, all of it hearable.
     expect(theirs).toMatchObject({ role: "character", kind: "call", text: '"I was hoping you\'d call. Tell me where you are right now."', spoken: 1 });
-    expect(await used(a.id, "writes")).toBe(before + 1);
+    expect(await used(a.id, "step_in")).toBe(before + 1);
     // The spoken prompt: the call's rules, the line they said and the cue.
     expect(seen.spoken).toHaveLength(1);
     expect(seen.spoken[0].at(-1)!.content).toBe(`Hi, it's me. Are you home?\n\n${CALL_CUE}`);
@@ -370,7 +370,7 @@ describe("Talk: a written line answered out loud", () => {
     await setUp();
     const a = await admin();
     const made = await start(a.id);
-    const before = await used(a.id, "writes");
+    const before = await used(a.id, "step_in");
     const r = await talk(a.id, made.id, "I sit down next to you. Long day?");
     expect(r.ok).toBe(true);
     const view = await viewOf(a.id, made.id);
@@ -378,7 +378,7 @@ describe("Talk: a written line answered out loud", () => {
     // Nothing was said out loud by the viewer: their line isn't a call's.
     expect(mine).toMatchObject({ role: "viewer", kind: null, text: "I sit down next to you. Long day?" });
     expect(theirs).toMatchObject({ role: "character", kind: "talk", text: '"Long enough. Sit, I saved you the good chair."', spoken: 1 });
-    expect(await used(a.id, "writes")).toBe(before + 1);
+    expect(await used(a.id, "step_in")).toBe(before + 1);
     expect(seen.talked).toHaveLength(1);
     expect(seen.talked[0].at(-1)!.content).toBe(`I sit down next to you. Long day?\n\n${TALK_CUE}`);
     expect((await steps(a.id)).at(-1)).toMatchObject({ status: "ok", flags: { action: "send", talk: true } });

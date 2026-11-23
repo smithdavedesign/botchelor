@@ -4612,6 +4612,9 @@ alter table adult_step_in_scenes add column if not exists side_message text;
 -- What the viewer could write next (lib/adult/step-in-ideas.ts): up to three suggested lines kept on the character's
 -- reply they answer (so a reload shows the same ones), and how many times they've been drawn for it.
 alter table adult_step_in_messages add column if not exists ideas jsonb;
+-- Step in's replies counted apart from a night's scene steps, with their own monthly cap (lib/adult/usage.ts "step_in").
+alter table adult_usage add column if not exists step_in integer not null default 0;
+alter table adult_settings add column if not exists cap_step_in integer not null default 3000;
 alter table adult_step_in_messages add column if not exists idea_draws integer;
 
 -- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared
