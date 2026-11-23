@@ -120,7 +120,9 @@ costs down let's just have a loop of the character like a gif."
   the next poll (the next call, hours later) gave up on it unseen ("gave up waiting"). Now whoever queues a loop
   follows it after their response until it's kept (`followFaceKit`: every 10 s, up to 8 minutes), a loop that's done
   is kept however late it's collected, and a loop nobody collected is drawn again on the next call at once (it isn't
-  held against the kit for a day, as a picture that failed its check is).
+  held against the kit for a day, as a picture that failed its check is). One more thing kept a failed loop from ever
+  coming back: a loop queued again kept its row's first creation time, and "too late" was read from that, so a second
+  try was given up at its first check, seconds after it was queued. It's read from when the loop was queued now.
 - **Lip-sync is switched off, not removed.** `LIVE_FACE_PROVIDER` unset (or `off`) is this. Setting it back
   (`ditto:plan`, `ditto:admins`, `musetalk`…) brings the clips back exactly as before, over the same loop; while
   Ditto is set a kit also draws Ditto's talking still (`kitParts`). Worth turning on again when calls are frequent
