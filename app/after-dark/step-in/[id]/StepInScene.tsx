@@ -8,7 +8,7 @@ import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import Icon from "@/app/Icon";
 import CharacterFigure from "@/app/stage/CharacterFigure";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
-import { placeInSentence, STEP_IN_LINE_MAX, STEP_IN_TAGLINE, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
+import { placeInSentence, STEP_IN_LINE_MAX, STEP_IN_STARTERS, STEP_IN_TAGLINE, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { storyParagraphs, storySegments } from "@/lib/story-reply";
@@ -140,6 +140,7 @@ export default function StepInScene({
   // The lines that were here when the page arrived: only a reply that comes after them is read aloud by itself.
   const seen = useRef(new Set(initial.messages.map((m) => m.id)));
   const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
   const name = first(view.character.name);
   const live = !view.ended && !view.paused && !view.character_out;
   const last = view.messages.filter((m) => m.role !== "system").at(-1) ?? null;
@@ -381,6 +382,28 @@ export default function StepInScene({
           </p>
         )}
 
+        {/* Something to say first: under the opening, until they've written a line of their own (never in a roleplay,
+            whose opening already says what's going on). A tap fills the box; nothing is sent until they send it. */}
+        {live && !waiting && !view.roleplay && !view.opening && last?.role === "character" && !view.messages.some((m) => m.role === "viewer") && !text && (
+          <p className="ad-si-starters" data-step-in-starters>
+            <span className="muted small">Say something:</span>
+            {STEP_IN_STARTERS.map((line) => (
+              <button
+                key={line}
+                type="button"
+                className="button-ghost small"
+                disabled={Boolean(busy)}
+                onClick={() => {
+                  setText(line);
+                  box.current?.focus();
+                }}
+              >
+                {line}
+              </button>
+            ))}
+          </p>
+        )}
+
         {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
         {view.character_out && !view.ended && (
           <p className="ad-si-paused muted" data-step-in-out>
@@ -436,6 +459,7 @@ export default function StepInScene({
             </label>
             <textarea
               id="ad-si-line"
+              ref={box}
               rows={2}
               value={text}
               maxLength={STEP_IN_LINE_MAX}
