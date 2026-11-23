@@ -108,6 +108,10 @@ export const AFTER_DARK_HOST_APIS = [
   "/api/jobs/after-dark-daily", // the house cast's baselines
   "/api/jobs/showcase-check", // the explicit posts' PG check reads their clips' frames
   "/api/jobs/faststart-backfill", // the one-time backfill of clips already in the bucket (admin-run; lib/adult/faststart-backfill.ts)
+  // Step in's characters writing first (lib/adult/step-in-notes-pass.ts): the pass's own route, for running it by hand
+  // and for the day the scheduler calls it. Without this line it answered 307 to the show here (found 2026-11-23, the
+  // first time it was called), where an After Dark reply would have been written on the wrong host.
+  "/api/jobs/step-in-notes",
 ] as const;
 
 export const isAfterDarkPage = (pathname: string): boolean => AFTER_DARK_PAGES.some((r) => covers(r, pathname));
