@@ -3872,6 +3872,10 @@ Dark's own voice and nothing of the show's:
 - **What it costs:** the reply, about a tenth of a cent on the fast writer; the voice, about $0.0004 a piece on Venice's
   Kokoro (more on a better voice model); hearing the viewer, nothing (it's their browser's). No new provider, key or
   processor: Venice already voices the nights.
+- **What was heard** (`lib/companion-live-shared.ts` `heardIn`, both calls): the session's whole result list, the
+  settled words then the ones still coming. A call sends the settled words, or, when a session ends with words heard
+  and none settled, those (the first call in a real Chrome: a session that began mid-sentence ended that way and the
+  line was dropped).
 - **Not built, on purpose or yet:** talking over them outside desktop Chrome (above); Firefox (no speech recognition
   there); and pictures in a scene. **Not tested on a real iPhone:** every call here was checked in Chrome with a faked
   or a file-fed microphone. One thing to watch for there: reports that Safari on an iPhone stops hearing after an

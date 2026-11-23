@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CUT_IN_CHROME, CUT_IN_WORDS, cutInCapable, cutsIn } from "@/lib/adult/step-in-shared";
+import { heardIn } from "@/lib/companion-live-shared";
 
 const chrome = (version: number, more: object = {}) => ({
   mobile: false,
@@ -62,6 +63,31 @@ describe("what counts as cutting in", () => {
 
   it("with nothing being said, any two words are the viewer's", () => {
     expect(cutsIn("are you there", "")).toBe(true);
+  });
+});
+
+describe("what a listening session heard", () => {
+  const result = (transcript: string, isFinal: boolean) => Object.assign([{ transcript }], { isFinal }) as unknown as { isFinal: boolean; 0: { transcript: string } };
+
+  it("is every result of the session: the settled words, then the ones still coming", () => {
+    expect(heardIn([])).toEqual({ said: "", sofar: "" });
+    expect(heardIn([result("hi", false)])).toEqual({ said: "", sofar: "hi" });
+    expect(heardIn([result("hi it's me", true), result(" tell me", false)])).toEqual({ said: "hi it's me", sofar: "hi it's me tell me" });
+    // As Chrome sends them: a steady piece and a piece still changing, neither settled yet.
+    expect(heardIn([result("hold on", false), result(" tell me about the", false)])).toEqual({ said: "", sofar: "hold on tell me about the" });
+    expect(heardIn([result("  wait   hold on ", true)])).toEqual({ said: "wait hold on", sofar: "wait hold on" });
+  });
+
+  it("both calls send the settled words, or what was heard when the session ended with none settled", () => {
+    // The first call in a real Chrome (2026-11-23): a session that began mid-sentence ended with words heard and none
+    // settled, and the line was dropped.
+    for (const file of ["app/after-dark/step-in/[id]/StepInCall.tsx", "app/companion/[id]/CompanionCall.tsx"]) {
+      const src = readFileSync(file, "utf8");
+      expect(src, file).toContain("heardIn(e.results)");
+      expect(src, file).toContain("const text = said || sofar;");
+      // Never only the results that changed since the last event.
+      expect(src, file).not.toContain("i = e.resultIndex");
+    }
   });
 });
 
