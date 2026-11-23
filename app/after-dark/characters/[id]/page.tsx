@@ -16,6 +16,7 @@ import { ownMedia } from "@/lib/adult/media";
 import { adultAvailable } from "@/lib/adult/mode";
 import { lockedForCookies } from "@/lib/adult/privacy";
 import { runningStepIns, stepInOpen } from "@/lib/adult/step-in";
+import { bondOf } from "@/lib/adult/step-in-bond-data";
 import { cutoutsReady, cutoutUrl } from "@/lib/cutout";
 import { getDb, type Db } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
@@ -25,6 +26,7 @@ import { showcasePaths } from "@/lib/showcase-paths";
 import { tagById } from "@/lib/tags";
 import { NightList } from "../../PairPicker";
 import StepInButton from "../../step-in/StepInButton";
+import { BondMarkTag } from "../../step-in/[id]/StepInBond";
 import { currentHere, currentView } from "../../view";
 
 export const dynamic = "force-dynamic";
@@ -76,8 +78,11 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
   const c = await adCharacter(db, viewer, id);
   if (!c) notFound();
   const [here, doors, stepIn, cutouts] = await Promise.all([currentHere(), afterDarkDoors(db, viewer), stepInOpen(db, viewer), cutoutsReady()]);
+  // How well they know each other (lib/adult/step-in-bond.ts), read beside the next query; nothing is written from here.
+  const bondDue = stepIn ? bondOf(db, viewer, c.id, { lift: false }).catch(() => null) : null;
   // The scene they have running with this character, when Step in is open to them: the button goes back into it.
   const running = stepIn ? ((await runningStepIns(db, viewer)).get(c.id) ?? null) : null;
+  const bond = (await bondDue)?.bond ?? null;
   // Their whole portrait (a house character's reviewed file first, as their avatar has it), standing as Step in's figure
   // does (app/stage/CharacterFigure.tsx): cut out of its background where the zone makes cutouts (lib/cutout.ts).
   const portrait = characterPortrait(c.id) ?? c.portrait;
@@ -113,6 +118,12 @@ export default async function AfterDarkCharacterPage({ params }: Props) {
               <Icon name="moon" /> After Dark{facts ? ` · ${facts}` : ""}
             </p>
             <h1 id="ad-char-name">{c.name}</h1>
+            {/* Only for someone they've stepped in with: strangers have no mark. */}
+            {bond && bond.level > 1 && (
+              <p className="ad-char-bond-line" data-character-bond>
+                <BondMarkTag mark={{ level: bond.level, name: bond.name }} />
+              </p>
+            )}
             {tags.length > 0 && (
               <ul className="chips ad-char-chips" aria-label="Type">
                 {tags.map((t) => (

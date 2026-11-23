@@ -4609,6 +4609,19 @@ alter table adult_step_in_messages add column if not exists picture_at timestamp
 -- adult_step_in_scenes.side_message: the reply whose picture the viewer put in the character's place beside the scene
 -- (lib/adult/step-in-picture.ts setStepInBeside); null: the character's own portrait stands there.
 alter table adult_step_in_scenes add column if not exists side_message text;
+-- How well a viewer and a character know each other in Step in (lib/adult/step-in-bond.ts): the level is worked out
+-- from the scenes' own rows each time, and this keeps the most it has ever been, so a scene deleted later can't lower
+-- it (it never drops). shown_level: the level the scene has already said out loud (it's said once). Nothing a person
+-- wrote is in it; it goes with After Dark's delete and is in its download.
+create table if not exists adult_step_in_bonds (
+  owner_id text not null,
+  character_id text not null,
+  points integer not null default 0,
+  level integer not null default 1,
+  shown_level integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, character_id)
+);
 -- A roleplay's story in a scene (lib/adult/step-in-story.ts). story_beats: which of its card's beats have played, a list
 -- of true/false in the card's order (only ever ticked). story_upto: the reply the story was last read at.
 -- story_done_at: when its last beat first played; the roleplay counts as played for that viewer from then.

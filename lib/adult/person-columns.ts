@@ -34,6 +34,7 @@ export const ADULT_PERSON_COLUMNS: readonly PersonColumn[] = [
   // What a character remembers about them between scenes (lib/adult/step-in-memory.ts): only with their own consent,
   // gone when they turn memory off, and in After Dark's download ("memory").
   owned("adult_step_in_facts", "owner_id"),
+  owned("adult_step_in_bonds", "owner_id"),
   owned("adult_memories", "owner_id"),
   owned("adult_facts", "owner_id"),
   owned("adult_rejections", "owner_id"),

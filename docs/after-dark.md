@@ -3916,6 +3916,73 @@ ran until the viewer tired of it, with nothing to play for and nothing that ever
 
 **Proof:** `tests/after-dark-step-in-story.test.ts`.
 
+**How well they know each other** (2026-11-23; David: "A visible relationship level (SpicyChat, Candy), without the
+decay and paid skips people complain about."; row 10 of
+[audits/2026-11-23-scenes-and-side-pictures.md](audits/2026-11-23-scenes-and-side-pictures.md): SpicyChat shows meters at
+the top of the chat, Candy has levels and XP, and what people complain about is a level that falls when they're away
+and paying to skip one). The viewer and each character they step in with have a level with a name. It is worked out
+from what the two have actually done together, it only ever goes up, and nothing about it can be bought.
+`lib/adult/step-in-bond.ts` (what it is), `lib/adult/step-in-bond-data.ts` (its rows).
+
+- **It's derived, never asked for.** One statement reads it from rows that already exist. What counts, and for what
+  (`BOND_WORTH`; days are UTC's, since nobody's time zone is known):
+
+  | What | Worth | Held to |
+  | --- | --- | --- |
+  | A day with a line of the viewer's in a scene with them | 10 | |
+  | The viewer's lines | 1 for every 4 | the first 24 of a day |
+  | A scene they wrote in (on the day of its first line) | 2 | 2 a day |
+  | A roleplay played to its last beat (`story_done_at`) | 12 | 2 a day |
+  | A day with a call in it | 3 | once a day |
+  | A day with a picture made in a scene | 2 | once a day |
+  | A thing the character remembers about them | 1 | 10 in all |
+
+  The most one day can add (`BOND_DAY_MAX`, 59) is under the third level's start: a first evening reaches level 2, and
+  no evening, however long or full, jumps two levels. A day is worth more than every line that counts in it, and a
+  story more than a day: time together matters most. A picture costs tokens past the month's own, so a day's pictures
+  count once, for two points: nobody buys a level.
+
+- **The levels** (`BOND_LEVELS`): six, plain names, nothing locked or unlocked by any of them.
+
+  | Level | Name | From | About when |
+  | --- | --- | --- | --- |
+  | 1 | Strangers | 0 | before the first line |
+  | 2 | Acquainted | 12 | the first line of the first evening |
+  | 3 | Familiar | 60 | the third or fourth evening |
+  | 4 | At ease | 150 | a week of evenings |
+  | 5 | Close | 320 | two to three weeks of evenings |
+  | 6 | Confidants | 600 | about a month of evenings |
+
+- **It never drops, and that's why there's a table.** A person who deletes a scene takes its lines with it, so what's
+  derived can fall. `adult_step_in_bonds` keeps the most it has ever been for each viewer and character (`points`,
+  `level`, only ever raised: `greatest` in one statement), and what's shown is the greater of the two (`bondView`;
+  `kept` when it stands on scenes since deleted, which the chip says in words). Nothing a person wrote is in the
+  table. It is in After Dark's download (`exportAdultProfile` → `bonds`) and goes with the account
+  (`AFTER_DARK_OWNED`); nothing else takes it away, and nothing lowers it.
+- **Where they see it.** In a scene's header, with the place: a quiet fold with the level's name and a thin bar toward
+  the next (`BondChip`); opened, it says what it's made of ("4 evenings · 2 stories played · 61 lines. Next: At ease.")
+  and that it only ever goes up. When a reply's response crosses into a level the scene says so once, in one line under
+  that reply ("You and Juniper are now familiar."): never a modal, never twice (`shown_level`), and not from a page
+  that's only being read, so a level reached while they were away is said by their next reply. On After Dark's
+  Characters page, a character's own page and the cards of Step in's shelf: the level's name as a small mark, only for
+  someone they've stepped in with (strangers have no mark). One statement for every card (`bondMarks`). Nothing on the
+  show's host.
+- **It's felt, not only shown.** From the second scene or the second evening on, the character's own prompt gets one
+  line from the level and the time behind it (`bondPromptLine`): "You two have spent nine evenings together and played
+  three stories to the end: you're at ease with them: you have history, and you don't act as if you've just met." It
+  always ends on the same sentence (`BOND_NEVER_FASTER`): "This is how well you know each other, and never a reason to
+  go faster or further than they take things: the pace, their limits and your own will stand exactly as written." In a
+  roleplay it adds that the role comes first. Through a first scene on a first evening the character is told nothing:
+  a first scene is written exactly as it always was.
+- **What it is not**, since the next person will be tempted: no decay, no streaks, no daily rewards, nothing unlocked
+  or locked by a level, nothing about it for sale, no notification.
+- **What it costs:** one more statement beside the ones a scene's view and a reply's prompt already make, and a small
+  write when the number rises. No model call.
+- **Not built:** a mark on the hub's Step in tile, a way to see every character's level in one place, and anything a
+  level changes other than how well the character knows them.
+
+**Proof:** `tests/after-dark-step-in-bond.test.ts`.
+
 **Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
 the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After
 Dark's own voice and nothing of the show's:
