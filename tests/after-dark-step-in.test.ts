@@ -39,9 +39,12 @@ import {
   carryOnStepIn,
   checkReply,
   continueStepIn,
+  drawnSets,
+  drawStepInSet,
   endStepIn,
   getStepInScene,
   lineLimitRefusal,
+  listStepInScenes,
   moveStepIn,
   noticeDue,
   QUICK_PLACE,
@@ -57,10 +60,12 @@ import {
   stepInFollowUp,
   stepInNotice,
   stepInPlaces,
+  storyPlaces,
   swipeStepIn,
   takeBackStepIn,
   type StepInSceneView,
 } from "@/lib/adult/step-in";
+import { STORY_PLACE } from "@/lib/adult/step-in-shared";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn } from "@/lib/adult/step-in-lines";
 import {
   CONTINUE_CUE,
@@ -1434,7 +1439,7 @@ describe("the roleplays, from the viewer's side", () => {
 // after dark characters for a scene?" The roleplays were behind a dropdown in step 3 of the set-up. They're cards on
 // Step in's front page now, each cast with someone from the viewer's own After Dark, one click from being in it.
 describe("a roleplay's card, started in one click", () => {
-  it("makes a new scene in that roleplay at their place, with no model asked; the page has the character open it from the card's story", async () => {
+  it("makes a new scene in that roleplay where its story is set, with no model asked; the page has the character open it from the card's story", async () => {
     const seen = scripted();
     await saveAdultSettings(t.db, {});
     const a = await admin();
@@ -1444,7 +1449,8 @@ describe("a roleplay's card, started in one click", () => {
     expect(seen.prompts).toHaveLength(0);
     expect(await replies(a.id)).toBe(0);
     let view = await viewOf(a.id, id);
-    expect(view.place.id).toBe(QUICK_PLACE);
+    // Where its story is set (lib/adult/roleplays.ts `at`), not at their home: under its own name, and behind a door.
+    expect(view.place).toEqual({ id: STORY_PLACE, title: "The landing between two flats", place: "the landing between two flats, one door open", image: null, backdrop: null, public: false });
     expect(view.roleplay).toMatchObject({ title: "The neighbour next door", you_play: "the neighbour who knocks", they_play: "the neighbour who answers" });
     expect(said(view)).toEqual([]);
     const opened = await continueStepIn(t.db, a.id, id);
@@ -1453,7 +1459,89 @@ describe("a roleplay's card, started in one click", () => {
     expect(said(view)).toEqual(["character"]);
     // The writer was given the roleplay: who each of them is in it.
     expect(JSON.stringify(seen.prompts[0])).toContain("the neighbour who answers");
+    // And where they are: the story's own place, in the opening's cue and in the system prompt, never their home.
+    expect(lastUser(seen.prompts[0])).toMatch(/^\(The two of you have just got to the landing between two flats, one door open, and the roleplay "The neighbour next door" starts now\./);
+    expect(seen.prompts[0][0].content).toContain("Where you are: the landing between two flats, one door open.");
+    expect(seen.prompts[0][0].content).not.toContain("Where you are: your place");
+    expect(seen.prompts[0][0].content).not.toContain("You are out in public");
     expect(await replies(a.id)).toBe(1);
+  });
+
+  it("a story set among other people starts out in public, held to a kiss until the scene moves; one behind a door doesn't", async () => {
+    const seen = scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const bar = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: "strangers-bar" } });
+    const id = (bar as { id: string }).id;
+    let view = await viewOf(a.id, id);
+    expect(view.place).toMatchObject({ id: STORY_PLACE, title: "A quiet bar on a weeknight", place: "a quiet bar on a weeknight, two stools apart", public: true });
+    expect((await continueStepIn(t.db, a.id, id)).ok).toBe(true);
+    expect(seen.prompts[0][0].content).toContain("You are out in public (a quiet bar on a weeknight, two stools apart)");
+    // It can still move somewhere from the catalog, and then it's where it moved to.
+    view = (await moveStepIn(t.db, a.id, id, HOME) as { view: StepInSceneView }).view;
+    expect(view.place).toMatchObject({ id: HOME, public: false });
+    // The names the page shows for the 45, and which are public, come from the same reading.
+    const stories = storyPlaces();
+    expect(Object.keys(stories)).toHaveLength(ROLEPLAYS.length);
+    expect(stories["strangers-bar"]).toEqual({ title: "A quiet bar on a weeknight", public: true });
+    expect(stories["the-fitting"]).toEqual({ title: "A closed tailor's shop", public: false });
+  });
+
+  it("the set-up takes \"story\" for the place only with a roleplay; a place the viewer picks instead stands, and no roleplay starts at their place as before", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const before = await count("adult_step_in_scenes");
+    expect(await startStepIn(t.db, a.id, { character_id: WHO, place: STORY_PLACE })).toMatchObject({ ok: false, status: 422, error: "invalid_place", message: "Pick a roleplay first, or a place from the list." });
+    expect(await count("adult_step_in_scenes")).toBe(before);
+    const there = await start(a.id, { place: STORY_PLACE, roleplay: { id: "the-fitting", you: 1 } });
+    expect(there.view.place).toMatchObject({ id: STORY_PLACE, title: "A closed tailor's shop", place: "the closed tailor's shop, blinds down, one lamp lit", public: false });
+    // The scene's line in the list of scenes names the place by its title.
+    expect((await listStepInScenes(t.db, a.id)).running.find((s) => s.id === there.id)?.place).toBe("A closed tailor's shop");
+    const elsewhere = await start(a.id, { place: CAFE, roleplay: { id: "the-fitting", you: 1 } });
+    expect(elsewhere.view.place.id).toBe(CAFE);
+    const plain = await start(a.id);
+    expect(plain.view.place).toMatchObject({ id: HOME, title: "Their place" });
+    // The route takes it, and answers with the scene at the story's place.
+    const res = await setupPost(post("/api/admin/after-dark/step-in", { character_id: WHO, place: "story", roleplay: { id: "wedding" } }, a.cookie));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { scene: StepInSceneView }).scene.place).toMatchObject({ id: STORY_PLACE, title: "The singles' table at a wedding", public: true });
+    expect((await setupPost(post("/api/admin/after-dark/step-in", { character_id: WHO, place: "story" }, a.cookie))).status).toBe(422);
+  });
+
+  it("asks for the story place's picture once for everyone, never for a place of the catalog's, and shows it once it's drawn", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    const a = await admin();
+    const q = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: "the-forge" } });
+    const id = (q as { id: string }).id;
+    const KEY = "village forge after dark a mended sword on the anvil";
+    const asked = () => rows(`select label, status from place_sets where normalized = $1`, [KEY]);
+    // (No picture provider is set up in this test: the ask is filed and waits, which is all that's checked here.)
+    expect(await drawStepInSet(t.db, a.id, id)).toBe("failed");
+    expect(await asked()).toEqual([{ label: "the village forge after dark, a mended sword on the anvil", status: "failed" }]);
+    // Asked again, by them or by anyone else at the same place: the one row is left alone.
+    expect(await drawStepInSet(t.db, a.id, id)).toBe("exists");
+    const b = await admin();
+    const theirs = await quickStepIn(t.db, b.id, WHO, new Date(), { roleplay: { id: "the-forge" } });
+    expect(await drawStepInSet(t.db, b.id, (theirs as { id: string }).id)).toBe("exists");
+    expect(await asked()).toHaveLength(1);
+    // Never for a scene at one of the catalog's places, and never for a scene that isn't theirs.
+    const home = await start(a.id);
+    expect(await drawStepInSet(t.db, a.id, home.id)).toBeNull();
+    expect(await drawStepInSet(t.db, b.id, id)).toBeNull();
+    expect((await viewOf(a.id, id)).place).toMatchObject({ image: null, backdrop: null });
+    // Once it's drawn (lib/sets.ts keeps it under the place's name), the scene stands on it.
+    await t.db.query(`update place_sets set status = 'ready' where normalized = $1`, [KEY]);
+    expect((await viewOf(a.id, id)).place).toMatchObject({
+      image: "/api/sets/village%20forge%20after%20dark%20a%20mended%20sword%20on%20the%20anvil?w=400",
+      backdrop: "/api/sets/village%20forge%20after%20dark%20a%20mended%20sword%20on%20the%20anvil",
+    });
+    // And it stays on it however many other places are drawn after it (the list of drawn sets is the newest 300).
+    await t.db.query(`update place_sets set updated_at = now() - interval '30 days' where normalized = $1`, [KEY]);
+    await t.db.query(`insert into place_sets (normalized, label, status) select 'somewhere ' || n, 'somewhere ' || n, 'ready' from generate_series(1, 320) n`);
+    expect(await drawnSets(t.db)).toContain("the village forge after dark, a mended sword on the anvil");
+    expect((await viewOf(a.id, id)).place.backdrop).toBe("/api/sets/village%20forge%20after%20dark%20a%20mended%20sword%20on%20the%20anvil");
   });
 
   it("is always a new scene: the one already running with them stays where it was, and the other side can be played", async () => {
@@ -1513,6 +1601,16 @@ describe("a roleplay's card, started in one click", () => {
     const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: "neighbours" }) }))).replace(/<!-- -->/g, "");
     expect(setUp).toContain(`data-step-in-who="${WHO}"`);
     expect(setUp).toMatch(/<option value="neighbours" selected="">/);
+    // And "Where" starts on where that story is set, offered first; with no roleplay picked it isn't offered at all.
+    expect(setUp).toMatch(/<select id="ad-si-place"><option value="story" data-step-in-story-place="true" selected="">Where the story is set: The landing between two flats<\/option>/);
+    expect(setUp).toContain("📍 Set at: The landing between two flats.");
+    expect(page).not.toContain("data-step-in-story-place");
+    expect(page).toMatch(/<option value="venue:home" selected="">Their place<\/option>/);
+    // Each card says where its story is set, and that it's out in public when it is.
+    const ats = [...shelf.matchAll(/data-step-in-card="([^"]+)"[\s\S]*?data-step-in-card-at="(public|private)">📍 ([^<]+)</g)].map((m) => ({ id: m[1], at: m[2], line: m[3].replaceAll("&#x27;", "'") }));
+    expect(ats).toHaveLength(SHELF_TONIGHT);
+    const stories = storyPlaces();
+    for (const c of ats) expect(c, c.id).toEqual({ id: c.id, at: stories[c.id].public ? "public" : "private", line: `${stories[c.id].title}${stories[c.id].public ? " · out in public" : ""}` });
     // Opened for one of them ("Roleplay or place" on their card): every card is cast with that person.
     expect(setUp).toContain(`Step into a roleplay with ${NAME}`);
     expect([...setUp.matchAll(/data-step-in-card-with="([^"]+)"/g)].map((m) => m[1])).toEqual(Array(SHELF_TONIGHT).fill(WHO));
