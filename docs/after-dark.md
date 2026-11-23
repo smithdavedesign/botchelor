@@ -3647,8 +3647,27 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
       first time someone starts a scene there. Until it exists the scene paints the page's own gradient.
     - **Moving** is unchanged: "Go somewhere else" is the catalog's list, and the 45 aren't added to it.
   - **What it costs:** nothing to show; a started card is one reply, like any opening.
-  - **Not built:** a cover picture per card (the character dressed for the role: about 3.5¢ each), a goal the viewer
-    can see and an ending, and a person's own roleplays on the shelf.
+  - **Covers** (2026-11-23; David: "A cover picture per card, the character dressed for the role. About 3.5¢ each, so
+    45¢ for the top twelve"). Twelve roleplays have a cover (`lib/adult/roleplay-covers.ts`, `public/cast/roleplay-
+    <id>-<name>.webp`): a house character dressed for one side of the story (the roleplay's own `costumes`), in the
+    story's own place. The neighbour next door (Juniper), Boss and employee (Dex), Strangers at the bar (Sable),
+    Roommates (Teo), The bodyguard (Imogen), The vampire's invitation (Vesper, as the vampire), The royal and the guard
+    (Perpetua, as the royal), Captain and pilot (Odalys, as the captain), Exes (Boaz), Rivals (Kaz), Wedding guests
+    (Lior) and The last fitting (Orin, as the tailor).
+    - **The picture is the card's poster.** A card with a cover opens on the one in its picture, whoever the viewer
+      has stepped in with before, and on the side the picture implies (`you`: with the vampire on the doorstep, the
+      viewer is the guest). "Someone else" recasts it, the people they know first, and the cover goes: it's a picture
+      of one person. A page opened for one person (`?with=`) shows a cover only where it's theirs.
+    - **Tonight's eight lead with four of them** (`shelfTonight`'s `first`), a different four each day, so the shelf
+      opens on pictures and its rows are of a kind; "All" and each kind list the pictured ones first.
+    - **How they were made:** `~/.claude/botchelor-bin/covers/cover.py`: one image edit each on Replicate's
+      `qwen/qwen-image-edit-2511` (the app's own edit model) from the character's PG house portrait, fully clothed,
+      Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 80 KB,
+      AI-marked (`scripts/stamp-ai-marks.mjs`). Thirteen edits, about 40 cents. They're the show's own pictures, so
+      discreet mode leaves them alone like a house portrait. `tests/roleplay-covers.test.ts` holds the list to the
+      files.
+  - **Not built:** covers for the other 33, a cover for a card recast with someone else, and a person's own roleplays
+    on the shelf.
   - **Still rough:** a scene that starts out in public stays held to a kiss until the viewer moves it from the ⋯ menu
     ("Go somewhere else"); the character can say where the evening is heading, but saying so doesn't move the scene.
 - **From an episode** (2026-11-23; row 13 of the field audit: a short video is the door into a chat on every site in
