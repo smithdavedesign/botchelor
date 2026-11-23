@@ -3905,6 +3905,40 @@ as a call's; her living loop on the call's face; no page errors on a desktop or 
 | A scene, one click later; heard | ![A Step in scene one click later](screenshots/after-dark-step-in-one-click-desktop.png) | ![The scene on a phone, a reply being heard](screenshots/after-dark-step-in-hear-phone.png) |
 | A call | ![A call in a Step in scene](screenshots/after-dark-step-in-call-desktop.png) | ![The call on a phone](screenshots/after-dark-step-in-call-phone.png) |
 
+**Live, round two** (ad.botchelor.com, the audit account, 2026-11-23, after #2102; memory, talking over a call, Talk,
+ideas and the door from an episode). The live checks found five things the tests couldn't, each fixed the same day:
+Add in the memory panel reloaded the page (#2094), the panel ran wider than its menu (#2101), a listening session could
+end with words heard and none sent (#2099), the ideas began left of the scene's column (#2102) and the door's two
+buttons sat at different heights (#2101).
+- **Memory:** off with its consent in the menu, and the server refuses "on" without the tick. Turned on; a fact added
+  by hand; two lines about "Sam" (a made-up person); the scene ended. Four facts were drawn ("They go by Sam.", "They
+  work nights at the harbour office.", "They prefer coffee over wine.", "They like it slow and being asked before
+  anything."), and all five were in the next scene's panel. Off again deleted all five.
+- **Talking over them, with a scripted recogniser** made to look like Chrome on a computer: the first screen offers it;
+  every listening session starts on a live microphone track, asked for with echo cancelling on; an echo of the reply
+  while her voice plays changes nothing; one word changes nothing; three words stop the voice in the same task and
+  become the next line; Mute lets the microphone go and Tap to talk opens it again. As a phone: no offer, no track,
+  taking turns.
+- **Talking over them, in the installed Chrome 157** with Google's own recognition and a spoken test file as the
+  microphone (`~/.claude/botchelor-bin/step-in-proof/talk-over-real.mjs`): "wait" was heard 2.2 s into her voice, the
+  voice stopped, "wait hold on tell me about the sea instead" became the next line, and she answered about the sea
+  4 s later. A file-fed microphone hears no speakers, so echo from real speakers is the one thing not shown; nor is a
+  real voice, or any iPhone.
+- **Talk:** a line or two back in 1.4 s, about 80 to 100 characters against about 450 for the prose reply after it,
+  kept as Talk's, with Hear it.
+- **Ideas:** three under the newest reply, warm, playful and bold; a tap filled the box and sent nothing.
+- **The door:** under an episode, Step in with Juniper and Step in with Sable; the click landed on a new scene in under
+  a second.
+- No page errors on a desktop or a phone. Every test scene was deleted and memory switched off again.
+
+| | Desktop | Phone |
+| --- | --- | --- |
+| What they remember | ![The scene's menu open on What Nell remembers, three facts with Change, Unpin and Forget](screenshots/after-dark-step-in-memory-desktop.png) | ![The memory panel on a phone](screenshots/after-dark-step-in-memory-phone.png) |
+| Talk | ![A prose opening, then a written line answered in one quoted line, Talk on in the composer](screenshots/after-dark-step-in-talk-desktop.png) | ![Talk on a phone](screenshots/after-dark-step-in-talk-phone.png) |
+| Ideas for what to say | ![Under a reply: You could say, then a warm, a playful and a bold line and Other ideas](screenshots/after-dark-step-in-ideas-desktop.png) | ![The ideas on a phone, one under another](screenshots/after-dark-step-in-ideas-phone.png) |
+| Talking over a call (both on a computer) | ![The call's first screen with Talking over Juniper ticked](screenshots/after-dark-step-in-call-talk-over-ready-desktop.png) | ![In the real Chrome: Listening, with wait hold heard while she was talking](screenshots/after-dark-step-in-call-cut-in-desktop.png) |
+| The door under an episode | ![Your turn: Step in with Juniper and Step in with Sable](screenshots/after-dark-episode-step-in-desktop.png) | ![The door on a phone](screenshots/after-dark-episode-step-in-phone.png) |
+
 **A picture of this moment** (2026-11-23; row 7 of the field audit, "a photo on request, from the composer"; David:
 "I am open to any of these ideas"). Under every reply that stands in a running scene there's **🖼 Picture this**, with
 its price on the button before anything is made (`app/after-dark/step-in/[id]/StepInPicture.tsx`,
