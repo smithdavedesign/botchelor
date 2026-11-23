@@ -1271,7 +1271,9 @@ string match. Now the row carries the key.
   "Step in"): the viewer in the scene with one character, told as prose, on `adultModel` and `checkAdultText`, with its
   own small engine (`lib/adult/step-in.ts`; this file's engine, `lib/companion.ts`, handles none of it and stays PG).
   A first version: scenes, not an ongoing thread; the scene's own turns, a rolling recap and a line per earlier scene
-  for memory (no fact extraction); no pictures or video; counted against the month's scene steps. Since 2026-11-22 it
+  for memory, and since 2026-11-23 facts about the viewer too, as this page's companion keeps them: off until they turn
+  it on, theirs to see and change ([after-dark.md](after-dark.md), "What they remember about you"); no pictures or
+  video; counted against the month's scene steps. Since 2026-11-22 it
   has what this page's companion has for the ear: 🔊 Hear it on a reply, replies read aloud, and 📞 a call (the same scene
   said out loud, taking turns), on After Dark's own voice ([after-dark.md](after-dark.md), "Voice and calls"), and one
   click into a scene from any character's card ("One click"). It ships behind

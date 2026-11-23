@@ -15,6 +15,7 @@ import { storyParagraphs, storySegments } from "@/lib/story-reply";
 import Limits from "../../[a]/[b]/Limits";
 import HearIt from "./HearIt";
 import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
+import StepInMemory from "./StepInMemory";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -508,6 +509,8 @@ export default function StepInScene({
                     busy={Boolean(busy)}
                     onSave={(limits, consent) => act({ action: "limits", limits, ...(consent ? { consent: true as const } : {}) })}
                   />
+                  {/* What they remember about you between scenes: off until turned on, and every line of it yours to change. */}
+                  <StepInMemory characterId={view.character.id} name={name} initial={view.memory} onCrisis={setCrisis} />
                   {voice && (
                     <button type="button" className="button-ghost small" onClick={toggleAloud} aria-pressed={aloud} data-step-in-aloud>
                       {aloud ? `🔊 Reading ${name}'s lines aloud: on` : `🔈 Read ${name}'s lines aloud`}

@@ -152,7 +152,7 @@ describe("the privacy notice", () => {
       const html = render(Page);
       const fold = html.indexOf('<details class="ux-fold legal-changes"><summary>What changed</summary>');
       expect(fold, name).toBeGreaterThan(-1);
-      expect(html.indexOf("Changed (22 November)"), name).toBeGreaterThan(fold);
+      expect(html.indexOf("Changed (23 November)"), name).toBeGreaterThan(fold);
       expect(html.indexOf('id="contents"'), name).toBeGreaterThan(fold);
       expect(html, name).toContain(back);
     }
@@ -217,9 +217,14 @@ describe("the privacy notice", () => {
     }
   });
 
-  it("is dated 22 November 2026, with what changed (and the earlier changes kept under it)", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 22 November 2026\./);
-    expect(strip(render(PrivacyPage))).toMatch(/Changed \(22 November\): a short version now opens the terms and the privacy notice, and the notice says that the home page's LaunchNest badge is loaded from LaunchNest's own site/);
+  it("is dated 23 November 2026, with what changed (and the earlier changes kept under it)", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 23 November 2026\./);
+    expect(strip(render(PrivacyPage))).toMatch(/Changed \(23 November\): the privacy notice says what a character can remember about you in an After Dark scene you step into yourself: off until you turn it on with its own consent/);
+    // What a character remembers (lib/adult/step-in-memory.ts): opt-in, visible, deleted when it's turned off.
+    expect(render(PrivacyPage)).toContain("<strong>What a character remembers about you.</strong>");
+    expect(strip(render(PrivacyPage))).toMatch(/In a scene you step into yourself, a character can keep a\s+short list of things you said about yourself/);
+    expect(strip(render(PrivacyPage))).toMatch(/turning it off deletes all of it; and it's in After Dark's download/);
+    expect(strip(render(PrivacyPage))).toMatch(/Before that \(22 November\): a short version now opens the terms and the privacy notice, and the notice says that the home page's LaunchNest badge is loaded from LaunchNest's own site/);
     expect(render(PrivacyPage)).toMatch(/Before that \(19 November\): Botchelor is now run by Botchelor LLC/);
     expect(render(PrivacyPage)).toMatch(/Before that \(18 November\): the terms say Botchelor owns the characters it makes for the show/);
     expect(render(PrivacyPage)).toMatch(/Before that \(17 November\): the privacy notice says what we keep if you save who you are in scenes/);
@@ -239,7 +244,7 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
     expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
-    expect(render(TermsPage)).toMatch(/Last updated 22 November 2026\./);
+    expect(render(TermsPage)).toMatch(/Last updated 23 November 2026\./);
     // The home page's third-party badge, named where the other measuring is (2026-11-22 audit).
     expect(strip(render(PrivacyPage))).toMatch(/a picture loaded from LaunchNest's own site\s+\(launchnest\.io\) when you scroll down to it/);
     expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<img src="https:\/\/launchnest\.io\/badge\/botchelor\.svg\?variant=featured"[^>]*loading="lazy" \/>/);

@@ -61,6 +61,7 @@ import { getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
+import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memory";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
 import { placeInSentence, spokenPieces, STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
 import { storySpeech } from "../story-reply";
@@ -156,6 +157,7 @@ type SceneRow = {
   hard_nos: unknown;
   recap: string | null;
   recap_upto: string | Date | null;
+  facts_upto?: string | Date | null;
   line: string | null;
   notice_at: string | Date | null;
   paused_at: string | Date | null;
@@ -166,7 +168,7 @@ type SceneRow = {
 
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null; created_at: string | Date };
 
-const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, line, notice_at, paused_at, ended_at, created_at, last_at";
+const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at";
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer])).rows[0] ?? null;
@@ -540,13 +542,15 @@ function roleplayView(pick: SceneRow["roleplay"], characterName: string): StepIn
 }
 
 async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
-  const [found, rows, drawn, who, left, eligible] = await Promise.all([
+  const [found, rows, drawn, who, left, eligible, remembering, facts] = await Promise.all([
     characterRef(db, s.character_id),
     allMessages(db, s.id),
     drawnSets(db),
     stepInPersona(db, s.owner_id),
     usageLeft(db, s.owner_id, "writes"),
     eligibleIds(db, s.owner_id),
+    memoryOn(db, s.owner_id),
+    countFacts(db, s.owner_id, s.character_id).catch(() => 0),
   ]);
   // A character who has since been deleted: the scene stays readable (and deletable), under a name that says so.
   const character = found ?? { id: s.character_id, name: GONE_NAME, portrait: null, hue: null };
@@ -580,6 +584,7 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
       take_back: live && (spoken.some((m) => m.role === "viewer") || spoken.filter((m) => m.role === "character").length > 1),
     },
     steps_left: left,
+    memory: { on: remembering, facts },
     started_at: iso(s.created_at)!,
   };
 }
@@ -659,6 +664,8 @@ type DrawContext = {
   /** The character's replies so far, newest first: what a new one mustn't say again. */
   said: string[];
   earlier: string[];
+  /** What the character remembers about the viewer, when they have memory on (lib/adult/step-in-memory.ts). */
+  facts: string[];
 };
 
 const turnOf = (m: MessageRow): StepInTurn =>
@@ -675,7 +682,13 @@ async function earlierScenes(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "char
 }
 
 async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], replacing: readonly string[] = []): Promise<DrawContext | null> {
-  const [character, drawn, persona, earlier] = await Promise.all([sceneCharacter(db, s.character_id), drawnSets(db), adultPersona(db, s.owner_id), earlierScenes(db, s)]);
+  const [character, drawn, persona, earlier, facts] = await Promise.all([
+    sceneCharacter(db, s.character_id),
+    drawnSets(db),
+    adultPersona(db, s.owner_id),
+    earlierScenes(db, s),
+    factsForPrompt(db, s.owner_id, s.character_id).catch(() => [] as string[]),
+  ]);
   if (!character) return null;
   const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
   const current = turnsOf(rows).filter((m) => !replacing.includes(m.id));
@@ -688,6 +701,7 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     turns: current.slice(-STEP_IN_TURNS).map(turnOf),
     said: current.filter((m) => m.role === "character" && !isAside(m)).map((m) => m.text).reverse().slice(0, 150),
     earlier,
+    facts,
   };
 }
 
@@ -751,6 +765,7 @@ async function draw(
       turns: ctx.turns,
       recap: s.recap,
       earlier: ctx.earlier,
+      facts: ctx.facts,
       // The opening is for the scene's first reply only.
       opening: opening ? s.opening : null,
       cue: o.cue,
@@ -1248,6 +1263,9 @@ async function writeNotes(db: Db, name: string, before: string | null, stretch: 
  * fallen out of the prompt since the last one. One call; a failure keeps the old recap. Never throws.
  */
 export async function stepInFollowUp(db: Db, sceneId: string): Promise<boolean> {
+  // What the character remembers about them (lib/adult/step-in-memory.ts), when they have memory on: its own call,
+  // its own cursor, and nothing to do with whether a recap is due.
+  await stepInRemember(db, sceneId);
   try {
     const s = (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1`, [sceneId])).rows[0];
     if (!s || s.ended_at) return false;
@@ -1262,6 +1280,22 @@ export async function stepInFollowUp(db: Db, sceneId: string): Promise<boolean> 
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Draws what the character should remember about the viewer from a scene's new lines (lib/adult/step-in-memory.ts
+ * drawFacts), for a viewer who has memory on: after a reply once enough lines are new, and once more when the scene
+ * ends (`atEnd`: whatever is new, however little). Past the response, never in its way, never a throw. How many were kept.
+ */
+export async function stepInRemember(db: Db, sceneId: string, opts: { atEnd?: boolean } = {}): Promise<number> {
+  try {
+    const s = (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1`, [sceneId])).rows[0];
+    if (!s || (s.ended_at && !opts.atEnd) || !(await memoryOn(db, s.owner_id))) return 0;
+    const name = first((await characterRef(db, s.character_id))?.name ?? "the character");
+    return await drawFacts(db, await adultModel(db), { id: s.id, owner_id: s.owner_id, character_id: s.character_id, roleplay: s.roleplay, facts_upto: s.facts_upto ?? null }, name, opts.atEnd ? { min: 2 } : {});
+  } catch {
+    return 0;
   }
 }
 

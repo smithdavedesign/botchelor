@@ -3728,7 +3728,39 @@ and for the redraw once the first draw has taken 45 seconds.
 chapter's is, `recapFrom`, when 10 turns have fallen out of the prompt; `stepInFollowUp`, past the response), and one
 line about each earlier ended scene with that character (5 at most). The recap and the line are held to
 `checkAdultText` and the narrator's guard before they're kept; when the model's can't be used, the line is what the
-record says ("A scene at …, playing …"). **No fact extraction in v1**, and no pictures or video. Voice: next section.
+record says ("A scene at …, playing …"). No pictures or video. Voice and what a character remembers about the viewer:
+the next two sections.
+
+**What they remember about you** (2026-11-23; `lib/adult/step-in-memory.ts`). David, asked whether facts about someone
+(which here can be about their sex life) should be kept: "IT'S Ok I am fine storing that data." The show's companion
+has had memory you can see and edit since it opened; Step in had the recap and one line per earlier scene.
+
+- **Off until the viewer turns it on**, in the scene's ⋯ menu (**🧠 What {name} remembers**,
+  `app/after-dark/step-in/[id]/StepInMemory.tsx`), with a consent of its own ticked there (`MEMORY_CONSENT_TEXT`):
+  what someone says about themselves in an adult scene is special-category data (GDPR Art. 9), the same kind as their
+  hard nos, and the owner being fine with keeping it doesn't stand in for each person's yes. When they agreed is
+  `adult_prefs.step_in_memory_at`. **Turning it off is the consent withdrawn:** every fact goes, for every character,
+  and it asks again before it's ever on again.
+- **A fact** is one short sentence about the viewer ("They go by Sam.", "They like being asked first."), a row in
+  `adult_step_in_facts`, kept per viewer and character: what this character knows, never what another one was told.
+  At most 40 a character; when it's full, the least used one the viewer didn't write or pin makes room.
+- **Drawn** past the response (`stepInFollowUp` → `stepInRemember` → `drawFacts`): once six of the viewer's lines are
+  new, and once more when a scene ends, one call to After Dark's own model reads **only what the viewer wrote** (never
+  the character's lines or guesses) and returns up to five new facts. **Never in a roleplay:** what they say there is
+  their role, not their life. Each fact must start with "They", and is held to the lines that never move (both nets),
+  the narrator's guard, and nothing about hurting oneself (the crisis list, its maybes, and the same said as a note)
+  before it's kept. `adult_step_in_scenes.facts_upto` is how far a scene has been read.
+- **Theirs to see and change:** every fact is listed in the panel; Change rewrites one (it's theirs from then on, and
+  the model never writes over it), Pin keeps it first, Forget removes it, a box adds one of their own (pinned), and
+  "Forget all of it" clears this character. What they type is held to the same lines; a line that reads as wanting to
+  hurt themselves shows the resources and keeps nothing.
+- **Used** in the character's prompt (`STEP_IN_REMEMBERS`): up to eight, pinned first, each read again against the
+  lines as it's used, with the instruction to let one come up when it fits, never as a list.
+- **With the account:** in After Dark's own download (`memory`), gone with its "Delete it" and with the account
+  (`AFTER_DARK_OWNED`, the person-column registry). The privacy notice says all of this (23 November 2026).
+- **Routes:** `GET /api/admin/after-dark/step-in/memory?character=<id>` (the switch, the consent's words, the facts),
+  `POST` there (`on` with `consent: true`, `off`, `add`, `edit`, `forget`).
+- **Proof:** `tests/after-dark-step-in-memory.test.ts`.
 
 **Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
 the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After
@@ -3811,7 +3843,8 @@ the consent with them.
 `{character_id, quick: true}` → `{id, resumed}`);
 `GET|POST|DELETE /api/admin/after-dark/step-in/<id>` (`action`: `send`, `regenerate`, `swipe`, `continue`,
 `take_back`, `limits`, `move`, `end`, `carry_on`, and `say`: a line said out loud on a call);
-`POST /api/admin/after-dark/step-in/<id>/voice` (a piece of a reply's voice).
+`POST /api/admin/after-dark/step-in/<id>/voice` (a piece of a reply's voice);
+`GET|POST /api/admin/after-dark/step-in/memory` (what a character remembers about the viewer).
 
 **Proof:** `tests/after-dark-step-in.test.ts`.
 

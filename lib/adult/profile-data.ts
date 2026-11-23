@@ -11,6 +11,7 @@
  *    but the admin's consent on them is cleared. Account deletion (lib/account.ts) runs the same delete. A Step in
  *    scene itself is deleted from its own list (/after-dark/step-in), or with the account.
  */
+import { exportMemory, setMemory } from "./step-in-memory";
 import type { Db } from "../db";
 import { HAS_HARD_NOS_SQL, PROFILE_CONSENT_TEXT, storedTurnOns, TURN_ONS } from "./profile";
 import { storedHardNos } from "./limits";
@@ -42,6 +43,8 @@ export type AdultProfileExport = {
   turn_ons: { character_id: string; character_name: string; house: boolean; turn_ons: string[]; consented_at: string | null; updated_at: string | null }[];
   limits: { pair: [string, string]; names: [string, string]; intensity: string | null; hard_nos: { chips: string[]; own: string[] }; hard_nos_consented_at: string | null }[];
   step_in: StepInSceneExport[];
+  /** What the characters they step in with remember about them (lib/adult/step-in-memory.ts): when they turned it on, and every fact. */
+  memory: Awaited<ReturnType<typeof exportMemory>>;
 };
 
 /** Everything of the person's After Dark profile, for "Download it". */
@@ -81,6 +84,7 @@ export async function exportAdultProfile(db: Db, viewer: string): Promise<AdultP
       }))
       .filter((l) => l.intensity !== null || l.hard_nos.chips.length + l.hard_nos.own.length > 0),
     step_in: await exportStepIn(db, viewer),
+    memory: await exportMemory(db, viewer),
   };
 }
 
@@ -137,5 +141,8 @@ export async function deleteAdultProfile(db: Db, viewer: string): Promise<{ turn
       returning id`,
     [viewer],
   );
+  // What the characters they step in with remember about them (lib/adult/step-in-memory.ts): all of it, and the switch
+  // with it (the consent goes with what it covered, so it's asked again).
+  await setMemory(db, viewer, false);
   return { turn_ons: turnOns.rows.length, limits: limits.rows.length + stepIn.rows.length };
 }

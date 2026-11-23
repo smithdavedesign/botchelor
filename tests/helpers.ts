@@ -294,6 +294,7 @@ export async function startTestDb() {
         // Step in, After Dark (lib/adult/step-in.ts).
         "adult_step_in_messages",
         "adult_step_in_scenes",
+        "adult_step_in_facts",
         "adult_picture_briefs",
         "place_sounds",
         // Exports (lib/media-tools/export.ts): a person's packed downloads, kept a day.

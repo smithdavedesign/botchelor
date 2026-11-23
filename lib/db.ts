@@ -4576,6 +4576,27 @@ create table if not exists adult_step_in_messages (
   created_at timestamptz not null default now()
 );
 create index if not exists adult_step_in_messages_scene_idx on adult_step_in_messages (scene_id, created_at);
+-- Step in's memory (lib/adult/step-in-memory.ts, 2026-11-23; David: "I am fine storing that data"): what a character
+-- remembers about its viewer between scenes, a short fact a row, per viewer and character. Only for a viewer who turned
+-- it on, with its own explicit consent (what someone says about themselves in an adult scene is "sex life" data, GDPR
+-- Art. 9): adult_prefs.step_in_memory_at is when they agreed, null is off, and turning it off deletes every fact.
+-- edited: the viewer wrote or changed it, so the model never writes over it. uses: how often a prompt carried it
+-- (the least used go first when a character's list is full). adult_step_in_scenes.facts_upto: how far into a scene the
+-- facts were last drawn from. Goes with the account (lib/account.ts AFTER_DARK_OWNED).
+create table if not exists adult_step_in_facts (
+  id text primary key,
+  owner_id text not null,
+  character_id text not null,
+  text text not null,
+  pinned boolean not null default false,
+  edited boolean not null default false,
+  uses integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists adult_step_in_facts_owner_idx on adult_step_in_facts (owner_id, character_id, updated_at desc);
+alter table adult_prefs add column if not exists step_in_memory_at timestamptz;
+alter table adult_step_in_scenes add column if not exists facts_upto timestamptz;
 
 -- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared
 -- vocabulary (lib/tags.ts, type facet only). One source at a time per character: the owner's pick, the house's hand

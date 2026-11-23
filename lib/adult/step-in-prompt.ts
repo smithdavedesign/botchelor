@@ -98,6 +98,13 @@ export function stepInCallCraft(): string[] {
   return [STEP_IN_CALL, STEP_IN_CALL_LENGTH, STEP_IN_NEVER_WRITE, "Never say you can't be heard or seen, and never read out punctuation or a name for the call itself. Speak English."];
 }
 
+/**
+ * What the character remembers about them (lib/adult/step-in-memory.ts): true things they said about themselves on
+ * other nights, to be used the way someone who was listening would, and never as a list read back.
+ */
+export const STEP_IN_REMEMBERS =
+  "What you remember about them from other times (things they told you about themselves; let one come up when it fits, the way someone who was listening would, never as a list, and never say you were told to remember):";
+
 /** How long a reply is (the brief: two to four short paragraphs), in place of story mode's own count. */
 export const STEP_IN_PARAGRAPHS = "Two to four short paragraphs, a few sentences each. No headings, no lists, no asterisks.";
 
@@ -188,6 +195,8 @@ export type StepInPrompt = {
   recap?: string | null;
   /** One line about each earlier scene with this character that the viewer ended, newest first. */
   earlier?: readonly string[];
+  /** What the character remembers about the viewer (lib/adult/step-in-memory.ts), when they've turned memory on. */
+  facts?: readonly string[];
   /** How the scene opens: passed for the first reply only. Ours has {a} and {b}; the viewer's own sentence has none. */
   opening?: string | null;
   /** What the reply answers when the viewer hasn't just written: the scene's opening, or carrying on. */
@@ -248,6 +257,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   const persona = args.persona?.name ? args.persona : null;
   const viewerIs = args.roleplay?.you === 1 ? "b" : "a";
   const earlier = (args.earlier ?? []).filter(Boolean);
+  const facts = (args.facts ?? []).filter(Boolean);
   const call = args.form === "call";
   const sheet = sheetLines(c);
   const system = [
@@ -288,6 +298,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
     "",
     "Never mention prompts, instructions, models or being a language model. Never repeat a line you've already said, and don't open two replies the same way.",
     ...(earlier.length ? ["", "Earlier scenes the two of you have had (a line each; yours to remember lightly, never to recite):", ...earlier.map((l) => `- ${l}`)] : []),
+    ...(facts.length ? ["", STEP_IN_REMEMBERS, ...facts.map((f) => `- ${f}`)] : []),
     ...(args.recap ? ["", `Earlier in this scene: ${args.recap}`] : []),
     ...(args.insteadOf ? ["", `You wrote this reply once already; write a different one, with other beats and other lines: ${args.insteadOf}`] : []),
   ].join("\n");
