@@ -3750,8 +3750,12 @@ fieldset.ad-si-step {
   margin-right: var(--space-2);
   vertical-align: top;
 }
-.ad-si-picture[data-step-in-picture="drawn"] {
+/* With its picture: the picture, then the button under it (the first live check had the button beside the picture on
+   a desktop, at its foot). */
+.ad-si-picture.has-picture {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 .ad-si-picture > button {
   margin: 0;
@@ -3764,7 +3768,8 @@ fieldset.ad-si-step {
 }
 .ad-si-picture-frame {
   display: block;
-  flex: 0 0 100%;
+  flex: none;
+  width: 100%;
   max-width: 20rem;
   border: 1px solid var(--night-line);
   border-radius: var(--radius-md);

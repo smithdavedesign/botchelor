@@ -82,7 +82,7 @@ export default function StepInPicture({ messageId, name }: { messageId: string; 
   }
 
   return (
-    <span className="ad-si-picture" data-step-in-picture={drawing ? "drawing" : id ? "drawn" : "none"}>
+    <span className={id ? "ad-si-picture has-picture" : "ad-si-picture"} data-step-in-picture={drawing ? "drawing" : id ? "drawn" : "none"}>
       {id && (
         <a className="ad-si-picture-frame" href={`/api/admin/after-dark/media/${encodeURIComponent(id)}`} target="_blank" rel="noreferrer" aria-label={`Open the picture of ${name} at this moment`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- a private file from After Dark's own media route */}

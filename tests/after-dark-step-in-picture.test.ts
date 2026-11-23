@@ -3,6 +3,7 @@
 // it has; the viewer never drawn; the price said first; kept with the scene and gone with it. No live calls here.
 // The fixtures are mild lines plus the short phrases the checks must refuse.
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
@@ -570,6 +571,11 @@ describe("whose it is, and when", () => {
     const after = await html(await StepInScenePage({ params: Promise.resolve({ id: s.id }) }));
     expect(after).toContain(`src="/api/admin/after-dark/media/${first.id}?w=640"`);
     expect(after).toContain('data-step-in-picture="drawn"');
+    // With its picture the control stacks: the picture, then the button under it (the first live check, 2026-11-23,
+    // had the button beside the picture on a desktop).
+    expect(after).toContain('class="ad-si-picture has-picture"');
+    const css = readFileSync("app/ux/after-dark.css", "utf8");
+    expect(css.slice(css.indexOf(".ad-si-picture.has-picture {"), css.indexOf(".ad-si-picture.has-picture {") + 140)).toContain("flex-direction: column");
     expect(after).toMatch(/🖼 Draw it again · <span class="token-price">included<\/span>/);
     // An admin is never capped and pays nothing.
     const a = await admin();
