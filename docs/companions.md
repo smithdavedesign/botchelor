@@ -1265,7 +1265,10 @@ string match. Now the row carries the key.
   "Step in"): the viewer in the scene with one character, told as prose, on `adultModel` and `checkAdultText`, with its
   own small engine (`lib/adult/step-in.ts`; this file's engine, `lib/companion.ts`, handles none of it and stays PG).
   A first version: scenes, not an ongoing thread; the scene's own turns, a rolling recap and a line per earlier scene
-  for memory (no fact extraction); no pictures, voice or video; counted against the month's scene steps. It ships behind
+  for memory (no fact extraction); no pictures or video; counted against the month's scene steps. Since 2026-11-22 it
+  has what this page's companion has for the ear: 🔊 Hear it on a reply, replies read aloud, and 📞 a call (the same scene
+  said out loud, taking turns), on After Dark's own voice ([after-dark.md](after-dark.md), "Voice and calls"), and one
+  click into a scene from any character's card ("One click"). It ships behind
   After Dark's `companion` rollout piece, admins only. Still to do before it opens: answer CCBill's AI Content
   Onboarding Guidelines PDF point by point with a one-to-one mode in scope, tell all three processors, and decide
   whether it's sold as an add-on (per-plan entitlements) or stays inside the subscription's scene steps.

@@ -3713,6 +3713,41 @@ fieldset.ad-si-step {
   color: var(--night-accent-text);
   font-style: italic;
 }
+/* Heard (Step in's voice and calls): 🔊 under a reply that says something out loud, quiet until it's wanted; a line
+   said on a call is marked; and the call itself is the show's call screen (app/ux/companion.css .companion-call). */
+.ad-si-hear {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-2);
+}
+.ad-si-hear > button {
+  margin: 0;
+  padding-inline: var(--space-2);
+  color: var(--night-muted);
+}
+.ad-si-hear > button:hover,
+.ad-si-hear > button:focus-visible,
+.ad-si-hear > button[aria-pressed="true"] {
+  color: var(--night-ink-on);
+}
+.ad-si-called {
+  display: block;
+  margin-bottom: var(--space-1);
+}
+.after-dark .ad-si-call-open {
+  margin: var(--space-2) 0;
+}
+.ad-si-call-open > button {
+  margin: 0;
+}
+/* What the call says before it starts: a paragraph, read once, a size down. */
+.ad-si-call .companion-call-how {
+  margin: 0;
+  text-align: left;
+  line-height: 1.5;
+}
 .ad-si-under {
   display: flex;
   flex-wrap: wrap;

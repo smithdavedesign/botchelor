@@ -23,13 +23,16 @@ and the go-live steps. Background and the processor comparison: `docs/after-dark
 | ⬜ David | **Send the two emails below** and keep the answers in writing | Before applying |
 | ⬜ David | **A lawyer's read of the terms** | `docs/after-dark-legal-review.md` "Questions for a licensed lawyer" |
 
-**Built since, and not in the description below (2026-11-17): Step in.** An adult one-to-one mode exists: the
+**Built since, and not in the description below (2026-11-17, voice 2026-11-22): Step in.** An adult one-to-one mode exists: the
 subscriber themselves in a scene with one fictional character, written as prose (`docs/after-dark.md` "Step in"). It is
 closed (After Dark's `companion` rollout switch, admins only) and the description below still says what a processor
 approved or will approve: scenes between fictional characters. **Declare it to every processor, in writing, before the
-switch is opened**; until each has answered, it stays admins only. What to tell them: text only (no pictures, voice or
-video in it); the same content lines on every line the subscriber types and every line generated, with a refused line
-never stored; an AI notice at the start and every three hours; a self-harm protocol that pauses the scene.
+switch is opened**; until each has answered, it stays admins only. What to tell them: text, and since 2026-11-22
+voice (what the character says can be heard in a generated stock voice, never a cloned or a real person's; and a call,
+where the subscriber speaks, their own browser turns it into words, and no audio of theirs reaches us or is kept); no
+pictures or video in it; the same content lines on every line the subscriber types or says and every line generated,
+with a refused line never stored and never voiced; an AI notice at the start and every three hours; a self-harm
+protocol that pauses the scene.
 
 ## The order to do it in
 

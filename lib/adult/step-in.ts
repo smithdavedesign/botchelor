@@ -23,8 +23,12 @@
  * Each reply counts one of the month's scene steps (lib/adult/usage.ts), regenerate and Continue included; flipping
  * through kept draws doesn't. Every reply and every refusal is a row in the step log (lib/adult/steps.ts, kind
  * "step_in"), with no word of either side in it. Memory, v1: the scene's own turns, a rolling recap once it's long, and
- * one line about each earlier scene with the character that the viewer ended. No fact extraction, no pictures, voice
- * or video.
+ * one line about each earlier scene with the character that the viewer ended. No fact extraction, no pictures or
+ * video.
+ *
+ * Heard (2026-11-22): a line can be said out loud on a call (sendStepInLine's `call`), and the reply is then a few
+ * spoken sentences (draw's `form: "call"`, parseCallReply, checkCallReply) kept in the scene as a call's; what any
+ * reply says out loud can be heard in the character's voice (lib/adult/step-in-voice.ts).
  */
 import { randomUUID } from "node:crypto";
 import { isAdmin } from "../admins";

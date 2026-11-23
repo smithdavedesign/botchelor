@@ -10,13 +10,18 @@ import CharacterFigure from "@/app/stage/CharacterFigure";
 import type { HardNos, Intensity } from "@/lib/adult/limits";
 import { placeInSentence, STEP_IN_LINE_MAX, STEP_IN_TAGLINE, type StepInMessageView, type StepInSceneView } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
+import type { FaceKit } from "@/lib/face-kit-shared";
 import { storyParagraphs, storySegments } from "@/lib/story-reply";
 import Limits from "../../[a]/[b]/Limits";
+import HearIt from "./HearIt";
+import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
 /** Whether the viewer has put the character's picture away (the ⋯ menu): this browser's choice, for every scene. */
 const FIGURE_KEY = "bz_step_in_figure";
+/** Whether new replies are read aloud as they arrive (the ⋯ menu): this browser's choice, for every scene. */
+const ALOUD_KEY = "bz_step_in_aloud";
 
 type Action =
   | { action: "send"; text: string }
@@ -42,7 +47,11 @@ function Prose({ text }: { text: string }) {
   );
 }
 
-function Line({ m, name }: { m: StepInMessageView; name: string }) {
+/**
+ * One line of the scene. `hear`: the scene the reply's voice is asked of, when replies can be heard here (🔊 under a
+ * reply that says something out loud), and whether this one is read aloud as it arrives.
+ */
+function Line({ m, name, hear = null }: { m: StepInMessageView; name: string; hear?: { scene: string; auto: boolean } | null }) {
   if (m.role === "system") {
     return (
       <li className="ad-si-system" data-kind={m.kind ?? "system"}>
@@ -50,10 +59,13 @@ function Line({ m, name }: { m: StepInMessageView; name: string }) {
       </li>
     );
   }
+  // Said out loud on a call: marked, and otherwise a line like any other.
+  const called = m.kind === "call" || m.kind === "call_aside";
   if (m.role === "viewer") {
     return (
-      <li className="ad-si-you">
-        <span className="sr-only">You: </span>
+      <li className="ad-si-you" data-kind={called ? "call" : undefined}>
+        <span className="sr-only">{called ? "You, out loud: " : "You: "}</span>
+        {called && <span aria-hidden="true">📞 </span>}
         {m.text}
       </li>
     );
@@ -67,9 +79,15 @@ function Line({ m, name }: { m: StepInMessageView; name: string }) {
     );
   }
   return (
-    <li className="ad-si-them">
-      <span className="sr-only">{name}: </span>
+    <li className="ad-si-them" data-kind={called ? "call" : undefined}>
+      <span className="sr-only">{called ? `${name}, out loud: ` : `${name}: `}</span>
+      {called && (
+        <span className="ad-si-called muted small" aria-hidden="true">
+          📞 on a call
+        </span>
+      )}
       <Prose text={m.text} />
+      {hear && (m.spoken ?? 0) > 0 && <HearIt sceneId={hear.scene} messageId={m.id} pieces={m.spoken!} name={name} auto={hear.auto} />}
     </li>
   );
 }
@@ -85,6 +103,11 @@ function Line({ m, name }: { m: StepInMessageView; name: string }) {
  *
  * `autoOpen`: the viewer came by one click (app/after-dark/step-in/StepInButton.tsx, `?open=1`), so the scene was made
  * without its opening; the character opens it as the page arrives, once, and the address loses the `?open=1`.
+ *
+ * `voice`: replies can be heard here (After Dark's voice is set up, and media is allowed where the viewer is). Then
+ * every reply that says something out loud has 🔊 Hear it (./HearIt.tsx), the ⋯ menu can have new replies read aloud
+ * as they arrive, and 📞 Call opens the call (./StepInCall.tsx) where the browser can hear the viewer. `kit`: the show's
+ * living loop of the character for the call's face, when they have one.
  */
 export default function StepInScene({
   initial,
@@ -92,12 +115,16 @@ export default function StepInScene({
   personaHref,
   cutout = null,
   autoOpen = false,
+  voice = false,
+  kit = null,
 }: {
   initial: StepInSceneView;
   places: { id: string; title: string; public: boolean }[];
   personaHref: string;
   cutout?: string | null;
   autoOpen?: boolean;
+  voice?: boolean;
+  kit?: FaceKit | null;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -107,6 +134,11 @@ export default function StepInScene({
   const [crisis, setCrisis] = useState<CrisisResources | null>(null);
   const [moveTo, setMoveTo] = useState("");
   const [figureOn, setFigureOn] = useState(true);
+  const [aloud, setAloud] = useState(false);
+  const [calling, setCalling] = useState(false);
+  const [canCall, setCanCall] = useState(false);
+  // The lines that were here when the page arrived: only a reply that comes after them is read aloud by itself.
+  const seen = useRef(new Set(initial.messages.map((m) => m.id)));
   const end = useRef<HTMLDivElement>(null);
   const name = first(view.character.name);
   const live = !view.ended && !view.paused && !view.character_out;
@@ -129,6 +161,26 @@ export default function StepInScene({
       /* storage blocked (a private window): not remembered */
     }
   }, []);
+  // Read aloud stays as it was left; a call is offered only where the browser can hear them (known once it's here).
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(ALOUD_KEY) === "on") setAloud(true);
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
+    setCanCall(stepInCallSupported());
+  }, []);
+  function toggleAloud() {
+    const next = !aloud;
+    setAloud(next);
+    // Turned on from here on: what's already on the page isn't read out.
+    for (const m of view.messages) seen.current.add(m.id);
+    try {
+      localStorage.setItem(ALOUD_KEY, next ? "on" : "off");
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
+  }
   const hasFigure = Boolean(view.character.portrait || cutout);
   function toggleFigure() {
     const next = !figureOn;
@@ -191,6 +243,34 @@ export default function StepInScene({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * A line said out loud on the call (the scene's `say` move): the scene as it stands comes back, and with it the
+   * character's spoken answer. A line that was refused is said again another way; anything that stops the scene (the
+   * self-harm pause, the month's steps, a scene that can't go on) ends the call and the scene says why.
+   */
+  async function say(line: string): Promise<CallSaid> {
+    try {
+      const res = await fetch(`/api/admin/after-dark/step-in/${encodeURIComponent(view.id)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "say", text: line }) });
+      const data = (await res.json().catch(() => null)) as { scene?: StepInSceneView; message?: string; replied?: false } | null;
+      if (data?.scene) setView(data.scene);
+      const help = crisisFrom(data);
+      if (help) {
+        setCrisis(help);
+        return { ok: false, end: true, message: "" };
+      }
+      if (!res.ok) {
+        const message = data?.message ?? "That didn't go through. Try again in a moment.";
+        // Refused for what it said (a line that never moves, one of their limits, too long): said another way.
+        return res.status === 422 || res.status === 400 ? { ok: false, again: true, message } : { ok: false, end: true, message };
+      }
+      const reply = data?.scene?.messages.filter((m) => m.role === "character").at(-1) ?? null;
+      if (data?.replied === false || !reply || !data?.scene) return { ok: false, again: true, message: data?.message ?? `${name} didn't answer that. Say it again in a moment.` };
+      return { ok: true, reply, stepsLeft: data.scene.steps_left };
+    } catch {
+      return { ok: false, again: true, message: "That didn't go through. Check your connection." };
+    }
+  }
+
   async function send() {
     const line = text.trim();
     if (!line || busy) return;
@@ -228,6 +308,13 @@ export default function StepInScene({
           <p className="ad-si-at" data-step-in-place>
             📍 {view.place.title}
           </p>
+          {voice && canCall && live && (
+            <p className="ad-si-call-open">
+              <button type="button" className="button-ghost small" onClick={() => setCalling(true)} disabled={Boolean(busy)} data-step-in-call-open>
+                📞 Call {name}
+              </button>
+            </p>
+          )}
           {view.roleplay && (
             <p className="muted small" data-step-in-roleplay>
               {view.roleplay.icon} {view.roleplay.title}
@@ -257,7 +344,8 @@ export default function StepInScene({
             <Fragment key={m.id}>
               {/* Their own opening line, after the notice and before the first reply (which answers it). */}
               {view.opening && i === openingAt && <Line m={{ id: "opening", role: "viewer", kind: null, text: view.opening, at: view.started_at }} name={name} />}
-              <Line m={m} name={name} />
+              {/* A reply that arrived after the page did is read aloud when that's on; the call says its own. */}
+              <Line m={m} name={name} hear={voice ? { scene: view.id, auto: aloud && !calling && !seen.current.has(m.id) && m.kind !== "call" && m.kind !== "call_aside" } : null} />
             </Fragment>
           ))}
           {view.opening && openingAt === view.messages.length && <Line m={{ id: "opening", role: "viewer", kind: null, text: view.opening, at: view.started_at }} name={name} />}
@@ -396,6 +484,11 @@ export default function StepInScene({
                     busy={Boolean(busy)}
                     onSave={(limits, consent) => act({ action: "limits", limits, ...(consent ? { consent: true as const } : {}) })}
                   />
+                  {voice && (
+                    <button type="button" className="button-ghost small" onClick={toggleAloud} aria-pressed={aloud} data-step-in-aloud>
+                      {aloud ? `🔊 Reading ${name}'s lines aloud: on` : `🔈 Read ${name}'s lines aloud`}
+                    </button>
+                  )}
                   <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(view.character.id)}`} data-step-in-new>
                     🎭 A roleplay or a new scene with {name}
                   </Link>
@@ -421,6 +514,21 @@ export default function StepInScene({
         )}
         <div ref={end} />
       </div>
+      {calling && (
+        <StepInCall
+          sceneId={view.id}
+          character={view.character}
+          kit={kit}
+          stepsLeft={view.steps_left}
+          onSay={say}
+          onClose={(message) => {
+            setCalling(false);
+            // What the call said is in the scene already: none of it is read out again.
+            for (const m of view.messages) seen.current.add(m.id);
+            if (message) setError(message);
+          }}
+        />
+      )}
     </article>
   );
 }
