@@ -11,6 +11,7 @@ import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
+import { STORY_PLACE, type StoryPlace } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import { premiseForYou } from "@/lib/roleplays";
 import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS } from "@/lib/scene-cards";
@@ -20,6 +21,7 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 type Opening = 0 | 1 | 2 | "surprise" | "written";
 
 const NO_RECENT: string[] = [];
+const NO_STORY_PLACES: Record<string, StoryPlace> = {};
 
 /**
  * Step in's set-up (lib/adult/step-in.ts startStepIn), four small steps on one page: who, where, the roleplay and which
@@ -35,6 +37,7 @@ export default function StepInSetup({
   personaHref,
   preselect,
   preselectRoleplay,
+  storyPlaces = NO_STORY_PLACES,
 }: {
   cast: StepInCharacter[];
   /** Who they've had scenes with, the latest first (shown first). */
@@ -50,12 +53,17 @@ export default function StepInSetup({
   preselect?: string | null;
   /** A roleplay to start on (?roleplay=<id>: "Set it up" on one of the shelf's cards). */
   preselectRoleplay?: string | null;
+  /** Where each roleplay's own story is set (lib/adult/step-in.ts storyPlaces), by the roleplay's id. */
+  storyPlaces?: Record<string, StoryPlace>;
 }) {
   const router = useRouter();
   const [who, setWho] = useState<string | null>(cast.some((c) => c.id === preselect) ? preselect! : null);
   const [query, setQuery] = useState("");
-  const [placeId, setPlaceId] = useState(places.find((p) => p.id === "venue:home")?.id ?? places[0]?.id ?? "");
+  const homeId = places.find((p) => p.id === "venue:home")?.id ?? places[0]?.id ?? "";
   const [roleplayId, setRoleplayId] = useState(ROLEPLAYS.some((r) => r.id === preselectRoleplay) ? preselectRoleplay! : "");
+  // Where: a roleplay starts where its own story is set (STORY_PLACE), until the viewer picks a place themselves.
+  const [placeId, setPlaceId] = useState(roleplayId && storyPlaces[roleplayId] ? STORY_PLACE : homeId);
+  const [placePicked, setPlacePicked] = useState(false);
   const [you, setYou] = useState<0 | 1>(0);
   const [opening, setOpening] = useState<Opening>("surprise");
   const [written, setWritten] = useState("");
@@ -67,8 +75,11 @@ export default function StepInSetup({
   // Who to pick from: theirs, the house cast and everyone else, or what the search finds (lib/adult/pair-pick.ts, as on the hub's picker).
   const groups = useMemo(() => oneFaceGroups(cast, recent, query), [cast, recent, query]);
   const shown = groups.reduce((n, g) => n + g.faces.length, 0);
-  const place = places.find((p) => p.id === placeId) ?? null;
   const rp = ROLEPLAYS.find((r) => r.id === roleplayId) ?? null;
+  // The roleplay's own place, when it has one: offered first under "Where", and where the scene starts unless they choose.
+  const story = rp ? (storyPlaces[rp.id] ?? null) : null;
+  const place: Pick<StepInPlace, "id" | "title" | "image" | "public"> | null =
+    placeId === STORY_PLACE ? (story ? { id: STORY_PLACE, title: story.title, image: null, public: story.public } : null) : (places.find((p) => p.id === placeId) ?? null);
   const name = character ? first(character.name) : "them";
   const side = you === 1 ? "b" : "a";
   // The roleplay's card as the viewer reads it, and the three openings to pick from (the generic three with no roleplay).
@@ -193,7 +204,20 @@ export default function StepInSetup({
         <label htmlFor="ad-si-place" className="sr-only">
           The place
         </label>
-        <select id="ad-si-place" value={placeId} onChange={(e) => setPlaceId(e.target.value)}>
+        <select
+          id="ad-si-place"
+          value={placeId}
+          onChange={(e) => {
+            setPlaceId(e.target.value);
+            setPlacePicked(true);
+          }}
+        >
+          {story && (
+            <option value={STORY_PLACE} data-step-in-story-place>
+              Where the story is set: {story.title}
+              {story.public ? " · out in public" : ""}
+            </option>
+          )}
           {places.map((p) => (
             <option key={p.id} value={p.id}>
               {p.title}
@@ -215,9 +239,14 @@ export default function StepInSetup({
           id="ad-si-roleplay"
           value={roleplayId}
           onChange={(e) => {
-            setRoleplayId(e.target.value);
+            const next = e.target.value;
+            setRoleplayId(next);
             setYou(0);
             if (opening !== "written") setOpening("surprise");
+            // The scene follows the story to where it's set, unless they've chosen a place themselves; and a place that
+            // was the last story's own goes with it.
+            if (storyPlaces[next] && (!placePicked || placeId === STORY_PLACE)) setPlaceId(STORY_PLACE);
+            else if (placeId === STORY_PLACE) setPlaceId(homeId);
           }}
         >
           <option value="">None: a date, as yourselves</option>
@@ -247,6 +276,13 @@ export default function StepInSetup({
                   </label>
                 ))}
               </div>
+            )}
+            {story && (
+              <p className="muted small" data-step-in-story-at>
+                📍 Set at: {story.title}
+                {story.public ? " (out in public)" : ""}
+                {placeId === STORY_PLACE ? "." : ". You've picked somewhere else above; the story plays there."}
+              </p>
             )}
             <p className="muted small">The roleplay is the story: its stakes and what each of you wants drive the scene. It ends when you end the scene.</p>
           </>

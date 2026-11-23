@@ -5,13 +5,14 @@ import { useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
-import type { StepInCharacter } from "@/lib/adult/step-in-shared";
+import type { StepInCharacter, StoryPlace } from "@/lib/adult/step-in-shared";
 import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight } from "@/lib/adult/step-in-shelf";
 import { roleplayGroups } from "@/lib/adult/tags";
 import { cardForYou } from "@/lib/scene-cards";
 import StepInButton from "./StepInButton";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
+const NO_PLACES: Record<string, StoryPlace> = {};
 
 /**
  * Step in's roleplays as cards (lib/adult/step-in-shelf.ts; David, 2026-11-23, after Chub.ai's scene cards): each one a
@@ -23,8 +24,22 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
  *
  * `day` is the server's (UTC), so the page it sends and the browser agree on who is on each card. `with_`: the page was
  * opened for one of them (?with=<id>, "Roleplay or place" on their card), so every card opens on that person.
+ * `places`: where each roleplay's own story is set (lib/adult/step-in.ts storyPlaces): a card says where, and that it's
+ * out in public when it is, since a scene started from it starts there.
  */
-export default function StepInShelf({ cast, recent, day, with_ = null }: { cast: StepInCharacter[]; recent: string[]; day: string; with_?: string | null }) {
+export default function StepInShelf({
+  cast,
+  recent,
+  day,
+  with_ = null,
+  places = NO_PLACES,
+}: {
+  cast: StepInCharacter[];
+  recent: string[];
+  day: string;
+  with_?: string | null;
+  places?: Record<string, StoryPlace>;
+}) {
   // Which cards show: tonight's, one kind of them (who the two are to each other), or all.
   const [show, setShow] = useState("tonight");
   // How many times "Someone else" was pressed on each card.
@@ -78,6 +93,12 @@ export default function StepInShelf({ cast, recent, day, with_ = null }: { cast:
                 <span aria-hidden="true">{rp.icon}</span> {rp.title}
               </h3>
               <p className="ad-si-shelf-setup">{card.setup}</p>
+              {places[rp.id] && (
+                <p className="muted small ad-si-shelf-at" data-step-in-card-at={places[rp.id].public ? "public" : "private"}>
+                  📍 {places[rp.id].title}
+                  {places[rp.id].public ? " · out in public" : ""}
+                </p>
+              )}
               {rp.roles && (
                 <p className="muted small ad-si-shelf-roles">
                   You play {rp.roles[0]}; {name} plays {rp.roles[1]}.
