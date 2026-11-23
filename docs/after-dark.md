@@ -3710,6 +3710,10 @@ its rating paragraph and in what it says about the character, not in its craft.
 [audits/2026-11-20-joi-teardown.md](audits/2026-11-20-joi-teardown.md)). The character stands in the place with the
 viewer (`app/stage/CharacterFigure.tsx`). On a wide screen they stand at the right edge and the prose moves over; on a
 tablet they stand behind the prose's right side; on a phone they fill the screen behind it, under a veil of the night.
+Where they're behind the column (a tablet or a phone) the scene's header has no card under it, so its quiet lines
+carry the night under each letter (`.ad-si-head`'s `text-shadow`, 2026-11-23): over a light apron or shirt the muted
+lines had measured 2.3 to 3.2:1 against the picture; with it, letters against the pixels beside them went from
+3.2-4.0 to 4.6-4.7 on the live page, and the picture is untouched.
 They stand on the window's bottom edge, where the newest lines are, wherever the scene is scrolled, and the stage is
 cut to the scene's edges, so neither they nor the place spill onto the footer. The picture is their PG portrait with the background taken out by our Cloudflare zone (`lib/cutout.ts`:
 `segment=foreground`, free up to 5,000 unique pictures a month, never billed). The zone's transformations are on

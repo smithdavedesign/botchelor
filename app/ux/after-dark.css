@@ -3738,6 +3738,19 @@ fieldset.ad-si-step {
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
   }
+  /* The header has no card under it: its quiet lines (the tagline, the level, the roleplay and its goal, who you are
+     here) sit straight on the character, and over a light apron or shirt they measured 2.3 to 3.2:1 against the
+     picture on a phone (2026-11-23; the rows under a reply, over the darker middle of the figure, measured 5 to
+     7.7:1). The night under each letter keeps both the muted colour and the picture: measured on the live page with
+     this rule injected, letters against the pixels beside them went from 3.2-4.0 to 4.6-4.7. */
+  .ad-si-scene:has(.ad-si-figure) .ad-si-head {
+    text-shadow:
+      0 0 0.1rem var(--night-bg),
+      0 0 0.2rem var(--night-bg),
+      0 0 0.45rem var(--night-bg),
+      0 0 0.45rem var(--night-bg),
+      0 0 0.9rem var(--night-bg);
+  }
 }
 /* A phone: the character fills the stage behind the scene, the night drawn over them (joi's chat on a phone is its
    character under a 70% veil). */
