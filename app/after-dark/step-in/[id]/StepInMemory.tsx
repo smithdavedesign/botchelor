@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { crisisFrom } from "@/app/CrisisNotice";
 import type { StepInFact } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
@@ -19,6 +19,10 @@ type Body =
  * ways out (forget what this character remembers; turn memory off, which forgets everything with everyone). Nothing is
  * loaded until the panel is opened. The show's companion has a memory page for the same thing; here it stays in the
  * menu, out of the scene's way.
+ *
+ * No <form> in here: the menu sits inside the composer's own form (./StepInScene.tsx), and a form inside a form isn't
+ * one (the first live check, 2026-11-23: Add reloaded the page and nothing was kept). Add and Save are plain buttons,
+ * and Enter in either box is theirs, never the composer's.
  */
 export default function StepInMemory({ characterId, name, initial, onCrisis }: { characterId: string; name: string; initial: { on: boolean; facts: number }; onCrisis?: (c: CrisisResources) => void }) {
   const [data, setData] = useState<Loaded | null>(null);
@@ -78,6 +82,25 @@ export default function StepInMemory({ characterId, name, initial, onCrisis }: {
     }
   }
 
+  function add() {
+    const text = adding.trim();
+    if (text) void change({ action: "add", character_id: characterId, text }).then((ok) => ok && setAdding(""));
+  }
+  function saveEdit() {
+    if (!editing || !editing.text.trim()) return;
+    void change({ action: "edit", character_id: characterId, fact_id: editing.id, text: editing.text }).then((ok) => ok && setEditing(null));
+  }
+  /** Enter in one of this panel's boxes does that box's thing, and never sends the composer's line (the form it sits in). */
+  const onEnter = (act: () => void, esc?: () => void) => (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      act();
+    } else if (e.key === "Escape" && esc) {
+      e.preventDefault();
+      esc();
+    }
+  };
+
   return (
     <details className="ad-si-memory" data-step-in-memory={on ? "on" : "off"} onToggle={(e) => (e.currentTarget.open ? void load() : undefined)}>
       <summary>
@@ -109,24 +132,25 @@ export default function StepInMemory({ characterId, name, initial, onCrisis }: {
                 {data.facts.map((f) => (
                   <li key={f.id} data-fact={f.id}>
                     {editing?.id === f.id ? (
-                      <form
-                        className="ad-si-fact-edit"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          void change({ action: "edit", character_id: characterId, fact_id: f.id, text: editing.text }).then((ok) => ok && setEditing(null));
-                        }}
-                      >
+                      <span className="ad-si-fact-edit" role="group" aria-label={`Change what ${name} remembers`}>
                         <label className="sr-only" htmlFor={`fact-${f.id}`}>
                           What {name} remembers
                         </label>
-                        <input id={`fact-${f.id}`} value={editing.text} maxLength={data.fact_max} onChange={(e) => setEditing({ id: f.id, text: e.target.value })} />
-                        <button type="submit" className="button-ghost small" disabled={busy || !editing.text.trim()}>
+                        <input
+                          id={`fact-${f.id}`}
+                          value={editing.text}
+                          maxLength={data.fact_max}
+                          autoFocus
+                          onChange={(e) => setEditing({ id: f.id, text: e.target.value })}
+                          onKeyDown={onEnter(saveEdit, () => setEditing(null))}
+                        />
+                        <button type="button" className="button-ghost small" disabled={busy || !editing.text.trim()} onClick={saveEdit} data-fact-save>
                           Save
                         </button>
                         <button type="button" className="button-ghost small" onClick={() => setEditing(null)}>
                           Cancel
                         </button>
-                      </form>
+                      </span>
                     ) : (
                       <>
                         <span className="ad-si-fact-text">
@@ -151,22 +175,22 @@ export default function StepInMemory({ characterId, name, initial, onCrisis }: {
                 ))}
               </ul>
             )}
-            <form
-              className="ad-si-fact-add"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const text = adding.trim();
-                if (text) void change({ action: "add", character_id: characterId, text }).then((ok) => ok && setAdding(""));
-              }}
-            >
+            <div className="ad-si-fact-add" role="group" aria-label="Add something to remember">
               <label className="sr-only" htmlFor="ad-si-fact-new">
                 Something {name} should remember about you
               </label>
-              <input id="ad-si-fact-new" value={adding} maxLength={data.fact_max} placeholder={`Something ${name} should remember about you`} onChange={(e) => setAdding(e.target.value)} />
-              <button type="submit" className="button-ghost small" disabled={busy || !adding.trim()}>
+              <input
+                id="ad-si-fact-new"
+                value={adding}
+                maxLength={data.fact_max}
+                placeholder={`Something ${name} should remember about you`}
+                onChange={(e) => setAdding(e.target.value)}
+                onKeyDown={onEnter(add)}
+              />
+              <button type="button" className="button-ghost small" disabled={busy || !adding.trim()} onClick={add} data-fact-add>
                 Add
               </button>
-            </form>
+            </div>
             <p className="ad-si-memory-out">
               {data.facts.length > 0 && (
                 <button

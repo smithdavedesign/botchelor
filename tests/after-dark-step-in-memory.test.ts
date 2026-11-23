@@ -2,6 +2,7 @@
 // about the viewer between scenes. Off until they agree; drawn only from what they wrote, never in a roleplay; every fact
 // held to the lines; theirs to see, change and forget; gone when they turn it off; and closed like the rest of Step in.
 // The fixtures are mild lines plus the short phrases the checks must refuse.
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -339,6 +340,27 @@ describe("the route and the page", () => {
     expect(page).toContain(`What ${NAME} remembers (1)`);
     expect(await (await memoryPost(post({ action: "forget", character_id: WHO, fact_id: facts[0].id }, a.cookie))).json()).toMatchObject({ on: true, facts: [] });
     expect(await (await memoryPost(post({ action: "off" }, a.cookie))).json()).toMatchObject({ on: false });
+  });
+});
+
+describe("the panel in the scene's menu", () => {
+  it("has no form of its own: the menu sits inside the composer's form, where a form's Add would send the page instead", () => {
+    // The first live check (2026-11-23): Add was a submit button in a form inside the composer's form. The browser
+    // reloaded the page and nothing was kept.
+    for (const file of ["app/after-dark/step-in/[id]/StepInMemory.tsx", "app/after-dark/[a]/[b]/Limits.tsx"]) {
+      const src = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+      expect(src, file).not.toMatch(/<form\b/);
+      expect(src, file).not.toContain('type="submit"');
+    }
+    // The composer's form is the one they're inside.
+    const scene = readFileSync("app/after-dark/step-in/[id]/StepInScene.tsx", "utf8");
+    const form = scene.slice(scene.indexOf('className="ad-si-composer"'), scene.lastIndexOf("</form>"));
+    expect(form).toContain("<StepInMemory");
+    expect(form).toContain("<Limits");
+    // Enter in the panel's boxes is the panel's, never the composer's Send.
+    const panel = readFileSync("app/after-dark/step-in/[id]/StepInMemory.tsx", "utf8");
+    expect(panel.match(/onKeyDown=\{onEnter\(/g)?.length).toBe(2);
+    expect(panel).toContain("e.preventDefault()");
   });
 });
 
