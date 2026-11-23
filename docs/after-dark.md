@@ -4085,6 +4085,10 @@ from what the two have actually done together, it only ever goes up, and nothing
 - **The privacy notice says so** (`app/legal/sections.tsx`, "How well a character knows you", added 2026-11-23): the
   level is a number kept about a person, and it outlives a deleted scene, so the notice names it, says why it's
   kept, and that After Dark's download has it and After Dark's delete removes it.
+- **Their own people come first on the Characters page** (`yourPeopleFirst`, 2026-11-23): whoever has written to them
+  and is waiting, then whoever they have a scene running with, then by level, the highest first; everyone else keeps
+  the cast's own order. The page is 36 cards of a few hundred: before this, someone they'd spent a week with could
+  sit on page five.
 - **It never drops, and that's why there's a table.** A person who deletes a scene takes its lines with it, so what's
   derived can fall. `adult_step_in_bonds` keeps the most it has ever been for each viewer and character (`points`,
   `level`, only ever raised: `greatest` in one statement), and what's shown is the greater of the two (`bondView`;
