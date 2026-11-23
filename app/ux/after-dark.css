@@ -3507,6 +3507,15 @@ button.ad-pp-face:hover:not(:disabled) {
 .ad-si-shelf-card p {
   margin: 0;
 }
+/* A card's cover (lib/adult/roleplay-covers.ts): the story's poster, across the top of the card. */
+.ad-si-shelf-cover {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
 /* A roleplay the viewer has played to its last beat (lib/adult/step-in-story.ts): said beside its name. */
 .ad-si-shelf-played {
   margin-left: var(--space-2);

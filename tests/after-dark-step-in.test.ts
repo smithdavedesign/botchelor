@@ -32,6 +32,7 @@ import { hasProfileConsent } from "@/lib/adult/profile";
 import { ROLEPLAYS, roleplayById } from "@/lib/adult/roleplays";
 import { rolloutConfigOf, rolloutOn } from "@/lib/adult/rollout";
 import { saveAdultSettings } from "@/lib/adult/settings";
+import { ROLEPLAY_COVERS } from "@/lib/adult/roleplay-covers";
 import { SHELF_TONIGHT } from "@/lib/adult/step-in-shelf";
 import { countUse, overCap } from "@/lib/adult/usage";
 import {
@@ -1639,5 +1640,52 @@ describe("out in public", () => {
     const again = await start(a.id, { place: CAFE });
     await endStepIn(t.db, a.id, again.id);
     expect(await page(again.id)).not.toContain("data-step-in-go-private");
+  });
+});
+
+// David, 2026-11-23: "A cover picture per card, the character dressed for the role." Twelve roleplays have one
+// (lib/adult/roleplay-covers.ts): the card opens on the one in the picture, on the side the picture implies.
+describe("a card's cover picture", () => {
+  it("leads tonight's shelf: the first four cards have their picture, are cast with the one in it, and start on the side it shows", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    // Everyone who's on a cover is in this season's cast here.
+    setSeasonCastForTests([...new Set(Object.values(ROLEPLAY_COVERS).map((c) => c.character))]);
+    const a = await admin();
+    signIn(a.id);
+    const page = (await html(await StepInSetupPage())).replace(/<!-- -->/g, "");
+    const cards = [...page.matchAll(/<li class="card ad-si-shelf-card( has-cover)?" data-step-in-card="([^"]+)" data-step-in-card-with="([^"]+)" data-step-in-card-you="([01])">(<img[^>]*>)?/g)].map((m) => ({ cover: Boolean(m[1]), id: m[2], with: m[3], you: Number(m[4]), img: m[5] ?? "" }));
+    expect(cards).toHaveLength(SHELF_TONIGHT);
+    expect(cards.map((c) => c.cover)).toEqual([true, true, true, true, false, false, false, false]);
+    for (const c of cards.slice(0, 4)) {
+      const cover = ROLEPLAY_COVERS[c.id];
+      expect(cover, c.id).toBeTruthy();
+      expect({ with: c.with, you: c.you }, c.id).toEqual({ with: cover.character, you: cover.you });
+      // The show's own file, with words for someone who can't see it, and lazy so the shelf's later rows cost nothing.
+      expect(c.img, c.id).toContain(`src="${cover.src}"`);
+      expect(c.img, c.id).toContain('loading="lazy"');
+      expect(c.img, c.id).toMatch(/alt="[^"]{30,}"/);
+    }
+    // The side it shows carries to the one-click start's set-up link.
+    for (const c of cards.slice(0, 4)) expect(page.includes(`with=${c.with}&amp;roleplay=${c.id}&amp;you=1#ad-si-set`), c.id).toBe(c.you === 1);
+    // The cards with no picture are told from the first side, as before.
+    expect(cards.slice(4).every((c) => c.you === 0 && !ROLEPLAY_COVERS[c.id])).toBe(true);
+  });
+
+  it("is only shown with the one in it: a page opened for someone else has none, and its set-up starts on the side asked for", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    setSeasonCastForTests([WHO, "house-vesper"]);
+    const a = await admin();
+    signIn(a.id);
+    const theirs = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO }) }))).replace(/<!-- -->/g, "");
+    expect(theirs).not.toContain("data-step-in-card-cover");
+    expect([...theirs.matchAll(/data-step-in-card-you="([01])"/g)].every((m) => m[1] === "0")).toBe(true);
+    // "Set it up" on the vampire's cover: Vesper, the vampire's invitation, the viewer as the guest.
+    const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: "house-vesper", roleplay: "vampire", you: "1" }) }))).replace(/<!-- -->/g, "");
+    expect(setUp).toContain('data-step-in-who="house-vesper"');
+    expect(setUp).toMatch(/<option value="vampire" selected="">/);
+    const sides = [...setUp.matchAll(/<input type="radio" name="ad-si-you"( checked="")?\/>/g)].map((m) => Boolean(m[1]));
+    expect(sides).toEqual([false, true]);
   });
 });

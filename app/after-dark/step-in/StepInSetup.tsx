@@ -37,6 +37,7 @@ export default function StepInSetup({
   personaHref,
   preselect,
   preselectRoleplay,
+  preselectYou = 0,
   storyPlaces = NO_STORY_PLACES,
 }: {
   cast: StepInCharacter[];
@@ -53,6 +54,8 @@ export default function StepInSetup({
   preselect?: string | null;
   /** A roleplay to start on (?roleplay=<id>: "Set it up" on one of the shelf's cards). */
   preselectRoleplay?: string | null;
+  /** Which side of that roleplay the viewer starts on (?you=1: a card whose cover shows the roleplay's first role). */
+  preselectYou?: 0 | 1;
   /** Where each roleplay's own story is set (lib/adult/step-in.ts storyPlaces), by the roleplay's id. */
   storyPlaces?: Record<string, StoryPlace>;
 }) {
@@ -64,7 +67,7 @@ export default function StepInSetup({
   // Where: a roleplay starts where its own story is set (STORY_PLACE), until the viewer picks a place themselves.
   const [placeId, setPlaceId] = useState(roleplayId && storyPlaces[roleplayId] ? STORY_PLACE : homeId);
   const [placePicked, setPlacePicked] = useState(false);
-  const [you, setYou] = useState<0 | 1>(0);
+  const [you, setYou] = useState<0 | 1>(ROLEPLAYS.some((r) => r.id === preselectRoleplay && r.roles) ? preselectYou : 0);
   const [opening, setOpening] = useState<Opening>("surprise");
   const [written, setWritten] = useState("");
   const [busy, setBusy] = useState(false);

@@ -33,6 +33,8 @@ export type ShelfCast = {
   order: StepInCharacter[];
   /** How many at the front of `order` the cards open on. */
   leads: number;
+  /** The page was opened for one person (?with=<id>): every card is theirs, a cover's own character included. */
+  asked: boolean;
 };
 
 /**
@@ -59,24 +61,38 @@ export function shelfCast(cast: readonly StepInCharacter[], recent: readonly str
   for (const c of cast) if (c.house) take(c);
   const house = order.length - known;
   for (const c of cast) take(c);
-  return { order, leads: asked ? 1 : known || house || order.length };
+  return { order, leads: asked ? 1 : known || house || order.length, asked: Boolean(asked) };
 }
 
 /**
  * Who one card is cast with: the same person all day (so a card reads the same on a reload and on the phone), a
  * different spread tomorrow. `turn` steps on through everyone else, one at a time ("Someone else").
+ *
+ * `poster`: the character in the card's cover picture (lib/adult/roleplay-covers.ts), when it has one and they're in
+ * the viewer's After Dark. The card opens on them, whoever the viewer has stepped in with before: the picture is the
+ * card, and it shows that person. "Someone else" then walks everyone else from the top of the order, the people the
+ * viewer knows first. Not on a page opened for one person, where every card is theirs.
  */
-export function shelfLead(roleplayId: string, day: string, cast: ShelfCast, turn = 0): StepInCharacter | null {
+export function shelfLead(roleplayId: string, day: string, cast: ShelfCast, turn = 0, poster: string | null = null): StepInCharacter | null {
   if (!cast.order.length) return null;
+  const face = poster && !cast.asked ? (cast.order.find((c) => c.id === poster) ?? null) : null;
+  if (face) {
+    if (turn === 0) return face;
+    const rest = cast.order.filter((c) => c.id !== face.id);
+    return rest.length ? rest[(turn - 1) % rest.length] : face;
+  }
   const first = hash(`${roleplayId}:${day}`) % Math.max(1, cast.leads);
   return cast.order[(first + turn) % cast.order.length];
 }
 
-/** Tonight's cards: `n` of them, a different set each day, in an order that holds for the day. */
-export function shelfTonight<R extends { id: string }>(roleplays: readonly R[], day: string, n = SHELF_TONIGHT): R[] {
-  return roleplays
-    .map((r) => ({ r, k: hash(`${day}:${r.id}`) }))
-    .sort((x, y) => x.k - y.k || x.r.id.localeCompare(y.r.id))
-    .slice(0, n)
-    .map((x) => x.r);
+/**
+ * Tonight's cards: `n` of them, a different set each day, in an order that holds for the day. `first`: the ones that
+ * have a cover picture: half of tonight's are taken from them (as many as there are, up to half) and shown first, so
+ * the shelf opens on pictures and its rows are of a kind; the rest are from the others.
+ */
+export function shelfTonight<R extends { id: string }>(roleplays: readonly R[], day: string, n = SHELF_TONIGHT, first: ReadonlySet<string> = new Set()): R[] {
+  const byDay = (list: readonly R[]) => list.map((r) => ({ r, k: hash(`${day}:${r.id}`) })).sort((x, y) => x.k - y.k || x.r.id.localeCompare(y.r.id)).map((x) => x.r);
+  const pictured = byDay(roleplays.filter((r) => first.has(r.id))).slice(0, Math.floor(n / 2));
+  const others = byDay(roleplays.filter((r) => !pictured.includes(r))).slice(0, n - pictured.length);
+  return [...pictured, ...others];
 }
