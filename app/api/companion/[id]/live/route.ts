@@ -117,7 +117,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     const base = requestBase(req);
     // Their face for the call (lib/face-kit.ts), drawn once if they have none, and only for a caller who sees faces (the
     // plan, or an admin), as a call taking turns does: the call doesn't wait for it.
-    if ((await companionAllowance(db, sess.userId, new Date(), process.env)).unlimited) inBackground(() => ensureFaceKit(db, view.view.character.id, base));
+    if ((await companionAllowance(db, sess.userId, new Date(), process.env)).unlimited) inBackground(() => ensureFaceKit(db, view.view.character.id, base, process.env, { follow: true }));
     // A live face (lib/live-face), when it's on for this person and the character has one: a token to open the stream.
     const face = await liveFaceSession(db, view.view.character.id, base, { admin, userId: sess.userId }, { maxSeconds: liveMaxMinutes(process.env) * 60 });
     return json({ call: { id: started.call.id, minutes: started.call.minutes }, stt: { url: sttUrl(process.env, input.lang), ...token }, face, extras: await extras() }, 200, sess);

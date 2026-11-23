@@ -6,7 +6,7 @@ import { setModerationFetchForTests } from "@/lib/adult/moderation";
 import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
-import { collectFaceKits, ensureFaceKit, FACE_KIT_USD, faceKitBlocked, faceKitOf, facePromptsPass, makeFaceKit } from "@/lib/face-kit";
+import { collectFaceKits, ensureFaceKit, FACE_KIT_USD, faceKitBlocked, faceKitOf, facePromptsPass, followFaceKit, makeFaceKit, setFaceKitPausesForTests } from "@/lib/face-kit";
 import { TALK_STILL } from "@/lib/face-kit-shared";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { runFfmpeg } from "@/lib/media-tools/ffmpeg";
@@ -37,6 +37,7 @@ beforeEach(async () => {
   vi.stubEnv("FACE_KIT_PER_DAY", "");
   vi.stubEnv("LIVE_FACE_PROVIDER", "");
   setReplicatePausesForTests(false);
+  setFaceKitPausesForTests(false);
   await saveAdultSettings(t.db, { enabled: true, venice_key: "placeholder-venice" });
 });
 afterEach(() => {
@@ -45,6 +46,7 @@ afterEach(() => {
   setReplicateFetchForTests(null);
   setModerationFetchForTests(null);
   setReplicatePausesForTests(true);
+  setFaceKitPausesForTests(true);
 });
 
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -276,6 +278,51 @@ describe("a face kit", () => {
     expect(loops()).toBe(2);
     expect(asked).toHaveLength(before + 1);
     expect((await t.db.query<{ status: string }>(`select status from face_kits where character_id = $1 and part = 'loop'`, [id])).rows[0].status).toBe("making");
+  });
+
+  it("a loop is followed by whoever queued it, so it lands with no page polling; and one that's done is kept however late it's collected", async () => {
+    // A call here lasts under a minute and a loop takes longer: the page that polls had gone before the loop was ready,
+    // and the next poll gave up on it unseen (on 2026-11-22 no character had a loop).
+    const id = await withPortrait("Followed Loop");
+    const { polled } = fakeReplicate();
+    verdict("CLOTHED");
+    expect(await ensureFaceKit(t.db, id, BASE_URL, process.env, { follow: true })).toMatchObject({ ok: true, queued: true });
+    // Nobody asked /api/face-kit: it was collected by the one who started it.
+    expect(polled).toHaveLength(1);
+    expect(await faceKitOf(t.db, id, BASE_URL)).toMatchObject({ making: false, failed: null, loop: expect.stringMatching(/^\/api\/face-kit\//) });
+    expect(await followFaceKit(t.db, id)).toBe(true);
+    expect(polled).toHaveLength(1);
+    // Collected hours late (queued, then nobody came): done on Replicate is done, and it's kept.
+    const late = await withPortrait("Late Loop");
+    expect(await makeFaceKit(t.db, late, BASE_URL)).toMatchObject({ ok: true, queued: true });
+    await t.db.query(`update face_kits set created_at = now() - interval '25 minutes' where character_id = $1 and part = 'loop'`, [late]);
+    expect(await collectFaceKits(t.db, late)).toBe(1);
+    expect((await faceKitOf(t.db, late, BASE_URL))!.loop).toMatch(/^\/api\/face-kit\//);
+  });
+
+  it("a loop still not done after twenty minutes is given up, and that isn't held against the next call", async () => {
+    const id = await withPortrait("Slow Loop");
+    const { asked } = fakeReplicate();
+    verdict("CLOTHED");
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, queued: true });
+    // Replicate is still at it.
+    const inner = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "GET" || !init?.body) return Response.json({ id: url.split("/").pop(), status: "processing" });
+      const body = JSON.parse(String(init.body)) as { input: Record<string, unknown> };
+      asked.push({ url, input: body.input });
+      return Response.json({ id: `loop-${asked.length}`, status: "starting" });
+    };
+    setReplicateFetchForTests(inner);
+    expect(await collectFaceKits(t.db, id)).toBe(0);
+    expect((await faceKitOf(t.db, id, BASE_URL))!).toMatchObject({ making: true, failed: null });
+    await t.db.query(`update face_kits set created_at = now() - interval '25 minutes' where character_id = $1 and part = 'loop'`, [id]);
+    expect(await collectFaceKits(t.db, id)).toBe(0);
+    expect((await faceKitOf(t.db, id, BASE_URL))!.failed).toBe("the living portrait: gave up waiting");
+    // The next call draws the loop again at once: nothing was wrong with the picture, nobody saw it.
+    const before = asked.length;
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 0, queued: true });
+    expect(asked).toHaveLength(before + 1);
   });
 
   it("draws a few a day on calls (FACE_KIT_PER_DAY), never more; one being made isn't started twice", async () => {

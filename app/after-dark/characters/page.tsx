@@ -75,7 +75,7 @@ function CharacterCard({ c, eager, stepIn }: { c: AdCharacterCard; eager: boolea
       </Link>
       {stepIn && (
         <div className="ad-char-step" data-character-step-in>
-          <StepInButton characterId={c.id} name={first(c.name)} sceneId={stepIn.scene} className="button small" label="Step in" resumeLabel="Continue" />
+          <StepInButton characterId={c.id} name={first(c.name)} sceneId={stepIn.scene} className="button" label="Step in" resumeLabel="Continue" />
           <Link className="ad-char-setup" href={`/after-dark/step-in?with=${encodeURIComponent(c.id)}`} aria-label={`Set a scene or a roleplay with ${first(c.name)}`}>
             Roleplay or place
           </Link>

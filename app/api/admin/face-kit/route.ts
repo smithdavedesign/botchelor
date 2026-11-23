@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isSignedInAdmin } from "@/lib/admins";
 import { getDb } from "@/lib/db";
-import { collectFaceKits, faceKitBlocked, faceKitOf, makeFaceKit } from "@/lib/face-kit";
+import { collectFaceKits, faceKitBlocked, faceKitOf, followFaceKit, makeFaceKit } from "@/lib/face-kit";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
 import { inBackground } from "@/lib/sets";
 import { requestBase } from "@/lib/site";
@@ -12,8 +12,8 @@ const Input = z.object({ character_id: z.string().min(1).max(120), redo: z.boole
 
 /**
  * An admin draws a character's face kit (lib/face-kit.ts), or redraws its failed parts: `POST { character_id }` (`redo: true` throws the kit away and starts over from their portrait) starts
- * it after the response (seven edits and a clip queued), uncounted against the day's few. `GET ?character=` is the kit
- * as the page sees it.
+ * it after the response (the portrait, and the loop queued and then followed until it's kept), uncounted against the
+ * day's few. `GET ?character=` is the kit as the page sees it.
  */
 export const POST = handle(async (req: Request) => {
   const db = await getDb();
@@ -26,6 +26,8 @@ export const POST = handle(async (req: Request) => {
     const made = await makeFaceKit(db, input.character_id, base, { redo: input.redo });
     const wrong = made.ok ? made.failed : [made.message];
     if (wrong.length) console.error(`[face-kit] ${input.character_id}: ${wrong.join("; ").slice(0, 400)}`);
+    // The loop takes a minute or more on Replicate: followed here, so it lands with nobody polling.
+    await followFaceKit(db, input.character_id);
   });
   return json({ started: true }, 202);
 });
