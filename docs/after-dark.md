@@ -3857,6 +3857,38 @@ nothing is ever sent for them, and nothing is counted until they send a line.
 - **What it costs:** one small call a reply on After Dark's own model, a few hundredths of a cent, only for a viewer
   who has the scene open and hasn't switched ideas off.
 
+**This reply again, with one change** (2026-11-23; David: '"Another reply, but slower / more teasing": a direction on
+a redraw (Kindroid, SpicyChat)'; row 4 of the second field audit,
+[audits/2026-11-23-scenes-and-side-pictures.md](audits/2026-11-23-scenes-and-side-pictures.md)). "↻ Another reply" drew
+blind: the writer was told what it had said and nothing about what was wanted instead. Under the newest reply, beside
+Continue, there's now **↻ Again…**. It opens a row: **Slower · More teasing · Bolder · Softer · Shorter · More talk**,
+then a short box, "or in your own words", with **Go**. One tap on a chip draws the reply again that way. The blind
+"↻ Another reply" is still in the ⋯ menu.
+- **The presets** (`REDRAW_PRESETS` in `lib/adult/step-in-shared.ts`) are ours: a chip's word, the sentence the writer
+  is given, and another for a reply that was said out loud (a call's, or Talk's, which is drawn again as one; "More
+  talk" isn't offered on those). Each changes how the reply is told, never how far it goes. "Bolder" is "you take the
+  lead and make the next move yourself, inside how far they have already taken things", and none of them names an act
+  (a test holds every sentence to After Dark's lines and to the mildest limits a scene can have).
+- **Their own words** are at most 120 characters, on one line, without braces. They're the viewer's, so before
+  anything is drawn they're read as a line of theirs is, in the same order (`regenerateStepIn`): the self-harm
+  protocol (the scene pauses and the resources come back), the lines that never move and Step in's own net, then their
+  hard nos and intensity at the scene's stage. A refusal says why by the box ("That direction asks for one of your
+  hard limits for this scene (Spitting)…"), draws nothing and counts nothing.
+- **What the writer is told:** one more line after what the reply answers (`redrawCue` in
+  `lib/adult/step-in-prompt.ts`): they asked for that reply again with one change, write it that way, and everything
+  above still holds (their limits and how far they have taken things, the pace, never writing their side). The rules
+  themselves are untouched, the reply is held to every check any reply is, and the next reply is told nothing of it.
+- **Never kept:** the words go to the writer once and nowhere else. The step log has only that there was a direction
+  (`flags.direction`: the preset's id, `own`, or both, as `teasing+own`); a refusal is logged by its kind, as a
+  refused line is.
+- **What it costs:** one reply, like any redraw. The one it replaces is kept, and ‹ › flips between them.
+- **Route:** the scene's `regenerate` move takes `direction: { preset?, text? }`
+  (`POST /api/admin/after-dark/step-in/<id>`); anything else in it is a 422.
+- **Not built:** a direction on Continue or on a reply that isn't the newest, remembering a person's usual direction,
+  and a direction for the ideas or a picture.
+
+**Proof:** `tests/after-dark-step-in-redraw.test.ts`.
+
 **The month's count is quiet** (2026-11-23; one of the ideas David said he's open to; row 10 of the field audit: text
 is unlimited on every site in the field and only media is metered). The plan already says "Unlimited chapters, no
 tokens (fair use: N scene steps a month)", but a scene's composer and a call counted the steps down on every reply.

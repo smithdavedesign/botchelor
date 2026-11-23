@@ -65,7 +65,21 @@ import { STAGES } from "./stages";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
 import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memory";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
-import { placeInSentence, spokenPieces, STEP_IN_LINE_MAX, STORY_PLACE, type StepInCharacter, type StoryPlace, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
+import {
+  placeInSentence,
+  REDRAW_PRESETS,
+  REDRAW_TEXT_MAX,
+  spokenPieces,
+  STEP_IN_LINE_MAX,
+  STORY_PLACE,
+  type RedrawDirection,
+  type StepInCharacter,
+  type StepInMessageView,
+  type StepInPlace,
+  type StepInSceneRef,
+  type StepInSceneView,
+  type StoryPlace,
+} from "./step-in-shared";
 import { storySpeech } from "../story-reply";
 import { logStep, STEP_IN_PARTNER } from "./steps";
 import { countUse, overCap, usageLeft } from "./usage";
@@ -817,7 +831,7 @@ async function draw(
   db: Db,
   s: SceneRow,
   ctx: DrawContext,
-  o: { cue: "open" | "continue" | null; insteadOf?: string | null; form?: SpokenForm | null },
+  o: { cue: "open" | "continue" | null; insteadOf?: string | null; form?: SpokenForm | null; direction?: string | null },
 ): Promise<Drawn> {
   const settings = await getAdultSettings(db);
   const opening = o.cue === "open";
@@ -869,6 +883,7 @@ async function draw(
       insteadOf: o.insteadOf ?? null,
       avoid,
       form,
+      direction: o.direction ?? null,
     });
     const ask = () => {
       flags.calls = Number(flags.calls) + 1;
@@ -949,14 +964,23 @@ async function reply(
   s: SceneRow,
   rows: readonly MessageRow[],
   now: Date,
-  o: { action: string; cue: "open" | "continue" | null; insteadOf?: string | null; replaces?: MessageRow | null; form?: SpokenForm | null },
+  o: {
+    action: string;
+    cue: "open" | "continue" | null;
+    insteadOf?: string | null;
+    replaces?: MessageRow | null;
+    form?: SpokenForm | null;
+    /** A redraw's direction for the writer, and what the step log says of it: the preset's id or "own", never the words. */
+    direction?: { ask: string; logged: string } | null;
+  },
 ): Promise<StepInFail | { ok: true; id: string; aside: boolean }> {
   const ctx = await drawContext(db, s, rows, o.replaces ? [o.replaces.id] : []);
   if (!ctx) return NOT_FOUND;
   const who = { owner: s.owner_id, character: s.character_id, scene: s.id };
-  const drawn = await draw(db, s, ctx, { cue: o.cue, insteadOf: o.insteadOf, form: o.form });
+  const directed = o.direction ? { direction: o.direction.logged } : {};
+  const drawn = await draw(db, s, ctx, { cue: o.cue, insteadOf: o.insteadOf, form: o.form, direction: o.direction?.ask ?? null });
   if (!drawn.ok) {
-    await logMove(db, who, { ok: false, http: drawn.fail.status, message: drawn.fail.message, flags: { action: o.action, ...drawn.flags } });
+    await logMove(db, who, { ok: false, http: drawn.fail.status, message: drawn.fail.message, flags: { action: o.action, ...directed, ...drawn.flags } });
     return drawn.fail;
   }
   const kind = drawn.form ? (drawn.kind === "aside" ? `${drawn.form}_aside` : drawn.form) : drawn.kind === "aside" ? "aside" : null;
@@ -966,7 +990,7 @@ async function reply(
     await db.query(`update adult_step_in_messages set replaced_by = $3 where scene_id = $1 and (id = $2 or replaced_by = $2)`, [s.id, o.replaces.id, id]);
   }
   await countUse(db, s.owner_id, "step_in", now);
-  await logMove(db, who, { ok: true, added: drawn.paragraphs, flags: { action: o.action, ...(drawn.form ? { [drawn.form]: true } : {}), ...drawn.flags }, text: { model: drawn.model, provider: drawn.provider } });
+  await logMove(db, who, { ok: true, added: drawn.paragraphs, flags: { action: o.action, ...directed, ...(drawn.form ? { [drawn.form]: true } : {}), ...drawn.flags }, text: { model: drawn.model, provider: drawn.provider } });
   return { ok: true, id, aside: drawn.kind === "aside" };
 }
 
@@ -1222,28 +1246,65 @@ export async function continueStepIn(db: Db, viewer: string, sceneId: string, no
 /**
  * Draws the newest reply again: one scene step, like any reply. The one it replaces is kept as a draw the viewer can
  * flip back to (swipeStepIn). With no reply to draw again (the viewer wrote last), it's simply the reply that's due.
+ *
+ * `direction` ("↻ Again…": lib/adult/step-in-shared.ts REDRAW_PRESETS): the one change the viewer asks of the reply
+ * drawn again, a preset of ours, a few words of their own, or both. Their own words are theirs, so they're read as a
+ * line of theirs is, in the same order, before anything is drawn: the self-harm protocol (the scene pauses, the
+ * resources come back), the lines that never move, their own limits at the scene's stage. A refusal draws nothing and
+ * counts nothing, and the words are never kept: the writer is told them once, and the step log has only that there was
+ * a direction (`flags.direction`: the preset's id, "own", or both). The reply it makes is held to every check any reply
+ * is. With no reply to draw again there is nothing to change, and the direction is left out.
  */
-export async function regenerateStepIn(db: Db, viewer: string, sceneId: string, now: Date = new Date()): Promise<StepInSend> {
+export async function regenerateStepIn(db: Db, viewer: string, sceneId: string, now: Date = new Date(), opts: { direction?: RedrawDirection | null } = {}): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
+  const preset = opts.direction?.preset ? (REDRAW_PRESETS.find((p) => p.id === opts.direction?.preset) ?? null) : null;
+  if (opts.direction?.preset && !preset) return fail(422, "invalid_direction", "Pick one of the directions offered, or write your own.");
+  // Their own words, on one line (a direction, not a passage).
+  const own = clean(opts.direction?.text ?? "").replace(/\s+/g, " ");
+  if (own.length > REDRAW_TEXT_MAX) return fail(422, "invalid_direction", `Keep the direction under ${REDRAW_TEXT_MAX} characters.`);
+  if (/[{}]/.test(own)) return fail(422, "invalid_direction", "Write the direction in plain words, without braces.");
+  if (own) {
+    // Their own words are read for this before anything else, whatever state the scene is in (as a line of theirs is).
+    const { crisis } = await lineInCrisis(own, STEP_IN_SURFACE, await adultModel(db));
+    if (crisis) return pauseForCrisis(db, s, now);
+  }
   const closed = await writable(db, s);
   if (closed) return closed;
+  if (own) {
+    const safe = checkAdultText({ direction: own });
+    if (!safe.ok) return refuse(db, s, 422, "refused", linesMessage("direction", safe), "lines", "regenerate");
+    const never = stepInNever(own);
+    if (never) {
+      const told = neverMessage("direction", never);
+      return refuse(db, s, 422, "refused", told.message, "lines", "regenerate", told.logged);
+    }
+  }
+  const rows = await allMessages(db, s.id);
+  if (own) {
+    const limited = lineLimitRefusal(own, limitsOf(s), stageOf(rows));
+    if (limited) return refuse(db, s, 422, "limits", limited.replace(/^That line\b/, "That direction"), "limits", "regenerate");
+  }
   const capped = await overCap(db, viewer, "step_in", now);
   if (capped) return refuse(db, s, 429, "capped", capped, "cap", "regenerate");
-  const rows = await allMessages(db, s.id);
   const spoken = spokenOf(rows);
   const last = spoken.at(-1) ?? null;
   const replaces = last?.role === "character" ? last : null;
   // What the reply being drawn again answered: the line before it, the character's own (it carried on), or nothing.
   const before = replaces ? (spoken.at(-2) ?? null) : last;
+  // A spoken reply (a call's, or Talk's) is drawn again as one.
+  const form = replaces ? formOf(replaces) : null;
+  // The change asked of it, for the writer: the preset's own sentence (the spoken one for a spoken reply), then their
+  // words as theirs. Only when there's a reply to change.
+  const asks = replaces ? [...(preset ? [form ? preset.spoken : preset.ask] : []), ...(own ? [`in their own words, "${own.replace(/["“”]/g, "'")}"`] : [])] : [];
   const r = await reply(db, s, rows, now, {
     action: "regenerate",
     cue: cueAfter(before),
     // The narrator's stand-in isn't something to steer away from: the draw is simply made again.
     insteadOf: replaces && !isAside(replaces) ? replaces.text.slice(0, 600) : null,
     replaces,
-    // A spoken reply (a call's, or Talk's) is drawn again as one.
-    form: replaces ? formOf(replaces) : null,
+    form,
+    direction: asks.length ? { ask: asks.join("; and "), logged: [...(preset ? [preset.id] : []), ...(own ? ["own"] : [])].join("+") } : null,
   });
   if (!r.ok) return r;
   return sent(db, s);
