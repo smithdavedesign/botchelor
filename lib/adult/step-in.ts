@@ -1498,22 +1498,35 @@ const recordLine = (placeTitle: string, rp: Roleplay | null): string => `A scene
  * same call and the same reading of its reply, recapFrom), for one character and the viewer: the recap so far and the
  * next stretch in, the new recap and one line to remember the scene by out. Both are held to After Dark's lines and
  * the narrator's guard before they're kept; null for one that can't be used.
+ *
+ * `closing`: the scene is being filed. While it runs, the recap is the writer's own memory of it ("Earlier in this
+ * scene: They brought a parcel up…"), so the person is "they". Once it has ended nothing reads the recap but the
+ * person themselves, on the ended scene's page and in their export, and "They brought a parcel to Juniper's flat as an
+ * excuse to visit" read like a file kept on them (the story's first live checks, 2026-11-23). So the closing recap is
+ * told to them, as "you"; the line the next scene remembers it by stays the character's, in the third person.
  */
-async function writeNotes(db: Db, name: string, before: string | null, stretch: readonly MessageRow[]): Promise<{ recap: string | null; line: string | null }> {
+async function writeNotes(db: Db, name: string, before: string | null, stretch: readonly MessageRow[], closing = false): Promise<{ recap: string | null; line: string | null }> {
   try {
     const raw = await (await adultModel(db)).complete(
       [
         {
           role: "system",
-          content: `You keep the running notes of a private scene of adult fiction between a person and ${name}, an AI character, so that ${name} remembers it later. Plain facts, third person, past tense, no quotes. The person is "they": note what they said and did, never what they felt or thought.`,
+          content: closing
+            ? `You keep the running notes of a private scene of adult fiction between a person and ${name}, an AI character. The scene has just ended: you write what the person reads back about it, and one line ${name} remembers it by. Plain facts, past tense, no quotes. Note what the person said and did, never what they felt or thought.`
+            : `You keep the running notes of a private scene of adult fiction between a person and ${name}, an AI character, so that ${name} remembers it later. Plain facts, third person, past tense, no quotes. The person is "they": note what they said and did, never what they felt or thought.`,
         },
         {
           role: "user",
           content:
             (before ? `The notes so far:\n${before}\n\n` : "") +
             `The next stretch:\n${stretch.map((m) => `${m.role === "viewer" ? "Them" : m.kind === "aside" ? "(Narrator)" : name}: ${m.text}`).join("\n")}\n\n` +
-            `Write "recap": the whole scene so far in under 120 words (where it was, what happened and in what order, how ${name} felt about it, anything promised or left open), ` +
-            `and "line": one sentence under 30 words that ${name} would remember the scene by. Reply with a JSON object: {"recap": "...", "line": "..."}`,
+            (closing
+              ? `Write "recap": the whole scene in under 120 words, told to the person who played it. They are "you" all the way through ("You sat down across from ${name}."), never "they" or "the person"; ${name} is ${name}. ` +
+                `Where it was, what happened and in what order, how ${name} seemed to feel about it, anything promised or left open. ` +
+                `And "line": one sentence under 30 words that ${name} would remember the scene by, in the third person, the person as "they". `
+              : `Write "recap": the whole scene so far in under 120 words (where it was, what happened and in what order, how ${name} felt about it, anything promised or left open), ` +
+                `and "line": one sentence under 30 words that ${name} would remember the scene by. `) +
+            `Reply with a JSON object: {"recap": "...", "line": "..."}`,
         },
       ],
       { temperature: 0.3, maxTokens: 400 },
@@ -1589,7 +1602,8 @@ export async function writeStepInNote(db: Db, sceneId: string, now: Date = new D
 }
 
 /**
- * Ends the scene and files it: kept, readable, with a short recap, and one line the next scene with this character
+ * Ends the scene and files it: kept, readable, with a short recap told to the person ("You sat down across from…":
+ * writeNotes's `closing`), and one line the next scene with this character
  * remembers it by. Free (it's a recap, not a reply). When the model's notes can't be used, the recap stays as it was
  * and the line is what the record says (where, and which roleplay).
  */
@@ -1603,7 +1617,7 @@ export async function endStepIn(db: Db, viewer: string, sceneId: string, now: Da
   const character = await characterRef(db, s.character_id);
   const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
   const fallback = recordLine(placeOf(s.place, await drawnSets(db)).title, rp);
-  const notes = stretch.length ? await writeNotes(db, first(character?.name ?? "the character"), s.recap, stretch) : { recap: null, line: null };
+  const notes = stretch.length ? await writeNotes(db, first(character?.name ?? "the character"), s.recap, stretch, true) : { recap: null, line: null };
   await db.query(`update adult_step_in_scenes set ended_at = $2, paused_at = null, recap = $3, line = $4 where id = $1`, [s.id, now.toISOString(), notes.recap ?? s.recap ?? fallback, notes.line ?? fallback]);
   return sent(db, s);
 }

@@ -1280,6 +1280,12 @@ describe("the controls", () => {
     expect(said(view)).toEqual(["character", "viewer", "character"]);
     expect(seen.notes).toHaveLength(1);
     expect(seen.notes[0][1].content).toContain("Them: I sit down across from you.");
+    // The closing recap is the person's own to read back, so it's asked for told to them; the line the next scene
+    // remembers it by stays the character's, in the third person.
+    expect(seen.notes[0][0].content).toContain("The scene has just ended: you write what the person reads back about it");
+    expect(seen.notes[0][0].content).not.toContain('The person is "they"');
+    expect(seen.notes[0][1].content).toContain('They are "you" all the way through');
+    expect(seen.notes[0][1].content).toMatch(/And "line": one sentence under 30 words that \w+ would remember the scene by, in the third person, the person as "they"\./);
     // Filed: nothing more is written into it.
     for (const r of [await sendStepInLine(t.db, a.id, made.id, "Wait."), await continueStepIn(t.db, a.id, made.id), await regenerateStepIn(t.db, a.id, made.id), await takeBackStepIn(t.db, a.id, made.id)]) {
       expect(r).toMatchObject({ ok: false, status: 409, error: "ended" });
@@ -1334,6 +1340,10 @@ describe("the controls", () => {
     expect(seen.notes).toHaveLength(1);
     expect(seen.notes[0][1].content).toContain("Them: I turn over my own card, the 0 of clubs.");
     expect(seen.notes[0][1].content).not.toContain("the 20 of clubs");
+    // While the scene runs the recap is the writer's memory of it: the person is "they", and nothing is told to them.
+    expect(seen.notes[0][0].content).toContain('The person is "they"');
+    expect(seen.notes[0][0].content).not.toContain("has just ended");
+    expect(seen.notes[0][1].content).not.toContain('"you" all the way through');
     expect(await stepInFollowUp(t.db, made.id)).toBe(false);
     await sendStepInLine(t.db, a.id, made.id, "I deal again.");
     const p = seen.prompts.at(-1)!;

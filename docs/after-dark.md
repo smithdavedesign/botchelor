@@ -3796,7 +3796,12 @@ character carries on), take back the last exchange (gone for good), go somewhere
 catalog place, free; how a scene that began in public goes somewhere private), 🎚 the viewer's limits (the pair's own
 `Limits` panel, per scene, starting from After Dark's defaults; hard nos stored only under the profile consent, GDPR
 Art. 9), and End the scene, which files it: kept, readable, with a short recap, and one line the next scene with that
-character remembers it by. A scene can be deleted from its ⋯ menu.
+character remembers it by. A scene can be deleted from its ⋯ menu. **The closing recap is told to the person**
+(`writeNotes(…, closing)`, 2026-11-23): while a scene runs its recap is the writer's memory of it, so the person is
+"they" ("Earlier in this scene: They brought a parcel up…"); once it has ended nothing reads the recap but the person
+(the ended scene's page, their export), and "They brought a parcel to Juniper's flat as an excuse to visit" read like
+a file kept on them. The same one call now asks for the recap as "you", and for the remembered line in the third
+person as before. If the model answers the old way, what it wrote is shown as it is.
 
 **Still theirs to play.** Who the viewer may step in with is asked again before every reply, as a pair's eligibility
 is: once the character is switched out, has left the season's cast or is deleted, nothing more is written
