@@ -3583,6 +3583,10 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
   once; its page (`?open=1`) has the character open it as it arrives (the same `continue` that draws an opening that
   never came: one scene step, as an opening always is), then drops the `?open=1` from the address so a reload never
   asks twice. The same eligibility and the month's cap as any start.
+- **Something to say first:** under a new scene's opening, until the viewer has written a line, three plain starter
+  lines (`STEP_IN_STARTERS` in `lib/adult/step-in-shared.ts`; never in a roleplay, whose opening already says what's
+  going on). A tap puts the line in the box to send or change; nothing is sent by itself. An empty box is where a new
+  conversation stalls, and the best-known sites put starters under the greeting for that reason.
 - **Roleplay is one step away, not gone:** "Roleplay or place" under each card's button, "set the scene first" on a
   character's page and "🎭 A roleplay or a new scene with {name}" in a scene's ⋯ menu all open the set-up page with them
   picked (`/after-dark/step-in?with=<id>`), and a running scene can still move somewhere else.
@@ -3756,7 +3760,8 @@ Dark's own voice and nothing of the show's:
 - **Their face on the call** is the show's living loop of them when the show has drawn one (a PG loop made for its own
   calls: `lib/face-kit.ts`; nothing is drawn from After Dark, and its files load from the show's address), else their
   portrait, with the ring around it swelling with their voice (`app/stage/useVoiceRing.ts`). The screen is the show's
-  call screen (`.companion-call`). **No lip-sync renderer:** every hosted one bars adult scenes, Runpod's terms keep
+  call screen (`.companion-call`). Every picture on it is marked `.avatar`, as every show portrait is, so the discreet
+  blur leaves the face alone (the first live call, on an account with the blur on, showed a blurred tile). **No lip-sync renderer:** every hosted one bars adult scenes, Runpod's terms keep
   ours to PG, and a loop with a real voice is what the best-known sites show on a call
   ([audits/2026-11-22-companion-field.md](audits/2026-11-22-companion-field.md)).
 - **What it costs:** the reply, about a tenth of a cent on the fast writer; the voice, about $0.0004 a piece on Venice's

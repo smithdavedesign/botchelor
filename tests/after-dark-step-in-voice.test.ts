@@ -3,6 +3,7 @@
 // be heard in the character's own voice, made once and kept; and all of it is closed like the rest of Step in.
 // The fixtures are mild lines plus the short phrases the checks must refuse.
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
@@ -25,9 +26,12 @@ import { claimAdmin } from "@/lib/admins";
 import { NO_LIMITS, type PairLimits } from "@/lib/adult/limits";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import { saveAdultSettings } from "@/lib/adult/settings";
-import { CALL_ASIDES, CALL_REPLY_MAX, checkCallReply, getStepInScene, parseCallReply, regenerateStepIn, sendStepInLine, setStepInRandomForTests, startStepIn, type StepInSceneView } from "@/lib/adult/step-in";
+import { CALL_ASIDES, CALL_REPLY_MAX, checkCallReply, getStepInScene, lineLimitRefusal, parseCallReply, quickStepIn, regenerateStepIn, sendStepInLine, setStepInRandomForTests, startStepIn, type StepInSceneView } from "@/lib/adult/step-in";
+import { stepInNever } from "@/lib/adult/step-in-lines";
+import { checkAdultText } from "@/lib/safety";
+import { BLURRED_MEDIA_SELECTORS } from "@/lib/adult/discreet";
 import { CALL_CUE, STEP_IN_CALL, STEP_IN_CALL_ANSWER, STEP_IN_CALL_LENGTH, STEP_IN_HONESTY, STEP_IN_LINES, STEP_IN_NEVER_WRITE, STEP_IN_PACE, STEP_IN_RATING, STEP_IN_WILL, stepInMessages } from "@/lib/adult/step-in-prompt";
-import { callWords, spokenPieces, VOICE_PIECE_MAX, VOICE_PIECES_MAX } from "@/lib/adult/step-in-shared";
+import { callWords, spokenPieces, STEP_IN_LINE_MAX, STEP_IN_STARTERS, VOICE_PIECE_MAX, VOICE_PIECES_MAX } from "@/lib/adult/step-in-shared";
 import { stepInVoice } from "@/lib/adult/step-in-voice";
 import { sceneCharacter } from "@/lib/adult/voice";
 import { loadCharacter } from "@/lib/character";
@@ -163,6 +167,39 @@ describe("what a reply says out loud", () => {
     expect(pieces.join(" ")).toBe(long.slice(1, -1));
     expect(spokenPieces(Array.from({ length: 20 }, (_, i) => `"Line ${i}."`).join(" narration "))).toHaveLength(VOICE_PIECES_MAX);
     expect(callWords('"Hello. Come in."')).toBe("Hello. Come in.");
+  });
+});
+
+describe("something to say first", () => {
+  it("offers a few plain lines that every check a typed line gets lets through, under the tightest limits", () => {
+    expect(STEP_IN_STARTERS.length).toBeGreaterThanOrEqual(2);
+    for (const line of STEP_IN_STARTERS) {
+      expect(line.length, line).toBeLessThanOrEqual(STEP_IN_LINE_MAX);
+      expect(checkAdultText({ line }).ok, line).toBe(true);
+      expect(stepInNever(line), line).toBeNull();
+      expect(lineLimitRefusal(line, TIGHT, 0), line).toBeNull();
+    }
+  });
+
+  it("shows under a new scene's opening until the viewer has written something, and never in a roleplay", async () => {
+    scripted();
+    await setUp();
+    const a = await admin();
+    const q = await quickStepIn(t.db, a.id, WHO);
+    if (!q.ok) throw new Error("no scene");
+    // Nothing said yet (the page is about to have them open it): nothing to answer, so no starters.
+    let page = await html(await StepInScenePage({ params: Promise.resolve({ id: q.id }), searchParams: Promise.resolve({ open: "1" }) }));
+    expect(page).not.toContain("data-step-in-starters");
+    const opened = await start(a.id, CAFE);
+    page = await html(await StepInScenePage({ params: Promise.resolve({ id: opened.id }) }));
+    expect(page).toContain("data-step-in-starters");
+    for (const line of STEP_IN_STARTERS) expect(page).toContain(line.replace(/'/g, "&#x27;").replace(/"/g, "&quot;"));
+    await sendStepInLine(t.db, a.id, opened.id, "Hello there.");
+    page = await html(await StepInScenePage({ params: Promise.resolve({ id: opened.id }) }));
+    expect(page).not.toContain("data-step-in-starters");
+    const rp = await startStepIn(t.db, a.id, { character_id: HOUSE_CHARACTERS[1].id, place: HOME, roleplay: { id: "hotel-mixup", you: 0 } });
+    if (!rp.ok) throw new Error(`roleplay start failed: ${rp.message}`);
+    expect(await html(await StepInScenePage({ params: Promise.resolve({ id: rp.id }) }))).not.toContain("data-step-in-starters");
   });
 });
 
@@ -411,5 +448,22 @@ describe("hearing a reply", () => {
     const bare = await html(await StepInScenePage({ params: Promise.resolve({ id: made.id }) }));
     expect(bare).not.toContain("data-step-in-hear");
     expect(bare).not.toContain("data-step-in-aloud");
+  });
+});
+
+describe("the call's face under the discreet blur", () => {
+  it("is the show's own PG picture, marked .avatar wherever it's drawn, so the blur that takes every other picture leaves it", () => {
+    // The first live call (2026-11-22, an account with the blur on) showed a blurred tile: the blur takes every img and
+    // video that isn't .avatar (lib/adult/discreet.ts), and the call's face wasn't marked.
+    expect(BLURRED_MEDIA_SELECTORS[0]).toContain(":not(.avatar)");
+    const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
+    const face = read("../app/companion/[id]/LiveFace.tsx");
+    expect(face).toContain('className="avatar companion-live-still"');
+    expect(face).toContain("`avatar companion-live-loop${");
+    const call = read("../app/after-dark/step-in/[id]/StepInCall.tsx");
+    expect(call).toContain('className="avatar companion-call-backdrop"');
+    expect(call).toContain('className="avatar companion-call-portrait"');
+    // Every <img> and <video> the call screen draws itself is one of those.
+    expect(call.match(/<(?:img|video)\b/g)).toHaveLength(2);
   });
 });
