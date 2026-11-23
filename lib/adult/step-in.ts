@@ -23,12 +23,17 @@
  * Each reply counts one of the month's scene steps (lib/adult/usage.ts), regenerate and Continue included; flipping
  * through kept draws doesn't. Every reply and every refusal is a row in the step log (lib/adult/steps.ts, kind
  * "step_in"), with no word of either side in it. Memory, v1: the scene's own turns, a rolling recap once it's long, and
- * one line about each earlier scene with the character that the viewer ended. No fact extraction, no pictures, voice
- * or video.
+ * one line about each earlier scene with the character that the viewer ended. No fact extraction, no pictures or
+ * video.
+ *
+ * Heard (2026-11-22): a line can be said out loud on a call (sendStepInLine's `call`), and the reply is then a few
+ * spoken sentences (draw's `form: "call"`, parseCallReply, checkCallReply) kept in the scene as a call's; what any
+ * reply says out loud can be heard in the character's voice (lib/adult/step-in-voice.ts).
  */
 import { randomUUID } from "node:crypto";
 import { isAdmin } from "../admins";
 import type { Character } from "../character";
+import { withoutStageDirections } from "../companion-live-shared";
 import { repeatsEarlier } from "../companion-prompt";
 import { countReferral, CRISIS_RESOURCES, crisisIntent, type CrisisResources, type CrisisSurface } from "../crisis";
 import type { Db } from "../db";
@@ -56,8 +61,9 @@ import { getAdultSettings } from "./settings";
 import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
-import { openingHasSides, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
-import { placeInSentence, STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
+import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
+import { placeInSentence, spokenPieces, STEP_IN_LINE_MAX, type StepInCharacter, type StepInMessageView, type StepInPlace, type StepInSceneRef, type StepInSceneView } from "./step-in-shared";
+import { storySpeech } from "../story-reply";
 import { logStep, STEP_IN_PARTNER } from "./steps";
 import { countUse, overCap, usageLeft } from "./usage";
 import { sceneCharacter } from "./voice";
@@ -113,6 +119,16 @@ export const ASIDES: readonly string[] = [
   "The moment drifted, the way moments do. The evening was still there, unhurried, with plenty of it left.",
   "Somewhere nearby a sound broke the thread of it, and the thought was gone. There were other places for this to go.",
   "A pause settled in, easy and unhurried. Whatever came next could begin somewhere new.",
+];
+
+/**
+ * What stands in on a call when a spoken reply couldn't be used twice: the character's own voice, changing the subject,
+ * with nothing of either draft in it and nothing about the viewer. Held to every check a spoken reply is.
+ */
+export const CALL_ASIDES: readonly string[] = [
+  "Sorry, I lost my thread for a second. Tell me something else.",
+  "Hold on, let me think about that one. What else is on your mind?",
+  "Hm. Let's come back to that. Tell me about your night.",
 ];
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -341,6 +357,56 @@ function limitsNote(text: string, limits: PairLimits, publicPlace: boolean): { w
 
 export type ReplyVerdict = { ok: true; paragraphs: string[] } | { ok: false; why: string; avoid: string };
 
+/** The most of a spoken reply that's kept: a few sentences. */
+export const CALL_REPLY_MAX = 600;
+
+/**
+ * What a spoken reply's draft says out loud: its `say` (lib/adult/step-in-prompt.ts STEP_IN_CALL_ANSWER), or, from a
+ * writer that answered as a story anyway, the lines that story says out loud. Stage directions come out (they can't be
+ * voiced), double quotes become single ones (the line is kept inside a pair of its own), and it stops at a sentence
+ * within CALL_REPLY_MAX. Empty when nothing was said.
+ */
+export function parseCallReply(raw: string): string {
+  const json = jsonOf(raw) as { say?: unknown; story?: unknown } | null;
+  const said =
+    typeof json?.say === "string"
+      ? json.say
+      : Array.isArray(json?.story)
+        ? storySpeech(json.story.filter((x): x is string => typeof x === "string").join("\n\n")).join(" ")
+        : json
+          ? ""
+          : raw;
+  let text = withoutStageDirections(said.replace(/\r/g, " "))
+    .replace(/[“”"]/g, "'")
+    .replace(/\s+/g, " ")
+    .replace(/^'+|'+$/g, "")
+    .trim();
+  if (text.length > CALL_REPLY_MAX) {
+    const cut = text.slice(0, CALL_REPLY_MAX);
+    const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+    text = (end > CALL_REPLY_MAX / 3 ? cut.slice(0, end + 1) : cut).trim();
+  }
+  return text;
+}
+
+/**
+ * A spoken reply through the checks a written one gets, as far as they apply to speech: the lines that never move
+ * (After Dark's, then Step in's own net), nothing that reads as wanting to hurt oneself, the viewer's hard nos and
+ * intensity, a public place's cap, and the narrator's age rule on what's said. There's no narration to guard and no
+ * "you" to drift. Kept as one line inside double quotes, which is how the scene keeps anything said out loud.
+ */
+export function checkCallReply(said: string, limits: PairLimits, o: { publicPlace: boolean }): ReplyVerdict {
+  const text = said.trim();
+  if (!text) return { ok: false, why: "empty", avoid: "nothing was said in it" };
+  const crossed = linesNote(text);
+  if (crossed) return { ok: false, ...crossed };
+  const limited = limitsNote(text, limits, o.publicPlace);
+  if (limited) return { ok: false, ...limited };
+  const line = `"${text}"`;
+  if (guardStory(line, "adult").cut > 0) return { ok: false, why: "guard", avoid: "it gave someone an age under 18" };
+  return { ok: true, paragraphs: [line] };
+}
+
 /**
  * A drawn reply through every check, in order (the PG companion's order, with After Dark's checks: the line checks on
  * the whole reply first, then the narrator's guard):
@@ -441,7 +507,12 @@ async function pauseForCrisis(db: Db, s: SceneRow, now: Date): Promise<StepInFai
 
 /* ------------------------------------------------ the view ------------------------------------------------ */
 
-const messageKind = (m: Pick<MessageRow, "kind">): StepInMessageView["kind"] => (m.kind === "aside" || m.kind === "notice" || m.kind === "place" ? m.kind : null);
+const messageKind = (m: Pick<MessageRow, "kind">): StepInMessageView["kind"] =>
+  m.kind === "aside" || m.kind === "notice" || m.kind === "place" || m.kind === "call" || m.kind === "call_aside" ? m.kind : null;
+/** A stand-in, written or spoken: never something to steer away from, and never a line the character "said before". */
+const isAside = (m: Pick<MessageRow, "kind">): boolean => m.kind === "aside" || m.kind === "call_aside";
+/** A line said out loud (a call's), the character's or its spoken stand-in. */
+const isCall = (m: Pick<MessageRow, "kind">): boolean => m.kind === "call" || m.kind === "call_aside";
 
 /** The scene's turns as they stand (no draws set aside, no AI notice), oldest first. */
 const turnsOf = (rows: readonly MessageRow[]): MessageRow[] => rows.filter((m) => !m.replaced_by && !(m.role === "system" && m.kind !== "place"));
@@ -497,7 +568,8 @@ async function viewOf(db: Db, s: SceneRow): Promise<StepInSceneView> {
     limits: limitsOf(s),
     // Their own opening line is the first thing said: the character's first reply answers it.
     opening: s.opening && !openingHasSides(s.opening) ? s.opening : null,
-    messages: shown.map((m) => ({ id: m.id, role: m.role, kind: messageKind(m), text: m.text, at: iso(m.created_at)! })),
+    // `spoken`: how many pieces of a reply can be heard (what it says out loud); the narrator's stand-in says nothing.
+    messages: shown.map((m) => ({ id: m.id, role: m.role, kind: messageKind(m), text: m.text, at: iso(m.created_at)!, ...(m.role === "character" && m.kind !== "aside" ? { spoken: spokenPieces(m.text).length } : {}) })),
     draws: draws.length > 1 ? { count: draws.length, showing: draws.indexOf(last!) + 1 } : null,
     paused: Boolean(s.paused_at),
     ended: s.ended_at ? { at: iso(s.ended_at)!, recap: s.recap } : null,
@@ -574,7 +646,7 @@ export function setStepInRandomForTests(fn: (() => number) | null): void {
 export const REDRAW_ON_FAST_AFTER_MS = 45_000;
 
 type Drawn =
-  | { ok: true; text: string; kind: "reply" | "aside"; paragraphs: number; model: string | null; provider: string | null; cost: number | null; flags: Record<string, unknown> }
+  | { ok: true; text: string; kind: "reply" | "aside"; call: boolean; paragraphs: number; model: string | null; provider: string | null; cost: number | null; flags: Record<string, unknown> }
   | { ok: false; fail: StepInFail; flags: Record<string, unknown> };
 
 type DrawContext = {
@@ -590,7 +662,7 @@ type DrawContext = {
 };
 
 const turnOf = (m: MessageRow): StepInTurn =>
-  m.role === "system" ? { role: "place", text: promptPlace(m.text).label } : { role: m.role === "viewer" ? "viewer" : m.kind === "aside" ? "aside" : "character", text: m.text };
+  m.role === "system" ? { role: "place", text: promptPlace(m.text).label } : { role: m.role === "viewer" ? "viewer" : isAside(m) ? "aside" : "character", text: m.text };
 
 /** One line about each earlier scene with this character that the viewer ended, newest first. */
 async function earlierScenes(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "character_id">): Promise<string[]> {
@@ -614,7 +686,7 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     persona,
     limits: limitsOf(s),
     turns: current.slice(-STEP_IN_TURNS).map(turnOf),
-    said: current.filter((m) => m.role === "character" && m.kind !== "aside").map((m) => m.text).reverse().slice(0, 150),
+    said: current.filter((m) => m.role === "character" && !isAside(m)).map((m) => m.text).reverse().slice(0, 150),
     earlier,
   };
 }
@@ -627,16 +699,22 @@ const emptyText = (err: unknown) => err instanceof Error && /returned no text/.t
  * doesn't answer, and after it has twice sent nothing back. Every draft goes through checkReply and the repeat check;
  * one that fails is drawn once more with a note of what to avoid, and when that fails too a neutral narrator's line
  * stands in. Fails (502) only when no model answered the first draw: then nothing is written and nothing counted.
+ *
+ * `form: "call"`: the reply is said out loud (lib/adult/step-in-prompt.ts STEP_IN_CALL), so it's a few spoken
+ * sentences, read by parseCallReply and held to checkCallReply, and the stand-in is one of the spoken ones
+ * (CALL_ASIDES). The fast writer writes it whoever the viewer's writer is: someone is waiting to hear the answer.
  */
 async function draw(
   db: Db,
   s: SceneRow,
   ctx: DrawContext,
-  o: { cue: "open" | "continue" | null; insteadOf?: string | null },
+  o: { cue: "open" | "continue" | null; insteadOf?: string | null; form?: "call" | null },
 ): Promise<Drawn> {
   const settings = await getAdultSettings(db);
   const opening = o.cue === "open";
-  const { id: writer, think_tokens } = await writerChoice(db, s.owner_id, { opening });
+  const call = o.form === "call";
+  const chosen = await writerChoice(db, s.owner_id, { opening });
+  const { id: writer, think_tokens } = call ? { id: FALLBACK_WRITER, think_tokens: 0 } : chosen;
   const own = await adultModel(db, process.env, { model: writer });
   const fast = writer === FALLBACK_WRITER ? null : await adultModel(db, process.env, { model: FALLBACK_WRITER });
   const usage: Usage[] = [];
@@ -644,7 +722,7 @@ async function draw(
   const sampling = samplingOf(settings);
   const options = (thinking: number): ModelOptions => ({
     temperature: sampling.temperature,
-    maxTokens: STEP_IN_REPLY_TOKENS + thinking,
+    maxTokens: (call ? STEP_IN_CALL_TOKENS : STEP_IN_REPLY_TOKENS) + thinking,
     ...(sampling.frequency_penalty !== null ? { frequencyPenalty: sampling.frequency_penalty } : {}),
     ...(sampling.presence_penalty !== null ? { presencePenalty: sampling.presence_penalty } : {}),
     ...(sampling.repetition_penalty !== null ? { repetitionPenalty: sampling.repetition_penalty } : {}),
@@ -678,6 +756,7 @@ async function draw(
       cue: o.cue,
       insteadOf: o.insteadOf ?? null,
       avoid,
+      form: call ? "call" : null,
     });
     const ask = () => {
       flags.calls = Number(flags.calls) + 1;
@@ -721,7 +800,9 @@ async function draw(
       if (attempt === 0) return { ok: false, fail: fail(502, "model_down", `${first(ctx.character.name)} can't answer right now. Try again in a moment.`), flags: { ...flags, model_down: true } };
       break;
     }
-    const verdict = checkReply(parseStoryReply(raw), ctx.limits, { publicPlace: ctx.place.public, pronouns: ctx.character.pronouns });
+    const verdict = call
+      ? checkCallReply(parseCallReply(raw), ctx.limits, { publicPlace: ctx.place.public })
+      : checkReply(parseStoryReply(raw), ctx.limits, { publicPlace: ctx.place.public, pronouns: ctx.character.pronouns });
     if (!verdict.ok) {
       reasons.push(verdict.why);
       avoid = verdict.avoid;
@@ -739,10 +820,11 @@ async function draw(
   const cost = usage.some((u) => typeof u.cost === "number") ? usage.reduce((n, u) => n + (u.cost ?? 0), 0) : null;
   const modelId = served.model ?? (await adultModelId(db, process.env, { model: flags.fell_back_to ? FALLBACK_WRITER : writer }));
   const out = { model: modelId, provider: served.provider, cost, flags: { ...flags, ...(reasons.length ? { redrawn: reasons } : {}) } };
-  if (kept) return { ok: true, text: kept.join("\n\n"), kind: "reply", paragraphs: kept.length, ...out };
-  // Twice unusable: the narrator changes the subject, and nothing of either draft is kept.
-  const aside = ASIDES[Math.min(ASIDES.length - 1, Math.floor(random() * ASIDES.length))];
-  return { ok: true, text: aside, kind: "aside", paragraphs: 1, ...out, flags: { ...out.flags, aside: true } };
+  if (kept) return { ok: true, text: kept.join("\n\n"), kind: "reply", call, paragraphs: kept.length, ...out };
+  // Twice unusable: the narrator changes the subject (on a call, the character does, out loud), and nothing of either draft is kept.
+  const pool = call ? CALL_ASIDES : ASIDES;
+  const aside = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))];
+  return { ok: true, text: call ? `"${aside}"` : aside, kind: "aside", call, paragraphs: 1, ...out, flags: { ...out.flags, aside: true } };
 }
 
 /**
@@ -755,23 +837,24 @@ async function reply(
   s: SceneRow,
   rows: readonly MessageRow[],
   now: Date,
-  o: { action: string; cue: "open" | "continue" | null; insteadOf?: string | null; replaces?: MessageRow | null },
+  o: { action: string; cue: "open" | "continue" | null; insteadOf?: string | null; replaces?: MessageRow | null; form?: "call" | null },
 ): Promise<StepInFail | { ok: true; id: string; aside: boolean }> {
   const ctx = await drawContext(db, s, rows, o.replaces ? [o.replaces.id] : []);
   if (!ctx) return NOT_FOUND;
   const who = { owner: s.owner_id, character: s.character_id, scene: s.id };
-  const drawn = await draw(db, s, ctx, { cue: o.cue, insteadOf: o.insteadOf });
+  const drawn = await draw(db, s, ctx, { cue: o.cue, insteadOf: o.insteadOf, form: o.form });
   if (!drawn.ok) {
     await logMove(db, who, { ok: false, http: drawn.fail.status, message: drawn.fail.message, flags: { action: o.action, ...drawn.flags } });
     return drawn.fail;
   }
-  const id = await addMessage(db, s, "character", drawn.text, now, { kind: drawn.kind === "aside" ? "aside" : null, model: drawn.model, cost: drawn.cost });
+  const kind = drawn.call ? (drawn.kind === "aside" ? "call_aside" : "call") : drawn.kind === "aside" ? "aside" : null;
+  const id = await addMessage(db, s, "character", drawn.text, now, { kind, model: drawn.model, cost: drawn.cost });
   if (o.replaces) {
     // The reply it replaces, and the draws that one already had, all point at the new current draw: exactly one is current.
     await db.query(`update adult_step_in_messages set replaced_by = $3 where scene_id = $1 and (id = $2 or replaced_by = $2)`, [s.id, o.replaces.id, id]);
   }
   await countUse(db, s.owner_id, "writes", now);
-  await logMove(db, who, { ok: true, added: drawn.paragraphs, flags: { action: o.action, ...drawn.flags }, text: { model: drawn.model, provider: drawn.provider } });
+  await logMove(db, who, { ok: true, added: drawn.paragraphs, flags: { action: o.action, ...(drawn.call ? { call: true } : {}), ...drawn.flags }, text: { model: drawn.model, provider: drawn.provider } });
   return { ok: true, id, aside: drawn.kind === "aside" };
 }
 
@@ -924,12 +1007,17 @@ const stageOf = (rows: readonly MessageRow[]): number => spokenOf(rows).reduce((
  * One line from the viewer (what they say and do), and the character's reply. The checks, in order: the self-harm
  * protocol, the lines that never move, the viewer's own limits; then the month's steps. A line that's refused is never
  * stored. The AI notice goes in first when it's due.
+ *
+ * `call`: the line was said out loud on a call (what the browser heard, as words), and the reply is said out loud too
+ * (draw's `form: "call"`). Every check is the same, it counts one scene step like any reply, and both lines are kept in
+ * the scene marked as a call's.
  */
-export async function sendStepInLine(db: Db, viewer: string, sceneId: string, input: string, now: Date = new Date()): Promise<StepInSend> {
+export async function sendStepInLine(db: Db, viewer: string, sceneId: string, input: string, now: Date = new Date(), opts: { call?: boolean } = {}): Promise<StepInSend> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
   const text = clean(input);
-  if (!text) return fail(400, "empty", "Write what you say or do first.");
+  const action = opts.call ? "say" : "send";
+  if (!text) return fail(400, "empty", opts.call ? "Nothing was heard." : "Write what you say or do first.");
   if (text.length > STEP_IN_LINE_MAX) return fail(400, "too_long", `Keep it under ${STEP_IN_LINE_MAX} characters.`);
   // Their own words are read for this before anything else, whatever state the scene is in.
   const { crisis } = await lineInCrisis(text, STEP_IN_SURFACE, await adultModel(db));
@@ -937,23 +1025,23 @@ export async function sendStepInLine(db: Db, viewer: string, sceneId: string, in
   const closed = await writable(db, s);
   if (closed) return closed;
   const safe = checkAdultText({ line: text });
-  if (!safe.ok) return refuse(db, s, 422, "refused", linesMessage("line", safe), "lines", "send");
+  if (!safe.ok) return refuse(db, s, 422, "refused", linesMessage("line", safe), "lines", action);
   // Step in's own net (lib/adult/step-in-lines.ts): here a line can cross the same lines just by saying who someone is.
   const never = stepInNever(text);
   if (never) {
     const told = neverMessage("line", never);
-    return refuse(db, s, 422, "refused", told.message, "lines", "send", told.logged);
+    return refuse(db, s, 422, "refused", told.message, "lines", action, told.logged);
   }
   const rows = await allMessages(db, s.id);
   const limited = lineLimitRefusal(text, limitsOf(s), stageOf(rows));
-  if (limited) return refuse(db, s, 422, "limits", limited, "limits", "send");
+  if (limited) return refuse(db, s, 422, "limits", limited, "limits", action);
   const capped = await overCap(db, viewer, "writes", now);
-  if (capped) return refuse(db, s, 429, "capped", capped, "cap", "send");
+  if (capped) return refuse(db, s, 429, "capped", capped, "cap", action);
   const character = await characterRef(db, s.character_id);
   if (!character) return NOT_FOUND;
   if (noticeDue(s, now)) await putNotice(db, s, character.name, now);
-  await addMessage(db, s, "viewer", text, tick(now, 1));
-  const r = await reply(db, s, await allMessages(db, s.id), tick(now, 2), { action: "send", cue: null });
+  await addMessage(db, s, "viewer", text, tick(now, 1), { kind: opts.call ? "call" : null });
+  const r = await reply(db, s, await allMessages(db, s.id), tick(now, 2), { action, cue: null, form: opts.call ? "call" : null });
   // No model answered: their line is kept, and Continue draws the reply that's due.
   return sent(db, s, r.ok ? {} : { replied: false, message: r.message });
 }
@@ -1000,8 +1088,10 @@ export async function regenerateStepIn(db: Db, viewer: string, sceneId: string, 
     action: "regenerate",
     cue: cueAfter(before),
     // The narrator's stand-in isn't something to steer away from: the draw is simply made again.
-    insteadOf: replaces && replaces.kind !== "aside" ? replaces.text.slice(0, 600) : null,
+    insteadOf: replaces && !isAside(replaces) ? replaces.text.slice(0, 600) : null,
     replaces,
+    // A line said on a call is drawn again as one.
+    form: replaces && isCall(replaces) ? "call" : null,
   });
   if (!r.ok) return r;
   return sent(db, s);

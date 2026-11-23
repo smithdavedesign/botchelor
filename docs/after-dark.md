@@ -3713,7 +3713,60 @@ and for the redraw once the first draw has taken 45 seconds.
 chapter's is, `recapFrom`, when 10 turns have fallen out of the prompt; `stepInFollowUp`, past the response), and one
 line about each earlier ended scene with that character (5 at most). The recap and the line are held to
 `checkAdultText` and the narrator's guard before they're kept; when the model's can't be used, the line is what the
-record says ("A scene at …, playing …"). **No fact extraction in v1**, and no pictures, voice or video.
+record says ("A scene at …, playing …"). **No fact extraction in v1**, and no pictures or video. Voice: next section.
+
+**Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
+the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After
+Dark's own voice and nothing of the show's:
+
+- **🔊 Hear it** under every reply that says something out loud (`app/after-dark/step-in/[id]/HearIt.tsx`): the lines
+  inside the reply's quotes, in the character's own stock voice (the one their voiced nights and videos use,
+  `lib/voice.ts`: never a cloned one), never the narration. The ⋯ menu's **Read {name}'s lines aloud** plays each new
+  reply as it arrives (kept in the browser).
+- **📞 Call {name}** in the scene's header (`StepInCall.tsx`), where the browser can hear the viewer (Chrome, Edge,
+  Safari): **the same scene, said out loud**. The viewer talks; the browser's own speech recognition turns it into
+  words (Chrome sends the audio to Google for that, Safari to Apple; Botchelor gets only the words: the call's first
+  screen says so before the microphone is asked for); the words go in as a line of the scene (the `say` move); the
+  character answers in one to three spoken sentences, voiced a piece at a time; then it listens again. It takes turns
+  (it doesn't listen while they talk, so it never hears itself); ✋ Interrupt stops them and listens; 🔇 Mute waits for
+  a tap; five quiet minutes, or leaving the page, end it. Nothing is recorded.
+- **A spoken reply** (`lib/adult/step-in.ts` draw's `form: "call"`; `lib/adult/step-in-prompt.ts` `STEP_IN_CALL`): only
+  what the character says, because nothing else can be voiced and narration read in a character's voice is nobody
+  talking. Everything that makes the character a person is the scene's own and unchanged (its will and consent, the
+  pace, the limits, the lines, honesty). The fast writer writes it, whoever the viewer's writer is: someone is waiting
+  to hear the answer.
+- **Every check holds.** What the viewer said goes through the same three as a written line (the self-harm protocol,
+  the lines that never move and Step in's own net, their own limits), and a refused line is never stored. The spoken
+  reply is read by `parseCallReply` (its `say`; stage directions out, since they can't be voiced) and held to
+  `checkCallReply`: both nets and the crisis list, the hard nos, the intensity, a public place's cap, and the
+  narrator's age rule on what's said. A draft that fails is drawn once more; twice, and one of three spoken stand-ins
+  takes its place (`CALL_ASIDES`, held to the same checks). There is no narration to guard and no "you" to drift.
+- **Kept as a call's.** Both lines stay in the scene (`kind: "call"`, the stand-in `call_aside`), marked 📞, the
+  reply as one quoted line, which is how a scene keeps anything said out loud: the reader, the recap and the next
+  prompt read it as speech. ↻ on a spoken reply draws a spoken one.
+- **The voice** (`lib/adult/step-in-voice.ts`, `POST /api/admin/after-dark/step-in/<id>/voice {message_id, piece}`):
+  voiced nights' rules for one character. Only a piece of a reply stored in the viewer's own scene, asked for by
+  message and piece number, never by words; read again against the lines before it's said; made where After Dark's
+  media is made (Venice, the settings' voice model, or Replicate's Kokoro); kept (an `adult_images` audio found again
+  through `adult_voice_lines`), so a replay is free; inside the month's voiced lines (`cap_voice_lines`), a replay
+  never counted; nothing new of a character who has left the viewer's After Dark. The answer is the audio itself,
+  marked AI-made, never cached in between. Refused where only text is allowed (`mediaRefusal`), as the `say` move is.
+- **Counted:** a spoken reply is one scene step like any reply (`flags.call` and `action: "say"` in the step log, with
+  no word of either side); a voiced piece is one of the month's voiced lines the first time it's made.
+- **Their face on the call** is the show's living loop of them when the show has drawn one (a PG loop made for its own
+  calls: `lib/face-kit.ts`; nothing is drawn from After Dark, and its files load from the show's address), else their
+  portrait, with the ring around it swelling with their voice (`app/stage/useVoiceRing.ts`). The screen is the show's
+  call screen (`.companion-call`). **No lip-sync renderer:** every hosted one bars adult scenes, Runpod's terms keep
+  ours to PG, and a loop with a real voice is what the best-known sites show on a call
+  ([audits/2026-11-22-companion-field.md](audits/2026-11-22-companion-field.md)).
+- **What it costs:** the reply, about a tenth of a cent on the fast writer; the voice, about $0.0004 a piece on Venice's
+  Kokoro (more on a better voice model); hearing the viewer, nothing (it's their browser's). No new provider, key or
+  processor: Venice already voices the nights.
+- **Not built, on purpose or yet:** talking over each other (it would mean streaming the viewer's audio to a
+  speech-to-text provider; the show uses Deepgram for that, and whether its terms take an adult scene's audio hasn't
+  been read: David's call before anything is sent); Firefox (no speech recognition there); and pictures in a scene.
+
+**Proof:** `tests/after-dark-step-in-voice.test.ts`.
 
 **Counted.** Every reply and every refusal is a row in the step log (`adult_steps`, kind `step_in`, the pair being the
 character and `viewer`): the move, how it ended, why a draft was redrawn (`flags.redrawn`), whether the stand-in was
@@ -3730,7 +3783,8 @@ the consent with them.
 (start: `character_id`, `place`, `roleplay: {id, you}`, `opening: 0|1|2|"surprise"|{written}`; or one click:
 `{character_id, quick: true}` → `{id, resumed}`);
 `GET|POST|DELETE /api/admin/after-dark/step-in/<id>` (`action`: `send`, `regenerate`, `swipe`, `continue`,
-`take_back`, `limits`, `move`, `end`, `carry_on`).
+`take_back`, `limits`, `move`, `end`, `carry_on`, and `say`: a line said out loud on a call);
+`POST /api/admin/after-dark/step-in/<id>/voice` (a piece of a reply's voice).
 
 **Proof:** `tests/after-dark-step-in.test.ts`.
 
