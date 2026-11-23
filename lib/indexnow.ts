@@ -14,6 +14,7 @@ import { REPORT_HIDE_THRESHOLD } from "./rules";
 import { SITEMAP_MIN_COUPLE_DATES, authoredCharacterSql, authoredDateSql } from "./seo";
 import { siteUrl } from "./site";
 import { isProductionDeploy } from "./deploy";
+import { LANDING_CHANGES } from "./landing-changes";
 import { listedCharacterSql, listedDateSql } from "./public-cast";
 
 export const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
@@ -25,25 +26,8 @@ export function indexNowKey(env: Record<string, string | undefined> = process.en
   return key && KEY_FORMAT.test(key) ? key : null;
 }
 
-/**
- * Static pages that were rewritten, and when: the daily job's window (the last 26 hours) covers each date once, so
- * the engines hear about the new words once, the day after they ship, and never again. Add a line when a landing
- * page changes enough to be worth a re-crawl; the date is the day after the merge (the job runs at 16:20 UTC).
- */
-export const LANDING_CHANGES: readonly { path: string; changedAt: string }[] = [
-  // The Character.AI rescue door (2026-11-14): /import's ?from=cai copy and the landing's new words.
-  { path: "/import", changedAt: "2026-11-15T00:00:00Z" },
-  { path: "/alternatives/character-ai", changedAt: "2026-11-15T00:00:00Z" },
-  // New titles that say "AI" (2026-11-22 audit), and the landings search engines had listed but never fetched.
-  ...["/", "/create", "/pricing", "/faq", "/seasons", "/contact", "/press", "/security", "/import", "/reviews"].map((path) => ({ path, changedAt: "2026-11-23T00:00:00Z" })),
-  ...["character-ai", "janitor-ai", "spicychat", "chai"].map((slug) => ({ path: `/alternatives/${slug}`, changedAt: "2026-11-23T00:00:00Z" })),
-  // The ship tools (2026-11-23): the new random ship generator, and the chemistry test re-aimed as the ship
-  // compatibility test. A day after they ship, so the job never sends a search engine to a page not yet deployed.
-  ...["/tools/random-ship-generator", "/tools/oc-chemistry-test"].map((path) => ({ path, changedAt: "2026-11-24T00:00:00Z" })),
-  // The /alternatives pages as dated lists of the apps people use instead (2026-11-23, lib/alternative-apps.ts): new
-  // titles, a new heading and the list. The day after the merge, as above.
-  ...["character-ai", "janitor-ai", "spicychat", "chai"].map((slug) => ({ path: `/alternatives/${slug}`, changedAt: "2026-11-24T00:00:00Z" })),
-];
+/** The rewritten landings and their dates (lib/landing-changes.ts): the daily job here and the sitemap both read them. */
+export { LANDING_CHANGES };
 
 /** The landing pages whose words changed inside the window (LANDING_CHANGES), as full URLs. */
 export function changedLandingUrls(since: Date, base: string = siteUrl(), now = new Date(), changes = LANDING_CHANGES): string[] {
