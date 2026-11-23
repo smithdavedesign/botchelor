@@ -44,6 +44,8 @@ describe("referrerBucket", () => {
     expect(referrerBucket("https://discord.com/channels/x/y")).toBe("discord");
     expect(referrerBucket("https://mcp.so/servers/botchelor")).toBe("mcp_registry");
     expect(referrerBucket("https://glama.ai/mcp/servers/botchelor")).toBe("mcp_registry");
+    expect(referrerBucket("https://www.tensorblock.co/mcp/servers/botchelor-com-agents-7ea937b2")).toBe("mcp_registry");
+    expect(referrerBucket("https://mcptry.com/servers/io.github.smithdavedesign/botchelor")).toBe("mcp_registry");
     expect(referrerBucket(null)).toBe("direct");
     expect(referrerBucket("https://example.com/weird")).toBe("other");
     expect(referrerBucket("https://example.com", "reddit")).toBe("reddit"); // utm wins

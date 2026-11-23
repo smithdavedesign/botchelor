@@ -87,6 +87,8 @@ Checked live 2026-11-08.
 - [mcptry listing](https://mcptry.com/servers/io.github.smithdavedesign/botchelor)
 - [mcpservers.org listing](https://mcpservers.org/servers/botchelor-com-agents) (approved 2026-11-09)
 - [MCP Rush listing](https://mcprush.com/to/botchelor-mcp?ref=badge) (`botchelor-mcp`; claim file `public/.well-known/mcprush.com-claim.txt`, keep until they email their decision)
+- [TensorBlock MCP Index profile](https://www.tensorblock.co/mcp/servers/botchelor-com-agents-7ea937b2) (`botchelor-com-agents-7ea937b2`, Gaming; listed by [PR #6669](https://github.com/TensorBlock/awesome-mcp-servers/pull/6669) 2026-11-23, badge in the README; claimed via [issue #6714](https://github.com/TensorBlock/awesome-mcp-servers/issues/6714) with auth none, 37 tools and the repo URL)
+- [awesome-worldbuilding-lore-tools](https://github.com/grades2018/awesome-worldbuilding-lore-tools): OC Name Generator merged in [PR #8](https://github.com/grades2018/awesome-worldbuilding-lore-tools/pull/8) 2026-11-23
 
 Submitted 2026-11-08, waiting for review (each emails the owner's Gmail when live):
 - [MCP Market](https://mcpmarket.com/search?q=botchelor): free queue, resubmitted 2026-11-09 with the public repo (about 4 to 6 weeks; email goes to support@botchelor.com). The paid route is now $29, listed within 24 hours.
