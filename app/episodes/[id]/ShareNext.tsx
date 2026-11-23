@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import OverlayClose from "@/app/OverlayClose";
 import { SHARE_NEXT_BUTTON, SHARE_NEXT_LINE, SHARE_NEXT_TITLE, SHARE_NEXT_WHERE, shareNextDismissKey, shareNextText, type ShareNextCard } from "@/lib/share-next";
 
+const DISMISSED_EVENT = "bz-share-next-dismissed";
+
 const dismissed = (key: string): boolean => {
   try {
     return localStorage.getItem(key) === "1";
@@ -22,7 +24,13 @@ export default function ShareNext({ card, place }: { card: ShareNextCard; place:
   const key = shareNextDismissKey(card.episodeId);
   const [hidden, setHidden] = useState(false);
   const [copied, setCopied] = useState<"copied" | "failed" | null>(null);
-  useEffect(() => setHidden(dismissed(key)), [key]);
+  useEffect(() => {
+    setHidden(dismissed(key));
+    // Put away in one place (the theater's end), it goes from the other (the page under it) too.
+    const away = (e: Event) => (e as CustomEvent<string>).detail === key && setHidden(true);
+    window.addEventListener(DISMISSED_EVENT, away);
+    return () => window.removeEventListener(DISMISSED_EVENT, away);
+  }, [key]);
   if (hidden) return null;
 
   const url = () => new URL(card.path, window.location.origin).toString();
@@ -45,6 +53,7 @@ export default function ShareNext({ card, place }: { card: ShareNextCard; place:
     } catch {
       /* private mode: gone for this page view */
     }
+    window.dispatchEvent(new CustomEvent(DISMISSED_EVENT, { detail: key }));
   }
 
   return (
