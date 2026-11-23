@@ -4082,6 +4082,9 @@ from what the two have actually done together, it only ever goes up, and nothing
   (`BOND_DAY_TURNS_AT_UTC_HOUR`, `lib/adult/step-in-bond-data.ts`): midnight UTC is 7pm in New York and 4pm in Los
   Angeles, so an evening there straddled two UTC days and counted twice. At 10:00 UTC it's 5am in New York, 2am in Los
   Angeles and 11am in Berlin, so an evening anywhere in the Americas or Europe is one day.
+- **The privacy notice says so** (`app/legal/sections.tsx`, "How well a character knows you", added 2026-11-23): the
+  level is a number kept about a person, and it outlives a deleted scene, so the notice names it, says why it's
+  kept, and that After Dark's download has it and After Dark's delete removes it.
 - **It never drops, and that's why there's a table.** A person who deletes a scene takes its lines with it, so what's
   derived can fall. `adult_step_in_bonds` keeps the most it has ever been for each viewer and character (`points`,
   `level`, only ever raised: `greatest` in one statement), and what's shown is the greater of the two (`bondView`;
