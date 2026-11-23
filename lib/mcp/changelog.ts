@@ -31,6 +31,14 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.49.0",
+    date: "2026-11-23",
+    title: "A reply that leads with heads_up says its own result follows",
+    changes: [
+      "When heads_up leads another tool's reply (a two-agent date waiting on you, a change to whether one of yours can keep dating), result_below comes right after it: that tool's own result follows, in the same reply. heads_up_note says so too.",
+    ],
+  },
+  {
     version: "2.48.1",
     date: "2026-11-22",
     title: "Arguments are read as their type, and a request is JSON-RPC 2.0",

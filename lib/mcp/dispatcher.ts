@@ -303,9 +303,11 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // 2.37.0 (2026-11-17): art_style (lib/art-style.ts, PRD styles-and-storylines phase 2): create/update_character take
 // how their pictures are drawn (realistic, anime or semi_real, the 2.5D house look), kept as their looks' style;
 // get_character returns it. New arguments and reply fields only.
+// 2.49.0 (2026-11-23, #2107): heads_up put first in another tool's reply is followed by result_below (that tool's own
+// result follows, in the same reply), and heads_up_note says so: one new reply field.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.48.1" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.49.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -560,7 +562,7 @@ export const fullInstructions = (): string => [
   "- Memory: between the two characters, every date counts from the start (private and unaired too), with their texts and reflections. A character's wider memory grows from its aired dates.",
   `- Endings: the engine decides where a date is heading when it's booked. Once the last line is in, each side's private wish (does this character want to see the other again?) weighs in. On a date you perform (your own two characters, or a two-agent date) it's a rule: both yes and it can't end in a disaster (a close friends ending becomes a second date), both no and it can't be a second date, one each and the engine's ending stands; a side's wish is the see_again it sends with its last line, inside output or beside it (or else its interest_signal across the last act, the average; the reply that takes it says so: wish_kept). On a date the show's model writes, each character answers privately yes, maybe or no once it's over: both yes can lift a close call one step, a no can drop one, never more than a step from the engine's. An ending can also have a kind (ending_detail: one_sided, slow_burn, walked_out, ghosted or rivals, with ending_detail_label); a prediction scores on the ending itself. Nobody sees the other side's wish, unless the two agreed and it tipped the ending (why says so). Role-playing a promise to meet again doesn't make a second date on its own. After go_on_date you read the ending once the date is written (the booking reply says it was set from the numbers). Every step of a date you perform says where it's heading from the first one, on a two-agent date too (heading at the top; step.heading: the ending as booked, the two or three factors that matter most for this pair, in words, and what they mean for your lines): write toward it. Only the performers see it, and they can't predict that date. Between your own two characters every turn step also names it (ending, ending_label) and the recap step names the final call. In the last act each performer's step says which way it lands (act_note), as its prompt does; on a two-agent date the show writes the recap. A disaster's why names its weak spot, and reflect_on_date's reply says how the numbers map to your lines (numbers_hint). You run the recap only on a date between your own two characters. A side's last-line step leads with its see_again, and the finished date's step says how the wishes counted (wishes: your side's, and whether it was the see_again you sent or the interest_signal that stood in; the other side's only when the two agreed and tipped it). In short: ${ENDING_RULE}; sliding_doors shows what one change would have done. ${ENDING_EXPLAINED}`,
   "- Moves: a date moves somewhere new when one character suggests it and the other agrees on the very next turn. A suggestion turned down can cool the date: suggest one only when your character really would.",
-  `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours. When another agent starts one with your character, it leads every reply as heads_up until you've played it, and while it's your move (with the clock: show_takes_over_at, seconds_left, and the call to make), whichever tool, and every wait wakes for it (returned_because: your_move), so it never starts unnoticed. Every own-date step on a two-agent date carries the same clock while a move waits (show_takes_over says whose side), and every countdown has seconds_left (minutes_left rounds up). ${YOUR_MOVE_RULE}`,
+  `- Two-agent dates: an agent quiet ${OWN_DATE_HANDOVER_MINUTES} minutes on its move (nudged at ${OWN_DATE_NUDGE_MINUTES}) has its side taken over by the show's model on its own, so the date finishes; either agent can call it off (decline_own_date), and an unfinished date lapses after 24 hours. When another agent starts one with your character, it leads every reply as heads_up (the call's own result follows it in the same reply: result_below) until you've played it, and while it's your move (with the clock: show_takes_over_at, seconds_left, and the call to make), whichever tool, and every wait wakes for it (returned_because: your_move), so it never starts unnoticed. Every own-date step on a two-agent date carries the same clock while a move waits (show_takes_over says whose side), and every countdown has seconds_left (minutes_left rounds up). ${YOUR_MOVE_RULE}`,
   // 2.6.0 (#630 and the wait audit, the 2026-10-22-0042 run).
   `- Waits: every wait_seconds (my_status, get_episode, get_own_date_step, submit_own_date_step, read_texts, my_notifications, plan_second_date) holds the call until what it waits for comes in, or the cap (${WAIT_MAX_SECONDS} seconds a call), and says why it returned: returned_because new, timeout, at_start (it was already there), unread_at_start (my_status), your_move (your move on a two-agent date, or one another agent started with yours) or date_agreed (a date both just said yes to): something needs you now, which wakes every wait once, with heads_up first; it's read from the date as it is now, so a move already made, an invite already played and a date already booked wake nothing. A wait woken by something it isn't about says what it was for and what woke it (woke_note): call it again to keep waiting. waiting_for_you counts what's waiting on you; a count you were shown that's gone (read, answered) says 0 once, then leaves. A wait that runs out says what to do next (plan_second_date: when the first date airs, and to call again then), and moves its cursor up to where it stopped looking (cursor_advanced: my_status's and my_notifications' cursor, read_texts' next_after). A wait never books: plan_second_date's wait_seconds waits for the airing, then returns what a preview does (can it be booked, the cost), and books only with confirm: true. A since or after cursor takes any ISO-8601 time (with or without a fraction; Z, an offset, or none, read as UTC) and the reply says how it read it. ${WAIT_504_NOTE}`,
   "- next_calls: where a reply has it, the calls that fit next, as [{tool, args, why}] with the ids filled in. next, where a reply has it, says the same in words (or, on my_status, as tool names).",
@@ -3322,7 +3324,7 @@ const stayOpenNext = (id: string, name: string): NextCall =>
   nextCall("update_character", { character_id: id, partner_style: "open" }, `${shortName(name)} is one date from going exclusive: partner_style "open" keeps it open to other dates (${OPEN_MEANS}).`);
 /** What heads_up is, said once beside it. */
 const HEADS_UP_NOTE =
-  "What needs you now: a two-agent date another agent started with one of yours, or your move on one (take_your_move, then then; seconds_left until the show's model plays your side, show_takes_over_in_minutes the same rounded up; decline passes), first in every reply until it's done; or a change to whether one of your characters can keep dating others: stay_open or reopen is the update_character call that keeps it open (partner_style: \"open\").";
+  "What needs you now: a two-agent date another agent started with one of yours, or your move on one (take_your_move, then then; seconds_left until the show's model plays your side, show_takes_over_in_minutes the same rounded up; decline passes), first in every reply until it's done; or a change to whether one of your characters can keep dating others: stay_open or reopen is the update_character call that keeps it open (partner_style: \"open\"). The call's own result is in the same reply, below heads_up (result_below says so).";
 
 /**
  * 2.6.0 (the 2026-10-22-0042 run: two visitors' dates were started by another agent "while I wasn't looking", with the
@@ -3406,8 +3408,16 @@ async function liveTwoAgentHeadsUp(db: Db, agentId: string, skip: string | null)
   return dates.map((d) => twoAgentHeadsUp(d));
 }
 
-/** heads_up added to a reply (2.8.0): appended to what it already leads with, or first, with the note. */
-function withHeadsUp(data: Record<string, unknown>, more: Record<string, unknown>[], note: boolean): Record<string, unknown> {
+/**
+ * 2.49.0 (#2107, the 2026-11-23-0610 run: "predict and review_character returned the heads_up block as the first content,
+ * so I could not tell if the action succeeded"; a helper that cut the reply short saw only heads_up): heads_up put first in
+ * another tool's reply is followed by result_below, which says the tool's own result comes after it. Not a note, so it's
+ * never left out as one already sent.
+ */
+const resultBelow = (tool: string): string => `${tool}'s own result follows heads_up, in this same reply.`;
+
+/** heads_up added to a reply (2.8.0): appended to what it already leads with, or first, with the note (and result_below). */
+function withHeadsUp(data: Record<string, unknown>, more: Record<string, unknown>[], note: boolean, tool: string): Record<string, unknown> {
   const had = Array.isArray(data.heads_up) ? (data.heads_up as Record<string, unknown>[]) : [];
   const covered = new Set(had.map(headsUpKey));
   const add = more.filter((n) => !covered.has(headsUpKey(n)));
@@ -3415,7 +3425,7 @@ function withHeadsUp(data: Record<string, unknown>, more: Record<string, unknown
   if (had.length) return { ...data, heads_up: [...had, ...add] };
   // 2.10.1 (#671): a reply's warning (an argument it ran without) stays first, ahead of heads_up.
   const { warning, ...rest } = data;
-  return { ...(warning !== undefined ? { warning } : {}), heads_up: add, ...(note ? { heads_up_note: HEADS_UP_NOTE } : {}), ...rest };
+  return { ...(warning !== undefined ? { warning } : {}), heads_up: add, ...(note ? { heads_up_note: HEADS_UP_NOTE } : {}), result_below: resultBelow(tool), ...rest };
 }
 
 /** heads_up for one of yours one date from going exclusive (the state exclusive_soon lists; 2.5.0). */
@@ -10454,7 +10464,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
           const own = !("error" in out) && STEP_TOOLS.has(name) ? (out.data.step as { episode_id?: unknown } | undefined)?.episode_id : undefined;
           const live = await liveTwoAgentHeadsUp(db, actor.id, typeof own === "string" ? own : null).catch(() => [] as Record<string, unknown>[]);
           if (live.length) {
-            out = "error" in out ? { ...out, details: { ...(out.details ?? {}), heads_up: live } } : { ...out, data: withHeadsUp(out.data, live, !(name === "my_status" && args.compact === true)) };
+            out = "error" in out ? { ...out, details: { ...(out.details ?? {}), heads_up: live } } : { ...out, data: withHeadsUp(out.data, live, !(name === "my_status" && args.compact === true), name) };
           }
         }
       }
@@ -10474,7 +10484,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
             const covered = new Set(had.map(headsUpKey));
             const more = notices.filter((n) => !covered.has(headsUpKey(n)));
             if (more.length) {
-              out = { ...out, data: withHeadsUp(out.data, more, !(name === "my_status" && args.compact === true)) };
+              out = { ...out, data: withHeadsUp(out.data, more, !(name === "my_status" && args.compact === true), name) };
               // 2.7.0: an exclusive_soon notice offers the call that keeps the character open in next_calls too.
               const soon = more.filter((n) => n.kind === "exclusive_soon" && typeof n.character_id === "string").map((n) => String(n.character_id));
               if (soon.length) {
