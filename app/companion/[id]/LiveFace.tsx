@@ -678,12 +678,15 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     const portrait = kit.stills.portrait!;
     return (
       <span className={`companion-live-face is-${phase}${streaming ? " streaming" : ""}`} style={{ width: size, height: size }} role="img" aria-label={`${name}'s face`}>
+        {/* The kit is the show's own PG picture of them (lib/face-kit.ts: checked, public), so it's marked .avatar like
+            every show portrait: on an After Dark call (app/after-dark/step-in/[id]/StepInCall.tsx) the discreet blur
+            leaves it alone, as it does their portrait beside the scene. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- the kit's own file, served by our route */}
-        <img src={portrait} alt="" className="companion-live-still" draggable={false} onError={() => setBroken((b) => new Set([...b, portrait]))} />
+        <img src={portrait} alt="" className="avatar companion-live-still" draggable={false} onError={() => setBroken((b) => new Set([...b, portrait]))} />
         {loopPlaying && (
           <video
             ref={video}
-            className={`companion-live-loop${fading ? " fading" : ""}`}
+            className={`avatar companion-live-loop${fading ? " fading" : ""}`}
             src={loopSrc!}
             poster={portrait}
             muted

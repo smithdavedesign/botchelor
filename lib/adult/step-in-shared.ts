@@ -10,6 +10,15 @@ export const STEP_IN_LINE_MAX = 1000;
 /** The line under the title of every Step in page. */
 export const STEP_IN_TAGLINE = "An AI character. Fiction between adults.";
 
+/**
+ * Something to say first (2026-11-22, from the field's teardown: the best-known sites put two tappable starters under a
+ * character's greeting, because an empty box is where a new conversation stalls). Under a scene's opening, until the
+ * viewer has written anything, in a scene with no roleplay (a roleplay's opening already says what's going on): a tap
+ * puts the line in the box to send or change, never sends it. Plain, mild lines that fit any place, each held to every
+ * check a typed line is (tests/after-dark-step-in-voice.test.ts).
+ */
+export const STEP_IN_STARTERS: readonly string[] = ["Hi. I've been looking forward to this.", "Tell me what you've been up to tonight.", "I look around, then at you. \"So this is where you hide.\""];
+
 /** A piece of speech a voice says in one go: about a sentence or two, so the first words are heard soon. */
 export const VOICE_PIECE_MAX = 220;
 /** The most pieces of one reply that are voiced (a reply is two to four short paragraphs; a call line a few sentences). */

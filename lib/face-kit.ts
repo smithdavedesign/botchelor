@@ -336,8 +336,12 @@ export async function makeFaceKit(db: Db, characterId: string, baseUrl: string, 
  * kept, or marked failed; one not back in LOOP_GIVE_UP_MS is given up. `characterId` narrows it to one character's.
  */
 export async function collectFaceKits(db: Db, characterId?: string): Promise<number> {
-  const { rows } = await db.query<{ id: string; character_id: string; model: string; queue_id: string; created_at: Date | string }>(
-    `select id, character_id, model, queue_id, created_at from face_kits where part = 'loop' and status = 'making' and queue_id is not null and ($1::text is null or character_id = $1) order by created_at limit 3`,
+  // `updated_at` is when this loop was queued: a row is written once when it's queued and not again until it's kept or
+  // failed. Not `created_at`, which a loop queued again after a failure keeps from its first try: read from that, a
+  // second try was "late" at its first check and given up within seconds, so a loop that had failed once could never
+  // be drawn again (Juniper's, 2026-11-22).
+  const { rows } = await db.query<{ id: string; character_id: string; model: string; queue_id: string; queued_at: Date | string }>(
+    `select id, character_id, model, queue_id, updated_at as queued_at from face_kits where part = 'loop' and status = 'making' and queue_id is not null and ($1::text is null or character_id = $1) order by updated_at limit 3`,
     [characterId ?? null],
   );
   if (!rows.length) return 0;
@@ -348,7 +352,7 @@ export async function collectFaceKits(db: Db, characterId?: string): Promise<num
     const fail = (why: string) => db.query(`update face_kits set status = 'failed', error = $2, updated_at = now() where id = $1 and status = 'making'`, [r.id, why.slice(0, 200)]);
     // Asked of Replicate first, however long it's been: a loop that's done is kept even when nobody came for it in
     // time (it used to be given up unseen, 2026-11-22). Only one that still isn't done after LOOP_GIVE_UP_MS is.
-    const late = Date.now() - new Date(r.created_at).getTime() > LOOP_GIVE_UP_MS;
+    const late = Date.now() - new Date(r.queued_at).getTime() > LOOP_GIVE_UP_MS;
     try {
       const p = await getPrediction(token, r.queue_id);
       if (!isDone(p)) {
