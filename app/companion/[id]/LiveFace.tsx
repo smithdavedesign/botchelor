@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
-import { BLINK_MS, canTalk, FACE_STILLS, LOOK_MS, lookFor, MOUTH_STILL, mouthFor, nextBlinkIn, syntheticLevel, type FaceKit, type FaceStill, type Look, type Mouth } from "@/lib/face-kit-shared";
+import { hasFace, type FaceKit } from "@/lib/face-kit-shared";
 import { audioPieces, FRAG_CODECS, FRAG_STALL_MS, isClipProvider, loopTimeAtCycleFrame, type ReactionKind, secondsOfFaceAudio, type LiveFaceSession } from "@/lib/live-face-shared";
 
 /** How long before the loop's end it fades back into the portrait (the loop starts from the portrait, so the restart can't show). */
@@ -58,12 +58,13 @@ export type LiveFaceHandle = {
 type SimliModule = typeof import("simli-client");
 
 /**
- * A companion's face on a call (lib/face-kit.ts; docs/PRDs/digital-human.md Tier 0): their portrait, the living loop
- * playing over it while they listen, and while they talk the mouth that fits how loud their voice is right now (the
- * player's level(), or made-up syllables when the device's own voice speaks and can't be measured), a blink now and
- * then, and a smile or a gasp when the line calls for one. Every part is a still of the same portrait with one thing
- * changed, stacked and faded in and out, so nothing ever jumps. With no kit (or one that can't talk yet) it's the
- * `fallback`: the round Avatar as before. The loop stays off with reduced motion.
+ * A companion's face on a call (lib/face-kit.ts; docs/PRDs/digital-human.md Tier 0): their portrait with the living
+ * loop playing over it the whole call, listening, thinking and talking alike: a few seconds of them breathing, blinking
+ * and glancing at the camera, which starts and ends at the portrait so it never jumps. That they're talking is shown by
+ * the call screen (the ring around the face swells with their voice: app/stage/useVoiceRing.ts), never by a mouth made
+ * of swapped pictures (the kit's old mouth stills, which read as choppy; David, 2026-11-22: "let's just have a loop of
+ * the character like a gif"). With no kit it's the `fallback`: their portrait as it is. The loop stays off with reduced
+ * motion.
  *
  * With a `session` (lib/live-face, Tier 1) the renderer's picture lands in the same round frame, over the kit:
  *  - Simli: the browser opens the stream and the call feeds it the voice through the handle; the kit's face is what
@@ -75,22 +76,16 @@ type SimliModule = typeof import("simli-client");
  *    it's been rendered (lib/live-face/ditto-clips.ts), so idle and talking share one renderer, and the call can ask
  *    for a reaction clip (a nod, a tilt) between replies.
  */
-const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePhase; level: () => number; said: string | null; name: string; size: number | string; fallback: ReactNode; session?: LiveFaceSession | null; onLive?: (live: boolean) => void }>(
-  function LiveFace({ kit, phase, level, said, name, size, fallback, session = null, onLive }, ref) {
-    const [mouth, setMouth] = useState<Mouth>("closed");
-    const [blink, setBlink] = useState(false);
-    const [look, setLook] = useState<Look | null>(null);
+const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePhase; name: string; size: number | string; fallback: ReactNode; session?: LiveFaceSession | null; onLive?: (live: boolean) => void }>(
+  function LiveFace({ kit, phase, name, size, fallback, session = null, onLive }, ref) {
     const [fading, setFading] = useState(false);
     const [still, setStill] = useState(true);
     const [broken, setBroken] = useState<ReadonlySet<string>>(new Set());
     const [streaming, setStreaming] = useState(false);
     const [onSlot, setOnSlot] = useState<0 | 1 | null>(null);
-    const [plainUp, setPlainUp] = useState(false);
     const video = useRef<HTMLVideoElement>(null);
     const liveVideo = useRef<HTMLVideoElement>(null);
     const liveAudio = useRef<HTMLAudioElement>(null);
-    const mouthNow = useRef<Mouth>("closed");
-    const talking = phase === "speaking";
     const clipMode = isClipProvider(session?.provider);
     const clipModeNow = useRef(clipMode);
     clipModeNow.current = clipMode;
@@ -159,12 +154,12 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
     };
 
     // The clips, in the order of the reply's pieces, through two elements: the next loads while one plays, so the
-    // switch is a frame, not a gap. A piece that plays plain (its clip failed) takes its turn in the same order. The
-    // kit's loop pauses under a clip and takes over where the last clip left off (loopTimeAtCycleFrame).
+    // switch is a frame, not a gap. A piece that plays plain (its clip failed) takes its turn in the same order, with
+    // the loop carrying on under its voice. The kit's loop pauses under a clip and takes over where the last clip left
+    // off (loopTimeAtCycleFrame).
     const slotEl = (s: 0 | 1) => (s === 0 ? liveVideo.current : clipB.current);
     const setBusy = (on: boolean) => {
       busy.current = on;
-      setPlainUp(on);
     };
     // Which MediaSource this browser has for the worker's fragments (Safari's managed one first), if any.
     const msCtor = (): typeof MediaSource | null => {
@@ -308,7 +303,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       clipQueue.current.shift();
       expected.current = next.i + 1;
       if ("play" in next) {
-        // The plain way: the kit's face shows, its mouth moving to the voice, until this piece is done.
+        // The plain way: the kit's face shows, its loop carrying on, until this piece's voice is done.
         clipUp.current = null;
         setOnSlot(null);
         setLive(false);
@@ -634,60 +629,9 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       return () => q.removeEventListener?.("change", on);
     }, []);
 
-    // The kit's mouth moves while they talk the plain way: not under a stream or a clip, and with clips only for a
-    // piece that plays plain (between clips the loop carries on; nothing is being said).
-    const mouthOn = talking && !streaming && (!clipMode || plainUp);
-    // The mouth follows the voice while they talk: measured when it can be, made up when it can't.
-    useEffect(() => {
-      if (!mouthOn) {
-        mouthNow.current = "closed";
-        setMouth("closed");
-        return;
-      }
-      let frame = 0;
-      const started = performance.now();
-      const tick = () => {
-        const t = performance.now();
-        const heard = level();
-        const l = heard >= 0 ? heard : syntheticLevel(t - started);
-        const next = mouthFor(l, mouthNow.current, t);
-        if (next !== mouthNow.current) {
-          mouthNow.current = next;
-          setMouth(next);
-        }
-        frame = requestAnimationFrame(tick);
-      };
-      frame = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(frame);
-    }, [mouthOn, level]);
-
-    // The loop plays while they listen (and, with clips, under and between the clips too, so the motion never stops);
-    // it stops when the kit's stills must show the mouth: Tier 0 talking, or a clipped piece that fell back to the voice.
-    const loopPlaying = Boolean(loopSrc && !still && !broken.has(loopSrc) && (clipMode ? !(plainUp && !streaming) : !talking && phase !== "thinking" && !streaming));
-    // A blink now and then, while the loop isn't doing the blinking.
-    useEffect(() => {
-      if (loopPlaying || streaming || !kit?.stills.blink) return;
-      let open = 0;
-      let close = window.setTimeout(function blinkOnce() {
-        setBlink(true);
-        open = window.setTimeout(() => setBlink(false), BLINK_MS);
-        close = window.setTimeout(blinkOnce, nextBlinkIn(Math.random()));
-      }, nextBlinkIn(Math.random()));
-      return () => {
-        window.clearTimeout(close);
-        window.clearTimeout(open);
-        setBlink(false);
-      };
-    }, [loopPlaying, streaming, kit?.stills.blink]);
-
-    // A line that laughs or gasps shows it for a moment.
-    useEffect(() => {
-      const l = said ? lookFor(said) : null;
-      if (!l) return;
-      setLook(l);
-      const t = window.setTimeout(() => setLook(null), LOOK_MS);
-      return () => window.clearTimeout(t);
-    }, [said]);
+    // The loop plays the whole call: listening, thinking and talking alike. A renderer's stream (Simli) takes its place
+    // while it's up; with clips it stays under them, paused while one plays and resumed where the last left off.
+    const loopPlaying = Boolean(loopSrc && !still && !broken.has(loopSrc) && (clipMode || !streaming));
 
     // Near its end the loop fades out onto the portrait, restarts from its first frame (the portrait), and fades back in.
     const onTime = () => {
@@ -723,7 +667,7 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
       </>
     );
 
-    if (!canTalk(kit) || !kit.stills.portrait || broken.has(kit.stills.portrait)) {
+    if (!hasFace(kit) || broken.has(kit.stills.portrait!)) {
       return (
         <span className={`companion-live-face is-${phase}${streaming ? " streaming" : " bare"}`} style={{ width: size, height: size }} role="img" aria-label={`${name}'s face`}>
           <span className="companion-live-fallback">{fallback}</span>
@@ -731,22 +675,17 @@ const LiveFace = forwardRef<LiveFaceHandle, { kit: FaceKit | null; phase: FacePh
         </span>
       );
     }
-    // Which still shows on top: a look while it lasts, a blink, else the mouth.
-    const top: FaceStill = look && kit.stills[look] ? look : blink && kit.stills.blink ? "blink" : MOUTH_STILL[mouth];
-    const shown = kit.stills[top] && !broken.has(kit.stills[top]!) ? top : "portrait";
-    const parts = FACE_STILLS.filter((p): p is FaceStill => Boolean(kit.stills[p]) && !broken.has(kit.stills[p]!));
+    const portrait = kit.stills.portrait!;
     return (
-      <span className={`companion-live-face is-${phase}${mouthOn ? " talking" : ""}${streaming ? " streaming" : ""}`} style={{ width: size, height: size }} role="img" aria-label={`${name}'s face`}>
-        {parts.map((p) => (
-          // eslint-disable-next-line @next/next/no-img-element -- the kit's own files, served by our route
-          <img key={p} src={kit.stills[p]} alt="" className={`companion-live-still${p === shown ? " is-on" : ""}${p === "portrait" ? " is-base" : ""}`} draggable={false} onError={() => setBroken((b) => new Set([...b, kit.stills[p]!]))} />
-        ))}
+      <span className={`companion-live-face is-${phase}${streaming ? " streaming" : ""}`} style={{ width: size, height: size }} role="img" aria-label={`${name}'s face`}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- the kit's own file, served by our route */}
+        <img src={portrait} alt="" className="companion-live-still" draggable={false} onError={() => setBroken((b) => new Set([...b, portrait]))} />
         {loopPlaying && (
           <video
             ref={video}
             className={`companion-live-loop${fading ? " fading" : ""}`}
             src={loopSrc!}
-            poster={kit.stills.portrait}
+            poster={portrait}
             muted
             playsInline
             autoPlay

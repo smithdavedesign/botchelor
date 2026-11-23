@@ -1005,6 +1005,16 @@ body:has(.companion-fullscreen) .site-footer {
     box-shadow: 0 0 0 5px var(--accent);
   }
 }
+/* The voice's ring (app/stage/useVoiceRing.ts): their face is a living loop with no mouth drawn to the words, so while
+   they talk the ring around it swells with how loud their voice is right now (--voice, 0 to 1), in place of the slow
+   pulse above (which stays for a voice that can't be measured, the device's own). */
+.companion-call.is-speaking .companion-call-face[data-voice="live"] {
+  animation: none;
+  transition: none;
+  box-shadow:
+    0 0 0 calc(3px + var(--voice, 0) * 5px) color-mix(in srgb, var(--accent) 80%, transparent),
+    0 0 calc(12px + var(--voice, 0) * 44px) calc(var(--voice, 0) * 10px) color-mix(in srgb, var(--accent) 40%, transparent);
+}
 /* Once the call is on (David 2026-11-14: "it's small on desktop"), the face grows into a tile 80% of the screen wide,
    10% each side, as tall as the room the words and buttons leave. The face is a square as tall as the tile (100cqh,
    from CompanionCall.tsx), its sides fading into a blurred copy of the portrait; where the tile is narrower than tall
@@ -1088,7 +1098,7 @@ body:has(.companion-fullscreen) .site-footer {
     animation: none;
   }
 }
-/* Their face brought to life on a call (LiveFace.tsx, lib/face-kit.ts): the stills stacked and faded, the loop over them. */
+/* Their face brought to life on a call (LiveFace.tsx, lib/face-kit.ts): the portrait, and the living loop over it the whole call. */
 .companion-live-face {
   position: relative;
   display: inline-block;
@@ -1105,14 +1115,6 @@ body:has(.companion-fullscreen) .site-footer {
   height: 100%;
   object-fit: cover;
   object-position: center 20%;
-}
-.companion-live-still {
-  opacity: 0;
-  transition: opacity 0.09s linear;
-}
-.companion-live-still.is-base,
-.companion-live-still.is-on {
-  opacity: 1;
 }
 .companion-live-loop {
   transition: opacity 0.45s ease;
@@ -1144,20 +1146,9 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-live-face.bare.streaming {
   overflow: hidden;
 }
-.companion-live-face.talking {
-  animation: companion-live-talk 1.3s ease-in-out infinite;
-}
-.companion-live-face.is-thinking {
+/* A still portrait (no kit yet) tilts a little while they think; a face with its loop is already alive. */
+.companion-live-face.bare.is-thinking {
   animation: companion-live-think 2.4s ease-in-out infinite;
-}
-@keyframes companion-live-talk {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-1px) rotate(0.6deg);
-  }
 }
 @keyframes companion-live-think {
   0%,
@@ -1169,8 +1160,7 @@ body:has(.companion-fullscreen) .site-footer {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .companion-live-face.talking,
-  .companion-live-face.is-thinking {
+  .companion-live-face.bare.is-thinking {
     animation: none;
   }
 }
