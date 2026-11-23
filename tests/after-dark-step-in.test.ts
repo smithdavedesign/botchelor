@@ -39,6 +39,7 @@ import {
   carryOnStepIn,
   checkReply,
   continueStepIn,
+  drawnSets,
   drawStepInSet,
   endStepIn,
   getStepInScene,
@@ -1536,6 +1537,11 @@ describe("a roleplay's card, started in one click", () => {
       image: "/api/sets/village%20forge%20after%20dark%20a%20mended%20sword%20on%20the%20anvil?w=400",
       backdrop: "/api/sets/village%20forge%20after%20dark%20a%20mended%20sword%20on%20the%20anvil",
     });
+    // And it stays on it however many other places are drawn after it (the list of drawn sets is the newest 300).
+    await t.db.query(`update place_sets set updated_at = now() - interval '30 days' where normalized = $1`, [KEY]);
+    await t.db.query(`insert into place_sets (normalized, label, status) select 'somewhere ' || n, 'somewhere ' || n, 'ready' from generate_series(1, 320) n`);
+    expect(await drawnSets(t.db)).toContain("the village forge after dark, a mended sword on the anvil");
+    expect((await viewOf(a.id, id)).place.backdrop).toBe("/api/sets/village%20forge%20after%20dark%20a%20mended%20sword%20on%20the%20anvil");
   });
 
   it("is always a new scene: the one already running with them stays where it was, and the other side can be played", async () => {

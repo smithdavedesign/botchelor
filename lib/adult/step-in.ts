@@ -226,9 +226,27 @@ async function characterRef(db: Db, id: string): Promise<StepInCharacter | null>
   return (await db.query<StepInCharacter>(`select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue as hue from characters c where c.id = $1`, [id])).rows[0] ?? null;
 }
 
-/** The sets already drawn (place_sets), so a place's card and backdrop only name a picture that exists. */
+/** The roleplays' own places (lib/adult/roleplays.ts `at`) as a set is kept under them (lib/venues.ts normalizeScene). */
+const STORY_SETS: readonly string[] = ROLEPLAYS.map((r) => normalizeScene(r.at.place));
+
+/**
+ * The sets already drawn (place_sets), so a place's card and backdrop only name a picture that exists: the newest 300,
+ * and the roleplays' own places whenever theirs is drawn (45 at most, by name: a story's backdrop mustn't drop out of
+ * the list because 300 other places were drawn after it).
+ */
 export async function drawnSets(db: Db): Promise<string[]> {
-  return (await db.query<{ label: string }>(`select label from place_sets where status = 'ready' order by updated_at desc limit 300`).catch(() => ({ rows: [] as { label: string }[] }))).rows.map((r) => r.label);
+  return (
+    await db
+      .query<{ label: string }>(
+        `select label from (
+           (select label, updated_at from place_sets where status = 'ready' order by updated_at desc limit 300)
+           union
+           (select label, updated_at from place_sets where status = 'ready' and normalized = any($1::text[]))
+         ) s order by updated_at desc`,
+        [STORY_SETS],
+      )
+      .catch(() => ({ rows: [] as { label: string }[] }))
+  ).rows.map((r) => r.label);
 }
 
 /**
