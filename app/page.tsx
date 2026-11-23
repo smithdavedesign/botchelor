@@ -515,6 +515,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           <Link href="/tools/ship-name-generator">a ship name generator</Link> ·{" "}
           <Link href="/tools/oc-name-generator">an OC name generator</Link> ·{" "}
           <Link href="/tools/place-name-generator">a place name generator</Link> ·{" "}
+          <Link href="/tools/relationship-trope-generator">a relationship trope generator</Link> ·{" "}
           <Link href="/tools/oc-questions">questions to ask your OC</Link>
         </p>
       </section>

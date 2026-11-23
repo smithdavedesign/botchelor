@@ -247,6 +247,10 @@ the container. Ways to cut the restarts themselves, each David's call because it
 - **`COLD_OPEN`** (the show's app, not a secret; on unless `0`): the card before a date's first line in the theater
   (`lib/cold-open.ts`; `0`: the theater starts playing as it opens, as before). The short version beside it needs no
   switch: a date shows it only once a cut was uploaded. [flows.md](flows.md), "A date's first minute".
+- **`SHARE_NEXT`** (the show's app, not a secret; on unless `0` or `off`): the owner's "Whose character should go
+  next?" card once their date aired publicly between two public characters, on the episode page and at the theater's
+  end (`lib/share-next.ts`; it shares the report card with `ref=next`). `0`: no card, and the theater's end keeps the
+  viewer's share for owners too.
 - **`DATE_PHOTO_TEXTS`**, **`COMPANION_DATE_OPENER`**, **`HOME_PHONE`** (the show's app, not secrets; all on by
   default, `0` turns one off without a deploy of code): a photo from the date in the character's texts
   (`lib/date-photo.ts`; off: texts go without one, the photos already sent stay), a cast character's opener written from

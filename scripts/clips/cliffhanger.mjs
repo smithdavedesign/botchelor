@@ -64,6 +64,14 @@ export function setupLine(e) {
   return n > 1 ? `Their ${ordinalWord(n)} date` : "A blind date";
 }
 
+/**
+ * The big line over the faces on the first frame (pure; David 2026-11-23, "the cast hook"): the faces are the grab, this
+ * says why to stay. True by construction: the next beat is the reply, said by `replier`.
+ */
+export function hookHeadline(replier) {
+  return `Watch what ${replier} says back`;
+}
+
 /** The ending that means "they'll meet again", named for this pair (pure): "Second date", or "Eighth date" after a seventh. */
 export function nextDateOption(e) {
   const w = ordinalWord(dateNumber(e) + 1);
@@ -211,7 +219,7 @@ export function cliffhangerEdl(e, { n = 1 } = {}) {
     pick: how,
     cover: 0,
     segments: [
-      { kind: "cold", line: hook.line, keep: hook.keep, label: `${setupLine(e)} · ${who(hook)}` },
+      { kind: "cold", line: hook.line, keep: hook.keep, label: `${setupLine(e)} · ${who(hook)}`, headline: hookHeadline(who(reply)) },
       { kind: "line", line: reply.line, keep: reply.keep, label: who(reply) },
       { kind: "card", kicker: `Botchelor · Day ${n}`, title: ask.title, sub: ask.options.join(" · "), url: "botchelor.com", say: ask.say, secs: SILENT_SECONDS.card, ask: true },
     ],
@@ -223,7 +231,7 @@ export function cutText(edl, episodes) {
   const beats = resolveBeats(edl, episodes);
   return beats
     .filter((_, i) => !edl.segments[i].ask)
-    .flatMap((b) => [b.label, b.text, b.kicker, b.title, b.sub, b.url, b.say])
+    .flatMap((b) => [b.headline, b.label, b.text, b.kicker, b.title, b.sub, b.url, b.say])
     .filter(Boolean)
     .join("\n");
 }
@@ -400,6 +408,7 @@ export function layerHtml(beat, { e, n = 1, shown = null }) {
     .slice(0, 2)
     .map((c, i) => `<div class="tile ${speakerAt < 0 ? "" : i === speakerAt ? "lit" : "dim"} ${i ? "b" : "a"}" style="${tileStyle(TILES[i])}"><span class="name">${esc(firstName(c.name))}</span></div>`)
     .join("");
+  const headline = beat.headline ? `<p class="headline" style="bottom:${px(720 * (1080 / 405) - (TILES[0].y + TILES[0].h) + 200)}">${esc(beat.headline)} ↓</p>` : "";
   const seam = `<div class="seam" style="left:${px(TILES[1].x - 3)};top:${px(TILES[1].y)};height:${px(TILES[1].h)}"></div>`;
   const body = ask
     ? `<div class="card ask"><p class="kick">${esc(beat.kicker)}</p><h1>${esc(beat.title)}</h1><div class="opts">${String(beat.sub ?? "")
@@ -421,6 +430,7 @@ header{position:absolute;top:0;left:0;right:0;height:${px(TILES[0].y)};display:f
 .tile.a .name{left:10px}.tile.b .name{right:10px}
 .tile.lit .name{background:#e5356b}
 .seam{position:absolute;width:${px(6)};background:#140a18}
+.headline{position:absolute;left:14px;right:14px;text-align:center;font-family:Fraunces,Georgia,serif;font-weight:700;font-size:30px;line-height:1.08;color:#fff;text-shadow:0 2px 3px rgba(0,0,0,.9),0 0 22px rgba(20,10,24,.95)}
 .card{position:absolute;left:16px;right:16px;top:${px(TILES[0].y + TILES[0].h - CARD_OVERLAP.line)};background:#fff;color:#24112c;border-radius:22px;box-shadow:0 14px 34px rgba(0,0,0,.45)}
 .bubble{padding:14px 18px 17px;text-align:left}
 .bubble.left{border-top-left-radius:6px}.bubble.right{border-top-right-radius:6px}
@@ -435,7 +445,7 @@ header{position:absolute;top:0;left:0;right:0;height:${px(TILES[0].y)};display:f
 .cta{font-size:16px;font-weight:700}
 .url{font-size:15px;font-weight:700;color:#fff;background:#e5356b;border-radius:999px;padding:8px 18px}
 .fine{font-size:10px;color:#7a5a86}
-</style></head><body><header><span class="brand">Botchelor</span><span class="tag">AI dating show · Day ${esc(n)}</span></header>${tiles}${seam}${body}</body></html>`;
+</style></head><body><header><span class="brand">Botchelor</span><span class="tag">AI dating show · Day ${esc(n)}</span></header>${tiles}${seam}${headline}${body}</body></html>`;
 }
 
 /**

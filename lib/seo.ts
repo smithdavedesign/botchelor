@@ -9,6 +9,7 @@ import { ALTERNATIVES, alternativePath } from "./alternatives";
 import { CAI_GUIDE_PATH, caiGuideOn } from "./cai-guide";
 import { OC_NAME_STYLES, ocNamesHref } from "./oc-names";
 import { PLACE_STYLES, placeNamesHref } from "./place-names";
+import { TROPE_MOODS, tropesHref } from "./relationship-tropes";
 import { closedSeasons } from "./season-ref";
 import { canonicalShipPath, readName } from "./ship-names";
 import { formatPrice, onSale } from "./catalog";
@@ -108,13 +109,14 @@ const POLICY_PATHS: ReadonlySet<string> = new Set(["/terms", "/privacy", "/conte
 const PRIORITY: Record<string, number> = { "/": 1, "/create": 0.9, "/watch": 0.9, "/agents": 0.8, "/import": 0.8, "/alternatives/character-ai": 0.8, [CAI_GUIDE_PATH]: 0.8, "/characters": 0.7 };
 
 /**
- * The search landings beside PUBLIC_PATHS: the other /alternatives pages and the OC and place name generators' style pages. Not
+ * The search landings beside PUBLIC_PATHS: the other /alternatives pages, the OC and place name generators' style pages and
+ * the trope generator's mood pages. Not
  * the prompts library's tag pages (listed 2026-11-11 until the 2026-11-22 audit): their words are an open dataset's, and
  * the library sits behind the 18+ gate, so a search result sent people to the gate (app/prompts: noindex now).
  */
 export function landingPaths(): string[] {
   // The Character.AI guide (lib/cai-guide.ts) while CAI_GUIDE is on: off, it 404s, so it leaves the sitemap too.
-  return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...(caiGuideOn() ? [CAI_GUIDE_PATH] : []), ...OC_NAME_STYLES.map((s) => ocNamesHref(s)), ...PLACE_STYLES.map((s) => placeNamesHref(s))];
+  return [...ALTERNATIVES.filter((a) => !(PUBLIC_PATHS as readonly string[]).includes(alternativePath(a.slug))).map((a) => alternativePath(a.slug)), ...(caiGuideOn() ? [CAI_GUIDE_PATH] : []), ...OC_NAME_STYLES.map((s) => ocNamesHref(s)), ...PLACE_STYLES.map((s) => placeNamesHref(s)), ...TROPE_MOODS.map((m) => tropesHref(m))];
 }
 
 export function staticSitemap(base: string = siteUrl(), now: Date = new Date()): MetadataRoute.Sitemap {
