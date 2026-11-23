@@ -271,6 +271,8 @@ describe("theirs to see and change", () => {
     expect(await addFact(t.db, a.id, WHO, "   ")).toMatchObject({ ok: false, status: 400 });
     expect(await addFact(t.db, a.id, WHO, "My sister introduced us.")).toMatchObject({ ok: false, status: 422, error: "refused" });
     expect(await addFact(t.db, a.id, WHO, "I want to kill myself.")).toMatchObject({ ok: false, error: "crisis", crisis_resources: expect.any(Object) });
+    // Said the way a fact is written, it's the same answer: the resources, never the lines' message.
+    expect(await addFact(t.db, a.id, WHO, "They want to hurt themselves.")).toMatchObject({ ok: false, error: "crisis", crisis_resources: expect.any(Object) });
     expect(await addFact(t.db, a.id, WHO, "x".repeat(FACT_MAX + 50))).toMatchObject({ ok: true, fact: { text: "x".repeat(FACT_MAX) } });
     expect(factOk("They like being asked first.")).toBe(true);
     expect(factOk("They are seventeen.")).toBe(false);
@@ -361,6 +363,18 @@ describe("the panel in the scene's menu", () => {
     const panel = readFileSync("app/after-dark/step-in/[id]/StepInMemory.tsx", "utf8");
     expect(panel.match(/onKeyDown=\{onEnter\(/g)?.length).toBe(2);
     expect(panel).toContain("e.preventDefault()");
+  });
+});
+
+describe("the menu the panel sits in", () => {
+  it("is one column that can't grow past its box, and no taller than the room above the composer", () => {
+    // The first live check (2026-11-23): the menu's column took its widest item's width, so the menu scrolled sideways
+    // and the panel's Add was out of view; and at 70vh its top went under the page's header.
+    const css = readFileSync("app/ux/after-dark.css", "utf8");
+    const rule = css.slice(css.indexOf(".ad-si-menu-items {"), css.indexOf("}", css.indexOf(".ad-si-menu-items {")));
+    expect(rule).toContain("grid-template-columns: minmax(0, 1fr);");
+    expect(rule).toContain("max-height: min(70vh, 30rem);");
+    expect(rule).toContain("overflow-y: auto;");
   });
 });
 
