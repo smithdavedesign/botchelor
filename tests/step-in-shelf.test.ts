@@ -121,9 +121,9 @@ describe("a card with a cover", () => {
   });
 
   it("is only with the one in the picture", () => {
-    expect(coverFor("vampire", "house-vesper")).toMatchObject({ you: 1, src: "/cast/roleplay-vampire-vesper.webp" });
+    expect(coverFor("vampire", "house-rafe")).toMatchObject({ you: 1, src: "/cast/roleplay-vampire-rafe.webp" });
     expect(coverFor("vampire", "house-juniper")).toBeNull();
-    expect(coverFor("not-a-roleplay", "house-vesper")).toBeNull();
+    expect(coverFor("not-a-roleplay", "house-rafe")).toBeNull();
     expect(coverFor("vampire", null)).toBeNull();
   });
 });
