@@ -32,6 +32,7 @@ import { hasProfileConsent } from "@/lib/adult/profile";
 import { ROLEPLAYS, roleplayById } from "@/lib/adult/roleplays";
 import { rolloutConfigOf, rolloutOn } from "@/lib/adult/rollout";
 import { saveAdultSettings } from "@/lib/adult/settings";
+import { countUse, overCap } from "@/lib/adult/usage";
 import {
   ASIDES,
   carryOnStepIn,
@@ -182,7 +183,9 @@ function scripted(...replies: unknown[]) {
 
 const rows = async (sql: string, params: unknown[] = []) => (await t.db.query<Record<string, unknown>>(sql, params)).rows;
 const count = async (table: string) => Number((await rows(`select count(*)::int as n from ${table}`))[0].n);
-const writes = async (id: string) => Number((await rows(`select writes from adult_usage where owner_id = $1`, [id]))[0]?.writes ?? 0);
+// Step in's replies have their own count (lib/adult/usage.ts "step_in"), apart from a night's scene steps ("writes").
+const replies = async (id: string) => Number((await rows(`select step_in from adult_usage where owner_id = $1`, [id]))[0]?.step_in ?? 0);
+const nightSteps = async (id: string) => Number((await rows(`select writes from adult_usage where owner_id = $1`, [id]))[0]?.writes ?? 0);
 const steps = async (id: string) => rows(`select status, http, message, direction, dropped, flags, added, character_b, kind from adult_steps where owner_id = $1 order by created_at`, [id]);
 /** Everything a scene keeps, as one string: what a test searches for words that must never have been stored. */
 const everything = async () => JSON.stringify([await rows(`select * from adult_step_in_scenes`), await rows(`select * from adult_step_in_messages`), await rows(`select * from adult_steps`)]);
@@ -402,7 +405,7 @@ describe("setting it up", () => {
     expect(made.view.messages[0].text).toBe(`${NAME} is an AI character, not a real person. This is fiction between adults.`);
     expect(made.view.place).toMatchObject({ id: CAFE, public: true });
     expect(lastUser(seen.prompts[0])).toContain('It opens like this: (as your scene partner wrote it, so "I" and "me" in it are them) "I am halfway through a crossword when she sits down."');
-    expect(await writes(a.id)).toBe(1);
+    expect(await replies(a.id)).toBe(1);
     // Their own opening is shown as their first line (the first reply answers it); one of ours sets the scene unseen.
     expect(made.view.opening).toBe("I am halfway through a crossword when she sits down.");
     const b = await admin();
@@ -420,7 +423,7 @@ describe("one click", () => {
     const id = (q as { id: string }).id;
     // Nothing was drawn and nothing counted: the click lands on the scene at once.
     expect(seen.prompts).toHaveLength(0);
-    expect(await writes(a.id)).toBe(0);
+    expect(await replies(a.id)).toBe(0);
     let view = await viewOf(a.id, id);
     expect(view.place.id).toBe(QUICK_PLACE);
     expect(view.place.public).toBe(false);
@@ -439,7 +442,7 @@ describe("one click", () => {
     expect(lastUser(seen.prompts[0])).toMatch(/^\(The two of you have just got to your place\./);
     expect(lastUser(seen.prompts[0])).toContain("Open the scene");
     expect(lastUser(seen.prompts[0])).not.toBe(CONTINUE_CUE);
-    expect(await writes(a.id)).toBe(1);
+    expect(await replies(a.id)).toBe(1);
   });
 
   it("goes back into the scene that's running with them, and makes a new one only once that one has ended", async () => {
@@ -469,7 +472,7 @@ describe("one click", () => {
 
   it("is refused for someone who isn't in their After Dark, and when the month's steps are used; nothing is made", async () => {
     scripted();
-    await saveAdultSettings(t.db, { caps: { writes: 1 }, rollout: { companion: "everyone" } });
+    await saveAdultSettings(t.db, { caps: { step_in: 1 }, rollout: { companion: "everyone" } });
     const sub = await subscriber();
     const stranger = (await (await api.createCharacter(validCharacter({ name: "Not In Here" }), signedInCookie(randomUUID()))).json()).id as string;
     expect(await quickStepIn(t.db, sub.id, stranger)).toMatchObject({ ok: false, status: 404 });
@@ -810,7 +813,7 @@ describe("what the viewer sends", () => {
     const refusals = (await steps(a.id)).filter((s) => s.status === "error");
     expect(refusals).toHaveLength(4);
     expect(refusals.every((s) => s.http === 422 && s.direction === null && JSON.stringify(s.dropped) === "[]" && (s.flags as { refused: string }).refused === "lines")).toBe(true);
-    expect(await writes(a.id)).toBe(1);
+    expect(await replies(a.id)).toBe(1);
   });
 
   it("a line that asks for one of their hard nos, or goes past their intensity, is refused with the limits' own sentence", async () => {
@@ -995,7 +998,7 @@ describe("what the character says", () => {
     expect(view.messages.at(-1)!.text).toContain("Order for both of us");
     expect(await everything()).not.toContain("fifteen");
     // One scene step, whatever it took to draw; the log says it was redrawn and why, without a word of it.
-    expect(await writes(a.id)).toBe(2);
+    expect(await replies(a.id)).toBe(2);
     const log = (await steps(a.id)).at(-1)!;
     expect(log).toMatchObject({ status: "ok", added: 2, direction: null });
     expect(log.flags).toMatchObject({ action: "send", calls: 2, redrawn: ["lines:minor"] });
@@ -1030,7 +1033,7 @@ describe("what the character says", () => {
     for (const word of ["recipe", "grin", "lifted the lid"]) expect(all).not.toContain(word);
     expect((await steps(a.id)).at(-1)!.flags).toMatchObject({ aside: true, redrawn: ["guard", "guard"] });
     // The stand-in counts as the step it took, and the scene goes on from it: its prompt shows the narrator's line.
-    expect(await writes(a.id)).toBe(2);
+    expect(await replies(a.id)).toBe(2);
     await sendStepInLine(t.db, a.id, made.id, "I look around the room.");
     expect(seen.prompts[3].map((m) => m.role)).toEqual(["system", "assistant", "user", "assistant", "user"]);
     expect(seen.prompts[3][3].content).toBe(ASIDES[0]);
@@ -1066,13 +1069,13 @@ describe("what the character says", () => {
     const r = await sendStepInLine(t.db, a.id, made.id, "I sit down across from you.");
     expect(r).toMatchObject({ ok: true, replied: false, message: `${NAME} can't answer right now. Try again in a moment.` });
     expect(said(await viewOf(a.id, made.id))).toEqual(["character", "viewer"]);
-    expect(await writes(a.id)).toBe(1);
+    expect(await replies(a.id)).toBe(1);
     const on = await continueStepIn(t.db, a.id, made.id);
     expect(on).toMatchObject({ ok: true });
     expect(said(await viewOf(a.id, made.id))).toEqual(["character", "viewer", "character"]);
     // It answered their line: no carry-on cue.
     expect(lastUser(seen.prompts.at(-1)!)).toBe("I sit down across from you.");
-    expect(await writes(a.id)).toBe(2);
+    expect(await replies(a.id)).toBe(2);
   });
 });
 
@@ -1108,24 +1111,24 @@ describe("the AI notice", () => {
   });
 });
 
-describe("the month's steps", () => {
+describe("the month's replies", () => {
   it("counts one a reply (regenerate and Continue too, a swipe never), refuses with the cap's own sentence, and never caps an admin", async () => {
     scripted();
-    await saveAdultSettings(t.db, { caps: { writes: 4 }, rollout: { companion: "everyone" } });
+    await saveAdultSettings(t.db, { caps: { step_in: 4 }, rollout: { companion: "everyone" } });
     const sub = await subscriber();
     const made = await start(sub.id);
-    expect(await writes(sub.id)).toBe(1);
+    expect(await replies(sub.id)).toBe(1);
     expect(made.view.steps_left).toBe(3);
     await sendStepInLine(t.db, sub.id, made.id, "I sit down across from you.");
     await regenerateStepIn(t.db, sub.id, made.id);
-    expect(await writes(sub.id)).toBe(3);
+    expect(await replies(sub.id)).toBe(3);
     expect(await swipeStepIn(t.db, sub.id, made.id, "prev")).toMatchObject({ ok: true });
     expect(await swipeStepIn(t.db, sub.id, made.id, "next")).toMatchObject({ ok: true });
-    expect(await writes(sub.id)).toBe(3);
+    expect(await replies(sub.id)).toBe(3);
     await continueStepIn(t.db, sub.id, made.id);
-    expect(await writes(sub.id)).toBe(4);
+    expect(await replies(sub.id)).toBe(4);
     // Used up: every way to a reply is refused with the cap's own sentence, and nothing is stored.
-    const sentence = "You've used this month's 4 scene steps. They reset on the 1st.";
+    const sentence = "You've used this month's 4 Step in replies. They reset on the 1st.";
     const before = await count("adult_step_in_messages");
     for (const r of [
       await sendStepInLine(t.db, sub.id, made.id, "One more thing."),
@@ -1144,8 +1147,27 @@ describe("the month's steps", () => {
     const a = await admin();
     const theirs = await start(a.id);
     for (let i = 0; i < 5; i++) expect(await continueStepIn(t.db, a.id, theirs.id)).toMatchObject({ ok: true });
-    expect(await writes(a.id)).toBe(6);
+    expect(await replies(a.id)).toBe(6);
     expect((await viewOf(a.id, theirs.id)).steps_left).toBeNull();
+  });
+
+  it("are counted apart from a night's scene steps: neither uses the other up", async () => {
+    scripted();
+    await saveAdultSettings(t.db, { caps: { writes: 2, step_in: 3 }, rollout: { companion: "everyone" } });
+    const sub = await subscriber();
+    // A month of nights used to the last step: Step in still opens, and its replies leave the night's count alone.
+    await countUse(t.db, sub.id, "writes", new Date(), 2);
+    expect(await overCap(t.db, sub.id, "writes")).toMatch(/2 scene steps/);
+    const made = await start(sub.id);
+    expect(made.view.steps_left).toBe(2);
+    expect(await sendStepInLine(t.db, sub.id, made.id, "I sit down across from you.")).toMatchObject({ ok: true });
+    expect(await continueStepIn(t.db, sub.id, made.id)).toMatchObject({ ok: true });
+    expect({ replies: await replies(sub.id), night: await nightSteps(sub.id) }).toEqual({ replies: 3, night: 2 });
+    // The replies used: Step in stops with its own sentence, and a night would stop on its own count, not this one.
+    expect(await continueStepIn(t.db, sub.id, made.id)).toMatchObject({ ok: false, status: 429, message: "You've used this month's 3 Step in replies. They reset on the 1st." });
+    await saveAdultSettings(t.db, { caps: { writes: 300 } });
+    expect(await overCap(t.db, sub.id, "writes")).toBeNull();
+    expect(await overCap(t.db, sub.id, "step_in")).not.toBeNull();
   });
 });
 
@@ -1205,14 +1227,14 @@ describe("the controls", () => {
     await regenerateStepIn(t.db, a.id, made.id);
     await continueStepIn(t.db, a.id, made.id);
     expect(said(await viewOf(a.id, made.id))).toEqual(["character", "viewer", "character", "character"]);
-    const before = await writes(a.id);
+    const before = await replies(a.id);
     const back = await takeBackStepIn(t.db, a.id, made.id);
     expect(back).toMatchObject({ ok: true });
     // Their line, its reply, the draw set aside and what the character carried on with: all gone, the notice and the opening left.
     expect(await rows(`select role, kind from adult_step_in_messages where scene_id = $1 order by created_at`, [made.id])).toEqual([{ role: "system", kind: "notice" }, { role: "character", kind: null }]);
     expect(await everything()).not.toContain("I sit down across from you.");
     // The steps used aren't given back.
-    expect(await writes(a.id)).toBe(before);
+    expect(await replies(a.id)).toBe(before);
   });
 
   it("the scene can move somewhere private: a line says so, the next prompt is there, and the public cap goes with the place", async () => {
@@ -1235,7 +1257,7 @@ describe("the controls", () => {
     // "Their place" is the character's own home, said to the character as theirs.
     expect(system(p)).toContain("Where you are: your place (your own home: the living room and the kitchen");
     expect(lastUser(p)).toBe(`(The scene moves: the two of you are now at your place.)\n\n${CONTINUE_CUE}`);
-    expect(await writes(a.id)).toBe(2);
+    expect(await replies(a.id)).toBe(2);
   });
 
   it("End files the scene with a short recap, keeps it readable, and the next scene with them remembers it in a line", async () => {

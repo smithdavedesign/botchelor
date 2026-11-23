@@ -30,14 +30,14 @@ export const IDEA_TONE_LABELS: Record<IdeaTone, string> = { warm: "Warm", playfu
 export type StepInIdea = { tone: IdeaTone; text: string };
 
 /**
- * The month's scene steps are fair use, not a countdown (the subscribe page: "Unlimited chapters, no tokens (fair use:
- * N scene steps a month)"; row 10 of docs/audits/2026-11-22-companion-field.md: on every site in the field text is
- * unlimited and only media is metered). So a scene and a call say how many are left only once they're running low,
- * STEPS_LOW or fewer; the count is always on /after-dark/tokens, and the cap itself is unchanged.
+ * The month's replies are fair use, not a countdown (the subscribe page: "unlimited replies (fair use: N a month)";
+ * row 10 of docs/audits/2026-11-22-companion-field.md: on every site in the field text is unlimited and only media is
+ * metered). So a scene and a call say how many are left only once they're running low, STEPS_LOW or fewer; the count
+ * is always on /after-dark/tokens. The replies have their own cap (lib/adult/usage.ts "step_in"), apart from a night's.
  */
 export const STEPS_LOW = 25;
 export const stepsLeftLine = (left: number | null): string | null =>
-  left === null || left > STEPS_LOW ? null : left === 1 ? "1 scene step left this month" : `${left} scene steps left this month`;
+  left === null || left > STEPS_LOW ? null : left === 1 ? "1 reply left this month" : `${left} replies left this month`;
 
 /** A piece of speech a voice says in one go: about a sentence or two, so the first words are heard soon. */
 export const VOICE_PIECE_MAX = 220;

@@ -10,6 +10,7 @@ import { canAfterDark } from "@/lib/adult/entitlement";
 import { clipPrice, includedPlan, includedPrice } from "@/lib/adult/pricing";
 import { tokensWord } from "@/lib/adult/price-words";
 import { lockedForCookies } from "@/lib/adult/privacy";
+import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { talkPrice } from "@/lib/adult/talks";
 import { adTokenBalance, adTokenSource, adTokensOn, tokenPacks, tokenProcessors, type AdTokenSource } from "@/lib/adult/tokens";
@@ -77,11 +78,13 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
     talkPrice(db, viewer),
     // This month's use, against the caps the plan names (the settings', defaults filled in), so the two never disagree.
     db
-      .query<{ writes: number; pictures: number }>(`select writes, pictures from adult_usage where owner_id = $1 and month = $2`, [viewer, monthOf()])
-      .then((q) => q.rows[0] ?? { writes: 0, pictures: 0 }),
+      .query<{ writes: number; step_in: number; pictures: number }>(`select writes, step_in, pictures from adult_usage where owner_id = $1 and month = $2`, [viewer, monthOf()])
+      .then((q) => q.rows[0] ?? { writes: 0, step_in: 0, pictures: 0 }),
   ]);
   const left = (cap: number, used: number) => (admin ? null : Math.max(0, cap - used));
   const stepsLeft = left(plan.steps, used.writes);
+  // Step in's replies have their own count (lib/adult/usage.ts): said where Step in is open to this person.
+  const repliesLeft = rolloutOn(settings.rollout, "companion", admin) ? { left: left(plan.replies, used.step_in) } : null;
   const picturesLeft = left(plan.pictures, used.pictures);
   const cost = (p: { tokens: number; included: boolean }) => (p.tokens > 0 ? tokensWord(p.tokens) : p.included ? "included" : "free");
   const extras: { what: string; price: string }[] = [
@@ -129,6 +132,11 @@ export default async function AfterDarkTokensPage({ searchParams }: { searchPara
             <li>
               Scene steps this month: {stepsLeft === null ? "no limit" : `${stepsLeft} of ${plan.steps} left`} (fair use).
             </li>
+            {repliesLeft && (
+              <li data-step-in-replies>
+                Step in replies this month: {repliesLeft.left === null ? "no limit" : `${repliesLeft.left.toLocaleString("en-US")} of ${plan.replies.toLocaleString("en-US")} left`} (fair use).
+              </li>
+            )}
             <li>Pictures this month: {picturesLeft === null ? "no limit" : `${picturesLeft} of ${plan.pictures} left`}.</li>
             {/* Only to those whose pass includes clips (a subscription or a reviewer pass, lib/adult/pricing.ts clipsIncluded). */}
             {clip.included_left !== null ? (

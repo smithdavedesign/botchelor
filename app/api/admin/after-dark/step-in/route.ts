@@ -35,7 +35,7 @@ export const GET = handle(async (req: Request) => {
 
 /**
  * Starts a scene (lib/adult/step-in.ts startStepIn): who, where, the roleplay and the viewer's side of it, how it opens.
- * The character opens it: one scene step. A written opening that trips the self-harm check answers with the crisis
+ * The character opens it: one of the month's Step in replies. A written opening that trips the self-harm check answers with the crisis
  * resources and starts nothing.
  *
  * With `quick: true` and only who (quickStepIn): the scene they have running with that character (`resumed`), or a new
