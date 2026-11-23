@@ -3774,9 +3774,27 @@ Dark's own voice and nothing of the show's:
   Safari): **the same scene, said out loud**. The viewer talks; the browser's own speech recognition turns it into
   words (Chrome sends the audio to Google for that, Safari to Apple; Botchelor gets only the words: the call's first
   screen says so before the microphone is asked for); the words go in as a line of the scene (the `say` move); the
-  character answers in one to three spoken sentences, voiced a piece at a time; then it listens again. It takes turns
-  (it doesn't listen while they talk, so it never hears itself); ✋ Interrupt stops them and listens; 🔇 Mute waits for
-  a tap; five quiet minutes, or leaving the page, end it. Nothing is recorded.
+  character answers in one to three spoken sentences, voiced a piece at a time; then it listens again. ✋ Interrupt
+  stops them and listens; 🔇 Mute waits for a tap (and lets the microphone go); five quiet minutes, or leaving the
+  page, end it. Nothing is recorded.
+- **Talking over them** (2026-11-23; David, on a call where neither side could cut in: "figure it out"). In **Google
+  Chrome on a computer** (version 135 and later: `lib/adult/step-in-shared.ts` `cutInCapable`) the viewer just starts
+  talking and the character stops to listen. How: the call opens its own microphone track with the browser's echo
+  cancelling on (`getUserMedia`), and Chrome's speech recognition listens on that track
+  (`SpeechRecognition.start(track)`) while the character talks, so what the speakers play is taken out before anything
+  is heard. Two words of the viewer's that aren't the reply coming back (`cutsIn`: the show's live call's rule, 70% of
+  the words in the reply is an echo) stop the voice at once; the same listening session goes on, and what it hears is
+  their next line. It's **on unless they untick it** on the call's first screen ("Talking over {name}", which says the
+  microphone stays on while the character talks; kept in the browser, `bz_step_in_cut_in`), and the status line reads
+  "{name} is talking · talk to cut in". The interrupted reply stays in the scene whole, as with ✋ Interrupt.
+  **Everywhere else the call takes turns**, as before: it doesn't listen while they talk, so it never hears itself. A
+  phone's or Safari's recogniser can only listen on the plain microphone, with no echo cancelling of ours, and Edge and
+  the other Chromium browsers aren't known to honour the track. **No speech-to-text provider is involved**, so no
+  audio of an adult scene goes to a new company: the terms were read first (2026-11-23). AssemblyAI and Gladia bar
+  adult content outright; Deepgram (the show's live calls), Soniox, Speechmatics and OpenAI say nothing either way,
+  which is a provider's sole-discretion clause away from a closed account; the browser's own recognition has no content
+  rule. Talking over them on a phone would mean one of the silent ones and a written yes from it first: David's call,
+  not made.
 - **A spoken reply** (`lib/adult/step-in.ts` draw's `form: "call"`; `lib/adult/step-in-prompt.ts` `STEP_IN_CALL`): only
   what the character says, because nothing else can be voiced and narration read in a character's voice is nobody
   talking. Everything that makes the character a person is the scene's own and unchanged (its will and consent, the
@@ -3810,9 +3828,11 @@ Dark's own voice and nothing of the show's:
 - **What it costs:** the reply, about a tenth of a cent on the fast writer; the voice, about $0.0004 a piece on Venice's
   Kokoro (more on a better voice model); hearing the viewer, nothing (it's their browser's). No new provider, key or
   processor: Venice already voices the nights.
-- **Not built, on purpose or yet:** talking over each other (it would mean streaming the viewer's audio to a
-  speech-to-text provider; the show uses Deepgram for that, and whether its terms take an adult scene's audio hasn't
-  been read: David's call before anything is sent); Firefox (no speech recognition there); and pictures in a scene.
+- **Not built, on purpose or yet:** talking over them outside desktop Chrome (above); Firefox (no speech recognition
+  there); and pictures in a scene. **Not tested on a real iPhone:** every call here was checked in Chrome with a faked
+  or a file-fed microphone. One thing to watch for there: reports that Safari on an iPhone stops hearing after an
+  `<audio>` element has played (the call's voice is one). If a call on an iPhone hears the first line and nothing
+  after it, that's the cause, and the fix is to play the voice through Web Audio buffers instead.
 
 **Proof:** `tests/after-dark-step-in-voice.test.ts`.
 
