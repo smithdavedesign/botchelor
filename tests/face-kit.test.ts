@@ -7,15 +7,16 @@ import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adu
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { claimAdmin } from "@/lib/admins";
 import { collectFaceKits, ensureFaceKit, FACE_KIT_USD, faceKitBlocked, faceKitOf, facePromptsPass, makeFaceKit } from "@/lib/face-kit";
-import { FACE_STILLS, TALK_STILL } from "@/lib/face-kit-shared";
+import { TALK_STILL } from "@/lib/face-kit-shared";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { runFfmpeg } from "@/lib/media-tools/ffmpeg";
 import { api, BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
 vi.mock("@/lib/sets", async (orig) => ({ ...((await orig()) as object), inBackground: () => {} }));
 
-// A character's face kit for calls (lib/face-kit.ts; docs/PRDs/digital-human.md Tier 0): drawn on Replicate (faked),
-// every still and three frames of the loop through the PG check (faked), kept and served; who may start one, and when.
+// A character's face kit for calls (lib/face-kit.ts; docs/PRDs/digital-human.md Tier 0): the portrait and the living
+// loop, drawn on Replicate (faked), the still and three frames of the loop through the PG check (faked), kept and
+// served; who may start one, and when. Ditto's talking still is drawn only while Ditto is the renderer that's set.
 let t: Awaited<ReturnType<typeof startTestDb>>;
 let MP4: Buffer;
 beforeAll(async () => {
@@ -34,6 +35,7 @@ beforeEach(async () => {
   vi.stubEnv("ADULT_MODE", "1");
   vi.stubEnv("REPLICATE_API_TOKEN", "placeholder-replicate");
   vi.stubEnv("FACE_KIT_PER_DAY", "");
+  vi.stubEnv("LIVE_FACE_PROVIDER", "");
   setReplicatePausesForTests(false);
   await saveAdultSettings(t.db, { enabled: true, venice_key: "placeholder-venice" });
 });
@@ -90,22 +92,24 @@ describe("a face kit", () => {
     expect(facePromptsPass()).toBe(true);
   });
 
-  it("is drawn from the approved safe portrait: the portrait first, the mouths, blink and looks from it, the loop queued and collected, all checked, then served", async () => {
+  it("is drawn from the approved safe portrait: the portrait first, the loop queued from it and collected, all checked, then served; no mouth stills", async () => {
     const id = await withPortrait();
     const { asked, polled } = fakeReplicate();
     verdict("CLOTHED");
     const made = await makeFaceKit(t.db, id, BASE_URL);
-    expect(made).toEqual({ ok: true, made: 8, queued: true, failed: [] });
-    // Eight edits of Qwen (the page's seven stills and the talking still) and one Wan clip, Replicate's safety checker on for all of them (the public side).
-    expect(asked).toHaveLength(9);
+    expect(made).toEqual({ ok: true, made: 1, queued: true, failed: [] });
+    // One Qwen edit (the portrait) and one Wan clip, Replicate's safety checker on for both (the public side). The six
+    // stills a kit drew until 2026-11-22 (three mouths, a blink, two looks) are gone: nothing swaps pictures on a call.
+    expect(asked).toHaveLength(2);
     expect(asked.every((a) => !("disable_safety_checker" in a.input))).toBe(true);
     const edits = asked.filter((a) => !a.url.includes("wan-video"));
+    expect(edits).toHaveLength(1);
     expect(edits[0].input.image).toEqual([`${BASE_URL}/cast/house-juniper-v3.webp`]);
+    expect(asked.some((a) => /Change only their (mouth|eyes|expression)/.test(String(a.input.prompt)))).toBe(false);
     const kit = await faceKitOf(t.db, id, BASE_URL);
-    expect(kit && Object.keys(kit.stills).sort()).toEqual([...FACE_STILLS, TALK_STILL].sort());
+    expect(kit && Object.keys(kit.stills)).toEqual(["portrait"]);
     const portrait = kit!.stills.portrait!;
-    // Every other still, and the loop, start from the kit's own portrait, by its public link.
-    expect(edits.slice(1).every((a) => (a.input.image as string[])[0] === `${BASE_URL}${portrait}`)).toBe(true);
+    // The loop starts from the kit's own portrait, by its public link.
     const loopAsk = asked.find((a) => a.url.includes("wan-video"))!;
     expect(loopAsk.input).toMatchObject({ image: `${BASE_URL}${portrait}`, resolution: "480p", num_frames: 81 });
     expect(kit).toMatchObject({ loop: null, making: true, failed: null });
@@ -131,30 +135,55 @@ describe("a face kit", () => {
     expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
     expect(asked).toHaveLength(before);
     expect(await collectFaceKits(t.db)).toBe(0);
-    expect(FACE_KIT_USD).toBeCloseTo(0.29, 2);
+    // The portrait's edit (nothing when their own picture is used as it is) and the loop.
+    expect(FACE_KIT_USD).toBeCloseTo(0.08, 2);
   });
 
-  it("draws the talking still (the mouth at rest, for Ditto) with the kit, and alone for a kit drawn before it, on its next call", async () => {
+  it("a kit drawn the old way keeps its mouth stills as rows, and the page never hears of them: not their links, not their failures", async () => {
+    const id = await withPortrait("Old Kit");
+    fakeReplicate();
+    verdict("CLOTHED");
+    await makeFaceKit(t.db, id, BASE_URL);
+    await collectFaceKits(t.db);
+    const source = (await t.db.query<{ source_id: string }>(`select source_id from face_kits where character_id = $1 limit 1`, [id])).rows[0].source_id;
+    for (const [part, status] of [["mouth_small", "ready"], ["mouth_open", "ready"], ["blink", "failed"], ["smile", "making"]] as const) {
+      await t.db.query(`insert into face_kits (id, character_id, source_id, part, status, model, mime, error) values ($1, $2, $3, $4, $5, 'm', 'image/webp', $6)`, [`old-${part}`, id, source, part, status, status === "failed" ? "it came out revealing" : null]);
+    }
+    const kit = (await faceKitOf(t.db, id, BASE_URL))!;
+    expect(Object.keys(kit.stills)).toEqual(["portrait"]);
+    expect(kit).toMatchObject({ making: false, failed: null });
+    expect(kit.loop).toMatch(/^\/api\/face-kit\//);
+    // And a call doesn't take the old failure for a reason to draw anything.
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
+  });
+
+  it("draws the talking still (the mouth at rest, for Ditto) only while Ditto is set: with the kit, and alone for a kit drawn without it, on its next call", async () => {
     const id = await withPortrait();
     const { asked } = fakeReplicate();
     verdict("CLOTHED");
-    await makeFaceKit(t.db, id, BASE_URL);
-    const kit = (await faceKitOf(t.db, id, BASE_URL))!;
-    const talkAsk = asked.find((a) => /lips gently together and not smiling/.test(String(a.input.prompt)))!;
-    expect((talkAsk.input.image as string[])[0]).toBe(`${BASE_URL}${kit.stills.portrait}`);
-    expect(kit.stills.talk).toMatch(/^\/api\/face-kit\//);
-    // The page doesn't wait on it: complete without it is complete.
-    const { kitComplete } = await import("@/lib/face-kit-shared");
+    // Ditto isn't set: no talking still, and a call finds the kit complete without one.
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toEqual({ ok: true, made: 1, queued: true, failed: [] });
     await collectFaceKits(t.db);
-    const done = (await faceKitOf(t.db, id, BASE_URL))!;
-    expect(kitComplete({ ...done, stills: { ...done.stills, talk: undefined } })).toBe(true);
-    // A kit from before the talking still: the next call draws that one still and nothing else.
-    await t.db.query(`delete from face_kits where character_id = $1 and part = 'talk'`, [id]);
+    expect((await faceKitOf(t.db, id, BASE_URL))!.stills.talk).toBeUndefined();
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
+    // Ditto is set: the next call draws that one still and nothing else, from the kit's portrait.
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto:plan");
     asked.length = 0;
     expect(await ensureFaceKit(t.db, id, BASE_URL)).toEqual({ ok: true, made: 1, queued: false, failed: [] });
     expect(asked).toHaveLength(1);
     expect(String(asked[0].input.prompt)).toMatch(/lips gently together and not smiling/);
-    expect((await faceKitOf(t.db, id, BASE_URL))!.stills.talk).toBeTruthy();
+    const kit = (await faceKitOf(t.db, id, BASE_URL))!;
+    expect((asked[0].input.image as string[])[0]).toBe(`${BASE_URL}${kit.stills.portrait}`);
+    expect(kit.stills.talk).toMatch(/^\/api\/face-kit\//);
+    // The page doesn't wait on it: complete without it is complete.
+    const { kitComplete } = await import("@/lib/face-kit-shared");
+    expect(kitComplete({ ...kit, stills: { ...kit.stills, talk: undefined } })).toBe(true);
+    // A new kit drawn while Ditto is set has it from the start.
+    const other = await withPortrait("With Ditto");
+    asked.length = 0;
+    expect(await makeFaceKit(t.db, other, BASE_URL)).toEqual({ ok: true, made: 2, queued: true, failed: [] });
+    expect(asked).toHaveLength(3);
+    expect(Object.keys((await faceKitOf(t.db, other, BASE_URL))!.stills).sort()).toEqual(["portrait", TALK_STILL].sort());
   });
 
   it("draws a character made in anime in anime, never as a photograph, and replaces a kit drawn as a photograph before", async () => {
@@ -162,20 +191,20 @@ describe("a face kit", () => {
     const { asked } = fakeReplicate();
     verdict("CLOTHED");
     // A kit made while they were drawn as photographs (before their style was anime, or before this fix).
-    expect(await makeFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 8 });
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 1 });
     expect(asked.every((a) => /Photorealistic/.test(String(a.input.prompt)))).toBe(true);
     await t.db.query(`update characters set extras = jsonb_set(extras, '{looks}', '{"style":"anime"}'::jsonb) where id = $1`, [id]);
     // That kit isn't theirs any more: none is shown, and the next call draws one.
     expect(await faceKitOf(t.db, id, BASE_URL)).toBeNull();
     asked.length = 0;
-    expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 8, queued: true });
-    expect(asked).toHaveLength(9);
+    expect(await ensureFaceKit(t.db, id, BASE_URL)).toMatchObject({ ok: true, made: 1, queued: true });
+    expect(asked).toHaveLength(2);
     for (const a of asked) {
       expect(String(a.input.prompt)).not.toMatch(/photograph|Photorealistic/i);
       expect(String(a.input.prompt)).toMatch(/anime/);
       expect(String(a.input.prompt)).toMatch(/adult/);
     }
-    expect(Object.keys((await faceKitOf(t.db, id, BASE_URL))!.stills).sort()).toEqual([...FACE_STILLS, TALK_STILL].sort());
+    expect(Object.keys((await faceKitOf(t.db, id, BASE_URL))!.stills)).toEqual(["portrait"]);
     // The photograph kit is gone, not just hidden.
     const { rows } = await t.db.query<{ n: string }>(`select count(*) as n from face_kits where character_id = $1 and source_id not like '%#anime'`, [id]);
     expect(Number(rows[0].n)).toBe(0);
@@ -208,20 +237,24 @@ describe("a face kit", () => {
     expect(await ensureFaceKit(t.db, id, BASE_URL)).toBeNull();
     expect(asked).toHaveLength(1);
     verdict("CLOTHED");
-    expect(await makeFaceKit(t.db, id, BASE_URL)).toEqual({ ok: true, made: 8, queued: true, failed: [] });
+    expect(await makeFaceKit(t.db, id, BASE_URL)).toEqual({ ok: true, made: 1, queued: true, failed: [] });
   });
 
-  it("a still that comes out undressed fails on its own; the rest of the kit stands", async () => {
+  it("a talking still that comes out undressed fails on its own; the rest of the kit stands", async () => {
+    vi.stubEnv("LIVE_FACE_PROVIDER", "ditto");
     const id = await withPortrait();
     fakeReplicate();
     let n = 0;
-    setModerationFetchForTests(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ clothing: ++n === 3 ? "REVEALING" : "CLOTHED", age: "ADULTS" }) } }] }));
+    setModerationFetchForTests(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ clothing: ++n === 2 ? "REVEALING" : "CLOTHED", age: "ADULTS" }) } }] }));
     const made = await makeFaceKit(t.db, id, BASE_URL);
-    expect(made).toMatchObject({ ok: true, made: 7, queued: true });
+    expect(made).toMatchObject({ ok: true, made: 1, queued: true });
     expect((made as { failed: string[] }).failed).toEqual([expect.stringMatching(/it came out revealing/)]);
     const kit = await faceKitOf(t.db, id, BASE_URL);
-    expect(Object.keys(kit!.stills)).toHaveLength(7);
+    expect(Object.keys(kit!.stills)).toEqual(["portrait"]);
     expect(kit!.failed).toMatch(/still: it came out revealing/);
+    // With Ditto no longer set, nobody is waiting on that still: its failure isn't the kit's.
+    vi.stubEnv("LIVE_FACE_PROVIDER", "");
+    expect((await faceKitOf(t.db, id, BASE_URL))!.failed).toBeNull();
   });
 
   it("a loop left making and never collected expires after half an hour, so the next call draws it again", async () => {
@@ -251,12 +284,12 @@ describe("a face kit", () => {
     const b = await withPortrait("Second Face");
     const { asked } = fakeReplicate();
     verdict("CLOTHED");
-    expect(await ensureFaceKit(t.db, a, BASE_URL)).toMatchObject({ ok: true, made: 8 });
+    expect(await ensureFaceKit(t.db, a, BASE_URL)).toMatchObject({ ok: true, made: 1 });
     expect(await ensureFaceKit(t.db, b, BASE_URL)).toMatchObject({ ok: false, error: "capped" });
-    expect(asked).toHaveLength(9);
+    expect(asked).toHaveLength(2);
     // The loop's still on its way: a call with the first draws nothing more.
     expect(await ensureFaceKit(t.db, a, BASE_URL)).toBeNull();
-    expect(asked).toHaveLength(9);
+    expect(asked).toHaveLength(2);
   });
 
   it("is started by an admin alone; the kit itself is open to anyone", async () => {

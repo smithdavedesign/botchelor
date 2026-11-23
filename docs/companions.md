@@ -825,24 +825,26 @@ nothing new; live calls (P6, below) are the always-listening version.
 David, 2026-11-13, on a GPT proposal for live "digital humans" (the review and the plan: [PRDs/digital-human.md](PRDs/digital-human.md)):
 "yes I approve, I trust your judgment on payment gates". The first tier costs nothing a minute and is built:
 - **A face kit per character** (`lib/face-kit.ts`, table `face_kits`): from their approved safe portrait, the kit's
-  own portrait (collarbones up, mouth closed) and six stills edited from it (lips parted, mouth open, lips rounded,
-  eyes closed, a smile, a gasp) on Replicate's Qwen image edit with its safety checker on, each through the PG check
-  before it's kept; and a five-second loop of them still and natural (Wan 2.2 at 480p), kept once three of its frames
-  pass. Plus a talking still the page never shows (the portrait with the mouth at rest, lips together, not smiling):
-  what Ditto animates on calls, because from the smiling portrait it talks through a grin (2026-11-15). About 29¢ a
-  character, once.
-- **On the call** (`app/companion/[id]/LiveFace.tsx`): the loop plays while they listen; while they talk, the mouth
-  follows how loud their voice is right now, read off the same audio the call plays (`PcmPlayer.level()`; a
-  taking-turns call's voice file is routed through the same analyser; the device's own voice can't be measured, so
-  made-up syllables move the mouth); a blink every few seconds; a smile or a gasp for 1.8 s when the line has one. The
-  loop stays off with reduced motion. No kit yet: the round portrait as before.
+  own portrait (collarbones up, mouth closed) and a five-second loop of them still and natural (Wan 2.2 at 480p), kept
+  once three of its frames pass the PG check. About 5–8¢ a character, once. While Ditto is the renderer that's set, a
+  talking still too, which the page never shows (the portrait with the mouth at rest: what Ditto animates on calls,
+  because from the smiling portrait it talks through a grin; 2026-11-15).
+- **On the call** (`app/companion/[id]/LiveFace.tsx`): **the loop is the face** (2026-11-22). It plays the whole call,
+  listening, thinking and talking alike, and the ring around the face swells with their voice
+  (`app/stage/useVoiceRing.ts`; a slow pulse for the device's own voice, which can't be measured). No mouth is drawn
+  to the words. Until then the loop stopped while they talked and three still pictures of the mouth were swapped with
+  the voice's loudness, with a blink and a smile or a gasp on cue: whenever no lip-synced clip came (every call since
+  2026-11-21, when the GPU worker stopped being warmed by a look at the thread) that was the face, and David called
+  it: "back to looking very choppy … let's just have a loop of the character like a gif"
+  ([PRDs/digital-human.md](PRDs/digital-human.md), "The loop is the face"). Those six stills are no longer drawn or
+  shown. The loop stays off with reduced motion. No kit yet: their portrait as before.
 - **Who starts a kit:** an account with the plan, or an admin, starting a call (live or taking turns) with a character
   that has none, at most `FACE_KIT_PER_DAY` (12) a day across everyone; a failed kit waits a day. An admin draws or
   redraws one with `POST /api/admin/face-kit {character_id}`. Guests' calls draw nothing. The page polls
   `GET /api/face-kit?character=` every 15 s while a kit is on its way (that route collects the loop, so it carries
   ffmpeg: `next.config.ts`).
 - **Served** by `GET /api/face-kit/<id>`, cached for a year, with the AI-generated mark. Counted as `face_kit` in the log.
-- **Proven live 2026-11-13:** Juniper Vale's kit drawn on botchelor.com by the admin route in about three minutes (seven stills and the loop, all passed), and the call screen showed it on a desktop and a phone (`docs/screenshots/companion-living-face-ready-*.png`, `companion-face-kit-strip.png`).
+- **Proven live 2026-11-13:** Juniper Vale's kit drawn on botchelor.com by the admin route in about three minutes (the stills it then had and the loop, all passed), and the call screen showed it on a desktop and a phone (`docs/screenshots/companion-living-face-ready-*.png`, `companion-face-kit-strip.png`).
 - **Tier 1, a live face from Simli (built 2026-11-13, admins only until it's proved):** `lib/live-face/` (the registry
   and `simli.ts`, the only code that talks to Simli), table `live_faces`.
   - **On** with `LIVE_FACE_PROVIDER=simli` (everyone) or `simli:admins`, and `SIMLI_API_KEY` on the show app. Unset,

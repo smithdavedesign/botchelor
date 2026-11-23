@@ -126,7 +126,7 @@ describe("pictures in 2.5D", () => {
     expect(painted).not.toContain("Photorealistic");
     for (const p of [anime, painted]) expect(checkPgPictureText({ prompt: p }).ok).toBe(true);
 
-    const face = styledFace(FACE_PROMPTS.smile, "semi_real");
+    const face = styledFace(FACE_PROMPTS.talk, "semi_real");
     expect(face).toMatch(/^Make one 2\.5D illustration of the character in Picture 1/);
     expect(face).toContain(STYLE_WORDS.semi_real.editFinish!);
     expect(face).not.toContain("Photorealistic");

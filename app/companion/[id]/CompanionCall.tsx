@@ -5,6 +5,7 @@ import Link from "next/link";
 import Avatar, { sized } from "@/app/Avatar";
 import { characterPortrait } from "@/lib/portraits";
 import { useSpeech } from "@/app/stage/useSpeech";
+import { useVoiceRing } from "@/app/stage/useVoiceRing";
 import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
 import { heardSoFar, LIVE_CONNECT_MS, LIVE_START, liveStep, withoutStageDirections, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
 import { sseData } from "@/lib/sse";
@@ -1033,8 +1034,11 @@ export default function CompanionCall({
     pause(o.message);
   }
 
-  /** How loud their voice is right now, for the face; -1 when nothing of theirs is playing (the device's voice, say). */
+  /** How loud their voice is right now, for the ring around their face; -1 when nothing of theirs is playing (the device's voice, say). */
   const faceLevel = useCallback(() => player.current?.level() ?? -1, []);
+  // The face is a living loop, so no mouth says who's talking: the ring around it swells with their voice instead.
+  const faceTile = useRef<HTMLDivElement>(null);
+  useVoiceRing(faceTile, faceLevel, phase === "speaking");
 
   // Their kit, if it's still being drawn (a first call draws it): asked for every so often while the call is on.
   useEffect(() => {
@@ -1114,7 +1118,7 @@ export default function CompanionCall({
   // Once the call is on: before it, there's nothing said to show.
   const scriptOpen = showScript && phase !== "ready";
   // Once the call is on, their face grows from the small circle into a tile 80% of the screen wide (David 2026-11-14:
-  // "it's small on desktop"). The kit's stills are 512 px, so the face stays a square as tall as the tile and a blurred
+  // "it's small on desktop"). The kit's portrait is 512 px, so the face stays a square as tall as the tile and a blurred
   // copy of their portrait fills the sides, instead of stretching it to the full width (blurry, with the head cut off).
   const big = phase !== "ready";
   const portrait = characterPortrait(character.id) ?? sized(character.portrait, BIG_FACE);
@@ -1149,7 +1153,7 @@ export default function CompanionCall({
           {phase !== "ready" && modeNow.current === "live" && <span className="chip companion-call-live">Live</span>}
           {phase !== "ready" && <span className="companion-call-clock">{clock(seconds)}</span>}
         </p>
-        <div className="companion-call-face">
+        <div className="companion-call-face" ref={faceTile}>
           {big && backdrop && (
             // eslint-disable-next-line @next/next/no-img-element -- the face's own portrait, blurred behind it
             <img src={backdrop} alt="" className="companion-call-backdrop" aria-hidden="true" draggable={false} />
@@ -1158,8 +1162,6 @@ export default function CompanionCall({
             ref={face}
             kit={faceKit}
             phase={phase}
-            level={faceLevel}
-            said={them}
             name={first}
             // On the call the tile is a size container (companion.css): a square as tall as the tile.
             size={big ? "100cqh" : 136}

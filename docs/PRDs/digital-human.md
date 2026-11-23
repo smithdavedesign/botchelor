@@ -59,7 +59,7 @@ transparency plan is a fantasy for every candidate, and the estimate is about th
 | Layer | $/min | Note |
 |---|---|---|
 | Deepgram Nova-3 + Aura-2 (today) | ~0.02 | measured, docs/companions.md |
-| **Tier 0 living face (ours)** | **0.00** | about 29¢ once per character: eight Qwen edits (~3¢; the eighth is Ditto's talking still) and one Wan 2.2 clip at 480p (~5¢) |
+| **Tier 0 living face (ours)** | **0.00** | about 5–8¢ once per character: one Wan 2.2 clip at 480p (~5¢) and, at most, one Qwen edit (~3¢) for the portrait (it was ~29¢ with the six mouth and look stills, retired 2026-11-22: see "The loop is the face") |
 | Simli | ~0.01 | 50 free min/month; plans about $10–49/month |
 | Anam | 0.11–0.16 | free 30 min; $12/month for 50 |
 | HeyGen LiveAvatar (avatar only) | ~0.09 | chroma-key only |
@@ -90,31 +90,57 @@ Kindroid's and Character.AI's sense of presence comes from layering, not from on
 
 `lib/face-kit.ts`, `lib/face-kit-shared.ts`, `app/companion/[id]/LiveFace.tsx`, table `face_kits`.
 
+### The loop is the face (2026-11-22)
+
+David, 2026-11-22: "the live chat mouth is back to looking very choppy … if we can't get this cleaner and keep the
+costs down let's just have a loop of the character like a gif."
+
+- **What he was seeing.** Not the lip-sync renderer: the kit's own mouth. Tier 0 used to stop the loop while they
+  talked and swap three still pictures of the mouth (parted, open, rounded) with the voice's loudness. That was built
+  as the stand-in for whenever a lip-synced clip didn't come, and since 2026-11-21 it was what every call showed:
+  the GPU worker used to be warmed when someone opened a companion's page, and that was moved to the call sheet
+  (a look at a thread shouldn't rent a GPU). A cold worker takes 22–32 s to boot, the browser gives a first clip 4 s,
+  and calls here run 20–60 s, so no reply ever got its clip. `companion_live_calls` shows it: every call from
+  11-21 on has no `face_provider` and 0 `face_seconds`; the calls of 11-14 to 11-16 had Ditto.
+- **Why not fix the lip-sync instead.** It only looks right with a worker already hot at the first word. That means
+  warming on every page view again (a boot plus the idle timeout, about 4¢ a look, for calls that mostly don't
+  happen) or keeping one worker on (about $540 a month on a 24 GB card). Neither is "costs down" before calls earn
+  anything. The endpoints themselves are healthy (3 workers ready, 239 jobs done on Ditto's).
+- **So the loop is the face.** The kit's living loop (five seconds of them breathing, blinking, glancing at the
+  camera, starting and ending at the portrait) plays the whole call: listening, thinking and talking. No picture is
+  swapped for a mouth, ever. That they're talking is shown by the ring around the face, which swells with how loud
+  their voice is right now (`app/stage/useVoiceRing.ts`, `voiceRing` in `lib/face-kit-shared.ts`; the slow pulse
+  stays for a voice that can't be measured, the device's own). Costs nothing a minute, looks the same on the first
+  reply as the tenth, and has no provider's terms in it, so After Dark's calls can use the same face.
+- **A kit is two parts now:** the portrait and the loop, about 5–8¢ (was ~29¢ with the six mouth and look stills).
+  Kits drawn before keep those rows (`RETIRED_STILLS`); nothing shows or redraws them.
+- **Lip-sync is switched off, not removed.** `LIVE_FACE_PROVIDER` unset (or `off`) is this. Setting it back
+  (`ditto:plan`, `ditto:admins`, `musetalk`…) brings the clips back exactly as before, over the same loop; while
+  Ditto is set a kit also draws Ditto's talking still (`kitParts`). Worth turning on again when calls are frequent
+  enough that a worker stays warm on its own, or on our own hardware ("With our own hardware", below).
+
+### How a kit is made and shown
+
 - **Made once per approved safe portrait** (the newest `character_assets` portrait rated pg, or a house character's
-  reviewed file): the kit's own portrait (collarbones up, mouth closed) edited from it with Replicate's Qwen image
-  edit (the After Dark settings' `replicate_keyframe_model`, its safety checker on), then six stills edited from
-  that portrait: lips parted, mouth open, lips rounded, eyes closed, a smile, a gasp. Each still passes the PG check
-  (`checkRating`: plainly clothed, adults) before it's kept, at 512 px as WebP. The loop is Wan 2.2 image-to-video
-  at 480p from the portrait (`replicate_video_model`), queued, and kept once three of its frames pass the same check
+  reviewed file): the kit's own portrait (collarbones up, mouth closed: their approved portrait as it is when it
+  passes the PG check by itself, else edited from it with Replicate's Qwen image edit, the After Dark settings'
+  `replicate_keyframe_model`, its safety checker on), kept at 512 px as WebP. The loop is Wan 2.2 image-to-video at
+  480p from the portrait (`replicate_video_model`), queued, and kept once three of its frames pass the same check
   (`/api/face-kit` carries ffmpeg for that, next.config.ts).
 - **Who starts it, who pays:** nobody per use. A kit is drawn when an account with the plan (or an admin) starts a
   call, live or taking turns, with a character that has none (`ensureFaceKit`): at most `FACE_KIT_PER_DAY` (12) across
   everyone, four an hour, and a failed kit isn't retried on a call for a day. An admin draws or redraws one any time
   with `POST /api/admin/face-kit {character_id}`. A guest's call draws nothing. A new approved portrait means a new
   kit; the old one shows until the new is ready. (David, 2026-11-13: payment gates are my call.)
-- **On the call:** `LiveFace` stacks the stills and fades between them. While they talk, the mouth follows the
-  player's `level()` (the RMS of what's playing through one analyser: the live PCM, or the file a taking-turns call
-  plays); when the device's own speech synthesis talks there's nothing to measure, so made-up syllables move the
-  mouth. The loop plays while they listen or the call is paused, and fades back into the portrait before it restarts
-  so the seam never shows; it stays off with reduced motion. A blink lands every 2.5–6 s while the loop isn't doing
-  the blinking. A line that laughs or gasps shows that look for 1.8 s. No kit, or one that can't talk yet: the round
-  Avatar as before. A kit being drawn arrives part by part: the page polls `GET /api/face-kit?character=` every 15 s
-  while the call is on.
+- **On the call:** `LiveFace` shows the portrait with the loop over it. The loop fades back into the portrait before
+  it restarts so the seam never shows; it stays off with reduced motion (then the portrait, and a still ring). No
+  kit: their portrait as it is. A kit being drawn arrives part by part: the page polls
+  `GET /api/face-kit?character=` every 15 s while the call is on.
 - **Served** by `GET /api/face-kit/<id>`: a part never changes once ready, so it's cached for a year, and goes out
   with the AI-generated mark like every drawn picture.
 - **Counted:** `face_kit` in the log (stills made, loop queued, failures, the cost estimate, time); never a picture.
 - **Tests:** `tests/face-kit.test.ts` (Replicate and the PG check faked; a real clip for the frames),
-  `tests/face-kit-shared.test.ts` (the mouth, the looks, the synthetic syllables).
+  `tests/face-kit-shared.test.ts` (what a kit can do, the ring).
 
 ## Tier 1: a real-time renderer (next)
 
