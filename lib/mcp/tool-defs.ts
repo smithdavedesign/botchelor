@@ -35,6 +35,7 @@ import { withArgDocs } from "./arg-docs";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
 import { OC_NAME_KINDS, OC_NAME_STYLES, OC_NAMES_MAX_BATCH } from "../oc-names";
+import { PLACE_KINDS, PLACE_NAMES_MAX_BATCH, PLACE_STYLES } from "../place-names";
 import { RANDOM_OC_GENRES, RANDOM_OC_MAX_BATCH } from "../random-oc";
 import { OC_QUESTION_THEMES } from "../oc-questions";
 import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
@@ -1534,6 +1535,23 @@ const RAW_TOOL_DEFS = [
         style: { type: "string", enum: [...OC_NAME_STYLES], description: "The style. Left out: a mix of all five." },
         kind: { type: "string", enum: [...OC_NAME_KINDS], default: "any", description: "Feminine, masculine or neutral names, or any." },
         batch: { type: "integer", minimum: 1, maximum: OC_NAMES_MAX_BATCH, default: 1, description: "Which page of names." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "place_names",
+    title: "Place name generator",
+    description:
+      "Twelve place names in a style (fantasy, modern, scifi, gothic, cozy; left out: a mix) and kind: towns, wilds, realms or venues (inns, cafés, cantinas). Each says what it is; towns and realms come with create_character's extras.hometown ready. " +
+      "Same style, kind and batch, same twelve.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        style: { type: "string", enum: [...PLACE_STYLES], description: "The style. Left out: a mix of all five." },
+        kind: { type: "string", enum: [...PLACE_KINDS], default: "any", description: "town, wild, realm or venue; any turns through all four." },
+        batch: { type: "integer", minimum: 1, maximum: PLACE_NAMES_MAX_BATCH, default: 1, description: "Which page of places." },
         agent_id: AGENT_ID,
       },
     },

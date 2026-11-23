@@ -7,7 +7,7 @@ import Icon from "@/app/Icon";
 import { isAdmin } from "@/lib/admins";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
-import { drawnSets, listStepInScenes, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, type StepInSceneRef } from "@/lib/adult/step-in";
+import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, type StepInSceneRef } from "@/lib/adult/step-in";
 import { notesWaiting, type NoteWaiting } from "@/lib/adult/step-in-notes";
 import { getDb } from "@/lib/db";
 import { showHome } from "@/lib/site";
@@ -34,7 +34,17 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const db = await getDb();
   const viewer = await stepInViewerFromCookies(db, await cookies());
   if (!viewer) notFound();
-  const [cast, drawn, who, scenes, admin, settings, sp] = await Promise.all([stepInCast(db, viewer), drawnSets(db), stepInPersona(db, viewer), listStepInScenes(db, viewer), isAdmin(db, viewer), getAdultSettings(db), searchParams]);
+  const [cast, drawn, who, scenes, admin, settings, sp, played] = await Promise.all([
+    stepInCast(db, viewer),
+    drawnSets(db),
+    stepInPersona(db, viewer),
+    listStepInScenes(db, viewer),
+    isAdmin(db, viewer),
+    getAdultSettings(db),
+    searchParams,
+    // Which roleplays they've played to the end (lib/adult/step-in-story.ts): said on the shelf's cards.
+    playedRoleplays(db, viewer).catch(() => ({}) as Record<string, number>),
+  ]);
   // Who wrote to them first while they were away (lib/adult/step-in-notes.ts): those scenes come first, and say so.
   const waiting = new Map((await notesWaiting(db, viewer).catch(() => [] as NoteWaiting[])).map((n) => [n.scene, n]));
   const running = [...scenes.running.filter((s) => waiting.has(s.id)), ...scenes.running.filter((s) => !waiting.has(s.id))];
@@ -71,7 +81,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
           </section>
         )}
         {/* The roleplays, each cast and ready (UTC's day, so this page and the browser agree on who's on each card). */}
-        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} />}
+        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} played={played} />}
         <h2 id="ad-si-set">{cast.length ? "Or set the scene yourself" : "Set the scene"}</h2>
         {cast.length ? (
           // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.

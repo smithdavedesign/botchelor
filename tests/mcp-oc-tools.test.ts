@@ -9,6 +9,7 @@ import { CORE_TOOL_ORDER, handleMcpMessage, MCP_TOOLS, PUBLIC_MCP_TOOLS } from "
 import { OC_TOOL_NAMES } from "@/lib/mcp/oc-tools";
 import { TOOL_IDENTITY } from "@/lib/mcp/reference";
 import { ocNames } from "@/lib/oc-names";
+import { isHometown, placeNames } from "@/lib/place-names";
 import { OC_QUESTIONS } from "@/lib/oc-questions";
 import { ocSentence, randomOcs } from "@/lib/random-oc";
 import { shipNames } from "@/lib/ship-names";
@@ -126,6 +127,42 @@ describe("oc_names", () => {
     expect(new Set(d.names.map((n: Any) => n.style)).size).toBe(5);
     // The server's rule for a value outside an enum: the default, with a warning saying so.
     const odd = await data("oc_names", { style: "steampunk", kind: "other" });
+    expect(odd.style).toBe("mixed");
+    expect(odd.kind).toBe("any");
+    expect(odd.warning).toContain("fantasy");
+  });
+});
+
+describe("place_names (2.50.0)", () => {
+  it("gives the page's twelve places for a style, kind and batch, with what each is and the next batch", async () => {
+    const d = await data("place_names", { style: "gothic", kind: "venue", batch: 3 });
+    expect(d.places.map((p: Any) => p.name)).toEqual(placeNames({ style: "gothic", kind: "venue", batch: 3 }).map((p) => p.name));
+    expect(d.places).toHaveLength(12);
+    for (const p of d.places) {
+      expect(p.kind).toBe("venue");
+      expect(p.what.length).toBeGreaterThan(2);
+      // A tavern is nobody's hometown.
+      expect(p.extras).toBeUndefined();
+      expect(p.create_url).toBeUndefined();
+    }
+    expect(d.url).toMatch(/\/tools\/place-name-generator\/gothic\?kind=venue&batch=3$/);
+    expect(d.more.batch).toBe(4);
+  });
+  it("gives towns and realms create_character's hometown ready, and mixes styles and kinds when none is given", async () => {
+    const d = await data("place_names");
+    expect(d.style).toBe("mixed");
+    expect(d.kind).toBe("any");
+    expect(new Set(d.places.map((p: Any) => p.style)).size).toBe(5);
+    const expected = placeNames({});
+    expect(d.places.map((p: Any) => p.name)).toEqual(expected.map((p) => p.name));
+    for (const [i, p] of d.places.entries()) {
+      if (isHometown(expected[i])) {
+        expect(p.extras).toEqual({ hometown: p.name });
+        expect(p.create_url).toContain(`/create?hometown=${encodeURIComponent(p.name)}`);
+      } else expect(p.extras).toBeUndefined();
+    }
+    // The server's rule for a value outside an enum: the default, with a warning saying so.
+    const odd = await data("place_names", { style: "steampunk", kind: "castle" });
     expect(odd.style).toBe("mixed");
     expect(odd.kind).toBe("any");
     expect(odd.warning).toContain("fantasy");

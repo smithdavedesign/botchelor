@@ -3,6 +3,7 @@ import { HARD_NO_IDS, INTENSITIES, OWN_LEN, OWN_MAX } from "@/lib/adult/limits";
 import { mediaRefusal } from "@/lib/adult/place";
 import {
   carryOnStepIn,
+  closeStepIn,
   continueStepIn,
   deleteStepIn,
   endStepIn,
@@ -19,6 +20,7 @@ import {
   takeBackStepIn,
   type StepInSend,
 } from "@/lib/adult/step-in";
+import { REDRAW_PRESET_IDS, REDRAW_TEXT_MAX } from "@/lib/adult/step-in-shared";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { inBackground } from "@/lib/sets";
@@ -35,8 +37,13 @@ const Action = z.discriminatedUnion("action", [
   // What the viewer said out loud on a call (the words the browser heard): the same checks, and the character answers
   // out loud (a few spoken sentences; its voice is the voice route's).
   z.object({ action: z.literal("say"), text: z.string().max(STEP_IN_LINE_MAX * 2) }),
-  // The newest reply drawn again (the earlier draws kept), and flipping through the draws kept (free).
-  z.object({ action: z.literal("regenerate") }),
+  // The newest reply drawn again (the earlier draws kept), and flipping through the draws kept (free). `direction`: the
+  // one change asked of it ("↻ Again…"), a preset of ours and/or a few words of the viewer's own, which are checked as a
+  // line of theirs is before anything is drawn and never kept (lib/adult/step-in.ts regenerateStepIn).
+  z.object({
+    action: z.literal("regenerate"),
+    direction: z.object({ preset: z.enum(REDRAW_PRESET_IDS).optional(), text: z.string().max(REDRAW_TEXT_MAX).optional() }).strict().optional(),
+  }),
   z.object({ action: z.literal("swipe"), to: z.enum(["prev", "next"]) }),
   // The character carries on without the viewer writing anything.
   z.object({ action: z.literal("continue") }),
@@ -55,6 +62,8 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("move"), place: z.string().min(1).max(120) }),
   // Ended and filed: kept, readable, with its recap.
   z.object({ action: z.literal("end") }),
+  // Brought to a close: one last reply from the character that lands the scene, then ended and filed (one reply).
+  z.object({ action: z.literal("close") }),
   // Carry on after the crisis resources.
   z.object({ action: z.literal("carry_on") }),
 ]);
@@ -101,7 +110,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
     }
     case "regenerate":
-      r = await regenerateStepIn(db, viewer, id);
+      r = await regenerateStepIn(db, viewer, id, new Date(), { direction: input.direction });
       break;
     case "swipe":
       r = await swipeStepIn(db, viewer, id, input.to);
@@ -121,6 +130,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
     case "end":
       r = await endStepIn(db, viewer, id);
       break;
+    case "close":
+      r = await closeStepIn(db, viewer, id);
+      break;
     case "carry_on":
       r = await carryOnStepIn(db, viewer, id);
       break;
@@ -128,7 +140,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   // The rolling recap, past the response, once the scene is long (never in the way of a reply).
   if (r.ok && (input.action === "send" || input.action === "say" || input.action === "continue" || input.action === "regenerate")) inBackground(() => stepInFollowUp(db, id));
   // A scene that ends is read once more for what its character should remember (only for a viewer with memory on).
-  if (r.ok && input.action === "end") inBackground(() => stepInRemember(db, id, { atEnd: true }));
+  if (r.ok && (input.action === "end" || input.action === "close")) inBackground(() => stepInRemember(db, id, { atEnd: true }));
   return answer(db, viewer, id, r);
 });
 

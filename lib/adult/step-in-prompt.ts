@@ -217,16 +217,24 @@ export type StepInPrompt = {
   /** How the scene opens: passed for the first reply only. Ours has {a} and {b}; the viewer's own sentence has none. */
   opening?: string | null;
   /**
-   * What the reply answers when the viewer hasn't just written: the scene's opening, or carrying on. "note": the
-   * character writes first while they're away (lib/adult/step-in-notes.ts), with `away` saying how long it's been.
+   * What the reply answers when the viewer hasn't just written: the scene's opening, or carrying on. "close": the
+   * scene's last reply, asked for by the viewer (lib/adult/step-in-story.ts): it lands the story and nothing follows it.
+   * "note": the character writes first while they're away (lib/adult/step-in-notes.ts), with `away` saying how long
+   * it's been.
    */
-  cue?: "open" | "continue" | "note" | null;
+  cue?: "open" | "continue" | "close" | "note" | null;
   /** How long they've been away, in words ("a few hours", "since yesterday", "a few days"): for a note's cue only. */
   away?: string | null;
   /** A reply drawn again because the viewer asked: what it said (it passed every check), so this one is different. */
   insteadOf?: string | null;
   /** Why the last draft couldn't be used, in a few words and never the draft itself: this one avoids it. */
   avoid?: string | null;
+  /**
+   * The one change the viewer asked for when they asked for this reply again (lib/adult/step-in-shared.ts
+   * REDRAW_PRESETS, and their own few words, already through every check a line of theirs gets): said once, after the
+   * cue (redrawCue). Only on the draw they asked it of.
+   */
+  direction?: string | null;
   /**
    * "call": the reply is said out loud (stepInCallCraft), in answer to a line the viewer spoke. "talk": the same short
    * spoken reply to a line they wrote (stepInTalkCraft). Left out: prose.
@@ -243,9 +251,24 @@ export function openCue(place: string, roleplayTitle: string | null, opening: st
     : `(The two of you have just got to ${place}.${OPENS(opening)} Open the scene: what you do and say as it begins, playing off the place. Don't ask more than one question.)`;
 }
 
+/**
+ * The user turn that says how the viewer asked for a reply again ("↻ Again…": lib/adult/step-in-shared.ts
+ * REDRAW_PRESETS). A change to how the reply is told, never leave to go further: it says so, since the rules it mustn't
+ * outrank are a long way up the prompt by now.
+ */
+export const redrawCue = (direction: string): string =>
+  `(They asked you to write that reply again with one change: ${direction}. Write it that way. Everything above still holds: their limits and how far they have taken things, the pace, and never writing what they do, say, think or feel.)`;
+
 /** The user turn that has the character carry on without the viewer writing anything. */
 export const CONTINUE_CUE =
   "(They're letting you carry on. Move the story on yourself: something happens, or you do the next thing. Don't repeat what you just said or did, don't ask what they want to do, and stay within how far they have taken things.)";
+
+/**
+ * The user turn that has the character close the scene (lib/adult/step-in.ts closeStepIn): its last reply. Asked for by
+ * the viewer, never decided by the writer; the scene ends and is filed straight after it.
+ */
+export const CLOSE_CUE =
+  "(They've asked you to bring the scene to a close. Write its last moment: what you do and say as it ends, and where it leaves the two of you. Land what the scene has been about. Don't start anything new, don't ask them a question, and stay within how far they have taken things.)";
 
 /**
  * What a note must never do (lib/adult/step-in-notes.ts: the guard on the finished note is NOTE_PRESSURE, the same list
@@ -364,9 +387,11 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
       ? openCue(place.label, args.roleplay?.rp.title ?? null, args.opening ? promptOpening(args.opening, viewerIs, c.name) : null)
       : args.cue === "continue"
         ? CONTINUE_CUE
-        : args.cue === "note"
-          ? noteCue(args.away || "a while", Boolean(args.roleplay))
-          : null;
+        : args.cue === "close"
+          ? CLOSE_CUE
+          : args.cue === "note"
+            ? noteCue(args.away || "a while", Boolean(args.roleplay))
+            : null;
   // The model answers a user turn: the opening, a carry-on, or a scene whose last word was the character's gets one
   // (after the scene has just moved, it goes on the end of that turn).
   const say = (text: string) => {
@@ -378,6 +403,7 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   else if (messages[messages.length - 1].role !== "user") say("(They're waiting for your reply.)");
   if (call) say(CALL_CUE);
   else if (talk) say(TALK_CUE);
+  if (args.direction) say(redrawCue(args.direction));
   if (args.avoid) say(`(Your last draft couldn't be used: ${args.avoid}. Write this reply again without that.)`);
   return messages;
 }

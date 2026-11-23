@@ -5,6 +5,7 @@
 import { echoOf } from "../companion-live-shared";
 import { storySpeech } from "../story-reply";
 import type { PairLimits } from "./limits";
+import type { StepInStory } from "./step-in-story";
 
 /** The viewer's line, at most this long (the PG companion's message is the same). */
 export const STEP_IN_LINE_MAX = 1000;
@@ -38,6 +39,62 @@ export type StepInIdea = { tone: IdeaTone; text: string };
 export const STEPS_LOW = 25;
 export const stepsLeftLine = (left: number | null): string | null =>
   left === null || left > STEPS_LOW ? null : left === 1 ? "1 reply left this month" : `${left} replies left this month`;
+
+/**
+ * A direction on a redraw ("↻ Again…" under the newest reply; David, 2026-11-23: '"Another reply, but slower / more
+ * teasing": a direction on a redraw', after Kindroid's "Suggest" and SpicyChat's /cmd). The newest reply is drawn again
+ * with one change asked for: one of these, the viewer's own few words, or both.
+ *
+ * A preset's `label` is what its chip says; `ask` is what the writer is told, and `spoken` what it's told when the
+ * reply being drawn again is a spoken one (a call's, or Talk's: a sentence or three, no narration to trim). Each is
+ * written to change how the reply is told, never how far it goes: "bolder" takes the lead inside how far the viewer has
+ * already taken things, and none of them names an act. The viewer's own words go through every check a line of theirs
+ * does before anything is drawn (lib/adult/step-in.ts regenerateStepIn), and are never kept.
+ */
+export const REDRAW_PRESETS = [
+  {
+    id: "slower",
+    label: "Slower",
+    ask: "slower: stay in this moment and let it breathe, with less happening and what does happen told more closely",
+    spoken: "slower: unhurried, staying with this moment and moving nothing on",
+  },
+  {
+    id: "teasing",
+    label: "More teasing",
+    ask: "more teasing: playful and light, a little wicked, holding something back and enjoying making them wait",
+    spoken: "more teasing: playful and light, a little wicked, holding something back and enjoying making them wait",
+  },
+  {
+    id: "bolder",
+    label: "Bolder",
+    ask: "bolder: you take the lead and make the next move yourself, inside how far they have already taken things",
+    spoken: "bolder: you take the lead and say what you want next, inside how far they have already taken things",
+  },
+  {
+    id: "softer",
+    label: "Softer",
+    ask: "softer: warmer and more tender, gentle and careful with them",
+    spoken: "softer: warmer and more tender, gentle and careful with them",
+  },
+  {
+    id: "shorter",
+    label: "Shorter",
+    ask: "shorter: about half the length, one or two short paragraphs, only what matters",
+    spoken: "shorter: one short sentence",
+  },
+  {
+    id: "talk",
+    label: "More talk",
+    ask: "more talk: most of it said out loud in your own voice, with only a line or two of narration around it",
+    spoken: "a little more said: two or three sentences in your own voice",
+  },
+] as const;
+export type RedrawPresetId = (typeof REDRAW_PRESETS)[number]["id"];
+export const REDRAW_PRESET_IDS = REDRAW_PRESETS.map((p) => p.id) as [RedrawPresetId, ...RedrawPresetId[]];
+/** The viewer's own words for a redraw, at most this long: a direction, not a line of the scene. */
+export const REDRAW_TEXT_MAX = 120;
+/** What a redraw is asked to change: a preset, the viewer's own few words, or both. */
+export type RedrawDirection = { preset?: RedrawPresetId; text?: string };
 
 /** A piece of speech a voice says in one go: about a sentence or two, so the first words are heard soon. */
 export const VOICE_PIECE_MAX = 220;
@@ -177,6 +234,8 @@ export type StepInSceneView = {
    * not to, whether a note is waiting that they haven't seen, and whether they may try one now (an admin, to see it work).
    */
   notes: { on: boolean; scene_off: boolean; waiting: boolean; try_now: boolean };
+  /** The roleplay's story (lib/adult/step-in-story.ts): its goal, how far it has got, whether an ending is offered. Null without one. */
+  story: StepInStory | null;
   started_at: string;
 };
 
