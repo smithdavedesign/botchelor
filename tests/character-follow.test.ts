@@ -310,7 +310,7 @@ describe("a follower hears when a date airs", () => {
 
     const d1 = await airedDate(creator, character.id, "friends", [false, false]);
     for (const fan of ["fan-cast", "fan-theirs", "fan-both"]) {
-      expect(await inbox(fan), fan).toEqual([{ kind: "couple_date", title: `${couple} went on a date`, body: "It ended: Just friends.", link: `/episodes/${d1.id}`, read: false }]);
+      expect(await inbox(fan), fan).toEqual([{ kind: "couple_date", title: `${couple} went on a date`, body: "How it ended: just friends.", link: `/episodes/${d1.id}`, read: false }]);
     }
     // A second date agreed: the step up, once, not "another date" as well.
     await airedDate(creator, character.id, "second_date", [true, true]);

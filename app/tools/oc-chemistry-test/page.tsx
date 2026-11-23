@@ -50,9 +50,9 @@ export default function ChemistryTestPage() {
         <h2>How the test reads them</h2>
         <ul className="chem-how-list">
           <li>
-            <strong>A dealbreaker the other one is ends it.</strong> If one character&apos;s dealbreaker names one of the
-            other&apos;s traits (&ldquo;brash people&rdquo; and &ldquo;brash&rdquo;), it&apos;s a disaster, whatever else
-            they share.
+            <strong>Being the other one&apos;s dealbreaker ends it.</strong> If one character&apos;s dealbreaker names
+            one of the other&apos;s traits (&ldquo;brash people&rdquo; and &ldquo;brash&rdquo;), it&apos;s a disaster,
+            whatever else they share.
           </li>
           <li>
             <strong>A want the other one meets.</strong> What one wants, turning up in the other&apos;s traits or want,

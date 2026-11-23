@@ -83,15 +83,16 @@ export async function getCharacterRatings(
   return { counts, mine, is_owner: owner?.rows[0]?.is_owner ?? false };
 }
 
-export type TopRated = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; origin: Origin; count: number };
+export type TopRated = { id: string; name: string; house: boolean; hue: number | null; portrait: string | null; origin: Origin; pronouns: string | null; count: number };
 
 /**
  * The top-rated characters in a category, for the cast leaderboard. Ties break by name. `within`: only the ratings given
- * in that window (a season's awards, lib/reunion.ts); without it, all time.
+ * in that window (a season's awards, lib/reunion.ts); without it, all time. With their pronouns, for an award that says
+ * "called him the most likable" (lib/reunion.ts).
  */
 export async function topRatedCharacters(db: Db, category: RatingCategory, limit = 5, within?: { start: Date; end: Date }): Promise<TopRated[]> {
   const { rows } = await db.query<TopRated>(
-    `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, ${originSql("c")} as origin, count(*)::int as count
+    `select c.id, c.name, c.is_house as house, c.avatar_hue as hue, ${portraitPathSql("c")} as portrait, ${originSql("c")} as origin, c.pronouns, count(*)::int as count
        from character_ratings r
        join characters c on c.id = r.character_id
       where r.category = $1 and ${listedCharacterSql("c")}

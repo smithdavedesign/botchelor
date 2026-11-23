@@ -56,7 +56,7 @@ describe("following a couple", () => {
     const inbox = await listNotifications(t.db, fan);
     expect(inbox[0].kind).toBe("stage_up"); // a move up reaches followers too
     await date(creator, character.id, "friends", [true, false]);
-    expect((await listNotifications(t.db, fan))[0]).toMatchObject({ kind: "couple_date", body: "It ended: Just friends." });
+    expect((await listNotifications(t.db, fan))[0]).toMatchObject({ kind: "couple_date", body: "How it ended: just friends." });
 
     await unfollowCouple(t.db, fan, character.id, HOUSE_PARTNER_ID);
     expect((await followState(t.db, fan, character.id, HOUSE_PARTNER_ID)).following).toBe(false);
