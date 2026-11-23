@@ -34,6 +34,7 @@ export default function StepInSetup({
   personaLeftOut = false,
   personaHref,
   preselect,
+  preselectRoleplay,
 }: {
   cast: StepInCharacter[];
   /** Who they've had scenes with, the latest first (shown first). */
@@ -47,12 +48,14 @@ export default function StepInSetup({
   personaHref: string;
   /** A character to start on (?with=<id>). */
   preselect?: string | null;
+  /** A roleplay to start on (?roleplay=<id>: "Set it up" on one of the shelf's cards). */
+  preselectRoleplay?: string | null;
 }) {
   const router = useRouter();
   const [who, setWho] = useState<string | null>(cast.some((c) => c.id === preselect) ? preselect! : null);
   const [query, setQuery] = useState("");
   const [placeId, setPlaceId] = useState(places.find((p) => p.id === "venue:home")?.id ?? places[0]?.id ?? "");
-  const [roleplayId, setRoleplayId] = useState("");
+  const [roleplayId, setRoleplayId] = useState(ROLEPLAYS.some((r) => r.id === preselectRoleplay) ? preselectRoleplay! : "");
   const [you, setYou] = useState<0 | 1>(0);
   const [opening, setOpening] = useState<Opening>("surprise");
   const [written, setWritten] = useState("");

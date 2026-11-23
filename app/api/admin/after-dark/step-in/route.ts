@@ -18,8 +18,15 @@ const Start = z.object({
   opening: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal("surprise"), z.object({ written: z.string().max(CARD_OPENING_MAX * 4) })]).optional(),
 });
 
-/** One click (lib/adult/step-in.ts quickStepIn): only who. Their running scene with that character, or a new one at the character's place. */
-const Quick = z.object({ character_id: z.string().min(1).max(64), quick: z.literal(true) });
+/**
+ * One click (lib/adult/step-in.ts quickStepIn): only who, and their running scene with that character or a new one at
+ * the character's place. With a roleplay (a card on the front page's shelf): who and which story, always a new scene.
+ */
+const Quick = z.object({
+  character_id: z.string().min(1).max(64),
+  quick: z.literal(true),
+  roleplay: z.object({ id: z.enum(ROLEPLAY_IDS), you: z.union([z.literal(0), z.literal(1)]).optional() }).optional(),
+});
 
 /** Not found for anyone Step in isn't open to (lib/adult/step-in.ts stepInViewer), exactly like After Dark's other closed pieces. */
 const hidden = () => json({ error: "not_found" }, 404);
@@ -39,7 +46,8 @@ export const GET = handle(async (req: Request) => {
  * resources and starts nothing.
  *
  * With `quick: true` and only who (quickStepIn): the scene they have running with that character (`resumed`), or a new
- * one made without its opening, so the answer is immediate; the scene's page has the character open it.
+ * one made without its opening, so the answer is immediate; the scene's page has the character open it. With a
+ * `roleplay` too (a card on the front page's shelf), a new scene in that roleplay, made the same way.
  */
 export const POST = handle(async (req: Request) => {
   const db = await getDb();
@@ -48,7 +56,7 @@ export const POST = handle(async (req: Request) => {
   const body = await readJson(req);
   if (body && typeof body === "object" && (body as { quick?: unknown }).quick === true) {
     const quick = parseBody(Quick, body, "invalid_request");
-    const q = await quickStepIn(db, viewer, quick.character_id);
+    const q = await quickStepIn(db, viewer, quick.character_id, new Date(), { roleplay: quick.roleplay });
     if (!q.ok) {
       const { ok: _ok, status, ...rest } = q;
       return json(rest, status);

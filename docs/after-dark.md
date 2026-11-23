@@ -3601,6 +3601,28 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
 - **Roleplay is one step away, not gone:** "Roleplay or place" under each card's button, "set the scene first" on a
   character's page and "🎭 A roleplay or a new scene with {name}" in a scene's ⋯ menu all open the set-up page with them
   picked (`/after-dark/step-in?with=<id>`), and a running scene can still move somewhere else.
+- **The roleplays as cards** (2026-11-23; David: "Chub.ai does a good job setting up dedicated scenes, might be worth
+  exploring having dedicated after dark characters for a scene?"). The answer from the field
+  ([audits/2026-11-23-scenes-and-side-pictures.md](audits/2026-11-23-scenes-and-side-pictures.md)): what trends on
+  Chub is a reusable character with several ways in, not a character made for one scene, and Character.AI's Scenes
+  let any character play a scene written once. After Dark had the scenes already (45 roleplays, each with a story
+  card and three openings) behind a dropdown in step 3 of the set-up. So no character is made for a scene: Step in's
+  front page (`/after-dark/step-in`) now opens on **Step into a roleplay** (`app/after-dark/step-in/StepInShelf.tsx`,
+  `lib/adult/step-in-shelf.ts`):
+  - **Tonight's eight**, a different eight tomorrow (`shelfTonight`, by the UTC day); a chip for each kind of roleplay
+    (who the two are to each other, most wanted first: `roleplayGroups`) and one for all of them.
+  - **Each card** is the story from the viewer's side (`cardForYou`: "Tonight you knock on Juniper's door…"), who plays
+    which role, and who it's cast with: someone from the viewer's own After Dark, the same person all day
+    (`shelfLead`). The people they've already stepped in with come first, then the house cast, then everyone else
+    (`shelfCast`). **Someone else** recasts the card on the spot. Opened for one of them ("Roleplay or place" on a
+    character's card, `?with=<id>`), every card is cast with that person: 45 ways in with the one they picked.
+  - **Step in with {name}** posts `{character_id, quick: true, roleplay: {id, you: 0}}`: always a new scene (the one
+    already running with them stays where it was), at their place, made without its opening like any one-click start.
+  - **Set it up** opens the set-up below on that pair (`?with=<id>&roleplay=<id>`), for the other side of the roleplay,
+    another place or a written opening.
+  - **What it costs:** nothing to show; a started card is one reply, like any opening.
+  - **Not built:** a cover picture per card (the character dressed for the role: about 3.5¢ each), a goal the viewer
+    can see and an ending, and a person's own roleplays on the shelf.
 - **From an episode** (2026-11-23; row 13 of the field audit: a short video is the door into a chat on every site in
   the field): under an episode's night (`app/after-dark/shorts/[id]/page.tsx`, "Your turn"), **Step in with {name}**
   for each of the two the viewer may step in with, or **Continue with {name}** where they have a scene running. The
@@ -4012,8 +4034,8 @@ its price on the button before anything is made (`app/after-dark/step-in/[id]/St
 **The scene's picture, in the character's place** (2026-11-23; David: "do we have a option to change the image on the
 right with one from the scene"). Until now the figure beside a scene was always the character's portrait, and the
 only choice was to hide it. Under every picture made in a scene there's now **Use as the scene's picture**: that
-picture stands where the portrait stood (beside the column on a wide screen, behind it on a tablet, filling the stage
-under the veil on a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**), or **Show
+picture stands where the portrait stood (framed beside the column on a wide screen; filling the stage under the night
+on a tablet or a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**), or **Show
 {name}'s portrait again** in the ⋯ menu, puts the portrait back.
 - **What's kept:** `adult_step_in_scenes.side_message`, the *reply* whose picture stands there, so a picture drawn
   again takes its place. `setStepInBeside` (`lib/adult/step-in-picture.ts`) takes only a reply of that scene that has a
