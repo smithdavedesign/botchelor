@@ -216,8 +216,11 @@ export type StepInPrompt = {
   facts?: readonly string[];
   /** How the scene opens: passed for the first reply only. Ours has {a} and {b}; the viewer's own sentence has none. */
   opening?: string | null;
-  /** What the reply answers when the viewer hasn't just written: the scene's opening, or carrying on. */
-  cue?: "open" | "continue" | null;
+  /**
+   * What the reply answers when the viewer hasn't just written: the scene's opening, or carrying on. "close": the
+   * scene's last reply, asked for by the viewer (lib/adult/step-in-story.ts): it lands the story and nothing follows it.
+   */
+  cue?: "open" | "continue" | "close" | null;
   /** A reply drawn again because the viewer asked: what it said (it passed every check), so this one is different. */
   insteadOf?: string | null;
   /** Why the last draft couldn't be used, in a few words and never the draft itself: this one avoids it. */
@@ -255,6 +258,13 @@ export const redrawCue = (direction: string): string =>
 /** The user turn that has the character carry on without the viewer writing anything. */
 export const CONTINUE_CUE =
   "(They're letting you carry on. Move the story on yourself: something happens, or you do the next thing. Don't repeat what you just said or did, don't ask what they want to do, and stay within how far they have taken things.)";
+
+/**
+ * The user turn that has the character close the scene (lib/adult/step-in.ts closeStepIn): its last reply. Asked for by
+ * the viewer, never decided by the writer; the scene ends and is filed straight after it.
+ */
+export const CLOSE_CUE =
+  "(They've asked you to bring the scene to a close. Write its last moment: what you do and say as it ends, and where it leaves the two of you. Land what the scene has been about. Don't start anything new, don't ask them a question, and stay within how far they have taken things.)";
 
 function sheetLines(c: Character): string[] {
   return [
@@ -355,7 +365,9 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
       ? openCue(place.label, args.roleplay?.rp.title ?? null, args.opening ? promptOpening(args.opening, viewerIs, c.name) : null)
       : args.cue === "continue"
         ? CONTINUE_CUE
-        : null;
+        : args.cue === "close"
+          ? CLOSE_CUE
+          : null;
   // The model answers a user turn: the opening, a carry-on, or a scene whose last word was the character's gets one
   // (after the scene has just moved, it goes on the end of that turn).
   const say = (text: string) => {

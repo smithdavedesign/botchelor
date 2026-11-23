@@ -3885,6 +3885,37 @@ against `adult_settings.cap_step_in` (`lib/adult/usage.ts` kind `step_in`, 3,000
 - a free taste keeps its own small allowance for both kinds together (`TASTED` in `lib/adult/usage.ts`), and what's
   left on a taste is the taste's number, never the month's.
 
+**A goal and an ending** (2026-11-23; David: "A goal and an ending for a scene (Character.AI, CrushOn)"; row 5 of
+[audits/2026-11-23-scenes-and-side-pictures.md](audits/2026-11-23-scenes-and-side-pictures.md): Character.AI's Scenes
+give the player a goal and say "Goal Complete", CrushOn's Target Play has a score and a progress bar). A roleplay's
+card already said what each of the two wants and which beats the story can take, but only the writer read it: a scene
+ran until the viewer tired of it, with nothing to play for and nothing that ever ended. `lib/adult/step-in-story.ts`:
+- **The goal** is the card's own "want" for the viewer's side, told to them ("You want to stop inventing reasons to
+  knock; saying the real one out loud is harder than carrying a parcel."): on every card of the shelf, and under the
+  roleplay's name in the scene (`storyGoal`, `view.story.goal`).
+- **How far it's got:** beside the goal, a dot a beat, filled as the story plays. Once a reply has landed the page asks
+  for the story to be read (`POST …/step-in/<id>/story`, `readStepInStory`): one small call on After Dark's own model,
+  shown the card's beats (the viewer as "the person") and the scene's last stretch, answering which beats have
+  happened on the page. At most one reading a reply; free and never counted, like the ideas; none before the viewer
+  has written a line, in a scene that isn't running, or once every beat has played. Beats are only ever ticked
+  (`mergeBeats`: a later reading can't untick one). The viewer sees how many have played, never the beats themselves:
+  they'd give the story away. **The writer's own prompt and reply are unchanged.**
+- **The ending:** once the last beat has played, a card above the composer offers **Bring it to a close**: one last
+  reply from the character that lands the story (`closeStepIn`, `CLOSE_CUE`: "Don't start anything new, don't ask them
+  a question"), then the scene ends and is filed exactly as End files it. **Keep going** is beside it, and once it's
+  chosen the offer isn't made again in that scene on that device: an ending is an offer, never a stop. The ⋯ menu has
+  **🎬 A last line from {name}, then end** in every scene, roleplay or not. It's one reply, checked and counted like
+  any other; if no model answers, nothing is written and the scene stays open.
+- **Played:** a roleplay whose last beat has played counts as played for that viewer (`adult_step_in_scenes
+  .story_done_at`, `playedRoleplays`): its card says **✓ Played**, the shelf says how many of the 45 they've played to
+  the end, and the ended scene says "Played to the end: {title}" with the way to the next one.
+- **What's kept:** `story_beats` (true or false a beat), `story_upto` (the reply last read) and `story_done_at` on the
+  scene's row; nothing a person wrote. They go with the scene when it's deleted.
+- **What it costs:** one small call a reply in a roleplay until its story is complete, a few hundredths of a cent.
+- **Not built:** a score, a round limit, anything that ends a scene by itself, and beats for a person's own roleplay.
+
+**Proof:** `tests/after-dark-step-in-story.test.ts`.
+
 **Voice and calls** (2026-11-22; David: "make the companion features in sfw available in nsfw step in … we should have
 the ability to live call in after dark"). The show's companion has voice notes and calls; Step in now has both, on After
 Dark's own voice and nothing of the show's:

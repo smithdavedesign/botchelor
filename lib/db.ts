@@ -4609,6 +4609,12 @@ alter table adult_step_in_messages add column if not exists picture_at timestamp
 -- adult_step_in_scenes.side_message: the reply whose picture the viewer put in the character's place beside the scene
 -- (lib/adult/step-in-picture.ts setStepInBeside); null: the character's own portrait stands there.
 alter table adult_step_in_scenes add column if not exists side_message text;
+-- A roleplay's story in a scene (lib/adult/step-in-story.ts). story_beats: which of its card's beats have played, a list
+-- of true/false in the card's order (only ever ticked). story_upto: the reply the story was last read at.
+-- story_done_at: when its last beat first played; the roleplay counts as played for that viewer from then.
+alter table adult_step_in_scenes add column if not exists story_beats jsonb;
+alter table adult_step_in_scenes add column if not exists story_upto text;
+alter table adult_step_in_scenes add column if not exists story_done_at timestamptz;
 -- What the viewer could write next (lib/adult/step-in-ideas.ts): up to three suggested lines kept on the character's
 -- reply they answer (so a reload shows the same ones), and how many times they've been drawn for it.
 alter table adult_step_in_messages add column if not exists ideas jsonb;

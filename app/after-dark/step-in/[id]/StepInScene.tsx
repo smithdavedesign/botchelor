@@ -30,6 +30,7 @@ import HearIt from "./HearIt";
 import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
 import StepInMemory from "./StepInMemory";
 import StepInPicture, { StepInFigure, StepInPictures, StepInPortraitBack } from "./StepInPicture";
+import { StoryEnding, StoryLine, StoryPlayed, useStoryReading } from "./StepInStory";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -44,7 +45,7 @@ const IDEAS_KEY = "bz_step_in_ideas";
 
 type Action =
   | { action: "send"; text: string; talk?: true }
-  | { action: "regenerate" | "continue" | "take_back" | "end" | "carry_on" }
+  | { action: "regenerate" | "continue" | "take_back" | "end" | "close" | "carry_on" }
   // The newest reply drawn again with one change asked of it ("↻ Again…").
   | { action: "regenerate"; direction: RedrawDirection }
   | { action: "swipe"; to: "prev" | "next" }
@@ -383,7 +384,9 @@ export default function StepInScene({
     else setError("That didn't delete. Try again in a moment.");
   }
 
-  const waiting = busy === "send" || busy === "continue" || busy === "regenerate";
+  const waiting = busy === "send" || busy === "continue" || busy === "regenerate" || busy === "close";
+  // The roleplay's story (./StepInStory.tsx): read for the newest reply once it has landed and nothing else is going on.
+  useStoryReading(view, setView, live && !busy && !calling);
   // The directions belong to the reply they were opened under: another newest reply (a new one, or another draw of it)
   // starts with them put away.
   const newest = last?.id ?? null;
@@ -450,6 +453,8 @@ export default function StepInScene({
               {view.roleplay.you_play ? `: you play ${view.roleplay.you_play}, ${name} plays ${view.roleplay.they_play}` : ""}
             </p>
           )}
+          {/* What their side of the roleplay wants, and how far its story has got (./StepInStory.tsx). */}
+          <StoryLine story={view.story} />
           <p className="muted small">
             {view.persona ? (
               <>
@@ -612,6 +617,11 @@ export default function StepInScene({
           </p>
         )}
 
+        {/* Every beat has played: the scene offers its ending (one last reply, then filed), or keeps going. */}
+        {live && last?.role === "character" && !waiting && !calling && (
+          <StoryEnding story={view.story} sceneId={view.id} name={name} busy={Boolean(busy)} onClose={() => void act({ action: "close" })} />
+        )}
+
         {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
         {view.character_out && !view.ended && (
           <p className="ad-si-paused muted" data-step-in-out>
@@ -643,6 +653,7 @@ export default function StepInScene({
         {view.ended ? (
           <section className="card ad-si-ended" data-step-in-ended>
             <h2>This scene has ended</h2>
+            <StoryPlayed story={view.story} title={view.roleplay?.title ?? null} />
             {view.ended.recap && <p>{view.ended.recap}</p>}
             <p className="muted small">It&apos;s kept here to read again, and the next scene with {name} remembers it in a line.</p>
             <p className="ad-si-go">
@@ -734,6 +745,12 @@ export default function StepInScene({
                   {hasFigure && (
                     <button type="button" className="button-ghost small" onClick={toggleFigure} aria-pressed={!figureOn} data-step-in-figure-toggle>
                       {figureOn ? `Hide ${name}'s picture` : `Show ${name}'s picture`}
+                    </button>
+                  )}
+                  {/* One last reply that lands the scene, then it ends (lib/adult/step-in.ts closeStepIn): one reply. */}
+                  {last?.role === "character" && (
+                    <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void act({ action: "close" })} data-step-in-close-menu>
+                      🎬 A last line from {name}, then end
                     </button>
                   )}
                   <button type="button" className="button-ghost small" disabled={Boolean(busy)} onClick={() => void act({ action: "end" })}>
