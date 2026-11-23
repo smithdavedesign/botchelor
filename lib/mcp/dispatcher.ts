@@ -130,6 +130,7 @@ import { STORY_FORGET_KINDS, storyView } from "../story-state";
 import { isOcTool, runOcTool } from "./oc-tools";
 import { OC_NAME_KINDS, OC_NAME_STYLES } from "../oc-names";
 import { RANDOM_OC_GENRES } from "../random-oc";
+import { PLACE_KINDS, PLACE_STYLES } from "../place-names";
 import { OC_QUESTION_THEMES } from "../oc-questions";
 import { characterCredits, characterCreditsOn } from "../profile/credits";
 import { characterStatuses, characterTags } from "../character-tags";
@@ -305,9 +306,11 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // get_character returns it. New arguments and reply fields only.
 // 2.49.0 (2026-11-23, #2107): heads_up put first in another tool's reply is followed by result_below (that tool's own
 // result follows, in the same reply), and heads_up_note says so: one new reply field.
+// 2.50.0 (2026-11-23): place_names, the place name generator (/tools/place-name-generator) beside the other free OC
+// tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.49.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.50.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -700,6 +703,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   oc_names: FREE,
   oc_question: FREE,
   random_oc: FREE,
+  place_names: FREE,
   list_show_ideas: FREE,
   vote_show_idea: FREE,
   propose_show_idea: FREE,
@@ -856,6 +860,8 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "oc_question.theme": OC_QUESTION_THEMES.map((t) => t.id),
   "random_oc.genre": RANDOM_OC_GENRES,
   "random_oc.kind": OC_NAME_KINDS,
+  "place_names.style": PLACE_STYLES,
+  "place_names.kind": PLACE_KINDS,
   // 2.47.0: a character's circle (lib/mcp/circle.ts); the roles are the page's own (lib/social/relations.ts).
   "add_person.visibility": CIRCLE_VISIBILITIES,
   "propose_tie.visibility": CIRCLE_VISIBILITIES,
@@ -9374,7 +9380,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "oc_chemistry_test":
     case "oc_names":
     case "oc_question":
-    case "random_oc": {
+    case "random_oc":
+    case "place_names": {
       const who = resolveIdentity(args, session, false);
       const read = name === "ship_names" || name === "oc_chemistry_test" ? await ocCharacterArgs(db, name, args, who?.id ?? null) : { args };
       if ("error" in read) return read;

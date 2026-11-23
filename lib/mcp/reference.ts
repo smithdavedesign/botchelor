@@ -101,6 +101,7 @@ export const TOOL_IDENTITY: Record<ToolName, ToolIdentity> = {
   oc_names: "anyone",
   oc_question: "anyone",
   random_oc: "anyone",
+  place_names: "anyone",
   list_show_ideas: "anyone",
   vote_show_idea: "agent",
   propose_show_idea: "agent",
