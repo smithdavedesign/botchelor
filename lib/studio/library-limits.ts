@@ -19,5 +19,9 @@ export const ROLEPLAY_CATEGORIES = ["romance", "strangers", "second", "afterhour
 
 export type MyPrompt = { id: string; text: string; title: string | null; mode: LibraryMode; created_at: string };
 export type MyPlace = { id: string; name: string; description: string | null; mode: LibraryMode; created_at: string };
-export type MyRoleplay = { id: string; title: string; premise: string; roles: [string, string] | null; category: SceneCategory; mode: LibraryMode; created_at: string };
+/**
+ * `story_beats`: how many beats its story for Step in has, once that's been drafted (lib/adult/own-roleplay-card.ts),
+ * for someone Step in is open to; left out otherwise. Only the count: the beats themselves would give the story away.
+ */
+export type MyRoleplay = { id: string; title: string; premise: string; roles: [string, string] | null; category: SceneCategory; mode: LibraryMode; created_at: string; story_beats?: number };
 export type Library = { prompts: MyPrompt[]; places: MyPlace[]; roleplays: MyRoleplay[] };

@@ -55,7 +55,8 @@ import { limitOf } from "./fallback";
 import { hardNoHit, hasHardNos, INTENSITY, intensityOf, overIntensity, OWN_LEN, OWN_MAX, storedHardNos, type HardNos, type PairLimits } from "./limits";
 import { adultModel, adultModelId, adultViewer, adultViewerFromCookies } from "./mode";
 import { consentRefusal, hasProfileConsent } from "./profile";
-import { roleplayById, ROLEPLAYS, type Roleplay } from "./roleplays";
+import { ensureOwnCard, ownForScene } from "./own-roleplay-card";
+import { ownAsRoleplay, roleplayById, ROLEPLAYS, sceneRoleplay, type OwnRoleplay, type Roleplay, type RoleplayPick } from "./roleplays";
 import { rolloutOn } from "./rollout";
 import { sceneCatalog, venueSituation } from "./scene-catalog";
 import { isPublicPlace, linesCrossed, recapFrom, samplingOf, type LimitsInput } from "./scenes";
@@ -171,7 +172,8 @@ type SceneRow = {
   owner_id: string;
   character_id: string;
   place: string;
-  roleplay: { id: string; you: 0 | 1 } | null;
+  /** Which roleplay and the viewer's side of it; for one they wrote themselves, the scene's own copy too (sceneRoleplay reads it). */
+  roleplay: RoleplayPick | null;
   opening: string | null;
   intensity: string | null;
   hard_nos: unknown;
@@ -604,7 +606,7 @@ function drawsOf(rows: readonly MessageRow[], current: MessageRow): MessageRow[]
 }
 
 function roleplayView(pick: SceneRow["roleplay"], characterName: string): StepInSceneView["roleplay"] {
-  const rp = pick ? roleplayById(pick.id) : null;
+  const rp = sceneRoleplay(pick);
   if (!rp || !pick) return null;
   const you = sideOf(pick.you);
   return {
@@ -691,7 +693,7 @@ async function bondSaid(db: Db, s: Pick<SceneRow, "owner_id" | "character_id">, 
  * whether the newest reply is still to be read. Null without a roleplay that has a card.
  */
 function storyOf(s: SceneRow, rows: readonly MessageRow[], characterName: string, live: boolean): StepInStory | null {
-  const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
+  const rp = sceneRoleplay(s.roleplay);
   if (!rp || !s.roleplay) return null;
   const spoken = spokenOf(rows);
   const newest = spoken.filter((m) => m.role === "character").at(-1)?.id ?? null;
@@ -784,7 +786,7 @@ export async function listStepInScenes(db: Db, viewer: string): Promise<{ runnin
     id: r.id,
     character: { id: r.character_id, name: r.name ?? GONE_NAME, portrait: r.portrait, hue: r.hue },
     place: placeOf(r.place, drawn).title,
-    roleplay: (r.roleplay && roleplayById(r.roleplay.id)?.title) || null,
+    roleplay: sceneRoleplay(r.roleplay)?.title ?? null,
     last_at: iso(r.last_at)!,
     ended_at: iso(r.ended_at),
     line: r.line,
@@ -850,7 +852,7 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     bondOf(db, s.owner_id, s.character_id, { lift: false }).catch(() => null),
   ]);
   if (!character) return null;
-  const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
+  const rp = sceneRoleplay(s.roleplay);
   const current = turnsOf(rows).filter((m) => !replacing.includes(m.id));
   return {
     character,
@@ -1074,7 +1076,10 @@ export type StepInStart = {
   character_id: string;
   /** A place's id from stepInPlaces, or STORY_PLACE: where the roleplay's own story is set (lib/adult/roleplays.ts `at`). */
   place: string;
-  /** One of After Dark's roleplays and which of its two sides the viewer plays (0: its first role); null: none. */
+  /**
+   * One of After Dark's roleplays, or one the viewer wrote themselves (the Create library's, "u:<id>"), and which of
+   * its two sides the viewer plays (0: its first role); null: none.
+   */
   roleplay?: { id: string; you?: 0 | 1 } | null;
   /** How it opens: one of the three, any of them ("surprise", or nothing sent), or one sentence of the viewer's own. */
   opening?: StepInOpeningPick;
@@ -1086,7 +1091,9 @@ export const openingsFor = (rp: Roleplay | null): readonly [string, string, stri
 /**
  * Starts a scene: who (someone the viewer may have in After Dark), where (a place from the catalog, or STORY_PLACE:
  * where the roleplay's own story is set, lib/adult/roleplays.ts `at`), the roleplay and the viewer's side of it, and
- * how it opens. A written opening is the viewer's own words, so it goes through the
+ * how it opens. The roleplay is one of the show's, or one the viewer wrote themselves (never someone else's): theirs is
+ * copied into the scene with its story card (lib/adult/own-roleplay-card.ts), which is drafted now if it has none yet,
+ * once everything else about the start has passed. A written opening is the viewer's own words, so it goes through the
  * self-harm check, the lines that never move and the roleplay theme check (lib/scene-cards.ts adultCardTextIssue: one
  * sentence of story, nothing explicit) before anything exists: refused, no scene is made and nothing is kept. Then the
  * AI notice goes in and the character opens, one scene step. If no model answers, the scene is there without its
@@ -1097,21 +1104,26 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
   if (!(await eligibleIds(db, viewer)).has(input.character_id)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
   const character = await characterRef(db, input.character_id);
   if (!character) return NOT_FOUND;
-  const rp = input.roleplay ? roleplayById(input.roleplay.id) : null;
-  if (input.roleplay && !rp) return fail(422, "invalid_roleplay", "Pick a roleplay from the list, or none.");
+  const house = input.roleplay ? roleplayById(input.roleplay.id) : null;
+  // One of the viewer's own (lib/studio/library.ts, "u:<id>"): only theirs, and read against the lines again as it's used.
+  const found = input.roleplay && !house ? await ownForScene(db, viewer, input.roleplay.id) : null;
+  if (found && !found.ok) return fail(422, "invalid_roleplay", found.message);
+  let own: OwnRoleplay | null = found?.ok ? found.own : null;
+  let rp: Roleplay | null = house ?? (own && input.roleplay ? ownAsRoleplay(input.roleplay.id, own) : null);
   const drawn = await drawnSets(db);
-  // Where: a place from the catalog, or where the roleplay's own story is set (only with a roleplay that says where).
+  // Where: a place from the catalog, or where the roleplay's own story is set (only with a roleplay that says where:
+  // every one of the show's does, and one of the viewer's own has no place of its own).
   const place = input.place === STORY_PLACE ? (rp?.at ? placeOf(rp.at.place, drawn) : null) : (stepInPlaces(drawn).find((p) => p.id === input.place) ?? null);
-  if (!place) return fail(422, "invalid_place", input.place === STORY_PLACE ? "Pick a roleplay first, or a place from the list." : "Pick a place from the list.");
+  if (!place) return fail(422, "invalid_place", input.place !== STORY_PLACE ? "Pick a place from the list." : rp ? "That roleplay has no place of its own. Pick a place from the list." : "Pick a roleplay first, or a place from the list.");
   const you: 0 | 1 = input.roleplay?.you === 1 ? 1 : 0;
   const id = randomUUID();
   const who = { owner: viewer, character: input.character_id, scene: null };
-  let opening: string | null;
+  // The viewer's own sentence, once it has passed everything below; null: one of the roleplay's three (or the generic ones).
+  let written: string | null = null;
   const pick = input.opening ?? "surprise";
   if (typeof pick === "object") {
     const text = pick.written.replace(/\s+/g, " ").trim();
-    if (!text) opening = openingOf({ openings: openingsFor(rp) }, null, id);
-    else {
+    if (text) {
       if (text.length > CARD_OPENING_MAX) return fail(422, "invalid_opening", `Keep the opening to one sentence, up to ${CARD_OPENING_MAX} characters.`);
       if (/[{}]/.test(text)) return fail(422, "invalid_opening", "Write the opening in plain words, without braces.");
       // The viewer's own words: the self-harm check first. Nothing is kept, and no scene is made.
@@ -1130,20 +1142,29 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
         await logMove(db, who, { ok: false, http: 422, message: crossed ? crossed.logged : issue, flags: { action: "start", refused: crossed ? "lines" : "opening" } });
         return fail(422, "opening_not_allowed", crossed ? crossed.message : issue!);
       }
-      opening = text;
+      written = text;
     }
-  } else opening = openingOf({ openings: openingsFor(rp) }, pick === "surprise" ? null : pick, id);
+  }
   const capped = await overCap(db, viewer, "step_in", now);
   if (capped) {
     await logMove(db, who, { ok: false, http: 429, message: capped, flags: { action: "start", refused: "cap" } });
     return fail(429, "capped", capped);
   }
+  // One of their own with no story card yet (saved before cards were drafted, or its draft hasn't landed): drafted now,
+  // a small call or two, so the scene has its goal, its beats and its three openings from the first line. When no card
+  // can be kept it plays without a story, as any roleplay without one does.
+  if (own && !own.card && input.roleplay) {
+    own = { ...own, card: await ensureOwnCard(db, viewer, input.roleplay.id, now) };
+    rp = ownAsRoleplay(input.roleplay.id, own);
+  }
+  const opening = written ?? openingOf({ openings: openingsFor(rp) }, typeof pick === "number" ? pick : null, id);
   await db.query(`insert into adult_step_in_scenes (id, owner_id, character_id, place, roleplay, opening, created_at, last_at) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $7)`, [
     id,
     viewer,
     input.character_id,
     place.place,
-    rp ? JSON.stringify({ id: rp.id, you }) : null,
+    // One of their own is kept whole (the scene's own copy: lib/adult/roleplays.ts OwnRoleplay), never just by its id.
+    rp ? JSON.stringify({ id: rp.id, you, ...(own ? { own } : {}) } satisfies RoleplayPick) : null,
     opening,
     now.toISOString(),
   ]);
@@ -1197,7 +1218,8 @@ export async function quickStepIn(db: Db, viewer: string, characterId: string, n
     const running = (await db.query<{ id: string }>(`select id from adult_step_in_scenes where owner_id = $1 and character_id = $2 and ended_at is null order by last_at desc limit 1`, [viewer, characterId])).rows[0];
     if (running) return { ok: true, id: running.id, resumed: true };
   }
-  // A roleplay's card starts where its story is set (lib/adult/roleplays.ts `at`); anything else, at their place.
+  // A roleplay's card starts where its story is set (lib/adult/roleplays.ts `at`); anything else, at their place
+  // (one of the viewer's own roleplays has no place of its own).
   const story = card.roleplay ? roleplayById(card.roleplay.id)?.at : null;
   let where = story ? STORY_PLACE : null;
   if (!where) {
@@ -1615,7 +1637,7 @@ export async function endStepIn(db: Db, viewer: string, sceneId: string, now: Da
   const since = s.recap_upto ? new Date(s.recap_upto).getTime() : 0;
   const stretch = spokenOf(rows).filter((m) => new Date(m.created_at).getTime() > since);
   const character = await characterRef(db, s.character_id);
-  const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
+  const rp = sceneRoleplay(s.roleplay);
   const fallback = recordLine(placeOf(s.place, await drawnSets(db)).title, rp);
   const notes = stretch.length ? await writeNotes(db, first(character?.name ?? "the character"), s.recap, stretch, true) : { recap: null, line: null };
   await db.query(`update adult_step_in_scenes set ended_at = $2, paused_at = null, recap = $3, line = $4 where id = $1`, [s.id, now.toISOString(), notes.recap ?? s.recap ?? fallback, notes.line ?? fallback]);
@@ -1656,7 +1678,7 @@ export async function closeStepIn(db: Db, viewer: string, sceneId: string, now: 
 export async function readStepInStory(db: Db, viewer: string, sceneId: string, now: Date = new Date()): Promise<{ ok: true; story: StepInStory | null } | StepInFail> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return NOT_FOUND;
-  const rp = s.roleplay ? roleplayById(s.roleplay.id) : null;
+  const rp = sceneRoleplay(s.roleplay);
   const [character, rows, eligible] = await Promise.all([characterRef(db, s.character_id), allMessages(db, s.id), eligibleIds(db, s.owner_id)]);
   const live = !s.ended_at && !s.paused_at && Boolean(character) && eligible.has(s.character_id);
   const name = first(character?.name ?? "the character");

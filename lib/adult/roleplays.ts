@@ -14,7 +14,8 @@
  * reads when it's picked (how it starts, what each of them wants, where it can go, its tone, three ways it can open).
  * A card is a STORY card: stakes, wants, banter and what's in the way. It never describes a sex act and has no explicit
  * word in it (tests/scene-cards.test.ts holds every one to adultCardIssue); how far a night goes is still the scene's
- * own writer's and its stage rules' to decide. A person's own roleplay (lib/studio/library.ts) has no card.
+ * own writer's and its stage rules' to decide. A person's own roleplay (lib/studio/library.ts) has no card in a night;
+ * in Step in it plays with one drafted for it (lib/adult/own-roleplay-card.ts; "a person's own, in Step in" below).
  */
 import { fillCardText, openingOf, type SceneCard } from "../scene-cards";
 import type { SceneCategory } from "./scene-catalog";
@@ -34,7 +35,10 @@ export type Roleplay = {
    * drew her in her string bikini, from her own outfit). Pieces a picture can draw, for anyone of any gender.
    */
   costumes?: readonly [string, string];
-  /** The story behind it (lib/scene-cards.ts), for the writer. Every one of the show's has one; a person's own has none. */
+  /**
+   * The story behind it (lib/scene-cards.ts), for the writer. Every one of the show's has one; a person's own has the
+   * one drafted for it in Step in (lib/adult/own-roleplay-card.ts), and none in a night.
+   */
   card?: SceneCard;
   /** Its tags (lib/adult/tags.ts, docs/tags.md): setup, kind of story, then heat. `category` stays as it was (the place
    *  shelves in Set the scene, the admin MCP). A person's own roleplay has none. */
@@ -1207,6 +1211,67 @@ export const ROLEPLAYS: readonly HouseRoleplay[] = [
 
 export const ROLEPLAY_IDS = ROLEPLAYS.map((r) => r.id) as [string, ...string[]];
 export const roleplayById = (id: string | null | undefined): Roleplay | null => ROLEPLAYS.find((r) => r.id === id) ?? null;
+
+/* ------------------------------------------------ a person's own, in Step in ------------------------------------------------ */
+
+/**
+ * A roleplay someone wrote themselves (the Create library, lib/studio/library.ts: "u:<id>"), as a Step in scene keeps
+ * it: the scene's own copy, taken when the scene starts, with the story card drafted for it
+ * (lib/adult/own-roleplay-card.ts; null when no draft could be kept, and it then plays without a story). The scene
+ * never reads the library again, so a roleplay changed or deleted later plays on as it was, and the beats a scene has
+ * ticked stay its own card's.
+ */
+export type OwnRoleplay = { title: string; premise: string; roles: readonly [string, string] | null; category: SceneCategory; card: SceneCard | null };
+
+/** What a Step in scene stores of its roleplay: which one, the viewer's side of it, and for one of their own, the copy. */
+export type RoleplayPick = { id: string; you: 0 | 1; own?: OwnRoleplay };
+
+/** The icon a roleplay of a person's own carries wherever it's listed (lib/studio/library.ts asRoleplay). */
+export const OWN_ROLEPLAY_ICON = "✨";
+
+const said = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
+
+/**
+ * A stored card read back, when it has a card's parts: null for anything else (a column that holds something older or
+ * half-written is no card). Whether its words may still be used is the server's to say (lib/scene-card-check.ts).
+ */
+export function storedCard(raw: unknown): SceneCard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const c = raw as Record<string, unknown>;
+  const { wants, beats, openings } = c;
+  if (!said(c.setup) || !said(c.tone)) return null;
+  if (!Array.isArray(wants) || wants.length !== 2 || !wants.every(said)) return null;
+  if (!Array.isArray(beats) || beats.length < 1 || !beats.every(said)) return null;
+  if (!Array.isArray(openings) || openings.length !== 3 || !openings.every(said)) return null;
+  return { setup: c.setup, wants: [wants[0], wants[1]], beats: [...beats], tone: c.tone, openings: [openings[0], openings[1], openings[2]] };
+}
+
+/** A scene's stored copy of a roleplay of its viewer's own, read back; null when it isn't one. */
+function storedOwn(raw: unknown): OwnRoleplay | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (!said(o.title) || !said(o.premise)) return null;
+  const roles = Array.isArray(o.roles) && o.roles.length === 2 && o.roles.every(said) ? ([o.roles[0], o.roles[1]] as const) : null;
+  return { title: o.title, premise: o.premise, roles, category: (said(o.category) ? o.category : "romance") as SceneCategory, card: storedCard(o.card) };
+}
+
+/** A person's own roleplay in the shape the show's own have: its "u:" id, no costumes, tags or place, and its card when it has one. */
+export function ownAsRoleplay(id: string, own: OwnRoleplay): Roleplay {
+  return { id, title: own.title, icon: OWN_ROLEPLAY_ICON, category: own.category, premise: own.premise, roles: own.roles, ...(own.card ? { card: own.card } : {}) };
+}
+
+/**
+ * The roleplay a Step in scene is playing, from what the scene stores (adult_step_in_scenes.roleplay): one of the
+ * show's by its id, else the scene's own copy of one its viewer wrote. Null for none, and for a stored pick that is
+ * neither (a house roleplay since removed).
+ */
+export function sceneRoleplay(pick: { id?: unknown; own?: unknown } | null | undefined): Roleplay | null {
+  if (!pick || typeof pick.id !== "string") return null;
+  const house = roleplayById(pick.id);
+  if (house) return house;
+  const own = storedOwn(pick.own);
+  return own ? ownAsRoleplay(pick.id, own) : null;
+}
 
 /**
  * The rule that makes the writer play it (David, 2026-10-25: a "Captain and pilot" chapter on a skydive was never played):

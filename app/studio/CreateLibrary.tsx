@@ -22,6 +22,9 @@ const CATEGORY_LABEL = Object.fromEntries(SCENE_CATEGORIES.map((c) => [c.id, `${
 
 type Section = "prompts" | "places" | "roleplays";
 
+/** How long after a roleplay is saved the list is read again: its story for Step in is drafted past the save, in a few seconds. */
+const STORY_AFTER_MS = 8000;
+
 /**
  * What the tab lists: the PG Studio's (`safe`) only the safe ones, so an After Dark venue, prompt or roleplay of theirs
  * never shows on the show's side.
@@ -36,11 +39,14 @@ export function listedIn(scope: LibraryMode, lib: Library): Library {
  * The Create tab (lib/studio/library.ts): the viewer's own prompts, venues and roleplays, in either Studio. `scope`:
  * the PG Studio's is `safe` (safe ones only; a safe roleplay plays on show dates); After Dark's Studio is `after_dark`
  * (each can be safe, usable everywhere, or After Dark only; its roleplays start on After Dark only, as they always
- * have). Each list has its form and a row of ideas to start from.
+ * have). Each list has its form and a row of ideas to start from. For someone After Dark's Step in is open to, a
+ * roleplay also plays there, with a story drafted for it once it's saved (lib/adult/own-roleplay-card.ts): the tab
+ * says so, and says under each roleplay once its story is there.
  */
 export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode; onLibrary?: (lib: Library) => void }) {
   const [lib, setLib] = useState<Library | null>(null);
   const [afterDark, setAfterDark] = useState(false);
+  const [stepIn, setStepIn] = useState(false);
   const [section, setSection] = useState<Section>("places");
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,6 +65,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
         if (!live || !d) return;
         setLib(d.library as Library);
         setAfterDark(Boolean(d.after_dark));
+        setStepIn(Boolean(d.step_in));
       })
       .catch(() => {});
     return () => {
@@ -80,6 +87,17 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
     const fresh = await fetch("/api/library").then(okJson).catch(() => null);
     if (fresh) setLib(fresh.library as Library);
     setNote({ text: done });
+    // A roleplay's story for Step in is drafted past the save: the list is read once more when it should be there.
+    if (body.action === "save_roleplay" && stepIn) {
+      window.setTimeout(() => {
+        void fetch("/api/library")
+          .then(okJson)
+          .then((d) => {
+            if (d) setLib(d.library as Library);
+          })
+          .catch(() => {});
+      }, STORY_AFTER_MS);
+    }
   }
   const remove = (kind: "prompt" | "place" | "roleplay", id: string) => send({ action: "delete", kind, id }, "Deleted.", () => {});
 
@@ -112,7 +130,7 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
       <p className="muted small">
         {scope === "safe"
           ? "Your own venues, prompts and roleplays. Everything is held to the safe rules: venues and prompts are for shoots here, and a roleplay shows up under ✨ Yours when you pick one for a date on the show."
-          : "Your own venues, prompts and roleplays. Venues and roleplays show up under ✨ Yours in a night's Scene & roleplay; prompts and venues in your shoots; safe roleplays on show dates too. Only you see them."}
+          : `Your own venues, prompts and roleplays. Venues and roleplays show up under ✨ Yours in a night's Scene & roleplay; prompts and venues in your shoots; safe roleplays on show dates too.${ad && stepIn ? " A roleplay is on Step in's shelf too, with a goal and an ending drafted for it." : ""} Only you see them.`}
       </p>
       <div className="create-tabs" role="tablist" aria-label="Your library">
         {sections.map(([id, label]) => (
@@ -218,7 +236,8 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
             onSubmit={(e) => {
               e.preventDefault();
               const roles = rp.roleA.trim() && rp.roleB.trim() ? [rp.roleA, rp.roleB] : null;
-              const where = roleplayMode === "safe" ? (ad ? "it's under ✨ Yours on show dates and in Scene & roleplay" : "it's under ✨ Yours when you pick a roleplay for a date") : "it's under ✨ Yours in Scene & roleplay";
+              const scenes = ad && stepIn ? "Scene & roleplay and on Step in's shelf" : "Scene & roleplay";
+              const where = roleplayMode === "safe" ? (ad ? `it's under ✨ Yours on show dates and in ${scenes}` : "it's under ✨ Yours when you pick a roleplay for a date") : `it's under ✨ Yours in ${scenes}`;
               void send({ action: "save_roleplay", title: rp.title, premise: rp.premise, roles, category: rp.category, mode: roleplayMode }, `Saved "${rp.title}": ${where}.`, () =>
                 setRp({ title: "", premise: "", roleA: "", roleB: "", category: "romance" }),
               );
@@ -275,6 +294,12 @@ export default function CreateLibrary({ scope, onLibrary }: { scope: LibraryMode
                 <strong>✨ {x.title}</strong> {ad && <span className="badge">{CATEGORY_LABEL[x.category] ?? x.category}</span>} {modeBadge(x.mode)}
                 <span className="muted small">{x.premise}</span>
                 {x.roles && <span className="small">{`{a} plays ${x.roles[0]}, {b} ${x.roles[1]}`}</span>}
+                {/* Its story for Step in (lib/adult/own-roleplay-card.ts), once drafted: only that it's there, never the beats. */}
+                {x.story_beats ? (
+                  <span className="muted small" data-roleplay-story>
+                    Has a story for Step in: a goal and {x.story_beats} beats.
+                  </span>
+                ) : null}
                 <button type="button" className="linklike" disabled={busy} onClick={() => void remove("roleplay", x.id)}>
                   delete
                 </button>

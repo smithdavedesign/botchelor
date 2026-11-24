@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import CharacterName from "@/app/CharacterName";
 import Icon from "@/app/Icon";
 import { isAdmin } from "@/lib/admins";
+import { ownRoleplays } from "@/lib/adult/own-roleplay-card";
+import type { Roleplay } from "@/lib/adult/roleplays";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, storyPlaces, type StepInSceneRef } from "@/lib/adult/step-in";
@@ -29,14 +31,16 @@ const WHEN = { day: "numeric", month: "short" } as const;
  * Step in's front page (lib/adult/step-in.ts; docs/after-dark.md "Step in"): the viewer's scenes to pick up, the
  * roleplays as cards to start in a click (./StepInShelf.tsx), the set-up for everything a card doesn't choose (who,
  * where, the roleplay and the viewer's side of it, how it opens), then the scenes they ended. `?with=` and `?roleplay=`
- * start the set-up on someone and on a roleplay ("Set it up" on a card). Not found for anyone Step in isn't open to
+ * start the set-up on someone and on a roleplay ("Set it up" on a card). The roleplays the viewer wrote themselves (the
+ * Create library) are on the shelf and in the set-up beside the show's, each with the story drafted for it
+ * (lib/adult/own-roleplay-card.ts). Not found for anyone Step in isn't open to
  * (the "companion" rollout piece: admins only until it's switched on), like After Dark's other closed pieces.
  */
 export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const db = await getDb();
   const viewer = await stepInViewerFromCookies(db, await cookies());
   if (!viewer) notFound();
-  const [cast, drawn, who, scenes, admin, settings, sp, played, bonds] = await Promise.all([
+  const [cast, drawn, who, scenes, admin, settings, sp, played, bonds, own] = await Promise.all([
     stepInCast(db, viewer),
     drawnSets(db),
     stepInPersona(db, viewer),
@@ -50,6 +54,8 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
     bondMarks(db, viewer)
       .then((m) => Object.fromEntries(m))
       .catch(() => ({}) as Record<string, BondMark>),
+    // The roleplays they wrote themselves, with the story card each has so far: one read, nothing drafted here.
+    ownRoleplays(db, viewer).catch(() => [] as Roleplay[]),
   ]);
   // Who wrote to them first while they were away (lib/adult/step-in-notes.ts): those scenes come first, and say so.
   const waiting = new Map((await notesWaiting(db, viewer).catch(() => [] as NoteWaiting[])).map((n) => [n.scene, n]));
@@ -62,6 +68,11 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const recent = [...scenes.running, ...scenes.ended].sort((x, y) => y.last_at.localeCompare(x.last_at)).map((s) => s.character.id);
   // Where each roleplay's own story is set, and whether that's out in public (the cards, and the set-up's "Where").
   const stories = storyPlaces();
+  // Where a roleplay of one's own is written: the Create tab of a Studio (app/after-dark/studio/[id]). A Studio opens
+  // on a character whose Studio is the viewer's to use: for an admin any of the house cast; anyone else picks one of
+  // their own at the Studio's door.
+  const studioOf = admin ? cast.find((c) => c.house) : undefined;
+  const createHref = studioOf ? `/after-dark/studio/${encodeURIComponent(studioOf.id)}?tab=create` : "/after-dark/studio";
   return (
     <div className="after-dark-mode">
       <article className="after-dark ad-si" data-step-in-setup>
@@ -89,7 +100,9 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
           </section>
         )}
         {/* The roleplays, each cast and ready (UTC's day, so this page and the browser agree on who's on each card). */}
-        {cast.length > 0 && <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} places={stories} played={played} bonds={bonds} />}
+        {cast.length > 0 && (
+          <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} places={stories} played={played} bonds={bonds} own={own} createHref={createHref} />
+        )}
         <h2 id="ad-si-set">{cast.length ? "Or set the scene yourself" : "Set the scene"}</h2>
         {cast.length ? (
           // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.
@@ -105,6 +118,7 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
             preselectRoleplay={sp?.roleplay ?? null}
             preselectYou={sp?.you === "1" ? 1 : 0}
             storyPlaces={stories}
+            own={own}
           />
         ) : (
           <p className="muted">Nobody is in your After Dark yet. This season&apos;s cast is in by default; your own characters are switched in on the Studio page.</p>

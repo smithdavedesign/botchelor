@@ -1,5 +1,6 @@
 import { afterEach, beforeEach } from "vitest";
 import { setAdminCheckerDefaultForTests, setModerationFetchForTests } from "@/lib/adult/moderation";
+import { setOwnCardOnSaveForTests } from "@/lib/adult/own-roleplay-card";
 import { setBriefModelForTests } from "@/lib/adult/picture-brief";
 import { setGiftsOnAirForTests } from "@/lib/gift-catalog";
 
@@ -10,8 +11,11 @@ import { setGiftsOnAirForTests } from "@/lib/gift-catalog";
 // A scene picture's brief (lib/adult/picture-brief.ts) is off too: a test's own setBriefModelForTests scripts one.
 // And airing a date brings no gift (lib/gift-catalog.ts: dealt by the date's random id, it would move a trust score
 // or text an owner in one run and not the next): a test calls giftAfterAir itself.
+// And saving a roleplay drafts no story card for it (lib/adult/own-roleplay-card.ts: it would ask the test's scripted
+// model for one behind its back, or a model on this machine): tests/after-dark-step-in-own-roleplay.test.ts turns it on.
 beforeEach(() => {
   setGiftsOnAirForTests(false);
+  setOwnCardOnSaveForTests(false);
   setBriefModelForTests(null);
   setModerationFetchForTests(async () => {
     throw new Error("a test called a checker for real: stub it with setModerationFetchForTests");

@@ -7,7 +7,7 @@ import Avatar from "@/app/Avatar";
 import CharacterName from "@/app/CharacterName";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import { oneFaceGroups } from "@/lib/adult/pair-pick";
-import { ROLEPLAYS } from "@/lib/adult/roleplays";
+import { ROLEPLAYS, type Roleplay } from "@/lib/adult/roleplays";
 import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
@@ -22,11 +22,16 @@ type Opening = 0 | 1 | 2 | "surprise" | "written";
 
 const NO_RECENT: string[] = [];
 const NO_STORY_PLACES: Record<string, StoryPlace> = {};
+const NO_OWN: Roleplay[] = [];
 
 /**
  * Step in's set-up (lib/adult/step-in.ts startStepIn), four small steps on one page: who, where, the roleplay and which
  * side of it you play, and how it opens. Everything shown about a roleplay is from the viewer's side (lib/scene-cards.ts
  * cardForYou: "you", the verbs agreeing). Menus and one optional sentence: no prompt box.
+ *
+ * `own`: the roleplays the viewer wrote themselves (lib/adult/own-roleplay-card.ts ownRoleplays), first in the
+ * roleplay menu under "✨ Yours". One whose story card is drafted reads like any other (how it starts, its three
+ * openings); one that has none yet is told by what they wrote, with the openings a scene without a roleplay has.
  */
 export default function StepInSetup({
   cast,
@@ -39,6 +44,7 @@ export default function StepInSetup({
   preselectRoleplay,
   preselectYou = 0,
   storyPlaces = NO_STORY_PLACES,
+  own = NO_OWN,
 }: {
   cast: StepInCharacter[];
   /** Who they've had scenes with, the latest first (shown first). */
@@ -58,16 +64,20 @@ export default function StepInSetup({
   preselectYou?: 0 | 1;
   /** Where each roleplay's own story is set (lib/adult/step-in.ts storyPlaces), by the roleplay's id. */
   storyPlaces?: Record<string, StoryPlace>;
+  /** The viewer's own roleplays, the newest first, shaped like the show's. */
+  own?: Roleplay[];
 }) {
   const router = useRouter();
   const [who, setWho] = useState<string | null>(cast.some((c) => c.id === preselect) ? preselect! : null);
   const [query, setQuery] = useState("");
   const homeId = places.find((p) => p.id === "venue:home")?.id ?? places[0]?.id ?? "";
-  const [roleplayId, setRoleplayId] = useState(ROLEPLAYS.some((r) => r.id === preselectRoleplay) ? preselectRoleplay! : "");
+  // Every roleplay there is to pick: the viewer's own, then the show's.
+  const all: readonly Roleplay[] = useMemo(() => [...own, ...ROLEPLAYS], [own]);
+  const [roleplayId, setRoleplayId] = useState(all.some((r) => r.id === preselectRoleplay) ? preselectRoleplay! : "");
   // Where: a roleplay starts where its own story is set (STORY_PLACE), until the viewer picks a place themselves.
   const [placeId, setPlaceId] = useState(roleplayId && storyPlaces[roleplayId] ? STORY_PLACE : homeId);
   const [placePicked, setPlacePicked] = useState(false);
-  const [you, setYou] = useState<0 | 1>(ROLEPLAYS.some((r) => r.id === preselectRoleplay && r.roles) ? preselectYou : 0);
+  const [you, setYou] = useState<0 | 1>(all.some((r) => r.id === preselectRoleplay && r.roles) ? preselectYou : 0);
   const [opening, setOpening] = useState<Opening>("surprise");
   const [written, setWritten] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,7 +88,7 @@ export default function StepInSetup({
   // Who to pick from: theirs, the house cast and everyone else, or what the search finds (lib/adult/pair-pick.ts, as on the hub's picker).
   const groups = useMemo(() => oneFaceGroups(cast, recent, query), [cast, recent, query]);
   const shown = groups.reduce((n, g) => n + g.faces.length, 0);
-  const rp = ROLEPLAYS.find((r) => r.id === roleplayId) ?? null;
+  const rp = all.find((r) => r.id === roleplayId) ?? null;
   // The roleplay's own place, when it has one: offered first under "Where", and where the scene starts unless they choose.
   const story = rp ? (storyPlaces[rp.id] ?? null) : null;
   const place: Pick<StepInPlace, "id" | "title" | "image" | "public"> | null =
@@ -86,9 +96,12 @@ export default function StepInSetup({
   const name = character ? first(character.name) : "them";
   const side = you === 1 ? "b" : "a";
   // The roleplay's card as the viewer reads it, and the three openings to pick from (the generic three with no roleplay).
-  const card = useMemo(() => (rp ? cardForYou(rp.card, side, name) : null), [rp, side, name]);
-  // (They name who the viewer is with, so they wait for a pick: "when them walks in" reads wrong.)
-  const openings = !character ? [] : card ? card.openings : GENERIC_OPENINGS.map((o) => premiseForYou(o, "a", name));
+  const card = useMemo(() => (rp?.card ? cardForYou(rp.card, side, name) : null), [rp, side, name]);
+  // How it starts: the card's, or for one of the viewer's own with no card yet, what they wrote.
+  const setup = card ? card.setup : rp ? premiseForYou(rp.premise, side, name) : null;
+  // (They name who the viewer is with, so they wait for a pick: "when them walks in" reads wrong. Without a card the
+  // generic three are read from the side the viewer plays, as the scene's first line will be.)
+  const openings = !character ? [] : card ? card.openings : GENERIC_OPENINGS.map((o) => premiseForYou(o, rp ? side : "a", name));
   // Grouped by who they are to each other (each roleplay's first setup tag, lib/adult/tags.ts), most wanted first.
   const demand = useAdultTagDemand();
   const byCategory = useMemo(() => roleplayGroups(ROLEPLAYS, demand ?? undefined), [demand]);
@@ -253,6 +266,15 @@ export default function StepInSetup({
           }}
         >
           <option value="">None: a date, as yourselves</option>
+          {own.length > 0 && (
+            <optgroup label="✨ Yours" data-step-in-own>
+              {own.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.title}
+                </option>
+              ))}
+            </optgroup>
+          )}
           {byCategory.map((c) => (
             <optgroup key={c.id} label={c.label}>
               {c.roleplays.map((r) => (
@@ -263,11 +285,11 @@ export default function StepInSetup({
             </optgroup>
           ))}
         </select>
-        {rp && card && (
+        {rp && setup && (
           <>
             {/* How it starts, with "you" in it and their name: it waits for a pick, like the openings. */}
-            {character ? <p className="ad-si-card-setup">{card.setup}</p> : <p className="muted small">Pick who you&apos;re with to read how it starts.</p>}
-            {rp.tags.length > 0 && <p className="ad-rp-tags">{rp.tags.map((t) => adultTagById(t)?.label).filter(Boolean).join(" · ")}</p>}
+            {character ? <p className="ad-si-card-setup">{setup}</p> : <p className="muted small">Pick who you&apos;re with to read how it starts.</p>}
+            {rp.tags && rp.tags.length > 0 && <p className="ad-rp-tags">{rp.tags.map((t) => adultTagById(t)?.label).filter(Boolean).join(" · ")}</p>}
             {rp.roles && (
               <div className="ad-si-roles" role="radiogroup" aria-label="Who plays which role">
                 {([0, 1] as const).map((i) => (
