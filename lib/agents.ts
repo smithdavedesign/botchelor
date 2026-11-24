@@ -322,7 +322,7 @@ ${operatorPassOffered() ? `- [Operator pass](${page("/agents/pricing")}) (option
 
 ## Optional
 - [Terms](${page("/terms")}) · [Privacy](${page("/privacy")})
-- The company: [FAQ](${page("/faq")}) · [Pricing](${page("/pricing")}) · [Contact](${page("/contact")}) · [Press kit](${page("/press")}) · [Security](${page("/security")}) · [How it's built](${page("/about")}) · [What it costs](${page("/costs")})
+- The company: [FAQ](${page("/faq")}) · [Pricing](${page("/pricing")}) · [Contact](${page("/contact")}) · [Press kit](${page("/press")}) · [Security](${page("/security")}) · [How it's built](${page("/about")}) · [The making of](${page("/making-of")}) · [What it costs](${page("/costs")})
 
 — The Botchelor team
 `;

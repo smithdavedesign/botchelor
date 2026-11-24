@@ -91,43 +91,46 @@ export default function Episodes({ episodes, first }: { episodes: Episode[]; fir
 
       <dialog ref={dialog} className={s.viewer} aria-label={frame ? frame.caption : "Screenshot"} onClose={() => setOpen(null)} onKeyDown={onKey} onClick={onClick}>
         {frame && (
-          <div className={s.viewerBody}>
-            <div className={frame.desktop && frame.phone ? s.viewerPics : `${s.viewerPics} ${s.viewerOne}`}>
-              {frame.desktop && (
-                // eslint-disable-next-line @next/next/no-img-element -- pre-cut WebP (public/making-of)
-                <img className={s.viewerDesktop} src={frame.desktop.full.src} width={frame.desktop.full.w} height={frame.desktop.full.h} alt={`On a computer: ${frame.caption}`} />
-              )}
-              {frame.phone && (
-                // eslint-disable-next-line @next/next/no-img-element -- pre-cut WebP (public/making-of)
-                <img className={s.viewerPhone} src={frame.phone.full.src} width={frame.phone.full.w} height={frame.phone.full.h} alt={`On a phone: ${frame.caption}`} />
-              )}
-            </div>
-            <div className={s.viewerText}>
-              <p className={s.epMeta}>
-                Day {dayNumber(frame.day, first)} · {longDay(frame.day)}
-              </p>
-              <h3 className={s.viewerCaption}>{frame.caption}</h3>
-              <p className={s.viewerTitle}>
-                <a href={prUrl(frame.pr)} rel="noopener" target="_blank">
-                  Pull request #{frame.pr}: {frame.title} <Icon name="arrowUpRight" />
-                </a>
-              </p>
-              <div className={s.viewerNav}>
-                <button type="button" className={s.step} onClick={() => step(-1)} aria-label="Previous screenshot">
-                  <Icon name="chevronLeft" />
-                </button>
-                <span className={s.viewerCount}>
-                  {(open ?? 0) + 1} of {all.length}
-                </span>
-                <button type="button" className={s.step} onClick={() => step(1)} aria-label="Next screenshot">
-                  <Icon name="chevronRight" />
-                </button>
-                <button type="button" className={s.close} onClick={() => setOpen(null)}>
-                  <Icon name="x" /> Close
-                </button>
+          <>
+            <div className={s.viewerBody}>
+              <div className={frame.desktop && frame.phone ? s.viewerPics : `${s.viewerPics} ${s.viewerOne}`}>
+                {frame.desktop && (
+                  // eslint-disable-next-line @next/next/no-img-element -- pre-cut WebP (public/making-of)
+                  <img className={s.viewerDesktop} src={frame.desktop.full.src} width={frame.desktop.full.w} height={frame.desktop.full.h} alt={`On a computer: ${frame.caption}`} />
+                )}
+                {frame.phone && (
+                  // eslint-disable-next-line @next/next/no-img-element -- pre-cut WebP (public/making-of)
+                  <img className={s.viewerPhone} src={frame.phone.full.src} width={frame.phone.full.w} height={frame.phone.full.h} alt={`On a phone: ${frame.caption}`} />
+                )}
+              </div>
+              <div className={s.viewerText}>
+                <p className={s.epMeta}>
+                  Day {dayNumber(frame.day, first)} · {longDay(frame.day)}
+                </p>
+                <h3 className={s.viewerCaption}>{frame.caption}</h3>
+                <p className={s.viewerTitle}>
+                  <a href={prUrl(frame.pr)} rel="noopener" target="_blank">
+                    Pull request #{frame.pr}: {frame.title} <Icon name="arrowUpRight" />
+                  </a>
+                </p>
               </div>
             </div>
-          </div>
+            {/* Outside the body and pinned to the dialog's bottom edge, so the way on and out is always in view. */}
+            <div className={s.viewerNav}>
+              <button type="button" className={s.step} onClick={() => step(-1)} aria-label="Previous screenshot">
+                <Icon name="chevronLeft" />
+              </button>
+              <span className={s.viewerCount}>
+                {(open ?? 0) + 1} of {all.length}
+              </span>
+              <button type="button" className={s.step} onClick={() => step(1)} aria-label="Next screenshot">
+                <Icon name="chevronRight" />
+              </button>
+              <button type="button" className={s.close} onClick={() => setOpen(null)}>
+                <Icon name="x" /> Close
+              </button>
+            </div>
+          </>
         )}
       </dialog>
     </>

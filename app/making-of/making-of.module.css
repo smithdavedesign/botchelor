@@ -800,16 +800,22 @@
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
 }
+/* The pictures give way to the words and the controls: never taller than the screen leaves room for. */
 .viewerDesktop {
-  width: 100%;
+  justify-self: center;
+  width: auto;
+  max-width: 100%;
   height: auto;
+  max-height: calc(100svh - 17rem);
   border-radius: var(--radius-md);
   box-shadow: var(--mo-shadow-deep);
 }
 .viewerPhone {
-  width: 100%;
-  max-width: 20rem;
+  justify-self: center;
+  width: auto;
+  max-width: min(100%, 20rem);
   height: auto;
+  max-height: calc(100svh - 17rem);
   border: 5px solid var(--mo-bezel);
   border-radius: var(--radius-lg);
   background: var(--mo-bezel);
@@ -833,11 +839,15 @@
   color: var(--mo-pink-soft);
 }
 .viewerNav {
+  position: sticky;
+  bottom: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  padding: 0.75rem clamp(1rem, 3vw, 1.75rem);
+  border-top: 1px solid var(--mo-line);
+  background: var(--mo-night);
 }
 .viewerCount {
   min-width: 5.5rem;
@@ -1083,6 +1093,10 @@
   }
   .viewerPhone {
     max-width: 62%;
+  }
+  /* A pair stacks on a phone: the phone shot shares the height with the computer one above it. */
+  .viewerPics:not(.viewerOne) .viewerPhone {
+    max-height: 40svh;
   }
   .script {
     padding: 0.9rem 1rem;
