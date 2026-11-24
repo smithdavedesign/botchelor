@@ -3662,18 +3662,26 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
     - **The picture is the card's poster.** A card opens on the one in its picture, whoever the viewer has stepped in
       with before, and on the side the picture implies (`you`: with the vampire on the doorstep, the viewer is the
       guest). "Someone else" recasts it, the people they know first, and the cover goes: it's a picture of one person.
-      A page opened for one person (`?with=`) shows a cover only where it's theirs. So with a cover on every card, a
-      viewer's own people no longer lead any card by themselves: they're one press of "Someone else" away, or the
-      whole shelf from that person's own card.
+      A page opened for one person (`?with=`) shows a cover only where it's theirs.
+    - **Tonight's last two are the viewer's own** (2026-11-24; David, told that with a cover on every card nobody of
+      his own would lead one: "yes keep two of tonight's eight for my own people"). When the viewer has stepped in
+      with anyone (a scene of theirs, running or ended), the last two of tonight's eight open on their people and not
+      on the picture's (`SHELF_YOURS`, `shelfYoursSlot`, `shelfYours` in `lib/adult/step-in-shelf.ts`): the first on
+      the one they were with last, the second on someone else of theirs, a different one from day to day; with only
+      one person of their own, both. Those cards have no picture (it would be of someone else) unless their person
+      happens to be the one in it, and say why in a line over the title: "With someone you know". "Someone else"
+      walks on from there as on any card. Six pictures first, so a row is all pictures or all theirs whether the
+      shelf is three across or two. Nobody of their own yet: all eight open on their pictures. "All 45", a kind, and a
+      page opened for one person are unchanged.
     - **Which side the picture shows.** A roleplay with named roles can be played from either, and its cover picks
       one (`you`). A roleplay with no named roles is always played with the viewer as its card's first person and the
       character as its second (the set-up offers no sides for it), so its picture shows what the second one is doing:
       in "Married, meeting as strangers" the one who walks in, not the one already at the bar; in "After the toast" the
       one who comes out with two glasses, not the one holding the index cards. Four prompts had this the wrong way
       round and were rewritten before they were drawn.
-    - **Tonight's eight all have one.** `shelfTonight`'s `first` still puts pictured cards first (six of eight) for
-      the day a roleplay is written before its picture; with every card pictured it orders nothing. On a screen with
-      the room the shelf runs wider than the page's reading column (to 64rem, three cards across).
+    - **Every roleplay has one**, so `shelfTonight`'s `first` (pictured cards first, six of eight) orders nothing
+      today; it stays for the day a roleplay is written before its picture. On a screen with the room the shelf runs
+      wider than the page's reading column (to 64rem, three cards across).
     - **How they were made:** `~/.claude/botchelor-bin/covers/cover.py`: one image edit each on Replicate's
       `qwen/qwen-image-edit-2511` (the app's own edit model) from the character's PG house portrait, fully clothed,
       Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 90 KB,

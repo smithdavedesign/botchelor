@@ -12,11 +12,21 @@
  * own After Dark, who brings what a made-for-it character couldn't: their voice, their looks, what they remember.
  * One click starts it (lib/adult/step-in.ts quickStepIn with the roleplay). Pure and client-safe: who a card is cast
  * with is worked out from the day, so the server's page and the browser's agree, and the shelf changes overnight.
+ *
+ * Who a card opens on, since every roleplay has a cover (lib/adult/roleplay-covers.ts): the one in its picture. Except
+ * tonight's last two, which are kept for the people the viewer has stepped in with (SHELF_YOURS, shelfYours), when
+ * there are any: with a poster on every card nobody of their own would lead one otherwise.
  */
 import type { StepInCharacter } from "./step-in-shared";
 
 /** How many cards the shelf opens on ("Tonight's"), before a kind is picked or all of them asked for. */
 export const SHELF_TONIGHT = 8;
+/**
+ * How many of tonight's are kept for the people the viewer has stepped in with: the last two of the eight. David,
+ * 2026-11-24, once every card had a cover and so opened on the one in its picture: "yes keep two of tonight's eight
+ * for my own people". Six pictures, then two with someone they know: a row of a kind whether it's three across or two.
+ */
+export const SHELF_YOURS = 2;
 
 /** A small stable hash of a string (FNV-1a): the same seed always gives the same number. */
 function hash(seed: string): number {
@@ -35,6 +45,11 @@ export type ShelfCast = {
   leads: number;
   /** The page was opened for one person (?with=<id>): every card is theirs, a cover's own character included. */
   asked: boolean;
+  /**
+   * How many at the front of `order` are people the viewer has stepped in with (a scene of theirs, running or ended),
+   * the latest first. 0 when there's nobody yet, and on a page opened for one person, where every card is theirs.
+   */
+  own: number;
 };
 
 /**
@@ -61,7 +76,7 @@ export function shelfCast(cast: readonly StepInCharacter[], recent: readonly str
   for (const c of cast) if (c.house) take(c);
   const house = order.length - known;
   for (const c of cast) take(c);
-  return { order, leads: asked ? 1 : known || house || order.length, asked: Boolean(asked) };
+  return { order, leads: asked ? 1 : known || house || order.length, asked: Boolean(asked), own: asked ? 0 : known };
 }
 
 /**
@@ -83,6 +98,31 @@ export function shelfLead(roleplayId: string, day: string, cast: ShelfCast, turn
   }
   const first = hash(`${roleplayId}:${day}`) % Math.max(1, cast.leads);
   return cast.order[(first + turn) % cast.order.length];
+}
+
+/**
+ * Which of the viewer's own places a card of tonight's has: 0 for the first of the last SHELF_YOURS cards, 1 for the
+ * next; null for a card that opens on its picture. Nobody of their own yet, or a page opened for one person: none.
+ */
+export function shelfYoursSlot(index: number, shown: number, cast: ShelfCast): number | null {
+  if (cast.asked || cast.own === 0) return null;
+  const slot = index - (shown - SHELF_YOURS);
+  return slot >= 0 && slot < SHELF_YOURS ? slot : null;
+}
+
+/**
+ * Who one of the viewer's own cards opens on. The first is the one they were with last: the best guess at who they
+ * want again. The next is someone else they've stepped in with, a different one each day, so the people from further
+ * back come round; with only one person of their own, both cards are theirs (two stories with them). "Someone else"
+ * (`turn`) walks everyone else from the top of the order, as on any card.
+ */
+export function shelfYours(day: string, cast: ShelfCast, slot: number, turn = 0): StepInCharacter | null {
+  if (!cast.order.length || cast.own === 0) return null;
+  const at = slot === 0 || cast.own < 2 ? 0 : 1 + ((hash(`yours:${day}`) + slot - 1) % (cast.own - 1));
+  const lead = cast.order[at];
+  if (turn === 0) return lead;
+  const rest = cast.order.filter((c) => c.id !== lead.id);
+  return rest.length ? rest[(turn - 1) % rest.length] : lead;
 }
 
 /**

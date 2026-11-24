@@ -8,7 +8,7 @@ import { coverFor, ROLEPLAY_COVERS } from "@/lib/adult/roleplay-covers";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import type { StepInCharacter, StoryPlace } from "@/lib/adult/step-in-shared";
-import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight } from "@/lib/adult/step-in-shelf";
+import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight, shelfYours, shelfYoursSlot } from "@/lib/adult/step-in-shelf";
 import { storyGoal } from "@/lib/adult/step-in-story";
 import { roleplayGroups } from "@/lib/adult/tags";
 import { cardForYou } from "@/lib/scene-cards";
@@ -104,10 +104,13 @@ export default function StepInShelf({
         </select>
       </div>
       <ul className="ad-si-shelf-cards">
-        {shown.map((rp) => {
+        {shown.map((rp, index) => {
           const turn = turns[rp.id] ?? 0;
-          // A card with a cover opens on the one in its picture (the people they know come next, with "Someone else").
-          const them = shelfLead(rp.id, day, who, turn, ROLEPLAY_COVERS[rp.id]?.character ?? null);
+          // Tonight's last two are kept for the people they've stepped in with (the one they were with last, then
+          // someone else of theirs): with a picture on every card, nobody of their own would lead one otherwise.
+          const yours = show === "tonight" ? shelfYoursSlot(index, shown.length, who) : null;
+          // Every other card opens on the one in its picture (the people they know come next, with "Someone else").
+          const them = yours !== null ? shelfYours(day, who, yours, turn) : shelfLead(rp.id, day, who, turn, ROLEPLAY_COVERS[rp.id]?.character ?? null);
           if (!them) return null;
           const name = first(them.name);
           // With the one in the picture, the card is as the picture shows it: they play that side, the viewer the other.
@@ -121,6 +124,13 @@ export default function StepInShelf({
                 // The show's own picture (public/cast), so discreet mode leaves it alone like any house portrait.
                 // eslint-disable-next-line @next/next/no-img-element -- a small static file, already the size it's shown at
                 <img className="ad-si-shelf-cover" src={cover.src} alt={cover.alt} width={960} height={720} loading="lazy" decoding="async" data-step-in-card-cover />
+              )}
+              {/* One of their own two: it has no picture because it's with someone other than the one in it, and it
+                  says why, for as long as the card is with someone they've stepped in with. */}
+              {yours !== null && !cover && who.order.slice(0, who.own).some((c) => c.id === them.id) && (
+                <p className="kicker ad-si-shelf-yours" data-step-in-card-yours>
+                  With someone you know
+                </p>
               )}
               <h3>
                 <span aria-hidden="true">{rp.icon}</span> {rp.title}
