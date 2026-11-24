@@ -1451,3 +1451,62 @@ export function premiseForYou(premise: string, youAre: "a" | "b", them: string):
   // "you" at the start of a sentence.
   return out.replace(/(^|[.!?]\s+)you\b/g, (_m, lead: string) => `${lead}You`).replace(/(^|[.!?]\s+)your\b/g, (_m, lead: string) => `${lead}Your`);
 }
+
+/** A word that can stand between a conjunction and the verb it joins ("but still hopes"). */
+const LEANING_ADVERB = "(?:[a-z]+ly|still|never|just|already|only|also|even|always|now|soon|then|quite|almost)";
+/**
+ * A conjunction, perhaps an adverb, then a word that looks like a verb in the third person: "but worries", "and still
+ * hopes", "yet is". Small letters only: a name ("and Wally has", "and Miles") is neither an adverb nor a verb.
+ */
+const LEANING = new RegExp(`\\s+(?:but|and|yet|or|so|then)\\s+(?:${LEANING_ADVERB}\\s+)?(is|has|was|does|isn't|hasn't|wasn't|doesn't|[a-z]+[^s\\W]s)\\b`, "g");
+/** Words ending in "s" that follow a conjunction and aren't a verb in the third person. */
+const NOT_A_VERB = new Set(["this", "its", "his", "hers", "ours", "yours", "theirs", "others", "as", "us", "yes", "thus", "plus", "perhaps", "sometimes", "besides", "afterwards", "towards", "upstairs", "downstairs", "indoors", "outdoors", "whereas", "always", "nowadays"]);
+
+/**
+ * In a text already told as "you" (premiseForYou), where a clause begins whose verb still leans on the name that "you"
+ * replaced: "You want to ask, but worries Mara will laugh" (from "{a} wants to ask, but worries {b} will laugh").
+ * premiseForYou turns the verb straight after the name, and one joined to it by a bare "and"; a second verb after a
+ * comma, or after "but", "yet", "or", keeps its "s". The show's own cards are written without one (the note above
+ * DATE_ROLEPLAYS, and tests/scene-cards.test.ts); a card a model drafts may not be (lib/adult/own-roleplay-card.ts).
+ *
+ * The index where that clause starts (the comma before its conjunction, or the space when there's none), or -1. Only
+ * in a clause whose subject is "you" (it starts with it), and only where the verb can be nobody else's: the
+ * conjunction opens a part after a comma ("…, but worries"), or sits in the part "you" itself opens ("You want to dance
+ * or just watches"). Inside a later part the verb belongs to that part's own subject ("you remember everything, which
+ * helps and does not"). `name`: who the other one is called in the text, never taken for a verb.
+ */
+export function leaningVerbAt(told: string, name = ""): number {
+  const other = firstName(name).toLowerCase();
+  for (const clause of told.matchAll(/[^.!?;]+/g)) {
+    if (!/^\s*you\b/i.test(clause[0])) continue;
+    let from = clause.index ?? 0;
+    for (const [i, part] of clause[0].split(",").entries()) {
+      for (const m of part.matchAll(LEANING)) {
+        const opens = part.slice(0, m.index ?? 0).trim() === "";
+        if (!opens && i > 0 && !/^\s*you\b/i.test(part)) continue;
+        const word = m[1].toLowerCase();
+        if (NOT_A_VERB.has(word) || (other && word === other)) continue;
+        // A part the conjunction opens is cut from its comma; otherwise from the space before the conjunction.
+        return opens && i > 0 ? from - 1 : from + (m.index ?? 0);
+      }
+      from += part.length + 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * The text without any clause leaningVerbAt finds: cut from its conjunction to the end of its sentence (or to a
+ * semicolon, which keeps what follows it). What's left reads right; what a writer is given stays whole.
+ */
+export function withoutLeaningVerbs(told: string, name = ""): string {
+  let out = told;
+  for (let n = 0; n < 4; n++) {
+    const at = leaningVerbAt(out, name);
+    if (at < 0) break;
+    const rest = out.slice(at);
+    const end = rest.search(/[.!?;]/);
+    out = out.slice(0, at) + (end < 0 ? "" : rest.slice(end));
+  }
+  return out;
+}

@@ -15,7 +15,7 @@
  * Pure and client-safe, like lib/roleplays.ts. Holding a text to the content filter is the server's
  * (lib/scene-card-check.ts), so its word lists stay out of the pickers' code in the browser (2026-11-22 audit).
  */
-import { dateRoleplayById, premiseForYou, type RoleplayTerms } from "./roleplays";
+import { dateRoleplayById, premiseForYou, withoutLeaningVerbs, type RoleplayTerms } from "./roleplays";
 
 export type SceneCard = {
   /** How it starts: the first minute, one or two sentences, with {a} and {b} like a premise. */
@@ -79,6 +79,26 @@ export function fillCard(card: SceneCard, names: { a: string; b: string }): Scen
  */
 export function cardForYou(card: SceneCard, youAre: "a" | "b", them: string): SceneCard {
   return mapCard(card, (t) => premiseForYou(t, youAre, them));
+}
+
+/**
+ * The card as a page shows it to the person playing one side: cardForYou, with nothing left that reads wrong as "you".
+ * The show's own cards never do (tests/scene-cards.test.ts). A card drafted for a roleplay someone wrote themselves
+ * (lib/adult/own-roleplay-card.ts) can keep a verb leaning on a name ("You want to ask, but worries Mara will laugh"):
+ * what's shown stops before that clause (lib/roleplays.ts withoutLeaningVerbs). A writer is always given the card whole.
+ */
+export function cardShownToYou(card: SceneCard, youAre: "a" | "b", them: string): SceneCard {
+  return mapCard(cardForYou(card, youAre, them), (t) => withoutLeaningVerbs(t, them));
+}
+
+/**
+ * A premise told to the person playing one side, where it stands as a card's text (a roleplay someone wrote themselves
+ * and has no card for yet): premiseForYou, and a capital first letter however they began it ("the last ferry of the
+ * night, …"). Their own sentence, so nothing of it is cut.
+ */
+export function premiseShownToYou(premise: string, youAre: "a" | "b", them: string): string {
+  const told = premiseForYou(premise, youAre, them).trim();
+  return told ? told[0].toUpperCase() + told.slice(1) : told;
 }
 
 /** A small stable hash of a string (FNV-1a): the same seed always gives the same number. */

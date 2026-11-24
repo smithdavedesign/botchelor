@@ -11,8 +11,7 @@ import type { StepInCharacter, StoryPlace } from "@/lib/adult/step-in-shared";
 import { SHELF_OWN, SHELF_TONIGHT, shelfCast, shelfLead, shelfShown, shelfYours, shelfYoursSlot } from "@/lib/adult/step-in-shelf";
 import { storyGoal } from "@/lib/adult/step-in-story";
 import { roleplayGroups } from "@/lib/adult/tags";
-import { premiseForYou } from "@/lib/roleplays";
-import { cardForYou } from "@/lib/scene-cards";
+import { cardShownToYou, premiseShownToYou } from "@/lib/scene-cards";
 import { BondMarkTag } from "./[id]/StepInBond";
 import StepInButton from "./StepInButton";
 
@@ -41,9 +40,9 @@ const NO_OWN: Roleplay[] = [];
  *
  * `own`: the roleplays the viewer wrote themselves (the Create library; lib/adult/own-roleplay-card.ts ownRoleplays),
  * each with the story card drafted for it. They're cards like any other, first under "All" and a kind of their own
- * ("✨ Yours"): no picture (nobody drew one) and no place of their own (a scene in one starts at the character's), and
- * the goal once its card is drafted. Tonight's eight stay the show's. `createHref`: where one is written, said in a
- * few words to someone who has none.
+ * ("✨ Yours"): no picture (nobody drew one), and once its story is drafted the goal and where it's set (`places` has
+ * theirs too; one with no place starts at the character's). Tonight's eight stay the show's. `createHref`: where one
+ * is written, said in a few words to someone who has none.
  */
 export default function StepInShelf({
   cast,
@@ -150,7 +149,7 @@ export default function StepInShelf({
           // The story as the viewer reads it: they're "you", the other is whoever is on the card. One of their own with
           // no card drafted yet is told by what they wrote.
           const side = you === 1 ? "b" : "a";
-          const setup = rp.card ? cardForYou(rp.card, side, name).setup : premiseForYou(rp.premise, side, name);
+          const setup = rp.card ? cardShownToYou(rp.card, side, name).setup : premiseShownToYou(rp.premise, side, name);
           const goal = storyGoal(rp, you, name);
           const mine = own.includes(rp);
           return (

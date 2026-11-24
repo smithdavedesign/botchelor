@@ -2,11 +2,22 @@
 // roleplays"). A person's own roleplays (the Create library) couldn't be picked in Step in at all, and had no story
 // card, so no goal, no beats and no ending. Now each gets a card drafted for it, held to what a card of the show's is,
 // and plays like one of the show's: on the shelf, in the set-up, and in a scene that keeps its own copy.
+// Its story is set somewhere too (a place drafted with the card), a goal is never shown ungrammatical, and a roleplay
+// saved before any of this gets its story past the front page's response.
 // The fixtures are mild lines; no live calls here.
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const jar = vi.hoisted(() => ({ cookies: new Map<string, string>() }));
+// A place's picture is asked for by name and never drawn here (lib/sets.ts ensureSet would reach a picture provider).
+const sets = vi.hoisted(() => ({ asked: [] as string[] }));
+vi.mock("@/lib/sets", async (orig) => ({
+  ...((await orig()) as object),
+  ensureSet: async (_db: unknown, place: string) => {
+    sets.asked.push(place);
+    return "drawing";
+  },
+}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => (jar.cookies.has(name) ? { name, value: jar.cookies.get(name)! } : undefined) }),
   headers: async () => new Headers(),
@@ -24,27 +35,40 @@ import { GET as libraryGet, POST as libraryPost } from "@/app/api/library/route"
 import { claimAdmin } from "@/lib/admins";
 import { setAdultModelForTests } from "@/lib/adult/mode";
 import {
+  draftMissingOwnCards,
   draftOwnCard,
+  draftOwnStory,
   ensureOwnCard,
+  ensureOwnStory,
   OWN_CARD_DRAFTS,
   OWN_CARD_RETRY_MINUTES,
+  OWN_CARDS_PER_VISIT,
+  OWN_STORY_VERSION,
   ownCardMessages,
   ownCardReadingIssue,
+  ownCardReadingIssues,
+  ownPlaceDrawable,
+  ownPlaceIssue,
   ownRoleplays,
   ownStoriesOpen,
   parseOwnCard,
+  parseOwnPlace,
   setOwnCardOnSaveForTests,
   withoutBadBeats,
 } from "@/lib/adult/own-roleplay-card";
-import { ROLEPLAYS, sceneRoleplay, storedCard } from "@/lib/adult/roleplays";
+import { ROLEPLAY_PLACE_MAX, ROLEPLAYS, sceneRoleplay, storedCard } from "@/lib/adult/roleplays";
+import { isPublicPlace } from "@/lib/adult/scenes";
 import { SHELF_OWN, SHELF_TONIGHT, shelfShown } from "@/lib/adult/step-in-shelf";
-import { closeStepIn, getStepInScene, listStepInScenes, playedRoleplays, quickStepIn, readStepInStory, sendStepInLine, setStepInRandomForTests, startStepIn, stepInOpen } from "@/lib/adult/step-in";
+import { closeStepIn, drawStepInSet, getStepInScene, listStepInScenes, moveStepIn, playedRoleplays, quickStepIn, readStepInStory, sendStepInLine, setStepInRandomForTests, startStepIn, stepInOpen, storyPlaces } from "@/lib/adult/step-in";
+import { storyGoal } from "@/lib/adult/step-in-story";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import type { ChatMessage, Model } from "@/lib/model";
+import { DATE_ROLEPLAYS, leaningVerbAt, premiseForYou, withoutLeaningVerbs } from "@/lib/roleplays";
 import { adultCardIssue, adultCardTextIssue } from "@/lib/scene-card-check";
-import type { SceneCard } from "@/lib/scene-cards";
+import { cardShownToYou, cardTexts, premiseShownToYou, type SceneCard } from "@/lib/scene-cards";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import { deleteItem, saveRoleplay } from "@/lib/studio/library";
+import { normalizeScene } from "@/lib/venues";
 import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -57,12 +81,16 @@ afterAll(async () => {
 beforeEach(async () => {
   await t.reset();
   jar.cookies.clear();
+  sets.asked.length = 0;
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.stubEnv("SESSION_SECRET", TEST_SESSION_SECRET);
   vi.stubEnv("ADULT_MODE", "1");
   vi.stubEnv("VERCEL", "");
   vi.stubEnv("VERCEL_ENV", "");
+  // The scene's continuity sheet (lib/adult/step-in-tracker.ts) is read past a start's response: not these tests'
+  // subject, and its read would otherwise reach the scripted model after a test has moved on.
+  vi.stubEnv("STEP_IN_TRACKER", "0");
   setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
   setStepInRandomForTests(() => 0);
 });
@@ -104,6 +132,12 @@ const CARD: SceneCard = {
     "{a} and {b} flip the signs to closed at the same moment and notice.",
   ],
 };
+
+/** Where a model could say the trucks' story is set, as a draft writes it and as it's kept. */
+const PLACE = { place: "the night market at closing time, both trucks shutting up", title: "The night market, closing time" };
+const DRAFT = { ...CARD, place: PLACE.place, place_title: PLACE.title };
+/** A kept card as it's stored since places: the card, where it's set, and the mark that says so. */
+const kept = (card: SceneCard = CARD, at: typeof PLACE | null = PLACE) => ({ ...card, at, v: OWN_STORY_VERSION });
 
 function signIn(id: string): string {
   const c = signedInCookie(id);
@@ -175,7 +209,8 @@ async function mine(owner: string, over: Partial<{ title: string; premise: strin
   if (!r.ok) throw new Error(`not saved: ${r.message}`);
   return `u:${r.item.id}`;
 }
-const keep = (uid: string, card: SceneCard | null = CARD) => t.db.query(`update creator_roleplays set card = $2::jsonb, card_at = now() where id = $1`, [uid.slice(2), card ? JSON.stringify(card) : null]);
+/** Puts a card on a roleplay as if it had been drafted: by default one from before places (no place, no mark), which a scene plays as it is. */
+const keep = (uid: string, card: object | null = CARD, at = "now()") => t.db.query(`update creator_roleplays set card = $2::jsonb, card_at = ${at} where id = $1`, [uid.slice(2), card ? JSON.stringify(card) : null]);
 const viewOf = async (viewer: string, id: string) => {
   const r = await getStepInScene(t.db, viewer, id);
   if (!r.ok) throw new Error("no scene");
@@ -208,6 +243,12 @@ describe("the card that's drafted", () => {
     expect(user.content).toMatch(/never "he", "she"/);
     expect(user.content).toMatch(/three or four turns/);
     expect(user.content).not.toMatch(/couldn't be used/);
+    // How the show's own cards keep every verb beside its name, and where the story is set, as theirs are written.
+    expect(user.content).toContain('write the name again rather than leave it understood ("{a} wants to ask, and {a} keeps putting it off", never "{a} wants to ask but keeps putting it off")');
+    expect(user.content).toContain("in a clause of its own after a semicolon");
+    expect(user.content).toContain(`- "place": where the story is set, written so that it can follow the word "at"`);
+    expect(user.content).toContain(`Under ${ROLEPLAY_PLACE_MAX} characters ("the night market at closing time, lanterns going out").`);
+    expect(user.content).toContain('"openings": ["...", "...", "..."], "place": "...", "place_title": "..."}');
     // The words it's told to leave out are ones the card's check refuses in any sense (so the list can't drift from it).
     const left = /leave these words out even where they'd be innocent: ([^.]+)\./.exec(user.content)?.[1].split(", ") ?? [];
     expect(left.length).toBeGreaterThan(10);
@@ -304,7 +345,8 @@ describe("kept on the roleplay", () => {
     expect(await ensureOwnCard(t.db, a.id, uid)).toEqual(CARD);
     expect(seen.drafts).toHaveLength(1);
     const [row] = await rows(`select card, card_at from creator_roleplays where id = $1`, [uid.slice(2)]);
-    expect(row.card).toEqual(CARD);
+    // Kept with where it's set (this draft said nowhere) and the mark of a story drafted with a place.
+    expect(row.card).toEqual(kept(CARD, null));
     expect(row.card_at).toBeTruthy();
     // On the front page's list it's shaped like one of the show's, with its card.
     expect(await ownRoleplays(t.db, a.id)).toEqual([{ id: uid, title: TRUCKS.title, icon: "✨", category: "romance", premise: TRUCKS.premise, roles: TRUCKS.roles, card: CARD }]);
@@ -371,7 +413,7 @@ describe("a scene in a roleplay of one's own", () => {
     if (!r.ok) throw new Error(r.message);
     expect(seen.drafts).toHaveLength(0);
     const [row] = await rows(`select roleplay, opening from adult_step_in_scenes where id = $1`, [r.id]);
-    expect(row.roleplay).toEqual({ id: uid, you: 0, own: { title: TRUCKS.title, premise: TRUCKS.premise, roles: TRUCKS.roles, category: "romance", card: CARD } });
+    expect(row.roleplay).toEqual({ id: uid, you: 0, own: { title: TRUCKS.title, premise: TRUCKS.premise, roles: TRUCKS.roles, category: "romance", card: CARD, at: null } });
     expect(row.opening).toBe(CARD.openings[0]);
     expect(r.view.roleplay).toEqual({
       id: uid,
@@ -433,7 +475,7 @@ describe("a scene in a roleplay of one's own", () => {
     if (!q.ok) throw new Error(q.message);
     expect(seen.drafts).toHaveLength(1);
     expect(seen.prompts).toHaveLength(0);
-    expect((await rows(`select card from creator_roleplays where id = $1`, [uid.slice(2)]))[0].card).toEqual(CARD);
+    expect((await rows(`select card from creator_roleplays where id = $1`, [uid.slice(2)]))[0].card).toEqual(kept(CARD, null));
     const view = await viewOf(a.id, q.id);
     expect(view.place.id).toBe(HOME);
     expect(view.story).toMatchObject({ beats: 4, done: 0 });
@@ -578,5 +620,346 @@ describe("where it's picked", () => {
     expect(page).not.toContain(`value="yours"`);
     expect(page).not.toContain("✨ Yours");
     expect(a.id).toBeTruthy();
+  });
+});
+
+describe("where a roleplay of one's own is set", () => {
+  const PEN_PALS = { title: "Pen pals, finally", premise: "{a} and {b} have written letters for a year. Tonight they meet for the first time.", roles: null };
+
+  it("is read from the draft as the show's own places are written, and held to what theirs are", () => {
+    // Tidied: the small letter first, the heading's capital, no full stop, a detail too many cut back.
+    expect(parseOwnPlace(JSON.stringify({ ...CARD, place: "The night market at closing time, both trucks shutting up.", place_title: "the night market, closing time" }))).toEqual(PLACE);
+    expect(parseOwnPlace(JSON.stringify({ place: `${PLACE.place}, broth on the air`, place_title: `"${PLACE.title}"` }))).toEqual(PLACE);
+    expect(PLACE.place.length).toBeLessThanOrEqual(ROLEPLAY_PLACE_MAX);
+    // Nowhere, or nowhere that can be kept.
+    const nowhere = [
+      {},
+      { place: PLACE.place },
+      { place: "", place_title: "A place" },
+      { place: "the school gym after hours", place_title: "The gym" },
+      { place: "{a}'s kitchen, the kettle on", place_title: "The kitchen" },
+      { place: "a quiet bedroom above the shop", place_title: "A room above the shop" },
+      { place: "x".repeat(ROLEPLAY_PLACE_MAX + 1), place_title: "A place" },
+      { place: "the night market", place_title: "7" },
+    ];
+    for (const bad of nowhere) expect(parseOwnPlace(JSON.stringify(bad)), JSON.stringify(bad)).toBeNull();
+    expect(parseOwnPlace("not json")).toBeNull();
+    expect(ownPlaceIssue({ place: "The night market", title: "The night market" })).toMatch(/^place: it starts with a small letter/);
+    expect(ownPlaceIssue({ place: "the night market", title: "the night market" })).toMatch(/^place_title: it starts with a capital/);
+    expect(ownPlaceIssue({ place: 'the "night" market', title: "The night market" })).toMatch(/^place: a plain phrase/);
+    // Every place of the show's own passes the same rule: a drafted one is held to theirs, and to nothing they'd fail.
+    for (const rp of ROLEPLAYS) expect(ownPlaceIssue(rp.at), rp.id).toBeNull();
+  });
+
+  it("comes with whichever draft is kept, and is never a reason to ask again", async () => {
+    const { seen, model } = scripted({ drafts: [DRAFT] });
+    expect(await draftOwnStory(model, TRUCKS)).toEqual({ card: CARD, at: PLACE });
+    expect(seen.drafts).toHaveLength(1);
+    const bad = scripted({ drafts: [{ ...CARD, place: "the school gym after hours", place_title: "The gym" }] });
+    expect(await draftOwnStory(bad.model, TRUCKS)).toEqual({ card: CARD, at: null });
+    expect(bad.seen.drafts).toHaveLength(1);
+    // The card alone, for whoever only wants that.
+    expect(await draftOwnCard(scripted({ drafts: [DRAFT] }).model, TRUCKS)).toEqual(CARD);
+  });
+
+  it("is kept with the card, listed with the roleplay, and a scene started from its card starts there", async () => {
+    const a = await admin();
+    const uid = await mine(a.id);
+    const { seen } = scripted({ drafts: [DRAFT] });
+    expect(await ensureOwnStory(t.db, a.id, uid)).toEqual({ card: CARD, at: PLACE });
+    expect((await rows(`select card from creator_roleplays where id = $1`, [uid.slice(2)]))[0].card).toEqual(kept());
+    const [listed] = await ownRoleplays(t.db, a.id);
+    expect(listed.at).toEqual(PLACE);
+    // A night market has other people in it: read from the place's words, like any other place.
+    expect(isPublicPlace(PLACE.place)).toBe(true);
+    expect(storyPlaces([listed])[uid]).toEqual({ title: PLACE.title, public: true });
+    expect(storyPlaces()[uid]).toBeUndefined();
+    expect(Object.keys(storyPlaces())).toHaveLength(ROLEPLAYS.length);
+    // One click on its card: where its story is set, not the character's place.
+    const q = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: uid } });
+    if (!q.ok) throw new Error(q.message);
+    const [row] = await rows(`select place, roleplay from adult_step_in_scenes where id = $1`, [q.id]);
+    expect(row.place).toBe(PLACE.place);
+    expect((row.roleplay as { own: { at: unknown } }).own.at).toEqual(PLACE);
+    expect((await viewOf(a.id, q.id)).place).toEqual({ id: "story", title: PLACE.title, place: PLACE.place, image: null, backdrop: null, public: true });
+    expect((await listStepInScenes(t.db, a.id)).running[0].place).toBe(PLACE.title);
+    // Its picture, once one has been drawn, is the scene's backdrop (asked for by name: it's in nobody's list of 45).
+    await t.db.query(`insert into place_sets (normalized, label, status) values ($1, $2, 'ready')`, [normalizeScene(PLACE.place), PLACE.place]);
+    expect((await viewOf(a.id, q.id)).place.backdrop).toContain("/api/sets/");
+    // The set-up's "where its story is set", and a place from the list instead.
+    const there = await startStepIn(t.db, a.id, { character_id: WHO, place: "story", roleplay: { id: uid } });
+    if (!there.ok) throw new Error(there.message);
+    expect(there.view.place.id).toBe("story");
+    const system = seen.prompts.at(-1)![0].content;
+    expect(system).toContain(`imagining you are both at ${PLACE.place}`);
+    expect(system).toContain(`You are out in public (${PLACE.place})`);
+    const home = await startStepIn(t.db, a.id, { character_id: WHO, place: HOME, roleplay: { id: uid } });
+    expect(home.ok && home.view.place.id).toBe(HOME);
+    expect(seen.drafts).toHaveLength(1);
+  });
+
+  it("out in public it's held to a kiss until the scene moves, and it moves to their place from there", async () => {
+    const a = await admin();
+    const uid = await mine(a.id);
+    await keep(uid, kept());
+    scripted();
+    const q = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: uid } });
+    if (!q.ok) throw new Error(q.message);
+    expect((await viewOf(a.id, q.id)).place).toMatchObject({ id: "story", public: true });
+    const moved = await moveStepIn(t.db, a.id, q.id, HOME);
+    if (!moved.ok) throw new Error(moved.message);
+    expect(moved.view.place).toMatchObject({ id: HOME, public: false });
+    expect(moved.view.messages.at(-1)).toMatchObject({ role: "system", kind: "place" });
+    // Away from where the story is set, nothing is asked of that place's picture any more.
+    expect(await drawStepInSet(t.db, a.id, q.id)).toBeNull();
+    expect(sets.asked).toEqual([]);
+  });
+
+  it("drafted at a one-click start, the scene starts where the fresh draft says; with nowhere, at their place", async () => {
+    const a = await admin();
+    const uid = await mine(a.id);
+    const first = scripted({ drafts: [DRAFT] });
+    const q = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: uid } });
+    if (!q.ok) throw new Error(q.message);
+    expect(first.seen.drafts).toHaveLength(1);
+    expect((await viewOf(a.id, q.id)).place).toMatchObject({ id: "story", title: PLACE.title });
+    // A draft that says nowhere: the card is kept, and one click starts at the character's place, as before.
+    const plain = await mine(a.id, PEN_PALS);
+    scripted({ drafts: [CARD] });
+    const h = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: plain } });
+    if (!h.ok) throw new Error(h.message);
+    expect((await viewOf(a.id, h.id)).place.id).toBe(HOME);
+    expect((await viewOf(a.id, h.id)).story).toMatchObject({ beats: 4 });
+    // Asked for by name (the set-up never offers it for one with no place): refused, once the draft has said nowhere.
+    const other = await mine(a.id, { title: "Lovers across time", premise: "{a} and {b} keep meeting in different centuries. Tonight, for once, they get a whole night in the same one.", roles: null });
+    scripted({ drafts: [CARD] });
+    expect(await startStepIn(t.db, a.id, { character_id: WHO, place: "story", roleplay: { id: other } })).toMatchObject({ ok: false, status: 422, error: "invalid_place" });
+    expect(await rows(`select 1 from adult_step_in_scenes where roleplay->>'id' = $1`, [other])).toHaveLength(0);
+  });
+
+  it("has its picture asked for like any story's place, unless the place has a name in it", async () => {
+    expect(ownPlaceDrawable(PLACE.place)).toBe(true);
+    expect(ownPlaceDrawable("the open front door of a flat, late on a Thursday")).toBe(true);
+    expect(ownPlaceDrawable("a rooftop bar in Lisbon at dusk")).toBe(false);
+    for (const rp of ROLEPLAYS) expect(ownPlaceDrawable(rp.at.place), rp.id).toBe(true);
+    const a = await admin();
+    const uid = await mine(a.id);
+    await keep(uid, kept());
+    scripted();
+    const q = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: uid } });
+    if (!q.ok) throw new Error(q.message);
+    expect(await drawStepInSet(t.db, a.id, q.id)).toBe("drawing");
+    expect(sets.asked).toEqual([PLACE.place]);
+    // A place with a name in it still plays, under its own heading; its picture is never drawn (a set is everyone's).
+    const named = { place: "a rooftop bar in Lisbon at dusk", title: "A rooftop bar in Lisbon" };
+    expect(ownPlaceIssue(named)).toBeNull();
+    const other = await mine(a.id, PEN_PALS);
+    await keep(other, kept(CARD, named));
+    const n = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: other } });
+    if (!n.ok) throw new Error(n.message);
+    expect((await viewOf(a.id, n.id)).place).toMatchObject({ id: "story", title: named.title, backdrop: null });
+    sets.asked.length = 0;
+    expect(await drawStepInSet(t.db, a.id, n.id)).toBeNull();
+    expect(sets.asked).toEqual([]);
+    // One of the show's own, as before.
+    const house = await quickStepIn(t.db, a.id, WHO, new Date(), { roleplay: { id: "neighbours" } });
+    if (!house.ok) throw new Error(house.message);
+    expect(await drawStepInSet(t.db, a.id, house.id)).toBe("drawing");
+    expect(sets.asked).toEqual([ROLEPLAYS.find((r) => r.id === "neighbours")!.at.place]);
+  });
+
+  it("the set-up offers where its story is set, and starts there unless they pick somewhere", async () => {
+    const a = await admin();
+    const uid = await mine(a.id);
+    await keep(uid, kept());
+    scripted();
+    const set = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: uid }) }));
+    expect(set).toMatch(/<option(?=[^>]*value="story")(?=[^>]*selected="")[^>]*>Where the story is set: The night market, closing time · out in public</);
+    expect(set).toContain("📍 Set at: The night market, closing time (out in public).");
+    // One with no place: nothing of the kind, and their place is where it starts.
+    const plain = await mine(a.id, PEN_PALS);
+    await keep(plain, kept(CARD, null));
+    const none = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: plain }) }));
+    expect(none).not.toContain("Where the story is set");
+    expect(none).not.toContain("📍 Set at");
+  });
+});
+
+describe("a goal that reads right", () => {
+  const WANT = "{a} wants to finally admit the rivalry was an excuse to be near {b}, but worries {b} might not feel the same.";
+  const LEANING: SceneCard = { ...CARD, wants: [WANT, CARD.wants[1]] };
+
+  it("finds a verb left leaning on the name that \"you\" replaced, only from the side it reads wrong for", () => {
+    const told = premiseForYou(WANT, "a", "Wally");
+    expect(told).toBe("You want to finally admit the rivalry was an excuse to be near Wally, but worries Wally might not feel the same.");
+    expect(leaningVerbAt(told, "Wally")).toBe(told.indexOf(", but worries"));
+    expect(withoutLeaningVerbs(told, "Wally")).toBe("You want to finally admit the rivalry was an excuse to be near Wally.");
+    // From the other side the verb is Wally's own, and right as it is.
+    const theirs = premiseForYou(WANT, "b", "Wally");
+    expect(theirs).toBe("Wally wants to finally admit the rivalry was an excuse to be near you, but worries you might not feel the same.");
+    expect(leaningVerbAt(theirs, "Wally")).toBe(-1);
+    // After a comma, after "or", with an adverb between, in a clause of its own; what follows a semicolon is kept.
+    for (const [raw, shown] of [
+      ["{a} wants to ask {b} to stay, and hopes {b} says yes.", "You want to ask Mara to stay."],
+      ["{a} wants to win; {a} smiles, yet is nervous.", "You want to win; you smile."],
+      ["{a} wants to stay late, but still has a train to catch; the last one leaves at midnight.", "You want to stay late; the last one leaves at midnight."],
+      ["{a} wants to dance or just watches the floor.", "You want to dance."],
+    ]) {
+      expect(withoutLeaningVerbs(premiseForYou(raw, "a", "Mara"), "Mara"), raw).toBe(shown);
+    }
+    // A verb joined by a bare "and" is already turned (lib/roleplays.ts premiseForYou), and nothing is cut.
+    expect(withoutLeaningVerbs(premiseForYou(CARD.openings[0], "a", "Mara"), "Mara")).toBe("You set a taco on Mara's counter and say it is a peace offering.");
+    // The other one's name is never taken for a verb, and nor is a word that only ends like one.
+    expect(leaningVerbAt("You want to stay, and Miles has other plans.", "Miles Okafor")).toBe(-1);
+    expect(leaningVerbAt("You want to stay, and this is the night for it.", "Mara")).toBe(-1);
+    expect(leaningVerbAt("You and Mara flip the signs to closed at the same moment and notice.", "Mara")).toBe(-1);
+  });
+
+  it("touches no card of the show's own, whoever is in it", () => {
+    for (const rp of [...ROLEPLAYS, ...DATE_ROLEPLAYS]) {
+      for (const { field, text } of cardTexts(rp.card)) {
+        for (const side of ["a", "b"] as const) {
+          for (const name of ["Mara", "Miles", "Iris"]) expect(leaningVerbAt(premiseForYou(text, side, name), name), `${rp.id} ${field}/${side}/${name}`).toBe(-1);
+        }
+      }
+    }
+    for (const rp of ROLEPLAYS) {
+      for (const you of [0, 1] as const) expect(storyGoal(rp, you, "Miles Okafor"), `${rp.id}:${you}`).toBe(premiseForYou(rp.card.wants[you], you === 1 ? "b" : "a", "Miles"));
+    }
+  });
+
+  it("is asked for again when a draft leans a verb on a name, and the draft with fewer such texts is the one kept", async () => {
+    expect(adultCardIssue(LEANING)).toBeNull();
+    expect(ownCardReadingIssue(LEANING)).toMatch(/^wants\[0\]: a verb leans on \{a\} or \{b\} without the name/);
+    const better = scripted({ drafts: [LEANING, CARD] });
+    expect(await draftOwnCard(better.model, TRUCKS)).toEqual(CARD);
+    expect(better.seen.drafts[1][1].content).toMatch(/Your last card couldn't be used: wants\[0\]: a verb leans on \{a\} or \{b\} without the name/);
+    // The same fault twice: the first is kept (it's inside every line).
+    expect(await draftOwnCard(scripted({ drafts: [LEANING, LEANING] }).model, TRUCKS)).toEqual(LEANING);
+    // Two texts that read wrong, then one: the second is the better card, and it's the one kept.
+    const two: SceneCard = { ...LEANING, openings: ["{a} quietly sets a taco on the counter.", CARD.openings[1], CARD.openings[2]] };
+    expect(ownCardReadingIssues(two)).toHaveLength(2);
+    expect(ownCardReadingIssues(CARD)).toEqual([]);
+    expect(await draftOwnCard(scripted({ drafts: [two, LEANING] }).model, TRUCKS)).toEqual(LEANING);
+    expect(await draftOwnCard(scripted({ drafts: [LEANING, two] }).model, TRUCKS)).toEqual(LEANING);
+  });
+
+  it("is never shown ungrammatical: the goal stops before the clause, and the writer's copy stays whole", async () => {
+    expect(storyGoal({ card: LEANING }, 0, "Wally Brandt")).toBe("You want to finally admit the rivalry was an excuse to be near Wally.");
+    expect(cardShownToYou(LEANING, "a", "Wally").wants[0]).toBe("You want to finally admit the rivalry was an excuse to be near Wally.");
+    expect(cardShownToYou(CARD, "a", "Wally")).toEqual({ ...CARD, setup: premiseForYou(CARD.setup, "a", "Wally"), wants: [premiseForYou(CARD.wants[0], "a", "Wally"), premiseForYou(CARD.wants[1], "a", "Wally")], beats: CARD.beats, tone: CARD.tone, openings: CARD.openings.map((o) => premiseForYou(o, "a", "Wally")) });
+    const a = await admin();
+    const uid = await mine(a.id);
+    await keep(uid, kept(LEANING, null));
+    const { seen } = scripted();
+    const mine0 = await startStepIn(t.db, a.id, { character_id: WHO, place: HOME, roleplay: { id: uid, you: 0 } });
+    if (!mine0.ok) throw new Error(mine0.message);
+    expect(mine0.view.story?.goal).toBe(`You want to finally admit the rivalry was an excuse to be near ${NAME}.`);
+    // On the other side that want is the character's own, and the writer is told all of it.
+    const theirs = await startStepIn(t.db, a.id, { character_id: WHO, place: HOME, roleplay: { id: uid, you: 1 } });
+    if (!theirs.ok) throw new Error(theirs.message);
+    expect(seen.prompts.at(-1)![0].content).toContain(`What you want in it: ${NAME} wants to finally admit the rivalry was an excuse to be near your scene partner, but worries your scene partner might not feel the same.`);
+    // And the scene's own copy has the want as it was drafted.
+    const [row] = await rows(`select roleplay from adult_step_in_scenes where id = $1`, [theirs.id]);
+    expect((row.roleplay as { own: { card: SceneCard } }).own.card.wants[0]).toBe(WANT);
+  });
+});
+
+describe("roleplays saved before stories were drafted", () => {
+  const NOW = new Date("2026-11-24T10:00:00Z");
+  const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60_000);
+  /** Three roleplays of theirs, the first the oldest, none with a card. */
+  async function three(owner: string) {
+    const ids: string[] = [];
+    for (const [i, [title, where]] of [["The last ferry", "on the quay"], ["Pen pals, finally", "at the post office"], ["Rival food trucks", "at the kerb"]].entries()) {
+      const uid = await mine(owner, { title, premise: `{a} and {b} meet again ${where}, and this time neither leaves early.` });
+      await t.db.query(`update creator_roleplays set created_at = now() - ($2::int * interval '1 minute') where id = $1`, [uid.slice(2), 30 - i * 10]);
+      ids.push(uid);
+    }
+    return ids;
+  }
+  const carded = async (owner: string) => (await rows(`select id from creator_roleplays where owner_id = $1 and card is not null order by created_at desc`, [owner])).map((r) => `u:${r.id}`);
+
+  it("get theirs two at a visit, the newest first, and nothing once every one has a story", async () => {
+    const a = await admin();
+    const [oldest, middle, newest] = await three(a.id);
+    const { seen } = scripted({ drafts: [DRAFT] });
+    // Switched off for every test but this kind (tests/setup-no-live-checks.ts): nothing is asked of any model.
+    expect(await draftMissingOwnCards(t.db, a.id, NOW)).toBe(0);
+    expect(seen.drafts).toHaveLength(0);
+    setOwnCardOnSaveForTests(true);
+    expect(OWN_CARDS_PER_VISIT).toBe(2);
+    expect(await draftMissingOwnCards(t.db, a.id, NOW)).toBe(2);
+    expect(seen.drafts).toHaveLength(2);
+    expect(await carded(a.id)).toEqual([newest, middle]);
+    expect(await draftMissingOwnCards(t.db, a.id, NOW)).toBe(1);
+    expect(await carded(a.id)).toEqual([newest, middle, oldest]);
+    expect(await draftMissingOwnCards(t.db, a.id, later(120))).toBe(0);
+    expect(seen.drafts).toHaveLength(3);
+    // Each has its goal and where it's set on the next visit.
+    for (const rp of await ownRoleplays(t.db, a.id)) expect(rp).toMatchObject({ card: CARD, at: PLACE });
+    // Someone else's are never touched.
+    const other = await admin();
+    await mine(other.id);
+    expect(await draftMissingOwnCards(t.db, a.id, later(180))).toBe(0);
+    expect(await carded(other.id)).toEqual([]);
+  });
+
+  it("wait an hour after a draft that came to nothing; a card from before places is drafted again once, and stays if nothing better comes", async () => {
+    const a = await admin();
+    const uid = await mine(a.id);
+    setOwnCardOnSaveForTests(true);
+    const none = scripted({ drafts: ["no"] });
+    expect(await draftMissingOwnCards(t.db, a.id, NOW)).toBe(1);
+    expect(none.seen.drafts).toHaveLength(OWN_CARD_DRAFTS);
+    expect(await draftMissingOwnCards(t.db, a.id, later(OWN_CARD_RETRY_MINUTES - 1))).toBe(0);
+    expect(none.seen.drafts).toHaveLength(OWN_CARD_DRAFTS);
+    const got = scripted({ drafts: [DRAFT] });
+    expect(await draftMissingOwnCards(t.db, a.id, later(OWN_CARD_RETRY_MINUTES + 1))).toBe(1);
+    expect(got.seen.drafts).toHaveLength(1);
+    expect((await ownRoleplays(t.db, a.id))[0]).toMatchObject({ card: CARD, at: PLACE });
+    // A card kept before places were drafted (no mark): it plays as it is, a scene's start never drafts it again,
+    // and the front page's pass does, once.
+    await keep(uid, CARD, "'2026-11-24T06:00:00Z'");
+    expect((await ownRoleplays(t.db, a.id))[0]).toMatchObject({ card: CARD });
+    expect((await ownRoleplays(t.db, a.id))[0].at).toBeUndefined();
+    const again = scripted({ drafts: [DRAFT] });
+    expect(await ensureOwnStory(t.db, a.id, uid, NOW)).toEqual({ card: CARD, at: null });
+    expect(again.seen.drafts).toHaveLength(0);
+    expect(await draftMissingOwnCards(t.db, a.id, NOW)).toBe(1);
+    expect(again.seen.drafts).toHaveLength(1);
+    expect((await ownRoleplays(t.db, a.id))[0].at).toEqual(PLACE);
+    // Drafted again and nothing usable coming: the card it had stays, marked, and isn't tried a third time.
+    const old: SceneCard = { ...CARD, tone: "an older draft, kept" };
+    await keep(uid, old, "'2026-11-24T06:00:00Z'");
+    const failing = scripted({ drafts: ["no"] });
+    expect(await draftMissingOwnCards(t.db, a.id, NOW)).toBe(1);
+    expect(failing.seen.drafts).toHaveLength(OWN_CARD_DRAFTS);
+    expect((await rows(`select card from creator_roleplays where id = $1`, [uid.slice(2)]))[0].card).toEqual(kept(old, null));
+    expect(await draftMissingOwnCards(t.db, a.id, later(600))).toBe(0);
+    expect(failing.seen.drafts).toHaveLength(OWN_CARD_DRAFTS);
+  });
+
+  it("the front page asks for them past its response, and shows a person's own sentence with a capital until then", async () => {
+    const a = await admin();
+    const uid = await mine(a.id, { title: "The last ferry", premise: "the last ferry of the night, {a} and {b} the only two aboard.", roles: null });
+    const { seen } = scripted({ drafts: [DRAFT] });
+    setOwnCardOnSaveForTests(true);
+    expect(premiseShownToYou("the last ferry of the night, {a} and {b} the only two aboard.", "a", "Wally Brandt")).toBe("The last ferry of the night, you and Wally the only two aboard.");
+    const page = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: uid }) }));
+    expect(page).toContain(`The last ferry of the night, you and ${NAME} the only two aboard.`);
+    expect(page).not.toContain("Where the story is set");
+    await until(async () => (await rows(`select 1 from creator_roleplays where id = $1 and card is not null`, [uid.slice(2)])).length === 1);
+    expect(seen.drafts).toHaveLength(1);
+    // The next visit has its story: how it starts, and where it's set.
+    const next = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: uid }) }));
+    expect(next).toContain("Where the story is set: The night market, closing time");
+    expect(next).toContain(premiseForYou(CARD.setup, "a", NAME));
+    // And someone with none of their own: nothing is asked of anything.
+    const b = await admin();
+    await html(await StepInSetupPage({ searchParams: Promise.resolve({}) }));
+    await new Promise((r) => setTimeout(r, 40));
+    expect(seen.drafts).toHaveLength(1);
+    expect(b.id).toBeTruthy();
   });
 });

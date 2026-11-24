@@ -54,6 +54,9 @@ export type Roleplay = {
  * characters at most like any set's label, starting lower case ("the closed tailor's shop, blinds down, one lamp lit");
  * `title` is what a scene's header shows after the pin ("A closed tailor's shop").
  *
+ * A roleplay someone wrote themselves gets one too, drafted with its story card (lib/adult/own-roleplay-card.ts) and
+ * held to the same shape.
+ *
  * Step in starts a scene there (lib/adult/step-in.ts, place "story"). Whether it's out in public is read from the
  * place's own words, like every other place (lib/adult/scenes.ts isPublicPlace): a story set where other people are
  * (a bar, a wedding's dance floor, a gallery opening) is worded with the public place it's in and is held to a kiss
@@ -62,6 +65,8 @@ export type Roleplay = {
  */
 export type RoleplayPlace = { place: string; title: string };
 export const ROLEPLAY_PLACE_MAX = 60;
+/** A place's heading, at most: it stands beside the pin in a scene's header and on a card. */
+export const ROLEPLAY_PLACE_TITLE_MAX = 48;
 
 /** One of the show's own: it always comes with its card, its tags and its place. */
 export type HouseRoleplay = Roleplay & { card: SceneCard; tags: readonly AdultTagId[]; at: RoleplayPlace };
@@ -1217,11 +1222,12 @@ export const roleplayById = (id: string | null | undefined): Roleplay | null => 
 /**
  * A roleplay someone wrote themselves (the Create library, lib/studio/library.ts: "u:<id>"), as a Step in scene keeps
  * it: the scene's own copy, taken when the scene starts, with the story card drafted for it
- * (lib/adult/own-roleplay-card.ts; null when no draft could be kept, and it then plays without a story). The scene
- * never reads the library again, so a roleplay changed or deleted later plays on as it was, and the beats a scene has
- * ticked stay its own card's.
+ * (lib/adult/own-roleplay-card.ts; null when no draft could be kept, and it then plays without a story) and where that
+ * story is set (`at`, drafted with the card as the show's own are written: see RoleplayPlace; null or left out when it
+ * has none, and a scene in it then starts at the character's place). The scene never reads the library again, so a
+ * roleplay changed or deleted later plays on as it was, and the beats a scene has ticked stay its own card's.
  */
-export type OwnRoleplay = { title: string; premise: string; roles: readonly [string, string] | null; category: SceneCategory; card: SceneCard | null };
+export type OwnRoleplay = { title: string; premise: string; roles: readonly [string, string] | null; category: SceneCategory; card: SceneCard | null; at?: RoleplayPlace | null };
 
 /** What a Step in scene stores of its roleplay: which one, the viewer's side of it, and for one of their own, the copy. */
 export type RoleplayPick = { id: string; you: 0 | 1; own?: OwnRoleplay };
@@ -1246,18 +1252,28 @@ export function storedCard(raw: unknown): SceneCard | null {
   return { setup: c.setup, wants: [wants[0], wants[1]], beats: [...beats], tone: c.tone, openings: [openings[0], openings[1], openings[2]] };
 }
 
+/** A stored place read back, when it has a place's two parts (what a prompt says after "at", and its heading); null otherwise. */
+export function storedPlace(raw: unknown): RoleplayPlace | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  return said(p.place) && said(p.title) ? { place: p.place, title: p.title } : null;
+}
+
 /** A scene's stored copy of a roleplay of its viewer's own, read back; null when it isn't one. */
 function storedOwn(raw: unknown): OwnRoleplay | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   if (!said(o.title) || !said(o.premise)) return null;
   const roles = Array.isArray(o.roles) && o.roles.length === 2 && o.roles.every(said) ? ([o.roles[0], o.roles[1]] as const) : null;
-  return { title: o.title, premise: o.premise, roles, category: (said(o.category) ? o.category : "romance") as SceneCategory, card: storedCard(o.card) };
+  return { title: o.title, premise: o.premise, roles, category: (said(o.category) ? o.category : "romance") as SceneCategory, card: storedCard(o.card), at: storedPlace(o.at) };
 }
 
-/** A person's own roleplay in the shape the show's own have: its "u:" id, no costumes, tags or place, and its card when it has one. */
+/**
+ * A person's own roleplay in the shape the show's own have: its "u:" id, no costumes or tags, its card when it has one,
+ * and where its story is set when that was drafted with it.
+ */
 export function ownAsRoleplay(id: string, own: OwnRoleplay): Roleplay {
-  return { id, title: own.title, icon: OWN_ROLEPLAY_ICON, category: own.category, premise: own.premise, roles: own.roles, ...(own.card ? { card: own.card } : {}) };
+  return { id, title: own.title, icon: OWN_ROLEPLAY_ICON, category: own.category, premise: own.premise, roles: own.roles, ...(own.card ? { card: own.card } : {}), ...(own.at ? { at: own.at } : {}) };
 }
 
 /**
