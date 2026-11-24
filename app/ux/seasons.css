@@ -1293,7 +1293,8 @@
 }
 
 /* The week in review (app/week, lib/week-recap.ts): the week's video beside the dates in it; stacked on a phone, the
-   video first. The video keeps its 9:16 shape before it loads, so the list under it never jumps. */
+   video first. The video keeps its 9:16 shape before it loads, so the list under it never jumps, and is never taller
+   than most of the screen, so its controls are on the first screen with its heading (a phone's tab bar included). */
 main:has(> .week-recap) {
   max-width: var(--page-wide);
 }
@@ -1319,9 +1320,10 @@ main:has(> .week-recap) {
 }
 .week-recap-video {
   display: block;
-  width: 100%;
-  max-width: 22rem;
+  width: auto;
+  max-width: min(100%, 22rem);
   height: auto;
+  max-height: 58svh;
   aspect-ratio: 9 / 16;
   border-radius: var(--radius);
   background: var(--card-dark);
