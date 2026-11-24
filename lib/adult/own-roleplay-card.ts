@@ -129,6 +129,7 @@ export function parseOwnCard(raw: string): SceneCard | null {
   const list = (v: unknown, max: number) => (Array.isArray(v) ? v.map(tidy).filter(Boolean).slice(0, max) : []);
   const wants = list(c.wants, 2);
   const openings = list(c.openings, 3);
+  // storedCard also ends each sentence the model left without its full stop (lib/adult/roleplays.ts).
   return storedCard({ setup: tidy(c.setup), wants, beats: list(c.beats, 4), tone: tidy(c.tone), openings });
 }
 
