@@ -476,7 +476,9 @@ export function settleSheet(read: SheetRead, ctx: SettleContext): SceneSheet {
       if (!item || (!found && l.around.some((t) => sameThing(t, item)))) continue;
       if (net.kind === "down") {
         const place = tail(net.place ?? "");
-        if (!place || SOMEBODY.test(place)) continue;
+        // Somewhere, not somebody, and not into or over other clothes: a shirt tucked into jeans, stockings "left on
+        // as she…" and a cardigan put back on over a tee are all still worn.
+        if (place.split(" ").length < 2 || SOMEBODY.test(place) || CLOTHES.test(place) || [...l.themWorn, ...l.youWorn].some((w) => saidIn(place, w))) continue;
         if (found) found.list.splice(found.list.indexOf(found.item), 1);
         l.around = [`${item} ${noOwner(place).slice(0, 60)}`, ...l.around.filter((t) => !sameThing(t, item))];
         placedByLine.add(head(item));

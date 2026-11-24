@@ -426,6 +426,10 @@ describe("the answer, settled: what the first live reads got wrong", () => {
     expect(settle({ where: "the hall", character_wears: SEED, person_wears: "a dark green wool coat" }, { base: coat, lines: [line("character", "She took your coat and hung it on the chair.")] })).toEqual({ ...coat, you: "", around: "a dark green wool coat on the chair" });
     // Nor is a hand on a knee a thing put down, or a look a thing handed over.
     expect(settle({ where: "the hall", character_wears: SEED, person_wears: "a dark green wool coat" }, { base: coat, lines: [line("them", "I put my hand on your knee and give you a look."), line("character", "She put her hand on your shoulder and left it there.")] })).toEqual(coat);
+    // Still worn: left on, tucked in, or put back on over something else.
+    const worn = { where: "the bedroom", them: "a white shirt, jeans, stockings", you: "", around: "" };
+    for (const told of ["She left her stockings on as she crossed the room.", "She tucked her shirt into her jeans and turned round.", "She put her shirt back on over her vest and did up one button."])
+      expect(settle({ where: "the bedroom", character_wears: "a white shirt, jeans, stockings" }, { base: worn, lines: [line("character", told)] }), told).toEqual(worn);
     // After the scene moves, what's in a hand goes along and what was around them doesn't.
     expect(settle({ where: "a rooftop bar", character_wears: SEED }, { base: held, lines: [line("moved", "a rooftop bar"), line("character", '"Better," she said, looking out over the roofs.')] })).toEqual({ where: "a rooftop bar", them: held.them, you: "", around: "" });
   });
