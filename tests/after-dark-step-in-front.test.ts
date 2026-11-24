@@ -106,11 +106,23 @@ describe("what goes on the page, and what's left to the sheet", () => {
     expect(storyChoices(own, kinds, "", "zzzz")).toEqual([]);
   });
 
-  it("the places: the ones whose name holds what was typed, in their own order", () => {
-    const places = [{ title: "Their place" }, { title: "A corner café that closes in an hour" }, { title: "A cold beach at night" }];
-    expect(placeChoices(places, "")).toEqual(places);
-    expect(placeChoices(places, "cafe")).toEqual([places[1]]);
-    expect(placeChoices(places, "A C").map((p) => p.title)).toEqual(["A corner café that closes in an hour", "A cold beach at night"]);
+  it("the places: their own place first, then the ones with a picture, then the rest; private or public, or by name", () => {
+    // The catalog's own order opens on its scenario places, a third of them with no picture (the first live check).
+    const places = [
+      { id: "scenario:elevator", title: "Stuck in an elevator", image: null, public: true },
+      { id: "scenario:motel", title: "One room left", image: "/api/sets/motel%20room?w=400", public: false },
+      { id: "venue:corner_cafe", title: "A corner café that closes in an hour", image: "/cast/venue-corner_cafe-v2.webp", public: true },
+      { id: "venue:home", title: "Their place", image: "/cast/venue-home-v2.webp", public: false },
+      { id: "idea:rainy-cabin", title: "Rainy cabin", image: null, public: false },
+    ];
+    const ids = (list: { id: string }[]) => list.map((p) => p.id);
+    expect(ids(placeChoices(places, ""))).toEqual(["venue:home", "scenario:motel", "venue:corner_cafe", "scenario:elevator", "idea:rainy-cabin"]);
+    expect(ids(placeChoices(places, "", "private"))).toEqual(["venue:home", "scenario:motel", "idea:rainy-cabin"]);
+    expect(ids(placeChoices(places, "", "public"))).toEqual(["venue:corner_cafe", "scenario:elevator"]);
+    // Accents and case aside.
+    expect(ids(placeChoices(places, "CAFE"))).toEqual(["venue:corner_cafe"]);
+    expect(ids(placeChoices(places, "o", "private"))).toEqual(["scenario:motel"]);
+    expect(placeChoices(places, "zzzz")).toEqual([]);
   });
 });
 
@@ -216,8 +228,18 @@ describe("the sheets", () => {
     const a = await admin();
     const places = stepInPlaces(await drawnSets(t.db));
     const plain = await sheet(a, "where", { preselect: WHO });
-    expect([...plain.matchAll(/data-place="([^"]*)"/g)].map((m) => m[1])).toEqual(places.map((p) => p.id));
+    const listed = [...plain.matchAll(/data-place="([^"]*)"/g)].map((m) => m[1]);
+    // Every place once, their own place first, the ones with a picture before the ones without.
+    expect([...listed].sort()).toEqual(places.map((p) => p.id).sort());
+    expect(listed).toEqual(placeChoices(places, "").map((p) => p.id));
+    expect(listed[0]).toBe("venue:home");
     expect(plain).toMatch(/<button type="button" class="ad-si-pick on" aria-pressed="true" data-place="venue:home">/);
+    // Private or out in public is one press: a scene somewhere public goes as far as a kiss.
+    const open = places.filter((p) => p.public).length;
+    expect(plain).toMatch(new RegExp(`data-step-in-sheet-kind="private"[^>]*>Private<span class="ad-scenes-count">${places.length - open}</span>`));
+    expect(plain).toMatch(new RegExp(`data-step-in-sheet-kind="public"[^>]*>Out in public<span class="ad-scenes-count">${open}</span>`));
+    // A card further down a sheet isn't drawn (or its picture asked for) until it's near the window.
+    expect(readFileSync("app/ux/after-dark.css", "utf8")).toMatch(/\.ad-si-sheet-grid > li:has\(> \.ad-si-pick\) \{\n  content-visibility: auto;/);
     expect(plain).toMatch(new RegExp(`placeholder="Search ${places.length} places"`));
     const set = await sheet(a, "where", { preselect: WHO, preselectRoleplay: "neighbours" });
     expect([...set.matchAll(/data-place="([^"]*)"/g)][0][1]).toBe("story");
