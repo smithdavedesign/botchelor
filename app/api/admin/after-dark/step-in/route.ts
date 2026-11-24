@@ -1,21 +1,28 @@
 import { z } from "zod";
 import { ROLEPLAY_IDS } from "@/lib/adult/roleplays";
-import { drawStepInSet, listStepInScenes, quickStepIn, startStepIn, stepInCast, stepInViewer } from "@/lib/adult/step-in";
+import { drawStepInSet, listStepInScenes, quickStepIn, startStepIn, stepInCast, stepInFollowUp, stepInViewer } from "@/lib/adult/step-in";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { CARD_OPENING_MAX } from "@/lib/scene-cards";
 import { inBackground } from "@/lib/sets";
+import { USER_ROLEPLAY } from "@/lib/studio/library";
 
 // The character's opening is a model call (two, when the first draft can't be used).
 export const maxDuration = 300;
+
+/**
+ * Which roleplay: one of After Dark's own by its id, or one the viewer wrote themselves (the Create library's, "u:<id>":
+ * lib/adult/step-in.ts startStepIn takes only their own, and refuses anyone else's like any other it doesn't know).
+ */
+const RoleplayId = z.union([z.enum(ROLEPLAY_IDS), z.string().regex(USER_ROLEPLAY)]);
 
 const Start = z.object({
   character_id: z.string().min(1).max(64),
   // A place's id from After Dark's scene catalog (lib/adult/step-in.ts stepInPlaces), or "story": where the roleplay's
   // own story is set (lib/adult/roleplays.ts `at`; only with a roleplay).
   place: z.string().min(1).max(120),
-  // One of After Dark's roleplays and which side of it the viewer plays (0: its first role); null or left out: none.
-  roleplay: z.object({ id: z.enum(ROLEPLAY_IDS), you: z.union([z.literal(0), z.literal(1)]).optional() }).nullable().optional(),
+  // A roleplay (After Dark's, or the viewer's own) and which side of it the viewer plays (0: its first role); null or left out: none.
+  roleplay: z.object({ id: RoleplayId, you: z.union([z.literal(0), z.literal(1)]).optional() }).nullable().optional(),
   // How it opens: one of the three, any of them, or one sentence of the viewer's own (checked before anything is kept).
   opening: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal("surprise"), z.object({ written: z.string().max(CARD_OPENING_MAX * 4) })]).optional(),
 });
@@ -23,11 +30,12 @@ const Start = z.object({
 /**
  * One click (lib/adult/step-in.ts quickStepIn): only who, and their running scene with that character or a new one at
  * the character's place. With a roleplay (a card on the front page's shelf): who and which story, always a new scene.
+ * One of the viewer's own starts at the character's place (it has no place of its own).
  */
 const Quick = z.object({
   character_id: z.string().min(1).max(64),
   quick: z.literal(true),
-  roleplay: z.object({ id: z.enum(ROLEPLAY_IDS), you: z.union([z.literal(0), z.literal(1)]).optional() }).optional(),
+  roleplay: z.object({ id: RoleplayId, you: z.union([z.literal(0), z.literal(1)]).optional() }).optional(),
 });
 
 /** Not found for anyone Step in isn't open to (lib/adult/step-in.ts stepInViewer), exactly like After Dark's other closed pieces. */
@@ -53,7 +61,8 @@ export const GET = handle(async (req: Request) => {
  * is set.
  *
  * A scene at a roleplay's own place has that place's picture asked for past the response (drawStepInSet: drawn once
- * for everyone, checked, free or a fraction of a cent); nothing waits on it.
+ * for everyone, checked, free or a fraction of a cent); nothing waits on it. And a scene whose opening was drawn here
+ * has its continuity sheet read for it past the response (stepInFollowUp), as after any reply.
  */
 export const POST = handle(async (req: Request) => {
   const db = await getDb();
@@ -78,5 +87,7 @@ export const POST = handle(async (req: Request) => {
     return json(body, status);
   }
   if (input.roleplay) inBackground(() => drawStepInSet(db, viewer, r.id));
+  // The opening is a reply like any other: where the two of them are and what the character has on start from it.
+  if (r.replied !== false) inBackground(() => stepInFollowUp(db, r.id));
   return json({ id: r.id, scene: r.view, ...(r.replied === false ? { replied: false, message: r.message } : {}) });
 });

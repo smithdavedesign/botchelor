@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { draftOwnCardOnSave, ownStoriesOpen } from "@/lib/adult/own-roleplay-card";
 import { getDb } from "@/lib/db";
 import { authFromRequest, handle, json, parseBody, readJson } from "@/lib/http";
+import { inBackground } from "@/lib/sets";
 import {
   deleteItem,
   getLibrary,
@@ -22,18 +24,23 @@ import {
  * The viewer's Create library (lib/studio/library.ts): their own prompts, venues and roleplays. Signed-in accounts only.
  * After Dark items only for someone After Dark is open to; everyone else sees and saves their safe ones (a safe roleplay
  * plays on show dates). A roleplay saved without a mode is After Dark's, as its Studio's form always sent.
+ *
+ * For someone After Dark's Step in is open to, a roleplay they save gets its story drafted past the response
+ * (lib/adult/own-roleplay-card.ts: the card that gives it a goal, beats and an ending there), so the first scene they
+ * start in it doesn't wait on that; and each roleplay in the list says once its story is there.
  */
 async function who(req: Request) {
   const auth = authFromRequest(req);
   if (!auth?.authenticated) return null;
   const db = await getDb();
-  return { db, owner: auth.userId, afterDark: (await canAfterDark(db, auth)).ok };
+  const afterDark = (await canAfterDark(db, auth)).ok;
+  return { db, owner: auth.userId, afterDark, stepIn: afterDark && (await ownStoriesOpen(db, auth.userId).catch(() => false)) };
 }
 
 export const GET = handle(async (req: Request) => {
   const w = await who(req);
   if (!w) return json({ error: "sign_in", message: "Sign in to keep your own prompts, venues and roleplays." }, 401);
-  return json({ library: await getLibrary(w.db, w.owner, { safeOnly: !w.afterDark }), after_dark: w.afterDark });
+  return json({ library: await getLibrary(w.db, w.owner, { safeOnly: !w.afterDark, stories: w.stepIn }), after_dark: w.afterDark, step_in: w.stepIn });
 });
 
 const Input = z.discriminatedUnion("action", [
@@ -64,5 +71,7 @@ export const POST = handle(async (req: Request) => {
       : input.action === "save_place"
         ? await savePlace(w.db, w.owner, input)
         : await saveRoleplay(w.db, w.owner, input);
+  // A roleplay's story for Step in, drafted past the response: a small call or two, and never in the way of the save.
+  if (r.ok && input.action === "save_roleplay" && w.stepIn) inBackground(() => draftOwnCardOnSave(w.db, w.owner, `u:${r.item.id}`));
   return r.ok ? json({ item: r.item }) : json({ error: "not_saved", message: r.message }, r.status);
 });

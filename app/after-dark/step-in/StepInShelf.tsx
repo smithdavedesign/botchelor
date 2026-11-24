@@ -5,12 +5,13 @@ import { useMemo, useState } from "react";
 import CharacterName from "@/app/CharacterName";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import { coverFor, ROLEPLAY_COVERS } from "@/lib/adult/roleplay-covers";
-import { ROLEPLAYS } from "@/lib/adult/roleplays";
+import { ROLEPLAYS, type Roleplay } from "@/lib/adult/roleplays";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import type { StepInCharacter, StoryPlace } from "@/lib/adult/step-in-shared";
-import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight, shelfYours, shelfYoursSlot } from "@/lib/adult/step-in-shelf";
+import { SHELF_OWN, SHELF_TONIGHT, shelfCast, shelfLead, shelfShown, shelfYours, shelfYoursSlot } from "@/lib/adult/step-in-shelf";
 import { storyGoal } from "@/lib/adult/step-in-story";
 import { roleplayGroups } from "@/lib/adult/tags";
+import { premiseForYou } from "@/lib/roleplays";
 import { cardForYou } from "@/lib/scene-cards";
 import { BondMarkTag } from "./[id]/StepInBond";
 import StepInButton from "./StepInButton";
@@ -22,8 +23,8 @@ const first = (name: string) => name.trim().split(/\s+/)[0] || name;
  * first in any list.
  */
 const PICTURED: ReadonlySet<string> = new Set(Object.keys(ROLEPLAY_COVERS));
-const picturedFirst = <R extends { id: string }>(list: readonly R[]): R[] => [...list.filter((r) => PICTURED.has(r.id)), ...list.filter((r) => !PICTURED.has(r.id))];
 const NO_PLACES: Record<string, StoryPlace> = {};
+const NO_OWN: Roleplay[] = [];
 
 /**
  * Step in's roleplays as cards (lib/adult/step-in-shelf.ts; David, 2026-11-23, after Chub.ai's scene cards): each one a
@@ -37,6 +38,12 @@ const NO_PLACES: Record<string, StoryPlace> = {};
  * opened for one of them (?with=<id>, "Roleplay or place" on their card), so every card opens on that person.
  * `places`: where each roleplay's own story is set (lib/adult/step-in.ts storyPlaces): a card says where, and that it's
  * out in public when it is, since a scene started from it starts there.
+ *
+ * `own`: the roleplays the viewer wrote themselves (the Create library; lib/adult/own-roleplay-card.ts ownRoleplays),
+ * each with the story card drafted for it. They're cards like any other, first under "All" and a kind of their own
+ * ("✨ Yours"): no picture (nobody drew one) and no place of their own (a scene in one starts at the character's), and
+ * the goal once its card is drafted. Tonight's eight stay the show's. `createHref`: where one is written, said in a
+ * few words to someone who has none.
  */
 export default function StepInShelf({
   cast,
@@ -46,6 +53,8 @@ export default function StepInShelf({
   places = NO_PLACES,
   played = {},
   bonds = {},
+  own = NO_OWN,
+  createHref = null,
 }: {
   cast: StepInCharacter[];
   recent: string[];
@@ -56,6 +65,10 @@ export default function StepInShelf({
   played?: Record<string, number>;
   /** How well the viewer knows each of them (lib/adult/step-in-bond-data.ts bondMarks): the level's name beside a face. */
   bonds?: Record<string, BondMark>;
+  /** The viewer's own roleplays, the newest first, shaped like the show's (their card when it's been drafted). */
+  own?: Roleplay[];
+  /** Where a roleplay of one's own is written (the Studio's Create tab). */
+  createHref?: string | null;
 }) {
   // Which cards show: tonight's, one kind of them (who the two are to each other), or all.
   const [show, setShow] = useState("tonight");
@@ -66,10 +79,11 @@ export default function StepInShelf({
   const asked = with_ && who.order[0]?.id === with_ ? who.order[0] : null;
   const demand = useAdultTagDemand();
   const groups = useMemo(() => roleplayGroups(ROLEPLAYS, demand ?? undefined), [demand]);
-  const shown = show === "tonight" ? shelfTonight(ROLEPLAYS, day, SHELF_TONIGHT, PICTURED) : picturedFirst(show === "all" ? ROLEPLAYS : (groups.find((g) => g.id === show)?.roleplays ?? []));
-  const playedCount = ROLEPLAYS.filter((r) => played[r.id]).length;
+  // The viewer's own come first under "All", and are a kind of their own; tonight's eight are the show's.
+  const shown = shelfShown<Roleplay>(show, { house: ROLEPLAYS, own, day, pictured: PICTURED, kinds: groups });
+  const playedCount = [...own, ...ROLEPLAYS].filter((r) => played[r.id]).length;
   if (!who.order.length) return null;
-  const kind = groups.some((g) => g.id === show) ? show : "";
+  const kind = (show === SHELF_OWN && own.length > 0) || groups.some((g) => g.id === show) ? show : "";
   const chip = (id: string, label: string, n?: number) => (
     <button key={id} type="button" className={show === id ? "ad-chip on" : "ad-chip"} aria-pressed={show === id} onClick={() => setShow(id)} data-step-in-shelf-show={id}>
       {label}
@@ -80,7 +94,15 @@ export default function StepInShelf({
     <section className="ad-si-shelf" aria-labelledby="ad-si-shelf-h" data-step-in-shelf>
       <h2 id="ad-si-shelf-h">{asked ? `Step into a roleplay with ${first(asked.name)}` : "Step into a roleplay"}</h2>
       <p className="muted small">
-        {ROLEPLAYS.length} stories, each ready to play with {asked ? first(asked.name) : "someone from your After Dark"}. One click and you&apos;re in it.
+        {ROLEPLAYS.length} stories{own.length > 0 ? ` and ${own.length} of your own` : ""}, each ready to play with {asked ? first(asked.name) : "someone from your After Dark"}. One
+        click and you&apos;re in it.
+        {/* Nobody's own yet: where one is written, in a few words. */}
+        {own.length === 0 && createHref && (
+          <span data-step-in-shelf-write>
+            {" "}
+            Or <Link href={createHref}>write your own</Link>: it gets a goal and an ending to play for, like these.
+          </span>
+        )}
         {playedCount > 0 && (
           <span data-step-in-shelf-played>
             {" "}
@@ -90,12 +112,17 @@ export default function StepInShelf({
       </p>
       <div className="ad-si-shelf-kinds" role="group" aria-label="Which roleplays to show">
         {chip("tonight", `Tonight's ${SHELF_TONIGHT}`)}
-        {chip("all", "All", ROLEPLAYS.length)}
+        {chip("all", "All", ROLEPLAYS.length + own.length)}
         <label htmlFor="ad-si-shelf-kind" className="sr-only">
           A kind of roleplay
         </label>
         <select id="ad-si-shelf-kind" className={kind ? "on" : undefined} value={kind} onChange={(e) => setShow(e.target.value || "tonight")} data-step-in-shelf-kind>
           <option value="">A kind…</option>
+          {own.length > 0 && (
+            <option value={SHELF_OWN}>
+              ✨ Yours ({own.length})
+            </option>
+          )}
           {groups.map((g) => (
             <option key={g.id} value={g.id}>
               {g.label} ({g.roleplays.length})
@@ -120,8 +147,12 @@ export default function StepInShelf({
           // With the one in the picture, the card is as the picture shows it: they play that side, the viewer the other.
           const cover = coverFor(rp.id, them.id);
           const you: 0 | 1 = cover ? cover.you : 0;
-          // The story as the viewer reads it: they're "you", the other is whoever is on the card.
-          const card = cardForYou(rp.card, you === 1 ? "b" : "a", name);
+          // The story as the viewer reads it: they're "you", the other is whoever is on the card. One of their own with
+          // no card drafted yet is told by what they wrote.
+          const side = you === 1 ? "b" : "a";
+          const setup = rp.card ? cardForYou(rp.card, side, name).setup : premiseForYou(rp.premise, side, name);
+          const goal = storyGoal(rp, you, name);
+          const mine = own.includes(rp);
           return (
             <li key={rp.id} className={cover ? "card ad-si-shelf-card has-cover" : "card ad-si-shelf-card"} data-step-in-card={rp.id} data-step-in-card-with={them.id} data-step-in-card-you={you}>
               {cover && (
@@ -136,6 +167,11 @@ export default function StepInShelf({
                   With someone you know
                 </p>
               )}
+              {mine && (
+                <p className="kicker ad-si-shelf-yours" data-step-in-card-own>
+                  Your own
+                </p>
+              )}
               <h3>
                 <span aria-hidden="true">{rp.icon}</span> {rp.title}
                 {played[rp.id] ? (
@@ -144,7 +180,7 @@ export default function StepInShelf({
                   </span>
                 ) : null}
               </h3>
-              <p className="ad-si-shelf-setup">{card.setup}</p>
+              <p className="ad-si-shelf-setup">{setup}</p>
               {places[rp.id] && (
                 <p className="muted small ad-si-shelf-at" data-step-in-card-at={places[rp.id].public ? "public" : "private"}>
                   📍 {places[rp.id].title}
@@ -152,9 +188,11 @@ export default function StepInShelf({
                 </p>
               )}
               {/* What their side of it wants: what they're playing for (the card's own words, told to them). */}
-              <p className="muted small ad-si-shelf-goal" data-step-in-card-goal>
-                {storyGoal(rp, you, name)}
-              </p>
+              {goal && (
+                <p className="muted small ad-si-shelf-goal" data-step-in-card-goal>
+                  {goal}
+                </p>
+              )}
               {rp.roles && (
                 <p className="muted small ad-si-shelf-roles">
                   You play {rp.roles[you]}; {name} plays {rp.roles[you === 0 ? 1 : 0]}.
