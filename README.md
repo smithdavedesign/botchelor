@@ -14,6 +14,33 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### After Dark: Step in's front page, made over (2026-11-24)
+
+- **Pick by picture, full screen** ([#2166](https://github.com/smithdavedesign/botchelor/pull/2166)). Who you step in with, the story and the place were a small scrolling box and two long menus. Each is now a sheet over the page (the whole screen on a phone): portraits you can see, a poster a roleplay with its kinds across the top, a picture a place, and a search in each.
+- **Four cards to set a scene** ([#2166](https://github.com/smithdavedesign/botchelor/pull/2166), [#2167](https://github.com/smithdavedesign/botchelor/pull/2167)). Who, The story, Where, How it opens: each shows what's chosen with its picture at a thumbnail's size and one button to the rest. The place's picture no longer fills the column under a menu. The button at the end says who, what and where.
+- **A shorter shelf** ([#2166](https://github.com/smithdavedesign/botchelor/pull/2166)). Tonight's stories run four across on a desktop and as one row to swipe on a phone, each card a cover, a title, three lines and one button.
+- Shot on ad.botchelor.com after the deploys as the audit account (Step in is still admins only). Measured there: the page went from 5,040 px tall to 3,952 on a desktop and from 8,721 to 4,575 on a phone; 284 characters, 46 roleplays and 83 places are each one tap from the page; a scene picked this way opened 3.8 s after the press. The full write-up is in [docs/after-dark.md](docs/after-dark.md).
+
+<img src="docs/screenshots/after-dark-step-in-front-desktop.png" width="420" alt="Step in's front page at 1440 wide: the lead, two links (Tonight's stories, Set your own scene), then tonight's eight roleplays four across, each a cover with the character in the role, a title and three lines.">
+
+<img src="docs/screenshots/after-dark-step-in-front-shelf-phone.png" width="200" alt="The same shelf at 390 wide: one card, Wedding guests with Lior, with the next card's edge at the right to swipe to, and a full-width Step in with Lior button.">
+
+<img src="docs/screenshots/after-dark-step-in-front-build-desktop.png" width="420" alt="Set your own scene: step 1, Who, with a search and sixteen portraits eight across, names under them, and a See all 284 characters button.">
+
+<img src="docs/screenshots/after-dark-step-in-front-build-phone.png" width="200" alt="The same step at 390 wide: nine portraits three across, the level Acquainted under some of the names.">
+
+<img src="docs/screenshots/after-dark-step-in-front-who-desktop.png" width="420" alt="The Who sheet over the page: a search, then large portraits under From your scenes and House cast.">
+
+<img src="docs/screenshots/after-dark-step-in-front-who-phone.png" width="200" alt="The Who sheet filling a phone's screen, portraits two across.">
+
+<img src="docs/screenshots/after-dark-step-in-front-story-desktop.png" width="420" alt="The story sheet: a search, the kinds in a row with their counts, then No roleplay and the roleplays four across, each under its cover.">
+
+<img src="docs/screenshots/after-dark-step-in-front-story-phone.png" width="200" alt="The story sheet on a phone: the kinds as a row to swipe, the roleplays two across under their covers.">
+
+<img src="docs/screenshots/after-dark-step-in-front-where-desktop.png" width="420" alt="The Where sheet: All, Private and Out in public, then the story's own place, Their place and the other places four across under their pictures.">
+
+<img src="docs/screenshots/after-dark-step-in-front-picked-desktop.png" width="420" alt="The set-up with all four picked: Teo's portrait, Roommates with his cover and how it starts, the story's own place, and Surprise me among the openings.">
+
 ### After Dark: the role's picture in the scene, a sheet that keeps it straight, and your own stories with an ending (2026-11-24)
 
 - **The role's cover, standing in the scene** ([#2153](https://github.com/smithdavedesign/botchelor/pull/2153)). A Step in scene opened from a roleplay's card starts on that card's cover where the character's portrait would stand: the tailor in his waistcoat with the tape measure round his neck, not his house portrait's jumper. It's cut tall around where the character stands in the picture, the portrait is one press away in the ⋯ menu, and it's back by itself once the scene moves somewhere else.
