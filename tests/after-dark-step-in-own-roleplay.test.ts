@@ -27,9 +27,10 @@ vi.mock("next/navigation", async (original) => ({
   useRouter: () => ({ refresh() {}, push() {}, replace() {}, back() {}, prefetch() {} }),
   usePathname: () => "/after-dark/step-in",
 }));
-import type { ReactElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { prerender } from "react-dom/static";
 import StepInSetupPage from "@/app/after-dark/step-in/page";
+import StepInSetup from "@/app/after-dark/step-in/StepInSetup";
 import { POST as startPost } from "@/app/api/admin/after-dark/step-in/route";
 import { GET as libraryGet, POST as libraryPost } from "@/app/api/library/route";
 import { claimAdmin } from "@/lib/admins";
@@ -58,8 +59,9 @@ import {
 } from "@/lib/adult/own-roleplay-card";
 import { ROLEPLAY_PLACE_MAX, ROLEPLAYS, sceneRoleplay, storedCard } from "@/lib/adult/roleplays";
 import { isPublicPlace } from "@/lib/adult/scenes";
+import { STORY_KIND_OWN, storyChoices } from "@/lib/adult/step-in-setup";
 import { SHELF_OWN, SHELF_TONIGHT, shelfShown } from "@/lib/adult/step-in-shelf";
-import { closeStepIn, drawStepInSet, getStepInScene, listStepInScenes, moveStepIn, playedRoleplays, quickStepIn, readStepInStory, sendStepInLine, setStepInRandomForTests, startStepIn, stepInOpen, storyPlaces } from "@/lib/adult/step-in";
+import { closeStepIn, drawnSets, drawStepInSet, getStepInScene, listStepInScenes, moveStepIn, playedRoleplays, quickStepIn, readStepInStory, sendStepInLine, setStepInRandomForTests, startStepIn, stepInCast, stepInOpen, stepInPlaces, storyPlaces } from "@/lib/adult/step-in";
 import { storyGoal } from "@/lib/adult/step-in-story";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import type { ChatMessage, Model } from "@/lib/model";
@@ -605,11 +607,20 @@ describe("where it's picked", () => {
     expect(page).not.toContain("data-step-in-shelf-write");
     // Tonight's eight are the show's own.
     expect(page).not.toContain(`data-step-in-card="${uid}"`);
-    // The set-up's menu has them first, under their own heading.
-    expect(page).toMatch(new RegExp(`<optgroup label="✨ Yours"[^>]*><option value="${bare}">Pen pals, finally</option><option value="${uid}">Rival food trucks</option></optgroup>`));
+    // The set-up's story sheet has them first, and as a kind of their own (it isn't drawn until it's opened).
+    expect(page).not.toContain("data-step-in-sheet");
+    const kinds = [{ id: "strangers", roleplays: ROLEPLAYS.slice(0, 3) }];
+    expect(storyChoices(own, kinds, "", "").map((r) => r.id)).toEqual([bare, uid, ...ROLEPLAYS.slice(0, 3).map((r) => r.id)]);
+    expect(storyChoices(own, kinds, STORY_KIND_OWN, "").map((r) => r.id)).toEqual([bare, uid]);
+    const sheet = await html(
+      createElement(StepInSetup, { cast: await stepInCast(t.db, a.id), places: stepInPlaces(await drawnSets(t.db)), persona: null, personaHref: "/account#persona", preselect: WHO, storyPlaces: storyPlaces(own), own, sheetOpen: "story" }),
+    );
+    expect([...sheet.matchAll(/data-story="([^"]*)"/g)].slice(0, 3).map((m) => m[1])).toEqual(["", bare, uid]);
+    expect(sheet).toMatch(/data-step-in-sheet-kind="yours"[^>]*>Yours<span class="ad-scenes-count">2<\/span>/);
+    expect(sheet.match(/<span class="kicker">Your own<\/span>/g)).toHaveLength(2);
     // "Set it up" on one of theirs: the set-up starts on it, told from the viewer's side, with its own three openings.
     const set = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: uid, you: "1" }) }));
-    expect(set).toContain(`<option value="${uid}" selected="">Rival food trucks</option>`);
+    expect(set).toMatch(new RegExp(`data-step-in-story="${uid}"[\\s\\S]*?<strong>Rival food trucks</strong>`));
     expect(set).toContain(`${NAME} walks one last taco across the gap, and you have been keeping a bowl of ramen warm for exactly this.`);
     expect(set).toContain(`You lean out of the hatch and ask whether ${NAME} is closing early or giving up.`);
     expect(set).toContain("You play the ramen truck owner");
@@ -783,7 +794,8 @@ describe("where a roleplay of one's own is set", () => {
     await keep(uid, kept());
     scripted();
     const set = await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: uid }) }));
-    expect(set).toMatch(/<option(?=[^>]*value="story")(?=[^>]*selected="")[^>]*>Where the story is set: The night market, closing time · out in public</);
+    expect(set).toMatch(/data-step-in-place="story" data-step-in-story-place=""[\s\S]*?<strong>Where the story is set: The night market, closing time<\/strong>/);
+    expect(set).toContain("Out in public, a scene goes as far as a kiss.");
     expect(set).toContain("📍 Set at: The night market, closing time (out in public).");
     // One with no place: nothing of the kind, and their place is where it starts.
     const plain = await mine(a.id, PEN_PALS);

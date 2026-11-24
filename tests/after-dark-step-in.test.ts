@@ -1611,12 +1611,13 @@ describe("a roleplay's card, started in one click", () => {
     expect(page.indexOf("data-step-in-shelf")).toBeLessThan(page.indexOf('id="ad-si-set"'));
     const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: "neighbours" }) }))).replace(/<!-- -->/g, "");
     expect(setUp).toContain(`data-step-in-who="${WHO}"`);
-    expect(setUp).toMatch(/<option value="neighbours" selected="">/);
-    // And "Where" starts on where that story is set, offered first; with no roleplay picked it isn't offered at all.
-    expect(setUp).toMatch(/<select id="ad-si-place"><option value="story" data-step-in-story-place="true" selected="">Where the story is set: The landing between two flats<\/option>/);
+    expect(setUp).toMatch(/data-step-in-story="neighbours"[\s\S]*?<strong>The neighbour next door<\/strong>/);
+    // And "Where" starts on where that story is set; with no roleplay picked it's their place, and no story's.
+    expect(setUp).toMatch(/data-step-in-place="story" data-step-in-story-place=""[\s\S]*?<strong>Where the story is set: The landing between two flats<\/strong>/);
     expect(setUp).toContain("📍 Set at: The landing between two flats.");
     expect(page).not.toContain("data-step-in-story-place");
-    expect(page).toMatch(/<option value="venue:home" selected="">Their place<\/option>/);
+    expect(page).toMatch(/data-step-in-place="venue:home"[\s\S]*?<strong>Their place<\/strong>/);
+    expect(page).toMatch(/data-step-in-story=""[\s\S]*?<strong>A date, as yourselves<\/strong>/);
     // Each card says where its story is set, and that it's out in public when it is.
     const ats = [...shelf.matchAll(/data-step-in-card="([^"]+)"[\s\S]*?data-step-in-card-at="(public|private)">📍 ([^<]+)</g)].map((m) => ({ id: m[1], at: m[2], line: m[3].replaceAll("&#x27;", "'") }));
     expect(ats).toHaveLength(SHELF_TONIGHT);
@@ -1733,7 +1734,7 @@ describe("a card's cover picture", () => {
     // "Set it up" on the vampire's cover: Rafe, the vampire's invitation, the viewer as the guest.
     const setUp = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: WHO, roleplay: "vampire", you: "1" }) }))).replace(/<!-- -->/g, "");
     expect(setUp).toContain(`data-step-in-who="${WHO}"`);
-    expect(setUp).toMatch(/<option value="vampire" selected="">/);
+    expect(setUp).toContain('data-step-in-story="vampire"');
     const sides = [...setUp.matchAll(/<input type="radio" name="ad-si-you"( checked="")?\/>/g)].map((m) => Boolean(m[1]));
     expect(sides).toEqual([false, true]);
   });
