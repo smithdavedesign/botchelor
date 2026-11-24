@@ -15652,6 +15652,94 @@ button.thread-menu-item:hover:not(:disabled) {
   margin: 0 0 var(--space-1);
   font-style: italic;
 }
+/* A line that was filmed (app/episodes/[id]/ConfessionalClip.tsx): their confessional still where the face would be,
+   pressed to hear it said. Nothing by default but the still and a play mark. */
+button.confessional-clip {
+  position: relative;
+  flex: none;
+  width: clamp(6.5rem, 30vw, 9.5rem);
+  aspect-ratio: 4 / 5;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--photo-bg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+button.confessional-clip:hover:not(:disabled) {
+  transform: none;
+}
+.confessional-clip video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.confessional-clip-play {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--photo-bg) 72%, transparent);
+  color: var(--on-photo);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+.confessional-clip[aria-pressed="true"] .confessional-clip-play {
+  opacity: 0.6;
+}
+/* The date as scenes (app/episodes/[id]/DateScenes.tsx): both of them in the place, three across; on a phone one row
+   to swipe, a picture and the edge of the next. */
+.date-scenes {
+  margin: var(--space-5) 0;
+}
+.date-scenes-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.date-scenes-row figure {
+  margin: 0;
+}
+.date-scenes-row img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--photo-bg);
+}
+.date-scenes-row figcaption {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+@media (max-width: 640px) {
+  .date-scenes-row {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .date-scenes-row::-webkit-scrollbar {
+    display: none;
+  }
+  .date-scenes-row > li {
+    flex: 0 0 72%;
+    scroll-snap-align: start;
+  }
+}
 /* Living dates: each side's private "see them again?" answer under its diary-cam take. */
 .diary-cam-list blockquote p.diary-choice {
   font-style: normal;

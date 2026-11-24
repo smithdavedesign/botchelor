@@ -109,7 +109,7 @@ export async function saveHomeClip(db: Db, c: HomeClipInput): Promise<{ id: stri
  * The clip's date is still one anyone may see ($1 = the report threshold): aired, ready, public, not reported away,
  * both characters public. Needs `e`, `a`, `b`. The read-time half of the rule above.
  */
-const STILL_PUBLIC = `e.revealed_at is not null and e.status = 'ready' and e.visibility = 'public'
+export const STILL_PUBLIC = `e.revealed_at is not null and e.status = 'ready' and e.visibility = 'public'
         and a.visibility = 'public' and b.visibility = 'public'
         and (select count(*) from reports r where r.episode_id = e.id) < $1::int`;
 

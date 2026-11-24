@@ -405,6 +405,19 @@ services:
       # - key: COLD_OPEN
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # A date on film (lib/date-film.ts; docs/date-film.md): the home clip's date gets pictures of both of them in the
+      # place (free) and its diary-cam lines said to camera (about 12¢ each), on by default. DATE_FILM "0": none of it,
+      # without a deploy of code. The two ceilings on what the paid half may spend, in dollars: DATE_FILM_DAY_USD (0.35)
+      # and DATE_FILM_MONTH_USD (8); "0" on either stops the paid half and keeps the free pictures.
+      # - key: DATE_FILM
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: DATE_FILM_DAY_USD
+      #   value: "0.35"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: DATE_FILM_MONTH_USD
+      #   value: "8"
+      #   scope: RUN_AND_BUILD_TIME
       # The story check (lib/story-check.ts; docs/story-check.md): the hourly lobby job judges aired dates' endings
       # against their lines on the show's paid model (~0.04¢ a date), mends a contradicting recap finale when the record
       # allows, and keeps the rest off the home excerpt, the 18+ gate, the home clip and the daily clip. All on by

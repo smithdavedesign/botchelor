@@ -45,6 +45,7 @@ import { lapseProposals } from "@/lib/social/declare";
 import { resumeSocialMetrics } from "@/lib/social/metrics-job";
 import { fillWorldWords, WORLD_WORDS_PER_HOUR } from "@/lib/world-words";
 import { companionWriter, openOurAgentCast } from "@/lib/companion";
+import { filmDue } from "@/lib/date-film";
 
 // One template date (~10 model calls) when the lobby has no open room left to start.
 export const maxDuration = 300;
@@ -232,6 +233,14 @@ async function pass(): Promise<Record<string, unknown>> {
   // last pressed on 11-09, so the 162 cast members made after it had no "Text" on their cards and he took companions
   // for gone. One update an hour; never a person's character or an outside agent's.
   const castOpened = await openOurAgentCast(db).catch(() => 0);
+  // The day's date on film (lib/date-film.ts): the home clip's date gets its scenes (free) and its two diary-cam lines
+  // said to camera (within the day's and the month's ceilings), after the response: a take is a couple of minutes.
+  const film = () => filmDue(db).catch(() => null);
+  try {
+    after(film);
+  } catch {
+    void film(); // outside a request (a test): just run it
+  }
   const lobby = await refreshLobby(db, new Date(), { ensureFresh: true });
   // Every character has a headshot (lib/default-portraits.ts): a few of those still without one are drawn each hour,
   // unless the run is already long (a template date above takes most of the 300 s).
