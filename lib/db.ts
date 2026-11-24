@@ -4609,6 +4609,13 @@ alter table adult_step_in_messages add column if not exists picture_at timestamp
 -- adult_step_in_scenes.side_message: the reply whose picture the viewer put in the character's place beside the scene
 -- (lib/adult/step-in-picture.ts setStepInBeside); null: the character's own portrait stands there.
 alter table adult_step_in_scenes add column if not exists side_message text;
+-- A roleplay's cover picture stands there by itself while the scene is where its story is set (lib/adult/step-in.ts
+-- coverOf). side_portrait: the viewer asked for the character's own portrait instead (setStepInFigure); kept apart from
+-- side_message, so a picture taken away again returns to whichever of the two they had.
+alter table adult_step_in_scenes add column if not exists side_portrait boolean not null default false;
+-- adult_prefs.step_in_newest: their switch for "always the newest picture" (lib/adult/step-in-picture.ts
+-- setStepInNewest): every picture they make in a scene takes that place as it lands. Off until they turn it on.
+alter table adult_prefs add column if not exists step_in_newest boolean not null default false;
 -- How well a viewer and a character know each other in Step in (lib/adult/step-in-bond.ts): the level is worked out
 -- from the scenes' own rows each time, and this keeps the most it has ever been, so a scene deleted later can't lower
 -- it (it never drops). shown_level: the level the scene has already said out loud (it's said once). Nothing a person

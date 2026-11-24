@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import CharacterFigure from "@/app/stage/CharacterFigure";
 import type { StepInPictureState } from "@/lib/adult/step-in-picture";
 import { okJson } from "@/lib/ok-json";
@@ -15,8 +15,12 @@ type Value = {
   state: StepInPictureState;
   live: boolean;
   apply: (s: StepInPictureState) => void;
-  /** Puts a reply's picture in the character's place beside the scene (null: their portrait back); what went wrong, if anything. */
+  /** Puts a reply's picture in the character's place beside the scene (null: takes it away again); what went wrong, if anything. */
   setBeside: (message: string | null) => Promise<string | null>;
+  /** Turns "always the newest picture" on or off for this viewer; what went wrong, if anything. */
+  setNewest: (on: boolean) => Promise<string | null>;
+  /** The scene has put its picture away by another road (the menu's way back to the cover or the portrait): none stands here now. */
+  forget: () => void;
 };
 const Pictures = createContext<Value | null>(null);
 const pictureUrl = (id: string, width?: number) => `/api/admin/after-dark/media/${encodeURIComponent(id)}${width ? `?w=${width}` : ""}`;
@@ -44,13 +48,14 @@ export function StepInPictures({ sceneId, initial, live, children }: { sceneId: 
     }, ASK_EVERY_MS);
     return () => clearInterval(timer);
   }, [waiting, sceneId]);
-  const setBeside = useCallback(
-    async (message: string | null) => {
+  /** One choice among the pictures the scene already has (nothing is made): the scene's pictures come back as they now stand. */
+  const choose = useCallback(
+    async (body: { beside: string | null } | { newest: boolean }) => {
       try {
         const res = await fetch(`/api/admin/after-dark/step-in/${encodeURIComponent(sceneId)}/picture`, {
           method: "PUT",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ beside: message }),
+          body: JSON.stringify(body),
         });
         const d = (await res.json().catch(() => null)) as { pictures?: StepInPictureState; message?: string } | null;
         if (d?.pictures) setState(d.pictures);
@@ -61,50 +66,129 @@ export function StepInPictures({ sceneId, initial, live, children }: { sceneId: 
     },
     [sceneId],
   );
+  const setBeside = useCallback((message: string | null) => choose({ beside: message }), [choose]);
+  const setNewest = useCallback((on: boolean) => choose({ newest: on }), [choose]);
+  const forget = useCallback(() => setState((s) => (s && s.beside ? { ...s, beside: null } : s)), []);
   if (!state) return <>{children}</>;
-  return <Pictures.Provider value={{ sceneId, state, live, apply: setState, setBeside }}>{children}</Pictures.Provider>;
+  return <Pictures.Provider value={{ sceneId, state, live, apply: setState, setBeside, setNewest, forget }}>{children}</Pictures.Provider>;
 }
 
 /**
  * Who stands beside the scene (David, 2026-11-23: "do we have a option to change the image on the right with one
- * from the scene"): the character's own portrait (app/stage/CharacterFigure.tsx) until the viewer puts one of the
- * scene's pictures there ("Use as the scene's picture" under it), and that picture from then on, in this scene on
- * every device. Where it stands and how it's framed is the page's CSS (.ad-si-figure[data-figure="picture"]). A picture
- * made in After Dark, so unlike the show's portrait it's blurred under discreet mode, with a veil of its own
- * (data-ad-own-veil): behind the column nobody could tap it to show it, and the one under its reply is the one a tap
- * shows. Decorative here for the same reason (the stage is hidden from a screen reader; the reply's own has the words).
+ * from the scene"; 2026-11-24: "the role's cover standing in the scene as its picture"). One of three, in this order:
+ *
+ *  - one of the scene's own pictures, once the viewer puts it there ("Use as the scene's picture" under it) or has
+ *    "always the newest picture" on: in this scene on every device. A picture made in After Dark, so unlike the show's
+ *    own it's blurred under discreet mode, with a veil of its own (data-ad-own-veil): behind the column nobody could
+ *    tap it to show it, and the one under its reply is the one a tap shows;
+ *  - `cover`: the roleplay's cover of the character, dressed for their part (lib/adult/roleplay-covers.ts), in a scene
+ *    that opened from that card and is still where its story is set. One of the show's own PG pictures (public/cast),
+ *    which discreet mode leaves alone. It's a wide picture of them in the place; here it's cut tall around where they
+ *    stand in it (--si-cover-x);
+ *  - else the character's own portrait (app/stage/CharacterFigure.tsx).
+ *
+ * Where each stands and how it's framed is the page's CSS (.ad-si-figure[data-figure]). Decorative: the stage is
+ * hidden from a screen reader, and the scene says who and where in words.
  */
-export function StepInFigure({ portrait, cutout }: { portrait: string | null; cutout: string | null }) {
+export function StepInFigure({ portrait, cutout, cover = null }: { portrait: string | null; cutout: string | null; cover?: { src: string; focus: number } | null }) {
   const ctx = useContext(Pictures);
   const id = ctx?.state.beside ? ctx.state.pictures[ctx.state.beside] : null;
-  if (!id) return <CharacterFigure portrait={portrait} cutout={cutout} className="ad-si-figure" />;
+  if (id) {
+    return (
+      <div className="character-figure ad-si-figure" data-figure="picture" data-step-in-beside={ctx?.state.beside} data-ad-own-veil="" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a private file from After Dark's own media route */}
+        <img key={id} className="character-figure-img" src={pictureUrl(id)} alt="" decoding="async" />
+      </div>
+    );
+  }
+  if (cover) {
+    return (
+      <div className="character-figure ad-si-figure" data-figure="cover" data-step-in-cover="" aria-hidden="true" style={{ "--si-cover-x": `${cover.focus}%` } as CSSProperties}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- one of the show's own pictures (public/cast), already the size it's shown at */}
+        <img key={cover.src} className="character-figure-img" src={cover.src} alt="" decoding="async" />
+      </div>
+    );
+  }
+  return <CharacterFigure portrait={portrait} cutout={cutout} className="ad-si-figure" />;
+}
+
+/**
+ * In the scene's menu: the way to whatever else can stand beside the scene. From one of the scene's pictures, back to
+ * the character's portrait; in a scene that has its roleplay's cover, from the cover to the portrait and back again.
+ * `onShow` is the scene's own move (lib/adult/step-in.ts setStepInFigure): both are the show's pictures, so it isn't
+ * the picture route's, and it works where pictures aren't shown at all. Whichever of the scene's pictures stood there is
+ * put away with it.
+ */
+export function StepInFigureChoice({ name, cover, onShow }: { name: string; cover: { off: boolean } | null; onShow: (show: "cover" | "portrait") => Promise<boolean> }) {
+  const ctx = useContext(Pictures);
+  const [busy, setBusy] = useState(false);
+  const picture = Boolean(ctx?.state.beside && ctx.state.pictures[ctx.state.beside]);
+  const coverStands = Boolean(cover) && !cover?.off && !picture;
+  const toCover = Boolean(cover) && !coverStands;
+  const toPortrait = picture || coverStands;
+  if (!toCover && !toPortrait) return null;
+  const show = (what: "cover" | "portrait") => {
+    setBusy(true);
+    void onShow(what)
+      .then((went) => {
+        if (went) ctx?.forget();
+      })
+      .finally(() => setBusy(false));
+  };
   return (
-    <div className="character-figure ad-si-figure" data-figure="picture" data-step-in-beside={ctx?.state.beside} data-ad-own-veil="" aria-hidden="true">
-      {/* eslint-disable-next-line @next/next/no-img-element -- a private file from After Dark's own media route */}
-      <img key={id} className="character-figure-img" src={pictureUrl(id)} alt="" decoding="async" />
-    </div>
+    // Plain buttons: the scene's menu sits inside the composer's form.
+    <>
+      {toCover && (
+        <button type="button" className="button-ghost small" disabled={busy} onClick={() => show("cover")} data-step-in-cover-back>
+          Show {name} dressed for the roleplay
+        </button>
+      )}
+      {toPortrait && (
+        <button type="button" className="button-ghost small" disabled={busy} onClick={() => show("portrait")} data-step-in-portrait-back>
+          Show {name}&apos;s portrait {coverStands ? "instead" : "again"}
+        </button>
+      )}
+    </>
   );
 }
 
-/** In the scene's menu while one of its pictures stands beside it: the way back to the character's own portrait. */
-export function StepInPortraitBack({ name }: { name: string }) {
+/**
+ * "Always the newest picture" (lib/adult/step-in-picture.ts setStepInNewest): the viewer's own switch, in the scene's
+ * menu and under whichever picture stands beside the scene. On, every picture they make here takes that place as soon
+ * as it's ready. Nothing where pictures aren't shown.
+ */
+export function StepInNewest({ where }: { where: "menu" | "picture" }) {
   const ctx = useContext(Pictures);
   const [busy, setBusy] = useState(false);
-  if (!ctx?.state.beside) return null;
+  const [error, setError] = useState<string | null>(null);
+  if (!ctx) return null;
+  const on = ctx.state.newest;
   return (
-    // A plain button: the scene's menu sits inside the composer's form.
-    <button
-      type="button"
-      className="button-ghost small"
-      disabled={busy}
-      onClick={() => {
-        setBusy(true);
-        void ctx.setBeside(null).finally(() => setBusy(false));
-      }}
-      data-step-in-portrait-back
-    >
-      Show {name}&apos;s portrait again
-    </button>
+    <>
+      <button
+        type="button"
+        className="button-ghost small"
+        disabled={busy}
+        aria-pressed={on}
+        title="Every picture you make takes this place beside the scene as soon as it's ready."
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          void ctx
+            .setNewest(!on)
+            .then(setError)
+            .finally(() => setBusy(false));
+        }}
+        data-step-in-newest={on ? "on" : "off"}
+      >
+        {where === "menu" ? (on ? "🖼 Always show the newest picture: on" : "🖼 Always show the newest picture") : on ? "✓ Always the newest picture" : "Always the newest picture"}
+      </button>
+      {error && (
+        <span className="error small" role="alert">
+          {error}
+        </span>
+      )}
+    </>
   );
 }
 
@@ -152,7 +236,7 @@ export default function StepInPicture({ messageId, name }: { messageId: string; 
     }
   }
 
-  /** This picture in the character's place beside the scene, or (pressed again) their portrait back. */
+  /** This picture in the character's place beside the scene, or (pressed again) taken away from it. */
   async function toggleBeside() {
     if (moving || !ctx) return;
     setMoving(true);
@@ -177,12 +261,14 @@ export default function StepInPicture({ messageId, name }: { messageId: string; 
           onClick={() => void toggleBeside()}
           disabled={moving}
           aria-pressed={beside}
-          title={beside ? `Showing in ${name}'s place beside the scene. Press to put ${name}'s portrait back.` : `Show this picture in ${name}'s place beside the scene.`}
+          title={beside ? `Showing in ${name}'s place beside the scene. Press to take it away again.` : `Show this picture in ${name}'s place beside the scene.`}
           data-step-in-picture-beside={beside ? "on" : "off"}
         >
           {beside ? "✓ The scene's picture" : "Use as the scene's picture"}
         </button>
       )}
+      {/* Under the picture that stands there: whether the next one made should take its place by itself. */}
+      {id && beside && <StepInNewest where="picture" />}
       {drawing ? (
         <span className="muted small ad-si-picture-wait" role="status">
           🖼 Drawing {name} at this moment… about half a minute.

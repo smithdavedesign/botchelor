@@ -3776,17 +3776,20 @@ fieldset.ad-si-step {
     background: color-mix(in srgb, var(--night-bg) 50%, transparent);
   }
   /* A portrait keeps its own background, often a light one: a heavier veil, so the muted lines over it stay readable.
-     One of the scene's own pictures does too. */
+     One of the scene's own pictures does too, and so does a roleplay's cover. */
   .ad-si-view:has(.ad-si-figure[data-figure="portrait"])::after,
-  .ad-si-view:has(.ad-si-figure[data-figure="picture"])::after {
+  .ad-si-view:has(.ad-si-figure[data-figure="picture"])::after,
+  .ad-si-view:has(.ad-si-figure[data-figure="cover"])::after {
     background: color-mix(in srgb, var(--night-bg) 65%, transparent);
   }
 }
 /* One of the scene's own pictures in the character's place (app/after-dark/step-in/[id]/StepInPicture.tsx StepInFigure:
-   the viewer's choice, "Use as the scene's picture"). Beside the column, on a wide screen, it's a framed picture
-   standing on the same floor, not a cutout. */
+   the viewer's choice, "Use as the scene's picture"), or the roleplay's cover of them dressed for their part, which a
+   scene opened from its card starts on. Beside the column, on a wide screen, it's a framed picture standing on the
+   same floor, not a cutout. */
 @media (min-width: 1100px) {
-  .ad-si-figure[data-figure="picture"] .character-figure-img {
+  .ad-si-figure[data-figure="picture"] .character-figure-img,
+  .ad-si-figure[data-figure="cover"] .character-figure-img {
     right: var(--space-4);
     bottom: var(--space-4);
     left: auto;
@@ -3797,16 +3800,25 @@ fieldset.ad-si-step {
     object-position: center;
     box-shadow: var(--shadow);
   }
+  /* A cover is a wide picture of them in the story's place (4:3, made for a card). Here it's cut to the tall shape
+     the scene's own pictures have, around where they stand in it (--si-cover-x: lib/adult/roleplay-covers.ts `focus`),
+     so they're as large as a portrait would be and the place still shows behind them. */
+  .ad-si-figure[data-figure="cover"] .character-figure-img {
+    aspect-ratio: 3 / 4;
+    object-position: var(--si-cover-x, 68%) center;
+  }
 }
 /* A tablet: a cutout stands behind the column's right side, but a whole picture there is half under the lines and
    half under the ideas and the composer, where neither can be read (the first live check, 2026-11-23). So it fills
    the stage under the night, as it does on a phone (the rules above cover a phone for any figure). */
 @media (min-width: 701px) and (max-width: 1099px) {
-  .ad-si-figure[data-figure="picture"] {
+  .ad-si-figure[data-figure="picture"],
+  .ad-si-figure[data-figure="cover"] {
     left: 0;
     width: auto;
   }
-  .ad-si-stage .ad-si-figure[data-figure="picture"] .character-figure-img {
+  .ad-si-stage .ad-si-figure[data-figure="picture"] .character-figure-img,
+  .ad-si-stage .ad-si-figure[data-figure="cover"] .character-figure-img {
     width: 100%;
     height: 100%;
     max-height: none;
@@ -3815,11 +3827,19 @@ fieldset.ad-si-step {
     -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%);
     mask-image: linear-gradient(to bottom, transparent, black 12%);
   }
-  .ad-si-view:has(.ad-si-figure[data-figure="picture"])::after {
+  .ad-si-view:has(.ad-si-figure[data-figure="picture"])::after,
+  .ad-si-view:has(.ad-si-figure[data-figure="cover"])::after {
     content: "";
     position: absolute;
     inset: 0;
     background: color-mix(in srgb, var(--night-bg) 65%, transparent);
+  }
+}
+/* A tablet or a phone, where a cover fills the stage: a wide picture in a tall window shows a third to a half of its
+   width, so it's the part they stand in (the rules above would show its middle, which is the place and half of them). */
+@media (max-width: 1099px) {
+  .ad-si-stage .ad-si-figure[data-figure="cover"] .character-figure-img {
+    object-position: var(--si-cover-x, 68%) center;
   }
 }
 /* Discreet mode: blurred here by a veil of its own (data-ad-own-veil), since behind the column nobody could tap it to
