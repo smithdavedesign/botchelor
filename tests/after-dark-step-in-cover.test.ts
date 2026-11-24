@@ -379,7 +379,7 @@ describe("always the newest picture", () => {
     const off = await page(id);
     // Only in the menu until a picture stands there: plain buttons (the menu sits inside the composer's form).
     expect(off.match(/data-step-in-newest="off"/g)).toHaveLength(1);
-    expect(off).toMatch(/<button type="button"[^>]*aria-pressed="false"[^>]*data-step-in-newest="off"[^>]*>🖼 Always show the newest picture<\/button>/);
+    expect(off).toMatch(/<button type="button"[^>]*aria-pressed="false"[^>]*data-step-in-newest="off"[^>]*>🖼 Always the newest picture<\/button>/);
     const path = `/api/admin/after-dark/step-in/${id}/picture`;
     const sub = await subscriber();
     expect((await picturePut(put(path, { newest: true }, sub.cookie), ctx(id))).status).toBe(404);
@@ -391,7 +391,7 @@ describe("always the newest picture", () => {
     signIn(a.id);
     const on = await page(id);
     expect(on.match(/data-step-in-newest="on"/g)).toHaveLength(2);
-    expect(on).toContain("🖼 Always show the newest picture: on");
+    expect(on).toContain("🖼 Always the newest picture: on");
     expect(on).toMatch(/aria-pressed="true"[^>]*data-step-in-newest="on"[^>]*>✓ Always the newest picture<\/button>/);
     // Where only text is allowed there are no pictures to choose among: refused like every picture move, and not offered.
     await saveAdultSettings(t.db, { rollout: { companion: "everyone" } });
