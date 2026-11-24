@@ -4098,8 +4098,22 @@ the house ones have: a goal the viewer can see, beats that tick, an ending that'
   After Dark's story-card lines with nothing explicit in them). A draft with an issue is asked for once more with the
   issue said back; one refused beat of four is dropped and the rest kept; when neither draft can be used the roleplay
   still plays, without a story, and isn't tried again for an hour. Kept on the library row (`card`, `card_at`).
+- **A place of its own.** The same draft says where the story is set, as the house places are written ("the night
+  market alley at closing time", headed "Night market stalls at closing time"), held to what theirs are
+  (`tests/roleplay-places.test.ts`). A card starts there, the header and the set-up say so, and a place out in public
+  is held to a kiss with the one button to somewhere private, exactly like the fifteen house stories set in public.
+  Its backdrop is drawn like any set's (once, checked, free or a third of a cent) unless the place has a name in it: a
+  drawn set shows in everyone's place list, so a named one plays on the page's gradient. A draft with no usable place
+  still gives its card, and plays at the character's place.
+- **A goal that reads right as "you".** A card is written about {a} and {b} and shown to the viewer as "you", which only
+  works when each verb follows its name. The first live draft's goal read "You want to finally admit…, but worries
+  Wally might not feel the same". The draft is now told how the house cards avoid it, a draft with a verb left hanging
+  after a conjunction is asked for again (`leaningVerbAt`, `lib/roleplays.ts`), and when the second is no better the
+  text a page shows stops before the faulty clause (`cardShownToYou`); the writer's own copy stays whole. A sentence the
+  model left without its full stop gets one where a stored card is read back (`storedCard`).
 - **When it's drafted:** past the response when the roleplay is saved, so the first click doesn't wait; a start that
-  finds none drafts it then (one or two calls before the scene exists).
+  finds none drafts it then (one or two calls before the scene exists). Roleplays saved before this get theirs when
+  the front page is opened (two a visit, past the response), so the next visit has the goal and the place.
 - **In a scene:** the scene keeps its own copy (`roleplay: { id, you, own: { title, premise, roles, category, card } }`),
   read through one helper (`sceneRoleplay` in `lib/adult/roleplays.ts`) wherever the engine used to look a house
   roleplay up. So a roleplay changed or deleted afterwards never changes a scene that's running, and the dots stay
@@ -4110,8 +4124,8 @@ the house ones have: a goal the viewer can see, beats that tick, an ending that'
   the set-up's list. Someone with none gets one line and a link to where they're written. The Create tab says a
   roleplay is on Step in's shelf, and "Has a story for Step in: a goal and N beats" once it's drafted; the beats
   themselves are never shown (they'd give the story away, to its own author too).
-- **Not built:** an editor for the drafted story, own roleplays among tonight's eight, a cover for one, and the card on
-  a night between two characters (a night still plays an own roleplay from its premise alone).
+- **Not built:** an editor for the drafted story or its place, own roleplays among tonight's eight, a cover for one,
+  and the card on a night between two characters (a night still plays an own roleplay from its premise alone).
 
 **Proof:** `tests/after-dark-step-in-own-roleplay.test.ts`.
 
