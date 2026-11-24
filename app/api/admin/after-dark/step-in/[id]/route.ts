@@ -12,6 +12,7 @@ import {
   regenerateStepIn,
   saveStepInLimits,
   sendStepInLine,
+  setStepInFigure,
   STEP_IN_LINE_MAX,
   stepInFollowUp,
   stepInRemember,
@@ -66,6 +67,10 @@ const Action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("close") }),
   // Carry on after the crisis resources.
   z.object({ action: z.literal("carry_on") }),
+  // Who stands beside the scene when none of its own pictures does: the roleplay's cover of the character, or their
+  // own portrait. Nothing is made: both are the show's own pictures, so this is a move, not the picture route's (which
+  // is refused where only text is allowed).
+  z.object({ action: z.literal("figure"), show: z.enum(["cover", "portrait"]) }),
 ]);
 
 /** Not found for anyone Step in isn't open to, exactly like After Dark's other closed pieces. */
@@ -135,6 +140,9 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       break;
     case "carry_on":
       r = await carryOnStepIn(db, viewer, id);
+      break;
+    case "figure":
+      r = await setStepInFigure(db, viewer, id, input.show);
       break;
   }
   // The rolling recap, past the response, once the scene is long (never in the way of a reply).

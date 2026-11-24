@@ -91,10 +91,16 @@ export type StepInPictureState = {
   /** The replies whose picture is being drawn right now. */
   drawing: string[];
   /**
-   * The reply whose picture stands in the character's place beside the scene (the viewer's choice: setStepInBeside);
-   * null: the character's own portrait. Always a reply that has a picture.
+   * The reply whose picture stands in the character's place beside the scene (the viewer's choice: setStepInBeside, or
+   * the newest one made when `newest` is on); null: none of the scene's pictures, so the roleplay's cover or the
+   * character's own portrait (lib/adult/step-in.ts coverOf). Always a reply that has a picture.
    */
   beside: string | null;
+  /**
+   * "Always the newest picture" (setStepInNewest): the viewer's own switch, for every scene of theirs. On, each picture
+   * they make takes that place as it lands; they can still put an earlier one there by hand until the next is made.
+   */
+  newest: boolean;
 };
 
 type SceneRow = {
@@ -133,7 +139,7 @@ async function setUp(db: Db): Promise<{ ok: true; settings: Awaited<ReturnType<t
 export async function stepInPictureState(db: Db, viewer: string, sceneId: string): Promise<StepInPictureState | null> {
   const s = await ownScene(db, viewer, sceneId);
   if (!s) return null;
-  const [ready, price, eligible, left, kept, drawing] = await Promise.all([
+  const [ready, price, eligible, left, kept, drawing, newest] = await Promise.all([
     setUp(db),
     // A picture's price for this viewer (lib/adult/pricing.ts): the menu picture's, included with a subscription.
     getAdultSettings(db).then((settings) => includedPrice(db, viewer, settings.menu_picture_tokens)),
@@ -146,6 +152,7 @@ export async function stepInPictureState(db: Db, viewer: string, sceneId: string
       [s.id, viewer],
     ),
     db.query<{ id: string }>(`select id from adult_step_in_messages where scene_id = $1 and picture_at > now() - interval '${PICTURE_CLAIM_MINUTES} minutes'`, [s.id]),
+    newestOn(db, viewer),
   ]);
   const pictures: Record<string, string> = Object.fromEntries(kept.rows.map((r) => [r.message, r.id]));
   return {
@@ -155,14 +162,22 @@ export async function stepInPictureState(db: Db, viewer: string, sceneId: string
     pictures,
     drawing: drawing.rows.map((r) => r.id),
     beside: s.side_message && pictures[s.side_message] ? s.side_message : null,
+    newest,
   };
+}
+
+/** Whether this viewer has "always the newest picture" on (adult_prefs.step_in_newest); off for anyone who never set it. */
+async function newestOn(db: Db, viewer: string): Promise<boolean> {
+  const r = await db.query<{ on: boolean | null }>(`select step_in_newest as on from adult_prefs where user_id = $1`, [viewer]).catch(() => ({ rows: [] as { on: boolean | null }[] }));
+  return r.rows[0]?.on === true;
 }
 
 /**
  * Which picture stands beside the scene, in the character's place (David, 2026-11-23: "do we have a option to change
  * the image on the right with one from the scene"): the picture made of one of the scene's replies, named by the
- * reply so a picture drawn again takes its place there; null puts the character's own portrait back. It only chooses
- * among pictures already made and checked, so it's free, and the viewer's to change in a scene that has ended too.
+ * reply so a picture drawn again takes its place there; null takes it away again, and what stood there before is back
+ * (the roleplay's cover, or the character's own portrait: lib/adult/step-in.ts coverOf). It only chooses among
+ * pictures already made and checked, so it's free, and the viewer's to change in a scene that has ended too.
  */
 export async function setStepInBeside(db: Db, viewer: string, sceneId: string, messageId: string | null): Promise<{ ok: true; state: StepInPictureState } | StepInPictureFail> {
   const s = await ownScene(db, viewer, sceneId);
@@ -175,6 +190,32 @@ export async function setStepInBeside(db: Db, viewer: string, sceneId: string, m
     if (!kept.rows.length) return fail(409, "no_picture", "There's no picture of that moment yet.");
   }
   await db.query(`update adult_step_in_scenes set side_message = $2 where id = $1 and owner_id = $3`, [s.id, messageId, viewer]);
+  const state = await stepInPictureState(db, viewer, sceneId);
+  return state ? { ok: true, state } : NOT_FOUND;
+}
+
+/**
+ * "Always the newest picture" (David, 2026-11-24: 'an "always the newest picture" switch'; Kindroid has the same for
+ * its selfies): the viewer's own switch, kept with their account and so the same in every scene and on every device.
+ * On, each picture they make in a scene stands beside it as it lands (drawStepInPicture), in place of the cover, the
+ * portrait or an earlier picture; the button under any picture still puts that one there by hand, until the next one
+ * is made. Turned on in a scene that already has pictures, the newest of them goes there now, so the switch is seen to
+ * work. Turned off, whatever stands there stays. It chooses among pictures already made and checked: nothing is drawn
+ * or spent. `sceneId`: the scene it was pressed in, whose pictures come back as they now stand.
+ */
+export async function setStepInNewest(db: Db, viewer: string, sceneId: string, on: boolean): Promise<{ ok: true; state: StepInPictureState } | StepInPictureFail> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  await db.query(`insert into adult_prefs (user_id, step_in_newest) values ($1, $2) on conflict (user_id) do update set step_in_newest = excluded.step_in_newest, updated_at = now()`, [viewer, on]);
+  if (on) {
+    const last = (
+      await db.query<{ message: string }>(
+        `select step_in_message as message from adult_images where step_in_scene = $1 and owner_id = $2 and status = 'ready' and kind = 'scene' and step_in_message is not null order by created_at desc, id desc limit 1`,
+        [s.id, viewer],
+      )
+    ).rows[0];
+    if (last) await db.query(`update adult_step_in_scenes set side_message = $2 where id = $1 and owner_id = $3`, [s.id, last.message, viewer]);
+  }
   const state = await stepInPictureState(db, viewer, sceneId);
   return state ? { ok: true, state } : NOT_FOUND;
 }
@@ -574,6 +615,8 @@ export async function drawStepInPicture(db: Db, viewer: string, sceneId: string,
     await db.query(`update adult_step_in_messages set picture_at = null where id = $1`, [messageId]).catch(() => {});
   }
   if (!("id" in made)) return made;
-  const state = (await stepInPictureState(db, viewer, s.id)) ?? { can: false, price: { tokens: 0, included: false }, left: null, pictures: { [messageId]: made.id }, drawing: [], beside: null };
+  // "Always the newest picture": the one just made takes the character's place beside the scene (setStepInNewest).
+  if (await newestOn(db, viewer)) await db.query(`update adult_step_in_scenes set side_message = $2 where id = $1 and owner_id = $3`, [s.id, messageId, viewer]).catch(() => {});
+  const state = (await stepInPictureState(db, viewer, s.id)) ?? { can: false, price: { tokens: 0, included: false }, left: null, pictures: { [messageId]: made.id }, drawing: [], beside: null, newest: false };
   return { ok: true, id: made.id, message: messageId, state };
 }
