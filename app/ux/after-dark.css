@@ -3771,14 +3771,12 @@ button.ad-si-face.on {
   overflow-wrap: anywhere;
 }
 /* The level under a face (.ad-bond-mark, set further down this file, so these are said with the tile's own class): as
-   plain small words, not a pill. A tile on a phone is 79 px wide, and "Acquainted" in its pill read "Acquain…". */
+   plain small words, not a pill. A tile on a phone is 79 px wide, and "Acquainted" in its pill read "Acquain…". Not
+   clipped either: the longest level's name is 77 px here, and a box cut to exactly that shaved the edge off its d. */
 .ad-si-face .ad-si-face-bond {
-  max-width: 100%;
   padding: 0;
-  overflow: hidden;
   border: 0;
   font-size: var(--text-2xs);
-  text-overflow: ellipsis;
 }
 .ad-si-more {
   margin: var(--space-3) 0;
