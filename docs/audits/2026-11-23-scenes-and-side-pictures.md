@@ -139,8 +139,8 @@ under "Live, round four":
 - **"↻ Again…"** (#2119): a direction on a redraw, row 4.
 - **A place for each card** (#2121, #2129): all 45 roleplays say where they're set and a card starts there; the 15 set
   out in public carry one button to somewhere private.
-- **A cover for the top twelve cards** (#2128, #2131, #2133): a house character dressed for the role, in the role's
-  place. Fifteen edits, about 45¢.
+- **A cover for every card** (#2128, #2131, #2133 for the top twelve; #2145 for the other 33, the same evening): a
+  house character dressed for the role, in the role's place, each of the fifteen on three. 54 edits, about $1.90.
 - **A goal and an ending** (#2120, #2126, #2135, #2137), row 5.
 - **Messages sent first, with quiet hours** (#2127), row 9.
 - **A level the person can see** (#2123, #2129, #2132, #2134), row 10.
@@ -151,12 +151,12 @@ under "Live, round four":
    brings back someone who was coming back anyway. A push notification (the site is already installable) or an email
    is what Kindroid and Nomi lean on. It needs a real phone to test and wording that's safe on a lock screen, so it's
    David's to say when.
-2. **Covers for the other 33 cards**, about 3.5¢ each (roughly $1.15). David's call, since it spends.
-3. **The role's picture in the scene.** A card that has a cover could open with that picture standing where the
-   portrait stands (the tailor in his waistcoat, not the house portrait's T-shirt), using the "scene's picture" slot.
-4. **A switch for "always the newest picture"** beside the scene (row 1), for people who draw often.
-5. **A tracker of where the scene is** (row 6), which would also feed the pictures.
-6. **Beats for a person's own roleplay**, so their own stories get a goal and an ending too.
+2. **The role's picture in the scene.** Every card has a cover now, and a scene started from one could open with
+   that picture standing where the portrait stands (the tailor in his waistcoat, not the house portrait's T-shirt),
+   using the "scene's picture" slot.
+3. **A switch for "always the newest picture"** beside the scene (row 1), for people who draw often.
+4. **A tracker of where the scene is** (row 6), which would also feed the pictures.
+5. **Beats for a person's own roleplay**, so their own stories get a goal and an ending too.
 
 ## Sources
 

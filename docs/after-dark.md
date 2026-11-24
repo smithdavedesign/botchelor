@@ -4342,6 +4342,18 @@ What was measured:
   The last fitting, Rafe for The vampire's invitation, Nell for Captain and pilot, Imogen for The bodyguard, Dex for
   Boss and employee, after hours), three across at 1440 and one at 390, every one loaded. "Someone else" took a card's cover away with its character (a cover is only ever
   shown with the character on it). A card's click landed in 1.4 s and the opening was there 4.0 s after the click.
+- **A cover on every card** (`covers-all.mjs`, after #2145, build `89fc882`; it only reads the shelf): tonight's eight
+  all had one. "All 45": 45 cards, 45 covers, every file loaded at 960 by 720, each the picture of the one on its
+  card, each with its words; three across, nothing sideways. Each of the fifteen house characters was on three.
+  Fourteen cards are told from the second side (the courier, the handyman, the photographer, the two bodyguards, the
+  famous one, the vampire, the royal, the captain, the one who leads, the one who got the attention, the card room's
+  owner, the blacksmith and the tailor are the character's). "Someone else" on The neighbour next door took Juniper's
+  cover away and gave the card to Barnaby, the audit account's own latest. A page opened for Wally cast all 45 with
+  him and showed three covers, his own (the handyman, Married meeting as strangers, After the toast); Marisol's the
+  same with hers. On a phone: eight cards, eight covers, one across. Read from the live cards, the four stories with
+  no named roles whose prompts were rewritten say what their pictures show: "Wally walks in pretending to look for
+  nobody", "Wally has found you on the terrace", "you are dressed as a highwayman and Kaz as a fallen angel", "Orin
+  has the one nearest the door". No page errors.
 - **A level** (`bond.mjs`, with Imogen): "Acquainted" in the header, a quiet fold; opened, "1 evening · 1 scene ·
   2 lines. Next: Familiar. It comes from the time you spend together, and it only ever goes up." The same on a
   phone, where the header's letters measured 4.65 against the pixels beside them over her apron (#2136; 3.2 before).
@@ -4357,12 +4369,15 @@ What was measured:
 - **Not shown:** the hourly pass writing a note by itself (it needs a scene left idle for hours with notes on; nobody
   has turned it on yet, and its own log line carries what it decided), Step in as a member (it's still admins only),
   and a note reaching anyone outside the app (nothing is emailed or pushed).
-- Every test scene was deleted. Fifteen cover edits were drawn for the twelve covers, about 45¢ (the amount David
-  approved); the checks themselves drew no pictures.
+- Every test scene was deleted. Fifteen cover edits were drawn for the first twelve covers, about 45¢, and 39 for
+  the other 33, about $1.35 (David approved both; the second was quoted at about $1.15, and six edits were redone or
+  lost); the checks themselves drew no pictures.
 
 | | Desktop | Phone |
 | --- | --- | --- |
 | Covers on the shelf | ![Tonight's 8 three across at 1440, the first row opening on covers of Lior, Orin and Rafe dressed for their roles](screenshots/after-dark-step-in-covers-desktop.png) | ![The shelf on a phone: the chips, the list, then the Wedding guests card with its cover, place and goal](screenshots/after-dark-step-in-covers-phone.png) |
+| A cover on every card | ![The middle of All 45, three across: Rival spies, The vampire's invitation, The royal and the guard](screenshots/after-dark-step-in-covers-all-desktop.png) | ![After the party on a phone, Sable against the front door on its cover](screenshots/after-dark-step-in-covers-tonight-phone.png) |
+| All 45 covers, from the files | ![Every cover in one picture, labelled with its roleplay and who is on it](screenshots/after-dark-step-in-covers-all-45.jpg) | |
 | ↻ Again… | ![Under Barnaby's reply: Again, but, six chips, a box for your own words and Go](screenshots/after-dark-step-in-redraw-desktop.png) | ![The same on a phone after two redraws: 1 of 3, the chips over two rows, the box on its own row](screenshots/after-dark-step-in-redraw-phone.png) |
 | The story, playing | ![Two beats in: The story and its dots at the end of the row under the reply, opened to say what you're playing for](screenshots/after-dark-step-in-story-playing-desktop.png) | |
 | The ending, offered | ![The story has played its last beat: Bring it to a close, or Keep going, above the composer](screenshots/after-dark-step-in-story-ending-desktop.png) | ![The same card on a phone](screenshots/after-dark-step-in-story-ending-phone.png) |
