@@ -22,6 +22,8 @@
  *    scene from the ⋯ menu, roleplay or not.
  *  - **Played**: a roleplay whose last beat has played counts as played for that viewer (story_done_at): its card
  *    says so on the front page, and the front page says how many of the 45 they've played.
+ *  - **A roleplay they wrote themselves** (the Create library) has all of it too: its card is drafted from what they
+ *    wrote (lib/adult/own-roleplay-card.ts) and kept with the scene, so nothing here tells the two kinds apart.
  *
  * This module is the pure part (what's asked, how the answer is read, what the viewer is shown); the scene's own
  * rows are lib/adult/step-in.ts's. Client-safe: no server imports.
@@ -67,7 +69,10 @@ export function mergeBeats(before: readonly boolean[], played: readonly number[]
   return before.map((was, i) => was || i === next);
 }
 
-/** What the viewer's side of the roleplay wants, told to them; null for a roleplay with no card (a person's own). */
+/**
+ * What the viewer's side of the roleplay wants, told to them; null for a roleplay with no card (one of a person's own
+ * whose card couldn't be drafted: lib/adult/own-roleplay-card.ts).
+ */
 export function storyGoal(rp: Pick<Roleplay, "card">, you: 0 | 1, characterName: string): string | null {
   if (!rp.card) return null;
   const first = characterName.trim().split(/\s+/)[0] || characterName;

@@ -8,8 +8,9 @@
  *    Studio's menus, and a card in After Dark's Scene & roleplay, whose description reaches the writer as tonight's
  *    situation.
  *  - **Roleplays:** who the two of them are to each other: for a chapter in After Dark (lib/adult/roleplays.ts has the
- *    show's own; theirs sit beside them as "u:<id>"), and, when safe, for a date on the show (the picker's ✨ Yours,
- *    lib/roleplays.ts).
+ *    show's own; theirs sit beside them as "u:<id>"), for a scene in After Dark's Step in, where each gets a story
+ *    drafted for it (lib/adult/own-roleplay-card.ts: a goal, beats and an ending), and, when safe, for a date on the
+ *    show (the picker's ✨ Yours, lib/roleplays.ts).
  *
  * Each item is `safe` or `after_dark`:
  *  - safe prompts and venues: PG (the show's check plus the PG picture words), usable in the PG Studio and in After Dark;
@@ -116,8 +117,10 @@ export function checkRoleplay(r: { title: string; premise: string; roles: [strin
 
 const iso = (d: Date | string) => new Date(d).toISOString();
 
-type RoleplayRow = { id: string; title: string; premise: string; role_a: string | null; role_b: string | null; category: SceneCategory; mode: LibraryMode; created_at: Date };
+type RoleplayRow = { id: string; title: string; premise: string; role_a: string | null; role_b: string | null; category: SceneCategory; mode: LibraryMode; created_at: Date; story_beats?: number | null };
 const ROLEPLAY_COLUMNS = "id, title, premise, role_a, role_b, category, mode, created_at";
+/** How many beats its drafted story has (lib/adult/own-roleplay-card.ts keeps the card on the row); null with none yet. */
+const STORY_BEATS = "case when jsonb_typeof(card -> 'beats') = 'array' then jsonb_array_length(card -> 'beats') end as story_beats";
 const roleplayOf = (r: RoleplayRow): MyRoleplay => ({
   id: r.id,
   title: r.title,
@@ -126,15 +129,19 @@ const roleplayOf = (r: RoleplayRow): MyRoleplay => ({
   category: r.category,
   mode: r.mode,
   created_at: iso(r.created_at),
+  ...(r.story_beats ? { story_beats: Number(r.story_beats) } : {}),
 });
 
-/** Everything of theirs (`safeOnly`: only the safe ones, the view of someone After Dark isn't open to). */
-export async function getLibrary(db: Db, owner: string, opts: { safeOnly?: boolean } = {}): Promise<Library> {
+/**
+ * Everything of theirs (`safeOnly`: only the safe ones, the view of someone After Dark isn't open to). `stories`: each
+ * roleplay says how many beats its story for Step in has, once it's drafted (for someone Step in is open to).
+ */
+export async function getLibrary(db: Db, owner: string, opts: { safeOnly?: boolean; stories?: boolean } = {}): Promise<Library> {
   const mode = opts.safeOnly ? `and mode = 'safe'` : "";
   const [prompts, places, roleplays] = await Promise.all([
     db.query<{ id: string; text: string; title: string | null; mode: LibraryMode; created_at: Date }>(`select id, text, title, mode, created_at from creator_prompts where owner_id = $1 ${mode} order by created_at desc limit ${LIBRARY_MAX}`, [owner]),
     db.query<{ id: string; name: string; description: string | null; mode: LibraryMode; created_at: Date }>(`select id, name, description, mode, created_at from creator_places where owner_id = $1 ${mode} order by created_at desc limit ${LIBRARY_MAX}`, [owner]),
-    db.query<RoleplayRow>(`select ${ROLEPLAY_COLUMNS} from creator_roleplays where owner_id = $1 ${mode} order by created_at desc limit ${LIBRARY_MAX}`, [owner]),
+    db.query<RoleplayRow>(`select ${ROLEPLAY_COLUMNS}${opts.stories ? `, ${STORY_BEATS}` : ""} from creator_roleplays where owner_id = $1 ${mode} order by created_at desc limit ${LIBRARY_MAX}`, [owner]),
   ]);
   return {
     prompts: prompts.rows.map((r) => ({ ...r, created_at: iso(r.created_at) })),

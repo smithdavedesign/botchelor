@@ -1,5 +1,6 @@
 import { afterEach, beforeEach } from "vitest";
 import { setAdminCheckerDefaultForTests, setModerationFetchForTests } from "@/lib/adult/moderation";
+import { setOwnCardOnSaveForTests } from "@/lib/adult/own-roleplay-card";
 import { setBriefModelForTests } from "@/lib/adult/picture-brief";
 import { setTrackerModelForTests } from "@/lib/adult/step-in-tracker-model";
 import { setGiftsOnAirForTests } from "@/lib/gift-catalog";
@@ -14,8 +15,11 @@ import { setGiftsOnAirForTests } from "@/lib/gift-catalog";
 // And a Step in scene's continuity sheet isn't read (lib/adult/step-in-tracker-model.ts): the read runs past the
 // response, so it would land in a test's scripted writer at no particular moment; a test's own
 // setTrackerModelForTests scripts it (tests/after-dark-step-in-tracker.test.ts).
+// And saving a roleplay drafts no story card for it (lib/adult/own-roleplay-card.ts: it would ask the test's scripted
+// model for one behind its back, or a model on this machine): tests/after-dark-step-in-own-roleplay.test.ts turns it on.
 beforeEach(() => {
   setGiftsOnAirForTests(false);
+  setOwnCardOnSaveForTests(false);
   setBriefModelForTests(null);
   setTrackerModelForTests(null);
   setModerationFetchForTests(async () => {

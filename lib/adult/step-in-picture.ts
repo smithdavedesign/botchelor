@@ -48,7 +48,7 @@ import { keepPictureOfOne } from "./pictures-menu";
 import { includedPrice, type Price } from "./pricing";
 import { missingNote, readinessOf } from "./readiness";
 import { placeWords, povPrompt, reelPerson, withoutNames, type ReelPerson } from "./reels";
-import { roleCostumes, roleplayById } from "./roleplays";
+import { roleCostumes, sceneRoleplay, type RoleplayPick } from "./roleplays";
 import { venueSituation } from "./scene-catalog";
 import { isPublicPlace } from "./scenes";
 import { adultKeys, getAdultSettings } from "./settings";
@@ -109,7 +109,7 @@ type SceneRow = {
   owner_id: string;
   character_id: string;
   place: string;
-  roleplay: { id: string; you: 0 | 1 } | null;
+  roleplay: RoleplayPick | null;
   intensity: string | null;
   hard_nos: unknown;
   paused_at: string | Date | null;
@@ -449,8 +449,9 @@ export async function planStepInPicture(
   const upTo = current.slice(0, current.findIndex((m) => m.id === target.id) + 1);
   const label = placeAt(current, target.id, scene.place);
   const publicPlace = label ? isPublicPlace(label) : false;
-  // In a roleplay with parts, the character wears their part's costume until the lines say otherwise.
-  const rp = scene.roleplay ? roleplayById(scene.roleplay.id) : null;
+  // In a roleplay with parts, the character wears their part's costume until the lines say otherwise (one the viewer
+  // wrote themselves has no costumes written: dressed for the part, lib/adult/roleplays.ts roleCostumes).
+  const rp = sceneRoleplay(scene.roleplay);
   const theirs = scene.roleplay?.you === 0 ? 1 : 0;
   const costume = rp ? (roleCostumes(rp)?.[theirs] ?? null) : null;
   const usual = costume ?? everydayOf(character);
