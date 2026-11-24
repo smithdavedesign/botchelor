@@ -26,6 +26,7 @@
  * the example it's shown).
  */
 import type { ChatMessage } from "../model";
+import { escapeRegExp as esc } from "../text";
 import { NO_SHEET, NOT_A_THING, sheetLine, TRACKER_FIELD_MAX, TRACKER_LINE_CHARS, TRACKER_REPLY_CHARS, type SceneSheet, type TrackerLine } from "./step-in-tracker";
 
 /** The most things kept as in play around them. */
@@ -33,7 +34,6 @@ export const AROUND_MAX = 4;
 /** What a line says once every piece has come off, by the lines' own account (never from silence). */
 export const BARE_LINE = "nothing left on";
 
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const clean = (s: unknown): string => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().replace(/^["“]+|["”]+$/g, "").replace(/[\s.]+$/, "").trim() : "");
 
 /** How a thing is now, said after it ("a coat, wet from the rain"): part of the thing before it, not a thing of its own. */
