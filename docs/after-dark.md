@@ -2806,6 +2806,13 @@ minutes. What it doesn't do is show a line while the step is still being written
 step, a failed check draws all of it again, and nothing a check refuses is ever shown.
 **Proof:** `tests/after-dark-theater-wait.test.ts`, and two steps of `npm run e2e:after-dark` (a byte reaches the
 browser before a slow write ends; a write whose answer is dropped shows its lines without a reload).
+**Live** (ad.botchelor.com, the audit account on the richer writer, 2026-11-24, after #2159;
+`~/.claude/botchelor-bin/live-ad-theater-wait.mjs`): three steps of a night with Dex and Juniper, each rewound
+afterwards. They took 98, 44 and 42 seconds. Every one asked for its answer kept and got it (HTTP 200 with 200
+inside), the page looked at the scene 18, 8 and 8 times while it waited, the first new line was on the page within
+three seconds of the lines being kept, and the page was never loaded again. On the 98-second one the richer writer
+had sent nothing back and the quick one wrote it, which the theater said. **Not seen live:** a step that ran past 100
+seconds (none of the three did); the test with a dropped answer covers that path.
 
 **Admins' own pictures** (`moderation.admin_checker`; David: "set it on production so I'm not hive blocked"): "alt"
 checks an admin's own pictures (scene pictures, baselines, menu and beat pictures, keyframes, Studio pictures) with the
@@ -4462,6 +4469,43 @@ What was measured:
 | A note in the scene | ![Nell's note under her last reply, marked wrote first with the time](screenshots/after-dark-step-in-note-desktop.png) | ![The same note on a phone, with ideas for an answer](screenshots/after-dark-step-in-note-phone.png) |
 | A note waiting | ![Step in's front page: Nell wrote to you, with the note's first words](screenshots/after-dark-step-in-notes-front-desktop.png) | ![The same line on a phone](screenshots/after-dark-step-in-notes-front-phone.png) |
 
+**Live, round five** (ad.botchelor.com, the audit account, 2026-11-24, on build `3a2331b`, after #2161; David's four:
+the role's cover in the scene, "always the newest picture", a scene tracker, story beats for your own roleplays). Each
+in a scene of the audit account's own, deleted afterwards; Step in was admins only throughout.
+- **The cover in the scene** (`step-in-proof/cover.mjs`; the tailor's card with Orin). The scene opened 5.1 s after the
+  click on the card's cover, not his portrait: 466 by 621 px at the right of a 1440 by 900 window, clear of the lines,
+  cut around 66% across, not blurred although the audit account has discreet mode on. On a tablet and a phone it filled
+  the stage under the night. "Show Orin's portrait instead" put his portrait there and it was still there after a
+  reload; "Show Orin dressed for the roleplay" put the cover back. Moved to his place, the scene had his portrait
+  again and no cover to go back to.
+- **Always the newest picture** (the same run; two pictures, about 7¢). With the switch off a picture drawn in 16 s
+  moved nothing. Turned on in the menu, that picture stood beside the scene at once; the next one, drawn in 19 s, took
+  its place by itself and had the switch under it ("✓ Always the newest picture"). From the picture, the menu went
+  back to the cover. The menu fitted a phone (326 px in a 390 px window, nothing sideways), the label on one line
+  since #2158. The switch was put back off.
+- **Where things stand** (`step-in-proof/tracker.mjs`, with Juniper). The first run, before #2161, is why that PR
+  exists (above). After it: the opening's sheet came back in 2.1 s and later ones in 0.4 s; a parcel handed over was
+  on the kitchen counter in the sheet and, four replies later, in the answer to "where did the parcel end up?" ("The
+  parcel remained on the counter where she had set it, the string still neatly tied"); a correction of what the viewer
+  has on added no line and reloaded nothing, and the next reply used it ("studied the scarf wrapped around your
+  neck"). It also showed the limits listed above. The panel fitted a desktop and a phone with nothing sideways.
+- **A roleplay of your own** (`step-in-proof/own-roleplay.mjs`; "Rival noodle stalls", saved for the run and deleted
+  after it). Saved in 0.1 s; its story was drafted 6.6 s later (four beats). It stood first under "All 47" as "Your
+  own" with "📍 The night market, winding down · out in public" and a goal that read right ("You want to admit the
+  rivalry was a way to get closer to Wally; you fear making things awkward if the feeling is not mutual."). One click
+  landed in the scene in about 1.3 s and it opened at that place, held to a kiss, with "Take it to Wally's place" one
+  press away; the place's picture was drawn while the scene played. The dots filled 1, 2, 2, 3 over four lines (on an
+  earlier run 1, 2, 3, 4 and the ending was offered). With the roleplay deleted, the scene kept its title and its
+  story. A roleplay saved before today got its story and its place on the next visit.
+- **Found on the way and fixed:** the switch's label broke over two lines on a phone (#2158); a drafted goal read
+  "You want…, but worries…" and a story set at a night market opened at "Their place" (#2157); a drafted sentence had
+  no full stop (#2160); the sheet's first reads (#2161). **Seen and left:** in one scene with Orin two of three
+  replies were drawn again for the under-18 line and one ended on the narrator's stand-in (none in 143 replies the day
+  before, none in the twelve with Juniper after). Orin talks in numbers, and the age pattern reads "he is 12 …" as an
+  age unless a unit it knows follows; the sheet's note carries nothing age-like. Worth a look at that pattern's list
+  of units; not changed here.
+- No page errors on a desktop or a phone in any run.
+
 **A picture of this moment** (2026-11-23; row 7 of the field audit, "a photo on request, from the composer"; David:
 "I am open to any of these ideas"). Under every reply that stands in a running scene there's **🖼 Picture this**, with
 its price on the button before anything is made (`app/after-dark/step-in/[id]/StepInPicture.tsx`,
@@ -4567,6 +4611,15 @@ within reach.
   change. A first read starts from the place and what the character starts in (their part's costume in a roleplay,
   else their usual clothes). Each line is held to what a recap is before it's kept, and one that fails keeps the line
   it had. A fraction of a cent a scene (two reads measured $0.0007), counted on the scene's own row.
+- **The answer is settled before it's kept** (`lib/adult/step-in-tracker-read.ts` `settleSheet`, #2161, after the
+  first live reads). The first sheets said a character with nothing said of her clothes had "nothing on", swung
+  between her clothes and "holding nothing", kept a coat on its owner after it was hung up, lost a parcel the moment it
+  was handed over, and put "person sitting at table" under where they are. So: what a character has on starts as what
+  they start in and changes only when the lines change it ("nothing", "none", "not stated" are never a state);
+  clothes stay and what's held is added only when something is; the lines themselves are read for what was put down,
+  taken off, handed over or picked up, and what they name is moved even when the answer didn't move it; a place loses
+  anyone standing in it; the viewer's line keeps only clothes and what's in their hands, and only what their own lines
+  say; and nothing reaches the sheet that neither the lines nor the sheet so far mention.
 - **Said to the writer in the turn it answers,** as one parenthetical ("For continuity, how things stood just before
   this…"), never in the system prompt: the system prompt and every earlier turn stay byte for byte what they were, so
   the provider's cache of them holds, and a note beside the reply is kept to better than one a long way up.
@@ -4579,6 +4632,11 @@ within reach.
   newest reply is told what the sheet says they have on and where.
 - **Kept with the scene** (`adult_step_in_scenes.tracker`), deleted with it, and in the After Dark download as
   `where_things_stand`. `STEP_IN_TRACKER=0` stops the reads and the note (`docs/switches.md`).
+- **What it still gets wrong** (the live run after #2161): it's a short list kept by a small model and some English
+  patterns, not a simulation. A character whose only named garment is hung up is left with no clothes noted (the line
+  then reads "holding two bowls"), a coat hung beside another coat was merged into one, and a thing can be on the wrong
+  line for a reply before the next read puts it right. None of that reaches the page as a wrong picture or a wrong
+  line by itself: the writer still has the scene's last thirty turns, and the sheet is the viewer's to correct.
 
 **Proof:** `tests/after-dark-step-in-tracker.test.ts`.
 
