@@ -1,5 +1,5 @@
 /**
- * The site's free OC tools over MCP (2.32.0; random_oc 2.44.0; place_names 2.50.0): the same code the /tools pages run, so an agent gets the
+ * The site's free OC tools over MCP (2.32.0; random_oc 2.44.0; place_names 2.50.0; relationship_tropes 2.51.0): the same code the /tools pages run, so an agent gets the
  * page's answer.
  *
  *  - random_oc: six whole characters in a genre, each ready for create_character (lib/random-oc.ts,
@@ -10,6 +10,8 @@
  *  - oc_names: a page of twelve names in a style (lib/oc-names.ts, /tools/oc-name-generator).
  *  - place_names: a page of twelve places in a style and kind, towns and realms with a hometown ready
  *    (lib/place-names.ts, /tools/place-name-generator).
+ *  - relationship_tropes: six romance tropes for a pair, by mood, each with a first scene, the two names written in
+ *    when given (lib/relationship-tropes.ts, /tools/relationship-trope-generator).
  *  - oc_question: questions to ask an OC, one or a theme's worth (lib/oc-questions.ts, /tools/oc-questions).
  *
  * Pure and deterministic: no model, no database, no identity needed, nothing stored. The content filter (lib/safety.ts)
@@ -20,10 +22,11 @@ import { createWithName, OC_NAME_STYLE_INFO, OC_NAMES_MAX_BATCH, ocNames, ocName
 import { createFromPlace, isHometown, PLACE_NAMES_MAX_BATCH, PLACE_STYLE_INFO, placeNames, placeNamesHref, readPlaceBatch, readPlaceKind, readPlaceStyle } from "../place-names";
 import { OC_QUESTION_THEMES, OC_QUESTIONS, OC_QUESTIONS_PATH, ocQuestionHref, nextQuestion, readQuestion, type OcQuestion } from "../oc-questions";
 import { SHIP_ERRORS, shipPair, shipPath } from "../ship-names";
+import { firstScene, readTropeBatch, readTropeMood, readTropeNames, shipHrefFor, TROPE_MOOD_INFO, TROPES_MAX_BATCH, tropes, tropesHref } from "../relationship-tropes";
 import { createFromOc, ocSentence, RANDOM_OC_GENRE_INFO, RANDOM_OC_MAX_BATCH, randomOcHref, randomOcs, readGenre, readOcBatch, roleLine, type RandomOc } from "../random-oc";
 import { siteUrl } from "../site";
 
-export const OC_TOOL_NAMES = ["ship_names", "oc_chemistry_test", "oc_names", "oc_question", "random_oc", "place_names"] as const;
+export const OC_TOOL_NAMES = ["ship_names", "oc_chemistry_test", "oc_names", "oc_question", "random_oc", "place_names", "relationship_tropes"] as const;
 export type OcToolName = (typeof OC_TOOL_NAMES)[number];
 const OC_TOOLS = new Set<string>(OC_TOOL_NAMES);
 export const isOcTool = (name: string): name is OcToolName => OC_TOOLS.has(name);
@@ -139,6 +142,31 @@ export function placeNamesTool(args: Args): Outcome {
   };
 }
 
+/** relationship_tropes: mood (or none for a mix), a and b (two names, optional), batch. */
+export function relationshipTropesTool(args: Args): Outcome {
+  // A mood outside the enum never gets here: the dispatcher drops it to the default with a warning.
+  const mood = readTropeMood(args.mood);
+  const batch = readTropeBatch(args.batch === undefined ? undefined : String(args.batch));
+  const names = readTropeNames(args.a, args.b);
+  // A name the page would refuse (the content filter, or not a name) is "A" or "B" there too: say so, never echo it.
+  const dropped = (["a", "b"] as const).filter((k) => text(args[k]).trim() && !(k === "a" ? names.typedA : names.typedB));
+  const ship = shipHrefFor(names);
+  return {
+    data: {
+      mood: mood ?? "mixed",
+      ...(mood ? { about: TROPE_MOOD_INFO[mood].blurb } : {}),
+      batch,
+      names: { a: names.a, b: names.b },
+      ...(dropped.length ? { names_note: `${dropped.join(" and ")} couldn't be used (not a name, too long, or refused by the content filter), so the scenes say ${dropped.map((k) => k.toUpperCase()).join(" and ")}.` } : {}),
+      tropes: tropes({ mood, batch }).map((tr) => ({ id: tr.id, name: tr.name, how: tr.how, mood: tr.mood, first_scene: firstScene(tr, names) })),
+      ...(ship ? { ship_url: link(ship) } : {}),
+      url: link(tropesHref(mood, batch, names)),
+      more: { batch: (batch % TROPES_MAX_BATCH) + 1, note: "The same mood and batch always give the same tropes; another batch gives six more." },
+      use_one: "A first scene is a setup to write from, or a roleplay to open a date with. Ship names for the pair: ship_names; how they'd get on: oc_chemistry_test.",
+    },
+  };
+}
+
 /** A random character's bio for create_character: who they are and their secret, in the third person. */
 export function randomOcBio(oc: RandomOc): string {
   const who = roleLine(oc);
@@ -233,5 +261,7 @@ export function runOcTool(name: OcToolName, args: Args): Outcome {
       return randomOcTool(args);
     case "place_names":
       return placeNamesTool(args);
+    case "relationship_tropes":
+      return relationshipTropesTool(args);
   }
 }

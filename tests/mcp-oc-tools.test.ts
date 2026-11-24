@@ -10,6 +10,7 @@ import { OC_TOOL_NAMES } from "@/lib/mcp/oc-tools";
 import { TOOL_IDENTITY } from "@/lib/mcp/reference";
 import { ocNames } from "@/lib/oc-names";
 import { isHometown, placeNames } from "@/lib/place-names";
+import { firstScene, tropes } from "@/lib/relationship-tropes";
 import { OC_QUESTIONS } from "@/lib/oc-questions";
 import { ocSentence, randomOcs } from "@/lib/random-oc";
 import { shipNames } from "@/lib/ship-names";
@@ -166,6 +167,40 @@ describe("place_names (2.50.0)", () => {
     expect(odd.style).toBe("mixed");
     expect(odd.kind).toBe("any");
     expect(odd.warning).toContain("fantasy");
+  });
+});
+
+describe("relationship_tropes (2.51.0)", () => {
+  it("gives the page's six tropes for a mood and batch, with the two names written into each first scene", async () => {
+    const d = await data("relationship_tropes", { mood: "slow-burn", a: "Juniper", b: "Dex", batch: 2 });
+    const expected = tropes({ mood: "slow-burn", batch: 2 });
+    expect(d.tropes.map((t: Any) => t.id)).toEqual(expected.map((t) => t.id));
+    expect(d.tropes).toHaveLength(6);
+    for (const [i, t] of d.tropes.entries()) {
+      expect(t.mood).toBe("slow-burn");
+      expect(t.first_scene).toBe(firstScene(expected[i], { a: "Juniper", b: "Dex" }));
+      expect(t.first_scene).not.toMatch(/\{A\}|\{B\}/);
+    }
+    expect(d.names).toEqual({ a: "Juniper", b: "Dex" });
+    expect(d.names_note).toBeUndefined();
+    expect(d.ship_url).toMatch(/\/ship\//);
+    expect(d.url).toContain("/tools/relationship-trope-generator/slow-burn?");
+    expect(d.url).toContain("batch=2");
+    expect(d.more.batch).toBe(3);
+  });
+  it("mixes moods with no arguments, uses A and B without names, and never echoes a refused name", async () => {
+    const d = await data("relationship_tropes");
+    expect(d.mood).toBe("mixed");
+    expect(d.names).toEqual({ a: "A", b: "B" });
+    expect(d.ship_url).toBeUndefined();
+    expect(d.tropes.map((t: Any) => t.id)).toEqual(tropes({}).map((t) => t.id));
+    const odd = await data("relationship_tropes", { mood: "spicy", a: "x".repeat(10) + "!!!" + "<b>", b: "Dex" });
+    expect(odd.mood).toBe("mixed");
+    expect(odd.warning).toContain("sweet");
+    expect(odd.names.a).toBe("A");
+    expect(odd.names_note).toContain("a couldn't be used");
+    expect(JSON.stringify(odd)).not.toContain("<b>");
+    expect(odd.ship_url).toBeUndefined();
   });
 });
 
