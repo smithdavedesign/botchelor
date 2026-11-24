@@ -4014,8 +4014,12 @@ fieldset.ad-si-step {
 .ad-si-aside p:last-child {
   margin-bottom: 0;
 }
+/* The narration quieter and leaning, what's said out loud bright and upright: as the date reader's narrated style
+   (.ad-reader-beat) and the show's story replies (.chat-story-told) set them apart. The two inks alone (#f1e9ff and
+   white) read as one voice (David, 2026-11-24: "the narrator text is too similar to the quote text. Hard to read"). */
 .ad-si-told {
-  color: var(--night-ink);
+  font-style: italic;
+  color: var(--night-muted);
 }
 .ad-si-said {
   color: var(--night-ink-on);
