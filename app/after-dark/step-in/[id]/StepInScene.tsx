@@ -37,7 +37,11 @@ import StepInTracker from "./StepInTracker";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
-/** Whether the viewer has put the character's picture away (the ⋯ menu): this browser's choice, for every scene. */
+/**
+ * Whether the viewer has put the character's picture away (the ⋯ menu): for this visit only (this tab, every scene in
+ * it). A new visit opens with the picture beside the scene again (David, 2026-11-24: "show the picture by default on the
+ * right every time a user visits").
+ */
 const FIGURE_KEY = "bz_step_in_figure";
 /** Whether new replies are read aloud as they arrive (the ⋯ menu): this browser's choice, for every scene. */
 const ALOUD_KEY = "bz_step_in_aloud";
@@ -230,10 +234,10 @@ export default function StepInScene({
     return () => watch.disconnect();
   }, []);
 
-  // The picture put away stays away (a private window or blocked storage just shows it).
+  // The picture put away stays away for the rest of the visit (a private window or blocked storage just shows it).
   useEffect(() => {
     try {
-      if (localStorage.getItem(FIGURE_KEY) === "off") setFigureOn(false);
+      if (sessionStorage.getItem(FIGURE_KEY) === "off") setFigureOn(false);
     } catch {
       /* storage blocked (a private window): not remembered */
     }
@@ -302,7 +306,7 @@ export default function StepInScene({
     const next = !figureOn;
     setFigureOn(next);
     try {
-      localStorage.setItem(FIGURE_KEY, next ? "on" : "off");
+      sessionStorage.setItem(FIGURE_KEY, next ? "on" : "off");
     } catch {
       /* storage blocked (a private window): not remembered */
     }

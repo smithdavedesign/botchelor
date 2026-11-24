@@ -4571,7 +4571,9 @@ only choice was to hide it. Under every picture made in a scene there's now **Us
 picture stands where the portrait stood (framed beside the column on a wide screen; filling the stage under the night
 on a tablet or a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**) it's taken away,
 and what stood there before is back (the portrait, or a roleplay's cover: below); **Show {name}'s portrait again** in
-the ⋯ menu goes straight to the portrait.
+the ⋯ menu goes straight to the portrait. **Hide {name}'s picture** (the ⋯ menu) lasts for the visit only (this tab's
+sessionStorage): a new visit opens with the picture beside the scene again (2026-11-24, David: "show the picture by
+default on the right every time a user visits"; it had been kept in the browser for every scene).
 - **What's kept:** `adult_step_in_scenes.side_message`, the *reply* whose picture stands there, so a picture drawn
   again takes its place. `setStepInBeside` (`lib/adult/step-in-picture.ts`) takes only a reply of that scene that has a
   picture, or null; the scene's pictures carry it as `beside`; the route is `PUT …/step-in/<id>/picture
