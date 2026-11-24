@@ -3694,8 +3694,9 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
       the one they were with last, the second on someone else of theirs, a different one from day to day; with only
       one person of their own, both. Those cards have no picture (it would be of someone else) unless their person
       happens to be the one in it, and say why in a line over the title: "With someone you know". "Someone else"
-      walks on from there as on any card. Six pictures first, so a row is all pictures or all theirs whether the
-      shelf is three across or two. Nobody of their own yet: all eight open on their pictures. "All 45", a kind, and a
+      walks on from there as on any card. Six pictures first, so a row was all pictures or all theirs when the
+      shelf was three across or two; four across since 2026-11-24, the second row is two pictures and then the
+      two of theirs. Nobody of their own yet: all eight open on their pictures. "All 45", a kind, and a
       page opened for one person are unchanged. "Someone else" is counted apart for those two cards: the same story
       under "All 45" walks on from the one in its picture, and a press on one doesn't move the other.
       **Live** (`~/.claude/botchelor-bin/step-in-proof/yours.mjs`, the audit account, 2026-11-24, after #2148): with
@@ -3712,7 +3713,7 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
       round and were rewritten before they were drawn.
     - **Every roleplay has one**, so `shelfTonight`'s `first` (pictured cards first, six of eight) orders nothing
       today; it stays for the day a roleplay is written before its picture. On a screen with the room the shelf runs
-      wider than the page's reading column (to 64rem, three cards across).
+      wider than the page's reading column (to 64rem; three cards across at first, four since 2026-11-24).
     - **How they were made:** `~/.claude/botchelor-bin/covers/cover.py`: one image edit each on Replicate's
       `qwen/qwen-image-edit-2511` (the app's own edit model) from the character's PG house portrait, fully clothed,
       Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 90 KB,
@@ -3737,14 +3738,18 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
 The competitor read behind it ([audits/2026-11-22-companion-field.md](audits/2026-11-22-companion-field.md)): on every
 top companion site the catalog's card opens the chat directly; a profile or a set-up step first is the exception.
 
-**Set-up** (`/after-dark/step-in`, one page, four small steps; `startStepIn`):
+**Set-up** (`/after-dark/step-in`, under "Set your own scene"; four steps, each a card saying what's chosen and a
+way to the rest; `StepInSetup.tsx`, `startStepIn`). Since the makeover of 2026-11-24 (below) nothing in it is a menu:
 1. **Who:** anyone the viewer may have in a pair (`eligibleIds`: the house cast, the agent cast that passed After
-   Dark's check, their own switched-in characters). Never anyone else's.
-2. **Where:** a place from the scene catalog (`stepInPlaces`: the library's venues, the scenario packs' places, the
-   roleplay places; not the double date, and not a set someone typed in), with its backdrop.
-3. **The roleplay:** one of After Dark's 45 or none, and which side the viewer plays. The page shows the card from the
-   viewer's side (`cardForYou`: "you", the verbs agreeing). The viewer's own library roleplays and venues aren't
-   offered in v1.
+   Dark's check, their own switched-in characters). Never anyone else's. Sixteen faces on the page (nine on a phone),
+   a search by name, and "See all N characters", which opens everyone as a full-screen sheet of portraits.
+2. **The story:** one of After Dark's 45, one of the viewer's own, or none ("A date, as yourselves"), and which side
+   the viewer plays. Picked from a sheet of posters with a search and the kinds across the top. The step then shows
+   the card from the viewer's side (`cardForYou`: "you", the verbs agreeing), with its cover when there's one of this
+   person in this role (`coverInScene`).
+3. **Where:** a place from the scene catalog (`stepInPlaces`: the library's venues, the scenario packs' places, the
+   roleplay places; not the double date, and not a set someone typed in), picked from a sheet of its pictures. A
+   story with a place of its own starts there unless another is picked.
 4. **How it opens:** the card's three openings (the generic three with no roleplay), "Surprise me", or one sentence
    of the viewer's own. A written one is the viewer's words: the self-harm check, then `checkAdultText` and Step in's
    own net, then the roleplay theme check (`adultCardTextIssue`: one sentence of story, the never-list, nothing
@@ -4505,6 +4510,69 @@ in a scene of the audit account's own, deleted afterwards; Step in was admins on
   age unless a unit it knows follows; the sheet's note carries nothing age-like. Worth a look at that pattern's list
   of units; not changed here.
 - No page errors on a desktop or a phone in any run.
+
+**The front page, made over** (2026-11-24; David, with a screenshot of the "Where" step, a kitchen picture the width
+of the page jammed under a menu: "The character select should be more full screen so you can see the characters. the
+role play is a ong scroll in the dropdown it's a bad ux. overall the page needs a makeover."; #2166, #2167, #2168).
+What was wrong, on ad.botchelor.com before anything changed: the page was 5,040 px tall on a desktop and 8,721 px on
+a phone, the set-up under all of the shelf; the cast was 284 round faces 56 px across in a box that scrolled inside
+the page; the roleplay was a menu of 46 lines; the place was a menu of 83 with its picture under it at the full
+width of the column.
+- **Pickers are sheets, not menus** (`app/after-dark/step-in/PickSheet.tsx`, one component for all three; it's the
+  theater's Set the scene sheet: `useOverlay`, the page behind held still and inert, Escape and ✕ close it, focus
+  goes to the search and comes back to the button that opened it). A phone gets the whole screen; a desktop 1200 by
+  828 of a 1440 by 900 window.
+  - **Who:** portraits at 4:5, the name under each and the level when there is one, under "From your scenes", "House
+    cast" and "Everyone else"; a search by name.
+  - **The story:** a tile a roleplay, its cover on top (45 of them), "Your own" and "✓ Played" marked, the first
+    lines told with the chosen person's name, and where it's set. The kinds are a row across the top ("✨ All",
+    "Yours", then `roleplayGroups`' kinds with their counts), with a search over titles, premises and roles
+    (`storyChoices` in `lib/adult/step-in-setup.ts`). "No roleplay" is the first tile.
+  - **Where:** a tile a place under its picture; "All", "Private" and "Out in public" across the top; a search. The
+    story's own place first, then Their place, then every place with a picture, then the rest (`placeChoices`). The
+    first live check is why: in catalog order the sheet opened on a screen of empty frames and asked for all 57
+    pictures at once. Tiles off the screen are held back (`content-visibility: auto`): ten pictures are asked for
+    on opening.
+- **The set-up is four cards** (`StepInSetup.tsx`), each with its number, what's chosen with its picture beside it at
+  a thumbnail's size (the place's is 152 by 114 px, which is the bug in the screenshot gone), and one button to the
+  sheet. On a desktop the story stands beside Where and How it opens. The button at the end says who, and under it
+  the whole choice in a line ("Teo Brandt · Roommates · The shared kitchen at midnight"); with nobody picked it says
+  "Pick who you're with" and opens the sheet.
+- **The shelf is shorter** (`StepInShelf.tsx`): four cards across on a desktop instead of three, the premise held to
+  three lines, the goal and who plays whom folded under "What you're playing for", one full-width button a card with
+  "Someone else" and "Set it up" as links under it. On a phone tonight's eight are one row to swipe, a card at a
+  time, instead of eight cards down the page; "All" and a kind stay a list.
+- **Two links under the lead** ("Tonight's stories", "Set your own scene") jump to either half.
+- **Live** (`~/.claude/botchelor-bin/step-in-proof/front.mjs`, the audit account, on build `b97813f`, after #2168;
+  one scene started and deleted; Step in still admins only). The page was 3,952 px tall on a desktop and 4,575 px on a phone,
+  nothing sideways. The shelf was four across (a card 247 by 587 px) and a row to swipe at 390 wide. The set-up had
+  no menu and no box that scrolls inside the page; sixteen faces eight across at 106 by 132 px (nine, three across,
+  at 79 by 99 px on a phone). The Who sheet listed 284 under its three headings and "te" left 25. The story sheet
+  listed 46 roleplays four across (two on a phone) under 17 kinds with 45 covers; picking Roommates with Teo showed
+  his cover in the step and moved the place to "Where the story is set: The shared kitchen at midnight". The Where
+  sheet listed 83 (29 private, 54 out in public), the first eight after the story's place all with pictures, all
+  painted within a quarter of a second of opening when their 400 px copies were in the cache in front of the host
+  (33 to 50 ms each). "Step in with Teo" landed in the scene 3.8 s after the press, on his cover. No page errors.
+- **A picture on its way.** A deploy empties that cache, and the first time a set's small copy is asked for the host
+  reads the set and resizes it (`app/api/sets/[slug]/route.ts`): a quarter of a second for one, up to 1.4 s for nine
+  at once. On the runs straight after the two deploys seven or eight frames were still dark half a second after the
+  sheet opened, and a dark frame on a dark tile read as a hole. A tile waiting for its picture now has a soft frame
+  (`--night-line`) instead (#2169). **Not done:** keeping the 400 px copy beside the set, so the first ask after a
+  deploy is one small read; the theater's Set the scene sheet would gain the same.
+- **Found on the way and fixed:** face tiles with a level under them came out wider than those without on a phone,
+  and the level's pill read "Acquain…" (#2167: the tile's column can shrink, the level is plain small words); a box
+  cut to exactly the word's width then shaved the edge off its last letter (#2168). **Left:** a story's own place has
+  no picture of its own in the Where step (a 📍 where the others have one); the roleplay's cover is beside it in the
+  story step.
+
+| | Desktop | Phone |
+|---|---|---|
+| The front page | ![Step in's front page at 1440 wide: the lead, two jump links, and tonight's stories four across, each a cover, a title and three lines](screenshots/after-dark-step-in-front-desktop.png) | ![The same at 390 wide: one card of tonight's row with the next peeking in at the right](screenshots/after-dark-step-in-front-shelf-phone.png) |
+| Set your own scene | ![The set-up: step 1, Who, sixteen portraits eight across with a search and See all 284 characters](screenshots/after-dark-step-in-front-build-desktop.png) | ![The same step on a phone: nine portraits three across](screenshots/after-dark-step-in-front-build-phone.png) |
+| Who | ![The Who sheet over the page: portraits under From your scenes and House cast, a search on top](screenshots/after-dark-step-in-front-who-desktop.png) | ![The Who sheet filling a phone's screen, portraits two across](screenshots/after-dark-step-in-front-who-phone.png) |
+| The story | ![The story sheet: the kinds in a row, then roleplays four across, each under its cover](screenshots/after-dark-step-in-front-story-desktop.png) | ![The story sheet on a phone, two across](screenshots/after-dark-step-in-front-story-phone.png) |
+| Where | ![The Where sheet: All, Private and Out in public, then places four across under their pictures](screenshots/after-dark-step-in-front-where-desktop.png) | |
+| All four picked | ![The set-up with Teo, Roommates with his cover, the story's own place and Surprise me](screenshots/after-dark-step-in-front-picked-desktop.png) | |
 
 **A picture of this moment** (2026-11-23; row 7 of the field audit, "a photo on request, from the composer"; David:
 "I am open to any of these ideas"). Under every reply that stands in a running scene there's **🖼 Picture this**, with
