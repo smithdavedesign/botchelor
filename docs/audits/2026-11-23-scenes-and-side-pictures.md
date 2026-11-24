@@ -89,12 +89,12 @@ moment).
 
 | # | What | Who does it | Botchelor |
 |---|---|---|---|
-| 1 | Put a picture from the scene in the place of the standing picture; optionally always the newest | Kindroid [Ob45], Nomi [O46], Character.AI [O26] | **Built 2026-11-23**: "Use as the scene's picture" under every picture, the portrait one press away. "Always the newest" is not built |
+| 1 | Put a picture from the scene in the place of the standing picture; optionally always the newest | Kindroid [Ob45], Nomi [O46], Character.AI [O26] | **Built 2026-11-23**: "Use as the scene's picture" under every picture, the portrait one press away. **"Always the newest picture", 2026-11-24** (#2153, #2158): the viewer's own switch, in the scene's menu and under the picture that stands there |
 | 2 | Flip through the scene's pictures where the standing picture is | Nomi's album [O46], Kindroid's gallery [O43] | Partly: any of the scene's pictures can be put there, from under its reply. No arrows on the picture itself |
 | 3 | Several openings for the same character | Chub's alternate greetings [Ob5]; Character.AI [Ob27] | Have: three written openings per roleplay, picked in the set-up or for you by a card |
 | 4 | Another reply, with a direction ("slower", "more teasing") | Kindroid "Suggest" [O44]; SpicyChat "/cmd" [O19]; SillyTavern's author's note [O40] | **Built 2026-11-23** (#2119): "↻ Again…" under the newest reply, six chips (Slower, More teasing, Bolder, Softer, Shorter, More talk) or the viewer's own words; the reply it replaces is kept; a direction that asks for a hard no is refused before anything is drawn |
 | 5 | Scenes that any character can play, with a goal and an ending | Character.AI Scenes [O24]; CrushOn Target Play [O23] | **Built 2026-11-23**: the 45 roleplays as cards on Step in's front page, cast from the viewer's own After Dark. **A goal and an ending, the same day** (#2120, #2126, #2135): the viewer's side's want on the card and in the scene, a dot a beat filled as the story plays, "Bring it to a close" offered once the last has, and ✓ Played. No score and no round limit, on purpose |
-| 6 | A tracker of where the scene is, that proposes a change of scene and feeds the pictures | Kindroid "Scene Setting" [O44] | Not built. It would also close Step in's known gap (a sweater she never had) |
+| 6 | A tracker of where the scene is, that proposes a change of scene and feeds the pictures | Kindroid "Scene Setting" [O44] | **Built 2026-11-24** (#2155, #2161), the tracking and the pictures: a four-line sheet a scene (where they are, what each has on, what's within reach), read after every reply, said to the writer beside the line it answers, shown in the ⋯ menu and the viewer's to correct; a picture of the newest reply is told what it says. It doesn't propose a change of scene |
 | 7 | The user's own looks, for pictures of both | Kindroid "Solo" / "Couple" [O43]; SpicyChat personas [O20] | Not doing: the viewer is never drawn, on purpose |
 | 8 | Rewind, branch, edit the reply | Kindroid [O44]; SillyTavern [O38]; SpicyChat [O13] | Have take back and flipping through draws. No editing a reply, no branches |
 | 9 | Messages and pictures sent first, opt-in, with quiet hours | Kindroid stops after three unanswered [O44]; Nomi has four frequencies [O47] | **Built 2026-11-23** (#2127), messages only: off by default, sometimes or daily, quiet hours in the person's own time zone, never a second note on an unread one, any scene can be told not to. It waits inside After Dark: nothing is emailed or pushed yet, and no picture is sent |
@@ -145,18 +145,33 @@ under "Live, round four":
 - **Messages sent first, with quiet hours** (#2127), row 9.
 - **A level the person can see** (#2123, #2129, #2132, #2134), row 10.
 
+And on 2026-11-24, the four that were next on the list below as it stood (David: "tackle the the role's cover
+standing in the scene as its picture, an 'always the newest picture' switch, a scene tracker, so a character doesn't
+pick up a sweater she never had, story beats for your own roleplays"). Each is written up in `docs/after-dark.md`,
+with what the live checks measured under "Live, round five":
+
+- **The role's cover, standing in the scene** (#2153): a scene opened from a card starts on the card's cover of the
+  character, cut tall around where they stand, until the scene moves or the viewer asks for the portrait.
+- **Always the newest picture** (#2153, #2158), row 1.
+- **Where things stand** (#2155, #2161), row 6.
+- **A roleplay of your own, with a story drafted for it** (#2154, #2157, #2160): a person's own roleplays play in Step
+  in, each with a drafted story card (a goal, beats, openings, a place) held to the same check as the show's.
+
 ## What I'd do next, in order
 
 1. **Tell them outside the app when a character has written first.** A note waits inside After Dark today, so it only
    brings back someone who was coming back anyway. A push notification (the site is already installable) or an email
    is what Kindroid and Nomi lean on. It needs a real phone to test and wording that's safe on a lock screen, so it's
    David's to say when.
-2. **The role's picture in the scene.** Every card has a cover now, and a scene started from one could open with
-   that picture standing where the portrait stands (the tailor in his waistcoat, not the house portrait's T-shirt),
-   using the "scene's picture" slot.
-3. **A switch for "always the newest picture"** beside the scene (row 1), for people who draw often.
-4. **A tracker of where the scene is** (row 6), which would also feed the pictures.
-5. **Beats for a person's own roleplay**, so their own stories get a goal and an ending too.
+2. **Let the author see and change their own story.** A person's roleplay gets its goal, beats and place drafted for
+   it, and today they can't read the beats or change any of it: an editor in the Create tab, with the same check on
+   every field.
+3. **The sheet proposing where to go next** (the other half of row 6): when a scene has run long in one place, one
+   quiet suggestion of somewhere to take it.
+4. **A cover for someone who isn't on the card.** The role's picture stands only for the character it was drawn of;
+   drawn on demand for anyone else it's one edit, about 3.5¢.
+5. **The story card on a night between two characters.** A night still plays a person's own roleplay from its premise
+   alone; the drafted card could reach its writer the way the house cards do.
 
 ## Sources
 
