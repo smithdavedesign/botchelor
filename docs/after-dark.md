@@ -3648,30 +3648,44 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
     - **Moving** is unchanged: "Go somewhere else" is the catalog's list, and the 45 aren't added to it.
   - **What it costs:** nothing to show; a started card is one reply, like any opening.
   - **Covers** (2026-11-23; David: "A cover picture per card, the character dressed for the role. About 3.5¢ each, so
-    45¢ for the top twelve"). Twelve roleplays have a cover (`lib/adult/roleplay-covers.ts`, `public/cast/roleplay-
-    <id>-<name>.webp`): a house character dressed for one side of the story (the roleplay's own `costumes`), in the
-    story's own place. The neighbour next door (Juniper), Boss and employee (Dex), Strangers at the bar (Sable),
-    Roommates (Teo), The bodyguard (Imogen), The vampire's invitation (Rafe, as the vampire), The royal and the guard
-    (Perpetua, as the royal), Captain and pilot (Nell, as the captain), Exes (Boaz), Rivals (Kaz), Wedding guests
-    (Lior) and The last fitting (Orin, as the tailor).
-    - **The picture is the card's poster.** A card with a cover opens on the one in its picture, whoever the viewer
-      has stepped in with before, and on the side the picture implies (`you`: with the vampire on the doorstep, the
-      viewer is the guest). "Someone else" recasts it, the people they know first, and the cover goes: it's a picture
-      of one person. A page opened for one person (`?with=`) shows a cover only where it's theirs.
-    - **Tonight's eight lead with six of them** (`shelfTonight`'s `first`), a different six each day, so the shelf
-      opens on pictures and its rows are of a kind whether it's three across or two; "All" and each kind list the
-      pictured ones first. On a screen with the room the shelf runs wider than the page's reading column (to 64rem,
-      three cards across): two across left half a desktop empty beside the pictures.
+    45¢ for the top twelve", and once those were live: "do the covers for the other 33 cards"). Every one of the 45
+    roleplays has a cover (`lib/adult/roleplay-covers.ts`, `public/cast/roleplay-<id>-<name>.webp`): a house character
+    dressed for one side of the story (the roleplay's own `costumes`), in the story's own place.
+    - **Who is on which.** Each of the fifteen house characters is on three, cast for what they're like: Wally, the
+      fixer, is the handyman; Dex, the gentle giant, the blacksmith and the bodyguard off duty; Kaz, chalk on both
+      palms, the climber on the next wall; Marisol the photographer and the demon; Orin the sceptic at the haunted inn
+      and the one with the Sunday crossword; Perpetua runs the card room and one end of the truce; Imogen is who comes
+      out of the kitchen when you get home. The first twelve were the neighbour next door (Juniper), Boss and employee
+      (Dex), Strangers at the bar (Sable), Roommates (Teo), The bodyguard (Imogen), The vampire's invitation (Rafe),
+      The royal and the guard (Perpetua), Captain and pilot (Nell), Exes (Boaz), Rivals (Kaz), Wedding guests (Lior)
+      and The last fitting (Orin).
+    - **The picture is the card's poster.** A card opens on the one in its picture, whoever the viewer has stepped in
+      with before, and on the side the picture implies (`you`: with the vampire on the doorstep, the viewer is the
+      guest). "Someone else" recasts it, the people they know first, and the cover goes: it's a picture of one person.
+      A page opened for one person (`?with=`) shows a cover only where it's theirs. So with a cover on every card, a
+      viewer's own people no longer lead any card by themselves: they're one press of "Someone else" away, or the
+      whole shelf from that person's own card.
+    - **Which side the picture shows.** A roleplay with named roles can be played from either, and its cover picks
+      one (`you`). A roleplay with no named roles is always played with the viewer as its card's first person and the
+      character as its second (the set-up offers no sides for it), so its picture shows what the second one is doing:
+      in "Married, meeting as strangers" the one who walks in, not the one already at the bar; in "After the toast" the
+      one who comes out with two glasses, not the one holding the index cards. Four prompts had this the wrong way
+      round and were rewritten before they were drawn.
+    - **Tonight's eight all have one.** `shelfTonight`'s `first` still puts pictured cards first (six of eight) for
+      the day a roleplay is written before its picture; with every card pictured it orders nothing. On a screen with
+      the room the shelf runs wider than the page's reading column (to 64rem, three cards across).
     - **How they were made:** `~/.claude/botchelor-bin/covers/cover.py`: one image edit each on Replicate's
       `qwen/qwen-image-edit-2511` (the app's own edit model) from the character's PG house portrait, fully clothed,
-      Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 80 KB,
-      AI-marked (`scripts/stamp-ai-marks.mjs`). Fifteen edits, about 45 cents: a first try, and two redone because
-      their faces (Vesper and Odalys, the premium house characters) aren't in After Dark's cast, so the live shelf
-      showed two covers where four were due. They're the show's own pictures, so discreet mode leaves them alone
-      like a house portrait. `tests/roleplay-covers.test.ts` holds the list to the files and to the cast After Dark
-      can have.
-  - **Not built:** covers for the other 33, a cover for a card recast with someone else, and a person's own roleplays
-    on the shelf.
+      Replicate's own safety checker left on, each looked at before it was kept; 960 by 720 WebP, 40 to 90 KB,
+      AI-marked (`scripts/stamp-ai-marks.mjs`). 54 edits in all, about $1.90. Fifteen for the first twelve: two redone
+      because their faces (Vesper and Odalys, the premium house characters) aren't in After Dark's cast. 39 for the
+      other 33: three drew the character twice (once close, and once small in the doorway or the chalk circle the pose
+      named: the pose now keeps them in the foreground and the doorway is only part of the place), one had a neon
+      sign of garbled letters (now a neon cocktail glass), and two were lost to a run stopped to fix the four prompts
+      above. They're the show's own pictures, so discreet mode leaves them alone like a house portrait.
+      `tests/roleplay-covers.test.ts` holds the list to the files, to the cast After Dark can have, to three covers a
+      character, and to the first side for a roleplay with no roles.
+  - **Not built:** a cover for a card recast with someone else, and a person's own roleplays on the shelf.
   - **Out in public, one tap from somewhere private:** a scene that starts out in public (15 of the 45) is held to a
     kiss until it moves, and the way out was only in the ⋯ menu. The scene's header now has **Take it to {name}'s
     place** right where it says it's held to a kiss (the same `move` the menu makes, to the catalog's home). The

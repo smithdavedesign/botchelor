@@ -16,7 +16,11 @@ import { BondMarkTag } from "./[id]/StepInBond";
 import StepInButton from "./StepInButton";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
-/** The roleplays with a cover picture (lib/adult/roleplay-covers.ts): they lead tonight's, and come first in any list. */
+/**
+ * The roleplays with a cover picture (lib/adult/roleplay-covers.ts): every one of them since 2026-11-23, so this orders
+ * nothing today. It stays for a roleplay written before its picture is drawn: the pictured lead tonight's, and come
+ * first in any list.
+ */
 const PICTURED: ReadonlySet<string> = new Set(Object.keys(ROLEPLAY_COVERS));
 const picturedFirst = <R extends { id: string }>(list: readonly R[]): R[] => [...list.filter((r) => PICTURED.has(r.id)), ...list.filter((r) => !PICTURED.has(r.id))];
 const NO_PLACES: Record<string, StoryPlace> = {};

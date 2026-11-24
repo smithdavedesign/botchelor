@@ -101,18 +101,28 @@ describe("a card with a cover", () => {
     expect(shelfLead("neighbours", DAY, one, 3, "fay")?.id).toBe("fay");
   });
 
-  it("leads tonight's: six of the eight have pictures and come first, the same all day", () => {
+  it("leads tonight's: with a cover on every card all eight have one, the same all day and a different eight tomorrow", () => {
     const pictured = new Set(Object.keys(ROLEPLAY_COVERS));
+    expect(pictured.size).toBe(ROLEPLAYS.length);
     const tonight = shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, pictured).map((r) => r.id);
     expect(tonight).toHaveLength(SHELF_TONIGHT);
     expect(new Set(tonight).size).toBe(SHELF_TONIGHT);
+    expect(tonight.every((id) => pictured.has(id))).toBe(true);
+    expect(shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, pictured).map((r) => r.id)).toEqual(tonight);
+    expect(shelfTonight(ROLEPLAYS, "2026-11-24", SHELF_TONIGHT, pictured).map((r) => r.id)).not.toEqual(tonight);
+    // With every card pictured, tonight's are simply the day's first eight: the same eight a shelf with no covers shows.
+    expect(tonight).toEqual(shelfTonight(ROLEPLAYS, DAY).map((r) => r.id));
+  });
+
+  it("puts the pictured first when only some have one: six of the eight, then the others", () => {
+    // As it was with twelve covers, and as it would be again if roleplays were added before their pictures.
+    const pictured = new Set(ROLEPLAYS.slice(0, 12).map((r) => r.id));
+    const tonight = shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, pictured).map((r) => r.id);
     // Six: three rows of two, or two rows of three, so a row is all pictures or none whichever way it's laid out.
     const lead = (SHELF_TONIGHT * 3) / 4;
     expect(lead).toBe(6);
     expect(tonight.slice(0, lead).every((id) => pictured.has(id))).toBe(true);
     expect(tonight.slice(lead).some((id) => pictured.has(id))).toBe(false);
-    expect(shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, pictured).map((r) => r.id)).toEqual(tonight);
-    expect(shelfTonight(ROLEPLAYS, "2026-11-24", SHELF_TONIGHT, pictured).map((r) => r.id)).not.toEqual(tonight);
     // Fewer pictures than that: all of them first, the rest from the others; none: as before.
     const two = new Set(["vampire", "royal"]);
     expect(new Set(shelfTonight(ROLEPLAYS, DAY, SHELF_TONIGHT, two).slice(0, 2).map((r) => r.id))).toEqual(two);
