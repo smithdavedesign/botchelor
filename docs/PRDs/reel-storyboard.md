@@ -158,8 +158,8 @@ we keep the transcript but the actions from the images might be good for the use
   director's. The picture and its approval are untouched. The storyboard's 🎬 What happens offers three hints to start
   from: the picture (the owner's picture words or the director's still), the line's own *action* (`line_action`, kept
   from the transcript at planning) and the director's motion.
-- **Film again with new words**: the player's 🔁 Film again opens the shot's words; changed words go with `refilm`
-  (`video_words`) and stay on the shot.
+- **Film again with new words**: the player's 🩹 Fix (🔁 Film again until 2026-11-24) opens the shot's words and what
+  went wrong (docs/after-dark.md "Fix for a video"); changed words go with `refilm` (`video_words`) and stay on the shot.
 - **Both of them speak** (`bothSpeak`, after the director's pick and its fallback spread): when every picked line is
   one character's and the other has spoken lines, about a third of the shots (at least one) go to the other's lines
   nearest the picks. One right beside the pick it replaces keeps that shot's still and motion. Found on a night where

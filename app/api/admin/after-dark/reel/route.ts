@@ -5,6 +5,7 @@ import { addShotLines, advanceReel, approveShot, archiveShot, draftTranscript, d
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
+import { VIDEO_PROBLEM_IDS } from "@/lib/adult/video-fix-shared";
 
 // Drawing, checking and queueing the shots' keyframes (four by default) takes a minute or so.
 export const maxDuration = 300;
@@ -28,7 +29,14 @@ const VideoInput = z.object({ action: z.literal("use_video"), id, shot: z.number
 // The owner's own moments: 1 to PICK_LINES_MAX lines of the draft's transcript, each a new shot.
 const AddLinesInput = z.object({ action: z.literal("add_lines"), id, lines: z.array(z.number().int().min(0).max(5000)).min(1).max(PICK_LINES_MAX) });
 // video_words: what happens in the shot's new video, in the owner's words ("" goes back to the director's; absent keeps it).
-const RefilmInput = z.object({ action: z.literal("refilm"), id, media_id: id, video_words: z.string().max(400).optional() });
+// problems: 🩹 Fix's chips, what was wrong with the video it replaces (lib/adult/video-fix-shared.ts).
+const RefilmInput = z.object({
+  action: z.literal("refilm"),
+  id,
+  media_id: id,
+  video_words: z.string().max(400).optional(),
+  problems: z.array(z.enum(VIDEO_PROBLEM_IDS as [string, ...string[]])).max(VIDEO_PROBLEM_IDS.length).optional(),
+});
 // What happens in one draft shot's video, in the owner's words (David, 2026-11-09); "" goes back to the director's.
 const VideoWordsInput = z.object({ action: z.literal("video_words"), id, shot: z.number().int().min(0).max(50), words: z.string().max(400) });
 // A night's video that failed: back to its storyboard, its kept pictures with it, to film again.
@@ -87,7 +95,7 @@ export const POST = handle(async (req: Request) => {
   }
   if (act === "refilm") {
     const input = parseBody(RefilmInput, body, "invalid_request");
-    const r = await refilmShot(db, viewer, input.id, input.media_id, requestBase(req), input.video_words);
+    const r = await refilmShot(db, viewer, input.id, input.media_id, requestBase(req), input.video_words, input.problems);
     return r.ok ? json({ reel: r.reel }) : fail(r);
   }
   if (act === "video_words") {

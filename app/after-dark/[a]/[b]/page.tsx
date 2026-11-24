@@ -188,12 +188,12 @@ export default async function AfterDarkScenePage({ params, searchParams }: Props
         // With "Set up for pictures" on each of theirs not ready yet (#1207), where the Studio is theirs to use.
         readiness={textOnlyHere ? [] : await withSetupOffers(db, admin, await pairReadiness(db, admin, scene.a.id, scene.b.id))}
         // The gallery's priced buttons (the kit's rule: every button that spends says what): Redraw at a menu picture's
-        // price (included with a subscription), 👕 SFW twin (admins free), 🔁 Film it again (free on their key or for an admin).
+        // price (included with a subscription), 👕 SFW twin (admins free), 🩹 Fix a shot (free on their key or for an admin).
         prices={{
           redraw: await includedPrice(db, admin, adSettings.menu_picture_tokens),
           sfwTwin: viewerAdmin ? 0 : adSettings.studio.prices.sfw_twin,
           move: viewerAdmin ? 0 : SET_SCENE_TOKEN_COST,
-          refilm: viewerAdmin || ownVideoKey ? null : { clip_tokens: adSettings.clip_tokens, reel_tokens: adSettings.reel_tokens },
+          refilm: viewerAdmin || ownVideoKey ? null : { clip_tokens: adSettings.clip_tokens, reel_tokens: adSettings.reel_tokens, free_fix: adSettings.studio.free_redo },
         }}
         // A chapter's price for this viewer: free for an admin, included with a subscription (#1005, lib/adult/pricing.ts).
         chapterTokens={chapterPrice.tokens}

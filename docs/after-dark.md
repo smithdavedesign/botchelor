@@ -3511,8 +3511,12 @@ the sheet from a night's ⋯. Explicit output is never made in tests: David chec
 
 David: "There is no way to fix a video, often there might be a issue with it. Should we offer fixing this or is this
 too expensive?" No model here edits part of a clip, so a video's 🩹 Fix films it again from the very start it had,
-told what went wrong. It's beside 👍/👎 on the Studio's animations (`app/after-dark/VideoFixSheet.tsx`,
-`lib/adult/video-fix.ts`, `GET|POST /api/admin/after-dark/video-fix`), and gets bolder after a 👎 it can put right.
+told what went wrong. It's in two places:
+- **A Studio animation:** beside 👍/👎 (`app/after-dark/VideoFixSheet.tsx`, `lib/adult/video-fix.ts`,
+  `GET|POST /api/admin/after-dark/video-fix`). It gets bolder after a 👎 it can put right.
+- **A shot of a night's video:** the player's 🩹 Fix (🔁 Film again until 2026-11-24) films that shot again from its own
+  start picture (`refilmShot`, `POST /api/admin/after-dark/reel {action: "refilm", problems?, video_words?}`). The new
+  film takes the shot's place; there are no versions to keep.
 
 **The sheet:**
 - **What went wrong:** chips (`VIDEO_PROBLEMS` in `lib/adult/video-fix-shared.ts`): face changed or wrong person,
@@ -3534,10 +3538,16 @@ told what went wrong. It's beside 👍/👎 on the Studio's animations (`app/aft
 `fix_note`: the chips and the words), beside the rest in the gallery. `VIDEO_FIXES_MAX` (3) counts the fixes of one
 original, made or being made. Keep makes one version the one the galleries show; back to the original undoes them.
 
+**A night's shot** keeps what was wrong on the shot (`ReelShot.fix`): its prompt says it right after what happens, and
+its negative keeps it out, for as long as that's the shot's film.
+
 **Price:**
 - **Free once:** the first fix of a video marked broken (a chip picked) while the Studio's free redo is on
-  (`studio.free_redo`). A free fix that doesn't come through (the check discarded it, Venice gave up) is free again.
-- **Otherwise:** Animate's price for its length (`animate_5`, `animate_10`), given back when it doesn't come through.
+  (`studio.free_redo`). For a night's video that's one shot, once a video (`ReelShot.fix_free`). A free fix that
+  doesn't come through (the check discarded it, Venice gave up) is free again (`refilm_free`, `settleIfDone`).
+- **Otherwise:** Animate's price for its length (`animate_5`, `animate_10`), or a night's shot its share
+  (`refilmTokens`), given back when it doesn't come through. On their own video key or for an admin it's free anyway,
+  and the free one isn't spent.
 - **The month's clips:** a paid fix is one of them, like any animation. The free one replaces a broken clip, so it's
   neither refused at the cap nor counted.
 - **Why it's affordable:** a 5 s animation costs us $0.65 on Venice and sells for 3 tokens (~$2.40), so one free
@@ -3545,7 +3555,8 @@ original, made or being made. Keep makes one version the one the galleries show;
   a video at most.
 
 **Proof:** tests/after-dark-video-fix.test.ts: the prompts, the free fix and its cap rule, versions and Keep, new
-words, a free fix that fails, the kept picture, a link filmed again from its frame, and ownership.
+words, a free fix that fails, the kept picture, a link filmed again from its frame, ownership, and a night's shot fixed
+(free once a video, free again when it fails, paid after).
 
 ## Roleplays: scene cards, and 13 more (2026-11-17)
 

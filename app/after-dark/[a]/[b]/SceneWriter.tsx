@@ -176,7 +176,7 @@ export default function SceneWriter({
   /** The page's Two sides tab (TwoSidesPanel, flat), and the admins' line under the tabs (null for everyone else). */
   twoSides?: ReactNode;
   adminTools?: ReactNode;
-  /** What the gallery's spending buttons cost this viewer (page.tsx): Redraw, 👕 SFW twin, and 🔁 Film it again (null: free). */
+  /** What the gallery's spending buttons cost this viewer (page.tsx): Redraw, 👕 SFW twin, and 🩹 Fix on a shot (null: free). */
   prices?: GalleryPrices;
   /** Not open yet (lib/adult/rollout.ts), for this viewer: the theater's Make more menu and the phone's ⋯ sheet. */
   makeMore?: boolean;
@@ -1175,7 +1175,7 @@ const SECTIONS: [string, (m: Media) => boolean][] = [
 type GalleryPrices = {
   redraw: { tokens: number; included: boolean };
   sfwTwin: number;
-  refilm: { clip_tokens: number; reel_tokens: number } | null;
+  refilm: { clip_tokens: number; reel_tokens: number; free_fix?: boolean } | null;
   /** Taking them somewhere else mid-night (the theater's picker). */
   move: number;
 };

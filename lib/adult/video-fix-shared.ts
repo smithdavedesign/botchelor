@@ -6,8 +6,9 @@
  * Making a video costs us $0.65 (5 s) to $1.30 (10 s) on Venice, so one free fix still leaves each sale ahead
  * (docs/costs.md), and unlimited free ones wouldn't.
  *
- * Where: a Studio animation (lib/adult/video-fix.ts: a new version, kept like a fixed picture). Pure data and words,
- * no server imports: the sheet and the server share it.
+ * Where: a Studio animation (lib/adult/video-fix.ts: a new version, kept like a fixed picture) and a shot of a night's
+ * video (lib/adult/reels.ts refilmShot: the shot filmed again in place). Pure data and words, no server imports: the
+ * sheet and the server share it.
  */
 
 /** What can be wrong with a video, each with what the fix tells the model (`lead`, in the prompt) and keeps out (`negative`). */
