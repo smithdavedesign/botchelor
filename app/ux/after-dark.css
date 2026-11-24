@@ -3858,9 +3858,10 @@ button.ad-si-face.on {
   object-fit: cover;
   object-position: center 20%;
 }
+/* Centred by `top`, not a transform: the site's button hover sets its own transform and would drop the one hovered. */
 .ad-si-carousel-go {
   position: absolute;
-  top: 50%;
+  top: calc(50% - 1rem);
   display: grid;
   place-items: center;
   width: 2rem;
@@ -3873,8 +3874,11 @@ button.ad-si-face.on {
   color: var(--night-ink-on);
   font-size: var(--text-lg);
   line-height: 1;
-  transform: translateY(-50%);
   cursor: pointer;
+}
+.ad-si-carousel-go:hover,
+.ad-si-carousel-go:active {
+  transform: none;
 }
 .ad-si-carousel-go:disabled {
   opacity: 0;
