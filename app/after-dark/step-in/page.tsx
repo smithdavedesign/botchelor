@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import CharacterName from "@/app/CharacterName";
 import Icon from "@/app/Icon";
 import { isAdmin } from "@/lib/admins";
-import { ownRoleplays } from "@/lib/adult/own-roleplay-card";
+import { draftMissingOwnCards, ownRoleplays } from "@/lib/adult/own-roleplay-card";
 import type { Roleplay } from "@/lib/adult/roleplays";
 import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
@@ -14,6 +14,7 @@ import { notesWaiting, type NoteWaiting } from "@/lib/adult/step-in-notes";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import { bondMarks } from "@/lib/adult/step-in-bond-data";
 import { getDb } from "@/lib/db";
+import { inBackground } from "@/lib/sets";
 import { showHome } from "@/lib/site";
 import LocalTime from "../LocalTime";
 import StepInSetup from "./StepInSetup";
@@ -66,8 +67,12 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
   const adminsOnly = admin && !rolloutOn(settings.rollout, "companion", false);
   // Who they've had scenes with, the latest first: the picker shows them first.
   const recent = [...scenes.running, ...scenes.ended].sort((x, y) => y.last_at.localeCompare(x.last_at)).map((s) => s.character.id);
-  // Where each roleplay's own story is set, and whether that's out in public (the cards, and the set-up's "Where").
-  const stories = storyPlaces();
+  // Where each roleplay's own story is set, and whether that's out in public (the cards, and the set-up's "Where"):
+  // the show's, and the viewer's own whose story was drafted with a place.
+  const stories = storyPlaces(own);
+  // A roleplay of theirs saved before stories were drafted (or whose draft never landed) gets its story now, past this
+  // page's response and two at a visit (lib/adult/own-roleplay-card.ts): the next visit shows its goal and its place.
+  if (own.length > 0) inBackground(() => draftMissingOwnCards(db, viewer));
   // Where a roleplay of one's own is written: the Create tab of a Studio (app/after-dark/studio/[id]). A Studio opens
   // on a character whose Studio is the viewer's to use: for an admin any of the house cast; anyone else picks one of
   // their own at the Studio's door.
