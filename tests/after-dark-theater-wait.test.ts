@@ -235,16 +235,23 @@ describe("the scene's route", () => {
     expect(visitor.status).toBe(404);
   });
 
-  it("gives the saved nights with the scene when asked, for a page that followed a write to its end", async () => {
+  it("gives the scene alone for a look while waiting, and the saved nights with it for a page that followed a write to its end", async () => {
     const { cookie } = await admin();
     writes();
     await post({ a: RAFE, b: JUNIPER }, cookie);
     const plain = (await (await get("", cookie)).json()) as Record<string, unknown>;
     expect(plain.scene).toBeTruthy();
     expect(plain).not.toHaveProperty("nights");
-    const withNights = (await (await get("&nights=1", cookie)).json()) as { scene: { lines: unknown[] }; nights: unknown[] };
+    expect(Array.isArray(plain.gallery)).toBe(true);
+    const withNights = (await (await get("&nights=1", cookie)).json()) as { scene: { lines: unknown[] }; nights: unknown[]; gallery: unknown[] };
     expect(withNights.scene.lines).toHaveLength(HELLO.length);
     expect(Array.isArray(withNights.nights)).toBe(true);
+    expect(Array.isArray(withNights.gallery)).toBe(true);
+    // A look while the lines are written asks for the scene alone: the pair's whole gallery isn't what it waits for.
+    const light = (await (await get("&gallery=0", cookie)).json()) as Record<string, unknown>;
+    expect((light.scene as { lines: unknown[] }).lines).toHaveLength(HELLO.length);
+    expect(light).not.toHaveProperty("gallery");
+    expect(light).not.toHaveProperty("nights");
   });
 
   it("a write still running keeps its mark fresh, so a long one never reads as dead; one that died is let go", async () => {

@@ -127,11 +127,13 @@ export const GET = handle(async (req: Request) => {
   }
   const scene = await openScene(db, admin, q.get("a") ?? "", q.get("b") ?? "");
   if (!scene) return hidden();
-  // `nights=1`: their saved nights too, for a page that followed a write whose answer it lost (lib/adult/write-watch.ts):
-  // a step can file a chapter, and that answer would have carried the list.
+  // What a page waiting on a write asks for (lib/adult/write-watch.ts). `gallery=0`: the scene alone, for its looks
+  // every few seconds while the lines are written (the gallery is every picture and video of the pair, and nothing in
+  // it is what the page is waiting for). `nights=1`: their saved nights too, once it has followed a write whose answer
+  // it lost to its end: a step can file a chapter, and that answer would have carried the list.
   return json({
     scene,
-    gallery: await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true }),
+    ...(q.get("gallery") === "0" ? {} : { gallery: await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true }) }),
     ...(q.get("nights") === "1" ? { nights: await listNights(db, admin, scene.a.id, scene.b.id) } : {}),
   });
 });

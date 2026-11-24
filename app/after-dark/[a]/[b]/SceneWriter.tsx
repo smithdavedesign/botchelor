@@ -459,9 +459,12 @@ export default function SceneWriter({
     }
   }
 
-  /** The scene as the server has it now, with the gallery (and their saved nights, when asked): the page's own GET. Null when it couldn't be asked. */
-  async function lookAtScene(nightsToo = false): Promise<{ scene: AdultScene; gallery: Media[]; nights: AdultNight[] | null } | null> {
-    const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}${nightsToo ? "&nights=1" : ""}`, { signal: AbortSignal.timeout(WATCH_LOOK_TIMEOUT_MS) })
+  /**
+   * The scene as the server has it now: the page's own GET. `whole`: with the gallery and their saved nights (what a
+   * followed write's end needs); else the scene alone, for a look every few seconds. Null when it couldn't be asked.
+   */
+  async function lookAtScene(whole = false): Promise<{ scene: AdultScene; gallery: Media[]; nights: AdultNight[] | null } | null> {
+    const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}${whole ? "&nights=1" : "&gallery=0"}`, { signal: AbortSignal.timeout(WATCH_LOOK_TIMEOUT_MS) })
       .then(okJson)
       .catch(() => null);
     const now = r?.scene as AdultScene | undefined;
@@ -511,7 +514,7 @@ export default function SceneWriter({
     let quiet = 0;
     let unreached: number | null = null;
     while (!left.current && Date.now() - since < WATCH_LOST_MAX_MS) {
-      const now = await lookAtScene(true);
+      const now = await lookAtScene();
       if (left.current) return null;
       // Offline, or the server is down: not followed for ever. A look that gets through starts the count again.
       if (now) unreached = null;
@@ -522,7 +525,10 @@ export default function SceneWriter({
         setLinesIn(true);
       }
       const verdict = lostWriteVerdict(before, now?.scene ?? null, quiet);
-      if (now && (verdict === "landed" || verdict === "nothing")) return { ...now, landed: verdict === "landed" };
+      if (now && (verdict === "landed" || verdict === "nothing")) {
+        // Over: once more with everything the answer would have brought (the gallery, their saved nights).
+        return { ...((await lookAtScene(true)) ?? now), landed: verdict === "landed" };
+      }
       quiet = verdict === "writing" ? 0 : now ? quiet + 1 : quiet;
       await new Promise((r) => setTimeout(r, WATCH_EVERY_MS));
     }
