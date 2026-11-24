@@ -4088,6 +4088,33 @@ ran until the viewer tired of it, with nothing to play for and nothing that ever
 
 **Proof:** `tests/after-dark-step-in-story.test.ts`.
 
+**A roleplay of your own, with a story drafted for it** (2026-11-24; David: "story beats for your own roleplays").
+Until now Step in played only the show's 45 roleplays: a person's own (the Create library, `creator_roleplays`, "u:"
+ids) worked on a night between two characters and couldn't be picked here at all. Now they can, and they get what
+the house ones have: a goal the viewer can see, beats that tick, an ending that's offered, "✓ Played".
+- **The card** (`lib/adult/own-roleplay-card.ts`). A person writes a title, a premise and two roles. One call on After
+  Dark's own model drafts the rest in the shape the house cards have (`lib/scene-cards.ts`: how it starts, what each
+  wants, three or four beats, a tone, three openings), held to the same check as ours (`adultCardIssue`: the shape, and
+  After Dark's story-card lines with nothing explicit in them). A draft with an issue is asked for once more with the
+  issue said back; one refused beat of four is dropped and the rest kept; when neither draft can be used the roleplay
+  still plays, without a story, and isn't tried again for an hour. Kept on the library row (`card`, `card_at`).
+- **When it's drafted:** past the response when the roleplay is saved, so the first click doesn't wait; a start that
+  finds none drafts it then (one or two calls before the scene exists).
+- **In a scene:** the scene keeps its own copy (`roleplay: { id, you, own: { title, premise, roles, category, card } }`),
+  read through one helper (`sceneRoleplay` in `lib/adult/roleplays.ts`) wherever the engine used to look a house
+  roleplay up. So a roleplay changed or deleted afterwards never changes a scene that's running, and the dots stay
+  aligned with the beats they count. Only the viewer's own can be started; its text is held to the roleplay check
+  again at the start.
+- **Where it's picked:** first under "All" on the front page's shelf (the count includes them), as its own kind
+  ("✨ Yours"), marked "Your own", with its goal once drafted and no cover (there's no picture of it); and first in
+  the set-up's list. Someone with none gets one line and a link to where they're written. The Create tab says a
+  roleplay is on Step in's shelf, and "Has a story for Step in: a goal and N beats" once it's drafted; the beats
+  themselves are never shown (they'd give the story away, to its own author too).
+- **Not built:** an editor for the drafted story, own roleplays among tonight's eight, a cover for one, and the card on
+  a night between two characters (a night still plays an own roleplay from its premise alone).
+
+**Proof:** `tests/after-dark-step-in-own-roleplay.test.ts`.
+
 **How well they know each other** (2026-11-23; David: "A visible relationship level (SpicyChat, Candy), without the
 decay and paid skips people complain about."; row 10 of
 [audits/2026-11-23-scenes-and-side-pictures.md](audits/2026-11-23-scenes-and-side-pictures.md): SpicyChat shows meters at
@@ -4497,6 +4524,33 @@ was queued for deletion. No page errors on a desktop or a phone. About 3.5¢ in 
 moment. It makes the same edit call a night's undressed pictures make, from the same baseline, and the tests cover
 the path; the first one someone draws is worth a look.
 
+**Where things stand: the scene's continuity sheet** (2026-11-24; David: "a scene tracker, so a character doesn't
+pick up a sweater she never had"; row 6 of the field audit, the trackers people bolt onto SillyTavern and Chub). The
+writer saw the last thirty turns and a recap, and nothing said what was physically true right now: in the first Step
+in test a character picked up a sweater she had never had. Each scene now keeps a short sheet of four lines: where the
+two of them are, what the character has on, what the viewer has on (only what their own lines say), and the few things
+within reach.
+- **Read after every reply** (`lib/adult/step-in-tracker.ts`; `stepInTrack` in `lib/adult/step-in.ts`, the first thing
+  the follow-up does, past the response): one small call on After Dark's text model at temperature 0, given the sheet
+  so far and only the lines since (at most six, cut short), told to keep word for word whatever those lines don't
+  change. A first read starts from the place and what the character starts in (their part's costume in a roleplay,
+  else their usual clothes). Each line is held to what a recap is before it's kept, and one that fails keeps the line
+  it had. A fraction of a cent a scene (two reads measured $0.0007), counted on the scene's own row.
+- **Said to the writer in the turn it answers,** as one parenthetical ("For continuity, how things stood just before
+  this…"), never in the system prompt: the system prompt and every earlier turn stay byte for byte what they were, so
+  the provider's cache of them holds, and a note beside the reply is kept to better than one a long way up.
+- **A reply drawn again, taken back or flipped** doesn't leave the sheet describing something that never happened: the
+  sheet as it stood before the reply it was last read at is kept beside it, and that's what is used until the next
+  read. After a move the place and what's within reach are left out until the next reply is read.
+- **Shown, and theirs to correct:** "🧭 Where things stand" in the scene's ⋯ menu, each line with Change. A correction
+  is the viewer's own words, so it's read as a line of theirs is (the self-harm protocol, the lines that never move,
+  Step in's own net, their limits) and never kept when it's refused; it adds no line to the scene. A picture of the
+  newest reply is told what the sheet says they have on and where.
+- **Kept with the scene** (`adult_step_in_scenes.tracker`), deleted with it, and in the After Dark download as
+  `where_things_stand`. `STEP_IN_TRACKER=0` stops the reads and the note (`docs/switches.md`).
+
+**Proof:** `tests/after-dark-step-in-tracker.test.ts`.
+
 **The role's cover, standing in the scene** (2026-11-24; David: "the role's cover standing in the scene as its
 picture"). Every roleplay card has a cover: a house character dressed for one side of the story, in the story's own
 place. A scene opened from that card used to start beside the character's house portrait, in the clothes of the
@@ -4535,7 +4589,7 @@ with nothing to press.
   earlier picture. The button under any picture still puts that one there by hand, until the next one is made. Turned
   on in a scene that already has pictures, the newest of them goes there now, so the switch is seen to work. Turned
   off, whatever stands there stays.
-- **Where it is:** in the scene's ⋯ menu ("🖼 Always show the newest picture"), and under whichever picture stands
+- **Where it is:** in the scene's ⋯ menu ("🖼 Always the newest picture"), and under whichever picture stands
   beside the scene ("Always the newest picture"). The route is the pictures' own: `PUT …/step-in/<id>/picture
   { newest: true | false }`, and the scene's pictures carry it as `newest`. Not offered where pictures aren't shown.
 - **Free:** it chooses among pictures already made and checked. Nothing is drawn, spent or counted.
