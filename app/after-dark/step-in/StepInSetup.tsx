@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Avatar from "@/app/Avatar";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import { oneFaceGroups } from "@/lib/adult/pair-pick";
@@ -11,7 +11,7 @@ import { ROLEPLAYS, type Roleplay } from "@/lib/adult/roleplays";
 import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import type { BondMark } from "@/lib/adult/step-in-bond";
-import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
+import type { StepInCharacter, StepInPlace, WhoDetails } from "@/lib/adult/step-in";
 import { inlineFaces, ofWhoKind, placeChoices, STORY_KIND_OWN, storyChoices, WHO_KIND_NOUN, whoKinds, type PlaceKind, type WhoKind } from "@/lib/adult/step-in-setup";
 import { STORY_PLACE, type StoryPlace } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
@@ -19,6 +19,7 @@ import { premiseForYou } from "@/lib/roleplays";
 import { CARD_OPENING_MAX, cardShownToYou, GENERIC_OPENINGS, premiseShownToYou } from "@/lib/scene-cards";
 import { BondMarkTag } from "./[id]/StepInBond";
 import PickSheet from "./PickSheet";
+import WhoCarousel from "./WhoCarousel";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -82,6 +83,8 @@ export default function StepInSetup({
   bonds = NO_BONDS,
   played = NO_PLAYED,
   sheetOpen = null,
+  asTaste = false,
+  about: opensOn = null,
 }: {
   cast: StepInCharacter[];
   /** Who they've had scenes with, the latest first (shown first). */
@@ -109,6 +112,10 @@ export default function StepInSetup({
   played?: Record<string, number>;
   /** A sheet to start on (the page never passes one: it's how a test reads what a sheet lists). */
   sheetOpen?: Sheet | null;
+  /** An admin's look at the Who card as a free taste sees it (?locked=1): After Dark's pictures locked. */
+  asTaste?: boolean;
+  /** The card of the one it opens on (`preselect`), drawn with the page. */
+  about?: WhoDetails | null;
 }) {
   const router = useRouter();
   const [who, setWho] = useState<string | null>(cast.some((c) => c.id === preselect) ? preselect! : null);
@@ -137,6 +144,24 @@ export default function StepInSetup({
   const [placeKind, setPlaceKind] = useState<PlaceKind | "">("");
 
   const character = cast.find((c) => c.id === who) ?? null;
+  // Who they are, and a few pictures of them (lib/adult/step-in-who.ts), asked for once each as they're picked.
+  const [details, setDetails] = useState<Record<string, WhoDetails | null>>(opensOn ? { [opensOn.id]: opensOn } : {});
+  // Whose bio is open in full (the next one picked starts short).
+  const [bioOpen, setBioOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (!who || who in details) return;
+    let live = true;
+    fetch(`/api/admin/after-dark/step-in/who?id=${encodeURIComponent(who)}${asTaste ? "&locked=1" : ""}`)
+      .then((r) => (r.ok ? (r.json() as Promise<WhoDetails>) : null))
+      .catch(() => null)
+      .then((d) => {
+        if (live) setDetails((m) => ({ ...m, [who]: d }));
+      });
+    return () => {
+      live = false;
+    };
+  }, [who, details, asTaste]);
+  const about = who ? (details[who] ?? null) : null;
   // Who to pick from: theirs, the house cast and everyone else, or what the search finds (lib/adult/pair-pick.ts, as on
   // the hub's picker). The page shows the first of them; the sheet, all.
   const kindsOfWho = useMemo(() => whoKinds(cast), [cast]);
@@ -260,15 +285,57 @@ export default function StepInSetup({
         </header>
         {character ? (
           // Just them, large, and the way to everyone else.
-          <div className="ad-si-chosen" data-step-in-who={character.id}>
+          <div className="ad-si-chosen ad-si-chosen-who" data-step-in-who={character.id}>
             <span className="ad-si-chosen-pic ad-si-chosen-face">
-              <Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house ?? false} portraitSrc={character.portrait} size={FACE_PX} decorative fill eager />
+              <WhoCarousel
+                slides={about?.slides ?? []}
+                name={first(character.name)}
+                lockedHref={about?.locked?.href ?? null}
+                first={<Avatar seed={character.id} name={character.name} hue={character.hue} house={character.house ?? false} portraitSrc={character.portrait} size={FACE_PX} decorative fill eager />}
+              />
             </span>
             <div className="ad-si-chosen-body">
               <p className="ad-si-chosen-title">
                 <strong>{character.name}</strong>
                 <BondMarkTag mark={bonds[character.id]} className="ad-si-face-bond" />
               </p>
+              {about && (
+                <div className="ad-si-about" data-step-in-about>
+                  {(about.nights > 0 || about.house || about.mine) && (
+                    <p className="muted small ad-si-about-facts">
+                      {[about.nights ? `${about.nights} ${about.nights === 1 ? "night" : "nights"} with you` : "", about.mine ? "Yours" : about.house ? "House cast" : ""].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                  {about.tags.length > 0 && (
+                    <ul className="chips ad-si-about-tags" aria-label="Type">
+                      {about.tags.map((t) => (
+                        <li className="chip" key={t.id}>
+                          {t.icon} {t.label}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {about.bio && (
+                    <p className={bioOpen === about.id ? "ad-si-about-bio open" : "ad-si-about-bio"} data-step-in-bio>
+                      {about.bio}
+                    </p>
+                  )}
+                  {about.bio.length > 220 && (
+                    <button type="button" className="link-button small" onClick={() => setBioOpen((o) => (o === about.id ? null : about.id))} aria-expanded={bioOpen === about.id}>
+                      {bioOpen === about.id ? "Less" : "More about them"}
+                    </button>
+                  )}
+                  {about.locked && (
+                    <p className="small ad-si-about-locked" data-step-in-locked-line>
+                      <span aria-hidden="true">🔒</span> {about.locked.count === 1 ? `1 picture of ${first(character.name)} comes` : `${about.locked.count} pictures of ${first(character.name)} come`} with the subscription.{" "}
+                      <a href={about.locked.href}>See the plans</a>
+                    </p>
+                  )}
+                  <p className="small">
+                    <Link href={about.page}>{first(character.name)}&apos;s page →</Link>
+                  </p>
+                </div>
+              )}
               <p className="muted small">{personaLine}</p>
               <p className="ad-si-chosen-go">
                 <button type="button" className="button-ghost small" onClick={() => setSheet("who")} data-step-in-pick="who">
