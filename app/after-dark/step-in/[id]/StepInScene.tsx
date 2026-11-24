@@ -33,6 +33,7 @@ import { NoteMark, StepInNotesRows, useNoteSeen } from "./StepInNotes";
 import StepInPicture, { StepInFigure, StepInFigureChoice, StepInNewest, StepInPictures } from "./StepInPicture";
 import { BondChip, BondReached } from "./StepInBond";
 import { StoryEnding, StoryHere, StoryLine, StoryPlayed, useStoryReading } from "./StepInStory";
+import StepInTracker from "./StepInTracker";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -787,6 +788,8 @@ export default function StepInScene({
                   />
                   {/* What they remember about you between scenes: off until turned on, and every line of it yours to change. */}
                   <StepInMemory characterId={view.character.id} name={name} initial={view.memory} onCrisis={setCrisis} />
+                  {/* Where things stand (./StepInTracker.tsx): the scene's continuity sheet, each line theirs to correct. */}
+                  <StepInTracker sceneId={view.id} name={name} live={live} onCrisis={setCrisis} onScene={setView} />
                   {/* Whether they write first while the viewer's away: the viewer's switch, and this scene's own. */}
                   <StepInNotesRows view={view} name={name} onScene={setView} />
                   <button type="button" className="button-ghost small" onClick={toggleIdeas} aria-pressed={ideasOn} data-step-in-ideas-toggle>

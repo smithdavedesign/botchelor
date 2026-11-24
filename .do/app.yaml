@@ -66,6 +66,12 @@ services:
       # - key: OVERNIGHT_AFTER_DARK
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # A Step in scene's continuity sheet (lib/adult/step-in-tracker.ts): read after every reply and said to the writer
+      # beside the next one. On by default; "0" stops the reads and the cue without a deploy of code (the sheets kept
+      # stay where they are).
+      # - key: STEP_IN_TRACKER
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       - key: MEDIA_BUNNY_ZONE
         value: botchelor-ad
         scope: RUN_AND_BUILD_TIME

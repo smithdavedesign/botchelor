@@ -27,6 +27,11 @@
  * one line about each earlier scene with the character that the viewer ended. No fact extraction, no pictures or
  * video.
  *
+ * Kept consistent (2026-11-24): after every reply a continuity sheet is read again (stepInTrack; lib/adult/
+ * step-in-tracker.ts): where the two of them are, what each has on and what's within reach. The next reply is told it
+ * beside the line it answers, so nothing is put on, picked up or sat on that the scene never had; the viewer can
+ * correct any line of it (saveStepInTracker).
+ *
  * Heard (2026-11-22): a line can be said out loud on a call (sendStepInLine's `call`), and the reply is then a few
  * spoken sentences (draw's `form: "call"`, parseCallReply, checkCallReply) kept in the scene as a call's; what any
  * reply says out loud can be heard in the character's voice (lib/adult/step-in-voice.ts).
@@ -53,11 +58,12 @@ import { stageAsked } from "./director";
 import { jsonOf } from "./facts";
 import { limitOf } from "./fallback";
 import { hardNoHit, hasHardNos, INTENSITY, intensityOf, overIntensity, OWN_LEN, OWN_MAX, storedHardNos, type HardNos, type PairLimits } from "./limits";
+import { everydayOf } from "./media";
 import { adultModel, adultModelId, adultViewer, adultViewerFromCookies } from "./mode";
 import { consentRefusal, hasProfileConsent } from "./profile";
 import { ensureOwnCard, ownForScene } from "./own-roleplay-card";
 import { coverInScene } from "./roleplay-covers";
-import { ownAsRoleplay, roleplayById, ROLEPLAYS, sceneRoleplay, type OwnRoleplay, type Roleplay, type RoleplayPick } from "./roleplays";
+import { ownAsRoleplay, roleCostumes, roleplayById, ROLEPLAYS, sceneRoleplay, type OwnRoleplay, type Roleplay, type RoleplayPick } from "./roleplays";
 import { rolloutOn } from "./rollout";
 import { sceneCatalog, venueSituation } from "./scene-catalog";
 import { isPublicPlace, linesCrossed, recapFrom, samplingOf, type LimitsInput } from "./scenes";
@@ -69,6 +75,28 @@ import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memor
 import { notePrefs, notePressure } from "./step-in-notes";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
 import { beatForReader, mergeBeats, parsePlayed, storedBeats, storyMessages, storyView, type StepInStory } from "./step-in-story";
+import {
+  holdSheet,
+  NO_SHEET,
+  parseSheet,
+  sheetFor,
+  sheetIsEmpty,
+  sheetLine,
+  sheetNow,
+  sheetShown,
+  storedTracker,
+  TRACKER_COLD_LINES,
+  TRACKER_FIELD_MAX,
+  TRACKER_FIELDS,
+  TRACKER_NEW_LINES,
+  TRACKER_REPLY_TOKENS,
+  trackerMessages,
+  type SceneSheet,
+  type StoredTracker,
+  type TrackerLine,
+  type TrackerTurn,
+} from "./step-in-tracker";
+import { trackerModel, trackerOn } from "./step-in-tracker-model";
 import { bondPromptLine, bondView, NO_BOND_SINCE } from "./step-in-bond";
 import { bondOf, markBondShown } from "./step-in-bond-data";
 import {
@@ -195,11 +223,13 @@ type SceneRow = {
   story_upto?: string | null;
   /** The viewer asked for the character's own portrait where the roleplay's cover would stand beside the scene (setStepInFigure). */
   side_portrait?: boolean;
+  /** The scene's continuity sheet (lib/adult/step-in-tracker.ts StoredTracker): how things stand, and the turn it's good as of. */
+  tracker?: unknown;
 };
 
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null; created_at: string | Date };
 
-const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, story_beats, story_upto, notes_off, note_at, side_portrait";
+const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, story_beats, story_upto, notes_off, note_at, side_portrait, tracker";
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer])).rows[0] ?? null;
@@ -860,7 +890,12 @@ type DrawContext = {
   facts: string[];
   /** How well the two know each other, as the character is told it (lib/adult/step-in-bond.ts bondPromptLine); null for a first scene. */
   bond: string | null;
+  /** How things stood before this reply (lib/adult/step-in-tracker.ts): the scene's continuity sheet; null with nothing noted yet. */
+  tracker: SceneSheet | null;
 };
+
+/** The scene's standing turns as its continuity sheet needs them: which is which, and which of them moved the scene. */
+const trackerTurns = (turns: readonly MessageRow[]): TrackerTurn[] => turns.map((m) => ({ id: m.id, moved: m.role === "system" && m.kind === "place" }));
 
 const turnOf = (m: MessageRow): StepInTurn =>
   m.role === "system" ? { role: "place", text: promptPlace(m.text).label } : { role: m.role === "viewer" ? "viewer" : isAside(m) ? "aside" : "character", text: m.text };
@@ -899,6 +934,9 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     earlier,
     facts,
     bond: known ? bondPromptLine(known.bond, { roleplay: Boolean(rp && s.roleplay) }) : null,
+    // The sheet that holds for the turns this reply is written after: a reply being drawn again isn't among them, so
+    // what it brought in isn't on it (sheetFor falls back to how things stood before it).
+    tracker: trackerOn() ? sheetShown(sheetNow(s.tracker, trackerTurns(current))) : null,
   };
 }
 
@@ -968,6 +1006,7 @@ async function draw(
       earlier: ctx.earlier,
       facts: ctx.facts,
       bond: ctx.bond,
+      tracker: ctx.tracker,
       // The opening is for the scene's first reply only.
       opening: opening ? s.opening : null,
       cue: o.cue,
@@ -1541,6 +1580,168 @@ export async function saveStepInLimits(db: Db, viewer: string, sceneId: string, 
   return sent(db, s);
 }
 
+/* ------------------------------------------------ the continuity sheet ------------------------------------------------ */
+
+/** What a scene's page is told of its continuity sheet: the sheet as it holds now, or null with nothing noted yet. */
+export type StepInTracked = { ok: true; tracker: SceneSheet | null } | StepInFail;
+
+/** The dollars a sheet's reads have come to, kept to a millionth (the provider's own figures run longer). */
+const dollars = (n: number) => Math.round(n * 1e6) / 1e6;
+
+/**
+ * Reads the scene's continuity sheet again for its newest reply (lib/adult/step-in-tracker.ts): one small call on
+ * After Dark's own model, shown the sheet so far and only the lines since it was read, which says where the two of
+ * them are now, what each has on and what's within reach. Run past the response after every reply (stepInFollowUp),
+ * so nothing waits on it; the reply after that is told what it found. Free and never counted.
+ *
+ * Nothing is read in a scene that has ended, before the character has said anything, or when the sheet is already as
+ * new as the newest reply. Each line the read writes is held to what a recap is (memoryLineOk); one that fails keeps
+ * what was there. The sheet is kept only if that reply is still the scene's newest when the answer comes back (the
+ * viewer may have drawn it again or taken it back meanwhile), and only over the sheet this read started from (a line
+ * they corrected meanwhile is theirs: it stays, and the next read starts from it). Whether a sheet was kept. Never throws.
+ */
+export async function stepInTrack(db: Db, sceneId: string): Promise<boolean> {
+  try {
+    // Taken first, before anything is awaited on the scene: the read runs past a response, and it is that request's.
+    const model = await trackerModel(db);
+    if (!model) return false;
+    const s = (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1`, [sceneId])).rows[0];
+    if (!s || s.ended_at) return false;
+    const turns = turnsOf(await allMessages(db, s.id));
+    const said = (m: MessageRow) => m.role === "character" && !isAside(m);
+    const newest = turns.filter(said).at(-1) ?? null;
+    if (!newest) return false;
+    const at = turns.indexOf(newest);
+    const base = sheetFor(s.tracker, new Set(turns.map((m) => m.id)));
+    const baseAt = base?.upto ? turns.findIndex((m) => m.id === base.upto) : -1;
+    // Already as new as the newest reply (read at it, or corrected by the viewer since).
+    if (base && baseAt >= at) return false;
+    // What's new: the turns after the one the sheet is good as of, up to the newest reply; with no sheet, the scene's
+    // last turns. The narrator's stand-in says nothing that happened.
+    const fresh = turns.slice(baseAt + 1, at + 1).filter((m) => !isAside(m));
+    const character = await sceneCharacter(db, s.character_id);
+    if (!character) return false;
+    const name = first(character.name);
+    // A place as the read is told it: the character's own home is "your place" only to the character.
+    const placed = (label: string, whole = false) => {
+      const set = promptPlace(label);
+      if (set.label === "your place") return whole ? `${name}'s own home, the living room and the kitchen` : `${name}'s place`;
+      return whole && set.situation ? `${set.label} (${set.situation})` : set.label;
+    };
+    const lines: TrackerLine[] = fresh.slice(base ? -TRACKER_NEW_LINES : -TRACKER_COLD_LINES).map((m) =>
+      m.role === "system" ? { who: "moved", text: placed(m.text) } : { who: m.role === "viewer" ? "them" : "character", text: m.text },
+    );
+    // While the sheet doesn't say where they are or what the character has on, the read is told where the scene is set
+    // and what they start in: their part's costume in a roleplay, else their own clothes (as a picture is told).
+    let seed: { place: string; wearing: string | null } | null = null;
+    if (!base?.sheet.where || !base.sheet.them) {
+      const rp = sceneRoleplay(s.roleplay);
+      const costume = rp && s.roleplay ? (roleCostumes(rp)?.[s.roleplay.you === 0 ? 1 : 0] ?? null) : null;
+      const usual = costume ?? everydayOf(character);
+      seed = { place: placed(s.place, true), wearing: memoryLineOk(usual) ? usual : null };
+    }
+    let cost = 0;
+    const raw = await model.complete(trackerMessages({ name, base: base?.sheet ?? null, seed, lines }), {
+      temperature: 0,
+      maxTokens: TRACKER_REPLY_TOKENS,
+      onUsage: (u) => void (cost += typeof u.cost === "number" ? u.cost : 0),
+    });
+    const read = parseSheet(raw);
+    if (!read) return false;
+    const sheet = holdSheet(read, base?.sheet ?? null, memoryLineOk);
+    if (sheetIsEmpty(sheet)) return false;
+    const before = storedTracker(s.tracker);
+    const next: StoredTracker = { upto: newest.id, sheet, before: base ? { upto: base.upto, sheet: base.sheet } : null, reads: (before?.reads ?? 0) + 1, cost: dollars((before?.cost ?? 0) + cost) };
+    // Still the newest reply standing? Drawn again or taken back while this was read, it isn't, and nothing is kept.
+    if (turnsOf(await allMessages(db, s.id)).filter(said).at(-1)?.id !== newest.id) return false;
+    const kept = await db.query(`update adult_step_in_scenes set tracker = $2::jsonb where id = $1 and ended_at is null and tracker is not distinct from $3::jsonb returning id`, [
+      s.id,
+      JSON.stringify(next),
+      s.tracker == null ? null : JSON.stringify(s.tracker),
+    ]);
+    return kept.rows.length > 0;
+  } catch (err) {
+    console.warn(`[after-dark] a Step in scene's continuity sheet couldn't be read: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
+    return false;
+  }
+}
+
+/**
+ * The scene's continuity sheet as its page shows it (the ⋯ menu's "Where things stand"): the sheet that holds for the
+ * scene as it stands, without where they were and what was around them when the scene has moved since. A running
+ * scene whose newest reply hasn't been read yet (one from before the sheet existed, or a read that failed) is read
+ * first, so the panel never shows less than the scene has said.
+ */
+export async function getStepInTracker(db: Db, viewer: string, sceneId: string): Promise<StepInTracked> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  if (!s.ended_at) await stepInTrack(db, s.id);
+  const now = (await ownScene(db, viewer, sceneId)) ?? s;
+  return { ok: true, tracker: sheetShown(sheetNow(now.tracker, trackerTurns(turnsOf(await allMessages(db, s.id))))) };
+}
+
+/**
+ * The viewer corrects the sheet: the lines they send replace those lines (an empty one clears it), the rest stay. Their
+ * own words, so each is read as a line of theirs is before anything is kept, in the same order (as a redraw's
+ * direction is: regenerateStepIn): the self-harm protocol (the scene pauses, the resources come back), the lines that
+ * never move and Step in's own net, their own limits at the scene's stage. A refusal keeps nothing, and the step log
+ * has only that a line of the sheet was refused. Only in a scene that can still be written.
+ *
+ * The corrected sheet is good as of the scene's newest turn: the next read starts from it and is shown only what
+ * comes after. The sheet from before the last read takes the same corrections, so drawing that reply again or taking
+ * it back never puts back a line the viewer rewrote.
+ */
+export async function saveStepInTracker(db: Db, viewer: string, sceneId: string, input: Partial<Record<keyof SceneSheet, unknown>>, now: Date = new Date()): Promise<StepInTracked> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  const edit: Partial<SceneSheet> = {};
+  for (const f of TRACKER_FIELDS) {
+    if (typeof input[f] !== "string") continue;
+    const text = clean(input[f] as string).replace(/\s+/g, " ");
+    if (text.length > TRACKER_FIELD_MAX) return fail(422, "invalid_tracker", `Keep each line under ${TRACKER_FIELD_MAX} characters.`);
+    if (/[{}]/.test(text)) return fail(422, "invalid_tracker", "Write it in plain words, without braces.");
+    edit[f] = sheetLine(text);
+  }
+  const sent = TRACKER_FIELDS.filter((f) => f in edit);
+  if (!sent.length) return fail(400, "empty", "Nothing to change.");
+  const words = sent.map((f) => edit[f]!).filter(Boolean);
+  // Their own words are read for this before anything else, whatever state the scene is in (as a line of theirs is).
+  for (const text of words) {
+    const { crisis } = await lineInCrisis(text, STEP_IN_SURFACE, await adultModel(db));
+    if (crisis) return pauseForCrisis(db, s, now);
+  }
+  const closed = await writable(db, s);
+  if (closed) return closed;
+  const rows = await allMessages(db, s.id);
+  for (const text of words) {
+    const safe = checkAdultText({ note: text });
+    if (!safe.ok) return refuse(db, s, 422, "refused", linesMessage("note", safe), "lines", "tracker");
+    const never = stepInNever(text);
+    if (never) {
+      const told = neverMessage("note", never);
+      return refuse(db, s, 422, "refused", told.message, "lines", "tracker", told.logged);
+    }
+    const limited = lineLimitRefusal(text, limitsOf(s), stageOf(rows));
+    if (limited) return refuse(db, s, 422, "limits", limited.replace(/^That line\b/, "That note"), "limits", "tracker");
+  }
+  const turns = turnsOf(rows);
+  const held = sheetNow(s.tracker, trackerTurns(turns));
+  const kept = storedTracker(s.tracker);
+  const next: StoredTracker = {
+    // Good as of now: the scene's newest turn (null before anything has been said).
+    upto: turns.at(-1)?.id ?? null,
+    // Corrected over the sheet as it holds now: after a move, without where they were and what was around them there.
+    sheet: { ...(sheetShown(held) ?? NO_SHEET), ...edit },
+    // How things stood before the last read (what the sheet falls back to when that reply is drawn again or taken
+    // back): kept while the sheet being corrected is that read's own, with the same corrections made to it.
+    before: kept?.before && held && kept.upto === held.upto ? { upto: kept.before.upto, sheet: { ...kept.before.sheet, ...edit } } : null,
+    reads: kept?.reads ?? 0,
+    cost: kept?.cost ?? 0,
+  };
+  await db.query(`update adult_step_in_scenes set tracker = $2::jsonb where id = $1 and owner_id = $3`, [s.id, JSON.stringify(next), viewer]);
+  return { ok: true, tracker: sheetIsEmpty(next.sheet) ? null : next.sheet };
+}
+
 /* ------------------------------------------------ memory ------------------------------------------------ */
 
 /** A recap or a remembered line may go into a prompt: After Dark's lines, the narrator's guard, and nothing about self-harm. */
@@ -1600,8 +1801,12 @@ async function writeNotes(db: Db, name: string, before: string | null, stretch: 
 /**
  * After a reply (the route runs it past the response): the rolling recap, written again when RECAP_EVERY turns have
  * fallen out of the prompt since the last one. One call; a failure keeps the old recap. Never throws.
+ *
+ * First of all the scene's continuity sheet is read for the new reply (stepInTrack: one small call, every reply): the
+ * viewer's next line may be seconds away, and its reply is told how things stand.
  */
 export async function stepInFollowUp(db: Db, sceneId: string): Promise<boolean> {
+  await stepInTrack(db, sceneId);
   // What the character remembers about them (lib/adult/step-in-memory.ts), when they have memory on: its own call,
   // its own cursor, and nothing to do with whether a recap is due.
   await stepInRemember(db, sceneId);

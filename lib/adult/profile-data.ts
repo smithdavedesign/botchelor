@@ -14,6 +14,7 @@
 import { exportBonds } from "./step-in-bond-data";
 import { exportMemory, setMemory } from "./step-in-memory";
 import { clearNotePrefs, exportNotes } from "./step-in-notes";
+import { storedTracker, type SceneSheet } from "./step-in-tracker";
 import type { Db } from "../db";
 import { HAS_HARD_NOS_SQL, PROFILE_CONSENT_TEXT, storedTurnOns, TURN_ONS } from "./profile";
 import { storedHardNos } from "./limits";
@@ -33,6 +34,8 @@ export type StepInSceneExport = {
   hard_nos: { chips: string[]; own: string[] };
   hard_nos_consented_at: string | null;
   recap: string | null;
+  /** The scene's continuity sheet as it was last kept (lib/adult/step-in-tracker.ts): where they are, what each has on, what's within reach. */
+  where_things_stand: SceneSheet | null;
   started_at: string | null;
   ended_at: string | null;
   messages: { who: "you" | "character" | "system"; text: string; at: string | null }[];
@@ -100,10 +103,10 @@ export async function exportAdultProfile(db: Db, viewer: string): Promise<AdultP
 async function exportStepIn(db: Db, viewer: string): Promise<StepInSceneExport[]> {
   type Row = {
     id: string; character_id: string; name: string | null; place: string; roleplay: unknown; opening: string | null; intensity: string | null;
-    hard_nos: unknown; hard_nos_consented_at: string | Date | null; recap: string | null; created_at: string | Date; ended_at: string | Date | null;
+    hard_nos: unknown; hard_nos_consented_at: string | Date | null; recap: string | null; tracker: unknown; created_at: string | Date; ended_at: string | Date | null;
   };
   const { rows } = await db.query<Row>(
-    `select s.id, s.character_id, c.name, s.place, s.roleplay, s.opening, s.intensity, s.hard_nos, s.hard_nos_consented_at, s.recap, s.created_at, s.ended_at
+    `select s.id, s.character_id, c.name, s.place, s.roleplay, s.opening, s.intensity, s.hard_nos, s.hard_nos_consented_at, s.recap, s.tracker, s.created_at, s.ended_at
        from adult_step_in_scenes s left join characters c on c.id = s.character_id
       where s.owner_id = $1 order by s.created_at desc`,
     [viewer],
@@ -124,6 +127,7 @@ async function exportStepIn(db: Db, viewer: string): Promise<StepInSceneExport[]
     hard_nos: storedHardNos(r.hard_nos),
     hard_nos_consented_at: iso(r.hard_nos_consented_at),
     recap: r.recap,
+    where_things_stand: storedTracker(r.tracker)?.sheet ?? null,
     started_at: iso(r.created_at),
     ended_at: iso(r.ended_at),
     messages: messages.rows
