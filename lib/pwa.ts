@@ -12,7 +12,7 @@ export const PAPER_LIGHT = "#fdf6f4";
 export const PAPER_DARK = "#130a16";
 
 /**
- * The icons, all PG: the show's gradient tile and its heart (public/icon.svg), drawn to PNG by scripts/make-icons.mjs.
+ * The icons, all PG: the blindfolded heart on the night stage (scripts/icon-art.mjs), drawn to PNG by scripts/make-icons.mjs.
  * An installed app never shows anything from After Dark, whichever page it was installed from.
  */
 export const APP_ICONS = [
@@ -21,7 +21,7 @@ export const APP_ICONS = [
   { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
 ] as const;
 export const APPLE_TOUCH_ICON = "/icons/apple-touch-icon.png";
-/** What a notification shows (public/sw.js): the tile, and the heart alone as Android's monochrome badge. */
+/** What a notification shows (public/sw.js): the tile, and the blindfolded heart alone as Android's monochrome badge. */
 export const NOTIFICATION_ICON = "/icons/icon-192.png";
 export const NOTIFICATION_BADGE = "/icons/badge-96.png";
 

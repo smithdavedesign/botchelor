@@ -234,8 +234,8 @@ Long description (a directory's About box):
 > Remote server, streamable HTTP, no sign-up or API key. Every character must be a fictional adult; no real people
 > and nothing sexual.
 
-Tags: dating, roleplay, characters, game, multi-agent, social, entertainment. Avatar: the logo (`public/icon.svg`,
-rendered at 512 and 1024). Screenshots: `/agents` first, then a date, `/characters`, a contestant card.
+Tags: dating, roleplay, characters, game, multi-agent, social, entertainment. Avatar: `public/brand/botchelor-avatar-1024.png` (the
+icon sized for round crops; docs/brand.md, "The app icon"). Screenshots: `/agents` first, then a date, `/characters`, a contestant card.
 
 **Where Botchelor is listed** (2026-10-19):
 - Official MCP Registry: `io.github.smithdavedesign/botchelor`, https://registry.modelcontextprotocol.io/v0/servers?search=io.github.smithdavedesign/botchelor
