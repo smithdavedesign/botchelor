@@ -14,7 +14,7 @@ import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
 import { STORY_PLACE, type StoryPlace } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import { premiseForYou } from "@/lib/roleplays";
-import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS } from "@/lib/scene-cards";
+import { CARD_OPENING_MAX, cardShownToYou, GENERIC_OPENINGS, premiseShownToYou } from "@/lib/scene-cards";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 
@@ -27,7 +27,7 @@ const NO_OWN: Roleplay[] = [];
 /**
  * Step in's set-up (lib/adult/step-in.ts startStepIn), four small steps on one page: who, where, the roleplay and which
  * side of it you play, and how it opens. Everything shown about a roleplay is from the viewer's side (lib/scene-cards.ts
- * cardForYou: "you", the verbs agreeing). Menus and one optional sentence: no prompt box.
+ * cardShownToYou: "you", the verbs agreeing). Menus and one optional sentence: no prompt box.
  *
  * `own`: the roleplays the viewer wrote themselves (lib/adult/own-roleplay-card.ts ownRoleplays), first in the
  * roleplay menu under "✨ Yours". One whose story card is drafted reads like any other (how it starts, its three
@@ -96,9 +96,9 @@ export default function StepInSetup({
   const name = character ? first(character.name) : "them";
   const side = you === 1 ? "b" : "a";
   // The roleplay's card as the viewer reads it, and the three openings to pick from (the generic three with no roleplay).
-  const card = useMemo(() => (rp?.card ? cardForYou(rp.card, side, name) : null), [rp, side, name]);
+  const card = useMemo(() => (rp?.card ? cardShownToYou(rp.card, side, name) : null), [rp, side, name]);
   // How it starts: the card's, or for one of the viewer's own with no card yet, what they wrote.
-  const setup = card ? card.setup : rp ? premiseForYou(rp.premise, side, name) : null;
+  const setup = card ? card.setup : rp ? premiseShownToYou(rp.premise, side, name) : null;
   // (They name who the viewer is with, so they wait for a pick: "when them walks in" reads wrong. Without a card the
   // generic three are read from the side the viewer plays, as the scene's first line will be.)
   const openings = !character ? [] : card ? card.openings : GENERIC_OPENINGS.map((o) => premiseForYou(o, rp ? side : "a", name));
