@@ -36,6 +36,7 @@ import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits"
 import { SHIP_NAME_MAX } from "../ship-names";
 import { OC_NAME_KINDS, OC_NAME_STYLES, OC_NAMES_MAX_BATCH } from "../oc-names";
 import { PLACE_KINDS, PLACE_NAMES_MAX_BATCH, PLACE_STYLES } from "../place-names";
+import { TROPE_MOODS, TROPE_NAME_MAX, TROPES_MAX_BATCH } from "../relationship-tropes";
 import { RANDOM_OC_GENRES, RANDOM_OC_MAX_BATCH } from "../random-oc";
 import { OC_QUESTION_THEMES } from "../oc-questions";
 import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
@@ -1552,6 +1553,24 @@ const RAW_TOOL_DEFS = [
         style: { type: "string", enum: [...PLACE_STYLES], description: "The style. Left out: a mix of all five." },
         kind: { type: "string", enum: [...PLACE_KINDS], default: "any", description: "town, wild, realm or venue; any turns through all four." },
         batch: { type: "integer", minimum: 1, maximum: PLACE_NAMES_MAX_BATCH, default: 1, description: "Which page of places." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "relationship_tropes",
+    title: "Relationship trope generator",
+    description:
+      "Six romance tropes (enemies to lovers, fake dating, only one bed…) in a mood (sweet, slow-burn, angsty, funny, flirty; left out: a mix), each with how it goes and a first scene. " +
+      "Give two character names (a, b) and the scenes are written with them. Same mood and batch, same six.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mood: { type: "string", enum: [...TROPE_MOODS], description: "The mood. Left out: a mix of all five." },
+        a: { type: "string", maxLength: TROPE_NAME_MAX, description: "The first character's name (optional)." },
+        b: { type: "string", maxLength: TROPE_NAME_MAX, description: "The second character's name (optional)." },
+        batch: { type: "integer", minimum: 1, maximum: TROPES_MAX_BATCH, default: 1, description: "Which page of tropes." },
         agent_id: AGENT_ID,
       },
     },

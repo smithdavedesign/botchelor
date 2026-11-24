@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.51.0",
+    date: "2026-11-23",
+    title: "relationship_tropes: the relationship trope generator",
+    changes: [
+      "relationship_tropes, outside the core list like the other free OC tools: six romance tropes in a mood (sweet, slow-burn, angsty, funny, flirty, or a mix), the /tools/relationship-trope-generator page's own code with no model and nothing stored. Each trope says how it goes and gives a first scene; pass two character names (a, b) and the scenes are written with them, plus the pair's ship name link.",
+    ],
+    added_tools: ["relationship_tropes"],
+  },
+  {
     version: "2.50.0",
     date: "2026-11-23",
     title: "place_names: the place name generator",
