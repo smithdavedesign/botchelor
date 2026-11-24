@@ -569,7 +569,7 @@ describe("whose it is, and when", () => {
     const venice = fakeVenice();
     fakeHive();
     // A subscriber: included, one left this month, on the page before anything is made.
-    expect(await stepInPictureState(t.db, sub.id, s.id)).toEqual({ can: true, price: { tokens: 0, included: true }, left: 1, pictures: {}, drawing: [], beside: null });
+    expect(await stepInPictureState(t.db, sub.id, s.id)).toEqual({ can: true, price: { tokens: 0, included: true }, left: 1, pictures: {}, drawing: [], beside: null, newest: false });
     const page = await html(await StepInScenePage({ params: Promise.resolve({ id: s.id }) }));
     expect(page).toContain("data-step-in-picture-ask");
     expect(page).toMatch(/🖼 Picture this · <span class="token-price">included<\/span>/);
