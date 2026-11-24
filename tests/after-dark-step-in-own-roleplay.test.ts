@@ -266,6 +266,15 @@ describe("the card that's drafted", () => {
     // Inside a code fence, with stray space, a fifth beat, a fourth opening, and {A} for {a}.
     const messy = { ...CARD, setup: `  ${CARD.setup.replace("{a}", "{A}")}\n`, beats: [...CARD.beats, "A fifth turn."], openings: [...CARD.openings, "{b} waves."] };
     expect(parseOwnCard("```json\n" + JSON.stringify(messy) + "\n```")).toEqual(CARD);
+    // A sentence the model left without its full stop gets one (the first live drafts: about one text in two, so a
+    // goal stood on the shelf unfinished beside the show's own); one that ends a question, or inside a quote, is left
+    // alone, and so is the tone, which is a few words.
+    const stop = (t: string) => t.replace(/\.$/, "");
+    const unstopped = { ...CARD, setup: stop(CARD.setup), wants: CARD.wants.map(stop), beats: CARD.beats.map(stop), openings: CARD.openings.map(stop), tone: stop(CARD.tone) };
+    expect(parseOwnCard(JSON.stringify(unstopped))).toEqual({ ...CARD, tone: stop(CARD.tone) });
+    expect(parseOwnCard(JSON.stringify({ ...CARD, beats: ["{a} asks whether {b} is staying?", '{b} says "not yet."', ...CARD.beats.slice(2)] }))?.beats.slice(0, 2)).toEqual(["{a} asks whether {b} is staying?", '{b} says "not yet."']);
+    // A card kept before this (in the library, or in a running scene's own copy) reads the same way when it's read back.
+    expect(storedCard(unstopped)).toEqual({ ...CARD, tone: stop(CARD.tone) });
     for (const junk of ["", "I can't write that.", "[]", '{"setup": "x"}', JSON.stringify({ ...CARD, wants: [CARD.wants[0]] }), JSON.stringify({ ...CARD, openings: CARD.openings.slice(0, 2) }), JSON.stringify({ ...CARD, tone: 7 })]) {
       expect(parseOwnCard(junk), junk).toBeNull();
     }

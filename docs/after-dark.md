@@ -2790,6 +2790,23 @@ against 11): "yes do it and allow a user to switch the model in After Dark", and
   falls back to the default. A step records the writer it asked for when OpenRouter doesn't name the model that answered.
 - `adult_prefs` goes with the account (`lib/account.ts`).
 
+**Waiting on a step** (2026-11-24; David: "the longer writer model takes too long and times out and only after you
+refresh page you see the writing"; `lib/adult/write-watch.ts`). A step was one request that answered when everything
+was done: the lines (one to several calls; a minute or two each on the richer writer), then any pictures, drawn inside
+the same request. The host's edge ends a response that sends nothing for 100 seconds ([hosting.md](hosting.md)), so
+the page often got no answer while the write went on and the lines were kept, and it said "reload in a minute". Now
+the theater (1) asks for a write's answer to be kept alive (the request header `x-bz-answer: kept`; the route answers
+through `jsonWhenDone`, a newline every 15 s and `{ kept, status, body }` at the end, the real status inside), (2)
+looks at the scene itself while it waits (the page's own GET, after 8 s and then every 4.5 s) and shows lines the
+moment they're kept, which is before the step's pictures are drawn, and (3) follows a write whose answer it lost
+anyway until the scene's own mark says it has ended, then takes the scene as it stands: lines that landed show with no
+error and no reload; none, and it says "Those lines didn't come. Try again." A write still running keeps that mark
+fresh (`adult_scenes.writing_beat`, every 30 s), so a step of several slow calls no longer reads as dead after four
+minutes. What it doesn't do is show a line while the step is still being written: a step's checks run on the whole
+step, a failed check draws all of it again, and nothing a check refuses is ever shown.
+**Proof:** `tests/after-dark-theater-wait.test.ts`, and two steps of `npm run e2e:after-dark` (a byte reaches the
+browser before a slow write ends; a write whose answer is dropped shows its lines without a reload).
+
 **Admins' own pictures** (`moderation.admin_checker`; David: "set it on production so I'm not hive blocked"): "alt"
 checks an admin's own pictures (scene pictures, baselines, menu and beat pictures, keyframes, Studio pictures) with the
 alternatives instead of Hive, the Venice vision model's three-answer age question (~0.03¢, no daily cap); their draw
