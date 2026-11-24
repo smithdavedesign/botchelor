@@ -61,6 +61,7 @@ import { hardNoHit, hasHardNos, INTENSITY, intensityOf, overIntensity, OWN_LEN, 
 import { everydayOf } from "./media";
 import { adultModel, adultModelId, adultViewer, adultViewerFromCookies } from "./mode";
 import { consentRefusal, hasProfileConsent } from "./profile";
+import { coverInScene } from "./roleplay-covers";
 import { roleCostumes, roleplayById, ROLEPLAYS, type Roleplay } from "./roleplays";
 import { rolloutOn } from "./rollout";
 import { sceneCatalog, venueSituation } from "./scene-catalog";
@@ -218,13 +219,15 @@ type SceneRow = {
   /** The roleplay's story (lib/adult/step-in-story.ts): the beats that have played, and the reply it was last read at. */
   story_beats?: unknown;
   story_upto?: string | null;
+  /** The viewer asked for the character's own portrait where the roleplay's cover would stand beside the scene (setStepInFigure). */
+  side_portrait?: boolean;
   /** The scene's continuity sheet (lib/adult/step-in-tracker.ts StoredTracker): how things stand, and the turn it's good as of. */
   tracker?: unknown;
 };
 
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null; created_at: string | Date };
 
-const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, story_beats, story_upto, notes_off, note_at, tracker";
+const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, story_beats, story_upto, notes_off, note_at, side_portrait, tracker";
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer])).rows[0] ?? null;
@@ -698,6 +701,7 @@ async function viewOf(db: Db, s: SceneRow, o: { read?: boolean } = {}): Promise<
     memory: { on: remembering, facts },
     notes: { on: notes.pace !== null, scene_off: s.notes_off === true, waiting: Boolean(s.note_at) && !s.ended_at, try_now: admin && live },
     story: storyOf(s, rows, character.name, live),
+    cover: coverOf(s),
     bond: await bondSaid(db, s, known, { told: !o.read && live && last?.role === "character" }),
     started_at: iso(s.created_at)!,
   };
@@ -728,6 +732,21 @@ function storyOf(s: SceneRow, rows: readonly MessageRow[], characterName: string
   // An opening alone has played nothing of the story: it's read once the viewer has written a line.
   const canRead = live && spoken.some((m) => m.role === "viewer");
   return storyView(rp, s.roleplay.you, first(characterName), { beats: s.story_beats, upto: s.story_upto ?? null }, { newest, canRead });
+}
+
+/**
+ * The roleplay's cover as the scene's own picture (lib/adult/roleplay-covers.ts coverInScene; David, 2026-11-24: "the
+ * role's cover standing in the scene as its picture"): the one on the card, dressed for their part, where the
+ * character's portrait would stand. Only for the one in the picture, on the side it shows, and only while the scene is
+ * where the roleplay's story is set: the picture is of them there, so once the scene moves somewhere else their own
+ * portrait is back. `off`: the viewer asked for the portrait instead (setStepInFigure).
+ */
+function coverOf(s: SceneRow): StepInSceneView["cover"] {
+  if (!s.roleplay) return null;
+  const at = ROLEPLAYS.find((r) => r.id === s.roleplay?.id)?.at;
+  if (!at || normalizeScene(at.place) !== normalizeScene(s.place)) return null;
+  const cover = coverInScene(s.roleplay.id, s.character_id, s.roleplay.you);
+  return cover ? { src: cover.src, alt: cover.alt, focus: cover.focus, off: s.side_portrait === true } : null;
 }
 
 /**
@@ -799,6 +818,21 @@ export async function getStepInScene(db: Db, viewer: string, sceneId: string): P
   const s = await ownScene(db, viewer, sceneId);
   // A page being read: nothing is announced from here (lib/adult/step-in-bond.ts: a level is said under a reply).
   return s ? sent(db, s, {}, { read: true }) : NOT_FOUND;
+}
+
+/**
+ * Who stands beside the scene when none of its own pictures does: the roleplay's cover of the character ("cover", what a
+ * scene with one starts on) or the character's own portrait ("portrait"). Either way a picture of the scene's that
+ * stood there (lib/adult/step-in-picture.ts setStepInBeside) is put away: this is the way back from one. The choice is
+ * kept apart from that picture's place, so taking a picture away later returns to whichever of the two was chosen.
+ * Free, nothing is made, and theirs to change in a scene that has ended too. A scene with no cover just has its
+ * portrait back.
+ */
+export async function setStepInFigure(db: Db, viewer: string, sceneId: string, show: "cover" | "portrait"): Promise<StepInSend> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  await db.query(`update adult_step_in_scenes set side_message = null, side_portrait = $2 where id = $1 and owner_id = $3`, [s.id, show === "portrait", viewer]);
+  return sent(db, s, {}, { read: true });
 }
 
 /** The viewer's scenes for the set-up page: the ones still running (the latest first), then the ones they ended. */

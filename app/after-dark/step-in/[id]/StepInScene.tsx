@@ -30,7 +30,7 @@ import HearIt from "./HearIt";
 import StepInCall, { stepInCallSupported, type CallSaid } from "./StepInCall";
 import StepInMemory from "./StepInMemory";
 import { NoteMark, StepInNotesRows, useNoteSeen } from "./StepInNotes";
-import StepInPicture, { StepInFigure, StepInPictures, StepInPortraitBack } from "./StepInPicture";
+import StepInPicture, { StepInFigure, StepInFigureChoice, StepInNewest, StepInPictures } from "./StepInPicture";
 import { BondChip, BondReached } from "./StepInBond";
 import { StoryEnding, StoryHere, StoryLine, StoryPlayed, useStoryReading } from "./StepInStory";
 import StepInTracker from "./StepInTracker";
@@ -55,6 +55,8 @@ type Action =
   | { action: "regenerate"; direction: RedrawDirection }
   | { action: "swipe"; to: "prev" | "next" }
   | { action: "move"; place: string }
+  // Who stands beside the scene when none of its pictures does: the roleplay's cover, or the character's portrait.
+  | { action: "figure"; show: "cover" | "portrait" }
   | { action: "limits"; limits: { intensity: Intensity; hard_nos: HardNos }; consent?: true };
 
 /** A reply as prose: its paragraphs, what's said out loud set apart from the narration (lib/story-reply.ts). */
@@ -295,7 +297,7 @@ export default function StepInScene({
       /* storage blocked (a private window): not remembered */
     }
   }
-  const hasFigure = Boolean(view.character.portrait || cutout);
+  const hasFigure = Boolean(view.character.portrait || cutout || view.cover);
   function toggleFigure() {
     const next = !figureOn;
     setFigureOn(next);
@@ -455,8 +457,9 @@ export default function StepInScene({
       <div className="ad-si-stage" aria-hidden="true">
         <div className="ad-si-view">
           {view.place.backdrop && <div className="ad-si-backdrop" style={{ backgroundImage: `url("${view.place.backdrop}")` }} data-step-in-backdrop />}
-          {/* Their portrait, or the picture of the scene the viewer put in its place (which needs no portrait to stand there). */}
-          {figureOn && <StepInFigure portrait={view.character.portrait} cutout={cutout} />}
+          {/* Their portrait; in a roleplay opened from its card, the cover of them dressed for it; or the picture of the
+              scene the viewer put there (neither of which needs a portrait to stand there). */}
+          {figureOn && <StepInFigure portrait={view.character.portrait} cutout={cutout} cover={view.cover && !view.cover.off ? view.cover : null} />}
         </div>
       </div>
       <div className="ad-si-col" ref={col}>
@@ -800,8 +803,10 @@ export default function StepInScene({
                   <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(view.character.id)}`} data-step-in-new>
                     🎭 A roleplay or a new scene with {name}
                   </Link>
-                  {/* While one of the scene's pictures stands beside it: the way back to their own portrait. */}
-                  <StepInPortraitBack name={name} />
+                  {/* Who stands beside the scene: the way back from one of its pictures, and between the roleplay's cover
+                      and their own portrait. Then whether the newest picture made should always stand there. */}
+                  <StepInFigureChoice name={name} cover={view.cover} onShow={(show) => act({ action: "figure", show })} />
+                  <StepInNewest where="menu" />
                   {hasFigure && (
                     <button type="button" className="button-ghost small" onClick={toggleFigure} aria-pressed={!figureOn} data-step-in-figure-toggle>
                       {figureOn ? `Hide ${name}'s picture` : `Show ${name}'s picture`}
