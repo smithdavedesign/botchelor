@@ -2,10 +2,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { POST as momentsPost } from "@/app/api/admin/after-dark/moments/route";
 import { GET as studioGet, POST as studioPost } from "@/app/api/admin/after-dark/studio/route";
 import { GET as fixGet, POST as fixPost } from "@/app/api/admin/after-dark/video-fix/route";
+import { POST as reelPost } from "@/app/api/admin/after-dark/reel/route";
 import { HIVE_VLM, setCheckFetchForTests, setCheckSleepForTests } from "@/lib/adult/check";
 import { setMediaFetchForTests } from "@/lib/adult/media";
 import { setModerationFetchForTests } from "@/lib/adult/moderation";
-import { setReelFetchForTests, setReelPausesForTests } from "@/lib/adult/reels";
+import { setReelFetchForTests, setReelPausesForTests, settleIfDone, type Reel, type ReelShot } from "@/lib/adult/reels";
 import { setReplicatePausesForTests } from "@/lib/adult/replicate";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { setStudioPausesForTests } from "@/lib/adult/studio";
@@ -381,5 +382,89 @@ describe("🩹 Fix on a Studio animation", () => {
     // After Dark not open to them: hidden.
     const res = await fixGet(new Request(`${BASE_URL}/api/admin/after-dark/video-fix?media_id=${theirs}`));
     expect(res.status).toBe(404);
+  });
+});
+
+describe("🩹 Fix on a shot of a night's video", () => {
+  let venice: ReturnType<typeof fakeVenice>;
+  const [A, B] = [HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id];
+  /** A finished night's video of four shots, theirs (10 tokens, so a shot filmed again is its share: 3). */
+  async function reel(me: Me) {
+    const shots = [0, 1, 2, 3].map((k) => ({ line: k, who: k % 2 ? "b" : "a", text: `Placeholder line ${k}.`, motion: "they hold hands", status: "ready", media_id: `vid-${k}`, frame_id: `frame-${k}` }));
+    await t.db.query(`insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind) values ('reel-1', $1, $2, $3, 'ready', 10, $4::jsonb, 'night')`, [
+      me.id,
+      ...[A, B].sort(),
+      JSON.stringify(shots),
+    ]);
+  }
+  const refilm = async (me: Me, body: Record<string, unknown>) => {
+    const res = await reelPost(
+      new Request(`${BASE_URL}/api/admin/after-dark/reel`, { method: "POST", headers: { "content-type": "application/json", cookie: me.cookie }, body: JSON.stringify({ action: "refilm", id: "reel-1", ...body }) }),
+    );
+    return { status: res.status, body: (await res.json()) as { reel?: Reel; error?: string; message?: string } };
+  };
+  const shotsOf = async () => (await t.db.query<{ shots: ReelShot[] }>(`select shots from adult_reels where id = 'reel-1'`)).rows[0].shots;
+  /** The shot filmed again comes back (or doesn't): the reel settles as the page's poll settles it. */
+  async function lands(k: number, patch: Partial<ReelShot>) {
+    const shots = await shotsOf();
+    Object.assign(shots[k], patch);
+    await t.db.query(`update adult_reels set shots = $1::jsonb where id = 'reel-1'`, [JSON.stringify(shots)]);
+    return settleIfDone(t.db, "reel-1");
+  }
+
+  it("films the shot again told what went wrong: free once a video, free again when it fails, its share after", async () => {
+    const me = await setup({ pictures: false });
+    fakeHive();
+    venice = fakeVenice();
+    await reel(me);
+    // Only the chips.
+    expect((await refilm(me, { media_id: "vid-1", problems: ["nope"] })).status).toBe(422);
+
+    // Marked broken: free, from its own start picture, what was wrong put right in its prompt and kept out.
+    const free = await refilm(me, { media_id: "vid-1", problems: ["wrong_person", "blurry"] });
+    expect(free.status).toBe(200);
+    expect(free.body.reel?.status).toBe("making");
+    expect(free.body.reel?.shots[1]).toMatchObject({ status: "queued", fix: ["wrong_person", "blurry"], fix_free: true, refilm_free: true, refilm_tokens: 0 });
+    expect(await used(me.id)).toBe(0);
+    const sent = venice.video.queued.at(-1)!;
+    expect(String(sent.image_url)).toContain("/media/frame-1.png?until=");
+    expect(String(sent.prompt)).toMatch(/^Most important, do exactly this: they hold hands\. Their faces stay exactly as in the picture/);
+    expect(String(sent.prompt)).toContain(VIDEO_PROBLEMS.blurry.lead);
+    expect(String(sent.negative_prompt)).toContain("a face swap");
+    expect(String(sent.negative_prompt)).toContain("out of focus");
+    // One at a time.
+    expect((await refilm(me, { media_id: "vid-2", problems: ["still"] })).status).toBe(409);
+
+    // It doesn't come through: nothing was spent, and the free one is back.
+    const failed = await lands(1, { status: "failed", reason: "the check discarded it" });
+    expect(failed.status).toBe("ready");
+    expect(failed.shots[1].fix_free).toBeUndefined();
+    expect(failed.shots[1].refilm_free).toBeUndefined();
+    const again = await refilm(me, { media_id: "frame-1", problems: ["blurry"] });
+    expect(again.status).toBe(200);
+    expect(again.body.reel?.shots[1]).toMatchObject({ fix: ["blurry"], fix_free: true });
+    expect(await used(me.id)).toBe(0);
+    // This time it does: the free one stays spent.
+    const ok = await lands(1, { status: "ready", media_id: "vid-1b" });
+    expect(ok.shots[1]).toMatchObject({ status: "ready", fix: ["blurry"], fix_free: true });
+    expect(ok.shots[1].refilm_free).toBeUndefined();
+
+    // Another shot marked broken: its share of the price now, still told what went wrong.
+    const paid = await refilm(me, { media_id: "vid-2", problems: ["still"] });
+    expect(paid.status).toBe(200);
+    expect(paid.body.reel?.shots[2]).toMatchObject({ fix: ["still"], refilm_tokens: 3 });
+    expect(paid.body.reel?.shots[2].fix_free).toBeUndefined();
+    expect(await used(me.id)).toBe(3);
+    expect(String(venice.video.queued.at(-1)!.prompt)).toContain(VIDEO_PROBLEMS.still.lead);
+    await lands(2, { status: "ready", media_id: "vid-2b" });
+
+    // Filmed again with new words alone: its share, and nothing said about a fix.
+    const words = await refilm(me, { media_id: "vid-3", video_words: "they dance slowly" });
+    expect(words.status).toBe(200);
+    expect(await used(me.id)).toBe(6);
+    expect(words.body.reel?.shots[3].fix).toBeUndefined();
+    const plain = String(venice.video.queued.at(-1)!.prompt);
+    expect(plain).toMatch(/^Most important, do exactly this: they dance slowly\. Two people only/);
+    expect(String(venice.video.queued.at(-1)!.negative_prompt)).not.toContain("a face swap");
   });
 });

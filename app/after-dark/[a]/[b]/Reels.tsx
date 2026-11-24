@@ -20,18 +20,23 @@ import MomentTools, { keepGoingFromMoment, NextWords, SharedNextWords } from "..
 import type { Media } from "@/lib/adult/media";
 import { trimStep } from "../../trimPlayback";
 import { okJson } from "@/lib/ok-json";
+import { problemsFromTags, videoProblemChips, type VideoProblem } from "@/lib/adult/video-fix-shared";
 
 const mediaUrl = (id: string) => `/api/admin/after-dark/media/${id}`;
 
 /** A shot as a player plays it: with the video it's from, so it can be taken out of it (the Archive). */
-/** A shot as played: its video, and that video's kind and length (what filming it again costs, refilmTokens). */
-export type PlayShot = ReelShot & { reel: string; reelKind?: string | null; reelShots?: number };
+/**
+ * A shot as played: its video, and that video's kind and length (what filming it again costs, refilmTokens), and whether
+ * its free 🩹 fix is still to be had (lib/adult/reels.ts refilmShot: once a video).
+ */
+export type PlayShot = ReelShot & { reel: string; reelKind?: string | null; reelShots?: number; reelFreeFix?: boolean };
 
 /**
  * What filming a shot again costs this viewer (lib/adult/reel-timing.ts refilmTokens): the settings' prices, or null when
- * it's free (an admin, or their own video key). Undefined where nobody said, and then 🔁 shows no price.
+ * it's free (an admin, or their own video key). Undefined where nobody said, and then 🩹 Fix shows no price. `free_fix`:
+ * a video's first shot fixed when marked broken is free (the Studio's free redo, lib/adult/reels.ts refilmShot).
  */
-export const RefilmPrices = createContext<{ clip_tokens: number; reel_tokens: number } | null | undefined>(undefined);
+export const RefilmPrices = createContext<{ clip_tokens: number; reel_tokens: number; free_fix?: boolean } | null | undefined>(undefined);
 
 /** Lets a preloaded copy of a file go (a link played as it is, when the copy couldn't be made, has nothing to let go). */
 const drop = (url: string) => url.startsWith("blob:") && URL.revokeObjectURL(url);
@@ -119,12 +124,20 @@ export default function Reels({
 
 /** The shots of a video that play, in order: in, and not in the Archive (lib/adult/clip-chains.ts playable). */
 export const readyShots = (r: Reel): PlayShot[] =>
-  r.status === "making" || r.status === "draft" ? [] : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id, reelKind: r.kind ?? null, reelShots: r.shots.length }));
+  r.status === "making" || r.status === "draft"
+    ? []
+    : r.shots.filter(playable).map((s) => ({ ...s, reel: r.id, reelKind: r.kind ?? null, reelShots: r.shots.length, reelFreeFix: !r.shots.some((x) => x.fix_free) }));
 
 /** Takes a shot out of its video into the Archive, or puts it back: the video as it is now, or what went wrong. */
-/** Film one shot again (lib/adult/reels.ts refilmShot): the reel is being made until it's in. */
-async function refilmOne(s: PlayShot, videoWords?: string): Promise<{ reel: Reel } | { error: string }> {
-  const res = await requestJson("/api/admin/after-dark/reel", { action: "refilm", id: s.reel, media_id: s.media_id, ...(videoWords !== undefined ? { video_words: videoWords } : {}) }).catch(() => null);
+/** Film one shot again (lib/adult/reels.ts refilmShot), told what went wrong if they said: the reel is being made until it's in. */
+async function refilmOne(s: PlayShot, videoWords?: string, problems: readonly VideoProblem[] = []): Promise<{ reel: Reel } | { error: string }> {
+  const res = await requestJson("/api/admin/after-dark/reel", {
+    action: "refilm",
+    id: s.reel,
+    media_id: s.media_id,
+    ...(videoWords !== undefined ? { video_words: videoWords } : {}),
+    ...(problems.length ? { problems } : {}),
+  }).catch(() => null);
   if (!res) return { error: "That didn't reach the server. Check your connection and try again." };
   return res.ok ? { reel: res.data.reel as Reel } : { error: res.message };
 }
@@ -560,8 +573,10 @@ export function SeamlessPlayer({
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [refilming, setRefilming] = useState(false);
-  // Film again, with what happens in it in the owner's words (David, 2026-11-09): open, and what's typed.
+  // 🩹 Fix: film it again, with what happens in it in the owner's words (David, 2026-11-09): open, and what's typed; and
+  // what went wrong with the one it replaces (David, 2026-11-24), started on what their 👎 said.
   const [refilmWords, setRefilmWords] = useState<string | null>(null);
+  const [refilmProblems, setRefilmProblems] = useState<VideoProblem[]>([]);
 
   // Each shot's copy in memory once it's fetched (by its place), so a cut doesn't wait on the network.
   const copies = useRef<string[]>([]);
@@ -701,10 +716,11 @@ export function SeamlessPlayer({
     setRemoveError(null);
     // Only words that changed are sent: the same words keep the shot's own (the director's, or theirs from before).
     const was = (s.video_words?.trim() || s.motion || "").trim();
-    const r = await refilmOne(s, words.trim() === was ? undefined : words.trim());
+    const r = await refilmOne(s, words.trim() === was ? undefined : words.trim(), refilmProblems);
     setRefilming(false);
     if ("error" in r) return setRemoveError(r.error);
     setRefilmWords(null);
+    setRefilmProblems([]);
     onChange(r.reel);
   }
 
@@ -1010,7 +1026,8 @@ export function SeamlessPlayer({
               </button>
             )}
             {onChange && shot.frame_id && (
-              // Film it again from its own start picture (lib/adult/reels.ts refilmShot): its share of the price, back if it fails.
+              // 🩹 Fix: film it again from its own start picture (lib/adult/reels.ts refilmShot), told what went wrong: its
+              // share of the price (the video's first fix free when it's marked broken), back if it fails.
               <button
                 type="button"
                 className="button-ghost small"
@@ -1018,11 +1035,13 @@ export function SeamlessPlayer({
                 aria-expanded={refilmWords !== null}
                 onClick={() => {
                   players[i % 2].current?.pause();
+                  setRefilmProblems(problemsFromTags(shot.rating === -1 ? (shot.tags ?? []) : []));
                   setRefilmWords((v) => (v === null ? shot.video_words?.trim() || shot.motion || "" : null));
                 }}
-                title="Film this shot again from the same start picture, with what happens in your own words"
+                title="Film this shot again from the same start picture, told what went wrong, or with what happens in your own words"
+                data-track="after-dark-shot-fix-open"
               >
-                🔁 Film again
+                🩹 Fix
               </button>
             )}
             {onChange && (
@@ -1046,19 +1065,50 @@ export function SeamlessPlayer({
       )}
       {ready && refilmWords !== null && shot?.frame_id && onChange && (
         <div className="ad-refilm-words">
-          <p className="small muted">What happens in the new video, from the same start picture. The line said stays the same.</p>
-          <textarea rows={3} maxLength={400} value={refilmWords} disabled={refilming} onChange={(e) => setRefilmWords(e.target.value)} placeholder="What they do in this shot…" />
+          <p className="small muted">What went wrong? Pick any: it&apos;s filmed again from the same start picture, told to put that right. The line said stays the same.</p>
+          <div className="ad-chip-row" role="group" aria-label="What went wrong">
+            {videoProblemChips().map((p) => {
+              const on = refilmProblems.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={on}
+                  className={`ad-chip${on ? " on" : ""}`}
+                  disabled={refilming}
+                  onClick={() => setRefilmProblems((x) => (on ? x.filter((y) => y !== p.id) : [...x, p.id]))}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          <textarea
+            rows={3}
+            maxLength={400}
+            value={refilmWords}
+            disabled={refilming}
+            onChange={(e) => setRefilmWords(e.target.value)}
+            placeholder="What they do in this shot…"
+            aria-label="What happens in the shot (change it if you like)"
+          />
           <div className="ad-shot-buttons">
-            <button type="button" className="secondary small" disabled={refilming} onClick={() => void refilm(shot, refilmWords)}>
+            <button type="button" className="secondary small" disabled={refilming} onClick={() => void refilm(shot, refilmWords)} data-track="after-dark-shot-fix">
               {refilming ? (
                 "Starting…"
               ) : (
                 <>
-                  🔁 Film it again
+                  🎬 Film it again
                   {refilmPrices !== undefined && (
                     <>
                       {" · "}
-                      <TokenPrice tokens={refilmPrices ? refilmTokens(shot.reelKind, shot.reelShots ?? 1, refilmPrices) : 0} />
+                      <TokenPrice
+                        tokens={
+                          refilmPrices && !(refilmPrices.free_fix && shot.reelFreeFix && refilmProblems.length > 0)
+                            ? refilmTokens(shot.reelKind, shot.reelShots ?? 1, refilmPrices)
+                            : 0
+                        }
+                      />
                     </>
                   )}
                 </>
@@ -1068,6 +1118,7 @@ export function SeamlessPlayer({
               Cancel
             </button>
           </div>
+          {refilmPrices?.free_fix && shot.reelFreeFix && refilmProblems.length === 0 && <p className="small muted">The first fix of this video is free once you say what went wrong.</p>}
         </div>
       )}
       {ready && trimming && shot?.media_id && (

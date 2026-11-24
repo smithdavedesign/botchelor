@@ -79,6 +79,7 @@ import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../conne
 import { replicateVoice, voiceFor } from "../voice";
 import { logShotFailures } from "./video-failures";
 import { escapeRegExp } from "../text";
+import { cleanProblems, fixLead, fixNegative, type VideoProblem } from "./video-fix-shared";
 
 // A character's stock voice lives in the shared voice kit (lib/voice.ts) now; reels and their callers still import it from here.
 export { replicateVoice, voiceFor };
@@ -134,6 +135,8 @@ const AUDIO_IN = /^wan-2\.(5|6)|^wan-2-7-(image|text)-to-video/;
 const SHOT_NEGATIVE =
   "child, teen, minor, young-looking, cartoon, anime, distorted faces, extra limbs, text, watermark, " +
   "a third person, extra people, a duplicate person, scene cut, scene change, morphing face";
+/** A shot's negative prompt: the shots' own, what the pair's ratings steer away from, and what its 🩹 fix keeps out. */
+const shotNegative = (s: Pick<ReelShot, "fix">, avoid?: string): string => [SHOT_NEGATIVE, avoid, fixNegative(s.fix ?? [])].filter(Boolean).join(", ");
 
 export type ReelShot = {
   line: number;
@@ -263,6 +266,15 @@ export type ReelShot = {
   ref_id?: string;
   /** Re-filmed (refilmShot): what this shot's new video cost, given back if it fails and cleared once it's settled. */
   refilm_tokens?: number;
+  /**
+   * 🩹 Fix (refilmShot, lib/adult/video-fix-shared.ts): what was wrong with the shot's video when it was filmed again,
+   * put right in its prompt and kept out of it (its negative) while that's the shot's film.
+   */
+  fix?: VideoProblem[];
+  /** The video's one free fix went to this shot (once a video, for a shot marked broken). */
+  fix_free?: boolean;
+  /** The film being made now is that free fix: if it doesn't come through, the free one is back (settleIfDone). */
+  refilm_free?: boolean;
   /** Read with the reel for the one watching, never stored in it: their 👍/👎 on the shot and what was off (lib/adult/steering.ts). */
   rating?: 1 | -1 | null;
   tags?: string[];
@@ -1028,12 +1040,13 @@ const mouthFree = (speaker: ReelPerson, other: ReelPerson | null): string =>
   ` ${cap(speaker.tag)} says it with ${possessive(speaker)} mouth free, not kissing or covered, face turned so the lips show${other ? `; ${other.tag} stays quiet, listening` : ""}.`;
 
 /** A shot's prompt: what they do, both kept as they are, one continuous shot, and who says the line (or that nobody does). */
-export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words" | "reply">, audioIn: boolean): string {
+export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words" | "reply" | "fix">, audioIn: boolean): string {
   const speaker = cast[s.who === "a" ? 0 : 1];
   // What happens leads, as a Studio animation's direction does (David, 2026-11-18: Animate does what it's asked, the
-  // night's video didn't): "Most important, do exactly this".
+  // night's video didn't): "Most important, do exactly this". A 🩹 fix (refilmShot) says what was wrong right after it.
   const what = shotMotion(s).trim();
-  const motion = what ? `Most important, do exactly this: ${what.replace(/[.\s]*$/, "")}.` : "";
+  const fix = fixLead(s.fix ?? []);
+  const motion = [what ? `Most important, do exactly this: ${what.replace(/[.\s]*$/, "")}.` : "", fix].filter(Boolean).join(" ");
   // Said by a model that voices quoted lines itself: the line, and the other one's answer when the shot has one. The
   // "mouth free" sentence is for the lip-sync models only (it fought the act on the rest: a line said mid-kiss).
   const answer = (): string => {
@@ -1068,7 +1081,7 @@ export function shotPrompt(cast: readonly [ReelPerson, ReelPerson], s: Pick<Reel
  * length, which the video follows) and the prompt naming who speaks. The frames per chunk cover the whole voice in one,
  * so the video is one continuous take (SPEECH_CHUNK_MAX).
  */
-export function speechShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words">, image: string, audio: string, seconds: number): Record<string, unknown> {
+export function speechShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words" | "fix">, image: string, audio: string, seconds: number): Record<string, unknown> {
   return { image, audio, prompt: shotPrompt(cast, s, true), num_frames_per_chunk: speechChunk(seconds) };
 }
 
@@ -1131,13 +1144,13 @@ export function replicateShotInput(cast: readonly [ReelPerson, ReelPerson], s: P
  * the line quoted in the prompt with who says it, long enough for the line (5 or 10 s; Wan 2.7 takes any 2 to 15), 720p.
  * No safety checker to turn off on these (Alibaba's own runs on every one): what comes back still passes Hive.
  */
-export function talkShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words">, image: string, model: string, avoid?: string): Record<string, unknown> {
+export function talkShotInput(cast: readonly [ReelPerson, ReelPerson], s: Pick<ReelShot, "who" | "text" | "motion" | "eyes" | "camera" | "video_words" | "fix">, image: string, model: string, avoid?: string): Record<string, unknown> {
   const seconds = s.text.split(/\s+/).filter(Boolean).length / WORDS_PER_SECOND + BREATH_S;
   const anyLength = /wan-2\.7/.test(model);
   return {
     [anyLength ? "first_frame" : "image"]: image,
     prompt: shotPrompt(cast, s, false),
-    negative_prompt: avoid ? `${SHOT_NEGATIVE}, ${avoid}` : SHOT_NEGATIVE,
+    negative_prompt: shotNegative(s, avoid),
     duration: anyLength ? Math.min(15, Math.max(5, Math.ceil(seconds))) : seconds <= 5 ? 5 : 10,
     resolution: "720p",
     enable_prompt_expansion: false,
@@ -1683,7 +1696,7 @@ async function queueShot(ctx: Pick<ShotContext, "cast" | "venice" | "model" | "b
     duration: s.seconds ? `${s.seconds}s` : s.text.split(" ").length <= WORDS_5S ? "5s" : "10s",
     resolution: "720p",
     prompt: shotPrompt(ctx.cast, s, audioIn),
-    negative_prompt: ctx.avoid ? `${SHOT_NEGATIVE}, ${ctx.avoid}` : SHOT_NEGATIVE,
+    negative_prompt: shotNegative(s, ctx.avoid),
     image_url: signedMediaUrl(s.media_id!, ctx.baseUrl),
   };
   // A line said off camera (a first-person shot, by the one whose eyes they are): no voice to lip-sync to a face on screen.
@@ -2685,7 +2698,12 @@ export async function settleIfDone(db: Db, id: string): Promise<Reel> {
     const refund = refilmed.length
       ? refilmed.reduce((t, s) => t + (s.status === "ready" ? 0 : (s.refilm_tokens ?? 0)), 0)
       : r.tokens - Math.ceil((r.tokens * good) / r.shots.length);
-    for (const s of refilmed) delete s.refilm_tokens;
+    for (const s of refilmed) {
+      // The video's free 🩹 fix that didn't come through: free again.
+      if (s.refilm_free && s.status !== "ready") delete s.fix_free;
+      delete s.refilm_free;
+      delete s.refilm_tokens;
+    }
     // What failed, as it was (a shot back in its storyboard keeps its reason as last_try): logged once it's settled.
     const failed = r.shots.map((s) => ({ ...s }));
     const filmedNow = refilmed.length ? refilmed.map((s) => r.shots.indexOf(s)) : undefined;
@@ -3112,7 +3130,7 @@ export async function useShotVideo(db: Db, ownerId: string, reelId: string, shot
  * video"): its share of the reel's price (admins free), given back if the new video fails. The old video is let go.
  * Only once the reel is done (ready or failed), one reel at a time as ever.
  */
-export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaId: string, baseUrl: string, videoWords?: string): Promise<MakeReelResult> {
+export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaId: string, baseUrl: string, videoWords?: string, problemsAsked?: readonly string[]): Promise<MakeReelResult> {
   const r = (await db.query<{ owner_id: string; status: string; character_a: string; character_b: string; shots: ReelShot[]; kind: string | null }>(`select owner_id, status, character_a, character_b, shots, kind from adult_reels where id = $1`, [reelId])).rows[0];
   if (!r || r.owner_id !== ownerId) return { ok: false, status: 404, error: "not_found", message: "That video isn't here." };
   if (r.status !== "ready" && r.status !== "failed") return { ok: false, status: 409, error: "not_done", message: "Wait for this video to finish first." };
@@ -3129,8 +3147,12 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
   const busy = await busyReel(db, ownerId);
   if (busy) return { ok: false, status: 409, error: "busy", message: busyMessage(busy), busy };
   const pays = !where.media.own && !(await isAdmin(db, ownerId));
+  // 🩹 Fix (lib/adult/video-fix-shared.ts): what was wrong with it. The first shot of a video filmed again marked broken
+  // is free, once a video, while the Studio's free redo is on (David, 2026-11-24: "go for it").
+  const problems = cleanProblems(problemsAsked);
+  const freeFix = pays && problems.length > 0 && settings.studio.free_redo && !r.shots.some((s) => s.fix_free);
   // A clip filmed again costs what a clip past the allowance does (#1005: extras at about cost); a night's shot, its share.
-  const price = !pays ? 0 : refilmTokens(r.kind, r.shots.length, settings);
+  const price = !pays || freeFix ? 0 : refilmTokens(r.kind, r.shots.length, settings);
   if (price && !(await spendAdTokens(db, ownerId, price))) {
     return { ok: false, status: 402, error: "needs_tokens", message: `Filming a shot again costs ${price} token${price === 1 ? "" : "s"}. ${moreTokensLine()}` };
   }
@@ -3146,6 +3168,11 @@ export async function refilmShot(db: Db, ownerId: string, reelId: string, mediaI
       if (words.words) shot.video_words = words.words;
       else delete shot.video_words;
     }
+    // What was wrong with the video it replaces, put right in the new one's prompt (a plain film again says nothing).
+    if (problems.length) shot.fix = problems;
+    else delete shot.fix;
+    delete shot.refilm_free;
+    if (freeFix) Object.assign(shot, { fix_free: true, refilm_free: true });
     for (const f of ["queue_id", "reason", "retry_at", "audio_id", "request", "own", "voiceless"] as const) delete shot[f];
     await db.query(`update adult_reels set status = 'making', updated_at = now() where id = $1 and status in ('ready', 'failed')`, [reelId]);
     await queueVideos(db, [shot], ctx, ownerId);
