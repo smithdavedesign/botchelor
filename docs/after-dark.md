@@ -3672,7 +3672,14 @@ every card; After Dark's now has **Step in** on every card and at the top of eve
       happens to be the one in it, and say why in a line over the title: "With someone you know". "Someone else"
       walks on from there as on any card. Six pictures first, so a row is all pictures or all theirs whether the
       shelf is three across or two. Nobody of their own yet: all eight open on their pictures. "All 45", a kind, and a
-      page opened for one person are unchanged.
+      page opened for one person are unchanged. "Someone else" is counted apart for those two cards: the same story
+      under "All 45" walks on from the one in its picture, and a press on one doesn't move the other.
+      **Live** (`~/.claude/botchelor-bin/step-in-proof/yours.mjs`, the audit account, 2026-11-24, after #2148): with
+      one person of its own (Juniper) both cards were hers, labelled; after a scene with Nell the last two were Nell
+      (the latest) and Juniper, the six before them on their pictures, in rows of three pictures, three pictures and
+      two of theirs. "Someone else" on the first went to Juniper (still labelled), then to Barnaby from the house cast
+      (the label gone). A page opened for Wally kept none aside. The same on a phone, nothing sideways. The check's one
+      scene was deleted, and the two cards went back to Juniper.
     - **Which side the picture shows.** A roleplay with named roles can be played from either, and its cover picks
       one (`you`). A roleplay with no named roles is always played with the viewer as its card's first person and the
       character as its second (the set-up offers no sides for it), so its picture shows what the second one is doing:

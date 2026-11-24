@@ -105,10 +105,14 @@ export default function StepInShelf({
       </div>
       <ul className="ad-si-shelf-cards">
         {shown.map((rp, index) => {
-          const turn = turns[rp.id] ?? 0;
           // Tonight's last two are kept for the people they've stepped in with (the one they were with last, then
           // someone else of theirs): with a picture on every card, nobody of their own would lead one otherwise.
           const yours = show === "tonight" ? shelfYoursSlot(index, shown.length, who) : null;
+          // "Someone else" is counted apart for one of their own two: it walks on from their person, and the same
+          // story under "All 45" walks on from the one in its picture, so a press on one mustn't move the other (it
+          // did on the first live check: two presses in tonight's left that story without its cover under All).
+          const turnKey = yours !== null ? `${rp.id}:yours` : rp.id;
+          const turn = turns[turnKey] ?? 0;
           // Every other card opens on the one in its picture (the people they know come next, with "Someone else").
           const them = yours !== null ? shelfYours(day, who, yours, turn) : shelfLead(rp.id, day, who, turn, ROLEPLAY_COVERS[rp.id]?.character ?? null);
           if (!them) return null;
@@ -160,7 +164,7 @@ export default function StepInShelf({
                 <CharacterName character={them} link={false} size={34} strong />
                 <BondMarkTag mark={bonds[them.id]} className="ad-si-shelf-bond" />
                 {who.order.length > 1 && (
-                  <button type="button" className="link-button small" onClick={() => setTurns((t) => ({ ...t, [rp.id]: turn + 1 }))} aria-label={`Play ${rp.title} with someone else`} data-step-in-card-next>
+                  <button type="button" className="link-button small" onClick={() => setTurns((t) => ({ ...t, [turnKey]: turn + 1 }))} aria-label={`Play ${rp.title} with someone else`} data-step-in-card-next>
                     Someone else
                   </button>
                 )}
