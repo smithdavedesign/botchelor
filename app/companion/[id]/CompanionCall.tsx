@@ -7,7 +7,8 @@ import { characterPortrait } from "@/lib/portraits";
 import { useSpeech } from "@/app/stage/useSpeech";
 import { useVoiceRing } from "@/app/stage/useVoiceRing";
 import { extraPrice, type CompanionCharacterRef, type CompanionExtraState, type CompanionMessageView } from "@/lib/companion-shared";
-import { heardIn, heardSoFar, LIVE_CONNECT_MS, LIVE_START, liveStep, withoutStageDirections, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
+import { heardIn, heardSoFar, LIVE_CONNECT_MS, LIVE_START, liveStep, spokenClause, withoutStageDirections, type Heard, type LiveEvent, type LiveState } from "@/lib/companion-live-shared";
+import { followVoice } from "@/lib/call-captions";
 import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
 import { CLIP_HOLD_MS, CLIP_LATE_MS, LISTEN_MIN_SPEECH_MS, LISTEN_PAUSE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
@@ -186,6 +187,8 @@ export default function CompanionCall({
   const [voice, setVoice] = useState<CallVoice>("device");
   const [heard, setHeard] = useState("");
   const [you, setYou] = useState<string | null>(null);
+  // Their answer: all of it so far (what a screen reader hears), and as much as their voice has said (on screen).
+  const [line, setLine] = useState("");
   const [them, setThem] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
@@ -434,10 +437,16 @@ export default function CompanionCall({
         return;
       }
     }
-    setThem(words);
+    // The caption is what their voice says (no stage directions, as live calls show it), word by word as it's said: a
+    // voice note says the first message, their call voice all of them.
+    const spoken = r.reply.map((m, i) => spokenClause(m.text, character.name, i === 0)).filter(Boolean).join(" ") || words;
+    const paced = url && r.reply[0] ? spokenClause(r.reply[0].text, character.name) || spoken : spoken;
+    setLine(spoken);
+    setThem(url || made ? "" : spoken);
     log({ kind: "reply", text: words });
     go("speaking");
-    const played = url || made ? await play((url ?? made)!) : false;
+    const played = url || made ? await play((url ?? made)!, paced) : false;
+    setThem(spoken);
     if (made) URL.revokeObjectURL(made);
     // Not played (a phone that wouldn't, a file that broke): the device says it, unless they stopped it meanwhile.
     if (!played && !ended.current && phaseNow.current === "speaking") await props.current.speech.speakAll(withoutStageDirections(words), who);
@@ -449,16 +458,18 @@ export default function CompanionCall({
     listen();
   }
 
-  /** Plays a voice to its end (or until it's stopped): true, or false when it couldn't play at all. */
-  function play(url: string): Promise<boolean> {
+  /** Plays a voice to its end (or until it's stopped), `caption` coming up as it's said: true, or false when it couldn't play at all. */
+  function play(url: string, caption: string): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       const a = spare.current ?? new Audio();
       a.src = url;
       audio.current = a;
+      const stopCaption = followVoice(a, caption, setThem);
       let done = false;
       const finish = (ok: boolean) => {
         if (done) return;
         done = true;
+        stopCaption();
         a.removeEventListener("ended", onEnded);
         a.removeEventListener("error", failed);
         if (audio.current === a) audio.current = null;
@@ -823,6 +834,21 @@ export default function CompanionCall({
     let said = "";
     const texts: string[] = [];
     const voiced = new Set<number>();
+    // The caption keeps time with their voice: a piece's words come up as its voice starts, not as its text arrives.
+    let shown = -1;
+    const show = (i: number) => {
+      if (i <= shown || !current()) return;
+      shown = i;
+      setThem(texts.slice(0, i + 1).filter(Boolean).join(" "));
+    };
+    const started = new Set<number>();
+    /** Piece `i`'s voice starts in `seconds`: its words come up then (its first sound only). */
+    const showIn = (i: number, seconds: number) => {
+      if (started.has(i)) return;
+      started.add(i);
+      if (seconds > 0.05) window.setTimeout(() => show(i), seconds * 1000);
+      else show(i);
+    };
     let device: Promise<void> = Promise.resolve();
     let failed: { status: number; data: Record<string, unknown> } | null = null;
     const begin = () => {
@@ -831,9 +857,13 @@ export default function CompanionCall({
       liveState.current = liveStep(liveState.current, { kind: "reply_started" }).state;
       go("speaking");
     };
-    const sayOnDevice = (t: string) => {
+    const sayOnDevice = (i: number, t: string) => {
       begin();
-      device = device.then(() => (current() ? props.current.speech.speakAll(t, who) : undefined));
+      device = device.then(() => {
+        if (!current()) return;
+        show(i);
+        return props.current.speech.speakAll(t, who);
+      });
     };
     // A live face that comes as clips (lib/live-face: MuseTalk, Ditto): one mouth per reply, never both. Each piece's voice
     // is held for its clip, and the first piece decides. Its clip in time (CLIP_HOLD_MS after its voice ended) makes
@@ -858,7 +888,7 @@ export default function CompanionCall({
       begin();
       const play = () => {
         if (!current() || !player.current) return Promise.resolve();
-        for (const p of pieces) player.current.push(p.pcm, p.rate);
+        for (const p of pieces) showIn(i, player.current.push(p.pcm, p.rate));
         return player.current.idle();
       };
       // Under a clip session every plain piece goes through the face, in order, so the kit's mouth moves to it and the
@@ -891,6 +921,7 @@ export default function CompanionCall({
       holds.delete(i);
       held.delete(i);
       begin();
+      showIn(i, 0);
       face.current?.clip(i, Uint8Array.from(atob(mp4), (c) => c.charCodeAt(0)), end);
     };
     // Streamed pieces (video_start / video_frag / video_end): a piece's start counts as its clip arriving; what came
@@ -903,6 +934,7 @@ export default function CompanionCall({
         holds.delete(ev.i);
         held.delete(ev.i);
         begin();
+        showIn(ev.i, 0);
         face.current?.fragStart(ev.i);
       } else if (ev.type === "video_frag") {
         face.current?.frag(ev.i, ev.seq, Uint8Array.from(atob(ev.b64), (c) => c.charCodeAt(0)));
@@ -923,10 +955,10 @@ export default function CompanionCall({
           texts[ev.i] = ev.text;
           if (face.current?.clips()) face.current.expect(ev.i);
           said = `${said} ${ev.text}`.trim();
-          setThem(said);
+          setLine(said);
           log({ kind: "piece", text: ev.text });
           liveState.current = liveStep(liveState.current, { kind: "reply_text", text: ev.text }).state;
-          if (voiceOff.current) sayOnDevice(ev.text);
+          if (voiceOff.current) sayOnDevice(ev.i, ev.text);
         } else if (ev.type === "audio") {
           if (voiceOff.current) {
             // Nothing: the device says the words.
@@ -939,10 +971,11 @@ export default function CompanionCall({
           } else if (face.current?.live()) {
             // The live face says it, lips and all; its own audio plays the voice.
             begin();
+            showIn(ev.i, 0);
             face.current.sendAudio(voiceForLiveFace(ev.pcm, ev.rate));
           } else if (player.current) {
             begin();
-            player.current.push(ev.pcm, ev.rate);
+            showIn(ev.i, player.current.push(ev.pcm, ev.rate));
           }
         } else if (ev.type === "audio_end") {
           voiced.add(ev.i);
@@ -986,7 +1019,7 @@ export default function CompanionCall({
           voiceOff.current = true;
           setNote(`${first}'s voice dropped out, so it's your device's voice for now.`);
           texts.forEach((t, i) => {
-            if (t && !voiced.has(i)) sayOnDevice(t);
+            if (t && !voiced.has(i)) sayOnDevice(i, t);
           });
         } else if (ev.type === "done") {
           face.current?.fragDone();
@@ -1272,8 +1305,13 @@ export default function CompanionCall({
             ) : (
               <div className="companion-call-words" aria-live="polite">
                 {phase === "listening" && <p className="companion-call-heard">{heard || "Say something…"}</p>}
-                {phase === "thinking" && you && <p className="companion-call-heard">“{you}”</p>}
-                {(phase === "speaking" || phase === "paused") && them && <p className="companion-call-said">{them}</p>}
+                {(phase === "thinking" || (phase === "speaking" && !them)) && you && <p className="companion-call-heard">“{you}”</p>}
+                {(phase === "speaking" || phase === "paused") && them && (
+                  <p className="companion-call-said">
+                    <span aria-hidden="true">{them}</span>
+                    <span className="sr-only">{line}</span>
+                  </p>
+                )}
               </div>
             )}
             {note && <p className="companion-call-note">{note}</p>}

@@ -6,7 +6,8 @@ import LiveFace from "@/app/companion/[id]/LiveFace";
 import { newAudioContext, PcmPlayer } from "@/app/companion/[id]/live-audio";
 import { useVoiceRing } from "@/app/stage/useVoiceRing";
 import { heardIn } from "@/lib/companion-live-shared";
-import { callWords, cutInCapable, cutsIn, stepsLeftLine, type StepInCharacter, type StepInMessageView } from "@/lib/adult/step-in-shared";
+import { callWords, cutInCapable, cutsIn, spokenPieces, stepsLeftLine, type StepInCharacter, type StepInMessageView } from "@/lib/adult/step-in-shared";
+import { followVoice } from "@/lib/call-captions";
 import type { FaceKit } from "@/lib/face-kit-shared";
 import { characterPortrait } from "@/lib/portraits";
 import { fetchVoicePiece, playOn } from "./voice-client";
@@ -140,6 +141,8 @@ export default function StepInCall({
   const [phase, setPhase] = useState<Phase>("ready");
   const [heard, setHeard] = useState("");
   const [you, setYou] = useState("");
+  // Their answer: all of it (what a screen reader hears), and as much as their voice has said so far (on screen).
+  const [line, setLine] = useState("");
   const [them, setThem] = useState("");
   const [note, setNote] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
@@ -380,7 +383,10 @@ export default function StepInCall({
     // Every piece of the answer is asked for at once; they're said in order as they come.
     const jobs = Array.from({ length: pieces }, (_, i) => fetchVoicePiece(sceneId, r.reply.id, i));
     const letGo = (from: number) => jobs.slice(from).forEach((j) => void j.then((v) => v.ok && URL.revokeObjectURL(v.url)));
-    setThem(words);
+    // Their words come up as they say them, piece by piece: nothing while their voice is being made.
+    const said = spokenPieces(r.reply.text);
+    setLine(words);
+    setThem("");
     saying.current = words;
     deaf.current = 0;
     go("speaking");
@@ -392,17 +398,23 @@ export default function StepInCall({
       if (ended.current || talk.current !== mine) return letGo(i);
       if (!v.ok) {
         letGo(i + 1);
+        setThem(words);
         // Their words are on screen and in the scene; the voice is what's missing.
         return pause(`${first}'s voice didn't come (${v.message.replace(/\.$/, "")}). What they said is here and in the scene. Tap to talk to carry on.`);
       }
+      const before = said.slice(0, i).join(" ");
+      const stop = el ? followVoice(el, said[i] ?? "", (s) => setThem(`${before} ${s}`.trim())) : null;
       const played = el ? await playOn(el, v.url) : false;
+      stop?.();
       URL.revokeObjectURL(v.url);
       if (ended.current || talk.current !== mine) return letGo(i + 1);
       if (!played) {
         letGo(i + 1);
+        setThem(words);
         return pause("Your browser didn't play their voice. Tap to talk to try again.");
       }
     }
+    setThem(words);
     lastAt.current = Date.now();
     // Stopped by Interrupt: it's listening already. Paused or ended meanwhile: stay that way.
     if (ended.current || phaseNow.current !== "speaking" || talk.current !== mine) return;
@@ -495,7 +507,7 @@ export default function StepInCall({
   const big = phase !== "ready";
   const portrait = characterPortrait(character.id) ?? sized(character.portrait, BIG_FACE);
   const backdrop = kit?.stills.portrait ?? portrait;
-  const status = phase === "listening" ? "Listening…" : phase === "thinking" ? `${first} is thinking…` : phase === "speaking" ? (cutInOn ? `${first} is talking · talk to cut in` : `${first} is talking`) : phase === "paused" ? "Paused" : `Call ${first}`;
+  const status = phase === "listening" ? "Listening…" : phase === "thinking" ? `${first} is thinking…` : phase === "speaking" ? (!them ? `${first} is thinking…` : cutInOn ? `${first} is talking · talk to cut in` : `${first} is talking`) : phase === "paused" ? "Paused" : `Call ${first}`;
 
   return (
     <div
@@ -573,8 +585,13 @@ export default function StepInCall({
           <>
             <div className="companion-call-words" aria-live="polite">
               {phase === "listening" && <p className="companion-call-heard">{heard || "Say something…"}</p>}
-              {phase === "thinking" && you && <p className="companion-call-heard">“{you}”</p>}
-              {(phase === "speaking" || phase === "paused") && them && <p className="companion-call-said">{them}</p>}
+              {(phase === "thinking" || (phase === "speaking" && !them)) && you && <p className="companion-call-heard">“{you}”</p>}
+              {(phase === "speaking" || phase === "paused") && them && (
+                <p className="companion-call-said">
+                  <span aria-hidden="true">{them}</span>
+                  <span className="sr-only">{line}</span>
+                </p>
+              )}
             </div>
             {note && <p className="companion-call-note">{note}</p>}
             {stepsLeftLine(left) && <p className="companion-call-left">{stepsLeftLine(left)}</p>}

@@ -123,9 +123,10 @@ export class PcmPlayer {
     }
   }
 
-  push(b64: string, rate: number): void {
+  /** Queues a piece of their voice after what's queued already: how many seconds from now it starts. */
+  push(b64: string, rate: number): number {
     const samples = pcmSamples(b64);
-    if (!samples.length) return;
+    if (!samples.length) return 0;
     const buffer = this.ctx.createBuffer(1, samples.length, rate);
     buffer.getChannelData(0).set(samples);
     const src = this.ctx.createBufferSource();
@@ -139,6 +140,7 @@ export class PcmPlayer {
       this.playing.delete(src);
       if (!this.playing.size) this.settle();
     };
+    return at - this.ctx.currentTime;
   }
 
   get busy(): boolean {
