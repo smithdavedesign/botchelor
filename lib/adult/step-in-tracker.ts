@@ -24,11 +24,10 @@
  * events never stay on the sheet. When the scene has moved somewhere else since the sheet was read, where they were
  * and what was around them are left out until the next reply is read (afterMove).
  *
- * This module is the pure part (what's asked, how the answer is read, what's kept and what's said); the scene's own
- * rows are lib/adult/step-in.ts's. Client-safe: no server imports.
+ * This module is the sheet itself (what's kept, which sheet holds, what's said to the writer and shown on the page);
+ * what the read is asked and how its answer is settled is lib/adult/step-in-tracker-read.ts, and the scene's own rows
+ * are lib/adult/step-in.ts's. Client-safe: no server imports, and nothing the scene's page doesn't need.
  */
-import type { ChatMessage } from "../model";
-
 /** Each line of the sheet, at most this long. */
 export const TRACKER_FIELD_MAX = 160;
 /** The sheet's lines, in the order they're shown and said. */
@@ -60,17 +59,23 @@ export const TRACKER_NEW_LINES = 6;
 export const TRACKER_COLD_LINES = 8;
 export const TRACKER_LINE_CHARS = 600;
 export const TRACKER_REPLY_CHARS = 1600;
-/** Room for the answer: four short lines. */
-export const TRACKER_REPLY_TOKENS = 260;
+/** Room for the answer: the changes it lists first, then six short lines. */
+export const TRACKER_REPLY_TOKENS = 420;
 
-/** Ways a model says "nothing here". No clothes at all is asked for as "naked", so none of these can mean that. */
-const NOTHING = /^(?:none|nothing|nothing (?:yet|said|known|noted)|n\/?a|unknown|not (?:said|stated|known|mentioned|specified)|unspecified|-+|\.+)\.?$/i;
+/**
+ * Ways a model says "nothing here" or "I don't know": never a state of the scene, so never a line of the sheet or a
+ * thing on one. The first live reads (2026-11-24) kept "nothing on" as what a character was wearing after an opening
+ * that never mentioned her clothes, then "holding nothing" in place of them. ("nothing but a towel" and "nothing left
+ * on" do say something, and aren't these.)
+ */
+export const NOT_A_THING =
+  /^(?:(?:holding|carrying|wearing|has|with)\s+)?(?:nothing|none|no ?one|no (?:clothes|clothing|items?|objects?|things?)|n\/?a|unknown|unspecified|undisclosed|empty|null|same|unchanged|as before|no change|not (?:said|stated|known|mentioned|specified|described|applicable|given|clear|noted|yet said|yet known))(?:\s+(?:on|yet|at all|said|stated|known|noted|mentioned|specified|described|held|else|here|so far|in (?:the |her |his |their |your |either |both )?hands?))*[.!]?$|^(?:(?:the |her |his |their |both )?hands? (?:are |is )?(?:empty|free)|empty[- ]handed|empty hands)[.!]?$|^[-–—.?…\s]+$/i;
 
 /** One line of a sheet as it's kept: on one line, held to its length, "" for anything that only says there's nothing. */
 export function sheetLine(value: unknown): string {
   if (typeof value !== "string") return "";
   const text = value.replace(/\s+/g, " ").trim().replace(/^["“]+|["”]+$/g, "").trim();
-  if (!text || NOTHING.test(text)) return "";
+  if (!text || NOT_A_THING.test(text)) return "";
   if (text.length <= TRACKER_FIELD_MAX) return text;
   // Too long: cut at the last whole thing that fits, else at the last whole word.
   const cut = text.slice(0, TRACKER_FIELD_MAX);
@@ -138,82 +143,6 @@ export const sheetShown = (now: (SheetAt & { moved: boolean }) | null): SceneShe
 /** One of the new lines a read is shown: the viewer's, the character's, or the scene moving (its text: the place). */
 export type TrackerLine = { who: "them" | "character" | "moved"; text: string };
 
-export type TrackerInput = {
-  /** The character's first name. */
-  name: string;
-  /** The sheet so far; null for a first read. */
-  base: SceneSheet | null;
-  /** Where the scene is set and what the character starts in, while the sheet doesn't say: for a first read. */
-  seed?: { place: string; wearing: string | null } | null;
-  /** The lines since the sheet was last read, oldest first. */
-  lines: readonly TrackerLine[];
-};
-
-/**
- * What the read is asked: the sheet so far, the lines since, and how things stand now. To the model the character's
- * line is "character" and the viewer's "person" (a key called "you" in a sheet about two people reads as the model
- * itself); parseSheet puts them back.
- */
-export function trackerMessages(input: TrackerInput): ChatMessage[] {
-  const { name } = input;
-  const said = input.lines
-    .map((l) => {
-      const text = l.text.replace(/\s+/g, " ").trim();
-      if (l.who === "moved") return `(The scene moves: the two of them are now at ${text}.)`;
-      return l.who === "them" ? `The person: ${text.slice(0, TRACKER_LINE_CHARS)}` : `${name}: ${text.slice(0, TRACKER_REPLY_CHARS)}`;
-    })
-    .join("\n");
-  const b = input.base;
-  const sheet = b ? `The sheet so far:\n${JSON.stringify({ where: b.where, character: b.them, person: b.you, around: b.around })}` : "There is no sheet yet.";
-  const seed = input.seed ? `The scene is set at ${input.seed.place}.${input.seed.wearing ? ` Unless the lines say otherwise, ${name} starts in: ${input.seed.wearing}.` : ""}` : "";
-  return [
-    {
-      role: "system",
-      content: `You keep the continuity sheet of a private scene of adult fiction between a person and ${name}, an AI character: where the two of them are and what is physically true right now, so that nothing in the scene appears, vanishes or changes without the story saying so. You note only what the lines say or plainly show, never what might be true. You answer with JSON and nothing else.`,
-    },
-    {
-      role: "user",
-      content: [
-        sheet,
-        seed,
-        `The newest lines, oldest first ("The person" is the one ${name} is with):\n${said}`,
-        [
-          "Write the sheet as it stands after these lines. Keep, word for word, every part the new lines don't change; change only what they change; leave out what is gone.",
-          '- "where": the spot the two of them are in now, in a few words (the room, and where in it). When the scene moves, it is the new place.',
-          `- "character": what ${name} has on right now, piece by piece, then anything ${name} is holding. A piece that has come off is left out; with nothing on at all, "naked".`,
-          '- "person": what the person has on or is holding, only from what the person\'s own lines say about themselves. "" until they have said.',
-          '- "around": the things in play that nobody is wearing or holding, and where each one is (a parcel on the hall shelf). Four at most; "" for none.',
-          `Plain facts in the present tense, each a list of things: no names, no "he", "she" or "they", no feelings, nothing that has not been said. One line each, under ${TRACKER_FIELD_MAX} characters.`,
-          'Reply with a JSON object: {"where": "...", "character": "...", "person": "...", "around": "..."}',
-        ].join("\n"),
-      ].filter(Boolean).join("\n\n"),
-    },
-  ];
-}
-
-/**
- * The sheet a read answered with: all four lines, each on one line and held to its length. Null for anything else (no
- * JSON, a line missing, a reply meant for something else), and for a sheet with nothing on it: then nothing is kept
- * and the sheet stays as it was.
- */
-export function parseSheet(raw: string): SceneSheet | null {
-  const found = raw.match(/\{[\s\S]*\}/);
-  if (!found) return null;
-  let o: Record<string, unknown>;
-  try {
-    const parsed = JSON.parse(found[0]) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-    o = parsed as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-  const them = o.character ?? o.them;
-  const you = o.person ?? o.you;
-  if (![o.where, them, you, o.around].every((v) => typeof v === "string")) return null;
-  const sheet: SceneSheet = { where: sheetLine(o.where), them: sheetLine(them), you: sheetLine(you), around: sheetLine(o.around) };
-  return sheetIsEmpty(sheet) ? null : sheet;
-}
-
 /**
  * The sheet that's kept of a read: a line that fails `ok` (what a recap is held to, lib/adult/step-in.ts) isn't kept,
  * and what was there before stays in its place.
@@ -228,7 +157,9 @@ const noStop = (s: string) => s.trim().replace(/[.\s]+$/, "");
 /**
  * The sheet as the character is told it, in the turn its reply answers (lib/adult/step-in-prompt.ts stepInMessages): to
  * the character "you" is itself and "they" the viewer, so the sheet's `them` is what the character has on. It says how
- * things stood before this turn, since what the viewer has just written can change it. Null with nothing to say.
+ * things stood before this turn, since what the viewer has just written can change it. It lists what the scene has
+ * established and never claims to be everything (the sheet may know one piece of what someone has on), so it asks
+ * that what's listed isn't contradicted, not that nothing else exists. Null with nothing to say.
  */
 export function trackerCue(sheet: SceneSheet | null | undefined): string | null {
   if (!sheet) return null;
@@ -239,7 +170,7 @@ export function trackerCue(sheet: SceneSheet | null | undefined): string | null 
     sheet.around ? `Within reach: ${noStop(sheet.around)}.` : "",
   ].filter(Boolean);
   if (!parts.length) return null;
-  return `(For continuity, how things stood just before this. ${parts.join(" ")} Keep to it, changed only by what has happened since: nothing else is worn, held or in the room unless your reply brings it in and says where it came from. Don't recite any of it.)`;
+  return `(For continuity, how things stood just before this. ${parts.join(" ")} Keep to it: what's listed stays as it is until the story changes it, and nothing listed is somewhere else or back on. Anything not listed that your reply brings in gets a word on where it came from. Don't recite any of it.)`;
 }
 
 /** What each line is called on the scene's page. */

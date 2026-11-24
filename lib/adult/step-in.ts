@@ -78,7 +78,6 @@ import { beatForReader, mergeBeats, parsePlayed, storedBeats, storyMessages, sto
 import {
   holdSheet,
   NO_SHEET,
-  parseSheet,
   sheetFor,
   sheetIsEmpty,
   sheetLine,
@@ -90,13 +89,13 @@ import {
   TRACKER_FIELDS,
   TRACKER_NEW_LINES,
   TRACKER_REPLY_TOKENS,
-  trackerMessages,
   type SceneSheet,
   type StoredTracker,
   type TrackerLine,
   type TrackerTurn,
 } from "./step-in-tracker";
 import { trackerModel, trackerOn } from "./step-in-tracker-model";
+import { parseSheet, settleSheet, trackerMessages } from "./step-in-tracker-read";
 import { bondPromptLine, bondView, NO_BOND_SINCE } from "./step-in-bond";
 import { bondOf, markBondShown } from "./step-in-bond-data";
 import {
@@ -1654,15 +1653,13 @@ export async function stepInTrack(db: Db, sceneId: string): Promise<boolean> {
     const lines: TrackerLine[] = fresh.slice(base ? -TRACKER_NEW_LINES : -TRACKER_COLD_LINES).map((m) =>
       m.role === "system" ? { who: "moved", text: placed(m.text) } : { who: m.role === "viewer" ? "them" : "character", text: m.text },
     );
-    // While the sheet doesn't say where they are or what the character has on, the read is told where the scene is set
-    // and what they start in: their part's costume in a roleplay, else their own clothes (as a picture is told).
-    let seed: { place: string; wearing: string | null } | null = null;
-    if (!base?.sheet.where || !base.sheet.them) {
-      const rp = sceneRoleplay(s.roleplay);
-      const costume = rp && s.roleplay ? (roleCostumes(rp)?.[s.roleplay.you === 0 ? 1 : 0] ?? null) : null;
-      const usual = costume ?? everydayOf(character);
-      seed = { place: placed(s.place, true), wearing: memoryLineOk(usual) ? usual : null };
-    }
+    // Where the scene is set, and what the character starts in: their part's costume in a roleplay, else their own
+    // clothes (as a picture is told). It stands for what they have on until a line says (settleSheet), so a scene
+    // whose opening never mentions their clothes doesn't leave them in nothing.
+    const rp = sceneRoleplay(s.roleplay);
+    const costume = rp && s.roleplay ? (roleCostumes(rp)?.[s.roleplay.you === 0 ? 1 : 0] ?? null) : null;
+    const usual = costume ?? everydayOf(character);
+    const seed = { place: placed(s.place, true), wearing: memoryLineOk(usual) ? usual : null };
     let cost = 0;
     const raw = await model.complete(trackerMessages({ name, base: base?.sheet ?? null, seed, lines }), {
       temperature: 0,
@@ -1671,7 +1668,9 @@ export async function stepInTrack(db: Db, sceneId: string): Promise<boolean> {
     });
     const read = parseSheet(raw);
     if (!read) return false;
-    const sheet = holdSheet(read, base?.sheet ?? null, memoryLineOk);
+    // The answer, held to what the lines and the sheet so far allow (nothing undressed, vanished or stuck that no line
+    // says), then each line to what a recap is.
+    const sheet = holdSheet(settleSheet(read, { name, base: base?.sheet ?? null, seed, lines }), base?.sheet ?? null, memoryLineOk);
     if (sheetIsEmpty(sheet)) return false;
     const before = storedTracker(s.tracker);
     const next: StoredTracker = { upto: newest.id, sheet, before: base ? { upto: base.upto, sheet: base.sheet } : null, reads: (before?.reads ?? 0) + 1, cost: dollars((before?.cost ?? 0) + cost) };
