@@ -4467,14 +4467,16 @@ its price on the button before anything is made (`app/after-dark/step-in/[id]/St
 right with one from the scene"). Until now the figure beside a scene was always the character's portrait, and the
 only choice was to hide it. Under every picture made in a scene there's now **Use as the scene's picture**: that
 picture stands where the portrait stood (framed beside the column on a wide screen; filling the stage under the night
-on a tablet or a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**), or **Show
-{name}'s portrait again** in the ⋯ menu, puts the portrait back.
+on a tablet or a phone), in this scene, on every device. Pressed again (**✓ The scene's picture**) it's taken away,
+and what stood there before is back (the portrait, or a roleplay's cover: below); **Show {name}'s portrait again** in
+the ⋯ menu goes straight to the portrait.
 - **What's kept:** `adult_step_in_scenes.side_message`, the *reply* whose picture stands there, so a picture drawn
   again takes its place. `setStepInBeside` (`lib/adult/step-in-picture.ts`) takes only a reply of that scene that has a
   picture, or null; the scene's pictures carry it as `beside`; the route is `PUT …/step-in/<id>/picture
   { beside: <reply id> | null }`.
 - **Free, and never by itself:** it chooses among pictures already made and checked, so nothing is drawn, spent or
-  counted, and it works in a scene that has ended. Making a picture never moves it there: the viewer chooses.
+  counted, and it works in a scene that has ended. Making a picture never moves it there: the viewer chooses, unless
+  they've turned on "always the newest picture" (below), which is their choice made once.
 - **Discreet mode:** the portrait is the show's own PG picture and was never blurred; this one is After Dark's, so it
   is, under a veil of its own (`data-ad-own-veil`, `.ad-si-figure[data-figure="picture"]`). Behind the column nobody
   could tap it to show it; the one under its reply is the one a tap shows.
@@ -4494,6 +4496,51 @@ month's pictures, and went with the scene when the scene was deleted: its link t
 was queued for deletion. No page errors on a desktop or a phone. About 3.5¢ in all. **Not drawn live:** an undressed
 moment. It makes the same edit call a night's undressed pictures make, from the same baseline, and the tests cover
 the path; the first one someone draws is worth a look.
+
+**The role's cover, standing in the scene** (2026-11-24; David: "the role's cover standing in the scene as its
+picture"). Every roleplay card has a cover: a house character dressed for one side of the story, in the story's own
+place. A scene opened from that card used to start beside the character's house portrait, in the clothes of the
+portrait. Now it starts on the cover: the tailor in his waistcoat with the tape measure round his neck, the vampire in
+velvet on the doorstep.
+- **When it stands** (`lib/adult/roleplay-covers.ts` `coverInScene`, `lib/adult/step-in.ts` `coverOf`; the scene's
+  view carries it as `cover`): the scene's character is the one in the picture, the viewer plays the side the picture
+  doesn't show, and the scene is still where the roleplay's story is set. With anyone else on the card, with the sides
+  the other way round (the picture would show them in the viewer's part), or set up somewhere else, the portrait
+  stands as before. Once the scene moves ("Take it to {name}'s place", "Go somewhere else") the portrait is back: the
+  picture is of them there.
+- **What goes over it, and the way back:** one of the scene's own pictures still takes the place when the viewer puts
+  it there, and comes away to the cover again. The ⋯ menu has **Show {name}'s portrait instead** and, from the portrait
+  or a picture, **Show {name} dressed for the roleplay**. That choice is the scene's own move (`setStepInFigure`, the
+  scene route's `{ action: "figure", show: "cover" | "portrait" }`), not the picture route's: both are the show's own
+  PG pictures, so it works where only text is allowed too. It's kept apart from the picture's place
+  (`adult_step_in_scenes.side_portrait` beside `side_message`), so a picture taken away again returns to whichever of
+  the two they had.
+- **How it's framed:** a cover is a 4:3 picture made for a card, with the place across most of it. Beside the scene on
+  a wide screen it's cut to the tall shape the scene's own pictures have (3:4), around where its character stands; on a
+  tablet and a phone it fills the stage under the night like any picture there, showing the part they're in. Each cover
+  says where that is (`focus`, a percentage across, read off every one of the 45 against a grid: all of them stand
+  right of the middle, between 58 and 74), and the page passes it to the CSS as `--si-cover-x`
+  (`.ad-si-figure[data-figure="cover"]`).
+- **Discreet mode** leaves it alone: it's one of the show's own pictures (`public/cast`), like the portrait.
+- **Not built:** a cover for someone who isn't on the card (it would have to be drawn for them, about 3.5¢ a
+  character and card), and a second cover for a scene that has moved.
+
+**Always the newest picture** (2026-11-24; David: 'an "always the newest picture" switch'; Kindroid has the same for
+its selfies). For people who draw often: on, every picture they make in a scene takes the place beside it as it lands,
+with nothing to press.
+- **Whose it is:** the viewer's own, kept with their account (`adult_prefs.step_in_newest`), so it's the same in every
+  scene and on every device. Off until they turn it on.
+- **What it does** (`lib/adult/step-in-picture.ts` `setStepInNewest`, and one line at the end of
+  `drawStepInPicture`): a picture just kept becomes the scene's `side_message`, over the cover, the portrait or an
+  earlier picture. The button under any picture still puts that one there by hand, until the next one is made. Turned
+  on in a scene that already has pictures, the newest of them goes there now, so the switch is seen to work. Turned
+  off, whatever stands there stays.
+- **Where it is:** in the scene's ⋯ menu ("🖼 Always show the newest picture"), and under whichever picture stands
+  beside the scene ("Always the newest picture"). The route is the pictures' own: `PUT …/step-in/<id>/picture
+  { newest: true | false }`, and the scene's pictures carry it as `newest`. Not offered where pictures aren't shown.
+- **Free:** it chooses among pictures already made and checked. Nothing is drawn, spent or counted.
+
+**Proof:** `tests/after-dark-step-in-cover.test.ts`.
 
 **Counted.** Every reply and every refusal is a row in the step log (`adult_steps`, kind `step_in`, the pair being the
 character and `viewer`): the move, how it ended, why a draft was redrawn (`flags.redrawn`), whether the stand-in was
