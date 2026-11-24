@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import CharacterName from "@/app/CharacterName";
@@ -11,6 +11,7 @@ import { rolloutOn } from "@/lib/adult/rollout";
 import { getAdultSettings } from "@/lib/adult/settings";
 import { drawnSets, listStepInScenes, playedRoleplays, STEP_IN_TAGLINE, stepInCast, stepInPersona, stepInPlaces, stepInViewerFromCookies, storyPlaces, type StepInSceneRef } from "@/lib/adult/step-in";
 import { notesWaiting, type NoteWaiting } from "@/lib/adult/step-in-notes";
+import { whoCard } from "@/lib/adult/step-in-who";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import { bondMarks } from "@/lib/adult/step-in-bond-data";
 import { getDb } from "@/lib/db";
@@ -23,7 +24,7 @@ import StepInShelf from "./StepInShelf";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Step in · After Dark · Botchelor", robots: { index: false, follow: false } };
 
-type Props = { searchParams?: Promise<{ with?: string; roleplay?: string; you?: string }> };
+type Props = { searchParams?: Promise<{ with?: string; roleplay?: string; you?: string; locked?: string }> };
 
 /** When a scene was last played or ended, as a day in the viewer's own clock (LocalTime writes it in the browser). */
 const WHEN = { day: "numeric", month: "short" } as const;
@@ -58,6 +59,8 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
     // The roleplays they wrote themselves, with the story card each has so far: one read, nothing drafted here.
     ownRoleplays(db, viewer).catch(() => [] as Roleplay[]),
   ]);
+  // The one the set-up opens on (?with=): who they are and their pictures, drawn with the page rather than asked for after.
+  const opensOn = sp?.with && cast.some((c) => c.id === sp.with) ? await whoCard(db, viewer, sp.with, { headers: await headers(), asTaste: sp.locked === "1" }).catch(() => null) : null;
   // Who wrote to them first while they were away (lib/adult/step-in-notes.ts): those scenes come first, and say so.
   const waiting = new Map((await notesWaiting(db, viewer).catch(() => [] as NoteWaiting[])).map((n) => [n.scene, n]));
   const running = [...scenes.running.filter((s) => waiting.has(s.id)), ...scenes.running.filter((s) => !waiting.has(s.id))];
@@ -136,6 +139,8 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
             own={own}
             bonds={bonds}
             played={played}
+            asTaste={sp?.locked === "1"}
+            about={opensOn}
           />
         ) : (
           <p className="muted">Nobody is in your After Dark yet. This season&apos;s cast is in by default; your own characters are switched in on the Studio page.</p>
