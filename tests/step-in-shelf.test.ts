@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ROLEPLAYS } from "@/lib/adult/roleplays";
 import type { StepInCharacter } from "@/lib/adult/step-in-shared";
 import { coverFor, ROLEPLAY_COVERS } from "@/lib/adult/roleplay-covers";
-import { SHELF_TONIGHT, shelfCast, shelfLead, shelfTonight } from "@/lib/adult/step-in-shelf";
+import { SHELF_TONIGHT, SHELF_YOURS, shelfCast, shelfLead, shelfTonight, shelfYours, shelfYoursSlot } from "@/lib/adult/step-in-shelf";
 import { cardForYou } from "@/lib/scene-cards";
 
 const person = (id: string, house = false): StepInCharacter => ({ id, name: `${id[0].toUpperCase()}${id.slice(1)} Vale`, portrait: null, hue: 10, house });
@@ -29,7 +29,9 @@ describe("who a card is cast with", () => {
     // Nobody from the house in their After Dark: anyone who is.
     const own = shelfCast([person("ana"), person("cy")], []);
     expect(own).toMatchObject({ leads: 2 });
-    expect(shelfCast([], ["ana"])).toEqual({ order: [], leads: 0, asked: false });
+    expect(shelfCast([], ["ana"])).toEqual({ order: [], leads: 0, asked: false, own: 0 });
+    // How many of them are the viewer's own (someone they've stepped in with): none yet, or on a page opened for one.
+    expect([known.own, fresh.own, asked.own]).toEqual([2, 0, 0]);
   });
 
   it("is the same person all day, someone from the leads, and another spread the next day", () => {
@@ -54,6 +56,56 @@ describe("who a card is cast with", () => {
     expect(walk[0]).toBe("eli");
     expect(new Set(walk).size).toBe(CAST.length);
     expect(shelfLead("neighbours", DAY, cast, CAST.length)!.id).toBe("eli");
+  });
+});
+
+// David, 2026-11-24, once every card had a cover and so opened on the one in its picture: "yes keep two of tonight's
+// eight for my own people".
+describe("tonight's last two are the viewer's own", () => {
+  it("are the last two of the eight, when they've stepped in with anyone, and never on a page opened for one person", () => {
+    expect(SHELF_YOURS).toBe(2);
+    const known = shelfCast(CAST, ["eli", "ana"]);
+    expect(Array.from({ length: SHELF_TONIGHT }, (_, i) => shelfYoursSlot(i, SHELF_TONIGHT, known))).toEqual([null, null, null, null, null, null, 0, 1]);
+    // Six pictures first: three rows of two or two rows of three, then a row of their own.
+    expect(SHELF_TONIGHT - SHELF_YOURS).toBe(6);
+    const fresh = shelfCast(CAST, []);
+    const asked = shelfCast(CAST, ["eli", "ana"], "cy");
+    for (let i = 0; i < SHELF_TONIGHT; i++) {
+      expect(shelfYoursSlot(i, SHELF_TONIGHT, fresh)).toBeNull();
+      expect(shelfYoursSlot(i, SHELF_TONIGHT, asked)).toBeNull();
+    }
+    expect(shelfYours(DAY, fresh, 0)).toBeNull();
+    expect(shelfYours(DAY, shelfCast([], []), 0)).toBeNull();
+  });
+
+  it("open on the one they were with last, then on someone else of theirs, a different one from day to day", () => {
+    const two = shelfCast(CAST, ["eli", "ana"]);
+    expect([shelfYours(DAY, two, 0)?.id, shelfYours(DAY, two, 1)?.id]).toEqual(["eli", "ana"]);
+    // Only one person of their own: both cards are theirs.
+    const one = shelfCast(CAST, ["eli"]);
+    expect([shelfYours(DAY, one, 0)?.id, shelfYours(DAY, one, 1)?.id]).toEqual(["eli", "eli"]);
+    // Four: the latest always, and the others come round on the second card.
+    const four = shelfCast(CAST, ["eli", "ana", "cy", "bo"]);
+    const seconds = new Set<string>();
+    for (let d = 1; d <= 28; d++) {
+      const day = `2026-12-${String(d).padStart(2, "0")}`;
+      expect(shelfYours(day, four, 0)?.id).toBe("eli");
+      const second = shelfYours(day, four, 1)!.id;
+      expect(second).toBe(shelfYours(day, four, 1)!.id);
+      expect(["ana", "cy", "bo"]).toContain(second);
+      seconds.add(second);
+    }
+    expect(seconds).toEqual(new Set(["ana", "cy", "bo"]));
+  });
+
+  it("\"Someone else\" walks everyone else from the top, once each, and then round them again", () => {
+    const cast = shelfCast(CAST, ["eli", "ana"]);
+    const walk = Array.from({ length: CAST.length }, (_, turn) => shelfYours(DAY, cast, 1, turn)!.id);
+    expect(walk).toEqual(["ana", "eli", "bo", "dee", "fay", "cy"]);
+    expect(shelfYours(DAY, cast, 1, CAST.length)!.id).toBe("eli");
+    // Alone in the cast, there's nobody else to walk to.
+    const alone = shelfCast([person("eli")], ["eli"]);
+    expect(shelfYours(DAY, alone, 0, 3)?.id).toBe("eli");
   });
 });
 

@@ -1683,6 +1683,35 @@ describe("a card's cover picture", () => {
     for (const c of cards) expect(page.includes(`with=${c.with}&amp;roleplay=${c.id}&amp;you=1#ad-si-set`), c.id).toBe(c.you === 1);
   });
 
+  it("leaves tonight's last two for the people they've stepped in with: six pictures, then two with someone they know", async () => {
+    scripted();
+    await saveAdultSettings(t.db, {});
+    setSeasonCastForTests([...new Set(Object.values(ROLEPLAY_COVERS).map((c) => c.character))]);
+    const a = await admin();
+    // A scene behind them with Rafe (WHO): he's theirs now.
+    const made = await start(a.id, { place: CAFE });
+    await endStepIn(t.db, a.id, made.id);
+    signIn(a.id);
+    const page = (await html(await StepInSetupPage())).replace(/<!-- -->/g, "");
+    const cards = cardsOf(page);
+    expect(cards).toHaveLength(SHELF_TONIGHT);
+    // The first six open on the one in their picture, as for anyone.
+    for (const c of cards.slice(0, 6)) expect({ cover: c.cover, with: c.with }, c.id).toEqual({ cover: true, with: ROLEPLAY_COVERS[c.id].character });
+    // The last two are with him (their only one, so both), and say so; a picture only where the picture is of him.
+    for (const c of cards.slice(6)) {
+      expect(c.with, c.id).toBe(WHO);
+      const own = ROLEPLAY_COVERS[c.id].character === WHO ? ROLEPLAY_COVERS[c.id] : null;
+      expect({ cover: c.cover, you: c.you }, c.id).toEqual({ cover: Boolean(own), you: own ? own.you : 0 });
+    }
+    const labels = page.match(/data-step-in-card-yours/g) ?? [];
+    expect(labels).toHaveLength(cards.slice(6).filter((c) => !c.cover).length);
+    if (labels.length) expect(page).toContain("With someone you know");
+    // A page opened for one person keeps none aside: every card is theirs already.
+    const asked = (await html(await StepInSetupPage({ searchParams: Promise.resolve({ with: "house-marisol" }) }))).replace(/<!-- -->/g, "");
+    expect(asked).not.toContain("data-step-in-card-yours");
+    expect(cardsOf(asked).every((c) => c.with === "house-marisol")).toBe(true);
+  });
+
   it("is only shown with the one in it: on a page opened for one person only their own covers show, and a set-up starts on the side asked for", async () => {
     scripted();
     await saveAdultSettings(t.db, {});
