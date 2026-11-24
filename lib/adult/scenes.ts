@@ -18,6 +18,7 @@ import { adultModel, adultModelId } from "./mode";
 import { writerChoice } from "./writer";
 import { limitOf } from "./fallback";
 import { FALLBACK_WRITER, writerNote } from "./writer-config";
+import { WRITING_BEAT_MS, WRITING_STALE_MS } from "./write-watch";
 import { drawLabel, ensureSet, inBackground, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
@@ -544,7 +545,7 @@ async function loadScene(db: Db, adminId: string, x: string, y: string): Promise
     }>(
       `select id, lines, place, stage, stage_from, picture_note, set_place, cut_to, chapter, recap, prev_tail, place_history, moves, suggestions, whispers, undo, intensity, hard_nos,
               framing, scenario, roleplay,
-              case when writing_since > now() - make_interval(secs => ${WRITING_STALE_MS / 1000}) then floor(extract(epoch from now() - writing_since))::int end as writing_for
+              case when coalesce(writing_beat, writing_since) > now() - make_interval(secs => ${WRITING_STALE_MS / 1000}) then floor(extract(epoch from now() - writing_since))::int end as writing_for
          from adult_scenes where owner_id = $1 and character_a = $2 and character_b = $3`,
       [adminId, a, b],
     )
@@ -2749,25 +2750,38 @@ export type StepOptions = {
  * whisper to one of them (lib/adult/director.ts) is held to the two lines like a steer, played this step and the next,
  * and kept on the step's log. Each step leaves what a rewind needs to take it back (StepUndo), UNDO_DEPTH deep.
  */
-/** How long an unfinished write counts as in flight (#1122): past it, a crashed request no longer holds the page. */
-export const WRITING_STALE_MS = 4 * 60_000;
+// How long an unfinished write counts as in flight (#1122: past it, a crashed request no longer holds the page) is
+// lib/adult/write-watch.ts's, which the page shares; here for the callers that always had it from this module.
+export { WRITING_STALE_MS };
 
 /**
  * The next lines (writeScene), marked on the scene while they're written (#1122: a reload mid-write showed an empty page
- * with no Start; now it says it's writing and waits), cleared when it ends, whatever the result.
+ * with no Start; now it says it's writing and waits), cleared when it ends, whatever the result. The mark is kept
+ * fresh while the write runs (writing_beat, every WRITING_BEAT_MS): a step on the slow writer can be several calls of a
+ * minute or two each, and a page that lost the answer follows the write by this mark (lib/adult/write-watch.ts), so a
+ * live write must never read as a dead one. A write that did die stops saying so, and is let go WRITING_STALE_MS later.
  */
 export async function continueScene(db: Db, adminId: string, x: string, y: string, direction: string | null, steerMode: SteerMode = "nudge", opts: StepOptions = {}): Promise<ContinueResult> {
   const pair = await eligiblePair(db, adminId, x, y);
   const mark = (on: boolean) =>
     pair
-      ? db.query(`update adult_scenes set writing_since = ${on ? "now()" : "null"} where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, pair[0], pair[1]]).catch(() => {})
+      ? db
+          .query(`update adult_scenes set writing_since = ${on ? "now()" : "null"}, writing_beat = ${on ? "now()" : "null"} where owner_id = $1 and character_a = $2 and character_b = $3`, [adminId, pair[0], pair[1]])
+          .catch(() => {})
       : Promise.resolve();
   // A first night has no row yet (loadScene makes it): make it, so the mark lands on the very first Start too.
   if (pair) await db.query(`insert into adult_scenes (id, owner_id, character_a, character_b) values ($1, $2, $3, $4) on conflict do nothing`, [crypto.randomUUID(), adminId, pair[0], pair[1]]).catch(() => {});
   await mark(true);
+  // Only while this write's own mark stands: a beat never brings back a mark that was cleared.
+  const beat = pair
+    ? setInterval(() => {
+        void db.query(`update adult_scenes set writing_beat = now() where owner_id = $1 and character_a = $2 and character_b = $3 and writing_since is not null`, [adminId, pair[0], pair[1]]).catch(() => {});
+      }, WRITING_BEAT_MS)
+    : null;
   try {
     return await writeScene(db, adminId, x, y, direction, steerMode, opts);
   } finally {
+    if (beat) clearInterval(beat);
     await mark(false);
   }
 }

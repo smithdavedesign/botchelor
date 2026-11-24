@@ -42,6 +42,22 @@ import type { SteerSummary } from "@/lib/adult/steering";
 import RateMedia from "./RateMedia";
 import type { WriterOptions } from "@/lib/adult/writer";
 import { writingNoteFor } from "@/lib/adult/writer-config";
+import {
+  answerLost,
+  hasNewLines,
+  LINES_IN_NOTE,
+  linesAdded,
+  lostWriteVerdict,
+  QUICK_LOSS_MS,
+  WATCH_EVERY_MS,
+  WATCH_FIRST_MS,
+  WATCH_LOOK_TIMEOUT_MS,
+  WATCH_LOST_MAX_MS,
+  WATCH_UNREACHED_MS,
+  writesLines,
+  type SeenScene,
+} from "@/lib/adult/write-watch";
+import { requestKept } from "../../kept-request";
 import { MediaAdmin, MediaRequest } from "../../MediaRequest";
 import MediaTags from "../../MediaTags";
 import LocalTime from "../../LocalTime";
@@ -294,19 +310,26 @@ export default function SceneWriter({
     const tick = setInterval(() => setWaited(Math.floor((Date.now() - since) / 1000)), 1000);
     return () => clearInterval(tick);
   }, [busy]);
-  // That page asks again every few seconds and shows the lines once the write is done.
+  // That page asks again every few seconds and shows the lines once the write is done; lines kept while the step is
+  // still finishing (its pictures) show as soon as they're there (lib/adult/write-watch.ts).
   useEffect(() => {
     if (initial.writing_for == null) return;
     let stop = false;
+    let shown: SeenScene = initial;
     const look = async () => {
       if (stop) return;
       const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(initial.a.id)}&b=${encodeURIComponent(initial.b.id)}`).then(okJson).catch(() => null);
       const now = r?.scene as AdultScene | undefined;
+      if (stop) return;
       if (now && now.writing_for == null) {
         setScene(now);
         setMidWrite(false);
         if (!writing.current) setBusy(false);
         return;
+      }
+      if (now && hasNewLines(shown, now)) {
+        shown = now;
+        setScene(now);
       }
       setTimeout(look, 5_000);
     };
@@ -322,7 +345,10 @@ export default function SceneWriter({
   // The steer's echo stays ahead of it (#1017).
   // #1164: how long this viewer's writer usually takes, not one fixed minute for every writer.
   const writerNow = writer?.models.find((m) => m.id === writer.chosen) ?? null;
-  const writingNote = busy && (waited >= 10 || midWrite) ? `${note && !note.error ? `${note.text} ` : ""}${writingNoteFor(writerNow, waited)}` : null;
+  // The lines of the step being written are on the page already (the page saw them on the scene before the answer
+  // came: lib/adult/write-watch.ts), and what's awaited is the rest of the step.
+  const [linesIn, setLinesIn] = useState(false);
+  const writingNote = busy && linesIn ? LINES_IN_NOTE : busy && (waited >= 10 || midWrite) ? `${note && !note.error ? `${note.text} ` : ""}${writingNoteFor(writerNow, waited)}` : null;
   // #1147 (the 2026-10-31-1744 visitor: a steer sent, the page closed mid-write, and no sign of it after): a steer
   // waiting on its lines is kept for this tab; reopened, the page says it's being written in, was used, or comes back.
   const [steerDraft, setSteerDraft] = useState<string | null>(null);
@@ -343,6 +369,14 @@ export default function SceneWriter({
   // Autoplay (lib/adult/autoplay.ts): the theater paces it by what's left to play.
   const [autoplay, setAutoplay] = useState(false);
   const writing = useRef(false);
+  // The page has been left: a write being followed on the scene stops being looked at.
+  const left = useRef(false);
+  useEffect(() => {
+    left.current = false;
+    return () => {
+      left.current = true;
+    };
+  }, []);
   // The pair is stored either way round: the same two characters, in any order.
   const isThisPair = (r: BusyReel) => new Set([r.a, r.b, scene.a.id, scene.b.id]).size === 2;
   const nameOf = (who: "a" | "b") => (who === "a" ? scene.a.name : scene.b.name).split(/\s+/)[0];
@@ -425,21 +459,139 @@ export default function SceneWriter({
     }
   }
 
+  /** The scene as the server has it now, with the gallery (and their saved nights, when asked): the page's own GET. Null when it couldn't be asked. */
+  async function lookAtScene(nightsToo = false): Promise<{ scene: AdultScene; gallery: Media[]; nights: AdultNight[] | null } | null> {
+    const r = await fetch(`/api/admin/after-dark?a=${encodeURIComponent(scene.a.id)}&b=${encodeURIComponent(scene.b.id)}${nightsToo ? "&nights=1" : ""}`, { signal: AbortSignal.timeout(WATCH_LOOK_TIMEOUT_MS) })
+      .then(okJson)
+      .catch(() => null);
+    const now = r?.scene as AdultScene | undefined;
+    return now ? { scene: now, gallery: (r?.gallery as Media[] | undefined) ?? [], nights: Array.isArray(r?.nights) ? (r.nights as AdultNight[]) : null } : null;
+  }
+
+  /**
+   * While a write's answer is awaited, the page looks at the scene itself (lib/adult/write-watch.ts): lines are kept
+   * before the step's pictures are drawn, so they show the moment they're there and no longer wait on the answer.
+   * `stop` ends the looking (the answer came, or was lost) and says what the page was last shown.
+   */
+  function watchWrite(before: SeenScene): { stop: () => SeenScene } {
+    let stopped = false;
+    let shown = before;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const look = async () => {
+      timer = null;
+      const now = await lookAtScene();
+      // An answer that came while this look was out has the last word: a look's older scene never goes over it.
+      if (stopped || left.current) return;
+      if (now && hasNewLines(shown, now.scene)) {
+        shown = now.scene;
+        setScene(now.scene);
+        setLinesIn(true);
+      }
+      timer = setTimeout(() => void look(), WATCH_EVERY_MS);
+    };
+    timer = setTimeout(() => void look(), WATCH_FIRST_MS);
+    return {
+      stop: () => {
+        stopped = true;
+        if (timer) clearTimeout(timer);
+        return shown;
+      },
+    };
+  }
+
+  /**
+   * A write whose answer never reached the page (a long one can outlive the connection: docs/hosting.md), followed to
+   * its end on the scene itself: the server goes on writing whatever the page hears, and marks the scene while it does.
+   * Lines show as they land. The scene as it stands once no write is in flight, and whether the write left its lines;
+   * null when the server can't be reached (no look has got through for WATCH_UNREACHED_MS), or the page was left.
+   */
+  async function followWrite(before: SeenScene, shownSoFar: SeenScene): Promise<{ scene: AdultScene; gallery: Media[]; nights: AdultNight[] | null; landed: boolean } | null> {
+    const since = Date.now();
+    let shown = shownSoFar;
+    let quiet = 0;
+    let unreached: number | null = null;
+    while (!left.current && Date.now() - since < WATCH_LOST_MAX_MS) {
+      const now = await lookAtScene(true);
+      if (left.current) return null;
+      // Offline, or the server is down: not followed for ever. A look that gets through starts the count again.
+      if (now) unreached = null;
+      else if (Date.now() - (unreached ??= Date.now()) > WATCH_UNREACHED_MS) return null;
+      if (now && hasNewLines(shown, now.scene)) {
+        shown = now.scene;
+        setScene(now.scene);
+        setLinesIn(true);
+      }
+      const verdict = lostWriteVerdict(before, now?.scene ?? null, quiet);
+      if (now && (verdict === "landed" || verdict === "nothing")) return { ...now, landed: verdict === "landed" };
+      quiet = verdict === "writing" ? 0 : now ? quiet + 1 : quiet;
+      await new Promise((r) => setTimeout(r, WATCH_EVERY_MS));
+    }
+    return null;
+  }
+
   /** Sends one action to the scene's route; whether it went through. */
   async function send(body: Record<string, unknown>, echo = true): Promise<boolean> {
     if (writing.current) return false;
     writing.current = true;
     setBusy(true);
+    setLinesIn(false);
     // #1017: a steer says it was taken while its lines are written, not only once they change.
     const steered = echo && typeof body.direction === "string" && body.direction.trim() ? { text: body.direction, mode: body.steer_mode === "direct" ? ("direct" as const) : ("nudge" as const) } : null;
     setNote(steered ? { text: steerEcho(steered.text, steered.mode, false) } : null);
     setUnfollowed(null);
     if (typeof body.direction === "string" && body.direction.trim()) pendingSteer.save(scene.a.id, scene.b.id, { text: body.direction.trim(), mode: body.steer_mode === "direct" ? "direct" : "nudge" });
     const asked = Date.now();
-    const res = await requestJson("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
+    // A move that writes lines can take minutes: its answer is asked to be kept alive (../../kept-request.ts), and
+    // while it's awaited the page looks at the scene itself, so the lines show when they're kept.
+    const before: SeenScene = { chapter: scene.chapter, lines: scene.lines };
+    const long = writesLines(body);
+    const watch = long ? watchWrite(before) : null;
+    const res = await (long ? requestKept : requestJson)("/api/admin/after-dark", { a: scene.a.id, b: scene.b.id, ...body }).catch(() => null);
+    const shown = watch?.stop() ?? before;
+    // The answer never came back, but the write goes on behind it: the page stays busy and follows it to its end.
+    // No reload (David, 2026-11-24: "only after you refresh page you see the writing").
+    const followed = long && answerLost(res) ? await followWrite(before, shown) : undefined;
     pendingSteer.clear(scene.a.id, scene.b.id);
     writing.current = false;
     setBusy(false);
+    setLinesIn(false);
+    if (followed !== undefined) {
+      if (!followed) {
+        // The server couldn't be reached again (or the page was left): nothing more is known from here.
+        setAutoplay(false);
+        setNote({ text: "The page lost the answer and couldn't reach the server again. The lines may still have landed: reload once you're back online.", error: true });
+        return false;
+      }
+      setScene(followed.scene);
+      if (followed.nights) setNightList(followed.nights);
+      const arrived = followed.gallery.filter((m) => !galleryIds.current.has(m.id));
+      if (arrived.length) {
+        setGallery((g) => [...arrived.filter((m) => !g.some((x) => x.id === m.id)), ...g]);
+        setFreshPictures(new Set(arrived.map((m) => m.id)));
+      }
+      if (!followed.landed) {
+        setAutoplay(false);
+        // Lost at once with nothing written: the connection. After a long wait: the write itself came to nothing.
+        setNote({ text: Date.now() - asked < QUICK_LOSS_MS ? "Network error. Try again." : "Those lines didn't come. Try again.", error: true });
+        return false;
+      }
+      if (body.redo) setAutoplay(false);
+      // What the answer would have said about pictures is unknown: whatever the step drew shows as it lands.
+      lookForPictures();
+      const said = [
+        body.scenario ? "A new night: the last one is under Their nights." : "",
+        body.redo ? "Rewritten: the last step was taken back and written again." : "",
+        steered ? steerEcho(steered.text, steered.mode, true) : "",
+        body.whisper ? `🤫 Whispered to ${nameOf((body.whisper as { to: "a" | "b" }).to)}: it shapes this step and the next.` : "",
+      ].filter(Boolean);
+      const halt = autoplay && !body.scenario ? autoplayStop({ chapter: scene.chapter }, followed.scene, linesAdded(before, followed.scene)) : null;
+      if (halt) {
+        setAutoplay(false);
+        said.push(halt);
+      }
+      setNote(said.length ? { text: said.join(" ") } : null);
+      return true;
+    }
     // The viewer's own steer or whisper read as wanting to hurt themselves (lib/crisis.ts): the help stays until closed.
     const help = crisisFrom(res?.data);
     if (help) {
@@ -448,8 +600,8 @@ export default function SceneWriter({
     }
     if (!res || !res.ok) setAutoplay(false);
     if (!res) {
-      // A long write the page gave up on may still land on the server: say so, so a second Start doesn't follow at once.
-      setNote({ text: Date.now() - asked >= 45_000 ? "The page lost the answer after a long wait, but the lines may still land: reload in a minute to see them before trying again." : "Network error. Try again.", error: true });
+      // One of the quick moves (a write that lost its answer was followed above).
+      setNote({ text: "Network error. Try again.", error: true });
       return false;
     }
     if (!res.ok) {

@@ -26,6 +26,7 @@ import {
   startScenario,
 } from "@/lib/adult/scenes";
 import { ROLEPLAY_IDS } from "@/lib/adult/roleplays";
+import { KEPT_ANSWER, KEPT_ANSWER_HEADER, type KeptAnswer } from "@/lib/adult/write-watch";
 import { USER_ROLEPLAY } from "@/lib/studio/library";
 import { isAdmin } from "@/lib/admins";
 import { includedPrice } from "@/lib/adult/pricing";
@@ -35,7 +36,7 @@ import { SET_SCENE_TOKEN_COST } from "@/lib/allowance";
 import { moreTokensLine, refundAdTokens, spendAdTokens } from "@/lib/adult/tokens";
 import { crisisAware, str, type CrisisSurface } from "@/lib/crisis";
 import { getDb } from "@/lib/db";
-import { handle, json, parseBody, readJson } from "@/lib/http";
+import { handle, json, jsonWhenDone, parseBody, readJson } from "@/lib/http";
 import { requestBase } from "@/lib/site";
 
 // A long scene, plus a picture or two, can take a while.
@@ -125,7 +126,14 @@ export const GET = handle(async (req: Request) => {
     return memory ? json({ memory }) : hidden();
   }
   const scene = await openScene(db, admin, q.get("a") ?? "", q.get("b") ?? "");
-  return scene ? json({ scene, gallery: await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true }) }) : hidden();
+  if (!scene) return hidden();
+  // `nights=1`: their saved nights too, for a page that followed a write whose answer it lost (lib/adult/write-watch.ts):
+  // a step can file a chapter, and that answer would have carried the list.
+  return json({
+    scene,
+    gallery: await listMedia(db, [scene.a.id, scene.b.id], admin, { withArchived: true }),
+    ...(q.get("nights") === "1" ? { nights: await listNights(db, admin, scene.a.id, scene.b.id) } : {}),
+  });
 });
 
 // A steer and a whisper are the viewer's own words: checked for self-harm intent (lib/crisis.ts), the reply then
@@ -152,7 +160,7 @@ async function payChapter(db: Db, viewer: string, a: string, b: string, opts: { 
   return { paid: price };
 }
 
-export const POST = crisisAware(surface, ownWords, handle(async (req: Request) => {
+const act = crisisAware(surface, ownWords, handle(async (req: Request) => {
   const db = await getDb();
   const admin = await adultViewer(db, req);
   if (!admin) return hidden();
@@ -291,3 +299,32 @@ export const POST = crisisAware(surface, ownWords, handle(async (req: Request) =
     ...(input.redo ? { nights: await listNights(db, admin, input.a, input.b) } : {}),
   });
 }));
+
+/** How often a kept answer sends a byte while its write runs: well inside the edge's 100 seconds of silence. */
+const KEPT_EVERY_MS = 15_000;
+
+/**
+ * One move in the pair's scene. A step's lines can take minutes on the richer writer, and the host's edge ends a
+ * response that sends nothing for 100 seconds (docs/hosting.md): the page then got no answer, while the write went on
+ * behind it (David, 2026-11-24: "times out and only after you refresh page you see the writing"). So the theater asks
+ * for a write's answer to be kept alive (KEPT_ANSWER_HEADER, lib/adult/write-watch.ts): the same work, answered as a
+ * stream that sends a newline now and then (lib/http.ts jsonWhenDone) and ends with `{ kept, status, body }`, the
+ * status and JSON it would have had. The stream itself is a 200 from its first byte, so the real status is inside.
+ * Every other caller (the admin MCP, scripts, tests) gets the plain answer, unchanged, and so does anyone After Dark
+ * isn't open to.
+ */
+export const POST = async (req: Request): Promise<Response> => {
+  if (req.headers.get(KEPT_ANSWER_HEADER) !== KEPT_ANSWER) return act(req);
+  // Only for someone After Dark is open to: anyone else gets the plain not-found, never a stream that says there's
+  // something here.
+  if (!(await adultViewer(await getDb(), req).catch(() => null))) return act(req);
+  return jsonWhenDone(
+    req,
+    async (): Promise<KeptAnswer> => {
+      const res = await act(req);
+      const body = (await res.json().catch(() => ({}))) as unknown;
+      return { kept: true, status: res.status, body: body && typeof body === "object" && !Array.isArray(body) ? (body as Record<string, unknown>) : {} };
+    },
+    KEPT_EVERY_MS,
+  );
+};

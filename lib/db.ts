@@ -3470,6 +3470,10 @@ alter table adult_settings alter column cap_pictures set default 60;
 -- being written (lib/adult/scenes.ts continueScene), cleared when that ends either way. Older than WRITING_STALE_MS reads
 -- as not writing (a crashed request).
 alter table adult_scenes add column if not exists writing_since timestamptz;
+-- writing_beat: when a write still running last said so (lib/adult/scenes.ts continueScene, every WRITING_BEAT_MS). A
+-- step on the slow writer can take several calls, minutes each: without it a live write read as dead once
+-- writing_since was four minutes old, and a page following it (lib/adult/write-watch.ts) gave up on lines still coming.
+alter table adult_scenes add column if not exists writing_beat timestamptz;
 
 -- #1207 (David, 2026-11-01: "Set up for pictures", each character's first setup included): when this character's one
 -- free setup was taken (lib/adult/studio.ts setUpForPictures). Kept on the identity row, not on the face or body, so
