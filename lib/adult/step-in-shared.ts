@@ -174,6 +174,31 @@ export const placeInSentence = (label: string): string => (label ? label.charAt(
 export type StepInCharacter = { id: string; name: string; portrait: string | null; hue: number | null; house?: boolean; kind?: PronounKind | null };
 
 /**
+ * One picture in the Who step's carousel (lib/adult/step-in-who.ts): their portrait, a profile photo (PG), one of the
+ * viewer's own After Dark pictures of them, a showcase post of them, or a locked one (a server-blurred tile, for a plan
+ * without pictures: the way in instead of the picture).
+ */
+export type WhoSlide = { key: string; kind: "portrait" | "photo" | "made" | "showcase" | "locked"; src: string; alt: string };
+
+/** The Who step's card for the character picked: who they are, and a few pictures of them. */
+export type WhoDetails = {
+  id: string;
+  name: string;
+  bio: string;
+  /** Their type (lib/tags.ts), as the character page shows it. */
+  tags: { id: string; label: string; icon: string }[];
+  /** Nights the viewer has had with them. */
+  nights: number;
+  house: boolean;
+  mine: boolean;
+  slides: WhoSlide[];
+  /** What's held back from this viewer's plan, and the way to it; null when nothing is. */
+  locked: { count: number; href: string } | null;
+  /** Their After Dark page. */
+  page: string;
+};
+
+/**
  * The place a scene is started at when it's started where its roleplay's own story is set (lib/adult/roleplays.ts
  * `at`): what the set-up sends as its place, and the id such a place carries. Only with a roleplay that has one.
  */
