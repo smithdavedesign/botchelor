@@ -152,7 +152,7 @@ describe("the privacy notice", () => {
       const html = render(Page);
       const fold = html.indexOf('<details class="ux-fold legal-changes"><summary>What changed</summary>');
       expect(fold, name).toBeGreaterThan(-1);
-      expect(html.indexOf("Changed (23 November)"), name).toBeGreaterThan(fold);
+      expect(html.indexOf("Changed (24 November)"), name).toBeGreaterThan(fold);
       expect(html.indexOf('id="contents"'), name).toBeGreaterThan(fold);
       expect(html, name).toContain(back);
     }
@@ -217,9 +217,10 @@ describe("the privacy notice", () => {
     }
   });
 
-  it("is dated 23 November 2026, with what changed (and the earlier changes kept under it)", () => {
-    expect(render(PrivacyPage)).toMatch(/Last updated 23 November 2026\./);
-    expect(strip(render(PrivacyPage))).toMatch(/Changed \(23 November\): the privacy notice says what a character can remember about you in an After Dark scene you step into yourself: off until you turn it on with its own consent/);
+  it("is dated 24 November 2026, with what changed (and the earlier changes kept under it)", () => {
+    expect(render(PrivacyPage)).toMatch(/Last updated 24 November 2026\./);
+    expect(strip(render(PrivacyPage))).toMatch(/Changed \(24 November\): the home page also shows Toolradar's badge, a picture loaded from Toolradar's own site \(toolradar\.com\), as it does LaunchNest's\./);
+    expect(strip(render(PrivacyPage))).toMatch(/Before that \(23 November\): the privacy notice says what a character can remember about you in an After Dark scene you step into yourself: off until you turn it on with its own consent/);
     // What a character remembers (lib/adult/step-in-memory.ts): opt-in, visible, deleted when it's turned off.
     expect(render(PrivacyPage)).toContain("<strong>What a character remembers about you.</strong>");
     expect(strip(render(PrivacyPage))).toMatch(/In a scene you step into yourself, a character can keep a\s+short list of things you said about yourself/);
@@ -251,10 +252,13 @@ describe("the privacy notice", () => {
     expect(render(PrivacyPage)).toMatch(/Claude, reached through OpenRouter/);
     expect(render(PrivacyPage)).not.toMatch(/Vercel hosts|AI Gateway/);
     expect(render(PrivacyPage)).toMatch(/Before that \(1 November\): Analytics names the three events/);
-    expect(render(TermsPage)).toMatch(/Last updated 23 November 2026\./);
+    expect(render(TermsPage)).toMatch(/Last updated 24 November 2026\./);
     // The home page's third-party badge, named where the other measuring is (2026-11-22 audit).
     expect(strip(render(PrivacyPage))).toMatch(/a picture loaded from LaunchNest's own site\s+\(launchnest\.io\) when you scroll down to it/);
     expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<img src="https:\/\/launchnest\.io\/badge\/botchelor\.svg\?variant=featured"[^>]*loading="lazy" \/>/);
+    // Toolradar's badge (2026-11-24), loaded the same way and said in the same place.
+    expect(strip(render(PrivacyPage))).toMatch(/and Toolradar's badge, loaded the same way from Toolradar's\s+own site \(toolradar\.com\)/);
+    expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<a href="https:\/\/toolradar\.com\/tools\/botchelor"[^>]*>\s*\{[^}]*\}\s*<img\s+src="https:\/\/toolradar\.com\/api\/badge\/botchelor\?[^"]*"[^>]*loading="lazy"/);
     // Our own cast (2026-11-18): ownership, adults only, no bulk download or AI training.
     expect(strip(render(TermsPage))).toMatch(/<h2 id="our-cast">Our own characters<\/h2>/);
     expect(strip(render(TermsPage))).toMatch(/every one of our characters is a fictional adult/);

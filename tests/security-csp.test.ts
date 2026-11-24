@@ -48,6 +48,7 @@ describe("the Report-Only policy (lib/security-headers.ts)", () => {
     expect(connect).toContain(DEEPGRAM_API.replace(/^https:/, "wss:"));
     for (const google of ["https://*.googletagmanager.com", "https://*.google-analytics.com", "https://*.analytics.google.com"]) expect(connect).toContain(google);
     expect(directive(policy, "img-src").split(" ")).toContain("https://launchnest.io");
+    expect(directive(policy, "img-src").split(" ")).toContain("https://toolradar.com");
   });
 
   it("leaves out a store that isn't set, and anything that isn't https", () => {

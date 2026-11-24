@@ -584,13 +584,24 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </nav>
       )}
 
-      {/* LaunchNest's listing checks the home page for its badge (its embed code, as given). Only here, not on every page:
-          it's a third-party image, so each load tells LaunchNest about the visit. Lazy, so only a visit that scrolls down
-          to it asks LaunchNest for it, and the privacy notice says so (Analytics; the 2026-11-22 audit). */}
+      {/* LaunchNest's and Toolradar's listings check the home page for their badges (their embed code, as given). Only
+          here, not on every page: they're third-party images, so each load tells the directory about the visit. Lazy, so
+          only a visit that scrolls down to them asks for them, and the privacy notice says so (Analytics; the 2026-11-22
+          audit). Toolradar's is its wide dark badge, drawn at LaunchNest's height. */}
       <p className="home-badges">
         <a href="https://launchnest.io/p/botchelor" target="_blank" rel="noopener">
           {/* eslint-disable-next-line @next/next/no-img-element -- third-party badge, served by LaunchNest */}
           <img src="https://launchnest.io/badge/botchelor.svg?variant=featured" alt="Botchelor on LaunchNest" width="220" height="56" loading="lazy" />
+        </a>
+        <a href="https://toolradar.com/tools/botchelor" target="_blank" rel="noopener">
+          {/* eslint-disable-next-line @next/next/no-img-element -- third-party badge, served by Toolradar */}
+          <img
+            src="https://toolradar.com/api/badge/botchelor?type=category-rank&category=media-entertainment&style=dark&shape=wide&v=5"
+            alt="Botchelor on Toolradar"
+            width="196"
+            height="56"
+            loading="lazy"
+          />
         </a>
       </p>
     </div>
