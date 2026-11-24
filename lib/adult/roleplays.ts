@@ -1249,8 +1249,17 @@ export function storedCard(raw: unknown): SceneCard | null {
   if (!Array.isArray(wants) || wants.length !== 2 || !wants.every(said)) return null;
   if (!Array.isArray(beats) || beats.length < 1 || !beats.every(said)) return null;
   if (!Array.isArray(openings) || openings.length !== 3 || !openings.every(said)) return null;
-  return { setup: c.setup, wants: [wants[0], wants[1]], beats: [...beats], tone: c.tone, openings: [openings[0], openings[1], openings[2]] };
+  return { setup: stopped(c.setup), wants: [stopped(wants[0]), stopped(wants[1])], beats: beats.map(stopped), tone: c.tone, openings: [stopped(openings[0]), stopped(openings[1]), stopped(openings[2])] };
 }
+
+/**
+ * A text of a drafted card that a person reads as a sentence (how it starts, a want, a beat, an opening), ended with a
+ * full stop when the model left it off. The first live drafts did, about one text in two, and a card's goal then stood
+ * on the shelf and in the scene's header unfinished, beside the show's own, which all end in one ("You want to confess
+ * the rivalry was always a way to get closer; you fear ruining the comfortable routine they share"). Done where a
+ * stored card is read back, so the cards drafted before this read right too. The tone is a few words, not a sentence.
+ */
+const stopped = (text: string): string => (/[.!?…]["'’”)]*$/.test(text.trim()) ? text : `${text.trim()}.`);
 
 /** A stored place read back, when it has a place's two parts (what a prompt says after "at", and its heading); null otherwise. */
 export function storedPlace(raw: unknown): RoleplayPlace | null {
