@@ -12,7 +12,7 @@ import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
-import { inlineFaces, INLINE_FACES, placeChoices, STORY_KIND_OWN, storyChoices } from "@/lib/adult/step-in-setup";
+import { inlineFaces, placeChoices, STORY_KIND_OWN, storyChoices, type PlaceKind } from "@/lib/adult/step-in-setup";
 import { STORY_PLACE, type StoryPlace } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import { premiseForYou } from "@/lib/roleplays";
@@ -132,6 +132,7 @@ export default function StepInSetup({
   const [storyQuery, setStoryQuery] = useState("");
   const [storyKind, setStoryKind] = useState("");
   const [placeQuery, setPlaceQuery] = useState("");
+  const [placeKind, setPlaceKind] = useState<PlaceKind | "">("");
 
   const character = cast.find((c) => c.id === who) ?? null;
   // Who to pick from: theirs, the house cast and everyone else, or what the search finds (lib/adult/pair-pick.ts, as on
@@ -161,7 +162,8 @@ export default function StepInSetup({
   const stories = useMemo(() => (sheet === "story" ? storyChoices(own, byCategory, storyKind, storyQuery) : []), [sheet, own, byCategory, storyKind, storyQuery]);
   const teller = character ? first(character.name) : "someone";
   const told = (r: Roleplay) => (r.card ? cardShownToYou(r.card, "a", teller).setup : premiseShownToYou(r.premise, "a", teller));
-  const shownPlaces = useMemo(() => (sheet === "where" ? placeChoices(places, placeQuery) : []), [sheet, places, placeQuery]);
+  const shownPlaces = useMemo(() => (sheet === "where" ? placeChoices(places, placeQuery, placeKind) : []), [sheet, places, placeQuery, placeKind]);
+  const publicPlaces = useMemo(() => places.filter((p) => p.public).length, [places]);
   // The story's poster beside its name, only when it's a picture of this pair as they'd play it (the one on the cover,
   // on the side it shows): anyone else's face beside this name would be a lie.
   const poster = rp && character ? coverInScene(rp.id, character.id, you) : null;
@@ -638,9 +640,19 @@ export default function StepInSetup({
         lead="Somewhere private goes as far as you take it. Out in public, a scene goes as far as a kiss."
         onClose={close}
         search={{ value: placeQuery, onChange: setPlaceQuery, placeholder: `Search ${places.length} places`, label: "Search the places" }}
+        kinds={{
+          label: "Private or out in public",
+          on: placeKind,
+          onPick: (id) => setPlaceKind(id as PlaceKind | ""),
+          options: [
+            { id: "", label: "✨ All", count: places.length },
+            { id: "private", label: "Private", count: places.length - publicPlaces },
+            { id: "public", label: "Out in public", count: publicPlaces },
+          ],
+        }}
         status={placeQuery.trim() ? matches(shownPlaces.length) : ""}
       >
-        {story && !placeQuery.trim() && (
+        {story && !placeQuery.trim() && (!placeKind || (placeKind === "public") === story.public) && (
           <li>
             <button type="button" className={placeId === STORY_PLACE ? "ad-si-pick on" : "ad-si-pick"} aria-pressed={placeId === STORY_PLACE} onClick={() => pickPlace(STORY_PLACE)} data-place={STORY_PLACE}>
               <span className="ad-si-pick-pic">
@@ -682,7 +694,14 @@ export default function StepInSetup({
           <li className="ad-si-sheet-label">
             <p className="muted">
               No place called “{placeQuery.trim()}”.{" "}
-              <button type="button" className="link-button" onClick={() => setPlaceQuery("")}>
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setPlaceQuery("");
+                  setPlaceKind("");
+                }}
+              >
                 Show them all
               </button>
             </p>

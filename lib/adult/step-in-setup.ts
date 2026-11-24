@@ -48,8 +48,24 @@ export function storyChoices(own: readonly Roleplay[], kinds: readonly { id: str
   return pool.filter((r) => fold(`${r.title} ${r.premise} ${r.roles ? r.roles.join(" ") : ""}`).includes(q));
 }
 
-/** The places the place sheet shows: the ones whose name holds what was typed, in the catalog's own order. */
-export function placeChoices<T extends { title: string }>(places: readonly T[], query: string): T[] {
+/** The two kinds the place sheet narrows by: a scene somewhere public goes as far as a kiss. */
+export const PLACE_KINDS = ["private", "public"] as const;
+export type PlaceKind = (typeof PLACE_KINDS)[number];
+
+/**
+ * The places the place sheet shows, in the order a person picks from them: the character's own place first (it's where
+ * a scene starts unless they choose), then the places that have a picture, then the ones nobody has drawn yet, each
+ * run in the catalog's own order. (The catalog opens on its scenario places, "Stuck in an elevator" and the like, a
+ * third of them with no picture: as a menu that didn't matter, and as the first row of a sheet of pictures it was the
+ * first thing the first live check showed.) `kind` narrows to somewhere private or somewhere public; `query` to the
+ * names that hold what was typed.
+ */
+export function placeChoices<T extends { id?: string; title: string; image?: string | null; public?: boolean }>(places: readonly T[], query: string, kind: PlaceKind | "" = ""): T[] {
   const q = fold(query.trim());
-  return q ? places.filter((p) => fold(p.title).includes(q)) : [...places];
+  const rank = (p: T) => (p.id === "venue:home" ? 0 : p.image ? 1 : 2);
+  return places
+    .filter((p) => (!q || fold(p.title).includes(q)) && (!kind || (kind === "public") === Boolean(p.public)))
+    .map((p, i) => ({ p, i }))
+    .sort((x, y) => rank(x.p) - rank(y.p) || x.i - y.i)
+    .map((x) => x.p);
 }

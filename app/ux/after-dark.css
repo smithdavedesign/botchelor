@@ -3654,10 +3654,14 @@ button.ad-pp-face:hover:not(:disabled) {
   .ad-si-setup > * {
     grid-column: 1 / -1;
   }
+  /* The story's card is the tall one once a roleplay is picked (how it starts, who plays whom): the place and how it
+     opens stack beside it, not under it with half the row empty. */
   .ad-si-setup > .ad-si-step:nth-of-type(2) {
     grid-column: 1;
+    grid-row: span 2;
   }
-  .ad-si-setup > .ad-si-step:nth-of-type(3) {
+  .ad-si-setup > .ad-si-step:nth-of-type(3),
+  .ad-si-setup > .ad-si-step:nth-of-type(4) {
     grid-column: 2;
   }
 }
@@ -3714,8 +3718,11 @@ section.ad-si-step {
     display: none;
   }
 }
+/* One column that never grows past its tile: a face with a level under its name ("Acquainted", which doesn't wrap) was
+   16 px wider than the faces beside it on a phone, and ran into them (the first live check). */
 button.ad-si-face {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   align-content: start;
   gap: var(--space-1);
@@ -3763,8 +3770,15 @@ button.ad-si-face.on {
   -webkit-line-clamp: 2;
   overflow-wrap: anywhere;
 }
-.ad-si-face-bond {
+/* The level under a face (.ad-bond-mark, set further down this file, so these are said with the tile's own class): as
+   plain small words, not a pill. A tile on a phone is 79 px wide, and "Acquainted" in its pill read "Acquain…". */
+.ad-si-face .ad-si-face-bond {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
   font-size: var(--text-2xs);
+  text-overflow: ellipsis;
 }
 .ad-si-more {
   margin: var(--space-3) 0;
@@ -3856,6 +3870,13 @@ button.ad-si-face.on {
 }
 .ad-si-sheet-label {
   grid-column: 1 / -1;
+}
+/* A card further down a sheet isn't drawn until it's near the window: a place's picture is a background, which nothing
+   else holds back, and the first live check opened the place sheet on 57 of them asked for at once, the first rows
+   still empty frames half a second in. */
+.ad-si-sheet-grid > li:has(> .ad-si-pick) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 15rem;
 }
 .after-dark-mode .ad-si-sheet-label h3 {
   margin: var(--space-2) 0 0;
