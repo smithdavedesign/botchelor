@@ -119,6 +119,7 @@ import { studioTileId, TILE_GROUPS } from "./studio-tiles";
 import { jobKey, jobUsability, recordJobFailure, recordJobSpend } from "../connections";
 import { countUse, overCap, usageLeft, type UsageKind } from "./usage";
 import { requestJson, withRequestLog, type LoggedRequest } from "./request-log";
+import { fixLead, fixNegative, type VideoFixMark } from "./video-fix-shared";
 import { freshViews, identityPackOf, keepIdentityView, type IdentityPack } from "../studio/identity-pack";
 import { IDENTITY_VIEW_IDS, identityPrice, identityViewPrompt, pickView, type IdentityViewId } from "../studio/identity-views";
 import { askRatio, ratioOf, ratiosFor, type FormatId } from "../studio/formats";
@@ -1788,7 +1789,7 @@ export type AnimateInput = { image_id: string; motion?: string; seconds: number;
  * collected as the page polls (collectAnimations): the video is checked by Hive before it's kept, like every clip. One
  * video at a time; the month's clips cap; the price `animate_5` or `animate_10`, given back when it doesn't come through.
  */
-export async function animatePicture(db: Db, viewer: string, characterId: string, input: AnimateInput, baseUrl: string): Promise<JobResult> {
+export async function animatePicture(db: Db, viewer: string, characterId: string, input: AnimateInput, baseUrl: string, opts: { fix?: VideoFixMark } = {}): Promise<JobResult> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
@@ -1816,20 +1817,22 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
   if (await animatingNow(db, viewer)) return fail(409, "busy", "One is already being animated: it takes a few minutes.");
   const busy = await busyReel(db, viewer);
   if (busy) return fail(409, "busy", busyMessage(busy));
-  const capped = await overCap(db, viewer, "clips");
+  // The free 🩹 fix replaces a broken clip, so it isn't one of the month's (lib/adult/video-fix.ts).
+  const capped = opts.fix?.free ? null : await overCap(db, viewer, "clips");
   if (capped) return fail(429, "over_cap", capped);
   const tokens = seconds === 10 ? config.prices.animate_10 : config.prices.animate_5;
-  const pays = tokens > 0 && !admin;
+  // 🩹 Fix (lib/adult/video-fix.ts): the free one costs nothing; any other costs what making it did.
+  const pays = tokens > 0 && !admin && !opts.fix?.free;
   if (pays && !(await spendAdTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. ${moreTokensLine()}`);
   const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
   let queueId: string;
   let sent: LoggedRequest[] = [];
   try {
-    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide, { pair, camera: input.camera });
+    const fix = opts.fix?.problems ?? [];
+    const prompt = animatePrompt(subjectOf(c, viewer, src.level >= 2), src.level, motion?.words ?? "", guide, { pair, camera: input.camera, fix: fixLead(fix) });
+    const negative = [pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE, fixNegative(fix)].filter(Boolean).join(", ");
     // What it sent rides on the shoot until the clip is kept (lib/adult/request-log.ts).
-    ({ value: queueId, requests: sent } = await withRequestLog(() =>
-      queueVideo(keys.venice!, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative: pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE }),
-    ));
+    ({ value: queueId, requests: sent } = await withRequestLog(() => queueVideo(keys.venice!, { model, seconds, image_url: signedMediaUrl(src.id, baseUrl), prompt, negative })));
   } catch (err) {
     if (pays) await refundAdTokens(db, viewer, tokens);
     return fail(502, "not_made", `It couldn't be animated (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${pays ? " Your tokens are back." : ""}`);
@@ -1839,10 +1842,32 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
       `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, status)
        values ($1, $2, $3, 'animate', $4::jsonb, $5, 'venice', $6, 1, 'making')
        returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
-      [crypto.randomUUID(), viewer, c.id, JSON.stringify({ source: src.id, motion: motion?.id ?? null, seconds, queue_id: queueId, level: src.level, ...(input.camera && input.camera !== "steady" ? { camera: input.camera } : {}), ...(guide.guide ? { guide: guide.guide } : {}), ...(guide.dialog ? { dialog: guide.dialog } : {}), ...(guide.transcript ? { transcript: guide.transcript } : {}), request: sent }), model, pays ? tokens : 0],
+      [
+        crypto.randomUUID(),
+        viewer,
+        c.id,
+        JSON.stringify({
+          source: src.id,
+          motion: motion?.id ?? null,
+          seconds,
+          queue_id: queueId,
+          level: src.level,
+          ...(input.camera && input.camera !== "steady" ? { camera: input.camera } : {}),
+          ...(guide.guide ? { guide: guide.guide } : {}),
+          ...(guide.dialog ? { dialog: guide.dialog } : {}),
+          ...(guide.transcript ? { transcript: guide.transcript } : {}),
+          ...(opts.fix ? { fix: opts.fix } : {}),
+          request: sent,
+        }),
+        model,
+        pays ? tokens : 0,
+      ],
     )
   ).rows[0];
-  return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `Animating: it takes a few minutes, and lands in the gallery.` };
+  const message = opts.fix
+    ? `Filming it again${opts.fix.free ? ", free" : ""}: it takes a few minutes, and lands in the gallery beside the one you fixed.`
+    : `Animating: it takes a few minutes, and lands in the gallery.`;
+  return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message };
 }
 
 /**
@@ -1851,7 +1876,14 @@ export async function animatePicture(db: Db, viewer: string, characterId: string
  * Anything not kept gives its tokens back. While Hive is out for the day they wait at Venice, unchecked.
  */
 export async function collectAnimations(db: Db, viewer: string): Promise<void> {
-  const { rows } = await db.query<{ id: string; character_id: string; model: string; tokens: number; choices: { source: string; motion: string | null; queue_id: string; guide?: string; cut?: unknown; request?: LoggedRequest[] }; created_at: string | Date }>(
+  const { rows } = await db.query<{
+    id: string;
+    character_id: string;
+    model: string;
+    tokens: number;
+    choices: { source: string; motion: string | null; queue_id: string; guide?: string; cut?: unknown; fix?: VideoFixMark; request?: LoggedRequest[] };
+    created_at: string | Date;
+  }>(
     `select id, character_id, model, tokens, choices, created_at from adult_studio_shoots where owner_id = $1 and kind = 'animate' and status = 'making' order by created_at limit 3`,
     [viewer],
   );
@@ -1892,13 +1924,30 @@ export async function collectAnimations(db: Db, viewer: string): Promise<void> {
     );
     if (!claimed.rows.length) continue;
     const kept = await keepBytes("after-dark", vid, got.bytes, "video/mp4");
+    // 🩹 A fix (lib/adult/video-fix.ts) is a new version of the video it fixed, as a fixed picture is (lib/adult/fix.ts).
+    const fix = r.choices.fix;
     await db.query(
-      `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id, request)
-       values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9, $10::jsonb)`,
+      `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, object_key, status, source_image, provider, fell_back, model, shoot_id, request, fixed_from, fix_root, fix_kind, fix_note)
+       values ($1, $2, $3, 'video', $4, 'video/mp4', $5, $6, 'ready', $7, 'venice', false, $8, $9, $10::jsonb, $11, $12, $13, $14)`,
       // A link kept going (lib/adult/studio-keep-going.ts) starts from the frame the one before ended on: its source.
-      [vid, viewer, r.character_id, `Studio clip: ${r.choices.cut ? "kept going" : (r.choices.motion ?? (r.choices.guide ? "your direction" : "clip"))}`, kept.data, kept.object_key, r.choices.source, r.model, r.id, requestJson(r.choices.request)],
+      [
+        vid,
+        viewer,
+        r.character_id,
+        `Studio clip: ${fix ? "fixed" : r.choices.cut ? "kept going" : (r.choices.motion ?? (r.choices.guide ? "your direction" : "clip"))}`,
+        kept.data,
+        kept.object_key,
+        r.choices.source,
+        r.model,
+        r.id,
+        requestJson(r.choices.request),
+        fix?.from ?? null,
+        fix?.root ?? null,
+        fix ? "video" : null,
+        fix?.note ?? null,
+      ],
     );
-    await countUse(db, viewer, "clips");
+    if (!fix?.free) await countUse(db, viewer, "clips");
     await tagNow(db, [vid]);
     await releaseVideo(keys.venice, r.model, r.choices.queue_id);
   }

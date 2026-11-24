@@ -825,6 +825,39 @@ li.picked {
   width: 100%;
   resize: vertical;
 }
+/* The video Fix sheet (app/after-dark/VideoFixSheet.tsx): the version on screen at its own shape, and the picture it
+   starts from beside its own 🩹 Fix. */
+.ad-fixsheet-clip {
+  justify-self: center;
+  max-width: 100%;
+  line-height: 0;
+}
+.ad-fixsheet-clip video {
+  display: block;
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: var(--radius-sm);
+  background: var(--night-bg);
+}
+.ad-fixsheet-start {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  gap: var(--space-1) var(--space-2);
+  align-items: start;
+  padding: var(--space-2);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-sm);
+}
+.ad-fixsheet-start img {
+  grid-row: span 2;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+}
+.ad-fixsheet-start p {
+  margin: 0;
+}
 
 /* The PG Studio's picture tile (app/characters/[id]/studio/PgStudio.tsx): everything but the picture in one ⋯, in the
    After Dark Studio's labelled rows (.ad-tile-more there), on the show's light card; Delete apart, in the danger colour. */

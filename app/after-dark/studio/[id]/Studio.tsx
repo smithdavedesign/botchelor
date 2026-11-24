@@ -27,6 +27,7 @@ import Lightbox from "./Lightbox";
 import LocalTime from "../../LocalTime";
 import TrimmableClip from "../../TrimmableClip";
 import FixButton, { FixHost, fixNudge } from "../../FixSheet";
+import VideoFixButton, { VideoFixHost, videoFixNudge } from "../../VideoFixSheet";
 import IdentityPackGrid from "@/app/studio/IdentityPackGrid";
 import { identityPrice } from "@/lib/studio/identity-views";
 import FormatChips, { tileRatio } from "@/app/studio/FormatChips";
@@ -554,9 +555,10 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                 kind={p.kind}
                 rating={p.rating ?? null}
                 tags={p.tags ?? []}
-                // 🩹 Fix (lib/adult/fix.ts): repair, faces, a change or undressed; bolder once they say what's off.
+                // 🩹 Fix (lib/adult/fix.ts): repair, faces, a change or undressed; bolder once they say what's off. One of
+                // their Studio animations: filmed again, told what went wrong (lib/adult/video-fix.ts).
                 extra={(r) =>
-                  p.kind === "scene" && (
+                  p.kind === "scene" ? (
                     <FixButton
                       id={p.id}
                       src={media}
@@ -566,7 +568,17 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
                       nudge={fixNudge(r.rating, r.tags)}
                       said={r.rating === -1 ? r.tags : []}
                     />
-                  )
+                  ) : video && s.animation_links?.[p.id] ? (
+                    <VideoFixButton
+                      id={p.id}
+                      src={media}
+                      label={two ? "The video of them" : `The video of ${first}`}
+                      onMade={() => void refresh()}
+                      onKept={() => void refresh()}
+                      nudge={videoFixNudge(r.rating, r.tags)}
+                      said={r.rating === -1 ? r.tags : []}
+                    />
+                  ) : null
                 }
               />
               {!two && !video && s.identity.face === p.id && <span className="badge">The face</span>}
@@ -1766,6 +1778,8 @@ export default function Studio({ initial, admin = false }: { initial: StudioStat
       </div>
       {zoom && <Lightbox id={zoom.id} video={zoom.video} onClose={() => setZoom(null)} />}
       {/* The Fix sheet opens here, not in a gallery's tile: a refresh can take the tile away (app/after-dark/FixSheet.tsx). */}
+      {/* The video sheet first: a picture's sheet opened from it (the picture it starts from) sits on top. */}
+      <VideoFixHost />
       <FixHost />
     </section>
   );

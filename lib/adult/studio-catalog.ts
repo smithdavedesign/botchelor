@@ -660,7 +660,13 @@ export type AnimateGuide = { guide?: string; dialog?: string; transcript?: strin
  * `emptyPlace`: nude somewhere public (a Studio animation kept going there, lib/adult/studio-keep-going.ts), so the place
  * stays empty, as a shoot's does (shootPrompt).
  */
-export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, motion: string, g: AnimateGuide = {}, opts: { pair?: boolean; camera?: string | null; emptyPlace?: boolean } = {}): string {
+export function animatePrompt(
+  subject: Pick<Subject, "noun">,
+  level: Level,
+  motion: string,
+  g: AnimateGuide = {},
+  opts: { pair?: boolean; camera?: string | null; emptyPlace?: boolean; fix?: string } = {},
+): string {
   const who = subject.noun === "person" ? "person" : subject.noun;
   const them = opts.pair ? "two people" : who;
   const guide = cleanCustom(g.guide, CUSTOM_MAX);
@@ -668,6 +674,8 @@ export function animatePrompt(subject: Pick<Subject, "noun">, level: Level, moti
   const transcript = cleanCustom(g.transcript, TRANSCRIPT_MAX);
   const middle = [
     guide ? `Most important, do exactly this: ${guide.replace(/[.\s]*$/, "")}.` : "",
+    // 🩹 Fix (lib/adult/video-fix-shared.ts fixLead): what was wrong with the video before, said right after what's asked.
+    opts.fix?.trim() ?? "",
     motion ? `The ${them} in the picture ${motion}.` : guide ? "" : `The ${them} in the picture ${opts.pair ? "move together slowly" : "breathe slowly, a small smile"}.`,
     dialog ? `They say, their lips moving: "${dialog.replace(/"/g, "'")}".` : "",
     transcript ? `For the mood, this is what's being said around this moment: ${transcript}.` : "",

@@ -55,6 +55,7 @@ have no billing API, so their top-ups are entered by hand.
 | An admin's own picture check (since 2026-10-24) | The Venice vision model's age question (`qwen3-vl-235b-a22b`) instead of Hive (`moderation.admin_checker`) | ~0.03¢, with no daily cap. Videos still go to Hive. |
 | The video of the night (4 shots of 10 s, Wan 3.0, ~40 s, since 2026-11-18) | Venice video ($1.30 a shot), a keyframe of the two of them per shot, plus Hive on every shot | **~$5.40–5.50** (sells for 10 tokens since 2026-11-19, ~$7.20 after Stripe) |
 | A 15 s clip, standard (LongCat) | Venice video plus Hive | $0.30–0.80 |
+| A Studio animation's 🩹 Fix (filmed again, docs/after-dark.md "Fix for a video") | Venice video ($0.65 for 5 s, $1.30 for 10 s) plus Hive | Animate's price (3 or 5 tokens). The first fix of a video marked broken is free, once: at most one more Venice video for each one sold |
 | Email (Resend) | Free plan, 3,000 a month | $0 |
 | A sale | Stripe 2.9% + 30¢ | **42¢** on a $4 pack |
 | Simulation run (`npm run sim:relationships`, paid mode) | 10 couples × 5 dates on Haiku | ~65¢ a run (stub mode is $0) |
