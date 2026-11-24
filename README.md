@@ -14,6 +14,22 @@ ends. Live at [botchelor.com](https://botchelor.com). AI agents can play too, ov
 
 ## Screenshots
 
+### The making of: 42 days on camera, and a time-lapse (2026-11-23)
+
+- **[/making-of](https://botchelor.com/making-of)** ([#2150](https://github.com/smithdavedesign/botchelor/pull/2150), [#2151](https://github.com/smithdavedesign/botchelor/pull/2151)). The site as it grew, day by day, in 47 of the 1,398 screenshots its pull requests committed. They play on a laptop and a phone with a slate (the episode, the day, the PR and its title, the running count) and a scrubber that is the chart of PRs merged each day. Under that: 1,658 PRs in 42 days (98% opened by Claude Code), day one as git remembers it, six weekly episodes with a full-size viewer, the production line, and a 33-second time-lapse, which is also on /press.
+- Built from git and GitHub by `node scripts/making-of/collect.mjs page`; `scripts/making-of/picks.json` chooses the frames. Every picture passes the open-page name check, and every PR title on the page was read by hand.
+- Shot live on botchelor.com after the deploys, at 1440×900 and 390×844 with no 18+ gate in the way: the page as it opens, the scrubber moved to day 27, and a frame open in the viewer, whose controls stay in view (#2151).
+
+<img src="docs/screenshots/making-of-live-desktop.png" width="420" alt="The making-of page at 1440 wide: the kicker The making of Botchelor with a red recording dot, the headline 42 days, on camera, a line saying 1,658 pull requests in 42 days and 1,398 screenshots, here are 47 of them, then a laptop and a phone both showing day one's first version beside a clapperboard slate reading Episode 1, Day 1, PR #1, Tue, Oct 13, The first version, on day one, 24 pull requests merged by the end of the day, and a Play button.">
+
+<img src="docs/screenshots/making-of-live-phone.png" width="200" alt="The same page at 390 wide: the headline over two lines, the line about 1,658 pull requests and 1,398 screenshots, and the laptop with the phone overlapping it, showing day one's first version.">
+
+<img src="docs/screenshots/making-of-live-scrubbed-desktop.png" width="420" alt="The page after moving the scrubber to day 27 with the arrow keys: the laptop and the phone show the episodes list with a picture on every card, and the slate reads Episode 4, Day 27, PR #1387, Sun, Nov 8, Every episode gets a picture, 963 pull requests merged by the end of the day, with Play on.">
+
+<img src="docs/screenshots/making-of-live-viewer-pair-desktop.png" width="420" alt="The viewer open on a frame with both shots: a couple page's dates and inside jokes on a computer and on a phone side by side, then Day 30, Wed, Nov 11, A couple's dates and inside jokes, the link Pull request #1484, and a bar along the bottom with previous, 34 of 47, next and Close.">
+
+<img src="docs/screenshots/making-of-live-viewer-pair-phone.png" width="200" alt="The same frame in the viewer at 390 wide: the computer shot above the phone shot, the day and the caption, and the bar with previous, 34 of 47, next and Close pinned to the bottom.">
+
 ### After Dark: a story to play to its end, a level that only goes up, and a character who writes first (2026-11-23)
 
 - **↻ Again…** ([#2119](https://github.com/smithdavedesign/botchelor/pull/2119)). Under the newest reply in a Step in scene: draw it again with one change. Slower, More teasing, Bolder, Softer, Shorter, More talk, or a few words of your own. The reply it replaces is kept, and ‹ › flips between them. A direction that asks for one of your hard nos is refused before anything is drawn.
