@@ -3470,9 +3470,36 @@ button.ad-pp-face:hover:not(:disabled) {
 /* On a screen with the room, the shelf runs wider than the page's reading column (to 64rem, three cards across): the
    cards are pictures now, and two across left half a desktop empty beside them. Centred on the column it sits in. */
 @media (min-width: 900px) {
-  .ad-si-shelf {
+  .ad-si-shelf,
+  .ad-si-build {
     margin-inline: calc(50% - min(32rem, 50vw - 1.5rem));
   }
+}
+/* The page's two ways in, as two quiet chips under its opening lines (app/after-dark/step-in/page.tsx): the set-up is a
+   few screens down on a phone, and nothing said it was there. Each lands with its heading clear of the sticky header. */
+.ad-si-jumps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-4);
+}
+.after-dark-mode .ad-si-jumps a {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-pill);
+  color: var(--night-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.after-dark-mode .ad-si-jumps a:hover,
+.after-dark-mode .ad-si-jumps a:focus-visible {
+  border-color: var(--night-hot);
+  color: var(--night-ink-on);
+}
+#ad-si-shelf-h,
+#ad-si-set {
+  scroll-margin-top: 5.5rem;
 }
 .ad-si-shelf h2 {
   margin-bottom: var(--space-1);
@@ -3495,13 +3522,34 @@ button.ad-pp-face:hover:not(:disabled) {
 .ad-si-shelf-n {
   opacity: 0.65;
 }
+/* Four across at the shelf's full width (2026-11-24: three wide cards of a dozen lines each ran tonight's eight to two
+   and a half screens, with the set-up under all of it). */
 .ad-si-shelf-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
   gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+/* A phone: tonight's eight are one row to swipe (the list says so: data-step-in-shelf-row), out to the screen's edges
+   with the next card showing, so the page under them is one card down and not eight. Any other list runs down the
+   page as it did. */
+@media (max-width: 700px) {
+  .ad-si-shelf-cards[data-step-in-shelf-row] {
+    display: flex;
+    margin-inline: calc(-1 * var(--space-4));
+    padding: 0 var(--space-4) var(--space-2);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: var(--space-4);
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .ad-si-shelf-cards[data-step-in-shelf-row] > li {
+    flex: 0 0 84%;
+    scroll-snap-align: start;
+  }
 }
 .ad-si-shelf-card {
   display: flex;
@@ -3535,6 +3583,26 @@ button.ad-pp-face:hover:not(:disabled) {
   vertical-align: middle;
   white-space: nowrap;
 }
+/* How it starts, cut to three lines: the whole of it is one press away, in the set-up. */
+.ad-si-shelf-setup {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+/* What the viewer is playing for, and who plays whom: folded under one quiet line. */
+.ad-si-shelf-more > summary {
+  color: var(--night-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ad-si-shelf-more[open] > summary {
+  margin-bottom: var(--space-1);
+}
+.ad-si-shelf-more > p + p {
+  margin-top: var(--space-1);
+}
 .ad-si-shelf-card .ad-si-shelf-who {
   display: flex;
   flex-wrap: wrap;
@@ -3543,66 +3611,225 @@ button.ad-pp-face:hover:not(:disabled) {
   margin-top: auto;
   padding-top: var(--space-2);
 }
-.ad-si-shelf-go {
+/* The way in is the card's one loud button, the card's width; another face and the set-up are two links under it. */
+.ad-si-shelf-go > a,
+.ad-si-shelf-go > button {
+  width: 100%;
+  margin: 0;
+  justify-content: center;
+  text-align: center;
+}
+.ad-si-shelf-ways {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
 }
-.ad-si-shelf-who .link-button,
-.ad-si-shelf-go > a,
-.ad-si-shelf-go > button {
+.ad-si-shelf-ways .link-button {
   margin: 0;
+}
+.ad-si-shelf-ways > a {
+  font-weight: 600;
+}
+/* The set-up (app/after-dark/step-in/StepInSetup.tsx), as wide as the shelf: four steps, each picked from pictures.
+   Who runs the section's width (its faces want the room); on a wide screen the story and the place sit side by side
+   under it. */
+.ad-si-build {
+  margin-block: var(--space-6) var(--space-5);
+}
+.ad-si-build > h2 {
+  margin-bottom: var(--space-1);
 }
 .ad-si-setup {
   display: grid;
   gap: var(--space-3);
-  max-width: 44rem;
+  margin-top: var(--space-3);
 }
-fieldset.ad-si-step {
+@media (min-width: 900px) {
+  .ad-si-setup {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .ad-si-setup > * {
+    grid-column: 1 / -1;
+  }
+  .ad-si-setup > .ad-si-step:nth-of-type(2) {
+    grid-column: 1;
+  }
+  .ad-si-setup > .ad-si-step:nth-of-type(3) {
+    grid-column: 2;
+  }
+}
+section.ad-si-step {
   min-width: 0;
   margin: 0;
 }
-.ad-si-step legend {
-  padding: 0 var(--space-2);
-  font-weight: 700;
+.ad-si-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
 }
-.ad-si-step select {
-  width: 100%;
+.ad-si-step-head h3,
+.ad-si-step-head button {
+  margin: 0;
 }
-.ad-si-step .ad-cast-chips {
-  margin-bottom: var(--space-2);
+.ad-si-step-n {
+  display: inline-grid;
+  place-items: center;
+  width: 1.7em;
+  height: 1.7em;
+  margin-right: var(--space-1);
+  border: 1px solid var(--night-hot);
+  border-radius: var(--radius-pill);
+  color: var(--night-hot);
+  font-size: var(--text-sm);
 }
-/* Who: the hub picker's search and faces (.ad-pp-*), and once someone is picked, them and a way back. */
+/* Who: a search, then the faces as tiles a face can be told by (David, 2026-11-24: "more full screen so you can see the
+   characters"; they were 56 px circles in a 22rem scroll box). Eight across on a wide screen and three on a phone,
+   where only the first three rows are on the page; everyone is in the sheet. */
 .ad-si-step .ad-si-search {
   width: 100%;
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-3);
 }
-.ad-si-step .ad-si-panel {
-  max-height: min(22rem, 52vh);
-  margin-bottom: var(--space-2);
+.ad-si-faces {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(30%, 6.75rem), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.ad-si-who {
+@media (max-width: 700px) {
+  .ad-si-faces-page > li:nth-child(n + 10) {
+    display: none;
+  }
+}
+/* The way to everyone when the page already shows them all on a wide screen: only a phone, which shows nine, needs it. */
+@media (min-width: 701px) {
+  .ad-si-more-phone {
+    display: none;
+  }
+}
+button.ad-si-face {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--night-ink);
+  box-shadow: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+}
+button.ad-si-face:hover:not(:disabled),
+button.ad-si-face.on {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--night-hot);
+  background: var(--night-card);
+}
+.ad-si-face-pic {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--night-card);
+}
+.ad-si-face-pic .avatar-fill,
+.ad-si-chosen-face .avatar-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.ad-si-face-name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.ad-si-face-bond {
+  font-size: var(--text-2xs);
+}
+.ad-si-more {
+  margin: var(--space-3) 0;
+}
+.ad-si-more button,
+.ad-si-none .link-button {
+  margin: 0;
+}
+/* What's chosen in a step: its picture beside its name, what it means, and the way to the others. The place's picture
+   used to run the card's whole width under a menu (the bug in David's screenshot, 2026-11-24): it's a thumbnail now. */
+.ad-si-chosen {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ad-si-chosen-pic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: clamp(5.5rem, 24vw, 9.5rem);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-md);
+  background: var(--night-bg) center / cover no-repeat;
+}
+.ad-si-chosen-pic > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ad-si-chosen-face {
+  aspect-ratio: 4 / 5;
+}
+.ad-si-thumb-icon {
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+.ad-si-chosen-body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ad-si-chosen-body > p,
+.ad-si-chosen-body > .ad-si-roles {
+  margin: 0;
+}
+.ad-si-chosen-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-lg);
+}
+.ad-si-chosen-go {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-  margin: 0 0 var(--space-2);
 }
-.ad-si-who .link-button {
+.ad-si-chosen-go button {
   margin: 0;
-}
-.ad-si-place-picture {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  margin-top: var(--space-2);
-  border-radius: var(--radius-md);
-  background-color: var(--night-bg);
-  background-position: center;
-  background-size: cover;
-}
-.ad-si-card-setup {
-  margin: var(--space-3) 0 var(--space-2);
 }
 .ad-si-roles,
 .ad-si-openings {
@@ -3614,6 +3841,112 @@ fieldset.ad-si-step {
 .ad-si-openings label {
   margin-top: 0;
   font-weight: 400;
+}
+.ad-si-start-what {
+  font-weight: 600;
+}
+/* The sheets (./PickSheet.tsx: the theater's Set the scene look, .ad-scenes): cards a little narrower than its own, and
+   faces as the page's tiles. On a phone a sheet is the whole screen, its sides pulled in. */
+.ad-si-sheet-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(46%, 14.5rem), 1fr));
+}
+.ad-si-sheet-faces {
+  grid-template-columns: repeat(auto-fill, minmax(min(30%, 7.5rem), 1fr));
+  gap: var(--space-2);
+}
+.ad-si-sheet-label {
+  grid-column: 1 / -1;
+}
+.after-dark-mode .ad-si-sheet-label h3 {
+  margin: var(--space-2) 0 0;
+  color: var(--night-muted);
+  font-size: var(--text-eyebrow);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ad-si-sheet-label p,
+.ad-si-sheet-label .link-button {
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .ad-si-sheet-overlay {
+    padding: 0;
+  }
+  .ad-si-sheet {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+  .ad-si-sheet .ad-scenes-head,
+  .ad-si-sheet .ad-scenes-search,
+  .ad-si-sheet .ad-scenes-cats,
+  .ad-si-sheet .ad-scenes-grid {
+    padding-inline: var(--space-3);
+  }
+}
+/* One thing to pick in a sheet: a picture over its name and a line or two (a story's poster, a place's own picture). */
+button.ad-si-pick {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--night-line);
+  border-radius: var(--radius-md);
+  background: var(--night-card);
+  color: var(--night-ink);
+  box-shadow: none;
+  font-weight: 400;
+  text-align: left;
+}
+button.ad-si-pick:hover:not(:disabled),
+button.ad-si-pick.on {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--night-hot);
+}
+.ad-si-pick-pic {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--night-bg) center / cover no-repeat;
+}
+.ad-si-pick-pic:has(> img) {
+  aspect-ratio: 4 / 3;
+}
+/* Nothing to show for it (no roleplay; a place nobody has drawn yet): its mark in a short band, not an empty frame. */
+.ad-si-pick-pic:not([style]):not(:has(> img)) {
+  aspect-ratio: auto;
+  padding: var(--space-3) 0;
+}
+.ad-si-pick-pic > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ad-si-pick-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+.ad-si-pick-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ad-si-pick-marks .kicker {
+  margin: 0;
 }
 .ad-si-scenes {
   display: grid;

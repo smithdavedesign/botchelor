@@ -98,6 +98,13 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
             processors have been told.
           </p>
         )}
+        {/* The page's two ways in, one tap each from its top: on a phone the second is a few screens down. */}
+        {cast.length > 0 && (
+          <p className="ad-si-jumps" data-step-in-jumps>
+            <a href="#ad-si-shelf-h">Tonight&apos;s stories</a>
+            <a href="#ad-si-set">Set your own scene</a>
+          </p>
+        )}
         {scenes.running.length > 0 && (
           <section aria-labelledby="ad-si-running">
             <h2 id="ad-si-running">Pick up where you left off</h2>
@@ -108,7 +115,10 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
         {cast.length > 0 && (
           <StepInShelf cast={cast} recent={recent} day={new Date().toISOString().slice(0, 10)} with_={sp?.with ?? null} places={stories} played={played} bonds={bonds} own={own} createHref={createHref} />
         )}
-        <h2 id="ad-si-set">{cast.length ? "Or set the scene yourself" : "Set the scene"}</h2>
+        {/* The set-up runs as wide as the shelf above it: its faces and its sheets are pictures, and want the room. */}
+        <section className="ad-si-build" aria-labelledby="ad-si-set">
+        <h2 id="ad-si-set">{cast.length ? "Set your own scene" : "Set the scene"}</h2>
+        {cast.length > 0 && <p className="muted small">Who, the story, where, and how it opens. Four picks, and you&apos;re in it.</p>}
         {cast.length ? (
           // Keyed on what it starts from: "Set it up" on a card comes back to this page with another pair.
           <StepInSetup
@@ -124,10 +134,13 @@ export default async function StepInSetupPage({ searchParams }: Props = {}) {
             preselectYou={sp?.you === "1" ? 1 : 0}
             storyPlaces={stories}
             own={own}
+            bonds={bonds}
+            played={played}
           />
         ) : (
           <p className="muted">Nobody is in your After Dark yet. This season&apos;s cast is in by default; your own characters are switched in on the Studio page.</p>
         )}
+        </section>
         {scenes.ended.length > 0 && (
           <section aria-labelledby="ad-si-ended">
             <h2 id="ad-si-ended">Scenes you ended</h2>

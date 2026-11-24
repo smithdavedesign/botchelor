@@ -43,6 +43,12 @@ const NO_OWN: Roleplay[] = [];
  * ("✨ Yours"): no picture (nobody drew one), and once its story is drafted the goal and where it's set (`places` has
  * theirs too; one with no place starts at the character's). Tonight's eight stay the show's. `createHref`: where one
  * is written, said in a few words to someone who has none.
+ *
+ * A card is short (David, 2026-11-24: "overall the page needs a makeover": eight of them ran to two and a half screens
+ * on a desktop and seven on a phone, and the set-up sat under all of it). The story's first lines are cut to four, what
+ * the viewer is playing for and who plays whom fold away under one line, and the way in is one wide button with the
+ * two quieter ways under it. On a phone tonight's eight are a row to swipe through (the next one showing at the edge),
+ * so the page under them is one card down, not eight.
  */
 export default function StepInShelf({
   cast,
@@ -129,7 +135,8 @@ export default function StepInShelf({
           ))}
         </select>
       </div>
-      <ul className="ad-si-shelf-cards">
+      {/* Tonight's eight are one row to swipe on a phone (the stylesheet's, by this mark); any other list runs down the page. */}
+      <ul className="ad-si-shelf-cards" data-step-in-shelf-row={show === "tonight" ? "" : undefined}>
         {shown.map((rp, index) => {
           // Tonight's last two are kept for the people they've stepped in with (the one they were with last, then
           // someone else of theirs): with a picture on every card, nobody of their own would lead one otherwise.
@@ -186,29 +193,37 @@ export default function StepInShelf({
                   {places[rp.id].public ? " · out in public" : ""}
                 </p>
               )}
-              {/* What their side of it wants: what they're playing for (the card's own words, told to them). */}
-              {goal && (
-                <p className="muted small ad-si-shelf-goal" data-step-in-card-goal>
-                  {goal}
-                </p>
-              )}
-              {rp.roles && (
-                <p className="muted small ad-si-shelf-roles">
-                  You play {rp.roles[you]}; {name} plays {rp.roles[you === 0 ? 1 : 0]}.
-                </p>
+              {/* What their side of it wants (the card's own words, told to them) and who plays whom: one line to open. */}
+              {(goal || rp.roles) && (
+                <details className="ad-si-shelf-more">
+                  <summary>{goal ? "What you're playing for" : "Who plays whom"}</summary>
+                  {goal && (
+                    <p className="muted small ad-si-shelf-goal" data-step-in-card-goal>
+                      {goal}
+                    </p>
+                  )}
+                  {rp.roles && (
+                    <p className="muted small ad-si-shelf-roles">
+                      You play {rp.roles[you]}; {name} plays {rp.roles[you === 0 ? 1 : 0]}.
+                    </p>
+                  )}
+                </details>
               )}
               <p className="ad-si-shelf-who">
                 <CharacterName character={them} link={false} size={34} strong />
                 <BondMarkTag mark={bonds[them.id]} className="ad-si-shelf-bond" />
+              </p>
+              {/* The way in is the card's one loud button; another face, or the set-up, are the quiet ways under it. */}
+              <p className="ad-si-shelf-go">
+                <StepInButton characterId={them.id} name={name} roleplay={{ id: rp.id, you }} className="button small" label={`Step in with ${name}`} about={rp.title} />
+              </p>
+              <p className="ad-si-shelf-ways">
                 {who.order.length > 1 && (
                   <button type="button" className="link-button small" onClick={() => setTurns((t) => ({ ...t, [turnKey]: turn + 1 }))} aria-label={`Play ${rp.title} with someone else`} data-step-in-card-next>
                     Someone else
                   </button>
                 )}
-              </p>
-              <p className="ad-si-shelf-go">
-                <StepInButton characterId={them.id} name={name} roleplay={{ id: rp.id, you }} className="button small" label={`Step in with ${name}`} about={rp.title} />
-                <Link className="button-ghost small" href={`/after-dark/step-in?with=${encodeURIComponent(them.id)}&roleplay=${encodeURIComponent(rp.id)}${you === 1 ? "&you=1" : ""}#ad-si-set`} data-step-in-card-setup>
+                <Link className="small" href={`/after-dark/step-in?with=${encodeURIComponent(them.id)}&roleplay=${encodeURIComponent(rp.id)}${you === 1 ? "&you=1" : ""}#ad-si-set`} data-step-in-card-setup>
                   Set it up
                 </Link>
               </p>
