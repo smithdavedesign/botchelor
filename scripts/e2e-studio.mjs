@@ -138,6 +138,31 @@ async function seed(owner, recipient, media) {
     );
     await put("e2e-shot-1", HER, "scene", 60, { shoot: "e2e-shoot" });
     await put("e2e-shot-2", HER, "scene", 59, { shoot: "e2e-shoot" });
+    // A Studio animation of the first, made already: what 🩹 Fix for a video opens on (lib/adult/video-fix.ts).
+    await db.query(
+      `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, made, status, pictures, created_at)
+       values ('e2e-anim-shoot', $1, $2, 'animate', '{"source":"e2e-shot-1","motion":"turn","seconds":5,"queue_id":"q-seed","level":0}'::jsonb, 'wan-3-0-image-to-video', 'venice', 3, 1, 1, 'ready', '["e2e-anim"]'::jsonb, now() - interval '30 minutes')`,
+      [owner, HER],
+    );
+    await db.query(
+      `insert into adult_images (id, owner_id, character_id, kind, prompt, mime, data, status, source_image, shoot_id, model, created_at)
+       values ('e2e-anim', $1, $2, 'video', 'Studio clip: turn', 'video/mp4', $3, 'ready', 'e2e-shot-1', 'e2e-anim-shoot', 'wan-3-0-image-to-video', now() - interval '30 minutes')`,
+      [owner, HER, media.clip],
+    );
+    // A night's video of the two of them, one shot filmed from its start picture: what a shot's 🩹 Fix opens on
+    // (lib/adult/reels.ts refilmShot). Older than everything else, so the gallery steps' first tiles stay as they were.
+    const [a, b] = [HER, HIM].sort();
+    for (const [id, kind, mime, data] of [["e2e-night-frame", "frame", "image/png", media.png], ["e2e-night-shot", "video", "video/mp4", media.clip]])
+      await db.query(
+        `insert into adult_images (id, owner_id, character_id, character_b, kind, prompt, mime, data, status, created_at)
+         values ($1, $2, $3, $4, $5, 'PG placeholder', $6, $7, 'ready', now() - interval '300 minutes')`,
+        [id, owner, a, b, kind, mime, data],
+      );
+    await db.query(
+      `insert into adult_reels (id, owner_id, character_a, character_b, status, tokens, shots, kind, created_at)
+       values ('e2e-night', $1, $2, $3, 'ready', 12, $4::jsonb, 'night', now() - interval '300 minutes')`,
+      [owner, a, b, JSON.stringify([{ line: 3, who: "a", text: "", frame: "PG placeholder", motion: "They turn to each other and smile.", status: "ready", media_id: "e2e-night-shot", frame_id: "e2e-night-frame" }])],
+    );
     await db.query(
       `insert into characters (id, owner_id, is_house, name, age, bio, traits, want, dealbreaker, pronouns)
        values ('juno-park', $1, false, 'Juno Park', 31, 'A lighthouse keeper''s daughter who restores old boats.', '["wry","patient"]'::jsonb, 'someone who stays for the whole tide', 'cruelty to waiters', 'she/her')`,
@@ -323,11 +348,24 @@ async function main() {
       });
       if (size === "phone") await step("phone: Shoot: no sideways scroll", () => noSideways("the Shoot tab"));
       if (size === "phone")
-        await step("phone: every Studio tab is on screen (they wrap, none hide off the side)", async () => {
-          const off = await page.locator("nav.ad-studio-tabs[aria-label=Studio] [role=tab]").evaluateAll((tabs) =>
-            tabs.filter((b) => { const r = b.getBoundingClientRect(); return r.left < 0 || r.right > window.innerWidth + 1; }).map((b) => b.textContent),
-          );
-          assert(off.length === 0, `tabs off screen: ${off.join(", ")}`);
+        // Since the 2026-11-20 mobile audit the tabs are one row that scrolls sideways (.scroll-row), not a wrap: each can be
+        // scrolled onto the screen, and the page itself still never scrolls sideways.
+        await step("phone: every Studio tab can be reached (the row scrolls sideways, the page doesn't)", async () => {
+          const row = page.locator("nav.ad-studio-tabs[aria-label=Studio]");
+          const off = [];
+          for (const t of await row.locator("[role=tab]").all()) {
+            // Scrolled to its own snap point (each tab snaps at its start), where a swipe along the row leaves it.
+            const seen = await t.evaluate(async (b) => {
+              b.scrollIntoView({ inline: "start", block: "nearest", behavior: "instant" });
+              await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+              const r = b.getBoundingClientRect();
+              return r.left >= 0 && r.right <= window.innerWidth + 1;
+            });
+            if (!seen) off.push(await t.textContent());
+          }
+          assert(off.length === 0, `tabs that can't be scrolled into view: ${off.join(", ")}`);
+          await noSideways("the Studio tabs");
+          await row.evaluate((n) => n.scrollTo({ left: 0 }));
         });
 
       await step(`${size}: Setups: the saved one is listed, Use loads it onto Shoot, and Delete removes it`, async () => {
@@ -464,6 +502,40 @@ async function main() {
         const a = await act(panel.getByRole("button", { name: /^Animate/ }).last());
         assert(a.status === 200, `animate: HTTP ${a.status}, "${a.note}"`);
         await page.getByText(/Animating, started/).waitFor({ timeout: 10_000 });
+      });
+      // 🩹 Fix for a video (lib/adult/video-fix.ts, app/after-dark/VideoFixSheet.tsx) on the seeded animation. Animate's
+      // clip above is still being made (the stub never finishes one), so filming it again waits its turn and the sheet
+      // shows the server's answer; the fix itself is proven in tests/after-dark-video-fix.test.ts.
+      await step(`${size}: Gallery: 🩹 Fix on an animation opens the video sheet: chips, the free first fix, the picture it starts from`, async () => {
+        await tab("Gallery");
+        const item = page.locator(".ad-studio-item").filter({ has: page.locator('video[src*="e2e-anim"]') }).last();
+        await item.waitFor({ timeout: 10_000 });
+        await item.getByRole("button", { name: "🩹 Fix", exact: true }).click();
+        const sheet = page.locator(".ad-fixsheet", { hasText: "🩹 Fix the video" });
+        await sheet.locator(".ad-fixsheet-body").waitFor({ timeout: 15_000 });
+        const text = (await sheet.innerText()).replace(/\s+/g, " ");
+        assert(/3 fixes left for this video/.test(text), `the sheet's head: "${text.slice(0, 160)}"`);
+        assert(/The first fix is free once you say what went wrong/.test(text), `no word that the first fix is free: "${text.slice(0, 400)}"`);
+        assert((await sheet.locator(".ad-fixsheet-clip video").count()) === 1, "no video in the sheet");
+        assert((await sheet.locator(".ad-fixsheet-start img").count()) === 1, "no picture it starts from");
+        assert((await sheet.locator(".ad-fixsheet-start").getByRole("button", { name: "🩹 Fix", exact: true }).count()) === 1, "no Fix for the picture it starts from");
+        const film = sheet.getByRole("button", { name: /^🎬 Film it again/ });
+        assert(await film.isDisabled(), "Film it again is on before anything's said wrong");
+        await sheet.getByRole("button", { name: "Barely moves", exact: true }).click();
+        await sheet.getByRole("button", { name: "Blurry", exact: true }).click();
+        const label = (await film.innerText()).replace(/\s+/g, " ").trim();
+        assert(/free$/.test(label), `the price once it's marked broken: "${label}"`);
+        await shotOf(`video-fix-${size}`, true);
+        if (size === "phone") await noSideways("the video Fix sheet");
+        const answered = page.waitForResponse((r) => r.url().includes("/api/admin/after-dark/video-fix") && r.request().method() === "POST", { timeout: 30_000 });
+        await film.click();
+        const res = await answered;
+        assert(res.status() === 409, `filming it again while Animate's clip is made: HTTP ${res.status()}`);
+        await sheet.locator("p.error").waitFor({ timeout: 10_000 });
+        const said = await sheet.locator("p.error").innerText();
+        assert(/being animated/.test(said), `the sheet's answer: "${said}"`);
+        await sheet.getByRole("button", { name: "Close", exact: true }).click();
+        await sheet.waitFor({ state: "detached", timeout: 5_000 });
       });
       // 🩹 Fix (lib/adult/fix.ts, app/after-dark/FixSheet.tsx): two fixes a size, of the five one picture can have.
       await step(`${size}: Gallery: 🩹 Fix repairs a marked spot, makes a change from that, keeps one, and goes back to the original`, async () => {
@@ -619,7 +691,14 @@ async function main() {
       await picker.waitFor({ timeout: 15_000 });
       assert((await picker.locator("li.ad-night").count()) === 0 || (await picker.getByRole("heading", { name: "Continue" }).count()) > 0, "a list of new pairs is still shown");
       const faces = picker.locator(".ad-pp-panel button.ad-pp-face");
-      const all = await faces.count();
+      // Each group shows its first 12 faces until "Show all" (the 2026-11-22 audit, lib/adult/pair-pick.ts FACES_SHOWN), and a
+      // new pick, search or Start over shows the short groups again: counts compare everyone, Show all pressed.
+      const everyone = async () => {
+        const more = picker.locator("button[data-show-all]");
+        if (await more.count()) await more.first().click();
+        return faces.count();
+      };
+      const all = await everyone();
       assert(all >= 2, `faces: ${all}`);
       // The search box (2026-11-18): a name typed leaves its matches; Escape brings everyone back.
       const search = picker.locator("input.ad-pp-search");
@@ -628,20 +707,20 @@ async function main() {
       const found = await faces.count();
       assert(found >= 1 && found <= all, `searching "${name}" left ${found} of ${all}`);
       await search.press("Escape");
-      assert((await faces.count()) === all, "Escape didn't bring every face back");
+      assert((await everyone()) === all, "Escape didn't bring every face back");
       await faces.first().click();
       assert((await picker.locator(".ad-pp-slots button.ad-pp-slot.is-filled").count()) === 1, "the first pick isn't shown as picked");
-      const partners = await faces.count();
+      const partners = await everyone();
       assert(partners >= 1 && partners < all, `after one pick, ${partners} of ${all} faces show`);
       await picker.getByRole("button", { name: "Start over" }).click();
-      assert((await faces.count()) === all, "Start over didn't bring every face back");
+      assert((await everyone()) === all, "Start over didn't bring every face back");
       await faces.first().click();
       await faces.first().click();
       const go = picker.locator(".ad-pp-chosen .ad-pair-go a");
       await go.waitFor({ timeout: 5_000 });
       assert(/^(Start|Continue) /.test((await go.innerText()).trim()), `the way in says "${await go.innerText()}"`);
       await picker.getByRole("button", { name: "Start over" }).click();
-      assert((await go.count()) === 0 && (await faces.count()) === all, "Start over after both picks didn't reset");
+      assert((await go.count()) === 0 && (await everyone()) === all, "Start over after both picks didn't reset");
     });
 
     await step("the scene's gallery: sections, and a 👎 moves a picture to Not liked (and back)", async () => {
@@ -681,6 +760,54 @@ async function main() {
       assert(who === (shown > 1 ? shown + 1 : 0), `${shown} shown, ${who} Who chips`);
       await page.keyboard.press("Escape");
       await sheet.waitFor({ state: "detached", timeout: 5_000 });
+    });
+
+    await step("a night's video: 🩹 Fix on a shot offers what went wrong, and Film it again sends the picks", async () => {
+      // Film it again is answered here, so nothing is queued: what it sends must name the shot and carry the picks.
+      let asked = null;
+      await page.route("**/api/admin/after-dark/reel", async (route) => {
+        if (route.request().method() !== "POST") return route.continue();
+        asked = JSON.parse(route.request().postData() || "{}");
+        await route.fulfill({ status: 409, json: { error: "busy", message: "Not filmed: the e2e answers this one." } });
+      });
+      try {
+        const [a, b] = [HER, HIM].sort();
+        for (const [w, h, size] of [[1280, 900, "desktop"], [390, 844, "phone"]]) {
+          await page.setViewportSize({ width: w, height: h });
+          await page.goto(`${app.base}/after-dark/${a}/${b}`);
+          await page.locator(".theater").getByRole("button", { name: "Exit", exact: true }).click();
+          await page.getByRole("tablist", { name: "Their pictures, videos and nights" }).getByRole("tab", { name: /^Videos \(\d+\)$/ }).click();
+          const bar = page.locator(".ad-reel-night .ad-shot-bar").first();
+          await bar.waitFor({ timeout: 20_000 });
+          // Played a moment first, so the player shows the shot rather than black (🩹 Fix pauses it).
+          await page.locator(".ad-reel-night").first().getByRole("button", { name: "Play", exact: true }).click();
+          await page.waitForTimeout(800);
+          // On a phone the shot's actions open from one button.
+          if (size === "phone") await bar.getByRole("button", { name: "⋯ This shot" }).click();
+          await bar.getByRole("button", { name: "🩹 Fix", exact: true }).click();
+          const panel = page.locator(".ad-reel-night .ad-refilm-words").first();
+          await panel.waitFor({ timeout: 10_000 });
+          const chips = panel.getByRole("group", { name: "What went wrong" }).getByRole("button");
+          assert((await chips.count()) === 7, `${await chips.count()} things that can go wrong, not 7`);
+          await panel.getByRole("button", { name: "Barely moves" }).click();
+          await panel.getByRole("button", { name: "Jerky or morphing" }).click();
+          // The panel at the bottom of the screen, the shot above it.
+          await panel.evaluate((el) => el.scrollIntoView({ block: "end" }));
+          await page.evaluate(() => window.scrollBy(0, 24));
+          if (size === "phone") await noSideways("a night's video's 🩹 Fix");
+          await shotOf(`video-fix-night-${size}`, true);
+          asked = null;
+          await panel.getByRole("button", { name: /Film it again/ }).click();
+          await page.getByText("Not filmed: the e2e answers this one.").first().waitFor({ timeout: 10_000 });
+          assert(
+            asked?.action === "refilm" && asked.id === "e2e-night" && asked.media_id === "e2e-night-shot" && JSON.stringify(asked.problems) === JSON.stringify(["still", "motion"]),
+            `${size}: Film it again sent ${JSON.stringify(asked)}`,
+          );
+        }
+      } finally {
+        await page.unroute("**/api/admin/after-dark/reel");
+        await page.setViewportSize({ width: 1280, height: 900 });
+      }
     });
 
     await step("no page errors or console errors", async () => {

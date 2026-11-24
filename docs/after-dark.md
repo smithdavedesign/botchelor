@@ -3556,7 +3556,10 @@ its negative keeps it out, for as long as that's the shot's film.
 
 **Proof:** tests/after-dark-video-fix.test.ts: the prompts, the free fix and its cap rule, versions and Keep, new
 words, a free fix that fails, the kept picture, a link filmed again from its frame, ownership, and a night's shot fixed
-(free once a video, free again when it fails, paid after).
+(free once a video, free again when it fails, paid after). In a real browser, scripts/e2e-studio.mjs (`npm run
+e2e:studio`, desktop and phone) opens the sheet on a seeded animation (its picks, the free first fix, the picture it
+starts from) and a night's shot's 🩹 Fix, and checks Film it again sends the shot and its picks; the README shows its
+screenshots.
 
 ## Roleplays: scene cards, and 13 more (2026-11-17)
 
