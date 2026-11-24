@@ -252,6 +252,37 @@ Light is the default and dark follows the device, as before. A viewer may also p
 (`tests/theme.test.ts` keeps them the same); a new dark rule goes in both. After Dark is night in every theme and
 ignores the pick. Nothing else about theming is in the header.
 
+## The app icon
+
+The show's icon (David's pick, 2026-11-23) is **a pink heart in a purple satin blindfold, smiling**, on the night
+stage's dark ground: a blind date in one shape. The smile is what makes it a blindfold. With no face under it, a band
+with a knot and tails reads as a headband; a mouth makes the heart a face, and a band across a face's eyes can only be
+a blindfold. It replaced the white heart on a pink-to-purple tile, which said "dating app" and nothing about the show.
+
+**One source.** The art is code, [`scripts/icon-art.mjs`](../scripts/icon-art.mjs), on a 512 grid;
+`node scripts/make-icons.mjs` (with `CHROMIUM_PATH` set) writes every file below. Change the art there and re-run it,
+never a PNG by hand.
+
+| File | Where it goes |
+|---|---|
+| `public/brand/botchelor-icon.svg` | The icon, full bleed: the press kit's logo and the master |
+| `public/brand/botchelor-icon-1024.png` | The same as a PNG: listings, Product Hunt, anywhere that won't take SVG |
+| `public/brand/botchelor-avatar-1024.png` | Social avatars: the figure at 90%, so a round crop keeps the knot's tails |
+| `public/icon.svg` | The browser tab: a tighter crop, no tails, a bolder smile, so heart, band and face read at 16px |
+| `public/icons/icon-192.png`, `icon-512.png` | The installed app ("any" in the manifest): the tile with rounded corners |
+| `public/icons/icon-maskable-512.png` | Android's adaptive icon: full bleed, the figure inside the middle 80% |
+| `public/icons/apple-touch-icon.png` | The iPhone Home Screen: 180×180, square and opaque |
+| `public/icons/badge-96.png` | Android's notification badge: white on transparent, the band cut from the heart by thin gaps |
+
+**Colours.** The heart is the pink as a gradient (`#ff86a8` → `#f2417b` → `#c32f78`) with a soft glow; the blindfold
+is the purple (`#9a62e8` → `#7a36c9` → `#55238f`) with a lilac hem (`#d2b6ff`); the smile is night ink (`#1c0f24`);
+the ground is the night stage (`#3b1641` → `#110a17`).
+
+**Rules.** Don't recolour it, outline it or set the figure on a pink or purple ground: the dark tile is part of the
+mark. No second face feature (eyes, cheeks): the band is the eyes. Keep it PG: no smirk or wink, which with a
+blindfold tip toward suggestive. Below 32px use the tab icon's crop, not the full icon scaled down. Give it clear space
+of a quarter of its width.
+
 ## Icons
 
 The interface's own markers are drawn icons, not emoji: `<Icon name="…" />` from [`app/Icon.tsx`](../app/Icon.tsx),

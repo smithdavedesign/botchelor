@@ -27,6 +27,11 @@
  * one line about each earlier scene with the character that the viewer ended. No fact extraction, no pictures or
  * video.
  *
+ * Kept consistent (2026-11-24): after every reply a continuity sheet is read again (stepInTrack; lib/adult/
+ * step-in-tracker.ts): where the two of them are, what each has on and what's within reach. The next reply is told it
+ * beside the line it answers, so nothing is put on, picked up or sat on that the scene never had; the viewer can
+ * correct any line of it (saveStepInTracker).
+ *
  * Heard (2026-11-22): a line can be said out loud on a call (sendStepInLine's `call`), and the reply is then a few
  * spoken sentences (draw's `form: "call"`, parseCallReply, checkCallReply) kept in the scene as a call's; what any
  * reply says out loud can be heard in the character's voice (lib/adult/step-in-voice.ts).
@@ -43,7 +48,7 @@ import { guardStory, hasWornPhrase, narrationGuard, parseStoryReply, speaksForTh
 import { getPersona, personaIssue, type ScenePersona } from "../persona";
 import { portraitPathSql } from "../portrait-sql";
 import { CHARACTER_REJECTION_MESSAGES, checkAdultText, type SafetyResult } from "../safety";
-import { CARD_OPENING_MAX, cardForYou, GENERIC_OPENINGS, openingOf } from "../scene-cards";
+import { CARD_OPENING_MAX, cardShownToYou, GENERIC_OPENINGS, openingOf } from "../scene-cards";
 import { adultCardTextIssue } from "../scene-card-check";
 import { lineInCrisis } from "../step-in";
 import { ensureSet } from "../sets";
@@ -53,11 +58,12 @@ import { stageAsked } from "./director";
 import { jsonOf } from "./facts";
 import { limitOf } from "./fallback";
 import { hardNoHit, hasHardNos, INTENSITY, intensityOf, overIntensity, OWN_LEN, OWN_MAX, storedHardNos, type HardNos, type PairLimits } from "./limits";
+import { everydayOf } from "./media";
 import { adultModel, adultModelId, adultViewer, adultViewerFromCookies } from "./mode";
 import { consentRefusal, hasProfileConsent } from "./profile";
-import { ensureOwnCard, ownForScene } from "./own-roleplay-card";
+import { ensureOwnStory, ownForScene, ownPlaceDrawable } from "./own-roleplay-card";
 import { coverInScene } from "./roleplay-covers";
-import { ownAsRoleplay, roleplayById, ROLEPLAYS, sceneRoleplay, type OwnRoleplay, type Roleplay, type RoleplayPick } from "./roleplays";
+import { ownAsRoleplay, roleCostumes, roleplayById, ROLEPLAYS, sceneRoleplay, type OwnRoleplay, type Roleplay, type RoleplayPick, type RoleplayPlace } from "./roleplays";
 import { rolloutOn } from "./rollout";
 import { sceneCatalog, venueSituation } from "./scene-catalog";
 import { isPublicPlace, linesCrossed, recapFrom, samplingOf, type LimitsInput } from "./scenes";
@@ -69,6 +75,28 @@ import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memor
 import { notePrefs, notePressure } from "./step-in-notes";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
 import { beatForReader, mergeBeats, parsePlayed, storedBeats, storyMessages, storyView, type StepInStory } from "./step-in-story";
+import {
+  holdSheet,
+  NO_SHEET,
+  parseSheet,
+  sheetFor,
+  sheetIsEmpty,
+  sheetLine,
+  sheetNow,
+  sheetShown,
+  storedTracker,
+  TRACKER_COLD_LINES,
+  TRACKER_FIELD_MAX,
+  TRACKER_FIELDS,
+  TRACKER_NEW_LINES,
+  TRACKER_REPLY_TOKENS,
+  trackerMessages,
+  type SceneSheet,
+  type StoredTracker,
+  type TrackerLine,
+  type TrackerTurn,
+} from "./step-in-tracker";
+import { trackerModel, trackerOn } from "./step-in-tracker-model";
 import { bondPromptLine, bondView, NO_BOND_SINCE } from "./step-in-bond";
 import { bondOf, markBondShown } from "./step-in-bond-data";
 import {
@@ -195,11 +223,13 @@ type SceneRow = {
   story_upto?: string | null;
   /** The viewer asked for the character's own portrait where the roleplay's cover would stand beside the scene (setStepInFigure). */
   side_portrait?: boolean;
+  /** The scene's continuity sheet (lib/adult/step-in-tracker.ts StoredTracker): how things stand, and the turn it's good as of. */
+  tracker?: unknown;
 };
 
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null; created_at: string | Date };
 
-const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, story_beats, story_upto, notes_off, note_at, side_portrait";
+const SCENE_COLUMNS = "id, owner_id, character_id, place, roleplay, opening, intensity, hard_nos, recap, recap_upto, facts_upto, line, notice_at, paused_at, ended_at, created_at, last_at, story_beats, story_upto, notes_off, note_at, side_portrait, tracker";
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer])).rows[0] ?? null;
@@ -261,9 +291,10 @@ const STORY_SETS: readonly string[] = ROLEPLAYS.map((r) => normalizeScene(r.at.p
 /**
  * The sets already drawn (place_sets), so a place's card and backdrop only name a picture that exists: the newest 300,
  * and the roleplays' own places whenever theirs is drawn (45 at most, by name: a story's backdrop mustn't drop out of
- * the list because 300 other places were drawn after it).
+ * the list because 300 other places were drawn after it). `also`: places asked for by name too (a scene's own, as a
+ * set is kept under it: where a story someone wrote themselves is set is in nobody's list of 45).
  */
-export async function drawnSets(db: Db): Promise<string[]> {
+export async function drawnSets(db: Db, also: readonly string[] = []): Promise<string[]> {
   return (
     await db
       .query<{ label: string }>(
@@ -272,7 +303,7 @@ export async function drawnSets(db: Db): Promise<string[]> {
            union
            (select label, updated_at from place_sets where status = 'ready' and normalized = any($1::text[]))
          ) s order by updated_at desc`,
-        [STORY_SETS],
+        [also.length ? [...STORY_SETS, ...also] : STORY_SETS],
       )
       .catch(() => ({ rows: [] as { label: string }[] }))
   ).rows.map((r) => r.label);
@@ -298,24 +329,30 @@ export function stepInPlaces(drawn: readonly string[] = []): StepInPlace[] {
 
 /**
  * The scene's place as the page shows it: the catalog's card for it; a roleplay's own place (lib/adult/roleplays.ts
- * `at`) under its title, with its set's picture once one has been drawn; or the label alone.
+ * `at`) under its title, with its set's picture once one has been drawn; or the label alone. `theirs`: where the
+ * scene's own roleplay is set when the viewer wrote that roleplay themselves (the scene's copy has it: sceneRoleplay),
+ * since such a place is in nobody's list and would otherwise show as its bare label.
  */
-function placeOf(label: string, drawn: readonly string[]): StepInPlace {
+function placeOf(label: string, drawn: readonly string[], theirs: RoleplayPlace | null = null): StepInPlace {
   const key = normalizeScene(label);
   const card = stepInPlaces(drawn).find((p) => normalizeScene(p.place) === key);
   if (card) return card;
-  const own = ROLEPLAYS.find((r) => normalizeScene(r.at.place) === key);
-  if (!own) return { id: "", title: label, place: label, image: null, backdrop: null, public: isPublicPlace(label) };
+  const at = ROLEPLAYS.find((r) => normalizeScene(r.at.place) === key)?.at ?? (theirs && normalizeScene(theirs.place) === key ? theirs : null);
+  if (!at) return { id: "", title: label, place: label, image: null, backdrop: null, public: isPublicPlace(label) };
   const ready = drawn.some((d) => normalizeScene(d) === key);
-  return { id: STORY_PLACE, title: own.at.title, place: own.at.place, image: ready ? `${setPath(own.at.place)}?w=400` : null, backdrop: ready ? setPath(own.at.place) : null, public: isPublicPlace(own.at.place) };
+  return { id: STORY_PLACE, title: at.title, place: at.place, image: ready ? `${setPath(at.place)}?w=400` : null, backdrop: ready ? setPath(at.place) : null, public: isPublicPlace(at.place) };
 }
+
+/** Where a scene's own roleplay is set: for placeOf, which knows the show's places by name and needs a viewer's own told. */
+const storyAt = (pick: SceneRow["roleplay"]): RoleplayPlace | null => sceneRoleplay(pick)?.at ?? null;
 
 /**
  * Each roleplay's own place as a page shows it before a scene exists (the shelf's cards, the set-up's "Where"): its
- * name, and whether it's out in public. By the roleplay's id.
+ * name, and whether it's out in public. By the roleplay's id. `own`: the viewer's own roleplays, for the ones whose
+ * story has a place (lib/adult/own-roleplay-card.ts).
  */
-export function storyPlaces(): Record<string, StoryPlace> {
-  return Object.fromEntries(ROLEPLAYS.map((r) => [r.id, { title: r.at.title, public: isPublicPlace(r.at.place) }]));
+export function storyPlaces(own: readonly Roleplay[] = []): Record<string, StoryPlace> {
+  return Object.fromEntries([...ROLEPLAYS, ...own].flatMap((r) => (r.at ? [[r.id, { title: r.at.title, public: isPublicPlace(r.at.place) }]] : [])));
 }
 
 /** The home venue's label (lib/venues.ts "Their place"): in a scene with one character, that character's own home. */
@@ -618,7 +655,7 @@ function roleplayView(pick: SceneRow["roleplay"], characterName: string): StepIn
     icon: rp.icon,
     you_play: rp.roles ? rp.roles[pick.you] : null,
     they_play: rp.roles ? rp.roles[pick.you === 0 ? 1 : 0] : null,
-    setup: rp.card ? cardForYou(rp.card, you, characterName).setup : "",
+    setup: rp.card ? cardShownToYou(rp.card, you, characterName).setup : "",
   };
 }
 
@@ -626,7 +663,7 @@ async function viewOf(db: Db, s: SceneRow, o: { read?: boolean } = {}): Promise<
   const [found, rows, drawn, who, left, eligible, remembering, facts, notes, admin, known] = await Promise.all([
     characterRef(db, s.character_id),
     allMessages(db, s.id),
-    drawnSets(db),
+    drawnSets(db, [normalizeScene(s.place)]),
     stepInPersona(db, s.owner_id),
     usageLeft(db, s.owner_id, "step_in"),
     eligibleIds(db, s.owner_id),
@@ -651,7 +688,7 @@ async function viewOf(db: Db, s: SceneRow, o: { read?: boolean } = {}): Promise<
     id: s.id,
     character,
     character_out: out,
-    place: placeOf(s.place, drawn),
+    place: placeOf(s.place, drawn, storyAt(s.roleplay)),
     roleplay: roleplayView(s.roleplay, character.name),
     persona: who.persona ? { name: who.persona.name } : null,
     persona_left_out: who.leftOut,
@@ -819,7 +856,7 @@ export async function listStepInScenes(db: Db, viewer: string): Promise<{ runnin
   const refs = rows.map((r) => ({
     id: r.id,
     character: { id: r.character_id, name: r.name ?? GONE_NAME, portrait: r.portrait, hue: r.hue },
-    place: placeOf(r.place, drawn).title,
+    place: placeOf(r.place, drawn, storyAt(r.roleplay)).title,
     roleplay: sceneRoleplay(r.roleplay)?.title ?? null,
     last_at: iso(r.last_at)!,
     ended_at: iso(r.ended_at),
@@ -860,7 +897,12 @@ type DrawContext = {
   facts: string[];
   /** How well the two know each other, as the character is told it (lib/adult/step-in-bond.ts bondPromptLine); null for a first scene. */
   bond: string | null;
+  /** How things stood before this reply (lib/adult/step-in-tracker.ts): the scene's continuity sheet; null with nothing noted yet. */
+  tracker: SceneSheet | null;
 };
+
+/** The scene's standing turns as its continuity sheet needs them: which is which, and which of them moved the scene. */
+const trackerTurns = (turns: readonly MessageRow[]): TrackerTurn[] => turns.map((m) => ({ id: m.id, moved: m.role === "system" && m.kind === "place" }));
 
 const turnOf = (m: MessageRow): StepInTurn =>
   m.role === "system" ? { role: "place", text: promptPlace(m.text).label } : { role: m.role === "viewer" ? "viewer" : isAside(m) ? "aside" : "character", text: m.text };
@@ -890,7 +932,7 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
   const current = turnsOf(rows).filter((m) => !replacing.includes(m.id));
   return {
     character,
-    place: placeOf(s.place, drawn),
+    place: placeOf(s.place, drawn, rp?.at ?? null),
     roleplay: rp && s.roleplay ? { rp, you: s.roleplay.you } : null,
     persona,
     limits: limitsOf(s),
@@ -899,6 +941,9 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     earlier,
     facts,
     bond: known ? bondPromptLine(known.bond, { roleplay: Boolean(rp && s.roleplay) }) : null,
+    // The sheet that holds for the turns this reply is written after: a reply being drawn again isn't among them, so
+    // what it brought in isn't on it (sheetFor falls back to how things stood before it).
+    tracker: trackerOn() ? sheetShown(sheetNow(s.tracker, trackerTurns(current))) : null,
   };
 }
 
@@ -968,6 +1013,7 @@ async function draw(
       earlier: ctx.earlier,
       facts: ctx.facts,
       bond: ctx.bond,
+      tracker: ctx.tracker,
       // The opening is for the scene's first reply only.
       opening: opening ? s.opening : null,
       cue: o.cue,
@@ -1134,7 +1180,7 @@ export const openingsFor = (rp: Roleplay | null): readonly [string, string, stri
  * opening (`replied: false`) and Continue draws it. `defer`: the scene is made without its opening and no model is
  * asked (quickStepIn: the click lands on the scene at once, and the page has the character open it).
  */
-export async function startStepIn(db: Db, viewer: string, input: StepInStart, now: Date = new Date(), opts: { defer?: boolean } = {}): Promise<(StepInSend & { ok: true; id: string }) | StepInFail> {
+export async function startStepIn(db: Db, viewer: string, input: StepInStart, now: Date = new Date(), opts: { defer?: boolean; elsewhere?: string } = {}): Promise<(StepInSend & { ok: true; id: string }) | StepInFail> {
   if (!(await eligibleIds(db, viewer)).has(input.character_id)) return fail(404, "not_found", "Pick someone who's in your After Dark: the house cast, or a character you've switched in.");
   const character = await characterRef(db, input.character_id);
   if (!character) return NOT_FOUND;
@@ -1145,10 +1191,18 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
   let own: OwnRoleplay | null = found?.ok ? found.own : null;
   let rp: Roleplay | null = house ?? (own && input.roleplay ? ownAsRoleplay(input.roleplay.id, own) : null);
   const drawn = await drawnSets(db);
-  // Where: a place from the catalog, or where the roleplay's own story is set (only with a roleplay that says where:
-  // every one of the show's does, and one of the viewer's own has no place of its own).
-  const place = input.place === STORY_PLACE ? (rp?.at ? placeOf(rp.at.place, drawn) : null) : (stepInPlaces(drawn).find((p) => p.id === input.place) ?? null);
-  if (!place) return fail(422, "invalid_place", input.place !== STORY_PLACE ? "Pick a place from the list." : rp ? "That roleplay has no place of its own. Pick a place from the list." : "Pick a roleplay first, or a place from the list.");
+  // Where: a place from the catalog, or where the roleplay's own story is set. Every one of the show's says where; one
+  // of the viewer's own does once its story has been drafted with a place (lib/adult/own-roleplay-card.ts). `elsewhere`
+  // (a card's one click) is where the scene starts instead when the story turns out to have no place.
+  const catalog = stepInPlaces(drawn);
+  const storyAsked = input.place === STORY_PLACE;
+  const instead = storyAsked && opts.elsewhere ? (catalog.find((p) => p.id === opts.elsewhere) ?? catalog.find((p) => !p.public) ?? catalog[0] ?? null) : null;
+  const whereOf = (r: Roleplay | null): StepInPlace | null => (storyAsked ? (r?.at ? placeOf(r.at.place, drawn, r.at) : instead) : (catalog.find((p) => p.id === input.place) ?? null));
+  const noPlace = () => fail(422, "invalid_place", !storyAsked ? "Pick a place from the list." : rp ? "That roleplay has no place of its own. Pick a place from the list." : "Pick a roleplay first, or a place from the list.");
+  let place = whereOf(rp);
+  // One of their own whose story isn't drafted yet: where it's set is known once it has been, further down.
+  const placeDue = storyAsked && Boolean(own && !own.card);
+  if (!place && !placeDue) return noPlace();
   const you: 0 | 1 = input.roleplay?.you === 1 ? 1 : 0;
   const id = randomUUID();
   const who = { owner: viewer, character: input.character_id, scene: null };
@@ -1188,9 +1242,12 @@ export async function startStepIn(db: Db, viewer: string, input: StepInStart, no
   // a small call or two, so the scene has its goal, its beats and its three openings from the first line. When no card
   // can be kept it plays without a story, as any roleplay without one does.
   if (own && !own.card && input.roleplay) {
-    own = { ...own, card: await ensureOwnCard(db, viewer, input.roleplay.id, now) };
+    own = { ...own, ...(await ensureOwnStory(db, viewer, input.roleplay.id, now)) };
     rp = ownAsRoleplay(input.roleplay.id, own);
+    // Where its story is set came with the draft, when it has a place at all.
+    if (placeDue) place = whereOf(rp);
   }
+  if (!place) return noPlace();
   const opening = written ?? openingOf({ openings: openingsFor(rp) }, typeof pick === "number" ? pick : null, id);
   await db.query(`insert into adult_step_in_scenes (id, owner_id, character_id, place, roleplay, opening, created_at, last_at) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $7)`, [
     id,
@@ -1252,17 +1309,17 @@ export async function quickStepIn(db: Db, viewer: string, characterId: string, n
     const running = (await db.query<{ id: string }>(`select id from adult_step_in_scenes where owner_id = $1 and character_id = $2 and ended_at is null order by last_at desc limit 1`, [viewer, characterId])).rows[0];
     if (running) return { ok: true, id: running.id, resumed: true };
   }
-  // A roleplay's card starts where its story is set (lib/adult/roleplays.ts `at`); anything else, at their place
-  // (one of the viewer's own roleplays has no place of its own).
-  const story = card.roleplay ? roleplayById(card.roleplay.id)?.at : null;
-  let where = story ? STORY_PLACE : null;
-  if (!where) {
+  // A roleplay's card starts where its story is set (lib/adult/roleplays.ts `at`): every one of the show's has a place,
+  // and one of the viewer's own has when its story was drafted with one, which startStepIn finds out (it may draft the
+  // story first), starting at their place instead when there is none (`elsewhere`). Anything else starts at their place.
+  let where: string = STORY_PLACE;
+  if (!card.roleplay) {
     const places = stepInPlaces(await drawnSets(db));
     const place = places.find((p) => p.id === QUICK_PLACE) ?? places.find((p) => !p.public) ?? places[0];
     if (!place) return fail(409, "no_place", "There's nowhere to be yet. Set the scene instead.");
     where = place.id;
   }
-  const made = await startStepIn(db, viewer, { character_id: characterId, place: where, roleplay: card.roleplay ?? null, opening: "surprise" }, now, { defer: true });
+  const made = await startStepIn(db, viewer, { character_id: characterId, place: where, roleplay: card.roleplay ?? null, opening: "surprise" }, now, { defer: true, elsewhere: QUICK_PLACE });
   return made.ok ? { ok: true, id: made.id, resumed: false } : made;
 }
 
@@ -1280,7 +1337,12 @@ export async function drawStepInSet(db: Db, viewer: string, sceneId: string): Pr
     if (!s) return null;
     const key = normalizeScene(s.place);
     const own = ROLEPLAYS.find((r) => normalizeScene(r.at.place) === key);
-    return own ? await ensureSet(db, own.at.place) : null;
+    if (own) return await ensureSet(db, own.at.place);
+    // Where a story the viewer wrote themselves is set (lib/adult/own-roleplay-card.ts): the same set, drawn the same
+    // way (ensureSet draws only a place the show's own check passes, and checks the picture before it's kept), but
+    // only for a place with no name in it, since a set and its name are everyone's once drawn (ownPlaceDrawable).
+    const theirs = storyAt(s.roleplay);
+    return theirs && normalizeScene(theirs.place) === key && ownPlaceDrawable(theirs.place) ? await ensureSet(db, theirs.place) : null;
   } catch {
     return null;
   }
@@ -1456,7 +1518,7 @@ export async function swipeStepIn(db: Db, viewer: string, sceneId: string, to: "
   if (!target) return fail(409, "no_more", to === "next" ? "That's the newest one." : "That's the first one.");
   const drawn = await drawnSets(db);
   // Held again to the limits as they are now, and to the lines as they're checked now.
-  if (linesNote(target.text) ?? limitsNote(target.text, limitsOf(s), placeOf(s.place, drawn).public)) return fail(409, "past_limits", "That draw is past the limits you've set since. Draw another instead.");
+  if (linesNote(target.text) ?? limitsNote(target.text, limitsOf(s), placeOf(s.place, drawn, storyAt(s.roleplay)).public)) return fail(409, "past_limits", "That draw is past the limits you've set since. Draw another instead.");
   await db.query(`update adult_step_in_messages set replaced_by = case when id = $3::text then null else $3::text end where scene_id = $1 and id = any($2::text[])`, [s.id, order.map((m) => m.id), target.id]);
   return sent(db, s);
 }
@@ -1541,6 +1603,168 @@ export async function saveStepInLimits(db: Db, viewer: string, sceneId: string, 
   return sent(db, s);
 }
 
+/* ------------------------------------------------ the continuity sheet ------------------------------------------------ */
+
+/** What a scene's page is told of its continuity sheet: the sheet as it holds now, or null with nothing noted yet. */
+export type StepInTracked = { ok: true; tracker: SceneSheet | null } | StepInFail;
+
+/** The dollars a sheet's reads have come to, kept to a millionth (the provider's own figures run longer). */
+const dollars = (n: number) => Math.round(n * 1e6) / 1e6;
+
+/**
+ * Reads the scene's continuity sheet again for its newest reply (lib/adult/step-in-tracker.ts): one small call on
+ * After Dark's own model, shown the sheet so far and only the lines since it was read, which says where the two of
+ * them are now, what each has on and what's within reach. Run past the response after every reply (stepInFollowUp),
+ * so nothing waits on it; the reply after that is told what it found. Free and never counted.
+ *
+ * Nothing is read in a scene that has ended, before the character has said anything, or when the sheet is already as
+ * new as the newest reply. Each line the read writes is held to what a recap is (memoryLineOk); one that fails keeps
+ * what was there. The sheet is kept only if that reply is still the scene's newest when the answer comes back (the
+ * viewer may have drawn it again or taken it back meanwhile), and only over the sheet this read started from (a line
+ * they corrected meanwhile is theirs: it stays, and the next read starts from it). Whether a sheet was kept. Never throws.
+ */
+export async function stepInTrack(db: Db, sceneId: string): Promise<boolean> {
+  try {
+    // Taken first, before anything is awaited on the scene: the read runs past a response, and it is that request's.
+    const model = await trackerModel(db);
+    if (!model) return false;
+    const s = (await db.query<SceneRow>(`select ${SCENE_COLUMNS} from adult_step_in_scenes where id = $1`, [sceneId])).rows[0];
+    if (!s || s.ended_at) return false;
+    const turns = turnsOf(await allMessages(db, s.id));
+    const said = (m: MessageRow) => m.role === "character" && !isAside(m);
+    const newest = turns.filter(said).at(-1) ?? null;
+    if (!newest) return false;
+    const at = turns.indexOf(newest);
+    const base = sheetFor(s.tracker, new Set(turns.map((m) => m.id)));
+    const baseAt = base?.upto ? turns.findIndex((m) => m.id === base.upto) : -1;
+    // Already as new as the newest reply (read at it, or corrected by the viewer since).
+    if (base && baseAt >= at) return false;
+    // What's new: the turns after the one the sheet is good as of, up to the newest reply; with no sheet, the scene's
+    // last turns. The narrator's stand-in says nothing that happened.
+    const fresh = turns.slice(baseAt + 1, at + 1).filter((m) => !isAside(m));
+    const character = await sceneCharacter(db, s.character_id);
+    if (!character) return false;
+    const name = first(character.name);
+    // A place as the read is told it: the character's own home is "your place" only to the character.
+    const placed = (label: string, whole = false) => {
+      const set = promptPlace(label);
+      if (set.label === "your place") return whole ? `${name}'s own home, the living room and the kitchen` : `${name}'s place`;
+      return whole && set.situation ? `${set.label} (${set.situation})` : set.label;
+    };
+    const lines: TrackerLine[] = fresh.slice(base ? -TRACKER_NEW_LINES : -TRACKER_COLD_LINES).map((m) =>
+      m.role === "system" ? { who: "moved", text: placed(m.text) } : { who: m.role === "viewer" ? "them" : "character", text: m.text },
+    );
+    // While the sheet doesn't say where they are or what the character has on, the read is told where the scene is set
+    // and what they start in: their part's costume in a roleplay, else their own clothes (as a picture is told).
+    let seed: { place: string; wearing: string | null } | null = null;
+    if (!base?.sheet.where || !base.sheet.them) {
+      const rp = sceneRoleplay(s.roleplay);
+      const costume = rp && s.roleplay ? (roleCostumes(rp)?.[s.roleplay.you === 0 ? 1 : 0] ?? null) : null;
+      const usual = costume ?? everydayOf(character);
+      seed = { place: placed(s.place, true), wearing: memoryLineOk(usual) ? usual : null };
+    }
+    let cost = 0;
+    const raw = await model.complete(trackerMessages({ name, base: base?.sheet ?? null, seed, lines }), {
+      temperature: 0,
+      maxTokens: TRACKER_REPLY_TOKENS,
+      onUsage: (u) => void (cost += typeof u.cost === "number" ? u.cost : 0),
+    });
+    const read = parseSheet(raw);
+    if (!read) return false;
+    const sheet = holdSheet(read, base?.sheet ?? null, memoryLineOk);
+    if (sheetIsEmpty(sheet)) return false;
+    const before = storedTracker(s.tracker);
+    const next: StoredTracker = { upto: newest.id, sheet, before: base ? { upto: base.upto, sheet: base.sheet } : null, reads: (before?.reads ?? 0) + 1, cost: dollars((before?.cost ?? 0) + cost) };
+    // Still the newest reply standing? Drawn again or taken back while this was read, it isn't, and nothing is kept.
+    if (turnsOf(await allMessages(db, s.id)).filter(said).at(-1)?.id !== newest.id) return false;
+    const kept = await db.query(`update adult_step_in_scenes set tracker = $2::jsonb where id = $1 and ended_at is null and tracker is not distinct from $3::jsonb returning id`, [
+      s.id,
+      JSON.stringify(next),
+      s.tracker == null ? null : JSON.stringify(s.tracker),
+    ]);
+    return kept.rows.length > 0;
+  } catch (err) {
+    console.warn(`[after-dark] a Step in scene's continuity sheet couldn't be read: ${err instanceof Error ? err.message.slice(0, 160) : "error"}`);
+    return false;
+  }
+}
+
+/**
+ * The scene's continuity sheet as its page shows it (the ⋯ menu's "Where things stand"): the sheet that holds for the
+ * scene as it stands, without where they were and what was around them when the scene has moved since. A running
+ * scene whose newest reply hasn't been read yet (one from before the sheet existed, or a read that failed) is read
+ * first, so the panel never shows less than the scene has said.
+ */
+export async function getStepInTracker(db: Db, viewer: string, sceneId: string): Promise<StepInTracked> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  if (!s.ended_at) await stepInTrack(db, s.id);
+  const now = (await ownScene(db, viewer, sceneId)) ?? s;
+  return { ok: true, tracker: sheetShown(sheetNow(now.tracker, trackerTurns(turnsOf(await allMessages(db, s.id))))) };
+}
+
+/**
+ * The viewer corrects the sheet: the lines they send replace those lines (an empty one clears it), the rest stay. Their
+ * own words, so each is read as a line of theirs is before anything is kept, in the same order (as a redraw's
+ * direction is: regenerateStepIn): the self-harm protocol (the scene pauses, the resources come back), the lines that
+ * never move and Step in's own net, their own limits at the scene's stage. A refusal keeps nothing, and the step log
+ * has only that a line of the sheet was refused. Only in a scene that can still be written.
+ *
+ * The corrected sheet is good as of the scene's newest turn: the next read starts from it and is shown only what
+ * comes after. The sheet from before the last read takes the same corrections, so drawing that reply again or taking
+ * it back never puts back a line the viewer rewrote.
+ */
+export async function saveStepInTracker(db: Db, viewer: string, sceneId: string, input: Partial<Record<keyof SceneSheet, unknown>>, now: Date = new Date()): Promise<StepInTracked> {
+  const s = await ownScene(db, viewer, sceneId);
+  if (!s) return NOT_FOUND;
+  const edit: Partial<SceneSheet> = {};
+  for (const f of TRACKER_FIELDS) {
+    if (typeof input[f] !== "string") continue;
+    const text = clean(input[f] as string).replace(/\s+/g, " ");
+    if (text.length > TRACKER_FIELD_MAX) return fail(422, "invalid_tracker", `Keep each line under ${TRACKER_FIELD_MAX} characters.`);
+    if (/[{}]/.test(text)) return fail(422, "invalid_tracker", "Write it in plain words, without braces.");
+    edit[f] = sheetLine(text);
+  }
+  const sent = TRACKER_FIELDS.filter((f) => f in edit);
+  if (!sent.length) return fail(400, "empty", "Nothing to change.");
+  const words = sent.map((f) => edit[f]!).filter(Boolean);
+  // Their own words are read for this before anything else, whatever state the scene is in (as a line of theirs is).
+  for (const text of words) {
+    const { crisis } = await lineInCrisis(text, STEP_IN_SURFACE, await adultModel(db));
+    if (crisis) return pauseForCrisis(db, s, now);
+  }
+  const closed = await writable(db, s);
+  if (closed) return closed;
+  const rows = await allMessages(db, s.id);
+  for (const text of words) {
+    const safe = checkAdultText({ note: text });
+    if (!safe.ok) return refuse(db, s, 422, "refused", linesMessage("note", safe), "lines", "tracker");
+    const never = stepInNever(text);
+    if (never) {
+      const told = neverMessage("note", never);
+      return refuse(db, s, 422, "refused", told.message, "lines", "tracker", told.logged);
+    }
+    const limited = lineLimitRefusal(text, limitsOf(s), stageOf(rows));
+    if (limited) return refuse(db, s, 422, "limits", limited.replace(/^That line\b/, "That note"), "limits", "tracker");
+  }
+  const turns = turnsOf(rows);
+  const held = sheetNow(s.tracker, trackerTurns(turns));
+  const kept = storedTracker(s.tracker);
+  const next: StoredTracker = {
+    // Good as of now: the scene's newest turn (null before anything has been said).
+    upto: turns.at(-1)?.id ?? null,
+    // Corrected over the sheet as it holds now: after a move, without where they were and what was around them there.
+    sheet: { ...(sheetShown(held) ?? NO_SHEET), ...edit },
+    // How things stood before the last read (what the sheet falls back to when that reply is drawn again or taken
+    // back): kept while the sheet being corrected is that read's own, with the same corrections made to it.
+    before: kept?.before && held && kept.upto === held.upto ? { upto: kept.before.upto, sheet: { ...kept.before.sheet, ...edit } } : null,
+    reads: kept?.reads ?? 0,
+    cost: kept?.cost ?? 0,
+  };
+  await db.query(`update adult_step_in_scenes set tracker = $2::jsonb where id = $1 and owner_id = $3`, [s.id, JSON.stringify(next), viewer]);
+  return { ok: true, tracker: sheetIsEmpty(next.sheet) ? null : next.sheet };
+}
+
 /* ------------------------------------------------ memory ------------------------------------------------ */
 
 /** A recap or a remembered line may go into a prompt: After Dark's lines, the narrator's guard, and nothing about self-harm. */
@@ -1600,8 +1824,12 @@ async function writeNotes(db: Db, name: string, before: string | null, stretch: 
 /**
  * After a reply (the route runs it past the response): the rolling recap, written again when RECAP_EVERY turns have
  * fallen out of the prompt since the last one. One call; a failure keeps the old recap. Never throws.
+ *
+ * First of all the scene's continuity sheet is read for the new reply (stepInTrack: one small call, every reply): the
+ * viewer's next line may be seconds away, and its reply is told how things stand.
  */
 export async function stepInFollowUp(db: Db, sceneId: string): Promise<boolean> {
+  await stepInTrack(db, sceneId);
   // What the character remembers about them (lib/adult/step-in-memory.ts), when they have memory on: its own call,
   // its own cursor, and nothing to do with whether a recap is due.
   await stepInRemember(db, sceneId);
@@ -1672,7 +1900,7 @@ export async function endStepIn(db: Db, viewer: string, sceneId: string, now: Da
   const stretch = spokenOf(rows).filter((m) => new Date(m.created_at).getTime() > since);
   const character = await characterRef(db, s.character_id);
   const rp = sceneRoleplay(s.roleplay);
-  const fallback = recordLine(placeOf(s.place, await drawnSets(db)).title, rp);
+  const fallback = recordLine(placeOf(s.place, await drawnSets(db), rp?.at ?? null).title, rp);
   const notes = stretch.length ? await writeNotes(db, first(character?.name ?? "the character"), s.recap, stretch, true) : { recap: null, line: null };
   await db.query(`update adult_step_in_scenes set ended_at = $2, paused_at = null, recap = $3, line = $4 where id = $1`, [s.id, now.toISOString(), notes.recap ?? s.recap ?? fallback, notes.line ?? fallback]);
   return sent(db, s);

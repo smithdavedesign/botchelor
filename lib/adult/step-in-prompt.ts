@@ -16,6 +16,7 @@ import { personaForScene, type ScenePersona } from "../persona";
 import { HARD_NOS, hasHardNos, INTENSITY, intensityLine, type HardNos, type PairLimits } from "./limits";
 import type { Roleplay } from "./roleplays";
 import { STAGES } from "./stages";
+import { trackerCue, type SceneSheet } from "./step-in-tracker";
 import { voiceKitLines } from "./voice";
 
 const first = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -219,6 +220,13 @@ export type StepInPrompt = {
    * behind it, which says itself that it's never leave to go faster. Left out for strangers: a first scene is unchanged.
    */
   bond?: string | null;
+  /**
+   * The scene's continuity sheet as it stood before this reply (lib/adult/step-in-tracker.ts): where they are, what each
+   * has on, what's within reach. Said once, in the turn the reply answers (trackerCue), and never in the system prompt:
+   * that and every earlier turn read the same from one reply to the next, and a note beside the reply holds better
+   * than one far above it. Left out of a note the character writes first (it isn't a moment of the scene).
+   */
+  tracker?: SceneSheet | null;
   /** How the scene opens: passed for the first reply only. Ours has {a} and {b}; the viewer's own sentence has none. */
   opening?: string | null;
   /**
@@ -407,6 +415,9 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   };
   if (cue) say(cue);
   else if (messages[messages.length - 1].role !== "user") say("(They're waiting for your reply.)");
+  // How things stood before this reply, beside it (the system prompt above never changes with the sheet).
+  const stands = args.cue === "note" ? null : trackerCue(args.tracker);
+  if (stands) say(stands);
   if (call) say(CALL_CUE);
   else if (talk) say(TALK_CUE);
   if (args.direction) say(redrawCue(args.direction));

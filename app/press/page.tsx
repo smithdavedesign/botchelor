@@ -20,10 +20,11 @@ export const dynamic = "force-dynamic";
 
 type Asset = { href: string; title: string; note: string; logo?: boolean; width: number; height: number };
 
-/** The files to download (public/press, public/icon.svg, public/icons): the show's own screens, nothing from After Dark. */
+/** The files to download (public/brand, public/press): the show's own screens, nothing from After Dark. */
 const ASSETS: Asset[] = [
-  { href: "/icon.svg", title: "Logo (SVG)", note: "The heart tile, any size.", logo: true, width: 32, height: 32 },
-  { href: "/icons/icon-512.png", title: "Logo (PNG, 512×512)", note: "For places that won't take SVG.", logo: true, width: 512, height: 512 },
+  // The blindfolded heart (2026-11-23, docs/brand.md "The app icon"), drawn by scripts/make-icons.mjs.
+  { href: "/brand/botchelor-icon.svg", title: "Logo (SVG)", note: "The blindfolded heart, any size.", logo: true, width: 512, height: 512 },
+  { href: "/brand/botchelor-icon-1024.png", title: "Logo (PNG, 1024×1024)", note: "For places that won't take SVG.", logo: true, width: 1024, height: 1024 },
   // The start page taken from the live site on 2026-11-22, after its redesign of 2026-11-21 (the sentence box beside a
   // real date) and the outlined header button; the 2026-11-20 pictures showed the page before both.
   { href: "/press/botchelor-home-desktop.png", title: "The start page", note: "1280×860, desktop.", width: 1280, height: 860 },

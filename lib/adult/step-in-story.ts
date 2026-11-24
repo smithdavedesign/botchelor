@@ -29,7 +29,7 @@
  * rows are lib/adult/step-in.ts's. Client-safe: no server imports.
  */
 import type { ChatMessage } from "../model";
-import { cardForYou } from "../scene-cards";
+import { cardShownToYou } from "../scene-cards";
 import type { Roleplay } from "./roleplays";
 
 /** The scene's last turns the reader is shown, and how much of each (a reply can be four paragraphs). */
@@ -76,7 +76,9 @@ export function mergeBeats(before: readonly boolean[], played: readonly number[]
 export function storyGoal(rp: Pick<Roleplay, "card">, you: 0 | 1, characterName: string): string | null {
   if (!rp.card) return null;
   const first = characterName.trim().split(/\s+/)[0] || characterName;
-  return cardForYou(rp.card, you === 1 ? "b" : "a", first).wants[you] || null;
+  // As a page shows it: a drafted want that leans a second verb on their name ("You want to admit it, but worries…")
+  // stops before that clause, so the goal is never shown ungrammatical.
+  return cardShownToYou(rp.card, you === 1 ? "b" : "a", first).wants[you] || null;
 }
 
 const sentence = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
