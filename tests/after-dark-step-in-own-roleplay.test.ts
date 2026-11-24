@@ -88,6 +88,9 @@ beforeEach(async () => {
   vi.stubEnv("ADULT_MODE", "1");
   vi.stubEnv("VERCEL", "");
   vi.stubEnv("VERCEL_ENV", "");
+  // The scene's continuity sheet (lib/adult/step-in-tracker.ts) is read past a start's response: not these tests'
+  // subject, and its read would otherwise reach the scripted model after a test has moved on.
+  vi.stubEnv("STEP_IN_TRACKER", "0");
   setSeasonCastForTests([HOUSE_CHARACTERS[0].id, HOUSE_CHARACTERS[1].id]);
   setStepInRandomForTests(() => 0);
 });
