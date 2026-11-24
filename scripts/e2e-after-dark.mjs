@@ -5,7 +5,9 @@
  *
  *   a stranger and a signed-in non-subscriber get not-found → the /create looks builder shows After Dark locked →
  *   an admin opens After Dark, writes a scene, sees a line that crosses a line dropped, lets autoplay run, rewinds a
- *   step (the suggested next moves showing), starts over → nothing of the scene reaches the show.
+ *   step (the suggested next moves showing), starts over → nothing of the scene reaches the show → a slow write's
+ *   answer is kept alive with a byte before it ends → a write whose answer never reaches the page shows its lines
+ *   anyway, with no reload.
  *
  * Exits non-zero if any step fails. Set CHROMIUM_PATH; SKIP_BUILD=1 reuses the last build.
  */
@@ -34,14 +36,19 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-/** The adult model's stand-in: an OpenAI-compatible endpoint that always writes the same three lines. */
+/** How long the stub takes to write, for the steps about a slow writer (0: at once). */
+const slow = { ms: 0 };
+
+/** The adult model's stand-in: an OpenAI-compatible endpoint that always writes the same three lines, after `slow.ms`. */
 function startAdultStub() {
   const reply = JSON.stringify({ lines: [{ who: "a", text: SAFE[0] }, { who: "b", text: SAFE[1] }, { who: "a", text: CROSSES }] });
   const srv = createServer((req, res) => {
     req.resume();
     req.on("end", () => {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ id: "stub", object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: reply } }] }));
+      setTimeout(() => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ id: "stub", object: "chat.completion", choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: reply } }] }));
+      }, slow.ms);
     });
   });
   return new Promise((ok) => srv.listen(0, "127.0.0.1", () => ok(srv)));
@@ -279,6 +286,92 @@ async function main() {
         await page.locator(".ad-chapter-menu button.ad-chapter-item").first().click();
         assert((await page.locator(".theater").count()) === 2, "a saved chapter should play over the theater");
       } finally {
+        await ctx.close();
+      }
+    });
+
+    // A step on the slow writer (lib/adult/write-watch.ts; David, 2026-11-24: "times out and only after you refresh
+    // page you see the writing"). The host's edge ends a response that sends nothing for 100 seconds, so the theater
+    // asks for a write's answer to be kept alive: a newline now and then, the JSON at the end.
+    await step("a slow write's answer is kept alive: a byte reaches the browser before the lines are written, then the answer", async () => {
+      const ctx = await adultContext();
+      try {
+        await register(ctx, `kept${Date.now() % 1e6}`);
+        await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } });
+        const page = await ctx.newPage();
+        await page.goto(`${base}${scenePath}`);
+        const [a, b] = scenePath.split("/").slice(-2);
+        slow.ms = 19_000;
+        // Read as a browser reads it (it asks for a compressed answer, which is what could hold a lone newline back).
+        const seen = await page.evaluate(
+          async ([a, b]) => {
+            const t0 = performance.now();
+            const res = await fetch("/api/admin/after-dark", { method: "POST", headers: { "content-type": "application/json", "x-bz-answer": "kept" }, body: JSON.stringify({ a, b }) });
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            const chunks = [];
+            let text = "";
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push({ at: Math.round(performance.now() - t0), bytes: value.length });
+              text += decoder.decode(value, { stream: true });
+            }
+            return { status: res.status, cache: res.headers.get("cache-control"), chunks, took: Math.round(performance.now() - t0), kept: JSON.parse(text) };
+          },
+          [a, b],
+        );
+        assert(seen.status === 200 && /no-transform/.test(seen.cache ?? ""), `the stream is a 200 that nothing may transform (${seen.status}, ${seen.cache})`);
+        assert(seen.kept.kept === true && seen.kept.status === 200 && seen.kept.body.scene.lines.length >= 2, `the real answer is inside it (${JSON.stringify(seen.kept).slice(0, 160)})`);
+        const early = seen.chunks.filter((c) => c.at < seen.took - 2_000);
+        assert(early.length >= 1 && early[0].bytes <= 4, `a newline should arrive while the lines are still being written (chunks: ${JSON.stringify(seen.chunks)}, took ${seen.took} ms)`);
+        console.log(`      the write took ${seen.took} ms; bytes arrived at ${seen.chunks.map((c) => `${c.at} ms (${c.bytes})`).join(", ")}`);
+      } finally {
+        slow.ms = 0;
+        await ctx.close();
+      }
+    });
+
+    await step("a write whose answer never reaches the page shows its lines anyway: no reload, no error, one write", async () => {
+      const ctx = await adultContext();
+      try {
+        await register(ctx, `lost${Date.now() % 1e6}`);
+        await ctx.request.post(`${base}/api/admin/claim`, { headers: { "x-frontier-key": ADMIN_PASSWORD } });
+        const page = await ctx.newPage();
+        let loads = 0;
+        page.on("load", () => loads++);
+        await page.goto(`${base}${scenePath}`);
+        slow.ms = 14_000;
+        let writes = 0;
+        // As the edge cuts a long request: the server gets it and goes on writing, the page gets a dropped connection.
+        await page.route("**/api/admin/after-dark", async (route) => {
+          const req = route.request();
+          if (req.method() !== "POST") return route.fallback();
+          writes++;
+          void ctx.request.post(`${base}/api/admin/after-dark`, { data: req.postDataJSON(), headers: { "x-bz-answer": "kept" }, timeout: 60_000 }).catch(() => {});
+          await new Promise((r) => setTimeout(r, 2_000));
+          await route.abort("connectionreset");
+        });
+        const t0 = Date.now();
+        await page.locator(".theater .ad-start-card").getByRole("button", { name: /Start the night/ }).click();
+        // Well after the answer was lost, and before the lines exist: still writing, and nothing said about an error.
+        await page.waitForTimeout(7_000);
+        const waiting = (await page.locator(".theater").textContent()) ?? "";
+        assert(!/Network error|lost the answer|didn't come|reload/i.test(waiting), `the page should still be waiting quietly (it says: ${waiting.match(/Network error[^.]*\.|[^.]*lost the answer[^.]*\.|[^.]*didn't come[^.]*\./i)?.[0] ?? "?"})`);
+        assert((await page.locator(".theater .chat-thread").getByText(SAFE[1]).count()) === 0, "the lines aren't written yet");
+        await page.locator(".theater .chat-thread").getByText(SAFE[1]).waitFor({ state: "attached", timeout: 45_000 });
+        const shownAfter = Date.now() - t0;
+        const after = (await page.locator(".theater").textContent()) ?? "";
+        assert(after.includes(SAFE[0]) && !after.includes("fifteen"), "the lines that were kept show, and only those");
+        assert(!/Network error|lost the answer|didn't come/i.test(after), "no error once the lines are there");
+        assert(loads === 1, `the page was loaded once and never again (${loads})`);
+        assert(writes === 1, `one write, never a second on top of it (${writes})`);
+        // The theater is free again: Next is there to press.
+        await page.waitForFunction(() => !document.querySelector(".theater .ad-stage-writing"), null, { timeout: 15_000 });
+        console.log(`      answer lost at 2 s; the lines were on the page ${shownAfter} ms after the press, with no reload`);
+        if (process.env.SHOTS_DIR) await page.screenshot({ path: join(process.env.SHOTS_DIR, "after-dark-theater-lost-answer.png") });
+      } finally {
+        slow.ms = 0;
         await ctx.close();
       }
     });

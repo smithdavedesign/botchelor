@@ -181,7 +181,7 @@ export function StepInNewest({ where }: { where: "menu" | "picture" }) {
         }}
         data-step-in-newest={on ? "on" : "off"}
       >
-        {where === "menu" ? (on ? "🖼 Always show the newest picture: on" : "🖼 Always show the newest picture") : on ? "✓ Always the newest picture" : "Always the newest picture"}
+        {where === "menu" ? (on ? "🖼 Always the newest picture: on" : "🖼 Always the newest picture") : on ? "✓ Always the newest picture" : "Always the newest picture"}
       </button>
       {error && (
         <span className="error small" role="alert">
