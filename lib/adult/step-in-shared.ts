@@ -248,6 +248,13 @@ export type StepInSceneView = {
   bond: StepInBond;
   /** The roleplay's story (lib/adult/step-in-story.ts): its goal, how far it has got, whether an ending is offered. Null without one. */
   story: StepInStory | null;
+  /**
+   * The roleplay's cover of this character in this part (lib/adult/roleplay-covers.ts coverInScene), while the scene is
+   * where its story is set: it stands in the character's place beside the scene from the first line, unless one of the
+   * scene's own pictures has been put there. `focus`: where they stand across it, in percent. `off`: the viewer asked
+   * for the character's own portrait instead. Null: no such picture, or the scene has moved somewhere else.
+   */
+  cover: { src: string; alt: string; focus: number; off: boolean } | null;
   started_at: string;
 };
 

@@ -32,62 +32,80 @@ export type RoleplayCover = {
   character: string;
   /** The side of the roleplay the VIEWER plays when the card is taken with them (the picture shows the other side). */
   you: 0 | 1;
+  /**
+   * Where the character stands across the picture, as a percentage from its left edge (read off each picture against a
+   * grid, 2026-11-24: all of them stand right of the middle, between 58 and 74). A card shows the whole picture; the
+   * scene (coverInScene) cuts it to a tall shape around this, so the one it's a picture of is never cropped out.
+   */
+  focus: number;
   src: string;
   /** What the picture shows, for someone who can't see it. */
   alt: string;
 };
 
 export const ROLEPLAY_COVERS: Readonly<Record<string, RoleplayCover>> = {
-  neighbours: { character: "house-juniper", you: 0, src: "/cast/roleplay-neighbours-juniper.webp", alt: "Juniper in the open doorway of her flat in a cardigan and bare feet, a parcel on the landing floor" },
-  boss: { character: "house-dex", you: 0, src: "/cast/roleplay-boss-dex.webp", alt: "Dex sitting on the edge of a desk in a dark office, a lanyard on, the city lit behind him" },
-  "strangers-bar": { character: "house-sable", you: 0, src: "/cast/roleplay-strangers-bar-sable.webp", alt: "Sable on a bar stool in a quiet bar, turned toward you, an empty glass at her elbow" },
-  roommates: { character: "house-teo", you: 0, src: "/cast/roleplay-roommates-teo.webp", alt: "Teo leaning on the kitchen counter at midnight with a glass of water, the fridge open behind him" },
-  bodyguard: { character: "house-imogen", you: 0, src: "/cast/roleplay-bodyguard-imogen.webp", alt: "Imogen in an evening dress on a sofa in a lamplit sitting room, one hand held out to the empty armchair" },
-  vampire: { character: "house-rafe", you: 1, src: "/cast/roleplay-vampire-rafe.webp", alt: "Rafe in dark velvet and a high collar waiting on a doorstep at midnight, mist behind him" },
-  royal: { character: "house-perpetua", you: 1, src: "/cast/roleplay-royal-perpetua.webp", alt: "Perpetua in a gold-embroidered gown and a circlet at the open door of the royal chamber, candles along the corridor" },
-  starship: { character: "house-nell", you: 1, src: "/cast/roleplay-starship-nell.webp", alt: "Nell in a captain's uniform by the observation lounge's great window, a galaxy behind her" },
-  exes: { character: "house-boaz", you: 0, src: "/cast/roleplay-exes-boaz.webp", alt: "Boaz laughing at the quiet end of a gallery opening, a glass of wine in his hand" },
-  rivals: { character: "house-kaz", you: 0, src: "/cast/roleplay-rivals-kaz.webp", alt: "Kaz in black tie at an awards dinner, one eyebrow raised, a place card between two fingers" },
-  wedding: { character: "house-lior", you: 0, src: "/cast/roleplay-wedding-lior.webp", alt: "Lior leaning in at the singles' table of a wedding with a grin and a glass, fairy lights overhead" },
-  "the-fitting": { character: "house-orin", you: 1, src: "/cast/roleplay-the-fitting-orin.webp", alt: "Orin in a waistcoat with a tape measure round his neck and chalk in his hand, in a closed tailor's shop" },
+  neighbours: { character: "house-juniper", you: 0, focus: 67, src: "/cast/roleplay-neighbours-juniper.webp", alt: "Juniper in the open doorway of her flat in a cardigan and bare feet, a parcel on the landing floor" },
+  boss: { character: "house-dex", you: 0, focus: 64, src: "/cast/roleplay-boss-dex.webp", alt: "Dex sitting on the edge of a desk in a dark office, a lanyard on, the city lit behind him" },
+  "strangers-bar": { character: "house-sable", you: 0, focus: 60, src: "/cast/roleplay-strangers-bar-sable.webp", alt: "Sable on a bar stool in a quiet bar, turned toward you, an empty glass at her elbow" },
+  roommates: { character: "house-teo", you: 0, focus: 66, src: "/cast/roleplay-roommates-teo.webp", alt: "Teo leaning on the kitchen counter at midnight with a glass of water, the fridge open behind him" },
+  bodyguard: { character: "house-imogen", you: 0, focus: 62, src: "/cast/roleplay-bodyguard-imogen.webp", alt: "Imogen in an evening dress on a sofa in a lamplit sitting room, one hand held out to the empty armchair" },
+  vampire: { character: "house-rafe", you: 1, focus: 74, src: "/cast/roleplay-vampire-rafe.webp", alt: "Rafe in dark velvet and a high collar waiting on a doorstep at midnight, mist behind him" },
+  royal: { character: "house-perpetua", you: 1, focus: 68, src: "/cast/roleplay-royal-perpetua.webp", alt: "Perpetua in a gold-embroidered gown and a circlet at the open door of the royal chamber, candles along the corridor" },
+  starship: { character: "house-nell", you: 1, focus: 68, src: "/cast/roleplay-starship-nell.webp", alt: "Nell in a captain's uniform by the observation lounge's great window, a galaxy behind her" },
+  exes: { character: "house-boaz", you: 0, focus: 70, src: "/cast/roleplay-exes-boaz.webp", alt: "Boaz laughing at the quiet end of a gallery opening, a glass of wine in his hand" },
+  rivals: { character: "house-kaz", you: 0, focus: 66, src: "/cast/roleplay-rivals-kaz.webp", alt: "Kaz in black tie at an awards dinner, one eyebrow raised, a place card between two fingers" },
+  wedding: { character: "house-lior", you: 0, focus: 68, src: "/cast/roleplay-wedding-lior.webp", alt: "Lior leaning in at the singles' table of a wedding with a grin and a glass, fairy lights overhead" },
+  "the-fitting": { character: "house-orin", you: 1, focus: 66, src: "/cast/roleplay-the-fitting-orin.webp", alt: "Orin in a waistcoat with a tape measure round his neck and chalk in his hand, in a closed tailor's shop" },
   // The other 33 (2026-11-23, "do the covers for the other 33 cards"), in the roleplays' own order.
-  delivery: { character: "house-ines", you: 1, src: "/cast/roleplay-delivery-ines.webp", alt: "Inés in a courier's cap and polo at an open front door, holding out a paper bag with a hopeful smile" },
-  handyman: { character: "house-wally", you: 1, src: "/cast/roleplay-handyman-wally.webp", alt: "Wally leaning on a kitchen counter with a mug of tea, his tool belt on, the toolbox shut and the kettle steaming" },
-  "no-names": { character: "house-marisol", you: 0, src: "/cast/roleplay-no-names-marisol.webp", alt: "Marisol in a wine-red dress at a candlelit table for two, a finger to her lips, the other chair empty" },
-  "hotel-mixup": { character: "house-lior", you: 0, src: "/cast/roleplay-hotel-mixup-lior.webp", alt: "Lior in a hotel room doorway holding up a key card with a rueful smile, a travel bag in his other hand" },
-  "photo-shoot": { character: "house-marisol", you: 1, src: "/cast/roleplay-photo-shoot-marisol.webp", alt: "Marisol in a black turtleneck lowering her camera in a photo studio, the softbox lights still on behind her" },
-  "bodyguard-off-duty": { character: "house-dex", you: 1, src: "/cast/roleplay-bodyguard-off-duty-dex.webp", alt: "Dex in a leather jacket on a bar stool with a soda, a red neon cocktail glass in the rainy window behind him" },
-  "bodyguard-gala": { character: "house-boaz", you: 1, src: "/cast/roleplay-bodyguard-gala-boaz.webp", alt: "Boaz in a black suit and tie taking out his earpiece with a smile, an emptied ballroom behind him" },
-  celebrity: { character: "house-sable", you: 1, src: "/cast/roleplay-celebrity-sable.webp", alt: "Sable in a sequinned jacket laughing in a corner of a club, sunglasses pushed up in her hair, a drink in her hand" },
-  friends: { character: "house-ines", you: 0, src: "/cast/roleplay-friends-ines.webp", alt: "Inés curled up on a sofa in a big jumper with a bowl of popcorn, looking at you and not at the film" },
-  "blind-date": { character: "house-nell", you: 0, src: "/cast/roleplay-blind-date-nell.webp", alt: "Nell at a candlelit restaurant table for two, pushing her glasses up and holding out a hand to say hello" },
-  "rival-spies": { character: "house-juniper", you: 0, src: "/cast/roleplay-rival-spies-juniper.webp", alt: "Juniper in a dark trench coat at a hotel bar under green lamps, a cocktail in her hand and a knowing look" },
-  "your-rules": { character: "house-imogen", you: 1, src: "/cast/roleplay-your-rules-imogen.webp", alt: "Imogen in a white shirt with the sleeves rolled, sitting forward in an armchair and holding up a small white card" },
-  "dons-truce": { character: "house-perpetua", you: 0, src: "/cast/roleplay-dons-truce-perpetua.webp", alt: "Perpetua in a dark suit and a red scarf at the end of a long candlelit table, her ringed hands folded" },
-  "said-no": { character: "house-lior", you: 0, src: "/cast/roleplay-said-no-lior.webp", alt: "Lior in his canvas jacket at a small restaurant table with a glass of red wine, a closed folder untouched beside him" },
-  "arranged-match": { character: "house-nell", you: 0, src: "/cast/roleplay-arranged-match-nell.webp", alt: "Nell in a deep green gown in a book-lined study, a bundle of letters held to her chest, a fire in the grate" },
-  "off-duty": { character: "house-rafe", you: 0, src: "/cast/roleplay-off-duty-rafe.webp", alt: "Rafe in a dark suit on a rooftop ledge above the city at night, a bottle held up and one arm flung wide" },
-  "anniversary-strangers": { character: "house-wally", you: 0, src: "/cast/roleplay-anniversary-strangers-wally.webp", alt: "Wally in his good suit in an elegant hotel bar, hands in his pockets, a whisky waiting on the marble bar" },
-  "after-the-party": { character: "house-sable", you: 1, src: "/cast/roleplay-after-the-party-sable.webp", alt: "Sable in a sparkly dress and a leather jacket laughing against the front door, her shoes in her hand" },
-  "the-cold-one": { character: "house-kaz", you: 0, src: "/cast/roleplay-the-cold-one-kaz.webp", alt: "Kaz at the foot of a climbing wall with tape on her fingers and a chalk bag, looking round in surprise" },
-  "slow-sunday": { character: "house-orin", you: 0, src: "/cast/roleplay-slow-sunday-orin.webp", alt: "Orin on the sofa with the crossword and a pencil, looking up over his glasses, rain on the window behind him" },
-  "after-the-cameras": { character: "house-teo", you: 0, src: "/cast/roleplay-after-the-cameras-teo.webp", alt: "Teo in a flowered shirt unclipping a microphone from his collar in a villa suite, the camera lights standing dark" },
-  summoned: { character: "house-marisol", you: 0, src: "/cast/roleplay-summoned-marisol.webp", alt: "Marisol in a black suit by a chalk circle ringed with candles, smoke curling from her shoulders, one eyebrow raised" },
-  "two-captains": { character: "house-juniper", you: 0, src: "/cast/roleplay-two-captains-juniper.webp", alt: "Juniper in a captain's coat and a red sash in a ship's cabin, holding out a glass of rum over the charts" },
-  "home-again": { character: "house-imogen", you: 0, src: "/cast/roleplay-home-again-imogen.webp", alt: "Imogen in an apron in the hall, drying her hands on a tea towel and beaming, a travel bag dropped by the door" },
-  "the-house": { character: "house-perpetua", you: 1, src: "/cast/roleplay-the-house-perpetua.webp", alt: "Perpetua in a black dinner jacket at a green card table, fanning a hand of cards, chips stacked beside her" },
-  "the-final-night": { character: "house-ines", you: 0, src: "/cast/roleplay-the-final-night-ines.webp", alt: "Inés in a long white dress on a lounger beside a glowing pool at night, palms and dark cameras behind her" },
-  "gala-date": { character: "house-teo", you: 0, src: "/cast/roleplay-gala-date-teo.webp", alt: "Teo in a dinner suit with his tie undone, leaning on a stone balcony, the ballroom glowing gold behind him" },
-  "closing-night": { character: "house-rafe", you: 0, src: "/cast/roleplay-closing-night-rafe.webp", alt: "Rafe in a black apron at a restaurant kitchen's sink, sleeves pushed up, holding out a tea towel" },
-  "after-the-toast": { character: "house-wally", you: 0, src: "/cast/roleplay-after-the-toast-wally.webp", alt: "Wally in a suit with a flower in his lapel on a lit terrace, holding out one of two glasses of champagne" },
-  "masks-on": { character: "house-kaz", you: 0, src: "/cast/roleplay-masks-on-kaz.webp", alt: "Kaz in a black half mask and black feathered wings, holding a velvet curtain aside with a finger to her lips" },
-  "the-forge": { character: "house-dex", you: 1, src: "/cast/roleplay-the-forge-dex.webp", alt: "Dex in a leather apron at the anvil of a forge, wiping his hands, a mended sword in front of the fire" },
-  "who-leads": { character: "house-boaz", you: 0, src: "/cast/roleplay-who-leads-boaz.webp", alt: "Boaz in a black dance shirt in an empty studio, standing tall with one hand held out to you" },
-  "haunted-inn": { character: "house-orin", you: 0, src: "/cast/roleplay-haunted-inn-orin.webp", alt: "Orin in a tweed jacket in a wing armchair with a book on his knee, an old inn's fire burning behind him" },
+  delivery: { character: "house-ines", you: 1, focus: 68, src: "/cast/roleplay-delivery-ines.webp", alt: "Inés in a courier's cap and polo at an open front door, holding out a paper bag with a hopeful smile" },
+  handyman: { character: "house-wally", you: 1, focus: 72, src: "/cast/roleplay-handyman-wally.webp", alt: "Wally leaning on a kitchen counter with a mug of tea, his tool belt on, the toolbox shut and the kettle steaming" },
+  "no-names": { character: "house-marisol", you: 0, focus: 66, src: "/cast/roleplay-no-names-marisol.webp", alt: "Marisol in a wine-red dress at a candlelit table for two, a finger to her lips, the other chair empty" },
+  "hotel-mixup": { character: "house-lior", you: 0, focus: 72, src: "/cast/roleplay-hotel-mixup-lior.webp", alt: "Lior in a hotel room doorway holding up a key card with a rueful smile, a travel bag in his other hand" },
+  "photo-shoot": { character: "house-marisol", you: 1, focus: 68, src: "/cast/roleplay-photo-shoot-marisol.webp", alt: "Marisol in a black turtleneck lowering her camera in a photo studio, the softbox lights still on behind her" },
+  "bodyguard-off-duty": { character: "house-dex", you: 1, focus: 69, src: "/cast/roleplay-bodyguard-off-duty-dex.webp", alt: "Dex in a leather jacket on a bar stool with a soda, a red neon cocktail glass in the rainy window behind him" },
+  "bodyguard-gala": { character: "house-boaz", you: 1, focus: 74, src: "/cast/roleplay-bodyguard-gala-boaz.webp", alt: "Boaz in a black suit and tie taking out his earpiece with a smile, an emptied ballroom behind him" },
+  celebrity: { character: "house-sable", you: 1, focus: 68, src: "/cast/roleplay-celebrity-sable.webp", alt: "Sable in a sequinned jacket laughing in a corner of a club, sunglasses pushed up in her hair, a drink in her hand" },
+  friends: { character: "house-ines", you: 0, focus: 68, src: "/cast/roleplay-friends-ines.webp", alt: "Inés curled up on a sofa in a big jumper with a bowl of popcorn, looking at you and not at the film" },
+  "blind-date": { character: "house-nell", you: 0, focus: 72, src: "/cast/roleplay-blind-date-nell.webp", alt: "Nell at a candlelit restaurant table for two, pushing her glasses up and holding out a hand to say hello" },
+  "rival-spies": { character: "house-juniper", you: 0, focus: 66, src: "/cast/roleplay-rival-spies-juniper.webp", alt: "Juniper in a dark trench coat at a hotel bar under green lamps, a cocktail in her hand and a knowing look" },
+  "your-rules": { character: "house-imogen", you: 1, focus: 71, src: "/cast/roleplay-your-rules-imogen.webp", alt: "Imogen in a white shirt with the sleeves rolled, sitting forward in an armchair and holding up a small white card" },
+  "dons-truce": { character: "house-perpetua", you: 0, focus: 70, src: "/cast/roleplay-dons-truce-perpetua.webp", alt: "Perpetua in a dark suit and a red scarf at the end of a long candlelit table, her ringed hands folded" },
+  "said-no": { character: "house-lior", you: 0, focus: 68, src: "/cast/roleplay-said-no-lior.webp", alt: "Lior in his canvas jacket at a small restaurant table with a glass of red wine, a closed folder untouched beside him" },
+  "arranged-match": { character: "house-nell", you: 0, focus: 67, src: "/cast/roleplay-arranged-match-nell.webp", alt: "Nell in a deep green gown in a book-lined study, a bundle of letters held to her chest, a fire in the grate" },
+  "off-duty": { character: "house-rafe", you: 0, focus: 66, src: "/cast/roleplay-off-duty-rafe.webp", alt: "Rafe in a dark suit on a rooftop ledge above the city at night, a bottle held up and one arm flung wide" },
+  "anniversary-strangers": { character: "house-wally", you: 0, focus: 72, src: "/cast/roleplay-anniversary-strangers-wally.webp", alt: "Wally in his good suit in an elegant hotel bar, hands in his pockets, a whisky waiting on the marble bar" },
+  "after-the-party": { character: "house-sable", you: 1, focus: 63, src: "/cast/roleplay-after-the-party-sable.webp", alt: "Sable in a sparkly dress and a leather jacket laughing against the front door, her shoes in her hand" },
+  "the-cold-one": { character: "house-kaz", you: 0, focus: 64, src: "/cast/roleplay-the-cold-one-kaz.webp", alt: "Kaz at the foot of a climbing wall with tape on her fingers and a chalk bag, looking round in surprise" },
+  "slow-sunday": { character: "house-orin", you: 0, focus: 70, src: "/cast/roleplay-slow-sunday-orin.webp", alt: "Orin on the sofa with the crossword and a pencil, looking up over his glasses, rain on the window behind him" },
+  "after-the-cameras": { character: "house-teo", you: 0, focus: 69, src: "/cast/roleplay-after-the-cameras-teo.webp", alt: "Teo in a flowered shirt unclipping a microphone from his collar in a villa suite, the camera lights standing dark" },
+  summoned: { character: "house-marisol", you: 0, focus: 68, src: "/cast/roleplay-summoned-marisol.webp", alt: "Marisol in a black suit by a chalk circle ringed with candles, smoke curling from her shoulders, one eyebrow raised" },
+  "two-captains": { character: "house-juniper", you: 0, focus: 71, src: "/cast/roleplay-two-captains-juniper.webp", alt: "Juniper in a captain's coat and a red sash in a ship's cabin, holding out a glass of rum over the charts" },
+  "home-again": { character: "house-imogen", you: 0, focus: 66, src: "/cast/roleplay-home-again-imogen.webp", alt: "Imogen in an apron in the hall, drying her hands on a tea towel and beaming, a travel bag dropped by the door" },
+  "the-house": { character: "house-perpetua", you: 1, focus: 68, src: "/cast/roleplay-the-house-perpetua.webp", alt: "Perpetua in a black dinner jacket at a green card table, fanning a hand of cards, chips stacked beside her" },
+  "the-final-night": { character: "house-ines", you: 0, focus: 68, src: "/cast/roleplay-the-final-night-ines.webp", alt: "Inés in a long white dress on a lounger beside a glowing pool at night, palms and dark cameras behind her" },
+  "gala-date": { character: "house-teo", you: 0, focus: 58, src: "/cast/roleplay-gala-date-teo.webp", alt: "Teo in a dinner suit with his tie undone, leaning on a stone balcony, the ballroom glowing gold behind him" },
+  "closing-night": { character: "house-rafe", you: 0, focus: 64, src: "/cast/roleplay-closing-night-rafe.webp", alt: "Rafe in a black apron at a restaurant kitchen's sink, sleeves pushed up, holding out a tea towel" },
+  "after-the-toast": { character: "house-wally", you: 0, focus: 69, src: "/cast/roleplay-after-the-toast-wally.webp", alt: "Wally in a suit with a flower in his lapel on a lit terrace, holding out one of two glasses of champagne" },
+  "masks-on": { character: "house-kaz", you: 0, focus: 62, src: "/cast/roleplay-masks-on-kaz.webp", alt: "Kaz in a black half mask and black feathered wings, holding a velvet curtain aside with a finger to her lips" },
+  "the-forge": { character: "house-dex", you: 1, focus: 68, src: "/cast/roleplay-the-forge-dex.webp", alt: "Dex in a leather apron at the anvil of a forge, wiping his hands, a mended sword in front of the fire" },
+  "who-leads": { character: "house-boaz", you: 0, focus: 71, src: "/cast/roleplay-who-leads-boaz.webp", alt: "Boaz in a black dance shirt in an empty studio, standing tall with one hand held out to you" },
+  "haunted-inn": { character: "house-orin", you: 0, focus: 71, src: "/cast/roleplay-haunted-inn-orin.webp", alt: "Orin in a tweed jacket in a wing armchair with a book on his knee, an old inn's fire burning behind him" },
 };
 
 /** The roleplay's cover when the card is cast with the one in the picture; null with anyone else, or with no cover. */
 export function coverFor(roleplayId: string, characterId: string | null | undefined): RoleplayCover | null {
   const cover = ROLEPLAY_COVERS[roleplayId];
   return cover && cover.character === characterId ? cover : null;
+}
+
+/**
+ * The cover as a scene's own picture (David, 2026-11-24: "the role's cover standing in the scene as its picture"): a
+ * scene started in a roleplay, with the one on its cover, on the side the cover shows, opens with that picture where
+ * the character's portrait would stand (the tailor in his waistcoat and tape measure, not the house portrait's own
+ * clothes). Null with anyone else, with the sides the other way round (the picture would show them in the viewer's
+ * part), or for a roleplay with no cover.
+ */
+export function coverInScene(roleplayId: string | null | undefined, characterId: string, you: 0 | 1): RoleplayCover | null {
+  const cover = roleplayId ? coverFor(roleplayId, characterId) : null;
+  return cover && cover.you === you ? cover : null;
 }
