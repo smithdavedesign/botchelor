@@ -4658,6 +4658,13 @@ alter table adult_step_in_scenes add column if not exists note_at timestamptz;
 alter table adult_step_in_scenes add column if not exists notes_claimed_at timestamptz;
 create index if not exists adult_step_in_messages_notes_idx on adult_step_in_messages (owner_id, created_at desc) where kind = 'note';
 alter table adult_step_in_messages add column if not exists idea_draws integer;
+-- The story card of a roleplay someone wrote themselves (lib/adult/own-roleplay-card.ts): drafted from their title,
+-- situation and roles so the roleplay has a goal, beats and an ending in Step in, as the show's own do. card: the card
+-- kept (a lib/scene-cards.ts SceneCard), null until one is drafted or when no draft could be kept. card_at: when it was
+-- last drafted or tried, so a draft that came to nothing isn't asked for again at every start. A Step in scene copies
+-- the roleplay and its card into its own row when it starts (adult_step_in_scenes.roleplay, "own").
+alter table creator_roleplays add column if not exists card jsonb;
+alter table creator_roleplays add column if not exists card_at timestamptz;
 
 -- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared
 -- vocabulary (lib/tags.ts, type facet only). One source at a time per character: the owner's pick, the house's hand

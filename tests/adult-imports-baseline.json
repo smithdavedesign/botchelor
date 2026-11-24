@@ -43,7 +43,8 @@
     "step-in-notes-pass"
   ],
   "app/api/library/route.ts": [
-    "entitlement"
+    "entitlement",
+    "own-roleplay-card"
   ],
   "app/api/looks/[id]/route.ts": [
     "place",

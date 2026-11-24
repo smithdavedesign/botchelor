@@ -160,7 +160,7 @@ describe("the goal", () => {
   it("is the card's own want for the viewer's side, told to them, whichever side they play", () => {
     expect(storyGoal(NEIGHBOURS, 0, "Juniper Vale")).toBe("You want to stop inventing reasons to knock; saying the real one out loud is harder than carrying a parcel.");
     expect(storyGoal(NEIGHBOURS, 1, "Juniper Vale")).toBe("You want Juniper to stay past the doorway for once; the excuse is so thin it is hard not to tease.");
-    // A person's own roleplay has no card, and so no goal.
+    // A roleplay with no card (one of a person's own whose card couldn't be drafted) has no goal.
     expect(storyGoal({ card: undefined }, 0, "Juniper")).toBeNull();
   });
 

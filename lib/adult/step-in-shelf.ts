@@ -16,6 +16,9 @@
  * Who a card opens on, since every roleplay has a cover (lib/adult/roleplay-covers.ts): the one in its picture. Except
  * tonight's last two, which are kept for the people the viewer has stepped in with (SHELF_YOURS, shelfYours), when
  * there are any: with a poster on every card nobody of their own would lead one otherwise.
+ *
+ * The roleplays a viewer wrote themselves (the Create library; lib/adult/own-roleplay-card.ts drafts each one's story)
+ * are cards on the same shelf: first under "All", and a kind of their own (SHELF_OWN). Tonight's eight are the show's.
  */
 import type { StepInCharacter } from "./step-in-shared";
 
@@ -27,6 +30,9 @@ export const SHELF_TONIGHT = 8;
  * for my own people". Six pictures, then two with someone they know: a row of a kind whether it's three across or two.
  */
 export const SHELF_YOURS = 2;
+
+/** What the list of kinds calls the roleplays the viewer wrote themselves. */
+export const SHELF_OWN = "yours";
 
 /** A small stable hash of a string (FNV-1a): the same seed always gives the same number. */
 function hash(seed: string): number {
@@ -136,4 +142,23 @@ export function shelfTonight<R extends { id: string }>(roleplays: readonly R[], 
   const pictured = byDay(roleplays.filter((r) => first.has(r.id))).slice(0, Math.floor((n * 3) / 4));
   const others = byDay(roleplays.filter((r) => !pictured.includes(r))).slice(0, n - pictured.length);
   return [...pictured, ...others];
+}
+
+/**
+ * Which cards the shelf shows for what's picked. "tonight": tonight's eight of the show's own. "all": every one, the
+ * viewer's own first (they wrote them: the likeliest thing they came for), then the show's with the pictured ahead.
+ * SHELF_OWN: only their own. Anything else is a kind (who the two are to each other: lib/adult/tags.ts roleplayGroups),
+ * the pictured first; a kind nobody knows is empty.
+ */
+export function shelfShown<R extends { id: string }>(
+  show: string,
+  o: { house: readonly R[]; own?: readonly R[]; day: string; pictured?: ReadonlySet<string>; kinds?: readonly { id: string; roleplays: readonly R[] }[] },
+): R[] {
+  const own = o.own ?? [];
+  const pictured = o.pictured ?? new Set<string>();
+  const picturedFirst = (list: readonly R[]): R[] => [...list.filter((r) => pictured.has(r.id)), ...list.filter((r) => !pictured.has(r.id))];
+  if (show === "tonight") return shelfTonight(o.house, o.day, SHELF_TONIGHT, pictured);
+  if (show === SHELF_OWN) return [...own];
+  if (show === "all") return [...own, ...picturedFirst(o.house)];
+  return picturedFirst(o.kinds?.find((g) => g.id === show)?.roleplays ?? []);
 }
