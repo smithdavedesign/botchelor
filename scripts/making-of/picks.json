@@ -1,0 +1,315 @@
+{
+ "chapters": [
+  {
+   "id": "pilot",
+   "from": "2026-10-13",
+   "to": "2026-10-19",
+   "title": "The pilot",
+   "blurb": "An idea at 7:44 on a Tuesday morning, a working first version by 2 pm. By Sunday: the date theater, a reunion special, texts, swipes and matches, couples who remember each other, and its own address, botchelor.com."
+  },
+  {
+   "id": "map",
+   "from": "2026-10-20",
+   "to": "2026-10-26",
+   "title": "The map",
+   "blurb": "Characters got kinds and archetypes, and every date, crush and turn-down landed on one map: the Constellation. The show became an installable app, the swipe deck got faces, and people could bring their own AI key."
+  },
+  {
+   "id": "moving-day",
+   "from": "2026-10-27",
+   "to": "2026-11-02",
+   "title": "Moving day",
+   "blurb": "The show moved to new hosting, its characters learned other languages, and a top-to-bottom review of every screen came back with a list. The fixes shipped within a day, each with proof."
+  },
+  {
+   "id": "front-door",
+   "from": "2026-11-03",
+   "to": "2026-11-09",
+   "title": "A new front door",
+   "blurb": "A new home page, one art style for the whole season's cast and an anime one beside it, Sunday's reveal, and a way to bring your character over from another app."
+  },
+  {
+   "id": "drama",
+   "from": "2026-11-10",
+   "to": "2026-11-16",
+   "title": "The drama",
+   "blurb": "Company pages and a design system, then the reality-TV layer: gossip in the house, confrontations and challenges, a producer planning tomorrow overnight, and the character's own phone with a photo from the date."
+  },
+  {
+   "id": "glow-up",
+   "from": "2026-11-17",
+   "to": "2026-11-23",
+   "title": "The glow-up",
+   "blurb": "Writing styles, a cold open for dates, report cards, free tools for writers, every page checked on a phone, and a visual pass that put the show's stage behind its pages."
+  }
+ ],
+ "frames": [
+  {
+   "pr": 1,
+   "desktop": "docs/screenshots/home-desktop.png",
+   "phone": "docs/screenshots/home-mobile.png",
+   "caption": "The first version, on day one"
+  },
+  {
+   "pr": 29,
+   "desktop": "docs/screenshots/cast-desktop.png",
+   "phone": "docs/screenshots/cast-mobile.png",
+   "caption": "The house cast gets portraits"
+  },
+  {
+   "pr": 37,
+   "desktop": "docs/screenshots/episode-theater-desktop.png",
+   "phone": "docs/screenshots/episode-theater-mobile.png",
+   "caption": "The date theater opens"
+  },
+  {
+   "pr": 43,
+   "phone": "docs/screenshots/watch-live-thread-mobile.png",
+   "caption": "A date read as a text thread"
+  },
+  {
+   "pr": 87,
+   "desktop": "docs/screenshots/builder-temperament-desktop.png",
+   "phone": "docs/screenshots/builder-temperament-mobile.png",
+   "caption": "Sliders for a character's temperament"
+  },
+  {
+   "pr": 126,
+   "desktop": "docs/screenshots/couple-page-desktop.png",
+   "phone": "docs/screenshots/couple-page-mobile.png",
+   "caption": "Every couple gets its own page"
+  },
+  {
+   "pr": 152,
+   "desktop": "docs/screenshots/relationship-board-desktop.png",
+   "phone": "docs/screenshots/relationship-board-mobile.png",
+   "caption": "A relationship board with their texts"
+  },
+  {
+   "pr": 168,
+   "desktop": "docs/screenshots/live-swipe-deck-desktop.png",
+   "phone": "docs/screenshots/live-swipe-deck-mobile.png",
+   "caption": "Swipe to find them a date"
+  },
+  {
+   "pr": 232,
+   "phone": "docs/screenshots/live-mobile-messages.png",
+   "caption": "They both want a date"
+  },
+  {
+   "pr": 276,
+   "desktop": "docs/screenshots/move-theater-desktop.png",
+   "phone": "docs/screenshots/move-theater-mobile.png",
+   "caption": "A date that ends in just friends"
+  },
+  {
+   "pr": 388,
+   "desktop": "docs/screenshots/characters-directory-desktop.png",
+   "phone": "docs/screenshots/characters-directory-mobile.png",
+   "caption": "A new cast every month"
+  },
+  {
+   "pr": 410,
+   "desktop": "docs/screenshots/ship-tool-desktop.png",
+   "phone": "docs/screenshots/ship-tool-mobile.png",
+   "caption": "A free ship name generator"
+  },
+  {
+   "pr": 521,
+   "desktop": "docs/screenshots/share-episode-desktop.png",
+   "phone": "docs/screenshots/share-episode-mobile.png",
+   "caption": "Every date gets a share page"
+  },
+  {
+   "pr": 675,
+   "desktop": "docs/screenshots/create-who-desktop.png",
+   "phone": "docs/screenshots/create-who-mobile.png",
+   "caption": "What they are, and who they're drawn to"
+  },
+  {
+   "pr": 678,
+   "desktop": "docs/screenshots/graph-cluster-desktop.png",
+   "caption": "Who dated whom, as a constellation"
+  },
+  {
+   "pr": 690,
+   "desktop": "docs/screenshots/swipe-faces-desktop.png",
+   "phone": "docs/screenshots/swipe-faces-mobile.png",
+   "caption": "Pick whose deck to swipe"
+  },
+  {
+   "pr": 697,
+   "desktop": "docs/screenshots/names-pager-relationships-desktop.png",
+   "caption": "Bad blood after one date"
+  },
+  {
+   "pr": 721,
+   "desktop": "docs/screenshots/chemistry-test-desktop.png",
+   "phone": "docs/screenshots/chemistry-test-mobile.png",
+   "caption": "A chemistry test for two characters"
+  },
+  {
+   "pr": 1168,
+   "desktop": "docs/screenshots/ux-reviews-desktop.png",
+   "caption": "AI agents review the show"
+  },
+  {
+   "pr": 1168,
+   "phone": "docs/screenshots/swipe-live-drag-phone.png",
+   "caption": "Swiping right on a phone"
+  },
+  {
+   "pr": 1168,
+   "phone": "docs/screenshots/swipe-live-match-phone.png",
+   "caption": "A match, and they start texting"
+  },
+  {
+   "pr": 1186,
+   "phone": "docs/screenshots/ux-date-confirm-phone.png",
+   "caption": "Sending a character on a date"
+  },
+  {
+   "pr": 1186,
+   "phone": "docs/screenshots/ux-constellation-phone.png",
+   "caption": "The constellation on a phone"
+  },
+  {
+   "pr": 1184,
+   "desktop": "docs/screenshots/date-desktop.png",
+   "phone": "docs/screenshots/date-mobile.png",
+   "caption": "A date under the stars"
+  },
+  {
+   "pr": 1360,
+   "desktop": "docs/screenshots/front-live-home-desktop.png",
+   "phone": "docs/screenshots/front-live-home-phone.png",
+   "caption": "A front door with a real date"
+  },
+  {
+   "pr": 1372,
+   "desktop": "docs/screenshots/audit-live-graph-desktop.png",
+   "caption": "The constellation gets faces"
+  },
+  {
+   "pr": 1387,
+   "desktop": "docs/screenshots/ui-live-watch-latest-desktop.png",
+   "phone": "docs/screenshots/ui-live-watch-latest-phone.png",
+   "caption": "Every episode gets a picture"
+  },
+  {
+   "pr": 1389,
+   "desktop": "docs/screenshots/cast-live-theater-anime-desktop.png",
+   "phone": "docs/screenshots/cast-live-theater-anime-phone.png",
+   "caption": "An anime date in a laundromat"
+  },
+  {
+   "pr": 1396,
+   "desktop": "docs/screenshots/import-live-desktop-import.png",
+   "phone": "docs/screenshots/import-live-phone-import.png",
+   "caption": "Bring a character from another app"
+  },
+  {
+   "pr": 1408,
+   "shotsFrom": 1409,
+   "desktop": "docs/screenshots/double-link-stranger-desktop.png",
+   "phone": "docs/screenshots/double-link-stranger-phone.png",
+   "caption": "An invitation to a double date"
+  },
+  {
+   "pr": 1451,
+   "desktop": "docs/screenshots/design-system-home-desktop-dark.png",
+   "caption": "The home page in dark mode"
+  },
+  {
+   "pr": 1484,
+   "desktop": "docs/screenshots/layout-watch-games-desktop.png",
+   "caption": "The audience picks tonight's twist"
+  },
+  {
+   "pr": 1484,
+   "desktop": "docs/screenshots/layout-mixer-desktop.png",
+   "caption": "A speed-dating mixer, round by round"
+  },
+  {
+   "pr": 1484,
+   "desktop": "docs/screenshots/layout-couple-desktop.png",
+   "phone": "docs/screenshots/layout-couple-phone.png",
+   "caption": "A couple's dates and inside jokes"
+  },
+  {
+   "pr": 1643,
+   "desktop": "docs/screenshots/core3-characters-desktop.png",
+   "caption": "The cast in big portraits"
+  },
+  {
+   "pr": 1657,
+   "desktop": "docs/screenshots/home-clip-desktop.png",
+   "phone": "docs/screenshots/home-clip-mobile.png",
+   "caption": "Give your character a love life"
+  },
+  {
+   "pr": 1662,
+   "desktop": "docs/screenshots/front-house-map-desktop.png",
+   "phone": "docs/screenshots/front-house-map-phone.png",
+   "caption": "Who is seeing whom this week"
+  },
+  {
+   "pr": 1707,
+   "desktop": "docs/screenshots/love-didnt-click-desktop.png",
+   "caption": "Some first dates don't click"
+  },
+  {
+   "pr": 1751,
+   "desktop": "docs/screenshots/design-open-room-desktop.png",
+   "phone": "docs/screenshots/design-open-room-phone.png",
+   "caption": "A rooftop date about to start"
+  },
+  {
+   "pr": 1841,
+   "desktop": "docs/screenshots/episode-short-version-button-desktop.png",
+   "phone": "docs/screenshots/episode-short-version-button-phone.png",
+   "caption": "An episode with a short version"
+  },
+  {
+   "pr": 1901,
+   "desktop": "docs/screenshots/report-card-desktop.png",
+   "caption": "A report card for every date"
+  },
+  {
+   "pr": 1927,
+   "desktop": "docs/screenshots/pop-pass1-everything-desktop.png",
+   "phone": "docs/screenshots/pop-pass1-everything-phone.png",
+   "caption": "Every page on one page"
+  },
+  {
+   "pr": 1929,
+   "desktop": "docs/screenshots/face-loops-characters-desktop.png",
+   "phone": "docs/screenshots/face-loops-characters-phone.png",
+   "caption": "Painted portraits for the cast"
+  },
+  {
+   "pr": 1938,
+   "desktop": "docs/screenshots/pop-pass1-seasons-index-desktop.png",
+   "phone": "docs/screenshots/pop-pass1-seasons-index-phone.png",
+   "caption": "Every season, with a countdown"
+  },
+  {
+   "pr": 1951,
+   "desktop": "docs/screenshots/social-world-desktop.png",
+   "phone": "docs/screenshots/social-world-phone.png",
+   "caption": "One character's whole social world"
+  },
+  {
+   "pr": 1994,
+   "desktop": "docs/screenshots/home-first-visit-desktop.png",
+   "phone": "docs/screenshots/home-first-visit-phone.png",
+   "caption": "A blind-date show where nobody steers"
+  },
+  {
+   "pr": 2118,
+   "desktop": "docs/screenshots/place-names-desktop.png",
+   "phone": "docs/screenshots/place-names-phone.png",
+   "caption": "A place name generator for stories"
+  }
+ ]
+}

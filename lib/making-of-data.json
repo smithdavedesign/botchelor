@@ -1,0 +1,1651 @@
+{
+ "note": "Written by scripts/making-of/collect.mjs page; edit scripts/making-of/picks.json and run it again.",
+ "first": "2026-10-13",
+ "last": "2026-11-23",
+ "dayOne": [
+  {
+   "time": "7:44 am",
+   "pr": null,
+   "title": "Idea: Botchelor — an AI blind-date show for original characters, with a free prediction game"
+  },
+  {
+   "time": "2:01 pm",
+   "pr": 1,
+   "title": "MVP: botchelor (M1–M3) (tests passing)"
+  },
+  {
+   "time": "3:04 pm",
+   "pr": 2,
+   "title": "MVP: botchelor (M4) (tests passing)"
+  },
+  {
+   "time": "3:28 pm",
+   "pr": 3,
+   "title": "Payment tested live (Stripe test mode, desktop and phone)"
+  },
+  {
+   "time": "4:42 pm",
+   "pr": 4,
+   "title": "PRD: target architecture to build toward"
+  },
+  {
+   "time": "4:47 pm",
+   "pr": 5,
+   "title": "PRD: Soul vs. Persona product vision"
+  },
+  {
+   "time": "6:13 pm",
+   "pr": 6,
+   "title": "Full $0 vision: deterministic engine, private souls, and the $0 mechanics"
+  },
+  {
+   "time": "6:36 pm",
+   "pr": 7,
+   "title": "Three-act dates with an AI producer, and local-only private souls"
+  },
+  {
+   "time": "7:12 pm",
+   "pr": 8,
+   "title": "Next level: avatars, a visual overhaul, character customization, a full E2E suite, and seed data"
+  },
+  {
+   "time": "7:23 pm",
+   "pr": 9,
+   "title": "Image-styled avatars (safe, $0), shareable contestant cards, and a sourced competitive analysis"
+  },
+  {
+   "time": "7:38 pm",
+   "pr": 10,
+   "title": "Conversion landing page, image that trains the character, and relationship stages"
+  },
+  {
+   "time": "7:52 pm",
+   "pr": 11,
+   "title": "Competitor-report build: fast start, reusable-asset characters, image-trained traits"
+  },
+  {
+   "time": "8:05 pm",
+   "pr": 12,
+   "title": "Image trains the AI's behaviour (palette → engine signals)"
+  },
+  {
+   "time": "8:23 pm",
+   "pr": 14,
+   "title": "Gated frontier model (owner-approved, password-gated eval tool)"
+  },
+  {
+   "time": "8:39 pm",
+   "pr": 15,
+   "title": "Wire the gated frontier model into the live episode flow"
+  },
+  {
+   "time": "8:51 pm",
+   "pr": 16,
+   "title": "Competitive scorecard: where Botchelor wins, ties, and trails"
+  },
+  {
+   "time": "9:09 pm",
+   "pr": 18,
+   "title": "Watch parties (M8): the live date room"
+  },
+  {
+   "time": "9:34 pm",
+   "pr": 19,
+   "title": "Fix the contestant card's link-preview image (every one was a 500)"
+  },
+  {
+   "time": "9:53 pm",
+   "pr": 20,
+   "title": "M9: turn-by-turn two-agent dates (the conversation, part 1)"
+  },
+  {
+   "time": "10:00 pm",
+   "pr": 21,
+   "title": "M9 proof: live screenshots of the turn-by-turn transcript"
+  },
+  {
+   "time": "10:14 pm",
+   "pr": 22,
+   "title": "Audit + docs cleanup (post-M9)"
+  },
+  {
+   "time": "10:23 pm",
+   "pr": 23,
+   "title": "M9 part 2: turn-by-turn conversation in the watch room"
+  },
+  {
+   "time": "10:35 pm",
+   "pr": 24,
+   "title": "M10: launch readiness + security hardening (part 1)"
+  },
+  {
+   "time": "11:01 pm",
+   "pr": 25,
+   "title": "The first cast portraits and venue backdrops (25 images, reviewed)"
+  },
+  {
+   "time": "11:32 pm",
+   "pr": 26,
+   "title": "M10 part 2: async episode generation"
+  }
+ ],
+ "totals": {
+  "prs": 1658,
+  "byClaude": 1618,
+  "issues": 473,
+  "screenshots": 1398,
+  "days": 42
+ },
+ "days": [
+  {
+   "day": "2026-10-13",
+   "prs": 24
+  },
+  {
+   "day": "2026-10-14",
+   "prs": 41
+  },
+  {
+   "day": "2026-10-15",
+   "prs": 52
+  },
+  {
+   "day": "2026-10-16",
+   "prs": 22
+  },
+  {
+   "day": "2026-10-17",
+   "prs": 41
+  },
+  {
+   "day": "2026-10-18",
+   "prs": 49
+  },
+  {
+   "day": "2026-10-19",
+   "prs": 62
+  },
+  {
+   "day": "2026-10-20",
+   "prs": 11
+  },
+  {
+   "day": "2026-10-21",
+   "prs": 78
+  },
+  {
+   "day": "2026-10-22",
+   "prs": 64
+  },
+  {
+   "day": "2026-10-23",
+   "prs": 34
+  },
+  {
+   "day": "2026-10-24",
+   "prs": 64
+  },
+  {
+   "day": "2026-10-25",
+   "prs": 84
+  },
+  {
+   "day": "2026-10-26",
+   "prs": 6
+  },
+  {
+   "day": "2026-10-27",
+   "prs": 0
+  },
+  {
+   "day": "2026-10-28",
+   "prs": 0
+  },
+  {
+   "day": "2026-10-29",
+   "prs": 41
+  },
+  {
+   "day": "2026-10-30",
+   "prs": 50
+  },
+  {
+   "day": "2026-10-31",
+   "prs": 54
+  },
+  {
+   "day": "2026-11-01",
+   "prs": 60
+  },
+  {
+   "day": "2026-11-02",
+   "prs": 33
+  },
+  {
+   "day": "2026-11-03",
+   "prs": 26
+  },
+  {
+   "day": "2026-11-04",
+   "prs": 17
+  },
+  {
+   "day": "2026-11-05",
+   "prs": 1
+  },
+  {
+   "day": "2026-11-06",
+   "prs": 1
+  },
+  {
+   "day": "2026-11-07",
+   "prs": 14
+  },
+  {
+   "day": "2026-11-08",
+   "prs": 34
+  },
+  {
+   "day": "2026-11-09",
+   "prs": 22
+  },
+  {
+   "day": "2026-11-10",
+   "prs": 21
+  },
+  {
+   "day": "2026-11-11",
+   "prs": 52
+  },
+  {
+   "day": "2026-11-12",
+   "prs": 12
+  },
+  {
+   "day": "2026-11-13",
+   "prs": 59
+  },
+  {
+   "day": "2026-11-14",
+   "prs": 53
+  },
+  {
+   "day": "2026-11-15",
+   "prs": 64
+  },
+  {
+   "day": "2026-11-16",
+   "prs": 58
+  },
+  {
+   "day": "2026-11-17",
+   "prs": 35
+  },
+  {
+   "day": "2026-11-18",
+   "prs": 25
+  },
+  {
+   "day": "2026-11-19",
+   "prs": 29
+  },
+  {
+   "day": "2026-11-20",
+   "prs": 82
+  },
+  {
+   "day": "2026-11-21",
+   "prs": 41
+  },
+  {
+   "day": "2026-11-22",
+   "prs": 79
+  },
+  {
+   "day": "2026-11-23",
+   "prs": 63
+  }
+ ],
+ "chapters": [
+  {
+   "id": "pilot",
+   "from": "2026-10-13",
+   "to": "2026-10-19",
+   "title": "The pilot",
+   "blurb": "An idea at 7:44 on a Tuesday morning, a working first version by 2 pm. By Sunday: the date theater, a reunion special, texts, swipes and matches, couples who remember each other, and its own address, botchelor.com."
+  },
+  {
+   "id": "map",
+   "from": "2026-10-20",
+   "to": "2026-10-26",
+   "title": "The map",
+   "blurb": "Characters got kinds and archetypes, and every date, crush and turn-down landed on one map: the Constellation. The show became an installable app, the swipe deck got faces, and people could bring their own AI key."
+  },
+  {
+   "id": "moving-day",
+   "from": "2026-10-27",
+   "to": "2026-11-02",
+   "title": "Moving day",
+   "blurb": "The show moved to new hosting, its characters learned other languages, and a top-to-bottom review of every screen came back with a list. The fixes shipped within a day, each with proof."
+  },
+  {
+   "id": "front-door",
+   "from": "2026-11-03",
+   "to": "2026-11-09",
+   "title": "A new front door",
+   "blurb": "A new home page, one art style for the whole season's cast and an anime one beside it, Sunday's reveal, and a way to bring your character over from another app."
+  },
+  {
+   "id": "drama",
+   "from": "2026-11-10",
+   "to": "2026-11-16",
+   "title": "The drama",
+   "blurb": "Company pages and a design system, then the reality-TV layer: gossip in the house, confrontations and challenges, a producer planning tomorrow overnight, and the character's own phone with a photo from the date."
+  },
+  {
+   "id": "glow-up",
+   "from": "2026-11-17",
+   "to": "2026-11-23",
+   "title": "The glow-up",
+   "blurb": "Writing styles, a cold open for dates, report cards, free tools for writers, every page checked on a phone, and a visual pass that put the show's stage behind its pages."
+  }
+ ],
+ "frames": [
+  {
+   "pr": 1,
+   "day": "2026-10-13",
+   "title": "MVP: botchelor (M1–M3) (tests passing)",
+   "caption": "The first version, on day one",
+   "desktop": {
+    "card": {
+     "src": "/making-of/001-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/001-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/home-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/001-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/001-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/home-mobile.png"
+   }
+  },
+  {
+   "pr": 29,
+   "day": "2026-10-14",
+   "title": "Render the reviewed house portraits and venue backdrops",
+   "caption": "The house cast gets portraits",
+   "desktop": {
+    "card": {
+     "src": "/making-of/002-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/002-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/cast-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/002-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/002-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/cast-mobile.png"
+   }
+  },
+  {
+   "pr": 37,
+   "day": "2026-10-14",
+   "title": "M13: the immersive date theater (full-screen window into the date)",
+   "caption": "The date theater opens",
+   "desktop": {
+    "card": {
+     "src": "/making-of/003-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/003-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/episode-theater-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/003-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/003-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/episode-theater-mobile.png"
+   }
+  },
+  {
+   "pr": 43,
+   "day": "2026-10-14",
+   "title": "Live-action replays + the date as a messaging thread",
+   "caption": "A date read as a text thread",
+   "phone": {
+    "card": {
+     "src": "/making-of/004-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/004-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/watch-live-thread-mobile.png"
+   }
+  },
+  {
+   "pr": 87,
+   "day": "2026-10-15",
+   "title": "README: characters that grow, with live screenshots",
+   "caption": "Sliders for a character's temperament",
+   "desktop": {
+    "card": {
+     "src": "/making-of/005-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/005-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/builder-temperament-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/005-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/005-phone-full.webp",
+     "w": 390,
+     "h": 844
+    },
+    "from": "docs/screenshots/builder-temperament-mobile.png"
+   }
+  },
+  {
+   "pr": 126,
+   "day": "2026-10-16",
+   "title": "Couple pages, relationships on the card, graph-aware matchmaking, get_relationships",
+   "caption": "Every couple gets its own page",
+   "desktop": {
+    "card": {
+     "src": "/making-of/006-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/006-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/couple-page-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/006-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/006-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/couple-page-mobile.png"
+   }
+  },
+  {
+   "pr": 152,
+   "day": "2026-10-17",
+   "title": "Texts: one thread on a phone, a relationship board, and full screen",
+   "caption": "A relationship board with their texts",
+   "desktop": {
+    "card": {
+     "src": "/making-of/007-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/007-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/relationship-board-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/007-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/007-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/relationship-board-mobile.png"
+   }
+  },
+  {
+   "pr": 168,
+   "day": "2026-10-17",
+   "title": "Docs: live screenshots of swipes on botchelor.com",
+   "caption": "Swipe to find them a date",
+   "desktop": {
+    "card": {
+     "src": "/making-of/008-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/008-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/live-swipe-deck-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/008-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/008-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/live-swipe-deck-mobile.png"
+   }
+  },
+  {
+   "pr": 232,
+   "day": "2026-10-18",
+   "title": "README: the live thread with its Book it bar",
+   "caption": "They both want a date",
+   "phone": {
+    "card": {
+     "src": "/making-of/009-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/009-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/live-mobile-messages.png"
+   }
+  },
+  {
+   "pr": 276,
+   "day": "2026-10-18",
+   "title": "Screenshots: a date that moves (README) + a script to film them",
+   "caption": "A date that ends in just friends",
+   "desktop": {
+    "card": {
+     "src": "/making-of/010-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/010-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/move-theater-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/010-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/010-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/move-theater-mobile.png"
+   }
+  },
+  {
+   "pr": 388,
+   "day": "2026-10-19",
+   "title": "Docs: monthly seasons, reviews, generated newcomers, /characters, and the MCP listings",
+   "caption": "A new cast every month",
+   "desktop": {
+    "card": {
+     "src": "/making-of/011-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/011-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/characters-directory-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/011-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/011-phone-full.webp",
+     "w": 390,
+     "h": 844
+    },
+    "from": "docs/screenshots/characters-directory-mobile.png"
+   }
+  },
+  {
+   "pr": 410,
+   "day": "2026-10-19",
+   "title": "Growth: botchelor (feature)",
+   "caption": "A free ship name generator",
+   "desktop": {
+    "card": {
+     "src": "/making-of/012-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/012-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/ship-tool-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/012-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/012-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/ship-tool-mobile.png"
+   }
+  },
+  {
+   "pr": 521,
+   "day": "2026-10-21",
+   "title": "Growth: botchelor (feature)",
+   "caption": "Every date gets a share page",
+   "desktop": {
+    "card": {
+     "src": "/making-of/013-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/013-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/share-episode-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/013-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/013-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/share-episode-mobile.png"
+   }
+  },
+  {
+   "pr": 675,
+   "day": "2026-10-22",
+   "title": "Data plan Tier 2a: structure the character (kind, archetype, here_for, drawn_to)",
+   "caption": "What they are, and who they're drawn to",
+   "desktop": {
+    "card": {
+     "src": "/making-of/014-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/014-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/create-who-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/014-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/014-phone-full.webp",
+     "w": 390,
+     "h": 844
+    },
+    "from": "docs/screenshots/create-who-mobile.png"
+   }
+  },
+  {
+   "pr": 678,
+   "day": "2026-10-22",
+   "title": "Data plan Tier 3: a richer Constellation (kinds, clusters, timelines, who turned whom down)",
+   "caption": "Who dated whom, as a constellation",
+   "desktop": {
+    "card": {
+     "src": "/making-of/015-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/015-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/graph-cluster-desktop.png"
+   }
+  },
+  {
+   "pr": 690,
+   "day": "2026-10-22",
+   "title": "Swipe: pick whose deck with faces, like Matches, and mark taken characters",
+   "caption": "Pick whose deck to swipe",
+   "desktop": {
+    "card": {
+     "src": "/making-of/016-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/016-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/swipe-faces-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/016-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/016-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/swipe-faces-mobile.png"
+   }
+  },
+  {
+   "pr": 697,
+   "day": "2026-10-22",
+   "title": "Pages for long lists, a face by every name, and names that go to the character",
+   "caption": "Bad blood after one date",
+   "desktop": {
+    "card": {
+     "src": "/making-of/017-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/017-desktop-full.webp",
+     "w": 696,
+     "h": 435
+    },
+    "from": "docs/screenshots/names-pager-relationships-desktop.png"
+   }
+  },
+  {
+   "pr": 721,
+   "day": "2026-10-23",
+   "title": "Growth: botchelor (feature) (tests passing)",
+   "caption": "A chemistry test for two characters",
+   "desktop": {
+    "card": {
+     "src": "/making-of/018-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/018-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/chemistry-test-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/018-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/018-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/chemistry-test-mobile.png"
+   }
+  },
+  {
+   "pr": 1168,
+   "day": "2026-10-31",
+   "title": "README: the UX audit, the phone swipe and Unmatch, proven on botchelor.com",
+   "caption": "AI agents review the show",
+   "desktop": {
+    "card": {
+     "src": "/making-of/019-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/019-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/ux-reviews-desktop.png"
+   }
+  },
+  {
+   "pr": 1168,
+   "day": "2026-10-31",
+   "title": "README: the UX audit, the phone swipe and Unmatch, proven on botchelor.com",
+   "caption": "Swiping right on a phone",
+   "phone": {
+    "card": {
+     "src": "/making-of/020-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/020-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/swipe-live-drag-phone.png"
+   }
+  },
+  {
+   "pr": 1168,
+   "day": "2026-10-31",
+   "title": "README: the UX audit, the phone swipe and Unmatch, proven on botchelor.com",
+   "caption": "A match, and they start texting",
+   "phone": {
+    "card": {
+     "src": "/making-of/021-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/021-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/swipe-live-match-phone.png"
+   }
+  },
+  {
+   "pr": 1184,
+   "day": "2026-11-01",
+   "title": "Go live: botchelor (launch-ready)",
+   "caption": "A date under the stars",
+   "desktop": {
+    "card": {
+     "src": "/making-of/024-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/024-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/date-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/024-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/024-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/date-mobile.png"
+   }
+  },
+  {
+   "pr": 1186,
+   "day": "2026-11-01",
+   "title": "UX audit: the fix-all round's status, live proof and README shots",
+   "caption": "Sending a character on a date",
+   "phone": {
+    "card": {
+     "src": "/making-of/022-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/022-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/ux-date-confirm-phone.png"
+   }
+  },
+  {
+   "pr": 1186,
+   "day": "2026-11-01",
+   "title": "UX audit: the fix-all round's status, live proof and README shots",
+   "caption": "The constellation on a phone",
+   "phone": {
+    "card": {
+     "src": "/making-of/023-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/023-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/ux-constellation-phone.png"
+   }
+  },
+  {
+   "pr": 1360,
+   "day": "2026-11-07",
+   "title": "README: live screenshots of the front of the site (#1359)",
+   "caption": "A front door with a real date",
+   "desktop": {
+    "card": {
+     "src": "/making-of/025-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/025-desktop-full.webp",
+     "w": 1440,
+     "h": 900
+    },
+    "from": "docs/screenshots/front-live-home-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/025-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/025-phone-full.webp",
+     "w": 390,
+     "h": 844
+    },
+    "from": "docs/screenshots/front-live-home-phone.png"
+   }
+  },
+  {
+   "pr": 1372,
+   "day": "2026-11-08",
+   "title": "One art style for the season cast: Nell, Juniper and Sable in photoreal",
+   "caption": "The constellation gets faces",
+   "desktop": {
+    "card": {
+     "src": "/making-of/026-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/026-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/audit-live-graph-desktop.png"
+   }
+  },
+  {
+   "pr": 1387,
+   "day": "2026-11-08",
+   "title": "README: the UI audit live on botchelor.com, before and after (#1385)",
+   "caption": "Every episode gets a picture",
+   "desktop": {
+    "card": {
+     "src": "/making-of/027-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/027-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/ui-live-watch-latest-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/027-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/027-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/ui-live-watch-latest-phone.png"
+   }
+  },
+  {
+   "pr": 1389,
+   "day": "2026-11-08",
+   "title": "README: live shots of the anime cast (#1388)",
+   "caption": "An anime date in a laundromat",
+   "desktop": {
+    "card": {
+     "src": "/making-of/028-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/028-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/cast-live-theater-anime-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/028-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/028-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/cast-live-theater-anime-phone.png"
+   }
+  },
+  {
+   "pr": 1396,
+   "day": "2026-11-08",
+   "title": "README: live shots of Bring your character (#1391)",
+   "caption": "Bring a character from another app",
+   "desktop": {
+    "card": {
+     "src": "/making-of/029-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/029-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/import-live-desktop-import.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/029-phone-card.webp",
+     "w": 300,
+     "h": 651
+    },
+    "full": {
+     "src": "/making-of/029-phone-full.webp",
+     "w": 640,
+     "h": 1389
+    },
+    "from": "docs/screenshots/import-live-phone-import.png"
+   }
+  },
+  {
+   "pr": 1408,
+   "day": "2026-11-09",
+   "title": "Bring a friend: double-date links anyone can take with a character",
+   "caption": "An invitation to a double date",
+   "desktop": {
+    "card": {
+     "src": "/making-of/030-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/030-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/double-link-stranger-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/030-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/030-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/double-link-stranger-phone.png"
+   }
+  },
+  {
+   "pr": 1451,
+   "day": "2026-11-11",
+   "title": "Design system, wave 4: live proof in the README, rollout record closed",
+   "caption": "The home page in dark mode",
+   "desktop": {
+    "card": {
+     "src": "/making-of/031-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/031-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/design-system-home-desktop-dark.png"
+   }
+  },
+  {
+   "pr": 1484,
+   "day": "2026-11-11",
+   "title": "README: the kit's page layouts, live",
+   "caption": "The audience picks tonight's twist",
+   "desktop": {
+    "card": {
+     "src": "/making-of/032-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/032-desktop-full.webp",
+     "w": 1440,
+     "h": 900
+    },
+    "from": "docs/screenshots/layout-watch-games-desktop.png"
+   }
+  },
+  {
+   "pr": 1484,
+   "day": "2026-11-11",
+   "title": "README: the kit's page layouts, live",
+   "caption": "A speed-dating mixer, round by round",
+   "desktop": {
+    "card": {
+     "src": "/making-of/033-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/033-desktop-full.webp",
+     "w": 1440,
+     "h": 900
+    },
+    "from": "docs/screenshots/layout-mixer-desktop.png"
+   }
+  },
+  {
+   "pr": 1484,
+   "day": "2026-11-11",
+   "title": "README: the kit's page layouts, live",
+   "caption": "A couple's dates and inside jokes",
+   "desktop": {
+    "card": {
+     "src": "/making-of/034-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/034-desktop-full.webp",
+     "w": 1440,
+     "h": 900
+    },
+    "from": "docs/screenshots/layout-couple-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/034-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/034-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/layout-couple-phone.png"
+   }
+  },
+  {
+   "pr": 1643,
+   "day": "2026-11-15",
+   "title": "After the 2026-11-15 wave: live screenshots in the README, /safety opens, no weekly recap for a step-in persona",
+   "caption": "The cast in big portraits",
+   "desktop": {
+    "card": {
+     "src": "/making-of/035-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/035-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/core3-characters-desktop.png"
+   }
+  },
+  {
+   "pr": 1657,
+   "day": "2026-11-15",
+   "title": "Home plays last night's clip, with the one-sentence box under the headline",
+   "caption": "Give your character a love life",
+   "desktop": {
+    "card": {
+     "src": "/making-of/036-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/036-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/home-clip-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/036-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/036-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/home-clip-mobile.png"
+   }
+  },
+  {
+   "pr": 1662,
+   "day": "2026-11-15",
+   "title": "README: the front-door wave, proven live",
+   "caption": "Who is seeing whom this week",
+   "desktop": {
+    "card": {
+     "src": "/making-of/037-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/037-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/front-house-map-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/037-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/037-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/front-house-map-phone.png"
+   }
+  },
+  {
+   "pr": 1707,
+   "day": "2026-11-16",
+   "title": "README: a love life that goes somewhere, proven live (2026-11-16)",
+   "caption": "Some first dates don't click",
+   "desktop": {
+    "card": {
+     "src": "/making-of/038-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/038-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/love-didnt-click-desktop.png"
+   }
+  },
+  {
+   "pr": 1751,
+   "day": "2026-11-16",
+   "title": "README: live screenshots of the design review",
+   "caption": "A rooftop date about to start",
+   "desktop": {
+    "card": {
+     "src": "/making-of/039-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/039-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/design-open-room-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/039-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/039-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/design-open-room-phone.png"
+   }
+  },
+  {
+   "pr": 1841,
+   "day": "2026-11-19",
+   "title": "README: live shots of the cold open and the short version",
+   "caption": "An episode with a short version",
+   "desktop": {
+    "card": {
+     "src": "/making-of/040-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/040-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/episode-short-version-button-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/040-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/040-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/episode-short-version-button-phone.png"
+   }
+  },
+  {
+   "pr": 1901,
+   "day": "2026-11-20",
+   "title": "Report card: bigger overall letter, live proof in the README",
+   "caption": "A report card for every date",
+   "desktop": {
+    "card": {
+     "src": "/making-of/041-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/041-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/report-card-desktop.png"
+   }
+  },
+  {
+   "pr": 1927,
+   "day": "2026-11-20",
+   "title": "Visual pop pass 1 (A): set heroes on the marketing pages, the house ribbon, clips up front",
+   "caption": "Every page on one page",
+   "desktop": {
+    "card": {
+     "src": "/making-of/042-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/042-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/pop-pass1-everything-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/042-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/042-phone-full.webp",
+     "w": 390,
+     "h": 844
+    },
+    "from": "docs/screenshots/pop-pass1-everything-phone.png"
+   }
+  },
+  {
+   "pr": 1929,
+   "day": "2026-11-20",
+   "title": "Cast face loops on Step-in and Characters",
+   "caption": "Painted portraits for the cast",
+   "desktop": {
+    "card": {
+     "src": "/making-of/043-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/043-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/face-loops-characters-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/043-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/043-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/face-loops-characters-phone.png"
+   }
+  },
+  {
+   "pr": 1938,
+   "day": "2026-11-20",
+   "title": "Visual pop pass 1 (C): seasons on the elimination set, the lead large, the premiere's clock",
+   "caption": "Every season, with a countdown",
+   "desktop": {
+    "card": {
+     "src": "/making-of/044-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/044-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/pop-pass1-seasons-index-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/044-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/044-phone-full.webp",
+     "w": 390,
+     "h": 844
+    },
+    "from": "docs/screenshots/pop-pass1-seasons-index-phone.png"
+   }
+  },
+  {
+   "pr": 1951,
+   "day": "2026-11-20",
+   "title": "README: the social network, shot live on phone and desktop",
+   "caption": "One character's whole social world",
+   "desktop": {
+    "card": {
+     "src": "/making-of/045-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/045-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/social-world-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/045-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/045-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/social-world-phone.png"
+   }
+  },
+  {
+   "pr": 1994,
+   "day": "2026-11-21",
+   "title": "README: one screen, one job, shot live on phone and desktop",
+   "caption": "A blind-date show where nobody steers",
+   "desktop": {
+    "card": {
+     "src": "/making-of/046-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/046-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/home-first-visit-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/046-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/046-phone-full.webp",
+     "w": 640,
+     "h": 1385
+    },
+    "from": "docs/screenshots/home-first-visit-phone.png"
+   }
+  },
+  {
+   "pr": 2118,
+   "day": "2026-11-23",
+   "title": "README: place name generator screenshots",
+   "caption": "A place name generator for stories",
+   "desktop": {
+    "card": {
+     "src": "/making-of/047-desktop-card.webp",
+     "w": 640,
+     "h": 400
+    },
+    "full": {
+     "src": "/making-of/047-desktop-full.webp",
+     "w": 1280,
+     "h": 800
+    },
+    "from": "docs/screenshots/place-names-desktop.png"
+   },
+   "phone": {
+    "card": {
+     "src": "/making-of/047-phone-card.webp",
+     "w": 300,
+     "h": 649
+    },
+    "full": {
+     "src": "/making-of/047-phone-full.webp",
+     "w": 390,
+     "h": 844
+    },
+    "from": "docs/screenshots/place-names-phone.png"
+   }
+  }
+ ]
+}

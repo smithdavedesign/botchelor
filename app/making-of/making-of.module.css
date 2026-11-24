@@ -1,0 +1,1119 @@
+/*
+ * The making of Botchelor (app/making-of). The top band is a dark set in both themes, like the home stage and SetHero,
+ * so its colours are tokens on the page's root (tests/css-tokens.test.ts: no literal colour, size or corner outside a
+ * token); everything under the band follows the site's own tokens and theme. Motion only adds: the band, the stage and
+ * every count are complete at rest, and reduced motion keeps them still.
+ */
+.page {
+  --mo-night: #0d0612;
+  --mo-night-2: #1b0d24;
+  --mo-bezel: #09070b;
+  --mo-white: #ffffff;
+  --mo-soft: rgba(255, 255, 255, 0.84);
+  --mo-faint: rgba(255, 255, 255, 0.64);
+  --mo-line: rgba(255, 255, 255, 0.14);
+  --mo-bar: rgba(255, 255, 255, 0.2);
+  --mo-glass: rgba(255, 255, 255, 0.07);
+  --mo-pink: #ff5e8c;
+  --mo-pink-soft: #ff9cbd;
+  --mo-violet: #a98bff;
+  --mo-rec: #ff4458;
+  /* The clapperboard's stripes. */
+  --mo-stripe-a: #f5e9f0;
+  --mo-stripe-b: #140a1e;
+  --mo-shadow-deep: 0 40px 80px -30px rgba(0, 0, 0, 0.85);
+  --mo-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --mo-title: clamp(2.6rem, 7.4vw, 5.6rem);
+  --mo-count: clamp(1.7rem, 3vw, 2.3rem);
+  --mo-stat: clamp(1.9rem, 4vw, 2.8rem);
+  --mo-device-radius: 0.9rem;
+  --mo-phone-radius: 1.6rem;
+  --mo-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+:global(body):has(.band) {
+  overflow-x: clip;
+}
+
+/* ---------------- the band: kicker, title, lede and the time machine ---------------- */
+.band {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100vw;
+  margin: -1.25rem 0 var(--space-8) calc(50% - 50vw);
+  background:
+    radial-gradient(70rem 36rem at 88% -8%, rgba(169, 139, 255, 0.24), transparent 62%),
+    radial-gradient(56rem 36rem at -6% 108%, rgba(255, 94, 140, 0.22), transparent 60%),
+    var(--mo-night);
+  color: var(--mo-white);
+}
+.band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--mo-grain);
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.bandInner {
+  max-width: var(--page-wide);
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.75rem) var(--gutter) clamp(1.75rem, 4vw, 3rem);
+}
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  color: var(--mo-pink-soft);
+  font-family: var(--mo-mono);
+  font-size: var(--text-eyebrow);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* A camera's REC light: the show is being made on camera. */
+.rec {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  background: var(--mo-rec);
+  box-shadow: 0 0 0 4px rgba(255, 68, 88, 0.18), 0 0 14px rgba(255, 68, 88, 0.8);
+  animation: moRec 1.6s ease-in-out infinite;
+}
+.title {
+  margin: 0.55rem 0 0.9rem;
+  max-width: 14ch;
+  color: var(--mo-white);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--mo-title);
+  font-weight: 800;
+  line-height: 0.96;
+  letter-spacing: -0.025em;
+}
+.title em {
+  font-style: normal;
+  background: linear-gradient(100deg, var(--mo-pink-soft), var(--mo-pink) 45%, var(--mo-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lede {
+  max-width: 42rem;
+  margin: 0;
+  color: var(--mo-soft);
+  font-size: var(--text-lg);
+  line-height: 1.55;
+}
+
+/* ---------------- the time machine ---------------- */
+.machine {
+  margin-top: clamp(1.75rem, 4vw, 2.75rem);
+}
+.rig {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+  gap: clamp(1.5rem, 3.5vw, 3rem);
+  align-items: center;
+}
+.stage {
+  position: relative;
+  padding: 0 9% 7% 0;
+  perspective: 1800px;
+}
+.laptop {
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--mo-device-radius);
+  background: var(--mo-night-2);
+  box-shadow: var(--mo-shadow-deep), 0 0 0 1px var(--mo-line);
+  transform: rotateY(-5deg) rotateX(1.5deg);
+  transform-origin: left center;
+}
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.8rem;
+  background: var(--mo-glass);
+  border-bottom: 1px solid var(--mo-line);
+}
+.chrome i {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  background: var(--mo-bar);
+}
+.url {
+  flex: 0 1 18rem;
+  margin: 0 auto;
+  padding: 0.12rem 0.8rem;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--mo-faint);
+  font-family: var(--mo-mono);
+  font-size: var(--text-2xs);
+  text-align: center;
+}
+.screen {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: var(--mo-night-2);
+}
+.screenTop,
+.screenUnder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+.screenTop {
+  animation: moFade 0.26s ease both;
+}
+.phone {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 23%;
+  min-width: 6.5rem;
+  aspect-ratio: 9 / 19.5;
+  margin: 0;
+  padding: 0.42rem;
+  border-radius: var(--mo-phone-radius);
+  background: var(--mo-bezel);
+  box-shadow: var(--mo-shadow-deep), 0 0 0 1px rgba(255, 255, 255, 0.18), inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+  transform: rotate(2.5deg);
+}
+.phone::before {
+  content: "";
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  z-index: 2;
+  width: 30%;
+  height: 0.85rem;
+  border-radius: var(--radius-pill);
+  background: var(--mo-bezel);
+  transform: translateX(-50%);
+}
+.phoneScreen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: calc(var(--mo-phone-radius) - 0.42rem);
+  background: var(--mo-night-2);
+}
+
+/* The slate: a clapperboard with the day's numbers, and the player's buttons. */
+.slate {
+  overflow: hidden;
+  padding: 0 1.25rem 1.25rem;
+  border: 1px solid var(--mo-line);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025));
+}
+.clapper {
+  height: 1.35rem;
+  margin: 0 -1.25rem 1rem;
+  background: repeating-linear-gradient(-45deg, var(--mo-stripe-a) 0 14px, var(--mo-stripe-b) 14px 28px);
+}
+.slateGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+}
+.slateGrid dt,
+.slateDate,
+.scrubLabel {
+  color: var(--mo-faint);
+  font-family: var(--mo-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.slateGrid dd {
+  margin: 0.15rem 0 0;
+  color: var(--mo-white);
+  font-family: var(--mo-mono);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.slateGrid a {
+  color: inherit;
+  text-decoration-color: var(--mo-pink);
+  text-decoration-thickness: 2px;
+}
+.slateDate {
+  margin: 0;
+  color: var(--mo-pink-soft);
+}
+.slateCaption {
+  display: -webkit-box;
+  min-height: 2.3em;
+  margin: 0.3rem 0 0.35rem;
+  overflow: hidden;
+  color: var(--mo-white);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.slateTitle {
+  display: -webkit-box;
+  min-height: 2.7em;
+  margin: 0;
+  overflow: hidden;
+  color: var(--mo-faint);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.slateCount {
+  margin: 1rem 0;
+  color: var(--mo-soft);
+  font-size: var(--text-sm);
+}
+.slateCount strong {
+  display: block;
+  color: var(--mo-white);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--mo-count);
+  font-weight: 800;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  animation: moBump 0.3s ease both;
+}
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.play {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  padding: 0 1.15rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(120deg, var(--mo-pink-soft), var(--mo-pink) 50%, var(--mo-violet));
+  color: var(--mo-night);
+  font: inherit;
+  font-size: var(--text-btn);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.step,
+.close {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--mo-line);
+  border-radius: var(--radius-pill);
+  background: var(--mo-glass);
+  color: var(--mo-white);
+  font: inherit;
+  cursor: pointer;
+}
+/* app/globals.css styles every <button> as the show's filled pill (a top margin, a glow, a lift on hover); these keep
+   only what they set themselves. */
+.page button.play,
+.page button.step,
+.page button.close,
+.page button.card {
+  margin: 0;
+  box-shadow: none;
+  line-height: 1.2;
+}
+.page button.step:hover:not(:disabled),
+.page button.close:hover:not(:disabled),
+.page button.card:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+.page button.step:hover:not(:disabled),
+.page button.close:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+.step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.play:focus-visible,
+.step:focus-visible,
+.close:focus-visible,
+.scrub:focus-visible,
+.slateGrid a:focus-visible {
+  outline: 2px solid var(--mo-pink-soft);
+  outline-offset: 3px;
+}
+
+/* The scrubber is the chart of pull requests merged per day: past days lit, the playhead on the frame's day. */
+.scrubWrap {
+  margin-top: clamp(1.5rem, 3.5vw, 2.5rem);
+}
+.scrubLabel {
+  margin: 0 0 0.6rem;
+}
+.scrub {
+  position: relative;
+  height: 4.75rem;
+  border-bottom: 1px solid var(--mo-line);
+  border-radius: var(--radius-xs);
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
+}
+.bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.bar {
+  flex: 1;
+  height: var(--h);
+  min-height: 3px;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--mo-bar);
+  transition: background 0.16s ease;
+}
+.bar[data-on] {
+  background: linear-gradient(180deg, var(--mo-pink-soft), var(--mo-pink));
+}
+.bar[data-hover] {
+  background: var(--mo-white);
+}
+.playhead {
+  position: absolute;
+  top: -0.5rem;
+  bottom: -0.35rem;
+  left: var(--x);
+  width: 2px;
+  background: var(--mo-white);
+  box-shadow: 0 0 14px var(--mo-pink);
+  transform: translateX(-1px);
+  transition: left 0.2s ease;
+  pointer-events: none;
+}
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: -0.35rem;
+  left: 50%;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--mo-white);
+  box-shadow: 0 0 0 4px rgba(255, 94, 140, 0.35);
+  transform: translateX(-50%);
+}
+.tip {
+  position: absolute;
+  bottom: calc(100% + 0.85rem);
+  left: clamp(2.75rem, var(--x), calc(100% - 2.75rem));
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--mo-white);
+  color: var(--mo-night);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.axis {
+  position: relative;
+  height: 2.4rem;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.axis li {
+  position: absolute;
+  top: 0;
+  left: var(--x);
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--mo-line);
+  color: var(--mo-faint);
+  font-family: var(--mo-mono);
+  font-size: var(--text-2xs);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.axis li[data-on] {
+  border-left-color: var(--mo-pink);
+  color: var(--mo-white);
+}
+.axisEp {
+  font-weight: 700;
+}
+
+/* The chart's numbers, for a screen reader or anyone who wants them. */
+.dataTable {
+  margin-top: 0.75rem;
+  color: var(--mo-faint);
+  font-size: var(--text-xs);
+}
+.dataTable summary {
+  width: fit-content;
+  font-family: var(--mo-mono);
+  cursor: pointer;
+}
+.dataTable summary:focus-visible {
+  outline: 2px solid var(--mo-pink-soft);
+  outline-offset: 3px;
+}
+.dataTable table {
+  display: block;
+  max-height: 16rem;
+  margin-top: 0.6rem;
+  overflow: auto;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.dataTable th,
+.dataTable td {
+  padding: 0.25rem 1.25rem 0.25rem 0;
+  border-bottom: 1px solid var(--mo-line);
+  color: var(--mo-soft);
+  text-align: left;
+}
+
+/* ---------------- under the band ---------------- */
+.sectionKicker {
+  margin: 0 0 0.35rem;
+  color: var(--accent-text);
+  font-size: var(--text-eyebrow);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.page h2 {
+  margin-top: 0;
+}
+.sectionLede {
+  max-width: 40rem;
+  color: var(--muted);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 var(--space-8);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--line);
+}
+.stats > div {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  padding: 1.1rem 1.25rem 1.2rem;
+  background: var(--card);
+}
+.stats dd {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--mo-stat);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stats dt {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+
+/* Day one, as a page of a script: the times down a ruled margin. */
+.dayOne {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+  margin-bottom: var(--space-8);
+}
+.dayOneWords p {
+  color: var(--muted);
+}
+.script {
+  margin: 0;
+  padding: 1.1rem 1.4rem;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(90deg, transparent 6.35rem, var(--soft) 6.35rem, var(--soft) calc(6.35rem + 2px), transparent calc(6.35rem + 2px)),
+    var(--card);
+  box-shadow: var(--shadow);
+  font-family: var(--mo-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.script li {
+  display: grid;
+  grid-template-columns: 4.7rem minmax(0, 1fr);
+  gap: 1.1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px dashed var(--line);
+}
+.script li:last-child {
+  border-bottom: 0;
+}
+.scriptTime {
+  color: var(--accent-text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.scriptLine a {
+  font-weight: 700;
+}
+.scriptIdea {
+  padding: 0.05rem 0.4rem;
+  border-radius: var(--radius-xs);
+  background: var(--soft);
+  color: var(--accent-text);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.script .scriptMore {
+  display: block;
+  padding-left: 5.8rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* The season: an episode's title card beside its row of screenshots. */
+.season {
+  margin-bottom: var(--space-8);
+}
+.episodes {
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 2.5rem);
+  margin: 1.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.episode {
+  display: grid;
+  grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.titleCard {
+  position: relative;
+  overflow: hidden;
+  padding: 1.25rem 1.3rem 1.3rem;
+  border-radius: var(--radius-lg);
+  background: var(--grad-dark);
+  color: var(--mo-white);
+  box-shadow: var(--shadow);
+}
+.titleCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--mo-grain);
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+.epMeta {
+  margin: 0;
+  color: var(--mo-faint);
+  font-family: var(--mo-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.epNo {
+  color: var(--mo-pink-soft);
+  font-weight: 700;
+}
+.epTitle {
+  margin: 0.35rem 0 0.5rem;
+  color: var(--mo-white);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1.1;
+}
+.epBlurb {
+  margin: 0;
+  color: var(--mo-soft);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.epCount {
+  margin: 0.85rem 0 0;
+  color: var(--mo-faint);
+  font-family: var(--mo-mono);
+  font-size: var(--text-2xs);
+}
+/* A grid on a computer, so every card is in sight; one sideways row on a phone (below). */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  gap: 1.6rem 1.25rem;
+  margin: 0;
+  padding: 0.35rem 0.6rem 0 0;
+  list-style: none;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.card:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: var(--radius-md);
+}
+.thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--paper-2);
+  transition: transform 0.18s ease;
+}
+.card:hover .thumb {
+  transform: translateY(-3px);
+}
+.thumbDesktop {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+}
+.thumbPhone {
+  position: absolute;
+  right: -0.45rem;
+  bottom: -0.7rem;
+  width: 25%;
+  /* The img's height attribute would win over the ratio. */
+  height: auto;
+  aspect-ratio: 9 / 19.5;
+  object-fit: cover;
+  object-position: top center;
+  border: 3px solid var(--mo-bezel);
+  border-radius: var(--radius-sm);
+  background: var(--mo-bezel);
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.55);
+}
+.thumbPhoneOnly {
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--grad-dark);
+}
+.thumbPhoneOnly .thumbPhone {
+  position: static;
+  width: auto;
+  height: 100%;
+  border-width: 3px;
+}
+.cardCaption {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.cardMeta {
+  color: var(--muted);
+  font-family: var(--mo-mono);
+  font-size: var(--text-xs);
+}
+
+/* The viewer: a screening room, dark in both themes. */
+.viewer {
+  width: min(74rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: calc(100svh - 2rem);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--mo-line);
+  border-radius: var(--radius-lg);
+  background: var(--mo-night);
+  color: var(--mo-white);
+  box-shadow: var(--mo-shadow-deep);
+}
+.viewer::backdrop {
+  background: rgba(8, 4, 12, 0.84);
+  backdrop-filter: blur(4px);
+}
+.viewerBody {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+.viewerPics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 15rem);
+  gap: 1.1rem;
+  align-items: start;
+}
+.viewerOne {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+.viewerDesktop {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  box-shadow: var(--mo-shadow-deep);
+}
+.viewerPhone {
+  width: 100%;
+  max-width: 20rem;
+  height: auto;
+  border: 5px solid var(--mo-bezel);
+  border-radius: var(--radius-lg);
+  background: var(--mo-bezel);
+}
+.viewerText {
+  display: grid;
+  gap: 0.4rem;
+}
+.viewerCaption {
+  margin: 0;
+  color: var(--mo-white);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+.viewerTitle {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.viewerTitle a {
+  color: var(--mo-pink-soft);
+}
+.viewerNav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.viewerCount {
+  min-width: 5.5rem;
+  color: var(--mo-faint);
+  font-family: var(--mo-mono);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+.close {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-left: auto;
+  padding: 0 1rem;
+}
+
+/* The production line: six stations on a moving belt. */
+.line {
+  margin-bottom: var(--space-8);
+}
+.lineSteps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin: 1.75rem 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+.lineSteps li {
+  position: relative;
+  padding-right: 1.1rem;
+}
+.lineSteps li::before {
+  content: "";
+  position: absolute;
+  top: 1.2rem;
+  left: 2.75rem;
+  right: 0.25rem;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 14px);
+  animation: moBelt 1.2s linear infinite;
+}
+.lineSteps li:last-child::before {
+  display: none;
+}
+.lineNo {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--grad);
+  color: var(--accent-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-md);
+  font-weight: 800;
+  box-shadow: var(--shadow);
+}
+.lineSteps h3 {
+  margin: 0.8rem 0 0.3rem;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: var(--text-md);
+}
+.lineSteps p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.lineNote {
+  max-width: 44rem;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+/* The time-lapse. */
+.film {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  margin-bottom: var(--space-8);
+}
+.filmWords p {
+  color: var(--muted);
+}
+.filmPlayer {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-lg);
+  background: var(--mo-night);
+  box-shadow: var(--shadow);
+}
+.download {
+  font-weight: 700;
+}
+
+.cta {
+  margin: 0 0 var(--space-6);
+  padding: clamp(2rem, 6vw, 3.5rem) var(--gutter);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(40rem 20rem at 50% 120%, rgba(255, 94, 140, 0.3), transparent 70%),
+    var(--grad-dark);
+  color: var(--mo-white);
+  text-align: center;
+}
+.cta h2 {
+  color: var(--mo-white);
+}
+.cta p {
+  max-width: 34rem;
+  margin-right: auto;
+  margin-left: auto;
+  color: var(--mo-soft);
+}
+.ctaButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+}
+.ctaLink {
+  color: var(--mo-pink-soft);
+  font-weight: 600;
+}
+.footnote {
+  max-width: 46rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* ---------------- motion ---------------- */
+@keyframes moFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes moBump {
+  from {
+    opacity: 0.35;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes moRec {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes moBelt {
+  to {
+    background-position: 28px 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec,
+  .screenTop,
+  .slateCount strong,
+  .lineSteps li::before {
+    animation: none;
+  }
+  .playhead,
+  .thumb,
+  .bar {
+    transition: none;
+  }
+}
+
+/* ---------------- narrower screens ---------------- */
+@media (max-width: 960px) {
+  .rig {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stats > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .dayOne,
+  .film,
+  .episode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lineSteps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .lineSteps li {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    column-gap: 1rem;
+    padding: 0 0 1.25rem;
+  }
+  .lineSteps li::before {
+    top: 2.75rem;
+    bottom: 0.25rem;
+    left: 1.2rem;
+    right: auto;
+    width: 2px;
+    height: auto;
+    background: repeating-linear-gradient(180deg, var(--accent) 0 8px, transparent 8px 14px);
+    animation: none;
+  }
+  .lineNo {
+    grid-row: span 2;
+  }
+  .lineSteps h3 {
+    margin-top: 0.4rem;
+  }
+}
+@media (max-width: 720px) {
+  .stage {
+    padding: 0 12% 9% 0;
+  }
+  .laptop {
+    transform: none;
+  }
+  .phone {
+    width: 30%;
+    min-width: 0;
+  }
+  .axisDay {
+    display: none;
+  }
+  .viewerPics {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+  .viewerPhone {
+    max-width: 62%;
+  }
+  .script {
+    padding: 0.9rem 1rem;
+    background: var(--card);
+  }
+  .script li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+  .script .scriptMore {
+    padding-left: 0;
+  }
+  .strip {
+    display: flex;
+    gap: 1rem;
+    padding: 0.35rem 1.25rem 1.1rem 0.1rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  }
+  .strip::-webkit-scrollbar {
+    display: none;
+  }
+  .strip > li {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+  .card {
+    width: 14rem;
+  }
+}
