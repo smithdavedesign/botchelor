@@ -92,6 +92,8 @@ export const PUBLIC_PATHS = [
   "/about",
   "/costs",
   "/marketing",
+  // The making of Botchelor (lib/making-of.ts): 42 days of screenshots, a time-lapse and the production line.
+  "/making-of",
   "/safety",
   "/agents/pricing",
   // The model league (lib/model-league.ts): which model family's characters get the second dates.

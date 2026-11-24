@@ -7,7 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 
-const CUTS = { Ad: "botchelor-ad-9x16", AdWide: "botchelor-ad-16x9", Agent: "botchelor-agents-9x16", AgentWide: "botchelor-agents-16x9", Bumper: "botchelor-bumper-9x16", BumperWide: "botchelor-bumper-16x9" };
+const CUTS = { Ad: "botchelor-ad-9x16", AdWide: "botchelor-ad-16x9", Agent: "botchelor-agents-9x16", AgentWide: "botchelor-agents-16x9", Bumper: "botchelor-bumper-9x16", BumperWide: "botchelor-bumper-16x9", MakingOf: "botchelor-making-of-16x9" };
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(CUTS);
 mkdirSync("out", { recursive: true });
 for (const id of wanted) {

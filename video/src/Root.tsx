@@ -1,8 +1,9 @@
 import React from "react";
-import { Composition } from "remotion";
+import { Composition, Still } from "remotion";
 import { AGENT_TERMINAL_FRAMES, Agent } from "./Agent";
 import { AD_PROPS, AGENT_SHOW } from "./ad-props";
 import { BUMPER_FRAMES, Bumper } from "./Bumper";
+import { MAKING_OF_FRAMES, MakingOf, MakingOfCard } from "./MakingOf";
 import { Show, type ShowProps } from "./Show";
 
 const FPS = 30;
@@ -22,5 +23,7 @@ export const Root: React.FC = () => (
     <Composition id="BumperWide" component={Bumper} durationInFrames={BUMPER_FRAMES} fps={FPS} {...W} />
     <Composition id="Agent" component={Agent} defaultProps={{ show: AGENT_SHOW }} durationInFrames={agentFrames} fps={FPS} {...V} />
     <Composition id="AgentWide" component={Agent} defaultProps={{ show: AGENT_SHOW }} durationInFrames={agentFrames} fps={FPS} {...W} />
+    <Composition id="MakingOf" component={MakingOf} durationInFrames={MAKING_OF_FRAMES} fps={FPS} {...W} />
+    <Still id="MakingOfCard" component={MakingOfCard} width={1200} height={630} />
   </>
 );

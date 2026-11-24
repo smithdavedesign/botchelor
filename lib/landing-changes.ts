@@ -28,6 +28,8 @@ export const LANDING_CHANGES: readonly LandingChange[] = [
   { path: "/guides/save-character-ai", changedAt: "2026-11-24T00:00:00Z" },
   // The relationship trope generator (2026-11-23, lib/relationship-tropes.ts): a new tool. The day after the merge.
   { path: "/tools/relationship-trope-generator", changedAt: "2026-11-24T00:00:00Z" },
+  // The making of Botchelor (2026-11-23, lib/making-of.ts): a new page. The day after the merge.
+  { path: "/making-of", changedAt: "2026-11-24T00:00:00Z" },
 ];
 
 const DAY_MS = 86_400_000;

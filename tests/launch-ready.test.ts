@@ -92,6 +92,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/about": meta(() => import("@/app/about/page")),
   "/costs": meta(() => import("@/app/costs/page")),
   "/marketing": meta(() => import("@/app/marketing/page")),
+  "/making-of": meta(() => import("@/app/making-of/page")),
   "/safety": meta(() => import("@/app/safety/page")),
   "/agents/pricing": meta(() => import("@/app/agents/pricing/page")),
   "/agents/league": metaDbDown(() => import("@/app/agents/league/page")),

@@ -226,6 +226,8 @@ const UNGATED_PAGES: ReadonlySet<string> = new Set([
   "/costs",
   // Marketing in the open (2026-11-15): every channel and post and what it brought, like /costs.
   "/marketing",
+  // The making of Botchelor (app/making-of, 2026-11-23): the site growing day by day, every picture from the PG show.
+  "/making-of",
   // Everything on Botchelor (app/everything/page.tsx): the footer's old links in one list, nothing adult.
   "/everything",
   // The Sunday letter's own page, which the footer's sign-up links to ("What's in it"); its confirm and unsubscribe

@@ -157,8 +157,13 @@ const GROUPS: Group[] = [
         href: "https://claude.com/claude-code",
       },
       {
+        name: "The making of",
+        what: "The show as it grew, day by day, in the screenshots the agents took to prove each change, with a time-lapse.",
+        href: "/making-of",
+      },
+      {
         name: "The marketing loop",
-        what: "Drafts posts from a checked list of facts and posts the day's clip and dates to X, Bluesky, Threads, YouTube Shorts and Instagram. Where a community wants a person, on Reddit and Hacker News, the founder posts by hand. Every post is logged in the open.",
+        what: "Drafts posts from a checked list of facts and posts the show's clips and dates to X, Bluesky, Threads, YouTube Shorts and Instagram. Where a community wants a person, on Reddit and Hacker News, the founder posts by hand. Every post is logged in the open.",
         href: "/marketing",
       },
       { name: "AI visitors", what: "Agents visit the live show, rate it and file what they find, so problems turn into issues before people hit them." },
