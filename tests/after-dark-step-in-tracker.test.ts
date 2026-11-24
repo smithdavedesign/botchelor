@@ -369,13 +369,13 @@ describe("read after a reply", () => {
     expect(await stored(again.id)).toBeNull();
   });
 
-  it("STEP_IN_TRACKER=off stops the reads and stops the sheet being said, and leaves what's kept where it is", async () => {
+  it("STEP_IN_TRACKER=0 stops the reads and stops the sheet being said, and leaves what's kept where it is", async () => {
     const wrote = writer();
     const read = reader(S0, S1);
     const a = await admin();
     const s = await start(a.id);
     expect(await stepInTrack(t.db, s.id)).toBe(true);
-    vi.stubEnv("STEP_IN_TRACKER", "off");
+    vi.stubEnv("STEP_IN_TRACKER", "0");
     await say(a.id, s.id, LINES[0]);
     expect(lastUser(wrote.prompts.at(-1)!)).toBe(LINES[0]);
     expect(await stepInTrack(t.db, s.id)).toBe(false);

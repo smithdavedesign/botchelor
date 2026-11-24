@@ -13,11 +13,13 @@ import { adultModel } from "./mode";
 export const TRACKER_TIMEOUT_MS = 20_000;
 
 /**
- * The switch nobody should need: STEP_IN_TRACKER=off in After Dark's environment stops the reads and stops the sheet
- * being said to the writer (the sheets already kept stay where they are). The sheet is beside every reply's prompt, so
- * if a model ever starts keeping it badly this turns it off without a change of code.
+ * On unless STEP_IN_TRACKER=0 (docs/switches.md), the switch nobody should need: "0" in After Dark's environment stops
+ * the reads and stops the sheet being said to the writer (the sheets already kept stay where they are). The sheet is
+ * beside every reply's prompt, so if a model ever starts keeping it badly this turns it off without a change of code.
  */
-export const trackerOn = (env: Record<string, string | undefined> = process.env): boolean => (env.STEP_IN_TRACKER ?? "").trim().toLowerCase() !== "off";
+export function trackerOn(env: Record<string, string | undefined> = process.env): boolean {
+  return env.STEP_IN_TRACKER?.trim() !== "0";
+}
 
 let testModel: Model | null | undefined;
 /** A scripted model for the sheet's reads (tests); null turns them off. Unset, they run on After Dark's own model. */
