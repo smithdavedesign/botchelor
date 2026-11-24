@@ -1291,3 +1291,116 @@
     flex: 1;
   }
 }
+
+/* The week in review (app/week, lib/week-recap.ts): the week's video beside the dates in it; stacked on a phone, the
+   video first. The video keeps its 9:16 shape before it loads, so the list under it never jumps. */
+main:has(> .week-recap) {
+  max-width: var(--page-wide);
+}
+.week-recap-head {
+  margin-bottom: var(--space-5);
+}
+.week-recap-head .lede {
+  max-width: 56ch;
+}
+.week-recap-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+}
+.week-recap-stage {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+.week-recap-stage p {
+  margin: 0;
+}
+.week-recap-video {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  height: auto;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--radius);
+  background: var(--card-dark);
+  box-shadow: var(--shadow);
+}
+.week-recap-list h2 {
+  margin: 0 0 var(--space-3);
+}
+.week-recap-dates {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.week-date {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  margin: 0;
+}
+.week-date-pair {
+  display: flex;
+}
+.week-date-pair .avatar + .avatar {
+  margin-left: calc(var(--space-3) * -1);
+}
+.week-date-words {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.week-date-words h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.week-date-title {
+  margin: 0;
+  color: var(--muted);
+}
+.week-date-ending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.week-date-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-2) 0 0;
+}
+.week-date-links .button {
+  margin: 0;
+}
+.week-recap-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.week-recap-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+@media (min-width: 52rem) {
+  .week-recap-body {
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    align-items: start;
+  }
+  .week-recap-stage {
+    position: sticky;
+    top: 5.5rem;
+  }
+}
