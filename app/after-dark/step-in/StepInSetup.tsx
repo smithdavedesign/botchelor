@@ -12,7 +12,7 @@ import { adultTagById, roleplayGroups } from "@/lib/adult/tags";
 import { useAdultTagDemand } from "@/app/after-dark/useAdultTagDemand";
 import type { BondMark } from "@/lib/adult/step-in-bond";
 import type { StepInCharacter, StepInPlace } from "@/lib/adult/step-in";
-import { inlineFaces, placeChoices, STORY_KIND_OWN, storyChoices, type PlaceKind } from "@/lib/adult/step-in-setup";
+import { inlineFaces, ofWhoKind, placeChoices, STORY_KIND_OWN, storyChoices, WHO_KIND_NOUN, whoKinds, type PlaceKind, type WhoKind } from "@/lib/adult/step-in-setup";
 import { STORY_PLACE, type StoryPlace } from "@/lib/adult/step-in-shared";
 import type { CrisisResources } from "@/lib/crisis";
 import { premiseForYou } from "@/lib/roleplays";
@@ -129,6 +129,8 @@ export default function StepInSetup({
   const [sheet, setSheet] = useState<Sheet | null>(sheetOpen);
   const [query, setQuery] = useState("");
   const [whoQuery, setWhoQuery] = useState("");
+  // Women / Men / Non-binary: one choice for the page's faces and the sheet's, so "See all" opens on the same ones.
+  const [whoKind, setWhoKind] = useState<WhoKind>("");
   const [storyQuery, setStoryQuery] = useState("");
   const [storyKind, setStoryKind] = useState("");
   const [placeQuery, setPlaceQuery] = useState("");
@@ -137,9 +139,13 @@ export default function StepInSetup({
   const character = cast.find((c) => c.id === who) ?? null;
   // Who to pick from: theirs, the house cast and everyone else, or what the search finds (lib/adult/pair-pick.ts, as on
   // the hub's picker). The page shows the first of them; the sheet, all.
-  const groups = useMemo(() => oneFaceGroups(cast, recent, query), [cast, recent, query]);
+  const kindsOfWho = useMemo(() => whoKinds(cast), [cast]);
+  const pool = useMemo(() => ofWhoKind(cast, whoKind), [cast, whoKind]);
+  const groups = useMemo(() => oneFaceGroups(pool, recent, query), [pool, recent, query]);
   const inline = useMemo(() => inlineFaces(groups), [groups]);
-  const sheetGroups = useMemo(() => (sheet === "who" ? oneFaceGroups(cast, recent, whoQuery) : []), [sheet, cast, recent, whoQuery]);
+  const sheetGroups = useMemo(() => (sheet === "who" ? oneFaceGroups(pool, recent, whoQuery) : []), [sheet, pool, recent, whoQuery]);
+  // Nobody showing: what's narrowing them, said back ("Nobody called “Sam”", "No women called “Sam”").
+  const nobody = (q: string) => `${whoKind ? `No ${WHO_KIND_NOUN[whoKind]}` : "Nobody"} called “${q.trim()}”.`;
   const rp = all.find((r) => r.id === roleplayId) ?? null;
   // The roleplay's own place, when it has one: offered first under "Where", and where the scene starts unless they choose.
   const story = rp ? (storyPlaces[rp.id] ?? null) : null;
@@ -284,8 +290,18 @@ export default function StepInSetup({
               spellCheck={false}
               data-step-in-search
             />
+            {kindsOfWho.length > 0 && (
+              <div className="ad-scenes-cats ad-si-kinds" role="radiogroup" aria-label="Show only">
+                {kindsOfWho.map((k) => (
+                  <button key={k.id || "all"} type="button" role="radio" aria-checked={whoKind === k.id} className={whoKind === k.id ? "on" : undefined} onClick={() => setWhoKind(k.id)} data-step-in-who-kind={k.id || "all"}>
+                    {k.label}
+                    <span className="ad-scenes-count">{k.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="sr-only" aria-live="polite">
-              {query.trim() ? matches(inline.shown + inline.more) : ""}
+              {query.trim() || whoKind ? matches(inline.shown + inline.more) : ""}
             </p>
             <div role="group" aria-label="Who you're in the scene with">
               {inline.shown ? (
@@ -296,8 +312,15 @@ export default function StepInSetup({
                 </ul>
               ) : (
                 <p className="muted small ad-si-none">
-                  Nobody called “{query.trim()}”.{" "}
-                  <button type="button" className="link-button" onClick={() => setQuery("")}>
+                  {nobody(query)}{" "}
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => {
+                      setQuery("");
+                      setWhoKind("");
+                    }}
+                  >
                     Show everyone
                   </button>
                 </p>
@@ -317,7 +340,7 @@ export default function StepInSetup({
                   }}
                   data-step-in-pick="who"
                 >
-                  {query.trim() ? `See all ${matches(inline.shown + inline.more)}` : `See all ${cast.length} characters`}
+                  {query.trim() ? `See all ${matches(inline.shown + inline.more)}` : whoKind ? `See all ${pool.length} ${WHO_KIND_NOUN[whoKind]}` : `See all ${cast.length} characters`}
                 </button>
               </p>
             )}
@@ -515,7 +538,8 @@ export default function StepInSetup({
         lead={`${cast.length} in your After Dark: the people from your scenes, the house cast, and everyone you've switched in.`}
         onClose={close}
         search={{ value: whoQuery, onChange: setWhoQuery, placeholder: `Search ${cast.length} ${cast.length === 1 ? "character" : "characters"} by name`, label: "Search the cast by name" }}
-        status={whoQuery.trim() ? matches(sheetGroups.reduce((n, g) => n + g.faces.length, 0)) : ""}
+        kinds={kindsOfWho.length ? { label: "Show only", options: kindsOfWho.map((k) => ({ ...k, id: k.id || "all" })), on: whoKind || "all", onPick: (id) => setWhoKind(id === "all" ? "" : (id as WhoKind)) } : undefined}
+        status={whoQuery.trim() || whoKind ? matches(sheetGroups.reduce((n, g) => n + g.faces.length, 0)) : ""}
         grid="faces"
       >
         {sheetGroups.length ? (
@@ -532,8 +556,15 @@ export default function StepInSetup({
         ) : (
           <li className="ad-si-sheet-label">
             <p className="muted">
-              Nobody called “{whoQuery.trim()}”.{" "}
-              <button type="button" className="link-button" onClick={() => setWhoQuery("")}>
+              {nobody(whoQuery)}{" "}
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => {
+                  setWhoQuery("");
+                  setWhoKind("");
+                }}
+              >
                 Show everyone
               </button>
             </p>

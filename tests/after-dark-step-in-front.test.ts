@@ -28,7 +28,8 @@ import { ROLEPLAY_COVERS } from "@/lib/adult/roleplay-covers";
 import { ROLEPLAYS, type Roleplay } from "@/lib/adult/roleplays";
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { drawnSets, stepInCast, stepInPlaces, storyPlaces } from "@/lib/adult/step-in";
-import { inlineFaces, INLINE_FACES, placeChoices, STORY_KIND_OWN, storyChoices } from "@/lib/adult/step-in-setup";
+import { inlineFaces, INLINE_FACES, ofWhoKind, placeChoices, STORY_KIND_OWN, storyChoices, whoKinds } from "@/lib/adult/step-in-setup";
+import { pronounKind } from "@/lib/adult/craft";
 import { SHELF_TONIGHT } from "@/lib/adult/step-in-shelf";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -89,6 +90,25 @@ describe("what goes on the page, and what's left to the sheet", () => {
     expect(inlineFaces([group("matches", 40)], 6)).toMatchObject({ shown: 6, more: 34 });
   });
 
+  it("who can be narrowed to women, men or non-binary by their pronouns, and only when that narrows anything (David, 2026-11-24)", () => {
+    const c = (id: string, kind: "she" | "he" | "they" | null) => ({ id, kind });
+    const cast = [c("a", "she"), c("b", "he"), c("c", "she"), c("d", null), c("e", "they")];
+    expect(whoKinds(cast)).toEqual([
+      { id: "", label: "Everyone", count: 5 },
+      { id: "she", label: "Women", count: 2 },
+      { id: "he", label: "Men", count: 1 },
+      { id: "they", label: "Non-binary", count: 1 },
+    ]);
+    // A kind nobody is isn't offered; one kind alone (or none known) is no filter at all.
+    expect(whoKinds([c("a", "she"), c("b", "he")]).map((k) => k.label)).toEqual(["Everyone", "Women", "Men"]);
+    expect(whoKinds([c("a", "she"), c("b", "she"), c("d", null)])).toEqual([]);
+    expect(whoKinds([])).toEqual([]);
+    // Narrowing: someone with no pronouns on their sheet is only under Everyone.
+    expect(ofWhoKind(cast, "she").map((x) => x.id)).toEqual(["a", "c"]);
+    expect(ofWhoKind(cast, "they").map((x) => x.id)).toEqual(["e"]);
+    expect(ofWhoKind(cast, "")).toBe(cast);
+  });
+
   it("the stories: the viewer's own first, then the show's by kind, each once; a kind or a search narrows them", () => {
     const own: Roleplay[] = [{ id: "u:1", title: "Rival food trucks", icon: "✨", category: "romance", premise: "{a} and {b} park side by side.", roles: ["the ramen truck owner", "the taco truck owner"] }];
     const kinds = [
@@ -135,6 +155,10 @@ describe("the set-up, made of pictures", () => {
     expect(build.match(/<button type="button" class="ad-si-face" aria-pressed="false"[^>]*data-face="/g)).toHaveLength(HOUSE_CHARACTERS.length);
     expect(build).toMatch(/<span class="ad-si-face-pic"><img[^>]*width="240" height="240"[^>]*class="avatar avatar-portrait avatar-house avatar-fill"/);
     expect(build).toContain("data-step-in-search");
+    // Under the search, the chips that narrow who shows: Everyone (on), Women, Men.
+    expect(build).toMatch(/data-step-in-search="true" value=""\/><div class="ad-scenes-cats ad-si-kinds" role="radiogroup" aria-label="Show only"><button type="button" role="radio" aria-checked="true" class="on" data-step-in-who-kind="all">Everyone<span class="ad-scenes-count">15<\/span>/);
+    expect(build).toMatch(/data-step-in-who-kind="she">Women<span class="ad-scenes-count">\d+<\/span>/);
+    expect(build).toMatch(/data-step-in-who-kind="he">Men<span class="ad-scenes-count">\d+<\/span>/);
     expect(build).not.toContain("ad-pp-panel");
     // The roleplay and the place aren't menus any more.
     expect(build).not.toContain("<select");
@@ -198,6 +222,17 @@ describe("the sheets", () => {
     expect(grid).toMatch(/<li class="ad-si-sheet-label"><h3>House cast<\/h3><\/li>/);
     expect(grid.match(/data-face="/g)).toHaveLength(HOUSE_CHARACTERS.length);
     expect(who).toContain('class="ad-scenes-grid ad-si-sheet-grid ad-si-sheet-faces"');
+    // Women / Men across the top, each with how many (the house cast's own pronouns).
+    const women = HOUSE_CHARACTERS.filter((c) => pronounKind(c.pronouns) === "she").length;
+    const men = HOUSE_CHARACTERS.filter((c) => pronounKind(c.pronouns) === "he").length;
+    expect(women).toBeGreaterThan(0);
+    expect(men).toBeGreaterThan(0);
+    expect((await stepInCast(t.db, a)).filter((c) => c.kind === "she")).toHaveLength(women);
+    const cats = who.slice(who.indexOf('<div class="ad-scenes-cats" role="radiogroup" aria-label="Show only">'));
+    expect(cats).toMatch(/^<div class="ad-scenes-cats" role="radiogroup" aria-label="Show only"><button type="button" role="radio" aria-checked="true" class="on" data-step-in-sheet-kind="all">Everyone<span class="ad-scenes-count">15<\/span><\/button>/);
+    expect(cats).toContain(`data-step-in-sheet-kind="she">Women<span class="ad-scenes-count">${women}</span>`);
+    expect(cats).toContain(`data-step-in-sheet-kind="he">Men<span class="ad-scenes-count">${men}</span>`);
+    expect(cats).not.toContain('data-step-in-sheet-kind="they"');
     // The one already picked is marked.
     const picked = await sheet(a, "who", { preselect: WHO });
     expect(picked).toMatch(new RegExp(`<button type="button" class="ad-si-face on" aria-pressed="true"[^>]*data-face="${WHO}"`));

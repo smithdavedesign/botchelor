@@ -3699,6 +3699,11 @@ section.ad-si-step {
   width: 100%;
   margin: 0 0 var(--space-3);
 }
+/* Women / Men / Non-binary under the page's search: the sheet's chips, without the sheet's side padding. */
+.ad-si-step .ad-si-kinds {
+  margin: calc(-1 * var(--space-1)) 0 var(--space-3);
+  padding: 0 0 var(--space-1);
+}
 .ad-si-faces {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(30%, 6.75rem), 1fr));

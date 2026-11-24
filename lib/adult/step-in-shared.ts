@@ -2,6 +2,7 @@
  * What Step in's pages and its engine share (lib/adult/step-in.ts; docs/after-dark.md "Step in"): the scene as its page
  * shows it, and the few limits and words both sides say. Client-safe: no server imports.
  */
+import type { PronounKind } from "./craft";
 import { echoOf } from "../companion-live-shared";
 import { storySpeech } from "../story-reply";
 import type { PairLimits } from "./limits";
@@ -165,8 +166,12 @@ export const callWords = (text: string): string => storySpeech(text).join(" ") |
  */
 export const placeInSentence = (label: string): string => (label ? label.charAt(0).toLowerCase() + label.slice(1) : label);
 
-/** `house`: one of the show's own cast (set where the set-up's picker groups them, lib/adult/step-in.ts stepInCast). */
-export type StepInCharacter = { id: string; name: string; portrait: string | null; hue: number | null; house?: boolean };
+/**
+ * `house`: one of the show's own cast (set where the set-up's picker groups them, lib/adult/step-in.ts stepInCast).
+ * `kind`: which pronouns their sheet gives (lib/adult/craft.ts pronounKind), for the picker's Women / Men / Non-binary;
+ * null when it gives none we know. Set where the picker needs it (stepInCast).
+ */
+export type StepInCharacter = { id: string; name: string; portrait: string | null; hue: number | null; house?: boolean; kind?: PronounKind | null };
 
 /**
  * The place a scene is started at when it's started where its roleplay's own story is set (lib/adult/roleplays.ts

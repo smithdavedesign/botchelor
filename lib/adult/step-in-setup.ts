@@ -6,6 +6,7 @@
  * sheet that takes the screen (PickSheet.tsx). This is the choosing of what goes where; the page draws it. Pure and
  * client-safe.
  */
+import type { PronounKind } from "./craft";
 import { fold } from "./pair-pick";
 import type { Roleplay } from "./roleplays";
 
@@ -29,6 +30,29 @@ export function inlineFaces<T>(groups: readonly { label: string; faces: readonly
   const shown = max - left;
   return { groups: out, shown, more: groups.reduce((n, g) => n + g.faces.length, 0) - shown };
 }
+
+/** Who to narrow the cast to (David, 2026-11-24: "add a filter for the character search field, like men, women"): "" for everyone. */
+export type WhoKind = "" | PronounKind;
+const WHO_KINDS: readonly PronounKind[] = ["she", "he", "they"];
+const WHO_KIND_LABEL: Record<PronounKind, string> = { she: "Women", he: "Men", they: "Non-binary" };
+/** The kind as the end of "See all 12 …". */
+export const WHO_KIND_NOUN: Record<PronounKind, string> = { she: "women", he: "men", they: "non-binary characters" };
+
+/**
+ * The kinds the cast can be narrowed to, by the pronouns their sheets give (lib/adult/craft.ts pronounKind): Everyone,
+ * then Women, Men and Non-binary as far as anyone is one, each with how many. None at all when fewer than two kinds have
+ * anyone (a chip that narrows nothing is noise). Someone whose sheet gives no pronouns shows only under Everyone.
+ */
+export function whoKinds(cast: readonly { kind?: PronounKind | null }[]): { id: WhoKind; label: string; count: number }[] {
+  const n: Record<PronounKind, number> = { she: 0, he: 0, they: 0 };
+  for (const c of cast) if (c.kind) n[c.kind]++;
+  const present = WHO_KINDS.filter((k) => n[k] > 0);
+  if (present.length < 2) return [];
+  return [{ id: "", label: "Everyone", count: cast.length }, ...present.map((k) => ({ id: k, label: WHO_KIND_LABEL[k], count: n[k] }))];
+}
+
+/** The cast narrowed to one kind ("" keeps everyone). */
+export const ofWhoKind = <T extends { kind?: PronounKind | null }>(cast: readonly T[], kind: WhoKind): readonly T[] => (kind ? cast.filter((c) => c.kind === kind) : cast);
 
 /** The kind that shows only the viewer's own roleplays. */
 export const STORY_KIND_OWN = "yours";

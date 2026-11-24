@@ -114,6 +114,7 @@ import {
   type StoryPlace,
 } from "./step-in-shared";
 import { storySpeech } from "../story-reply";
+import { pronounKind } from "./craft";
 import { logStep, STEP_IN_PARTNER } from "./steps";
 import { countUse, overCap, usageLeft } from "./usage";
 import { sceneCharacter } from "./voice";
@@ -275,9 +276,14 @@ const limitsOf = (s: Pick<SceneRow, "intensity" | "hard_nos">): PairLimits => ({
 export async function stepInCast(db: Db, viewer: string): Promise<StepInCharacter[]> {
   const ids = [...(await eligibleIds(db, viewer))];
   if (!ids.length) return [];
-  return (
-    await db.query<StepInCharacter>(`select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue as hue, coalesce(c.is_house, false) as house from characters c where c.id = any($1) order by c.name`, [ids])
+  const rows = (
+    await db.query<StepInCharacter & { pronouns: string | null }>(
+      `select c.id, c.name, ${portraitPathSql("c")} as portrait, c.avatar_hue as hue, coalesce(c.is_house, false) as house, c.pronouns from characters c where c.id = any($1) order by c.name`,
+      [ids],
+    )
   ).rows;
+  // Their pronouns as the picker's kind (Women / Men / Non-binary); the words themselves stay here.
+  return rows.map(({ pronouns, ...c }) => ({ ...c, kind: pronounKind(pronouns) }));
 }
 
 async function characterRef(db: Db, id: string): Promise<StepInCharacter | null> {
