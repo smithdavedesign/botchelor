@@ -3507,6 +3507,46 @@ refusals, Undressed's rules and price, and ownership. tests/creator-faces.test.t
 runs at desktop and phone size: a repair with a marked spot, a change made from it, Keep, back to the original, and
 the sheet from a night's ⋯. Explicit output is never made in tests: David checks Undressed live.
 
+## Fix for a video (2026-11-24)
+
+David: "There is no way to fix a video, often there might be a issue with it. Should we offer fixing this or is this
+too expensive?" No model here edits part of a clip, so a video's 🩹 Fix films it again from the very start it had,
+told what went wrong. It's beside 👍/👎 on the Studio's animations (`app/after-dark/VideoFixSheet.tsx`,
+`lib/adult/video-fix.ts`, `GET|POST /api/admin/after-dark/video-fix`), and gets bolder after a 👎 it can put right.
+
+**The sheet:**
+- **What went wrong:** chips (`VIDEO_PROBLEMS` in `lib/adult/video-fix-shared.ts`): face changed or wrong person,
+  someone else showed up, barely moves, didn't do what I asked, jerky or morphing, extra fingers or limbs, blurry. It
+  starts on what the 👎 said (`VIDEO_TAGS`). Each chip is a fixed sentence the prompt says right after what's asked
+  (`fixLead`, `animatePrompt`'s `fix`) and terms for the negative prompt (`fixNegative`).
+- **What happens:** the words it was made with, to change if they like (Animate's cap, or a link's). New words alone
+  are a fix too.
+- **The picture it starts from:** with its own 🩹 Fix, for trouble that's in the picture (a face, a hand). The video
+  starts from the version of that picture that's kept now.
+
+**How it's filmed again:**
+- **An animation of a picture:** `animatePicture` runs again with what it was made with (motion, length, camera, what
+  they say) and the new words, from the picture as it's kept (`superseded_by`).
+- **A link kept going:** `refilmLink` (`lib/adult/studio-keep-going.ts`) films it from the very frame it started from,
+  held to everything a link is (`planLink`), never a new frame or fresh faces. It stays the same link of its chain.
+
+**Versions and Keep:** as a picture's. Each fix is a new video (`fixed_from`, `fix_root`, `fix_kind` `video`,
+`fix_note`: the chips and the words), beside the rest in the gallery. `VIDEO_FIXES_MAX` (3) counts the fixes of one
+original, made or being made. Keep makes one version the one the galleries show; back to the original undoes them.
+
+**Price:**
+- **Free once:** the first fix of a video marked broken (a chip picked) while the Studio's free redo is on
+  (`studio.free_redo`). A free fix that doesn't come through (the check discarded it, Venice gave up) is free again.
+- **Otherwise:** Animate's price for its length (`animate_5`, `animate_10`), given back when it doesn't come through.
+- **The month's clips:** a paid fix is one of them, like any animation. The free one replaces a broken clip, so it's
+  neither refused at the cap nor counted.
+- **Why it's affordable:** a 5 s animation costs us $0.65 on Venice and sells for 3 tokens (~$2.40), so one free
+  fix still leaves it ahead. Unlimited free ones wouldn't, and marking everything broken gets one free second take
+  a video at most.
+
+**Proof:** tests/after-dark-video-fix.test.ts: the prompts, the free fix and its cap rule, versions and Keep, new
+words, a free fix that fails, the kept picture, a link filmed again from its frame, and ownership.
+
 ## Roleplays: scene cards, and 13 more (2026-11-17)
 
 David, 2026-11-17, after comparing Botchelor's roleplay with Chub and nine other products: more roleplays, and "this

@@ -62,6 +62,7 @@ import {
 import { animatePrompt, ANIMATE_SECONDS, cleanCustom, DIALOG_MAX, EMPTY_PLACE_NEGATIVE, LEVEL_LABEL, type AnimateSeconds, type Level } from "./studio-catalog";
 import type { StudioConfig } from "./studio-config";
 import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
+import { fixLead, fixNegative, type VideoFixMark } from "./video-fix-shared";
 import { overCap } from "./usage";
 
 const fail = (status: number, error: string, message: string): StudioFail => ({ ok: false, status, error, message });
@@ -87,6 +88,11 @@ type AnimateChoices = {
   cut?: { video: string; frame: string; at: number; seamless: boolean };
   /** A link's own record of what it shows (copied down the chain from the picture it began with). */
   facts?: Facts;
+  /** What a link was made with (a 🩹 fix films it again with the same, lib/adult/video-fix.ts). */
+  seconds?: number;
+  camera?: CameraMoveId;
+  guide?: string;
+  dialog?: string;
 };
 /** What a chain shows, from the picture it began with: who's in it (in that picture's order), where, its shape and view. */
 type Facts = { people: [string, string | null]; place: string | null; aspect: string | null; pov: string | null };
@@ -173,7 +179,7 @@ type LinkPlan = {
  * Everything a link is decided and refused on that doesn't need its frame: the words, the animation and its chain, the
  * level, the limits, the place, their faces when it starts fresh, and whether one can be made now. Nothing is spent.
  */
-async function planLink(db: Db, viewer: string, characterId: string, input: LinkAsk): Promise<LinkPlan | StudioFail> {
+async function planLink(db: Db, viewer: string, characterId: string, input: LinkAsk, opts: { sameStart?: boolean; freeFix?: boolean } = {}): Promise<LinkPlan | StudioFail> {
   const access = await studioAccess(db, viewer, characterId);
   if (!access.ok) return access;
   const { character: c, config, admin } = access;
@@ -218,8 +224,9 @@ async function planLink(db: Db, viewer: string, characterId: string, input: Link
   const empty = inPublic && !pair && level >= 2;
   if (empty && words && bringsSomeone(words)) return fail(422, "public", "Nude somewhere public stays with the place empty: nobody else in it, and nobody watching.");
 
-  const seamless = input.mode !== "fresh" && seamlessRun < SEAMLESS_RUN_MAX;
-  const forcedFresh = input.mode !== "fresh" && !seamless;
+  // Filmed again from the frame it started from (refilmLink): nothing new is drawn, so no faces are needed.
+  const seamless = opts.sameStart === true || (input.mode !== "fresh" && seamlessRun < SEAMLESS_RUN_MAX);
+  const forcedFresh = !opts.sameStart && input.mode !== "fresh" && !seamless;
   // From fresh faces: each face in the frame (seen through someone's eyes, only the other's), and the face each gets.
   const ids = facts.people.filter((x): x is string => Boolean(x));
   const people = seamless ? [] : (await Promise.all(ids.map((id) => loadCharacter(db, id)))).filter((x): x is Character => Boolean(x));
@@ -238,7 +245,8 @@ async function planLink(db: Db, viewer: string, characterId: string, input: Link
   if (await animatingNow(db, viewer)) return fail(409, "busy", "One is already being animated: it takes a few minutes.");
   const busy = await busyReel(db, viewer);
   if (busy) return fail(409, "busy", busyMessage(busy));
-  const capped = await overCap(db, viewer, "clips");
+  // The free 🩹 fix replaces a broken clip, so it isn't one of the month's (lib/adult/video-fix.ts).
+  const capped = opts.freeFix ? null : await overCap(db, viewer, "clips");
   if (capped) return fail(429, "over_cap", capped);
   return {
     ok: true, c, config, admin, words, dialog, seconds, prev, facts, pair: Boolean(pair), level, empty, seamless, forcedFresh,
@@ -264,7 +272,7 @@ export async function keepAnimatingCheck(db: Db, viewer: string, characterId: st
 export async function keepAnimating(db: Db, viewer: string, characterId: string, input: KeepAnimatingInput, baseUrl: string): Promise<JobResult> {
   const plan = await planLink(db, viewer, characterId, input);
   if (!plan.ok) return plan;
-  const { c, config, admin, words, dialog, seconds, prev, facts, pair, level, empty, seamless, forcedFresh, targets, faces, venice } = plan;
+  const { config, admin, seconds, prev, facts, level, empty, seamless, forcedFresh, targets, faces, venice } = plan;
 
   // The frame it carries on from: cut from that very video by the moments route (and checked there), not used yet.
   const frame = (
@@ -294,7 +302,6 @@ export async function keepAnimating(db: Db, viewer: string, characterId: string,
     await refundAdTokens(db, viewer, tokens);
     return /token/i.test(r.message) ? r : { ...r, message: `${r.message} Your tokens are back.` };
   };
-  const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
   const sent: LoggedRequest[] = [];
   let start = frame.id;
   if (!seamless) {
@@ -337,46 +344,108 @@ export async function keepAnimating(db: Db, viewer: string, characterId: string,
     );
   }
 
+  const how = seamless
+    ? "Keeping it going from where it ended"
+    : forcedFresh
+      ? "Keeping it going from where it ended, with their faces drawn fresh (every third link is, so they keep looking like themselves)"
+      : "Keeping it going from where it ended, with their faces drawn fresh";
+  return queueLink(db, viewer, plan, { start, cut: { video: prev.video, frame: frame.id, at: frame.moment_at ?? 0, seamless }, camera: input.camera, tokens, pays, sent, drawn: start !== frame.id, how }, baseUrl);
+}
+
+/**
+ * A link's video queued from `start` and its shoot kept, to be collected as the page polls (collectAnimations): the
+ * tokens back if it can't be queued (and a frame drawn for it, which nothing will start from, goes). A 🩹 fix
+ * (refilmLink) is queued here too, steered by what was wrong.
+ */
+async function queueLink(
+  db: Db,
+  viewer: string,
+  plan: LinkPlan,
+  go: {
+    start: string;
+    cut: NonNullable<AnimateChoices["cut"]>;
+    camera?: CameraMoveId | null;
+    tokens: number;
+    pays: boolean;
+    sent: LoggedRequest[];
+    /** The start was drawn for this link (fresh faces): it goes if the video can't be queued. */
+    drawn: boolean;
+    how: string;
+    fix?: VideoFixMark;
+  },
+  baseUrl: string,
+): Promise<JobResult> {
+  const { c, config, words, dialog, seconds, prev, facts, pair, level, empty, venice } = plan;
+  const model = config.animate.model ?? (await getAdultSettings(db)).reel_model;
+  const problems = go.fix?.problems ?? [];
   let queueId: string;
   try {
-    const prompt = animatePrompt(subjectOf(c, viewer, level >= 2), level, carryOn(pair, Boolean(words)), { guide: words, dialog }, { pair, camera: input.camera, emptyPlace: empty });
-    const negative = [pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE, ...(empty ? [EMPTY_PLACE_NEGATIVE] : [])].join(", ");
-    const queued = await withRequestLog(() => queueVideo(venice, { model, seconds, image_url: signedMediaUrl(start, baseUrl), prompt, negative }));
+    const prompt = animatePrompt(subjectOf(c, viewer, level >= 2), level, carryOn(pair, Boolean(words)), { guide: words, dialog }, { pair, camera: go.camera, emptyPlace: empty, fix: fixLead(problems) });
+    const negative = [pair ? ANIMATE_NEGATIVE_PAIR : ANIMATE_NEGATIVE, ...(empty ? [EMPTY_PLACE_NEGATIVE] : []), fixNegative(problems)].filter(Boolean).join(", ");
+    const queued = await withRequestLog(() => queueVideo(venice, { model, seconds, image_url: signedMediaUrl(go.start, baseUrl), prompt, negative }));
     queueId = queued.value;
-    sent.push(...queued.requests);
+    go.sent.push(...queued.requests);
   } catch (err) {
     // The fresh frame drawn for it goes too: nothing will start from it.
-    if (start !== frame.id) await db.query(`delete from adult_images where id = $1`, [start]).catch(() => {});
-    return back(fail(502, "not_made", `It couldn't be kept going (${err instanceof Error ? err.message.slice(0, 160) : "error"}).`));
+    if (go.drawn) await db.query(`delete from adult_images where id = $1`, [go.start]).catch(() => {});
+    if (go.pays) await refundAdTokens(db, viewer, go.tokens);
+    return fail(502, "not_made", `It couldn't be ${go.fix ? "filmed again" : "kept going"} (${err instanceof Error ? err.message.slice(0, 160) : "error"}).${go.pays ? " Your tokens are back." : ""}`);
   }
   const choices = {
-    source: start,
+    source: go.start,
     motion: null,
     seconds,
     queue_id: queueId,
     level,
     from: prev.shoot,
-    cut: { video: prev.video, frame: frame.id, at: frame.moment_at ?? 0, seamless },
+    cut: go.cut,
     facts,
-    ...(input.camera && input.camera !== "steady" ? { camera: input.camera } : {}),
+    ...(go.camera && go.camera !== "steady" ? { camera: go.camera } : {}),
     ...(words ? { guide: words } : {}),
     ...(dialog ? { dialog } : {}),
-    request: sent,
+    ...(go.fix ? { fix: go.fix } : {}),
+    request: go.sent,
   };
   const row = (
     await db.query<Parameters<typeof shootRow>[0]>(
       `insert into adult_studio_shoots (id, owner_id, character_id, kind, choices, model, provider, tokens, asked, status)
        values ($1, $2, $3, 'animate', $4::jsonb, $5, 'venice', $6, 1, 'making')
        returning id, kind, status, model, provider, tokens, asked, made, pictures, redo_of, error, created_at`,
-      [crypto.randomUUID(), viewer, c.id, JSON.stringify(choices), model, pays ? tokens : 0],
+      [crypto.randomUUID(), viewer, c.id, JSON.stringify(choices), model, go.pays ? go.tokens : 0],
     )
   ).rows[0];
-  const how = seamless
-    ? "Keeping it going from where it ended"
-    : forcedFresh
-      ? "Keeping it going from where it ended, with their faces drawn fresh (every third link is, so they keep looking like themselves)"
-      : "Keeping it going from where it ended, with their faces drawn fresh";
-  return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `${how}: it takes a few minutes, and lands in the gallery.` };
+  return { ok: true, shoot: shootRow(row), pictures: [], refunded: false, message: `${go.how}: it takes a few minutes, and lands in the gallery.` };
+}
+
+/**
+ * 🩹 A link filmed again from the very frame it started from (lib/adult/video-fix.ts): held to everything a link is
+ * (planLink, with the words it's given now), never a new frame or fresh faces, steered by what was wrong. Free when
+ * it's the video's free fix, else Animate's price.
+ */
+export async function refilmLink(db: Db, viewer: string, characterId: string, link: AnimateChoices, ask: { words: string | undefined; fix: VideoFixMark }, baseUrl: string): Promise<JobResult> {
+  const cut = link.cut;
+  if (!cut || !link.source) return fail(404, "not_found", "That isn't a link kept going from another animation.");
+  const plan = await planLink(
+    db,
+    viewer,
+    characterId,
+    { video_id: cut.video, prompt: ask.words, dialog: link.dialog, camera: link.camera ?? null, seconds: link.seconds ?? 5, mode: "seamless" },
+    { sameStart: true, freeFix: ask.fix.free },
+  );
+  if (!plan.ok) return plan;
+  // The frame it started from (cut from the one before's end, or drawn fresh from it): still theirs and there.
+  const start = (await db.query(`select 1 from adult_images where id = $1 and owner_id = $2 and kind = 'frame' and status = 'ready'`, [link.source, viewer])).rows[0];
+  if (!start) return fail(404, "not_found", "The frame it started from isn't there any more: keep going from the one before instead.");
+  const tokens = plan.seconds === 10 ? plan.config.prices.animate_10 : plan.config.prices.animate_5;
+  const pays = tokens > 0 && !plan.admin && !ask.fix.free;
+  if (pays && !(await spendAdTokens(db, viewer, tokens))) return fail(402, "needs_tokens", `That costs ${tokens} token${tokens === 1 ? "" : "s"}. ${moreTokensLine()}`);
+  return queueLink(
+    db,
+    viewer,
+    plan,
+    { start: link.source, cut, camera: link.camera ?? null, tokens, pays, sent: [], drawn: false, how: `Filming it again from where it started${ask.fix.free ? ", free" : ""}`, fix: ask.fix },
+    baseUrl,
+  );
 }
 
 /** Somewhere public, someone else is in the frame (or the check for that couldn't run): logged, and refused. */
