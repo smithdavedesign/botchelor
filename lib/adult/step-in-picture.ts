@@ -56,6 +56,7 @@ import { STAGES } from "./stages";
 import { NO_STEERING, steeringFor } from "./steering";
 import { stepInNever } from "./step-in-lines";
 import { placeInSentence } from "./step-in-shared";
+import { storedTracker } from "./step-in-tracker";
 import { logStep, STEP_IN_PARTNER } from "./steps";
 import { moreTokensLine, refundAdTokens, spendAdTokens } from "./tokens";
 import { overCap, usageLeft } from "./usage";
@@ -108,12 +109,14 @@ type SceneRow = {
   paused_at: string | Date | null;
   ended_at: string | Date | null;
   side_message: string | null;
+  /** The scene's continuity sheet (lib/adult/step-in-tracker.ts): what a picture of the newest reply is told they have on. */
+  tracker?: unknown;
 };
 type MessageRow = { id: string; role: "viewer" | "character" | "system"; kind: string | null; text: string; replaced_by: string | null };
 
 async function ownScene(db: Db, viewer: string, sceneId: string): Promise<SceneRow | null> {
   return (
-    (await db.query<SceneRow>(`select id, owner_id, character_id, place, roleplay, intensity, hard_nos, paused_at, ended_at, side_message from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer]))
+    (await db.query<SceneRow>(`select id, owner_id, character_id, place, roleplay, intensity, hard_nos, paused_at, ended_at, side_message, tracker from adult_step_in_scenes where id = $1 and owner_id = $2`, [sceneId, viewer]))
       .rows[0] ?? null
   );
 }
@@ -199,6 +202,12 @@ export type StepInBriefInput = {
   place: string;
   /** The scene's roleplay and what the character plays in it; null for none. */
   roleplay: string | null;
+  /**
+   * What the scene's continuity sheet says of that moment (lib/adult/step-in-tracker.ts), when it was read at this very
+   * reply: what the character has on, and where the two of them are. It carries what was said too long ago for the
+   * turns below to show (a costume put on thirty lines back). Left out when the sheet is of another moment.
+   */
+  noted?: { wearing: string; where: string } | null;
   /** The scene's turns up to and including the reply, oldest first. */
   turns: readonly { who: "viewer" | "character" | "place"; text: string }[];
 };
@@ -232,6 +241,8 @@ export function stepInBriefMessages(input: StepInBriefInput): { role: "system" |
         `What ${name} usually wears: ${input.usual}.`,
         `Where the scene is: ${input.place || "not said"}.`,
         ...(input.roleplay ? [`The scene's roleplay: ${input.roleplay}`] : []),
+        ...(input.noted?.wearing ? [`The scene's own notes of that moment, from everything said so far: ${name} has on ${input.noted.wearing}.`] : []),
+        ...(input.noted?.where ? [`And by the same notes they are at: ${input.noted.where}.`] : []),
         "",
         `The scene so far, oldest first. "You" is the other person, never in the photograph. The last line, ${last}, is the moment:`,
         ...turns.map(line),
@@ -288,7 +299,8 @@ export function holdStepInBrief(b: StepInBrief, ok: (words: string) => boolean):
 /** What a brief is kept by: everything it read, so the same reply reads the same and a scene that changed reads again. */
 const briefKey = (input: StepInBriefInput) =>
   createHash("sha256")
-    .update(JSON.stringify(["step_in", input.owner, input.scene, input.message, input.name, input.usual, input.place, input.roleplay, input.turns.slice(-BRIEF_TURNS)]))
+    // (The sheet's lines only when there are any, so a brief kept before the sheet existed is still found.)
+    .update(JSON.stringify(["step_in", input.owner, input.scene, input.message, input.name, input.usual, input.place, input.roleplay, input.turns.slice(-BRIEF_TURNS), ...(input.noted ? [input.noted] : [])]))
     .digest("hex")
     .slice(0, 40);
 
@@ -381,7 +393,7 @@ export type StepInPicturePlan =
  */
 export async function planStepInPicture(
   db: Db,
-  scene: Pick<SceneRow, "id" | "owner_id" | "place" | "roleplay" | "intensity" | "hard_nos">,
+  scene: Pick<SceneRow, "id" | "owner_id" | "place" | "roleplay" | "intensity" | "hard_nos" | "tracker">,
   messages: readonly MessageRow[],
   target: MessageRow,
   character: Character,
@@ -401,6 +413,10 @@ export async function planStepInPicture(
   const theirs = scene.roleplay?.you === 0 ? 1 : 0;
   const costume = rp ? (roleCostumes(rp)?.[theirs] ?? null) : null;
   const usual = costume ?? everydayOf(character);
+  // The scene's continuity sheet, when it's of this very moment (read at this reply, or corrected by the viewer at
+  // it): what the character has on and where they are, as the whole scene has it. Held to what a picture's words are.
+  const sheet = storedTracker(scene.tracker);
+  const noted = sheet && sheet.upto === target.id ? { wearing: ok(sheet.sheet.them) ? sheet.sheet.them : "", where: ok(sheet.sheet.where) ? sheet.sheet.where : "" } : null;
   const read = await stepInBrief(db, {
     owner: scene.owner_id,
     scene: scene.id,
@@ -410,6 +426,7 @@ export async function planStepInPicture(
     usual: ok(usual) ? usual : "everyday clothes",
     place: [picturePlace(label, person), label ? placeInSentence(label) : ""].find((w) => w && ok(w)) ?? "",
     roleplay: rp ? `${rp.title}.${rp.roles ? ` ${firstName(character.name)} plays ${rp.roles[theirs]}.` : ""}` : null,
+    ...(noted && (noted.wearing || noted.where) ? { noted } : {}),
     turns: upTo.map((m) => ({ who: m.role === "viewer" ? ("viewer" as const) : m.role === "system" ? ("place" as const) : ("character" as const), text: m.role === "system" ? placeInSentence(m.text) : m.text })),
   });
   const brief = read ? holdStepInBrief(read, ok) : null;

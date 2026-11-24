@@ -4181,6 +4181,11 @@ fieldset.ad-si-step {
   flex: 1 1 12rem;
   min-width: 0;
 }
+/* Where things stand (app/after-dark/step-in/[id]/StepInTracker.tsx): the same fold and rows as what they remember; a
+   line being corrected has its name on a row of its own, above its box. */
+.ad-si-tracker .ad-si-fact-edit > label {
+  flex-basis: 100%;
+}
 /* What the call says before it starts: a paragraph, read once, a size down. */
 .ad-si-call .companion-call-how {
   margin: 0;

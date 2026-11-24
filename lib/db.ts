@@ -4651,6 +4651,11 @@ alter table adult_step_in_scenes add column if not exists note_at timestamptz;
 alter table adult_step_in_scenes add column if not exists notes_claimed_at timestamptz;
 create index if not exists adult_step_in_messages_notes_idx on adult_step_in_messages (owner_id, created_at desc) where kind = 'note';
 alter table adult_step_in_messages add column if not exists idea_draws integer;
+-- A scene's continuity sheet (lib/adult/step-in-tracker.ts): where the two of them are, what each has on and what's
+-- within reach, read again after every reply and corrected by the viewer. { upto, sheet, before, reads, cost }: the
+-- sheet, the turn it's good as of, and the sheet as it stood before that turn was read (what it falls back to when
+-- that reply is drawn again or taken back). It's the scene's own, like its recap: it goes when the scene does.
+alter table adult_step_in_scenes add column if not exists tracker jsonb;
 
 -- Character tags (lib/character-tags.ts, docs/tags.md, 2026-11-17): what kind of person a character is, in the shared
 -- vocabulary (lib/tags.ts, type facet only). One source at a time per character: the owner's pick, the house's hand
