@@ -1,4 +1,4 @@
-// The show's look, from app/globals.css and public/icon.svg, for every video in this folder.
+// The show's look, from app/globals.css and public/brand/botchelor-icon.svg, for every video in this folder.
 import React from "react";
 import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import "@fontsource/fraunces/600.css";
@@ -76,17 +76,9 @@ export const Heart: React.FC<{ size: number; fill?: string }> = ({ size, fill = 
   </svg>
 );
 
+/** The app icon (the blindfolded heart, docs/brand.md), the file the site serves: ../public is the videos' public dir. */
 export const AppIcon: React.FC<{ size: number }> = ({ size }) => (
-  <svg width={size} height={size} viewBox="0 0 32 32">
-    <defs>
-      <linearGradient id="bz-icon" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor="#d6336c" />
-        <stop offset="1" stopColor="#7c3aed" />
-      </linearGradient>
-    </defs>
-    <rect width="32" height="32" rx="8" fill="url(#bz-icon)" />
-    <path d={HEART} fill="#fff" />
-  </svg>
+  <Img src={src("brand/botchelor-icon.svg")} style={{ width: size, height: size, borderRadius: size * 0.22, display: "block" }} />
 );
 
 /** The wordmark in neon, as the cold open shows it. */
