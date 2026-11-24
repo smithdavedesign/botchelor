@@ -23,7 +23,7 @@ and the go-live steps. Background and the processor comparison: `docs/after-dark
 | ⬜ David | **Send the two emails below** and keep the answers in writing | Before applying |
 | ⬜ David | **A lawyer's read of the terms** | `docs/after-dark-legal-review.md` "Questions for a licensed lawyer" |
 
-**Built since, and not in the description below (2026-11-17, voice 2026-11-22, pictures, memory, first notes and a level 2026-11-23): Step in.** An adult one-to-one mode exists: the
+**Built since, and not in the description below (2026-11-17, voice 2026-11-22, pictures, memory, first notes and a level 2026-11-23, own scenarios and a continuity sheet 2026-11-24): Step in.** An adult one-to-one mode exists: the
 subscriber themselves in a scene with one fictional character, written as prose (`docs/after-dark.md` "Step in"). It is
 closed (After Dark's `companion` rollout switch, admins only) and the description below still says what a processor
 approved or will approve: scenes between fictional characters. **Declare it to every processor, in writing, before the
@@ -42,7 +42,13 @@ of the month's, and one that asks where they've been or why they left, counts th
 waiting, needs them, was hurt or was forgotten is thrown away, never sent (`NOTE_PRESSURE`). **A level:** a word for how well the subscriber and a character know each other
 (Strangers to Confidants), from the evenings they've spent in scenes; it only goes up, it can't be bought or sped up,
 and it unlocks no content. Roleplays also have a goal the subscriber can see and an ending they're offered, never
-forced. No video in it and no uploads; the same content lines on every line the
+forced. Since 2026-11-24, two more. **A scenario the subscriber wrote themselves** (a title, a premise and two roles,
+already held to the roleplay lines when it's saved and again when it's played) can be played one to one; the site
+drafts its story card (a goal, beats, three openings, a place), which is held to the same check as our own cards, with
+nothing explicit in it, before it's kept. **A continuity sheet** is kept with each scene (where the two are, what each
+has on, the few things within reach): four short lines read from the scene's own words so that nothing appears that
+the scene never had; the subscriber can read and correct it, a correction is checked like any line of theirs, and it
+is deleted with the scene. No video in it and no uploads; the same content lines on every line the
 subscriber types or says and every line generated, with a refused line never stored and never voiced; an AI notice at
 the start and every three hours; a self-harm protocol that pauses the scene.
 
