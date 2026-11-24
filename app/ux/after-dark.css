@@ -3940,6 +3940,12 @@ button.ad-si-pick.on {
 .ad-si-pick-pic:has(> img) {
   aspect-ratio: 4 / 3;
 }
+/* A picture on its way: a soft frame, not a hole in the tile. The first time a set's small copy is asked for the host
+   resizes it (a quarter of a second alone, up to a second and a half for a screenful at once, measured live). */
+.ad-si-pick-pic[style],
+.ad-si-pick-pic:has(> img) {
+  background-color: var(--night-line);
+}
 /* Nothing to show for it (no roleplay; a place nobody has drawn yet): its mark in a short band, not an empty frame. */
 .ad-si-pick-pic:not([style]):not(:has(> img)) {
   aspect-ratio: auto;
