@@ -298,6 +298,30 @@ const slug = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[^a-
 /** The day's episode's cuts: the cliffhanger (the default since 2026-11-23) and the full episode it replaced. */
 export const EPISODE_FORMATS = ["cliffhanger", "full"];
 
+/**
+ * Asks the site to film a date (POST /api/admin/date-film, lib/date-film.ts): its scenes, and its diary-cam lines said
+ * to camera, within that feature's own daily and monthly ceilings. Answers when the filming is done (a few minutes at
+ * most; at once when there's nothing left to make). {ok: false, why} without the admin key, with DATE_FILM_ASK=0, or
+ * when the site says no. `fetchImpl` and `key` are for tests.
+ */
+export async function askForFilm(id, base, { key, fetchImpl = fetch, env = process.env, timeoutMs = 9 * 60 * 1000 } = {}) {
+  if (env.DATE_FILM_ASK === "0") return { ok: false, why: null };
+  const admin = key === undefined ? (await import("./daily-clip.mjs")).adminKey(env) : key;
+  if (!admin) return { ok: false, why: "no admin key, so the date isn't filmed" };
+  const res = await fetchImpl(`${base}/api/admin/date-film`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-frontier-key": admin, "user-agent": "botchelor-clip/1.0" },
+    body: JSON.stringify({ episode: id }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  // The answer is streamed: blank lines while it works, then the JSON.
+  const body = JSON.parse((await res.text()).trim() || "null");
+  if (!res.ok || !body?.ok) return { ok: false, why: `the site didn't film it (${body?.message ?? body?.stopped ?? body?.error ?? res.status})` };
+  const made = `${body.scenes?.drawn ?? 0} scene(s) drawn, ${body.confessionals?.made ?? 0} confessional(s) filmed, ${Number(body.spent_usd ?? 0).toFixed(2)} dollars spent`;
+  const notes = [body.scenes?.note, body.confessionals?.note].filter(Boolean).join("; ");
+  return { ok: true, why: null, made: notes ? `${made} (${notes})` : made, film: body.film ?? null };
+}
+
 /** Which cut to make (pure): `--format`, else EPISODE_FORMAT, else the cliffhanger. Throws on a name it doesn't know. */
 export function episodeFormat(asked, env = process.env) {
   const f = String(asked || env.EPISODE_FORMAT || "").trim().toLowerCase() || "cliffhanger";
@@ -312,7 +336,14 @@ export function episodeFormat(asked, env = process.env) {
 export async function buildDailyEpisode(id, { out = null, n = null, format = null } = {}) {
   const base = (process.env.CROWD_BASE || "https://botchelor.com").replace(/\/$/, "");
   const chosen = episodeFormat(format);
-  const [e] = await fetchEpisodes([id], base);
+  let [e] = await fetchEpisodes([id], base);
+  // The date on film (lib/date-film.ts): the site is asked to film what's still missing, and the date is read again
+  // with it. Never needed: without a key, with the switch off, or when the ask fails, the cut is made from what's there.
+  if (chosen === "cliffhanger") {
+    const asked = await askForFilm(id, base).catch((err) => ({ ok: false, why: err?.message ?? String(err) }));
+    if (asked?.why) console.error(`film: ${asked.why}`);
+    if (asked?.ok) [e] = await fetchEpisodes([id], base);
+  }
   if (e.featurable === false) throw new Error("the story check found this date's ending contradicting its lines; it isn't featured");
   const posts = join(process.env.CLIPS_DIR || join(homedir(), "BotchelorClips"), "posts");
   const day = n ?? nextDayNumber(posts);
@@ -321,8 +352,9 @@ export async function buildDailyEpisode(id, { out = null, n = null, format = nul
   if (chosen === "cliffhanger") {
     const { buildCliffhanger } = await import("./cliffhanger.mjs");
     try {
-      const { total, answer } = await buildCliffhanger(e, { base, posts, out: dir, day });
-      console.log(`Daily episode (cliffhanger): ${dir}\n  Day ${day}, post.mp4 (${total.toFixed(1)} s), cover.png, caption.txt, checklist.md${answer ? `\n  ${answer}` : ""}`);
+      const { total, answer, film } = await buildCliffhanger(e, { base, posts, out: dir, day });
+      const onFilm = [film?.open ? "opens on a filmed confessional" : null, film?.scenes ? `${film.scenes} scene(s)` : null].filter(Boolean).join(", ");
+      console.log(`Daily episode (cliffhanger): ${dir}\n  Day ${day}, post.mp4 (${total.toFixed(1)} s), cover.png, caption.txt, checklist.md${answer ? `\n  ${answer}` : ""}${onFilm ? `\n  On film: ${onFilm}` : ""}`);
       return dir;
     } catch (err) {
       if (format || process.env.EPISODE_FORMAT) throw err;

@@ -89,3 +89,31 @@ The edit, about 25 to 35 s (`TARGET_SECONDS` 34; the earliest lead-up lines go f
 "Day N" counts the daily episodes already in `CLIPS_DIR/posts` (their checklists say `Daily episode: Day N`), so the numbering survives a skipped day.
 
 The renderer changed for every cut, hand-edited ones included: a spoken line's words come up part by part with its voice (`chunksOf`, `chunkTimes`), the push-in goes to 6% (`ZOOM`), beats cut hard, and only the very end fades. A first frame faded up from black was a black thumbnail on every platform. Cuts 4 to 6, waiting in `~/BotchelorClips/cuts`, were re-rendered on 2026-11-19; the first renders are in `~/BotchelorClips/cuts-replaced-2026-11-19`.
+
+## The date on film in the day's video (`scripts/clips/cliffhanger.mjs`, 2026-11-24)
+
+The day's video has been the cliffhanger since 2026-11-23 (the file's own header says how it's cut: the hook, the reply,
+"How did it end?"). When the date is on film ([date-film.md](../date-film.md): scenes of both of them in the place, and
+diary-cam lines said to camera), the cut uses it:
+
+1. **It asks first.** `buildDailyEpisode` posts the date to `/api/admin/date-film` with the admin key (`askForFilm`) and
+   waits for the answer: the site films what's missing, inside its own daily and monthly ceilings, and says what it
+   made and spent. Then the date is read again, now with `film`. `DATE_FILM_ASK=0` skips the ask; no key, or a "no"
+   from the site, and the cut is made from whatever the date has.
+2. **A filmed confessional opens it**, when one may: `pickConfessional` takes the shorter clip of the two, at most
+   `CONFESSIONAL_MAX_S` (8 s), and only if neither its words nor the whole diary line they come from say how the date
+   went. That's stricter than the lines' own rule (`AFTER_TALK` on top of `ENDING_TALK`: friends, "again", a kiss,
+   leaving, staying, a number asked for), because a line said after the date can give the ending away in ways a line
+   from the date can't, and leaving the clip out costs nothing. The clip plays in the space of both tiles with its own
+   sound, its words coming up as they're said, under "Name · diary cam".
+3. **The scenes stand behind the lines** in place of the two face tiles: the first behind the hook, the next behind the
+   reply, the last one staying behind the question, each pushed in slowly (`shotPlan`, `SCENE_ZOOM`). With scenes the
+   faces aren't fetched at all.
+
+A filmed confessional is extra to the cut's length (about 12 to 20 s after it). The film is never required: a date with
+none is cut exactly as before, and a film that can't be fetched or cut is logged and left out (`buildCliffhanger` cuts
+the plain EDL). The spoiler check runs on both cuts.
+
+First cut this way on 2026-11-24, before the site's half was live, against a stand-in site serving one date with test
+film: 17.9 s, Juniper's 5.6 s confessional, then two scenes of her and Barnaby in the jazz bar behind the hook and the
+reply, sound in every stretch.

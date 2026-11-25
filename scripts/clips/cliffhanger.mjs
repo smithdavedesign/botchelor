@@ -19,6 +19,12 @@
 // public aired record (yesterdaysAnswer). Only the public aired episode is read (fetchEpisodes); every quoted word is the
 // date's own, in whole sentences; the setup, the question and the caption are the show's words. Voices as the episode cut
 // has them (Kokoro, or macOS `say` with SAY=1); the pictures and sound are put together by Chromium and ffmpeg, free.
+//
+// A date on film (2026-11-24, lib/date-film.ts): when the date's JSON carries `film`, the cut uses it. Its scenes (both of
+// them in the place) fill the frame behind the two quoted lines in place of the two faces, and when one of its filmed
+// diary-cam lines says nothing of how the date went (pickConfessional), that clip opens the cut: a face that talks, from
+// frame 1, before the hook. Nothing here is required: a date with no film, or film that can't be fetched, is cut exactly
+// as before.
 //   node scripts/clips/daily-episode.mjs <episode_id> --out <dir>      (the cliffhanger is the default format)
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -45,6 +51,18 @@ export const REPLY_CHARS = 130;
 export const ENDING_TALK =
   /\b(?:second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|another|next) date\b|\bnext time\b|\bsee (?:you|me|each other) (?:again|soon|next|tomorrow)\b|\bagain\?|\bgood ?(?:bye|night)\b|\b(?:just|close) friends\b|\bdisast(?:er|rous)|\b(?:leave|leaving|go|going|head|heading|walk me) (?:first|home)\b|\b(?:have|got) to (?:go|leave|run)\b|\bgotta go\b/i;
 export const tellsEnding = (text) => ENDING_TALK.test(String(text ?? ""));
+
+/**
+ * What a line said after the date gives away that a line from the date can't (pure): friends, "again", a kiss, leaving,
+ * staying, how it ended. A confessional that opens the cut says none of it. Strict on purpose: leaving a clip out costs
+ * nothing (the cut opens on the hook as it always did), and one that hints at the ending costs the question.
+ */
+export const AFTER_TALK =
+  /\bfriends?\b|\bagain\b|\bnext (?:time|week|date|one)\b|\bkiss|\bgood ?(?:bye|night)\b|\bend(?:ed|ing|s)?\b|\bsecond\b|\banother\b|\bsee (?:her|him|them|you)\b|\bcall(?:ed|ing)? (?:her|him|them)\b|\bwalk(?:ed|ing)? (?:out|away|(?:her|him|them|me) home)\b|\bleft\b|\bstay(?:ed)?\b|\bdisaster\b|\bnumber\b/i;
+export const tellsAfter = (text) => AFTER_TALK.test(String(text ?? ""));
+
+/** A filmed confessional opens the cut only when it runs no longer than this, seconds. */
+export const CONFESSIONAL_MAX_S = 8;
 
 const WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 /** "second", "ninth", "12th": a date's number as the show says it (lib/previously-on.ts ordinalWord). */
@@ -190,11 +208,37 @@ export function cliffTitle(e, n = 1) {
 }
 
 /**
+ * The filmed diary-cam line that may open the cut (pure), or null: one of the two's, with a clip no longer than
+ * CONFESSIONAL_MAX_S, whose words (and the whole diary line they come from) say nothing of how the date went. The
+ * shorter of two: the cut is a short.
+ */
+export function pickConfessional(e) {
+  const found = [];
+  for (const c of e?.film?.confessionals ?? []) {
+    const at = (e.characters ?? []).findIndex((x) => x.id === c?.character_id);
+    const line = String(c?.line ?? "").trim();
+    const seconds = Number(c?.seconds);
+    if ((at !== 0 && at !== 1) || !line || !c?.src || !(seconds > 0) || seconds > CONFESSIONAL_MAX_S) continue;
+    const whole = String((e.diary ?? []).find((d) => d.character_id === c.character_id)?.line ?? "");
+    // Its own public diary line, or it isn't shown (resolveBeats would refuse it too).
+    if (!whole.trim()) continue;
+    if ([line, whole].some((t) => tellsEnding(t) || tellsAfter(t) || spoilerHits(t, e).length)) continue;
+    found.push({ side: at === 0 ? "a" : "b", line, src: c.src, seconds });
+  }
+  return found.sort((x, y) => x.seconds - y.seconds)[0] ?? null;
+}
+
+/** The date's scene pictures (pure): their addresses, in the date's order. [] when it has none. */
+export const filmScenes = (e) => (e?.film?.scenes ?? []).filter((x) => x?.src).map((x) => ({ src: x.src, caption: String(x.caption ?? "") }));
+
+/**
  * The cliffhanger's edit decision list (pure), for episode-cut's resolveBeats and renderCliffhanger: the hook, the reply
  * and the question. Reads the date's lines, best line, characters and number, never its ending. Lines are fitted to about
  * CLIFF.fit seconds by keeping fewer of the reply's opening sentences (or of the hook's, when the best line is the reply).
+ * `film` (on unless false): a date on film opens on a filmed confessional when one may open it (a "diary" beat with its
+ * `clip`), and lists its `scenes` for the picture behind the lines.
  */
-export function cliffhangerEdl(e, { n = 1 } = {}) {
+export function cliffhangerEdl(e, { n = 1, film = true } = {}) {
   const [a, b] = (e.characters ?? []).map((c) => firstName(c.name));
   const { hook, reply, how } = pickPair(e);
   const ask = askCopy(e);
@@ -209,6 +253,8 @@ export function cliffhangerEdl(e, { n = 1 } = {}) {
     if (fewer.length && fewer.length < give.keep.length) give.keep = fewer;
   }
   const who = (x) => firstName(e.characters[e.transcript[x.line].side === "a" ? 0 : 1]?.name);
+  const open = film ? pickConfessional(e) : null;
+  const scenes = film ? filmScenes(e) : [];
   return {
     name: `Day ${n}: ${a} × ${b}`,
     format: "cliffhanger",
@@ -218,7 +264,9 @@ export function cliffhangerEdl(e, { n = 1 } = {}) {
     question: cliffTitle(e, n),
     pick: how,
     cover: 0,
+    ...(scenes.length ? { scenes } : {}),
     segments: [
+      ...(open ? [{ kind: "diary", side: open.side, label: `${open.side === "a" ? a : b} · diary cam`, clip: { src: open.src, seconds: open.seconds, line: open.line } }] : []),
       { kind: "cold", line: hook.line, keep: hook.keep, label: `${setupLine(e)} · ${who(hook)}`, headline: hookHeadline(who(reply)) },
       { kind: "line", line: reply.line, keep: reply.keep, label: who(reply) },
       { kind: "card", kicker: `Botchelor · Day ${n}`, title: ask.title, sub: ask.options.join(" · "), url: "botchelor.com", say: ask.say, secs: SILENT_SECONDS.card, ask: true },
@@ -353,6 +401,10 @@ export const TILES = [
   { x: 0, y: 136, w: 540, h: 940 },
   { x: 540, y: 136, w: 540, h: 940 },
 ];
+/** Where a scene or a filmed confessional goes: both tiles' space, as one picture. */
+export const SHOT_AREA = { x: 0, y: TILES[0].y, w: TILES[0].w + TILES[1].w, h: TILES[0].h };
+/** A scene's push-in, start to end. */
+export const SCENE_ZOOM = { from: 1, to: 1.08 };
 /** How far the line's card rides up over the faces' feet, and the question's (taller) card, in output pixels. */
 export const CARD_OVERLAP = { line: 88, ask: 200 };
 /**
@@ -395,7 +447,7 @@ html,body{width:405px;height:720px;overflow:hidden;background:#140a18}
  * and the other dimmed, and the line in a bubble, or the question. `shown`: how many parts of the line are up (chunksOf),
  * the rest held in place but hidden so the bubble keeps its size; null shows it all (the hook shows it all at once).
  */
-export function layerHtml(beat, { e, n = 1, shown = null }) {
+export function layerHtml(beat, { e, n = 1, shown = null, plain = false }) {
   const ask = beat.kind === "card";
   const speakerAt = ask ? -1 : beat.speaker === e.characters[0] ? 0 : 1;
   const said = (text) => {
@@ -404,12 +456,15 @@ export function layerHtml(beat, { e, n = 1, shown = null }) {
       .map((p, i) => (i < shown ? esc(p) : `<span class="hide">${esc(p)}</span>`))
       .join(" ");
   };
-  const tiles = e.characters
-    .slice(0, 2)
-    .map((c, i) => `<div class="tile ${speakerAt < 0 ? "" : i === speakerAt ? "lit" : "dim"} ${i ? "b" : "a"}" style="${tileStyle(TILES[i])}"><span class="name">${esc(firstName(c.name))}</span></div>`)
-    .join("");
+  // Over a scene or a filmed confessional (`plain`) there are no two tiles to light: the picture is one frame.
+  const tiles = plain
+    ? ""
+    : e.characters
+        .slice(0, 2)
+        .map((c, i) => `<div class="tile ${speakerAt < 0 ? "" : i === speakerAt ? "lit" : "dim"} ${i ? "b" : "a"}" style="${tileStyle(TILES[i])}"><span class="name">${esc(firstName(c.name))}</span></div>`)
+        .join("");
   const headline = beat.headline ? `<p class="headline" style="bottom:${px(720 * (1080 / 405) - (TILES[0].y + TILES[0].h) + 200)}">${esc(beat.headline)} ↓</p>` : "";
-  const seam = `<div class="seam" style="left:${px(TILES[1].x - 3)};top:${px(TILES[1].y)};height:${px(TILES[1].h)}"></div>`;
+  const seam = plain ? "" : `<div class="seam" style="left:${px(TILES[1].x - 3)};top:${px(TILES[1].y)};height:${px(TILES[1].h)}"></div>`;
   const body = ask
     ? `<div class="card ask"><p class="kick">${esc(beat.kicker)}</p><h1>${esc(beat.title)}</h1><div class="opts">${String(beat.sub ?? "")
         .split(" · ")
@@ -453,8 +508,10 @@ header{position:absolute;top:0;left:0;right:0;height:${px(TILES[0].y)};display:f
  * played round and round, or a still pushed in slowly, the two drifting apart); the layers over them in order (`tops`,
  * each held `secs`); the voices at their moments (`at`, seconds), brought to short video's loudness. Hard cuts: nothing
  * fades in (a first frame faded up from black is a black thumbnail), only the very end fades out.
+ * `shots` (a date on film): pictures that fill both tiles for a stretch of the cut, each {kind, file, at, secs}: a
+ * "scene" (a still, pushed in slowly) or a "clip" (a filmed confessional, played once from `at`).
  */
-export function cliffArgs({ background, faces, tops, voices, total, out }) {
+export function cliffArgs({ background, faces, shots = [], tops, voices, total, out }) {
   const { fps } = CLIFF_FRAME;
   const { width, height } = CLIFF_FRAME.out;
   const T = total.toFixed(3);
@@ -480,6 +537,25 @@ export function cliffArgs({ background, faces, tops, voices, total, out }) {
     }
     graph.push(`[${under}][f${i}]overlay=${x}:${y}[u${i}]`);
     under = `u${i}`;
+    input++;
+  });
+  shots.forEach((s, k) => {
+    const { x, y, w, h } = SHOT_AREA;
+    const at = s.at.toFixed(3);
+    if (s.kind === "clip") {
+      args.push("-i", s.file);
+      graph.push(`[${input}:v]fps=${fps},scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}:(iw-ow)/2:(ih-oh)*0.12,setsar=1,format=yuv420p,setpts=PTS-STARTPTS+${at}/TB[s${k}]`);
+    } else {
+      // Drawn at twice the size so the slow push-in moves by half pixels, toward the upper part where the faces are.
+      const n = Math.max(1, Math.round(s.secs * fps));
+      args.push("-loop", "1", "-framerate", String(fps), "-t", s.secs.toFixed(3), "-i", s.file);
+      graph.push(
+        `[${input}:v]scale=${w * 2}:${h * 2}:force_original_aspect_ratio=increase,crop=${w * 2}:${h * 2}:(iw-ow)/2:(ih-oh)*0.2,` +
+          `zoompan=z='${SCENE_ZOOM.from}+${(SCENE_ZOOM.to - SCENE_ZOOM.from).toFixed(3)}*on/${n}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*0.3':d=1:s=${w}x${h}:fps=${fps},setsar=1,format=yuv420p,setpts=PTS-STARTPTS+${at}/TB[s${k}]`,
+      );
+    }
+    graph.push(`[${under}][s${k}]overlay=${x}:${y}:eof_action=pass:enable='between(t,${at},${(s.at + s.secs).toFixed(3)})'[su${k}]`);
+    under = `su${k}`;
     input++;
   });
   for (const t of tops) args.push("-loop", "1", "-framerate", String(fps), "-t", t.secs.toFixed(3), "-i", t.file);
@@ -509,8 +585,9 @@ export function cliffArgs({ background, faces, tops, voices, total, out }) {
 }
 
 /** Each beat's length (pure): its voice and breath (a card at least its silent length), the question held so the whole runs CLIFF.min. */
-export function cliffSeconds(beats, voiceSecs) {
-  const secs = beats.map((b, i) => beatSeconds(b, voiceSecs[i]));
+export function cliffSeconds(beats, voiceSecs, fixed = []) {
+  // A filmed confessional runs exactly as long as its clip (`fixed`), not its voice and a breath.
+  const secs = beats.map((b, i) => fixed[i] ?? beatSeconds(b, voiceSecs[i]));
   const total = secs.reduce((a, b) => a + b, 0);
   if (total < CLIFF.min && secs.length) secs[secs.length - 1] += CLIFF.min - total;
   return secs.map((s) => Math.round(s * 1000) / 1000);
@@ -572,6 +649,62 @@ export async function faceMedia(c, { base, dir, headers = { "user-agent": "botch
   return null;
 }
 
+/** What a file is, from its first bytes (pure): "mp4", "webp", "png", "jpg" or null. */
+export function fileKind(bytes) {
+  const b = Buffer.from(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, Math.min(bytes.length, 16));
+  if (b.length > 12 && b.toString("latin1", 4, 8) === "ftyp") return "mp4";
+  if (b.length >= 12 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP") return "webp";
+  if (b.length >= 8 && b[0] === 0x89 && b.toString("latin1", 1, 4) === "PNG") return "png";
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "jpg";
+  return null;
+}
+
+/**
+ * One of the date's film files (a scene's picture or a confessional's clip) fetched into `dir` for ffmpeg, or null when
+ * it can't be had or isn't what it should be (`want`: "clip" or "scene"). A picture is written again as a PNG, so
+ * ffmpeg reads it whatever it was.
+ */
+export async function filmMedia(src, { base, dir, name, want, headers = { "user-agent": "botchelor-clip/1.0", cookie: "bz_adult=1" } }) {
+  try {
+    const res = await fetch(new URL(src, base), { headers, signal: AbortSignal.timeout(60_000) });
+    if (!res.ok) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const kind = fileKind(bytes);
+    if (!bytes.length || bytes.length > 40 * 1024 * 1024 || (want === "clip" ? kind !== "mp4" : !["webp", "png", "jpg"].includes(kind))) return null;
+    const raw = join(dir, `${name}.${kind}`);
+    writeFileSync(raw, bytes);
+    if (want === "clip") return raw;
+    const png = join(dir, `${name}-ffmpeg.png`);
+    execFileSync(process.env.FFMPEG || "ffmpeg", ["-y", "-loglevel", "error", "-i", raw, "-frames:v", "1", png]);
+    return png;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Which picture each beat shows over the two tiles (pure): the filmed confessional for its own beat, and the date's
+ * scenes behind the lines, one a line in the date's order (the last one stays for the question). `starts` and `seconds`
+ * are the beats'; `clipAt` the confessional's beat or -1; `clip` and `scenes` the files. [] with neither.
+ */
+export function shotPlan(beats, { starts, seconds, clipAt = -1, clip = null, scenes = [] }) {
+  const shots = [];
+  let line = 0;
+  beats.forEach((b, i) => {
+    if (i === clipAt) {
+      if (clip) shots.push({ kind: "clip", file: clip, at: starts[i], secs: seconds[i] });
+      return;
+    }
+    if (!scenes.length) return;
+    const k = b.kind === "card" ? Math.max(0, Math.min(line, scenes.length) - 1) : Math.min(line++, scenes.length - 1);
+    shots.push({ kind: "scene", file: scenes[k], at: starts[i], secs: seconds[i] });
+  });
+  return shots;
+}
+
+/** A confessional's clip starts and ends on a breath of silence (lib/date-film-shared.ts FILM_LEAD_S and FILM_TAIL_S). */
+const CLIP_BREATH_S = 0.55;
+
 /* ------------------------------------------------------------------------------------------------------------------
  * Rendering
  * ------------------------------------------------------------------------------------------------------------------ */
@@ -583,19 +716,37 @@ export async function faceMedia(c, { base, dir, headers = { "user-agent": "botch
  */
 export async function renderCliffhanger(edl, e, { base, out, n = 1, caption, checklist, log = (m) => console.error(m) }) {
   const beats = resolveBeats(edl, [e]);
+  // A filmed confessional's words are its clip's (the diary line, or its opening when the line ran long).
+  const clipAt = edl.segments.findIndex((s) => s.clip?.src);
+  if (clipAt >= 0 && edl.segments[clipAt].clip.line) beats[clipAt].text = edl.segments[clipAt].clip.line;
   mkdirSync(out, { recursive: true });
   rmSync(join(out, "checklist.md"), { force: true });
   const tmp = mkdtempSync(join(tmpdir(), "botchelor-cliff-"));
   try {
     const key = process.env.SAY === "1" ? null : veniceKey();
+    // The date's film, fetched first: an EDL that opens on a clip can't be cut without it (the caller cuts it without).
+    const clip = clipAt >= 0 ? await filmMedia(edl.segments[clipAt].clip.src, { base, dir: tmp, name: "open", want: "clip" }) : null;
+    if (clipAt >= 0 && !clip) throw new Error("the filmed confessional couldn't be fetched");
+    const clipSecs = clip ? soundSeconds(clip) : 0;
+    if (clip && !(clipSecs > 0.5)) throw new Error("the filmed confessional has no length");
+    const scenes = [];
+    for (const [k, sc] of (edl.scenes ?? []).entries()) {
+      const file = await filmMedia(sc.src, { base, dir: tmp, name: `scene${k}`, want: "scene" });
+      if (file) scenes.push(file);
+    }
     const voices = [];
-    for (let i = 0; i < beats.length; i++) voices.push(await speak(beats[i], join(tmp, `v${i}`), key, log, edl.speed ?? VOICE_SPEED));
-    const voiceSecs = voices.map((v) => (v ? soundSeconds(v) : 0));
-    const seconds = cliffSeconds(beats, voiceSecs);
+    // The confessional speaks from its own clip; everything else is voiced here.
+    for (let i = 0; i < beats.length; i++) voices.push(i === clipAt ? null : await speak(beats[i], join(tmp, `v${i}`), key, log, edl.speed ?? VOICE_SPEED));
+    const voiceSecs = voices.map((v, i) => (i === clipAt ? Math.max(0.5, clipSecs - CLIP_BREATH_S) : v ? soundSeconds(v) : 0));
+    const fixed = [];
+    if (clipAt >= 0) fixed[clipAt] = Math.round(clipSecs * 1000) / 1000;
+    const seconds = cliffSeconds(beats, voiceSecs, fixed);
     const total = seconds.reduce((a, b) => a + b, 0);
     const starts = seconds.map((_, i) => seconds.slice(0, i).reduce((a, b) => a + b, 0));
+    const shots = shotPlan(beats, { starts, seconds, clipAt, clip, scenes });
+    // The two faces show wherever no picture covers them: not fetched at all when scenes cover every other beat.
     const faces = [];
-    for (const c of e.characters.slice(0, 2)) faces.push(await faceMedia(c, { base, dir: tmp }));
+    if (!scenes.length) for (const c of e.characters.slice(0, 2)) faces.push(await faceMedia(c, { base, dir: tmp }));
 
     const { chromium } = await import("playwright-core");
     const browser = await launchChromium(chromium);
@@ -612,12 +763,13 @@ export async function renderCliffhanger(edl, e, { base, out, n = 1, caption, che
       };
       await shot(baseHtml(e, { base }), background, false);
       for (let i = 0; i < beats.length; i++) {
-        // The hook is up whole from the first frame; the reply's words come up with its voice.
-        const parts = beats[i].kind === "line" && voices[i] ? chunksOf(beats[i].text) : [];
+        // The hook is up whole from the first frame; the reply's words come up with its voice, and a confessional's with its clip.
+        const parts = (beats[i].kind === "line" && voices[i]) || i === clipAt ? chunksOf(beats[i].text) : [];
         const times = parts.length > 1 ? chunkTimes(parts, voiceSecs[i], seconds[i]) : [seconds[i]];
+        const plain = i === clipAt || scenes.length > 0;
         for (let k = 0; k < times.length; k++) {
           const path = join(tmp, `top${i}-${k}.png`);
-          await shot(layerHtml(beats[i], { e, n, shown: times.length > 1 ? k + 1 : null }), path, true);
+          await shot(layerHtml(beats[i], { e, n, shown: times.length > 1 ? k + 1 : null, plain }), path, true);
           tops.push({ file: path, secs: times[k] });
         }
       }
@@ -626,16 +778,21 @@ export async function renderCliffhanger(edl, e, { base, out, n = 1, caption, che
     }
 
     const ffmpeg = process.env.FFMPEG || "ffmpeg";
-    const said = voices.map((v, i) => (v ? { file: v, at: starts[i] + LEAD_IN } : null));
-    execFileSync(ffmpeg, cliffArgs({ background, faces, tops, voices: said, total, out: join(out, "post.mp4") }));
+    // The clip's own sound starts with its picture; a voiced line a breath after its beat does.
+    const said = voices.map((v, i) => (i === clipAt && clip ? { file: clip, at: starts[i] } : v ? { file: v, at: starts[i] + LEAD_IN } : null));
+    execFileSync(ffmpeg, cliffArgs({ background, faces, shots, tops, voices: said, total, out: join(out, "post.mp4") }));
     execFileSync(ffmpeg, ["-y", "-loglevel", "error", "-i", join(out, "post.mp4"), "-frames:v", "1", join(out, "cover.png")]);
     const engine = key ? "Kokoro (Venice)" : "macOS say";
-    const faceNote = e.characters.slice(0, 2).map((c, i) => `${firstName(c.name)} (${faces[i]?.from ?? "still on the background"})`);
+    const faceNote = scenes.length
+      ? [`${scenes.length} scene${scenes.length === 1 ? "" : "s"} of the two of them`]
+      : e.characters.slice(0, 2).map((c, i) => `${firstName(c.name)} (${faces[i]?.from ?? "still on the background"})`);
+    if (clip) faceNote.unshift(`${firstName(beats[clipAt].speaker.name)}'s filmed confessional (${clipSecs.toFixed(1)} s)`);
     writeFileSync(join(out, "caption.txt"), `${caption}\n`);
     writeFileSync(join(out, "edl.json"), JSON.stringify({ ...edl, faces: faceNote }, null, 2) + "\n");
     writeFileSync(join(out, "checklist.md"), checklist({ total, voices: engine, faces: faceNote }).join("\n"));
-    if (total > CLIFF.max) log(`cliffhanger: ${total.toFixed(1)} s, over the ${CLIFF.max} s it aims for`);
-    return { total, seconds, voices: engine, faces: faceNote };
+    // A filmed confessional is extra to the cut's own length: the aim is for what follows it.
+    if (total - clipSecs > CLIFF.max) log(`cliffhanger: ${total.toFixed(1)} s, over the ${CLIFF.max} s it aims for`);
+    return { total, seconds, voices: engine, faces: faceNote, film: { open: Boolean(clip), scenes: scenes.length } };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -646,13 +803,29 @@ export async function renderCliffhanger(edl, e, { base, out, n = 1, caption, che
  * (throws) a cut that would say how the date ended, so the caller can cut the full episode instead. Returns {total, answer}.
  */
 export async function buildCliffhanger(e, { base, posts, out, day, log = (m) => console.error(m) }) {
-  const edl = cliffhangerEdl(e, { n: day });
+  // The cut as it always was, with no film in it: what's made when the date has none, or its film can't be used.
+  const edl = cliffhangerEdl(e, { n: day, film: false });
   const hits = spoilerHits(cutText(edl, [e]), e);
   if (hits.length) throw new Error(`the cliffhanger would give the ending away (${hits.join(", ")})`);
+  // With the date's film when it has any; a film that would tell the ending, or can't be cut, is left out, not fatal.
+  const filmed = cliffhangerEdl(e, { n: day });
+  const hasFilm = Boolean(filmed.scenes?.length || filmed.segments.some((s) => s.clip));
+  if (hasFilm && !spoilerHits(cutText(filmed, [e]), e).length) {
+    try {
+      return await cutCliffhanger(filmed, e, { base, posts, out, day, log });
+    } catch (err) {
+      log(`cliffhanger: the date's film couldn't be used (${err?.message ?? err}); cutting it without`);
+    }
+  }
+  return cutCliffhanger(edl, e, { base, posts, out, day, log });
+}
+
+/** One EDL cut into `out` with its caption and checklist. Returns {total, answer, film}. */
+async function cutCliffhanger(edl, e, { base, posts, out, day, log }) {
   const answer = await yesterdaysAnswer(posts, { before: day, episode: e.id, base });
   const caption = cliffCaption(e, edl, { base, answer });
   const [a, b] = e.characters.map((c) => c.name);
-  const { total } = await renderCliffhanger(edl, e, {
+  const { total, film } = await renderCliffhanger(edl, e, {
     base,
     out,
     n: day,
@@ -668,7 +841,7 @@ export async function buildCliffhanger(e, { base, posts, out, day, log = (m) => 
       ...(answer ? [`Answers the last one: ${answer}`] : []),
       "",
       "1. TikTok → + → Upload → post.mp4 (the voices are on it; a quiet instrumental under them is fine).",
-      "2. Cover: cover.png is the first frame (both faces and the line); keep it.",
+      "2. Cover: cover.png is the first frame (the faces and the line); keep it.",
       "3. Paste caption.txt; its first line is the question, so it stays first.",
       "4. More options → turn on \"AI-generated content\".",
       "5. Audience: everyone (the show's dates are PG); never After Dark.",
@@ -676,5 +849,5 @@ export async function buildCliffhanger(e, { base, posts, out, day, log = (m) => 
       "",
     ],
   });
-  return { total, answer };
+  return { total, answer, film };
 }
