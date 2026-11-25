@@ -38,6 +38,13 @@ case "$MODE" in
     if [ "$(cat "$HOME_DIR/.deps" 2>/dev/null)" != "$sum" ]; then
       npm ci --ignore-scripts --no-audit --no-fund >> "$HOME_DIR/logs/clip.log" 2>&1 && echo "$sum" > "$HOME_DIR/.deps"
     fi
-    exec /usr/bin/caffeinate -i node scripts/clips/daily-clip.mjs >> "$HOME_DIR/logs/clip.log" 2>&1 ;;
+    /usr/bin/caffeinate -i node scripts/clips/daily-clip.mjs >> "$HOME_DIR/logs/clip.log" 2>&1
+    clip=$?
+    # Sundays, after the day's clip: the week in review (scripts/clips/weekly-recap.mjs, docs/clips/weekly-recap.md),
+    # sent to the show's /week and staged for the social loop. Its own log; whatever it does, the job's answer is the clip's.
+    if [ "$(date +%u)" = 7 ]; then
+      /usr/bin/caffeinate -i node scripts/clips/weekly-recap.mjs --upload --release >> "$HOME_DIR/logs/recap.log" 2>&1 || true
+    fi
+    exit $clip ;;
   *) echo "usage: run.sh crowd|report|clip" >&2; exit 2 ;;
 esac

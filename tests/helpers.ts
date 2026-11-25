@@ -265,6 +265,8 @@ export async function startTestDb() {
         "season_pool_entries",
         // A season's finale (lib/season-recap.ts): frozen once, so a reset must forget it.
         "season_recaps",
+        // The week in review (lib/week-recap.ts): keyed by week, which outlives a reset.
+        "week_recaps",
         // This season's cast secrets (lib/cast-secrets.ts) hang off the house cast, which outlives a reset.
         "cast_secrets",
         // Links from before the show and the arcs they play (lib/character-links.ts, lib/story-arcs.ts) hang off it too.

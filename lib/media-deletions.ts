@@ -63,6 +63,8 @@ export const MEDIA_KEY_COLUMNS: readonly (readonly [table: string, column: strin
   ["home_clips", "loop_key"],
   ["home_clips", "poster_key"],
   ["home_clips", "cut_key"],
+  ["week_recaps", "mp4_key"],
+  ["week_recaps", "poster_key"],
 ];
 
 /** Which of these keys a row still names (any of MEDIA_KEY_COLUMNS). */

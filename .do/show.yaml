@@ -400,6 +400,11 @@ services:
       # - key: HOME_EXPRESS_BOX
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The week in review (lib/week-recap.ts; docs/clips/weekly-recap.md): /week, its video and the week's list, on by
+      # default. "0" answers not-found on the pages and the three routes and takes the link off Watch.
+      # - key: WEEK_RECAP
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # The cold open (lib/cold-open.ts; docs/flows.md "A date's first minute"): a card before a date's first line in the
       # theater, on by default. Uncomment with "0" to start the theater playing as it opens, without a deploy of code.
       # - key: COLD_OPEN

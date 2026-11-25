@@ -43,6 +43,7 @@ import { getProfileName } from "@/lib/people";
 import { itemListJsonLd, pageMetadata } from "@/lib/seo";
 import { forViewer, shared } from "@/lib/shared-cache";
 import { countRecentPrivateDates, listLobby, type LobbyEntry } from "@/lib/watch";
+import { weekRecapOn } from "@/lib/week-recap";
 import { dateBadge, dateNumberOf, endingLabel } from "@/lib/rules";
 import StripPager from "./StripPager";
 import Pager from "@/app/Pager";
@@ -404,6 +405,8 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           The cast chat
         </Link>
         <Link href="/house">The house</Link>
+        {/* The week's best dates in about a minute (lib/week-recap.ts): gone with its switch. */}
+        {weekRecapOn() && <Link href="/week">The week in review</Link>}
         <Link id="best-callers" href="/calls#best-callers">
           Best callers
         </Link>
