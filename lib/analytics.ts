@@ -79,6 +79,7 @@ export type AnalyticsEvent =
   | "companion_offer" // a chip under one of those texts was tapped (lib/companion-offers.ts): which offer (second_date, someone_new, advice), and whether a guest
   | "companion_voice" // a companion reply recorded as a voice note (lib/companion-voice.ts): how long, its length, what paid; never the words
   | "companion_call" // a voice call with a companion started or ended (stage; app/companion/[id]/CompanionCall.tsx): how long, how many turns, which voice, and for a live call (live: P6) its minutes, first-audio ms and barge-ins; never the words
+  | "companion_ideas" // ideas for what to say were drawn under a companion's reply (lib/companion-ideas.ts): how many could be shown, whether a redraw, in a scene, a guest, the cost; never the words
   | "face_kit" // a character's face kit was drawn for calls (lib/face-kit.ts): how many stills, whether the loop was queued, failures, the cost estimate; never a picture
   | "step_in_started" // a person stepped into a date with a cast member (lib/step-in.ts): the episode, how it was paid, as which kind of character
   | "step_in_finished" // a step-in date's last line and recap are in: the episode, its ending, its lines and what the show's side cost

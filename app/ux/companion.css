@@ -228,11 +228,22 @@ body:has(.companion-fullscreen) .site-footer {
   top: calc(100% + 4px);
   z-index: 20;
   width: min(280px, calc(100vw - 32px));
+  /* Never taller than the chat under its header row (.companion-chat clips what spills out, which hid the deletes on a
+     short screen): the rest scrolls inside the menu. 18rem fits the chat's own 32rem least height. */
+  max-height: max(18rem, 100dvh - 14rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
   box-shadow: var(--shadow);
+}
+@media (max-width: 720px) {
+  /* The chat is the whole screen here (.companion-fullscreen). */
+  .companion-menu-body {
+    max-height: calc(100dvh - 5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
 }
 .companion-menu-body fieldset {
   border: 0;
@@ -1360,6 +1371,76 @@ body:has(.companion-fullscreen) .site-footer {
 .companion-offers .companion-offer:disabled {
   cursor: default;
   opacity: 0.6;
+}
+/* Ideas for what to say (lib/companion-ideas.ts): under the newest reply, on your side of the thread, since they're lines
+   you could send. Quiet chips, each its tone and then its words, one under another so each reads whole; the dashed edge
+   says nothing has been sent. A tap fills the box (CompanionChat takeIdea). */
+.companion-ideas-slot {
+  display: flow-root;
+}
+.companion-ideas {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  max-width: 78%;
+  margin: var(--space-3) 0 var(--space-1) auto;
+}
+.companion-ideas-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+.companion-ideas-wait {
+  margin-top: var(--space-3);
+  text-align: right;
+}
+.companion-ideas button.companion-idea {
+  margin: 0;
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: var(--radius);
+  border-bottom-right-radius: var(--radius-sm);
+  background: var(--card);
+  box-shadow: none;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.companion-ideas button.companion-idea:hover:not(:disabled),
+.companion-ideas button.companion-idea:focus-visible {
+  border-color: var(--accent);
+  background: var(--soft);
+  box-shadow: none;
+  transform: none;
+}
+.companion-ideas button.companion-idea:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* Its tone, before its words: a small label, not part of the line. */
+.companion-idea-tone {
+  margin-right: var(--space-1);
+  color: var(--accent-text);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.companion-ideas button.companion-ideas-again {
+  font-size: var(--text-xs);
+}
+@media (max-width: 720px) {
+  /* A phone's column is narrow: the ideas take a bubble's width and a little more, so each is two lines, not four. */
+  .companion-ideas {
+    max-width: 90%;
+  }
 }
 /* The answer box under a question the character asked about its own sheet (lib/character-questions.ts): a label, one
    field and Save, in the character's column like the chips, as wide as the column lets it be on a phone. */

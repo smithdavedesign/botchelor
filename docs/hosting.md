@@ -222,6 +222,10 @@ the container. Ways to cut the restarts themselves, each David's call because it
   mode"): a companion's scene reply written as prose in one call, for someone on the Narrated style. `0`: every scene
   reply is the script line again, for everyone, without a deploy of code. Who has Narrated at all is `WRITING_STYLES`.
   Commented in `.do/show.yaml`.
+- **`COMPANION_IDEAS`** (the show's app, not a secret; on unless it is `0`; [companions.md](companions.md), "Ideas
+  for what to say"): three lines a person could send next, under a companion's newest reply, drawn by the companion's
+  writer (OpenRouter, After Dark's saved key). `0`: no ideas anywhere, no Settings entry, and
+  `POST /api/companion/:id/ideas` answers none, without a deploy of code.
 - **`SCENE_PERSONA`** (the show's app, not a secret; on unless it is `0`; [companions.md](companions.md), "Who you are
   in scenes"): a person's saved persona for scenes (`lib/persona.ts`). `0`: no scene's prompt reads one (companion
   scenes, step-in dates), the card on `/account` and the scene picker's line go, and `POST /api/persona` answers not
