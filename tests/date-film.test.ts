@@ -15,7 +15,7 @@ import { setReplicateFetchForTests, setReplicatePausesForTests } from "@/lib/adu
 import { saveAdultSettings } from "@/lib/adult/settings";
 import { setDeepgramFetchForTests } from "@/lib/companion-live";
 import { dateFilm, dateFilmOn, FILM_ATTEMPTS, FILM_DAY_USD, FILM_MODEL, FILM_MONTH_USD, filmBudgets, filmDate, filmDue, filmSpent, holdFilmBudget, scenePrompt, settleFilmBudget } from "@/lib/date-film";
-import { FILM_CLIP_MAX_USD, FILM_FPS, FILM_LEAD_S, FILM_MAX_FRAMES, FILM_MAX_VOICE_S, filmCost, filmFrames, filmLine, momentCaption, sceneMoments } from "@/lib/date-film-shared";
+import { FILM_CLIP_MAX_USD, FILM_FPS, FILM_LEAD_S, FILM_MAX_FRAMES, FILM_MAX_VOICE_S, filmCost, filmFrames, filmLine, filmLines, momentCaption, sceneMoments } from "@/lib/date-film-shared";
 import { voiceForTake, wavOf, wavPcm } from "@/lib/date-film-wav";
 import { loadCharacter } from "@/lib/character";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -197,6 +197,15 @@ describe("the words said to camera", () => {
   });
   it("doesn't film a line with nowhere to cut it", () => {
     expect(filmLine("x".repeat(80) + " and " + "y".repeat(80), 100)).toBeNull();
+  });
+  it("offers shorter cuts to say again when a voice runs past one take (Barnaby, live 2026-11-24)", () => {
+    const line = "Sable apologised before I'd even finished my sentence, and she owned her brakes without hiding behind the glitter, which is exactly the kind of honesty I didn't expect from her.";
+    const cuts = filmLines(line);
+    expect(cuts[0]).toBe(filmLine(line));
+    expect(cuts.at(-1)).toBe("Sable apologised before I'd even finished my sentence.");
+    for (let i = 1; i < cuts.length; i++) expect(cuts[i].length).toBeLessThan(cuts[i - 1].length);
+    expect(filmLines("Short and whole.")).toEqual(["Short and whole."]);
+    expect(filmLines("")).toEqual([]);
   });
 });
 

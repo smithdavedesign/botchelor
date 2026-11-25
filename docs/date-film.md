@@ -17,7 +17,9 @@ is cut from. The code is `lib/date-film.ts` (making), `lib/date-film-read.ts` (r
 The words said are the diary line itself when it fits `FILM_LINE_CHARS` (130 characters, about 6.5 s at Aura's pace);
 a longer one is cut at a sentence end, or at its last clause break, and closed with a full stop; a line with nowhere
 to cut isn't filmed (`filmLine`). The voice is laid into one take with a breath of silence either side, exactly as long
-as the take's frames (`voiceForTake`), because the clip runs as long as its sound.
+as the take's frames (`voiceForTake`), because the clip runs as long as its sound. Voices differ in pace (the first live
+run, 2026-11-24: Sable's 108 characters took 5.5 s, Barnaby's 114 ran past 7 s), so a voice that runs past one take is
+said again from a shorter cut, at 95 and then 70 characters (`filmLines`); the hold covers every voice it might take.
 
 ## The money
 

@@ -33,7 +33,7 @@ import {
   FILM_CLIP_MAX_USD,
   FILM_LINE_CHARS,
   filmCost,
-  filmLine,
+  filmLines,
   momentCaption,
   sceneMoments,
   type FilmMoment,
@@ -333,12 +333,14 @@ async function filmConfessional(
   const stillId = shotIdOf(c.shots?.confessional);
   const still = stillId ? await shotFile(db, stillId) : null;
   if (!still) return { ok: false, tried: false, spent: 0, note: `${c.name} has no confessional still yet` };
-  const words = filmLine(line);
+  const cuts = filmLines(line);
+  let words = cuts[0];
   if (!words) return { ok: false, tried: false, spent: 0, note: `${c.name}'s line is too long to say in one take` };
 
-  // Held before anything is made: a full take and its voice. Past the day's or the month's ceiling, nothing is.
-  const voiceUsd = words.length * VOICE_USD_PER_CHAR;
-  const hold = await holdFilmBudget(db, FILM_CLIP_MAX_USD + voiceUsd, opts.now, opts.env);
+  // Held before anything is made: a full take and every voice it might take to fit one. Past the day's or the month's
+  // ceiling, nothing is.
+  const voicesUsd = cuts.reduce((sum, cut) => sum + cut.length * VOICE_USD_PER_CHAR, 0);
+  const hold = await holdFilmBudget(db, FILM_CLIP_MAX_USD + voicesUsd, opts.now, opts.env);
   if (!hold) return { ok: false, tried: false, spent: 0, note: "the day's or the month's film budget is spent" };
 
   const voice = auraVoiceFor(who);
@@ -350,10 +352,17 @@ async function filmConfessional(
   }
   let spent = 0;
   try {
-    const wav = await streamBytes(await speakAura(words, voice, { container: "wav", env: opts.env }));
-    spent += voiceUsd;
-    const take = voiceForTake(wav);
+    // Said at its longest first; a voice that runs past one take is said again, shorter.
+    let take: ReturnType<typeof voiceForTake> = null;
+    for (const cut of cuts) {
+      words = cut;
+      const wav = await streamBytes(await speakAura(cut, voice, { container: "wav", env: opts.env }));
+      spent += cut.length * VOICE_USD_PER_CHAR;
+      take = voiceForTake(wav);
+      if (take) break;
+    }
     if (!take) throw new Error(`the voice ran too long for one take (${words.length} characters)`);
+    if (words !== cuts[0]) await db.query(`update date_film set line = $2 where id = $1`, [id, words]);
     const image = `data:image/jpeg;base64,${(await sharp(still.bytes).jpeg({ quality: 92 }).toBuffer()).toString("base64")}`;
     const audio = `data:audio/wav;base64,${take.wav.toString("base64")}`;
     const file = await runModel(token, FILM_MODEL, { image, audio, prompt: FILM_PROMPT, num_frames_per_chunk: take.frames }, { maxBytes: MAX_MP4, timeoutMs: 600_000, cancelAfter: "10m" });

@@ -81,6 +81,21 @@ export function filmLine(line: string, max: number = FILM_LINE_CHARS): string | 
   return `${first.slice(0, cut).trim()}.`;
 }
 
+/**
+ * The cuts of a line to try saying, longest first: `filmLine` at FILM_LINE_CHARS, then shorter. Voices differ in speed
+ * (Barnaby's 114 characters ran past one take, live 2026-11-24, where Sable's 108 took 5.5 s), so a cut that runs long
+ * is said again shorter rather than not filmed. Each is a whole clause; none repeats.
+ */
+const FILM_LINE_STEPS = [FILM_LINE_CHARS, 95, 70] as const;
+export function filmLines(line: string): string[] {
+  const out: string[] = [];
+  for (const max of FILM_LINE_STEPS) {
+    const cut = filmLine(line, max);
+    if (cut && !out.includes(cut)) out.push(cut);
+  }
+  return out;
+}
+
 /** The frames of one take that hold a voice of `voiceSeconds` with its breaths, or null when it can't fit one take. */
 export function filmFrames(voiceSeconds: number): number | null {
   if (!(voiceSeconds > 0) || voiceSeconds > FILM_MAX_VOICE_S) return null;
