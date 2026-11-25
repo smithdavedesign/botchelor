@@ -775,7 +775,9 @@ under the character's newest message there are three short lines the person coul
     up); someone who has scrolled up to read stays where they are. The header and the composer don't change, so both
     still fit at 390 and 360 px.
   - **Hidden from the thread's Settings** ("💡 Ideas for what to say"): this device's choice for every thread,
-    remembered in `localStorage` (`bz_companion_ideas` = `off`), as the device voice is.
+    remembered in `localStorage` (`bz_companion_ideas` = `off`), as the device voice is. The switch made the menu
+    taller than the chat on a 360 px phone, and the chat clips what spills out, so the menu (`.companion-menu-body`)
+    is now held to the chat's height under its header row and scrolls inside itself.
 - **Deleting a message** takes its ideas with it; a text's blank marker keeps none
   (`lib/companion-message-delete.ts`). Not in the export, as Step in's aren't.
 - **Counted:** `companion_ideas` (`lib/analytics.ts`): how many could be shown, whether a redraw, in a scene, a guest,

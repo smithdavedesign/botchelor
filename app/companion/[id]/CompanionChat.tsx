@@ -749,14 +749,12 @@ export default function CompanionChat({
               Only when something happens to them: a date airs, or the house talks about them. Never just to check in.
             </p>
             {ideas && (
-              // Ideas for what to say (lib/companion-ideas.ts): this device's choice, remembered for every thread.
-              <>
-                <label className="check">
-                  <input type="checkbox" checked={ideasOn} onChange={(e) => switchIdeas(e.target.checked)} data-track="companion-ideas-switch" data-companion-ideas-switch />
-                  <span>💡 Ideas for what to say</span>
-                </label>
-                <p className="muted small">Three lines you could send next, under {first}&apos;s newest message. A tap puts one in the box. On this device.</p>
-              </>
+              // Ideas for what to say (lib/companion-ideas.ts): this device's choice, remembered for every thread. No note
+              // under it: the menu has to fit the chat on a 360 px phone, and the row it switches explains itself.
+              <label className="check">
+                <input type="checkbox" checked={ideasOn} onChange={(e) => switchIdeas(e.target.checked)} data-track="companion-ideas-switch" data-companion-ideas-switch />
+                <span>💡 Ideas for what to say</span>
+              </label>
             )}
             {extras && (
               <p className="muted small">

@@ -228,11 +228,22 @@ body:has(.companion-fullscreen) .site-footer {
   top: calc(100% + 4px);
   z-index: 20;
   width: min(280px, calc(100vw - 32px));
+  /* Never taller than the chat under its header row (.companion-chat clips what spills out, which hid the deletes on a
+     short screen): the rest scrolls inside the menu. 18rem fits the chat's own 32rem least height. */
+  max-height: max(18rem, 100dvh - 14rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
   box-shadow: var(--shadow);
+}
+@media (max-width: 720px) {
+  /* The chat is the whole screen here (.companion-fullscreen). */
+  .companion-menu-body {
+    max-height: calc(100dvh - 5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
 }
 .companion-menu-body fieldset {
   border: 0;
