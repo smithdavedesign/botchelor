@@ -36,6 +36,7 @@ honestly labelled, running on a free local model on David's Mac.
 | The crowd's passes | David's Mac (`scripts/crowd/prod-crowd.mjs`) | every 30 minutes (launchd; 15 until 2026-11-01, when a ~9-minute pass every 15 kept Neon awake about 14 of every 24 minutes) |
 | The weekly report | David's Mac (`scripts/crowd/weekly-report.mjs` + `GET /api/admin/crowd-report`) | Mondays 08:00 |
 | The daily clip | David's Mac (`scripts/clips/daily-clip.mjs`) | daily 17:00 |
+| The week in review | David's Mac (`scripts/clips/weekly-recap.mjs`, from the clip job; [clips/weekly-recap.md](clips/weekly-recap.md)) | Sundays, after the day's clip |
 
 ### A pass (`scripts/crowd/prod-crowd.mjs`)
 

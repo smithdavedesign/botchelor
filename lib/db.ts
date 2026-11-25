@@ -4296,6 +4296,25 @@ create index if not exists home_clips_created_idx on home_clips (created_at desc
 alter table home_clips add column if not exists cut_key text;
 alter table home_clips add column if not exists cut_data bytea;
 alter table home_clips add column if not exists cut_seconds numeric(6, 2);
+-- The week in review (lib/week-recap.ts, 2026-11-24): one short video a week of the week's best aired dates, cut by
+-- scripts/clips/weekly-recap.mjs and uploaded (POST /api/admin/week-recap). One row a week, named by its Monday (UTC);
+-- a second upload replaces it. episodes: the dates in the cut, in order (every read checks each is still public).
+-- Bytes live in the object store (mp4_key, poster_key), or here when none is configured.
+create table if not exists week_recaps (
+  id text primary key,
+  week_from timestamptz not null,
+  week_to timestamptz not null,
+  mp4_key text,
+  mp4_data bytea,
+  poster_key text,
+  poster_data bytea,
+  width integer not null,
+  height integer not null,
+  seconds numeric(6, 2) not null,
+  episodes jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 -- A viewer's report of one line of a scene (lib/house-scenes.ts reportSceneLine): REPORT_HIDE_THRESHOLD hide the line
 -- and take what it told back out of the story state.
 create table if not exists house_scene_reports (
@@ -4972,6 +4991,8 @@ create or replace trigger place_sounds_object_key_gone after delete or update of
 create or replace trigger home_clips_loop_key_gone after delete or update of loop_key on home_clips for each row execute function media_file_gone('loop_key');
 create or replace trigger home_clips_poster_key_gone after delete or update of poster_key on home_clips for each row execute function media_file_gone('poster_key');
 create or replace trigger home_clips_cut_key_gone after delete or update of cut_key on home_clips for each row execute function media_file_gone('cut_key');
+create or replace trigger week_recaps_mp4_key_gone after delete or update of mp4_key on week_recaps for each row execute function media_file_gone('mp4_key');
+create or replace trigger week_recaps_poster_key_gone after delete or update of poster_key on week_recaps for each row execute function media_file_gone('poster_key');
 
 -- A character's own world in words (lib/world-words.ts, 2026-11-22): the words of its work, hobbies and habits that a
 -- companion reply rests after leaning on them, metaphors included ("tick", "mainspring" for a clockmaker). Written once
