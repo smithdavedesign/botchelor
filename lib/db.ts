@@ -1254,6 +1254,42 @@ create unique index if not exists show_shots_one on show_shots (character_id, po
 create index if not exists show_shots_ready_idx on show_shots (character_id) where status = 'ready';
 -- An admin's redo of one shot is a new take, drawn from a new seed (lib/show-shots.ts shotSeed); 0 is the first.
 alter table show_shots add column if not exists take integer not null default 0;
+-- A date on film (lib/date-film.ts, 2026-11-24): for one featured date a day, pictures of both of them in the date's place
+-- (kind 'scene', slot 0..2, drawn free on Workers AI) and each one's diary-cam line said to camera (kind 'confessional',
+-- slot = their side, the confessional still's lips moving with a voice: the one part that costs money). Rows go with the
+-- date; the bytes are in the "clips" area of the object store, or here without one. line is the words said, or a
+-- scene's caption; line_at the transcript line a scene shows; poster_src the still a confessional starts on.
+create table if not exists date_film (
+  id text primary key,
+  episode_id text not null references episodes (id) on delete cascade,
+  kind text not null check (kind in ('scene', 'confessional')),
+  slot integer not null,
+  status text not null check (status in ('making', 'ready', 'refused', 'failed')),
+  character_id text,
+  line text,
+  line_at integer,
+  voice text,
+  model text,
+  seconds numeric(6,2),
+  poster_src text,
+  mime text,
+  data bytea,
+  object_key text,
+  cost_usd double precision not null default 0,
+  error text,
+  attempts integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists date_film_one on date_film (episode_id, kind, slot);
+create index if not exists date_film_ready_idx on date_film (episode_id) where status = 'ready';
+-- What filming has cost, a row a UTC day (held before a clip is made, settled to its real cost after): the day's and
+-- the month's ceilings are read from here, in one statement with the hold (lib/date-film.ts holdFilmBudget).
+create table if not exists date_film_spend (
+  day text primary key,
+  usd double precision not null default 0,
+  items integer not null default 0
+);
 -- A character's live face at a renderer (lib/live-face/index.ts; docs/PRDs/digital-human.md Tier 1): one per character per
 -- kit portrait per provider, built by an admin (hours), the renderer's face id once it exists. Sessions aren't rows:
 -- a call's face time is on companion_live_calls (face_provider, face_seconds) for the spend view.
@@ -4945,6 +4981,7 @@ create or replace trigger media_exports_object_key_gone after delete or update o
 create or replace trigger companion_voice_object_key_gone after delete or update of object_key on companion_voice for each row execute function media_file_gone('object_key');
 create or replace trigger face_kits_object_key_gone after delete or update of object_key on face_kits for each row execute function media_file_gone('object_key');
 create or replace trigger show_shots_object_key_gone after delete or update of object_key on show_shots for each row execute function media_file_gone('object_key');
+create or replace trigger date_film_object_key_gone after delete or update of object_key on date_film for each row execute function media_file_gone('object_key');
 create or replace trigger live_face_compares_audio_key_gone after delete or update of audio_key on live_face_compares for each row execute function media_file_gone('audio_key');
 create or replace trigger live_face_renders_mp4_key_gone after delete or update of mp4_key on live_face_renders for each row execute function media_file_gone('mp4_key');
 create or replace trigger live_face_clips_object_key_gone after delete or update of object_key on live_face_clips for each row execute function media_file_gone('object_key');

@@ -423,6 +423,9 @@ export async function startTestDb() {
         "face_kits",
         // The show kit's shots (lib/show-shots.ts): the house cast outlives a reset, so its shots would too.
         "show_shots",
+        // A date on film (lib/date-film.ts): its rows go with their dates; the spend ledger is nobody's.
+        "date_film",
+        "date_film_spend",
         "live_faces",
         "plan_entitlements",
         "plan_checkouts",

@@ -137,6 +137,11 @@
     "mode",
     "settings"
   ],
+  "lib/date-film.ts": [
+    "moderation",
+    "replicate",
+    "settings"
+  ],
   "lib/face-kit.ts": [
     "moderation",
     "replicate",

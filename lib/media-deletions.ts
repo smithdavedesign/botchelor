@@ -54,6 +54,7 @@ export const MEDIA_KEY_COLUMNS: readonly (readonly [table: string, column: strin
   ["companion_voice", "object_key"],
   ["face_kits", "object_key"],
   ["show_shots", "object_key"],
+  ["date_film", "object_key"],
   ["live_face_compares", "audio_key"],
   ["live_face_renders", "mp4_key"],
   ["live_face_clips", "object_key"],

@@ -1,5 +1,7 @@
+import { after } from "next/server";
 import { adminAuthorized, NOT_AUTHORIZED } from "@/lib/admin-auth";
 import { airIfDue } from "@/lib/air";
+import { filmDate } from "@/lib/date-film";
 import { getDb } from "@/lib/db";
 import { getEpisodeView } from "@/lib/game";
 import { clipRefusal, CUT_MAX_BYTES, CUT_MAX_SECONDS, homeHeroClipOn, LOOP_MAX_BYTES, LOOP_MAX_SECONDS, looksLikeJpeg, looksLikeMp4, POSTER_MAX_BYTES, saveHomeClip } from "@/lib/home-clip";
@@ -73,5 +75,13 @@ export const POST = handle(async (req: Request) => {
   const refusal = clipRefusal(await getEpisodeView(db, episodeId, null));
   if (refusal) return json({ error: refusal, message: REFUSALS[refusal] }, refusal === "episode_not_found" ? 404 : 409);
   const { id } = await saveHomeClip(db, { episode_id: episodeId, day, loop, poster, width, height, seconds, cut });
+  // The day's date goes on film (lib/date-film.ts): its scenes and its diary-cam lines said to camera, after the
+  // response, within that feature's own ceilings. The hourly job picks up whatever this doesn't finish.
+  const film = () => filmDate(db, episodeId).catch(() => null);
+  try {
+    after(film);
+  } catch {
+    void film(); // outside a request (a test): just run it
+  }
   return json({ ok: true, id, episode_id: episodeId, day, loop: `/api/home-clip/${id}/loop.mp4`, poster: `/api/home-clip/${id}/poster.jpg`, ...(cut ? { cut: `/api/home-clip/${id}/cut.mp4` } : {}) });
 }, { maxBodyBytes: FORM_MAX_BYTES });

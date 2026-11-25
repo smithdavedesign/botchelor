@@ -12,6 +12,7 @@ import EpisodeNotices from "@/app/Notices";
 import { siteUrl } from "@/lib/site";
 import { reportCardPath } from "@/lib/report-card";
 import { shareNextCard } from "@/lib/share-next";
+import { dateFilm } from "@/lib/date-film-read";
 import { getDb } from "@/lib/db";
 import { dateListed } from "@/lib/public-cast";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
@@ -59,6 +60,7 @@ import EpisodeTheater, { type TheaterVerdict } from "./EpisodeTheater";
 import ShareEnding from "./ShareEnding";
 import ShareNext from "./ShareNext";
 import BoxScore from "./BoxScore";
+import DateScenes from "./DateScenes";
 import DiaryCam from "./DiaryCam";
 import ConfessionalShare from "./ConfessionalShare";
 import CreatorReveal from "./CreatorReveal";
@@ -324,6 +326,7 @@ export default async function EpisodePage({
     textedAbout,
     cut,
     upNext,
+    film,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -410,6 +413,9 @@ export default async function EpisodePage({
     ready && episode.revealed ? episodeCut(db, episode.id).catch(() => null) : null,
     // "Up next" (lib/up-next.ts, the 2026-11-22 audit): the couple's next date, then the newest others, in one cheap read.
     ready ? upNextFor(db, episode.id, viewerId).catch((): UpNextEpisode[] => []) : ([] as UpNextEpisode[]),
+    // The date on film (lib/date-film.ts): scenes of the two of them in the place, and diary-cam lines said to camera.
+    // Only an aired date a stranger may see has any; nothing otherwise.
+    ready && episode.revealed ? dateFilm(db, episode.id).catch(() => null) : null,
   ]);
   const { open: storyOpen, kept: keptStory, price: storyPrice } = await storyState.catch(() => ({ open: false, kept: null, price: undefined }));
   const talk = await talkP;
@@ -752,6 +758,9 @@ export default async function EpisodePage({
           </ul>
         </section>
 
+        {/* The date as scenes: both of them in the place, at moments from before its last act (never how it ended). */}
+        {film && film.scenes.length > 0 && <DateScenes scenes={film.scenes} names={[a.name, b.name]} />}
+
         {/* Predicting comes before the read: once the lines are read, there's nothing left to call. */}
         <div id="predict" className="episode-predict">
           <EpisodeActions
@@ -933,6 +942,7 @@ export default async function EpisodePage({
           }))}
           characters={episode.characters}
           folded={hasTheater}
+          clips={film?.confessionals ?? []}
         />
       )}
 
