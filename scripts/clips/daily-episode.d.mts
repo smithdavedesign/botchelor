@@ -31,5 +31,10 @@ export function dailyCaption(e: DailyEpisode, edl: Edl, opts?: { story?: DayStor
 export function fetchDayStory(base: string, headers?: Record<string, string>): Promise<DayStory>;
 export function nextDayNumber(postsDir: string): number;
 export const EPISODE_FORMATS: readonly ["cliffhanger", "full"];
+export function askForFilm(
+  id: string,
+  base: string,
+  opts?: { key?: string | null; fetchImpl?: typeof fetch; env?: Record<string, string | undefined>; timeoutMs?: number },
+): Promise<{ ok: boolean; why: string | null; made?: string; film?: unknown }>;
 export function episodeFormat(asked: string | null | undefined, env?: Record<string, string | undefined>): "cliffhanger" | "full";
 export function buildDailyEpisode(id: string, opts?: { out?: string | null; n?: number | null; format?: string | null }): Promise<string>;
