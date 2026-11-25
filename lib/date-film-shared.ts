@@ -52,8 +52,6 @@ export type FilmConfessional = {
 /** A date's film as a page or a clip script reads it: only what's ready. */
 export type DateFilm = { scenes: FilmScene[]; confessionals: FilmConfessional[] };
 
-export const hasFilm = (f: DateFilm | null | undefined): f is DateFilm => Boolean(f && (f.scenes.length || f.confessionals.length));
-
 /** A line's sentences, each with its closing mark. */
 function sentencesOf(text: string): string[] {
   return (text.match(/[^.!?…]+[.!?…]+["'”’)]*|[^.!?…]+$/g) ?? []).map((s) => s.trim()).filter(Boolean);
