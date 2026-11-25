@@ -1141,9 +1141,14 @@ h2 {
   font-weight: 600;
 }
 
+/* The directories' badges (LaunchNest, Toolradar): one centred row, wrapping on a phone. */
 .home-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
   margin: 2rem 0 0;
-  text-align: center;
 }
 
 .home-badges img {
