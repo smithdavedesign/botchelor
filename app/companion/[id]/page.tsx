@@ -8,6 +8,7 @@ import { authFromCookieStore } from "@/lib/http";
 import { getThread } from "@/lib/companion";
 import { companionAccessFromCookies } from "@/lib/companion-access";
 import { companionAllowance } from "@/lib/companion-plan";
+import { companionIdeasOn } from "@/lib/companion-ideas";
 import { companionMessageDelete, companionThreadHref } from "@/lib/companion-shared";
 import { markCharacterTextsRead } from "@/lib/notifications";
 import { extrasState } from "@/lib/companion-extras";
@@ -91,6 +92,7 @@ export default async function CompanionThreadPage({ params, searchParams }: { pa
       faceKit={faceKit}
       messageDelete={companionMessageDelete()}
       lockedDoors={doors}
+      ideas={companionIdeasOn()}
     />
   );
 }

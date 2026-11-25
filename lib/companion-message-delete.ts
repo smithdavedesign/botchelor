@@ -7,9 +7,9 @@
  * What a delete means, and why:
  *  - The row goes, with what hangs off it: its voice note's audio when no other reply says the same words
  *    (lib/companion-voice.ts forgetUnusedVoices), the report on it (the report is columns on the row), its chips or
- *    answer box, and the earlier draws it replaced (a reply drawn again keeps the old draw hidden under `replaced_by`:
- *    hidden words are still words, so they go too). A photo message has no file of its own (lib/date-photo.ts: the
- *    snapshot is drawn from the date), so only its row goes.
+ *    answer box, the ideas for what to say kept on it (lib/companion-ideas.ts), and the earlier draws it replaced (a
+ *    reply drawn again keeps the old draw hidden under `replaced_by`: hidden words are still words, so they go too). A
+ *    photo message has no file of its own (lib/date-photo.ts: the snapshot is drawn from the date), so only its row goes.
  *  - The notification that carried a text's first line ("💬 Nell texted you") goes with that line, which also clears
  *    its unread dot. An email or a push already sent can't be taken back.
  *  - The AI notice and a scene's line (role `system`) are never deleted on their own: the notice has to stay shown
@@ -106,7 +106,7 @@ export async function deleteMessage(
        update companion_messages
           set text = '', replaced_by = id, via = 'text', media_url = null, voice_key = null, model = null, cost = null,
               reported = null, reported_at = null, report_reviewed_at = null, report_decision = null, roleplay = null, on_call = false,
-              episode_id = null,
+              episode_id = null, ideas = null, idea_draws = null,
               offers = case when offers->'field' is not null and offers->'episode_id' is null then offers else null end
         where thread_id = $1 and id = any($2::text[]) returning id
      ), dropped as (

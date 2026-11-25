@@ -162,6 +162,13 @@ export function setCompanionModelForTests(model: Model | null): void {
   modelForTests = model;
 }
 const modelFor = async (db: Db): Promise<Model> => modelForTests ?? companionModel(db);
+/**
+ * Who draws a reply's ideas for what to say (lib/companion-ideas.ts): the companions' writer alone, never the show's
+ * model behind it (no writer, no ideas); the scripted model in tests.
+ */
+export async function companionIdeasWriter(db: Db): Promise<Model | null> {
+  return modelForTests ?? companionWriter(db);
+}
 
 /* ---------------------------------------------- who can be one ---------------------------------------------- */
 

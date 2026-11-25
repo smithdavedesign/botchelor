@@ -729,6 +729,65 @@ The audit's fourth item: "flip through regenerated replies (‹ 2 of 3 ›) and 
 - **Over MCP:** unchanged (`regenerate` works as before and keeps its draws; there is no swipe or continue action).
 - Tests: `tests/companion-draws.test.ts`.
 
+## Ideas for what to say (built 2026-11-24)
+
+After Dark's Step in has had them since 2026-11-23 (`lib/adult/step-in-ideas.ts`, row 5 of
+[audits/2026-11-22-companion-field.md](audits/2026-11-22-companion-field.md): three suggested replies with a tone label
+are on every site in the field). The show's companions are open to everyone, and in the 30 days to 2026-11-24 eleven
+outside people sent sixteen lines between them, nearly all one line and gone: the blank box is where they stop. So
+under the character's newest message there are three short lines the person could send next.
+- **What they are:** one **warm** (sincere, kind), one **playful** (teasing, funny), one **bold** (the most forward:
+  flirtier, or it moves things along; in PG, forward is never explicit). Each is a line or two, at most 120 characters
+  (`IDEA_MAX`), first person, in the thread's register: a text message while texting, something said (in double
+  quotes) or done there in a scene, story mode's scenes included. A roleplay's title and the part the person plays go
+  in, so they stay in it.
+- **Who writes them:** the companion's own writer (`companionIdeasWriter`: `companionWriter`, DeepSeek on OpenRouter
+  with After Dark's saved key), never the show's free model; with no writer there are none. One call, JSON answer
+  (`{"warm","playful","bold"}`), reading the thread's last eight lines back to the scene's line that began them and
+  nothing else: no memory, no profile, no earlier scenes. A text's tag is never read as something done.
+- **The checks, each idea:** the ones the person's own message gets (`ideaOk`): the crisis list, and anything the
+  model would be asked about (`maybeCrisis`: there's no second look for an idea, it's just dropped), and the show's PG
+  line (`checkFamilyTalk`). Also plain text only (no emoji, no markup) and English (the checks read English). One that
+  fails goes, a repeat of another goes, and three that fail show nothing. Sent, it's a line like any other: every
+  check runs again on what they actually send.
+- **Kept on the reply's row** (`companion_messages.ideas` jsonb and `idea_draws`, `lib/db.ts`), so a reload shows the
+  same three, read back through the checks again. **"↻ Other ideas"** draws again with the ones on show as "not these
+  again", **three draws a reply at most** (`IDEA_DRAWS`). A draw is claimed before the writer is asked, so two asks at
+  once can't pass the cap; it counts even when nothing could be shown (then what was kept stays).
+- **`POST /api/companion/:id/ideas`** (`{again?: true}`) answers `{for, ideas: [{tone, text}], more}`: `for` is the
+  message they're under, null when the newest word isn't the character's. Open to the same people as sending (signed
+  in, or a guest trying it, past the 18+ gate); not found for someone else's thread; **409 `paused`** for a paused
+  thread, as a message is. **No reply is counted**: the draw cap bounds it. Nothing to suggest is an empty list, never
+  an error: the newest word is theirs or a scene's line, they're out of replies (they couldn't send one), the
+  conversation isn't in English, there's no writer, or the switch is off.
+- **In the chat** (`app/companion/[id]/CompanionChat.tsx`): asked for half a second after the newest reply lands
+  (reading it comes first; `IDEAS_AFTER_MS`), once per reply, while a quiet "💡 Ideas for what to say…" holds their
+  place. Then "💡 You could say" and up to three chips on the person's side of the thread, each its tone in small
+  capitals and then its words, a dashed edge saying nothing has been sent (`.companion-ideas`, tokens only). **A tap
+  fills the box and puts the cursor there; it never sends.** The others stay while the box holds a tapped idea, to
+  swap it for; they step aside once the box has words of the person's own, while a reply is on its way, while editing
+  their last message or writing a note for next time, on a call, and when out of replies.
+  - Only under the newest reply, and not under one that has a menu of its own (a date text's chips, a question's
+    answer box: `ideasReplyFor`, which the server's pick matches).
+  - **The thread follows them down** (`followEnd`, a `ResizeObserver` on their slot): the composer sits under the
+    thread's scroller, so anything added at the end lands below the fold, out of sight. Someone reading at the end is
+    taken to them, never so far that the reply being read goes out of view (a long reply on a phone with the keyboard
+    up); someone who has scrolled up to read stays where they are. The header and the composer don't change, so both
+    still fit at 390 and 360 px.
+  - **Hidden from the thread's Settings** ("💡 Ideas for what to say"): this device's choice for every thread,
+    remembered in `localStorage` (`bz_companion_ideas` = `off`), as the device voice is.
+- **Deleting a message** takes its ideas with it; a text's blank marker keeps none
+  (`lib/companion-message-delete.ts`). Not in the export, as Step in's aren't.
+- **Counted:** `companion_ideas` (`lib/analytics.ts`): how many could be shown, whether a redraw, in a scene, a guest,
+  the cost and how long; never the words. A tap is the `companion_idea` click with its tone; the switch is
+  `companion_ideas_switch`.
+- **Cost:** a short prompt and about a hundred words back on the companion's writer, a fraction of a reply's
+  (about $0.001), three draws a reply at most.
+- **Switch:** `COMPANION_IDEAS=0` (the show's app; on unless `0`, [hosting.md](hosting.md)): no ideas anywhere, no
+  Settings entry, and the route answers none.
+- **Over MCP:** nothing (an agent writes its own lines).
+- Tests: `tests/companion-ideas.test.ts`. The live proof is `~/.claude/botchelor-bin/companion-proof/ideas.mjs`.
+
 ## Voice notes (P3, built 2026-11-09)
 
 David, 2026-11-09: "yes work on P3". The first of P3's three parts.

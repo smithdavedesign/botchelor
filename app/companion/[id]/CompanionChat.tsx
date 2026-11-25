@@ -39,6 +39,7 @@ import {
   type CompanionThreadView,
   type ReplyLength,
 } from "@/lib/companion-shared";
+import { followEnd, IDEA_TONE_LABELS, IDEAS_AFTER_MS, IDEAS_KEY, ideasReplyFor, type CompanionIdea, type CompanionIdeas } from "@/lib/companion-ideas-shared";
 import type { CharacterRef } from "@/lib/game";
 import { venueName, type VenueId } from "@/lib/venues";
 import type { FaceKit } from "@/lib/face-kit-shared";
@@ -63,6 +64,9 @@ function untilReset(iso: string, now = Date.now()): string {
 const YOU: CharacterRef = { id: "you", name: "You", house: false, hue: 210, portrait: null };
 
 const MARK: Record<NonNullable<CompanionMessageView["marker"]> | "notice", string> = { scene: "🎭", texting: "📱", notice: "🤖" };
+
+/** How much room is kept above the reply being read when the thread follows its ideas down (CSS pixels). */
+const REPLY_TOP_ROOM_PX = 12;
 
 /**
  * What a reply says out loud: of a story reply (lib/narration.ts story mode) only the quoted speech, never the narration,
@@ -95,6 +99,10 @@ const saidIn = (m: Pick<CompanionMessageView, "text" | "form">): string => witho
  * show's own route (POST {action: "offer"}), or turn the composer into the "For next time" note for the partner of its
  * last date (the couples nudge route, lib/between-dates.ts: a nudge is the one thing from here that reaches a date, by
  * that channel only; it is never chat text).
+ *
+ * Ideas for what to say (lib/companion-ideas.ts): under the newest reply, three lines they could send next (warm,
+ * playful, bold), asked for a moment after it lands. A tap puts one in the box and never sends it; "Other ideas" draws
+ * again (three times a reply at most). Hidden from the Settings menu, on this device.
  */
 export default function CompanionChat({
   initial,
@@ -109,6 +117,7 @@ export default function CompanionChat({
   about = null,
   messageDelete = false,
   lockedDoors = null,
+  ideas = false,
 }: {
   initial: CompanionThreadView;
   /** Who they are, beside the thread; null renders the thread alone (older callers, tests). */
@@ -134,6 +143,8 @@ export default function CompanionChat({
    * the server when the page loaded. A date that isn't here, or null: its text stays a plain line.
    */
   lockedDoors?: Record<string, LockedDoor> | null;
+  /** Ideas for what to say under the newest reply (lib/companion-ideas.ts companionIdeasOn): the row and its Settings switch. */
+  ideas?: boolean;
 }) {
   const router = useRouter();
   const [view, setView] = useState(initial);
@@ -179,6 +190,15 @@ export default function CompanionChat({
   // The composer as the "For next time" note (a nudge for the last date's partner), and the help if that note read as crisis.
   const [forNextTime, setForNextTime] = useState(false);
   const [noteCrisis, setNoteCrisis] = useState<CrisisResources | null>(null);
+  // Ideas for what to say (lib/companion-ideas.ts), asked for once the newest reply has landed, for that reply.
+  // `ideasSettled`: this device's choice has been read, so nothing is asked for that they'd switched off.
+  const [ideasOn, setIdeasOn] = useState(true);
+  const [ideasSettled, setIdeasSettled] = useState(false);
+  const [drawn, setDrawn] = useState<{ for: string; items: CompanionIdea[]; more: boolean } | null>(null);
+  const [ideasBusy, setIdeasBusy] = useState(false);
+  // The reply the ideas were last asked for, answered or not: until then a quiet line says they're on the way.
+  const [ideasAsked, setIdeasAsked] = useState<string | null>(null);
+  const ideasSlot = useRef<HTMLDivElement>(null);
   const speech = useSpeech();
   const c = view.character;
   const first = c.name.split(/\s+/)[0] || c.name;
@@ -213,6 +233,40 @@ export default function CompanionChat({
   }, [shown.length, pending, busy]);
 
   useEffect(() => setCanCall(callSupported() || (liveCalls && liveSupported())), [liveCalls]);
+
+  // Whether this device switched the ideas off (the thread's Settings), read once the page is here.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(IDEAS_KEY) === "off") setIdeasOn(false);
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
+    setIdeasSettled(true);
+  }, []);
+
+  // The ideas arrive under the newest reply a moment after it. The composer sits under the thread's scroller, so what's
+  // added at its end lands below the fold, out of sight: when the thread was being read at its end, it follows them down,
+  // never so far that the reply being read goes out of view (lib/companion-ideas-shared.ts followEnd). Someone who has
+  // scrolled up to read is left where they are.
+  useEffect(() => {
+    const slot = ideasSlot.current;
+    const el = scroller.current;
+    if (!slot || !el || typeof ResizeObserver === "undefined") return;
+    let height = slot.getBoundingClientRect().height;
+    const watch = new ResizeObserver(() => {
+      const now = slot.getBoundingClientRect().height;
+      const grew = now - height;
+      height = now;
+      const reply = el.querySelector<HTMLElement>(".companion-thread > li:last-child");
+      const keepTop = reply ? reply.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - REPLY_TOP_ROOM_PX : null;
+      const to = followEnd(el, grew, keepTop);
+      if (to === null) return;
+      const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      el.scrollTo({ top: to, behavior: still ? "auto" : "smooth" });
+    });
+    watch.observe(slot);
+    return () => watch.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!note) return;
@@ -498,6 +552,41 @@ export default function CompanionChat({
     setContinuing(false);
   }
 
+  /** Asks for the ideas under the newest reply (`again`: other ones). They're an extra: when they don't come, nothing is said. */
+  async function loadIdeas(again: boolean, signal?: AbortSignal) {
+    setIdeasBusy(true);
+    try {
+      const res = await fetch(`/api/companion/${view.id}/ideas`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(again ? { again: true } : {}),
+        signal,
+      });
+      const d = (await res.json().catch(() => null)) as Partial<CompanionIdeas> | null;
+      if (res.ok && d && typeof d.for === "string") setDrawn({ for: d.for, items: Array.isArray(d.ideas) ? d.ideas : [], more: Boolean(d.more) });
+    } catch {
+      /* no ideas this time */
+    } finally {
+      setIdeasBusy(false);
+    }
+  }
+
+  /** An idea into the box, to send as it is or change first. Never sent from here. */
+  function takeIdea(idea: CompanionIdea) {
+    setDraft(idea.text);
+    box.current?.focus();
+  }
+
+  /** The Settings switch: this device's choice, for every thread (IDEAS_KEY). */
+  function switchIdeas(on: boolean) {
+    setIdeasOn(on);
+    try {
+      localStorage.setItem(IDEAS_KEY, on ? "on" : "off");
+    } catch {
+      /* storage blocked (a private window): not remembered */
+    }
+  }
+
   async function report(m: CompanionMessageView, reason: CompanionReportReason) {
     setReporting(null);
     if (await post({ action: "report", message_id: m.id, reason })) setNote("Thanks. We'll look at it.");
@@ -518,6 +607,28 @@ export default function CompanionChat({
   const voicePrice = extraPrice("voice", extras?.voice);
   const outOfReplies = !allowance.unlimited && allowance.left === 0;
   const typing = busy && (pending !== null || waitingOnThem || opening || continuing);
+
+  // The reply the ideas are wanted for: the newest, when it's the character's and has no menu of its own, while they
+  // could write next (not paused, not out of replies, not on a call).
+  const ideasFor = ideas && ideasOn && ideasSettled && !paused && !outOfReplies && !calling ? ideasReplyFor(shown) : null;
+  useEffect(() => {
+    if (!ideasFor || drawn?.for === ideasFor) return;
+    const stop = new AbortController();
+    // A moment after the reply lands: reading it comes first.
+    const t = setTimeout(() => void loadIdeas(false, stop.signal).finally(() => setIdeasAsked(ideasFor)), IDEAS_AFTER_MS);
+    return () => {
+      clearTimeout(t);
+      stop.abort();
+    };
+    // Asked once per reply, not again when the ideas themselves arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ideasFor]);
+  // They step aside while a reply is on its way, while the box is for something else (an edit, a note for next time),
+  // and once the box has words of their own in it (a tapped idea leaves the others there to swap it for).
+  const ownWords = draft.trim() !== "" && !(drawn?.items ?? []).some((i) => i.text === draft);
+  const ideasHere = ideasFor !== null && !pending && !typing && !editing && !forNextTime && !ownWords;
+  const ideasWaiting = ideasHere && drawn?.for !== ideasFor && ideasAsked !== ideasFor;
+  const ideasShown = ideasHere && drawn?.for === ideasFor && drawn.items.length > 0 ? drawn : null;
 
   // Their portrait, large: the panel's picture and, blurred, the wash behind the thread (the house cast's reviewed file,
   // or a made portrait at panel size; none means the plain card).
@@ -637,6 +748,16 @@ export default function CompanionChat({
             <p className="muted small">
               Only when something happens to them: a date airs, or the house talks about them. Never just to check in.
             </p>
+            {ideas && (
+              // Ideas for what to say (lib/companion-ideas.ts): this device's choice, remembered for every thread.
+              <>
+                <label className="check">
+                  <input type="checkbox" checked={ideasOn} onChange={(e) => switchIdeas(e.target.checked)} data-track="companion-ideas-switch" data-companion-ideas-switch />
+                  <span>💡 Ideas for what to say</span>
+                </label>
+                <p className="muted small">Three lines you could send next, under {first}&apos;s newest message. A tap puts one in the box. On this device.</p>
+              </>
+            )}
             {extras && (
               <p className="muted small">
                 🔊 Voice notes:{" "}
@@ -960,6 +1081,51 @@ export default function CompanionChat({
             </li>
           )}
         </ol>
+        {/* Ideas for what to say (lib/companion-ideas.ts): up to three lines under the newest reply, each with its tone, on
+            your side of the thread. A tap puts one in the box; nothing is sent until they send it. The slot is always
+            here, so the thread can follow what arrives in it (the ResizeObserver above). */}
+        <div className="companion-ideas-slot" ref={ideasSlot}>
+          {ideasWaiting && (
+            <p className="companion-ideas-label companion-ideas-wait" aria-hidden="true" data-companion-ideas-wait>
+              💡 Ideas for what to say…
+            </p>
+          )}
+          {ideasShown && (
+            <div className="companion-ideas" role="group" aria-label="Ideas for what to say" data-companion-ideas={ideasShown.for}>
+              <p className="companion-ideas-label" aria-hidden="true">
+                💡 You could say
+              </p>
+              {ideasShown.items.map((idea) => (
+                <button
+                  key={idea.tone}
+                  type="button"
+                  className="companion-idea"
+                  onClick={() => takeIdea(idea)}
+                  disabled={busy}
+                  data-idea={idea.tone}
+                  data-track="companion-idea"
+                  data-track-tone={idea.tone}
+                >
+                  <span className="companion-idea-tone">{IDEA_TONE_LABELS[idea.tone]}</span>
+                  <span className="sr-only">: </span>
+                  {idea.text}
+                </button>
+              ))}
+              {ideasShown.more && (
+                <button
+                  type="button"
+                  className="linklike small muted companion-ideas-again"
+                  onClick={() => void loadIdeas(true)}
+                  disabled={ideasBusy || busy}
+                  data-track="companion-ideas-again"
+                  data-companion-ideas-again
+                >
+                  {ideasBusy ? "Thinking…" : "↻ Other ideas"}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {crisis && (

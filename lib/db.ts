@@ -4592,6 +4592,11 @@ alter table companion_messages add column if not exists form text check (form is
 -- draw is current (replaced_by null). A draw an edit replaced has its draw cleared: it answered other words, and is no
 -- alternate. Null on rows from before this, and on texts written without the model.
 alter table companion_messages add column if not exists draw text;
+-- Ideas for what to say (lib/companion-ideas.ts): up to three lines the person could send next, kept on the character's
+-- newest reply they answer (so a reload shows the same ones), and how many times they've been drawn for it (three at
+-- most). A delete that leaves a text's blank marker clears them with its words.
+alter table companion_messages add column if not exists ideas jsonb;
+alter table companion_messages add column if not exists idea_draws integer;
 -- Step in, After Dark (lib/adult/step-in.ts; David, 2026-11-17: "a NSFW companion date mode too"): the viewer in the
 -- scene with one character, told as prose. A scene is its viewer's alone: who, where, the roleplay and which side of it
 -- they play (roleplay: {"id","you": 0|1}), how it opens (one of ours, with {a} and {b}, or a sentence they wrote, checked
