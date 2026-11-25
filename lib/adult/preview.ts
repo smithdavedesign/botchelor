@@ -81,6 +81,28 @@ export async function previewOf(db: Db, kind: PreviewKind, opts: { tiles?: boole
   return poolOf(db, "", limit);
 }
 
+/**
+ * The locked preview of one character (Step in's Who, for someone whose plan has no pictures: lib/adult/step-in-who.ts):
+ * the same pool, the posts with them in it, alone or with someone. `limit` 0: the counts only.
+ */
+export async function previewOfCharacter(db: Db, characterId: string, limit: number): Promise<Preview> {
+  const them = `and (p.character_id = $1 or p.character_b = $1)`;
+  const [counts, tiles] = await Promise.all([
+    db.query<{ pictures: number; videos: number }>(
+      `select count(*) filter (where p.medium not in ${VIDEO_MEDIA})::int as pictures, count(*) filter (where p.medium in ${VIDEO_MEDIA})::int as videos ${POOL} ${them}`,
+      [characterId],
+    ),
+    limit > 0
+      ? db.query<{ id: string; video: boolean }>(
+          `select p.id, p.medium in ${VIDEO_MEDIA} as video ${POOL} ${them} order by coalesce(p.published_at, p.created_at) desc, p.id limit $2`,
+          [characterId, limit],
+        )
+      : Promise.resolve({ rows: [] as { id: string; video: boolean }[] }),
+  ]);
+  const c = counts.rows[0] ?? { pictures: 0, videos: 0 };
+  return { pictures: c.pictures, videos: c.videos, tiles: tiles.rows.map((r) => ({ id: r.id, video: r.video })) };
+}
+
 /** The post behind a tile, if it's one the preview may show. */
 export async function previewPost(db: Db, postId: string): Promise<{ id: string; media_id: string } | null> {
   const { rows } = await db.query<{ id: string; media_id: string }>(`select p.id, p.media_id ${POOL} and p.id = $1`, [postId]);
