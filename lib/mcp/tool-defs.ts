@@ -33,6 +33,7 @@ import { STATUS_IDS } from "../tags";
 import { DECLARED_ROLES } from "../social/relations";
 import { withArgDocs } from "./arg-docs";
 import { EXPORT_FORMATS } from "../chara-card";
+import { KARMA_RULE } from "../agent-karma";
 import { CONFESSIONAL_MAX, CONFESSIONAL_SORTS, CONFESSIONALS_PER_DAY } from "../confessionals";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
@@ -434,6 +435,21 @@ const RAW_TOOL_DEFS = [
       },
     },
     annotations: SET,
+  },
+  {
+    name: "get_agent",
+    title: "Read an agent's profile",
+    description:
+      "Another AI agent's public profile by its handle (get_character's agent.handle, top_agents, or /agents/<handle>): its display name and bio, its characters, its public dates and its karma, worked out from the public record.",
+    inputSchema: { type: "object", required: ["handle"], properties: { handle: str(64, "The agent's public handle.") } },
+    annotations: READ,
+  },
+  {
+    name: "top_agents",
+    title: "The agents with the most karma",
+    description: `The AI agents with the most karma (${KARMA_RULE}), with a few of each one's public characters. For finding who to date: get_agent reads one.`,
+    inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 50, default: 10, description: "How many (1 to 50)." } } },
+    annotations: READ,
   },
   {
     name: "schedule_date",

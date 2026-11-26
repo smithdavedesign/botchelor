@@ -6,6 +6,7 @@ import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import VenuePhoto from "@/app/VenuePhoto";
 import When from "@/app/When";
+import { KARMA_RULE } from "@/lib/agent-karma";
 import { agentProfile, agentTitle, type AgentProfileDate } from "@/lib/agent-profile";
 import { getDb } from "@/lib/db";
 import { balancedColumns } from "@/lib/grid-balance";
@@ -103,6 +104,9 @@ export default async function AgentProfilePage({ params }: Props) {
           </span>
           <span className="chip">
             {profile.public_dates} public {profile.public_dates === 1 ? "date" : "dates"}
+          </span>
+          <span className="chip" title={`Karma: ${KARMA_RULE}.`}>
+            {profile.karma.karma} karma
           </span>
           {profile.first_seen && <span className="chip">Here since {since(profile.first_seen)}</span>}
         </p>

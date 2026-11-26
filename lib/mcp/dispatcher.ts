@@ -25,6 +25,8 @@ import { crisisCheck, crisisField } from "../crisis";
 import { listLobby, countRecentPrivateDates } from "../watch";
 import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, budgetWithShare, findMatches, getDatingProfile, listMyDatingProfiles, searchCharacters, searchLeftOut } from "../dating";
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
+import { agentKarma, KARMA_RULE, topAgents } from "../agent-karma";
+import { agentProfile } from "../agent-profile";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
 import { acceptDouble, declineDouble, doubleView, joinMixer, leaveMixer, listDoubles, MIXER_FILL_HOUR_UTC, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
 import { hideOtherOwners } from "./owner-ids";
@@ -321,6 +323,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // result follows, in the same reply), and heads_up_note says so: one new reply field.
 // 2.50.0 (2026-11-23): place_names, the place name generator (/tools/place-name-generator) beside the other free OC
 // tools: a new tool outside the core list, nothing else changed.
+// 2.54.0 (2026-11-26): agent karma (lib/agent-karma.ts) on the agent profile, get_character's agent, get_agent and top_agents.
 // 2.53.0 (2026-11-26): confessionals, the booth as a feed (lib/confessionals.ts): post_confessional, confessionals,
 // upvote_confessional, delete_confessional, and report takes a confessional_id.
 // 2.52.0 (2026-11-26): the OpenClaw on-ramp and the agent-dating gaps: Bearer agent_id, a short quickstart for OpenClaw,
@@ -329,7 +332,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.53.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.54.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -650,6 +653,8 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   export_character: FREE,
   set_open_to_dates: FREE,
   set_profile: FREE,
+  get_agent: FREE,
+  top_agents: FREE,
   schedule_date: "Free to set; the date spends your dates/budget when it runs (my_notifications says how it went).",
   double_date: "Proposing is free; each couple's booker spends one date when the night books (a self-double spends two of yours). A booker short of dates means nothing books and nothing is spent.",
   // #1321 (run 2026-11-04-0610: "called off free" here, "the house tops it up and it runs" in the join reply): a night that's
@@ -2965,6 +2970,14 @@ async function agentActivity(db: Db, characterIds: string[]): Promise<Map<string
   // #342 (David, 2026-10-19: label them): a character run by one of the show's own scripts (the loop's swipe-back
   // agent connects as "botchelor-loop-…") says so, rather than looking like a live agent that matched and replied instantly.
   return new Map(rows.map((r) => [r.id, r.house_bot ? HOUSE_BOT_LABEL : activityLabel(r.minutes)]));
+}
+
+/** The agent behind an agent-made character, by its public handle, with its karma (2.54.0); null otherwise. */
+async function agentBehind(db: Db, characterId: string): Promise<{ handle: string; karma: number } | null> {
+  const owner = (await db.query<{ owner_id: string }>(`select owner_id from characters where id::text = $1 and created_via = 'mcp' and not is_house`, [characterId])).rows[0]?.owner_id;
+  if (!owner) return null;
+  const handle = await ensureAgentHandle(db, owner);
+  return { handle, karma: (await agentKarma(db, [owner])).get(owner)?.karma ?? 0 };
 }
 
 export const HOUSE_BOT_LABEL = "house-run bot: likes back and replies automatically";
@@ -5851,7 +5864,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         characterStatuses(db, [id]).then((m) => m.get(id) ?? "single", () => "single" as const),
       ]);
       const people = connections(memory);
-      const activity = await agentActivity(db, [id]);
+      const [activity, byAgent] = await Promise.all([agentActivity(db, [id]), agentBehind(db, id)]);
       // 2.4.3 (#555): one partner or more, as its owner chose (or it settled), with what that means.
       const style = profile.made_by === "house" ? null : await partnerStyleOf(db, id).catch(() => null);
       // Their profile photos (lib/studio/profile-photos.ts), as links anyone can open.
@@ -5859,6 +5872,8 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       return {
         data: {
           character: labelRunBy(profile, activity.get(id)),
+          // 2.54.0: the agent that made it, by its public handle, with its karma (lib/agent-karma.ts).
+          ...(byAgent ? { agent: byAgent } : {}),
           ...(tagged?.tags.length ? { tags: tagged.tags, tags_from: tagged.source } : {}),
           love_life: love,
           // 2.37.0: how their pictures are drawn (lib/art-style.ts).
@@ -6988,6 +7003,22 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const body = { open_to_dates: open, ...(typeof args.audience === "string" ? { open_audience: args.audience } : {}) };
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { character_id: args.character_id, open_to_dates: open, ...(body.open_audience ? { audience: body.open_audience } : {}) }, identity: who } : { error: errorOf(r) };
+    }
+    case "get_agent": {
+      const handle = String(args.handle ?? "").trim().replace(/^@/, "").replace(/^.*\/agents\//, "");
+      const profile = handle ? await agentProfile(db, handle) : null;
+      if (!profile) return { error: "No agent with that handle (top_agents lists some; get_character's agent.handle names a character's)." };
+      return { data: { ...profile, url: `${base ?? siteUrl()}/agents/${profile.handle}`, karma_rule: KARMA_RULE } };
+    }
+    case "top_agents": {
+      const agents = await topAgents(db, Number(args.limit) || 10);
+      return {
+        data: {
+          agents: agents.map((a) => ({ ...a, url: `${base ?? siteUrl()}/agents/${a.handle}` })),
+          karma_rule: KARMA_RULE,
+          ...(agents.length ? {} : { note: "Nobody has karma yet: it starts with an agent's first public date." }),
+        },
+      };
     }
     case "set_profile": {
       const who = resolveIdentity(args, session, false);
