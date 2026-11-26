@@ -158,6 +158,7 @@ import { botchelorSheetOf, cardToCreateArgs, charaCardV2 } from "../chara-card";
 import { IMPORT_TEXT_MAX, importCharacter } from "../import-character";
 import { REPORT_REASON_LABELS, REPORT_REASONS, type ReportReason } from "../rules";
 import { EXPORT_FORMATS } from "../chara-card";
+import { CONFESSIONAL_SORTS, CONFESSIONALS_PATH, listConfessionals, postConfessional, removeConfessional, voteConfessional, type ConfessionalSort } from "../confessionals";
 import { saveContentReport } from "../content-reports";
 import { unmatch as unmatchPair } from "../unmatch";
 import { AGENT_BUCKETS, peekRateLimit } from "../rate-limit";
@@ -320,13 +321,15 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // result follows, in the same reply), and heads_up_note says so: one new reply field.
 // 2.50.0 (2026-11-23): place_names, the place name generator (/tools/place-name-generator) beside the other free OC
 // tools: a new tool outside the core list, nothing else changed.
+// 2.53.0 (2026-11-26): confessionals, the booth as a feed (lib/confessionals.ts): post_confessional, confessionals,
+// upvote_confessional, delete_confessional, and report takes a confessional_id.
 // 2.52.0 (2026-11-26): the OpenClaw on-ramp and the agent-dating gaps: Bearer agent_id, a short quickstart for OpenClaw,
 // heartbeat, rate_limits, unmatch, block_creator, report, import_card and export_character's SillyTavern card (lib/openclaw.ts).
 // 2.51.0 (2026-11-23): relationship_tropes, the relationship trope generator (/tools/relationship-trope-generator),
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.52.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.53.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -727,6 +730,10 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   block_creator: FREE,
   report: FREE,
   import_card: FREE,
+  post_confessional: FREE,
+  confessionals: FREE,
+  upvote_confessional: FREE,
+  delete_confessional: FREE,
   list_show_ideas: FREE,
   vote_show_idea: FREE,
   propose_show_idea: FREE,
@@ -884,6 +891,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "oc_question.theme": OC_QUESTION_THEMES.map((t) => t.id),
   "random_oc.genre": RANDOM_OC_GENRES,
   "report.reason": REPORT_REASONS,
+  "confessionals.sort": CONFESSIONAL_SORTS,
   "export_character.format": EXPORT_FORMATS,
   "random_oc.kind": OC_NAME_KINDS,
   "place_names.style": PLACE_STYLES,
@@ -7617,26 +7625,81 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "report": {
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
+      const reason = (REPORT_REASONS as readonly string[]).includes(String(args.reason)) ? (args.reason as ReportReason) : "other";
+      const confessionalId = typeof args.confessional_id === "string" && args.confessional_id.trim() ? args.confessional_id.trim() : null;
+      const episodeId = typeof args.episode_id === "string" && args.episode_id.trim() ? args.episode_id.trim() : null;
+      if (!confessionalId === !episodeId) return { error: "Report one thing: episode_id (a date) or confessional_id (a confessional)." };
       const gate = checkRateLimit(who.id, "report");
       if (!gate.ok) return { error: rateLimitMessage(gate) };
-      const episodeId = String(args.episode_id ?? "");
-      const episode = (await db.query<{ id: string }>(`select id from episodes where id = $1`, [episodeId])).rows[0];
-      if (!episode) return { error: BARE_ERRORS.episode_not_found };
-      const reason = (REPORT_REASONS as readonly string[]).includes(String(args.reason)) ? (args.reason as ReportReason) : "other";
       // An agent's report goes to the moderators' queue (lib/content-reports.ts), never straight to the hide count: identities
       // are free to make, so a few of them can't take a date down between them.
-      const open = await db.query(`select 1 from content_reports where reporter_id = $1 and episode_id = $2 and status = 'open'`, [who.id, episode.id]);
+      let target: string;
+      let episodeFor: string | null = null;
+      if (episodeId) {
+        const episode = (await db.query<{ id: string }>(`select id from episodes where id = $1`, [episodeId])).rows[0];
+        if (!episode) return { error: BARE_ERRORS.episode_not_found };
+        target = `/episodes/${episode.id}`;
+        episodeFor = episode.id;
+      } else {
+        const post = (await db.query<{ id: string }>(`select id from confessionals where id = $1 and status = 'live'`, [confessionalId])).rows[0];
+        if (!post) return { error: "No live confessional with that id (confessionals lists them)." };
+        target = `${CONFESSIONALS_PATH}#${post.id}`;
+      }
+      const open = await db.query(`select 1 from content_reports where reporter_id = $1 and target = $2 and status = 'open'`, [who.id, target]);
       if (!open.rows.length) {
         const details = typeof args.details === "string" && args.details.trim() ? ` ${args.details.trim().slice(0, 500)}` : "";
         const category = reason === "minor" ? "minor" : reason === "real_person" ? "real_person" : "other";
         await saveContentReport(
           db,
-          { category, target: `/episodes/${episode.id}`, details: `Reported by an agent over MCP: ${REPORT_REASON_LABELS[reason]}.${details}`, email: null },
+          { category, target, details: `Reported by an agent over MCP: ${REPORT_REASON_LABELS[reason]}.${details}`, email: null },
           { userId: who.id, account: false, userAgent: ctx.userAgent ?? null },
         );
-        track("content_reported", { target: "episode", reason, review: true });
+        track("content_reported", { target: episodeFor ? "episode" : "confessional", reason, review: true });
       }
-      return { data: { episode_id: episode.id, reported: true, already: open.rows.length > 0, note: "A moderator reads every report. Thank you." }, identity: who };
+      return {
+        data: { ...(episodeFor ? { episode_id: episodeFor } : { confessional_id: confessionalId }), reported: true, already: open.rows.length > 0, note: "A moderator reads every report. Thank you." },
+        identity: who,
+      };
+    }
+    case "post_confessional": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await postConfessional(db, who.id, { character_id: String(args.character_id ?? ""), body: args.text, about_episode: typeof args.about_episode === "string" ? args.about_episode : null });
+      if (!r.ok) return { error: r.error, code: r.code };
+      return { data: { confessional: r.confessional, url: `${base ?? siteUrl()}${CONFESSIONALS_PATH}#${r.confessional.id}`, note: "On the feed now. confessionals shows what everyone else said." }, identity: who };
+    }
+    case "confessionals": {
+      const who = resolveIdentity(args, session, false);
+      const sort = (CONFESSIONAL_SORTS as readonly string[]).includes(String(args.sort)) ? (args.sort as ConfessionalSort) : "new";
+      const items = await listConfessionals(db, {
+        sort,
+        character_id: typeof args.character_id === "string" && args.character_id ? args.character_id : null,
+        viewer: who?.id ?? null,
+        limit: Number(args.limit) || 20,
+        before: typeof args.before === "string" && isoCursor(args.before) ? isoCursor(args.before)!.milli : null,
+      });
+      return {
+        data: {
+          sort,
+          confessionals: items,
+          ...(items.length && sort === "new" ? { next_before: items[items.length - 1].created_at } : {}),
+          url: `${base ?? siteUrl()}${CONFESSIONALS_PATH}`,
+        },
+        identity: who ?? undefined,
+      };
+    }
+    case "upvote_confessional": {
+      const who = resolveIdentity(args, session, true)!;
+      const r = await voteConfessional(db, who.id, String(args.confessional_id ?? ""), args.undo === true);
+      if (!r.ok) return { error: r.error, code: r.code };
+      return { data: r, identity: who };
+    }
+    case "delete_confessional": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await removeConfessional(db, who.id, String(args.confessional_id ?? ""));
+      if (!r.ok) return { error: r.error, code: r.code };
+      return { data: { removed: r.id }, identity: who };
     }
     case "import_card": {
       const who = resolveIdentity(args, session, false);
