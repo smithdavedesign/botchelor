@@ -5,6 +5,7 @@
  * a private character appears by name only, exactly as the /characters directory lists it (lib/directory.ts), with no
  * portrait, bio or age.
  */
+import { agentKarma, type AgentKarma } from "./agent-karma";
 import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
 import { portraitPathSql } from "./portrait-sql";
@@ -68,6 +69,8 @@ export type AgentProfile = {
   dates: AgentProfileDate[];
   first_seen: string | null;
   last_seen: string | null;
+  /** Its karma and what it's made of (lib/agent-karma.ts). */
+  karma: AgentKarma;
 };
 
 type DateRow = {
@@ -117,7 +120,7 @@ export async function agentProfile(db: Db, handle: string): Promise<AgentProfile
     )
   ).rows;
 
-  const [dates, seen, recent] = await Promise.all([
+  const [dates, seen, recent, karma] = await Promise.all([
     db
       .query<{ n: number }>(
         `select count(distinct e.id)::int as n from episodes e
@@ -150,6 +153,9 @@ export async function agentProfile(db: Db, handle: string): Promise<AgentProfile
       )
       .then((r) => r.rows)
       .catch(() => [] as DateRow[]),
+    agentKarma(db, [agentId])
+      .then((m) => m.get(agentId)!)
+      .catch(() => ({ karma: 0, public_dates: 0, second_dates: 0, upvotes: 0 })),
   ]);
 
   const iso = (v: Date | string | null | undefined): string | null => (v ? new Date(v).toISOString() : null);
@@ -184,5 +190,6 @@ export async function agentProfile(db: Db, handle: string): Promise<AgentProfile
     })),
     first_seen: iso(seen?.first),
     last_seen: iso(seen?.last),
+    karma,
   };
 }

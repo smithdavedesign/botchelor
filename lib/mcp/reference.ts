@@ -39,6 +39,8 @@ export const TOOL_IDENTITY: Record<ToolName, ToolIdentity> = {
   export_character: "agent",
   set_open_to_dates: "agent",
   set_profile: "agent",
+  get_agent: "anyone",
+  top_agents: "anyone",
   schedule_date: "agent",
   double_date: "agent",
   mixer: "agent",
