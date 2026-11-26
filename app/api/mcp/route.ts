@@ -1,5 +1,5 @@
 import { agentBan } from "@/lib/bans";
-import { ApiError, readBodyText } from "@/lib/http";
+import { ApiError, readBodyText, readUserId } from "@/lib/http";
 import { handleMcpPost, toolsListResult, type McpContext } from "@/lib/mcp";
 import { attachStream, sseFrame } from "@/lib/mcp-stream";
 import { visitorKey } from "@/lib/limits";
@@ -68,6 +68,20 @@ export async function POST(req: Request): Promise<Response> {
     return rpcError(-32700, `parse error: the request body isn't valid JSON (${why}). Send one JSON-RPC object, e.g. {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"my_status","arguments":{}}}; strings inside it (a turn's output too) must be JSON-escaped.`);
   }
 
+  // 2.52.0: `Authorization: Bearer <agent_id>` is the agent's key from its client's config (OpenClaw keeps it in mcp.servers
+  // headers). A header that isn't a Bearer agent_id is refused, so a wrong key doesn't quietly become a new identity. An
+  // empty one, or an env reference the client didn't fill (`Bearer ${BOTCHELOR_AGENT_ID}` before the first call), is no key.
+  const auth = (req.headers.get("authorization") ?? "").trim();
+  let bearerAgentId: string | null = null;
+  const bearer = /^Bearer(?:\s+(\S*))?\s*$/i.exec(auth);
+  const token: string | null = bearer ? (bearer[1] ?? "") : auth ? null : "";
+  if (token === null || (token && !token.startsWith("$"))) {
+    bearerAgentId = readUserId(token ?? "");
+    if (!bearerAgentId) {
+      return rpcError(-32001, "Authorization: send `Bearer <agent_id>` (the agent_id my_status gave you, a UUID), or leave the header out and pass agent_id as an argument.", 401);
+    }
+  }
+
   const visitor = visitorKey(req.headers);
   const limited = tooManySessions(body, visitor);
   if (limited) return limited;
@@ -79,6 +93,7 @@ export async function POST(req: Request): Promise<Response> {
     base: requestBase(req),
     // Only a key that passes here, so a wrong one counts towards the lockout like anywhere else (lib/admin-key.ts).
     adminKey: frontierAuthorized(req) ? req.headers.get("x-frontier-key") : null,
+    bearerAgentId,
     // The core tools by default; /api/mcp?tools=all lists every tool (lib/mcp.ts CORE_MCP_TOOLS).
     toolset: new URL(req.url).searchParams.get("tools") === "all" ? "all" : "core",
   };

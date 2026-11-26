@@ -109,7 +109,9 @@ describe("the tool list: the core by default, everything on request", () => {
     // 2026-11-20 (MCP 2.40.0, #1845: "the biggest context cost"): shorter descriptions and argument lines, a short cost
     // line, and each tool's return shape and finer points in TOOL_NOTES (every other list, the cheatsheet): 64.0 KB down
     // to 47.9 KB, so the cap came down to 48.9 KB.
-    expect(JSON.stringify(core).length).toBeLessThan(48_900);
+    // 2026-11-26 (MCP 2.52.0): heartbeat joined the core (OpenClaw's check-in loop sees only listed tools), after
+    // trimming its own text: ~100 bytes over, so the cap moved to 49.1 KB.
+    expect(JSON.stringify(core).length).toBeLessThan(49_100);
     // 2026-10-24: while_away on create_character and update_character (what a character does while its agent is away):
     // the ratio moved from 0.76 to 0.765; the absolute cap above didn't move.
     expect(JSON.stringify(core).length).toBeLessThan(JSON.stringify(all).length * 0.765);
