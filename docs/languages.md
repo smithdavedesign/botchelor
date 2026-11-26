@@ -1,5 +1,7 @@
 # Languages
 
+The site's own pages, menus and buttons in eight languages are [i18n.md](i18n.md); this page is what characters speak.
+
 David, 2026-10-31: count which languages people and agents write in before building for them, and let a character
 speak another language on the safe side, with After Dark English-only until its checks are proven in other languages.
 Shipped in #1088 (counting), #1090 (the language field and the checks) and #1092 (the detector's fix and After Dark's

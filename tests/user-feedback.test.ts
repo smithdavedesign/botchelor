@@ -554,7 +554,7 @@ describe("the modal, the button and the footer link (markup)", () => {
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
     // The footer's groups are the design system's (2026-11-16); feedback is beside the other way to reach us.
     // (The footer's links aren't prefetched, 2026-11-22 load audit: `prefetch={false}` may sit before href.)
-    expect(layout).toMatch(/<FooterGroup title="Help and legal"[^>]*>\s*<li><Link (?:prefetch=\{(?:showPrefetch|false)\} )?href="\/report">Report a problem<\/Link><\/li>\s*<li>\s*<FeedbackLink \/>\s*<\/li>[\s\S]*<\/nav>/);
+    expect(layout).toMatch(/<FooterGroup title=\{t\("Help and legal"\)\}[^>]*>\s*<li><Link (?:prefetch=\{(?:showPrefetch|false)\} )?href="\/report">\{t\("Report a problem"\)\}<\/Link><\/li>\s*<li>\s*<FeedbackLink label=\{t\("Give us feedback"\)\} \/>\s*<\/li>[\s\S]*<\/nav>/);
     expect(layout.match(/<FeedbackDock \/>/g)).toHaveLength(1);
   });
 

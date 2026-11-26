@@ -122,7 +122,7 @@ describe("the free tools hub (/tools, lib/tools.ts)", () => {
 
   it("is in every page's footer, after the two tools the design system lists", () => {
     const layout = source("app/layout.tsx");
-    expect(layout).toContain('<li><Link prefetch={false} href="/tools" className="footer-all">All free tools →</Link></li>');
+    expect(layout).toContain('<li><Link prefetch={false} href="/tools" className="footer-all">{t("All free tools")} →</Link></li>');
     expect(source("app/everything/page.tsx")).toContain('<Link href="/tools">All the free OC tools</Link>');
   });
 });

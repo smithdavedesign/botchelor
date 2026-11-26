@@ -1,15 +1,17 @@
+import { english, type T } from "@/lib/i18n/translate";
 import { CRISIS_LINKS } from "@/lib/rules";
 
 /** Crisis resources, linked from every episode and from the site footer. */
-export function CrisisResources() {
+/** `t`: the page's translator on a server page (lib/i18n/server.ts getT); English without one. */
+export function CrisisResources({ t = english }: { t?: T } = {}) {
   return (
     <p className="crisis">
-      If something here touches on something heavy, free help is a call or message away:{" "}
+      {t("If something here touches on something heavy, free help is a call or message away:")}{" "}
       {CRISIS_LINKS.map((link, i) => (
         <span key={link.href}>
           {i > 0 && " · "}
           <a href={link.href} target="_blank" rel="noopener noreferrer">
-            {link.label}
+            {t(link.label)}
           </a>
         </span>
       ))}
