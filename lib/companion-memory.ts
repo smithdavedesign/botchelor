@@ -8,6 +8,7 @@ import { maybeCrisis } from "./step-in";
 import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
 import { getPersona, type ScenePersona } from "./persona";
 import { escapeRegExp } from "./text";
+import { cosine, embed, embedKey, embedModel } from "./originality-concept";
 
 /**
  * What a companion remembers about the person (docs/companions.md): short facts drawn from their own words every few
@@ -45,24 +46,147 @@ function overlap(a: Set<string>, b: Set<string>): number {
   return n / Math.min(a.size, b.size);
 }
 
-type FactRow = { id: string; kind: string; text: string; pinned: boolean; edited_by_user: boolean; uses: number; created_at: string };
+type FactRow = {
+  id: string;
+  kind: string;
+  text: string;
+  pinned: boolean;
+  edited_by_user: boolean;
+  uses: number;
+  created_at: string;
+  /** Its embedding and the model that made it (null before it's embedded): recall by meaning. */
+  embedding?: number[] | null;
+  embed_model?: string | null;
+  /** How much it matters to who they are, 1 to 5, from the draw (null for older facts and ones the person wrote). */
+  importance?: number | null;
+};
+
+type Env = Record<string, string | undefined>;
+
+/*
+ * Recall by meaning (docs/PRDs/cross-mode-memory.md, phase 0). Ranking by shared words missed facts asked about in other
+ * words ("what don't I eat?" never found "They are vegetarian", the 2026-11-08 sim), so each fact is embedded once
+ * (gemini-embedding-001, the originality check's model, on its own daily budget) and the person's message is embedded
+ * when there are more facts than fit in the prompt. Similarity is one more term of the same score, next to the words,
+ * never in place of them: no key, the switch off, the budget spent, a slow call or an unembedded fact all leave the
+ * ranking exactly as it was by words. Only SFW companion facts: Step in's (After Dark) are not sent to an embedding
+ * provider until that has its own privacy review.
+ */
+
+/** MEMORY_EMBED=0 turns recall by meaning off; otherwise it's on whenever an embedding key is set. */
+export const memoryEmbedOn = (env: Env = process.env): boolean => env.MEMORY_EMBED?.trim() !== "0" && Boolean(embedKey(env).key);
+/** How long a reply waits for its question's embedding before ranking by words alone. */
+export const RECALL_TIMEOUT_MS = 1200;
+/** The most a fact's meaning adds to its score: the same as a message sharing every one of its words. */
+const MEANING_WEIGHT = 6;
+/** Below this spread between the best match and the typical fact, nothing stands out by meaning and nothing is added. */
+const MEANING_MIN_SPREAD = 0.04;
+/** Facts embedded per draw, the new ones first: older facts of an active thread catch up a few at a time. */
+export const EMBED_PER_DRAW = 12;
+
+/**
+ * Each fact's bonus by meaning, 0 to MEANING_WEIGHT: how far its similarity to the question sits above the thread's
+ * median, as a share of how far the best one does. Relative on purpose, so it doesn't depend on the model's scale; and
+ * nothing when no fact stands out (a "hi" is about nothing in particular). A fact without a usable vector gets 0.
+ */
+export function meaningBonus(sims: readonly (number | null)[]): number[] {
+  const known = sims.filter((x): x is number => x !== null).sort((a, b) => a - b);
+  if (known.length < 2) return sims.map(() => 0);
+  const median = known[Math.floor(known.length / 2)];
+  const best = known[known.length - 1];
+  if (best - median < MEANING_MIN_SPREAD) return sims.map(() => 0);
+  return sims.map((x) => (x === null || x <= median ? 0 : (MEANING_WEIGHT * (x - median)) / (best - median)));
+}
+
+/**
+ * The facts in the order a prompt takes them (pure, so the rule is tested without a database): pinned first, then by
+ * what the message is about (its words and, with `query`, its meaning), then the lasting kinds and what matters most,
+ * then the newest. `query` is the message's embedding from `model`; facts embedded by another model don't compare.
+ */
+export function rankFacts(rows: readonly FactRow[], about: string, query: number[] | null = null, model: string | null = null): FactRow[] {
+  const topic = words(about);
+  const sims = rows.map((r) => (query && r.embedding?.length && r.embed_model === model ? cosine(query, r.embedding) : null));
+  const bonus = meaningBonus(sims);
+  return rows
+    .map((r, i) => ({
+      r,
+      score:
+        (r.pinned ? 10 : 0) +
+        (r.edited_by_user ? 1 : 0) +
+        overlap(words(r.text), topic) * 6 +
+        bonus[i] +
+        (KIND_WEIGHT[r.kind] ?? 0) +
+        (r.importance ? (r.importance - 3) * 0.3 : 0),
+    }))
+    .sort((a, b) => b.score - a.score || +new Date(b.r.created_at) - +new Date(a.r.created_at))
+    .map((x) => x.r);
+}
+
+/** The message's embedding for recall, or null (off, no key, the budget spent, too slow): never throws. */
+async function queryVector(db: Db, about: string, env: Env): Promise<number[] | null> {
+  if (!memoryEmbedOn(env) || about.trim().length < 3) return null;
+  const r = await embed(db, about.slice(0, 600), { env, timeoutMs: RECALL_TIMEOUT_MS, pool: "memory", task: "RETRIEVAL_QUERY" }).catch(() => null);
+  return r?.ok ? r.vec : null;
+}
 
 /** The facts for this turn's prompt (and each one's use counted). */
-export async function factsForPrompt(db: Db, threadId: string, about: string, now: Date = new Date()): Promise<PromptFact[]> {
-  const { rows } = await db.query<FactRow>(`select id, kind, text, pinned, edited_by_user, uses, created_at from companion_facts where thread_id = $1`, [threadId]);
+export async function factsForPrompt(
+  db: Db,
+  threadId: string,
+  about: string,
+  now: Date = new Date(),
+  deps: { env?: Env; queryVector?: (about: string) => Promise<number[] | null> } = {},
+): Promise<PromptFact[]> {
+  const { rows } = await db.query<FactRow>(
+    `select id, kind, text, pinned, edited_by_user, uses, created_at, embedding, embed_model, importance from companion_facts where thread_id = $1`,
+    [threadId],
+  );
   if (!rows.length) return [];
-  const topic = words(about);
-  const ranked = rows
-    .map((r, i) => ({ r, score: (r.pinned ? 10 : 0) + (r.edited_by_user ? 1 : 0) + overlap(words(r.text), topic) * 6 + (KIND_WEIGHT[r.kind] ?? 0), i }))
-    .sort((a, b) => b.score - a.score || +new Date(b.r.created_at) - +new Date(a.r.created_at))
-    .slice(0, FACTS_IN_PROMPT)
-    .map((x) => x.r);
+  const env = deps.env ?? process.env;
+  // When every fact fits, the order is all that ranking changes, so nothing is embedded.
+  const model = embedModel(env);
+  const worth = rows.length > FACTS_IN_PROMPT && rows.some((r) => r.embedding?.length && r.embed_model === model);
+  const query = worth ? await (deps.queryVector ?? ((a: string) => queryVector(db, a, env)))(about).catch(() => null) : null;
+  const ranked = rankFacts(rows, about, query, model).slice(0, FACTS_IN_PROMPT);
   await db.query(`update companion_facts set uses = uses + 1, last_used_at = $2 where id = any($1::text[])`, [ranked.map((r) => r.id), now.toISOString()]);
   return ranked.map((r) => ({ kind: r.kind, text: r.text }));
 }
 
+/**
+ * Embeds up to EMBED_PER_DRAW of a thread's facts that have no embedding from the current model, newest first, on the
+ * memory budget. Best-effort, after the reply: a failure leaves them for the next draw. Returns how many it embedded.
+ */
+export async function embedFacts(
+  db: Db,
+  threadId: string,
+  deps: { env?: Env; vector?: (text: string) => Promise<number[] | null> } = {},
+): Promise<number> {
+  const env = deps.env ?? process.env;
+  if (!deps.vector && !memoryEmbedOn(env)) return 0;
+  const model = embedModel(env);
+  const vector =
+    deps.vector ??
+    (async (text: string) => {
+      const r = await embed(db, text, { env, pool: "memory", task: "RETRIEVAL_DOCUMENT" });
+      return r.ok ? r.vec : null;
+    });
+  const { rows } = await db.query<{ id: string; text: string }>(
+    `select id, text from companion_facts where thread_id = $1 and (embedding is null or embed_model is distinct from $2) order by created_at desc limit $3`,
+    [threadId, model, EMBED_PER_DRAW],
+  );
+  let n = 0;
+  for (const r of rows) {
+    const vec = await vector(r.text).catch(() => null);
+    // A spent budget or a slow provider ends the batch: pushing on won't help.
+    if (!vec) break;
+    await db.query(`update companion_facts set embedding = $2::jsonb, embed_model = $3 where id = $1`, [r.id, JSON.stringify(vec), model]);
+    n++;
+  }
+  return n;
+}
+
 const FACTS_PROMPT = (name: string) =>
-  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and a running joke between them only when they keep coming back to it. Facts that will still be true next week: never a quip, a tease or a bit of banter from this conversation ("They joke that their dog is a pasta bandit" is not a fact). Only what they actually said or clearly meant; skip small talk and anything already known. Lines marked [roleplay: …] are make-believe from a roleplay the two played: never take a fact from them. The same goes for who they are in scenes (a name, a look and a line about themselves they wrote for scenes, which ${name} may use in one): make-believe too, never a fact unless they say it about their real life in their own ordinary messages. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. When someone in their life has died or left, the fact says so ("Their wife June died; they were married forty years."). Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"..."}]}, at most 8, or {"facts":[]}.`;
+  `You read part of a conversation between a person and ${name}, an AI character they talk with. List what ${name} should remember about THE PERSON (never about ${name}): their name, what they like and dislike, the people in their life, what happened to them, plans coming up, their work, topics they don't want to talk about (boundaries), and a running joke between them only when they keep coming back to it. Facts that will still be true next week: never a quip, a tease or a bit of banter from this conversation ("They joke that their dog is a pasta bandit" is not a fact). Only what they actually said or clearly meant; skip small talk and anything already known. Lines marked [roleplay: …] are make-believe from a roleplay the two played: never take a fact from them. The same goes for who they are in scenes (a name, a look and a line about themselves they wrote for scenes, which ${name} may use in one): make-believe too, never a fact unless they say it about their real life in their own ordinary messages. Each fact is short, in the third person ("Their sister is called Maya."), under 140 characters. When someone in their life has died or left, the fact says so ("Their wife June died; they were married forty years."). Give each fact an importance from 1 to 5: how much it matters to who they are and their life (5: their name, a death, a boundary, someone they love; 3: their work, a plan; 1: a small like). Answer only JSON: {"facts":[{"kind":"name|likes|dislikes|people|events|plans|work|boundaries|jokes|other","text":"...","importance":3}]}, at most 8, or {"facts":[]}.`;
 
 /**
  * Draws new facts from the person's recent messages when FACTS_EVERY have come in since the last draw. One model call;
@@ -124,12 +248,25 @@ export async function updateFacts(db: Db, threadId: string, name: string, model:
     const w = words(text);
     if (knownWords.some((k) => overlap(k, w) >= 0.8)) continue;
     const kind = (FACT_KINDS as readonly string[]).includes(f?.kind) ? (f.kind as string) : "other";
-    await db.query(`insert into companion_facts (id, thread_id, kind, text, created_at) values ($1, $2, $3, $4, $5)`, [randomUUID(), threadId, kind, text, now.toISOString()]);
+    await db.query(`insert into companion_facts (id, thread_id, kind, text, importance, created_at) values ($1, $2, $3, $4, $5, $6)`, [
+      randomUUID(),
+      threadId,
+      kind,
+      text,
+      importanceOf(f?.importance),
+      now.toISOString(),
+    ]);
     knownWords.push(w);
     added++;
   }
   await capFacts(db, threadId);
   return added;
+}
+
+/** A drawn fact's importance: a whole number 1 to 5, else null (the ranking then leaves it out). */
+export function importanceOf(raw: unknown): number | null {
+  const n = typeof raw === "string" ? Number(raw) : raw;
+  return typeof n === "number" && Number.isFinite(n) ? Math.min(5, Math.max(1, Math.round(n))) : null;
 }
 
 /**
@@ -226,7 +363,7 @@ export async function editFacts(db: Db, threadId: string, e: FactEdit, now: Date
       await db.query(`insert into companion_facts (id, thread_id, kind, text, edited_by_user, pinned, created_at) values ($1, $2, 'other', $3, true, true, $4)`, [randomUUID(), threadId, text, now.toISOString()]);
       return null;
     }
-    const r = await db.query(`update companion_facts set text = $3, edited_by_user = true where id = $2 and thread_id = $1 returning id`, [threadId, e.id, text]);
+    const r = await db.query(`update companion_facts set text = $3, edited_by_user = true, embedding = null, embed_model = null where id = $2 and thread_id = $1 returning id`, [threadId, e.id, text]);
     return r.rows.length ? null : "That's not one of theirs.";
   }
   if (e.op === "pin") {

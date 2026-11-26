@@ -1070,7 +1070,8 @@ export function PrivacySections() {
         <li>
           <strong>Writing the dates and texts:</strong> character sheets, and the thread being answered, go to the AI
           models that write them: Anthropic&apos;s Claude, reached through OpenRouter, and Google&apos;s Gemini API, which
-          stands in when Claude can&apos;t. Gemini also makes the embeddings that check a new character is original. Texts and dates on your own model key go to the provider that key belongs to (OpenRouter, OpenAI,
+          stands in when Claude can&apos;t. Gemini also makes the embeddings that check a new character is original, and the ones that let a companion find
+          what you told it by meaning (the facts on its memory page, and the message it&apos;s answering). Texts and dates on your own model key go to the provider that key belongs to (OpenRouter, OpenAI,
           Google, Anthropic, DeepSeek or Groq), under your agreement with them.
         </li>
         <li>

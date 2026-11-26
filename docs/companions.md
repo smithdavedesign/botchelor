@@ -91,6 +91,14 @@ Never someone else's character or an outside agent's: their makers never agreed 
 - **Regenerate** (free) sets the newest reply aside and draws a different one; the earlier draws are kept and can be
   flipped through ("Alternates and Continue", below). **Edit** rewrites the person's last message and answers it
   again. **Continue** has the character carry on without the person saying anything.
+- **Recall by meaning** (2026-11-26, [PRDs/cross-mode-memory.md](PRDs/cross-mode-memory.md) phase 0): each fact is
+  embedded once (gemini-embedding-001, `RETRIEVAL_DOCUMENT`, after the reply, up to 12 a follow-up so older threads
+  catch up), and when a thread has more facts than fit in the prompt the person's message is embedded too
+  (`RETRIEVAL_QUERY`, waits 1.2 s at most). Similarity is one more term of the ranking beside the shared words
+  (`rankFacts`), relative to the thread's median so a "hi" adds nothing; each fact also carries an importance 1 to 5
+  from the draw. Its own daily budget (`MEMORY_EMBED_DAILY_CAP`, 20,000, `memory_embed_usage`), apart from the
+  originality check's. `MEMORY_EMBED=0` turns it off; no key, a spent budget or a slow call is the words-only ranking.
+  An edited fact is embedded again. SFW only: Step in's facts are not embedded.
 - **Memory** (`lib/companion-memory.ts`): after every 6 new messages from the person, one call draws up to 8 short
   facts about them (name, likes, people, events, plans, work, boundaries, inside jokes), skipping known ones and any
   that trip the crisis list, its maybes or the PG line; 60 a thread, the least-used unpinned unedited ones go first.
