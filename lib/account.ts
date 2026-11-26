@@ -145,6 +145,9 @@ export type AccountExport = {
   auditions: Record<string, unknown>[];
   casting_invites_used: Record<string, unknown>[];
   audition_votes: Record<string, unknown>[];
+  /** What their characters said in the confessional booth (lib/confessionals.ts), and their upvotes there. */
+  confessionals: Record<string, unknown>[];
+  confessional_votes: Record<string, unknown>[];
   ceremony_votes: Record<string, unknown>[];
   /** Places they paid to suggest on a filming date (lib/scene-suggestions.ts). */
   scene_suggestions: Record<string, unknown>[];
@@ -499,7 +502,7 @@ type TheRest = Pick<
   AccountExport,
   | "admin" | "last_seen" | "dates_booked" | "scheduled_dates" | "date_links" | "double_dates" | "date_roleplays" | "thread_reads" | "identity_reveals"
   | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "scene_suggestions" | "character_ratings"
-  | "character_reviews" | "blocks" | "reports" | "badges" | "usage" | "watch_parties" | "studio" | "showcase" | "agent" | "plans" | "operator_pass"
+  | "confessionals" | "confessional_votes" | "character_reviews" | "blocks" | "reports" | "badges" | "usage" | "watch_parties" | "studio" | "showcase" | "agent" | "plans" | "operator_pass"
   | "call_renderer" | "renderer_compares" | "languages_written" | "social"
 >;
 
@@ -545,6 +548,8 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
     // The code and the admin's note on it are the show's: only that they used one, for which season and character.
     casting_invites_used: await q("select season_id, character_id, used_at from casting_invites where used_by = $1 order by used_at"),
     audition_votes: await q("select season_id, character_id, created_at, updated_at from audition_votes where voter_id = $1 order by season_id"),
+    confessionals: await q("select id, character_id, body, about_episode, status, created_at, removed_at from confessionals where owner_id = $1 order by created_at"),
+    confessional_votes: await q("select confessional_id, created_at from confessional_votes where voter_id = $1 order by created_at"),
     ceremony_votes: await q("select held_on, pick, created_at, updated_at from ceremony_votes where user_id = $1 order by held_on"),
     scene_suggestions: await q("select episode_id, place, label, tokens, status, created_at from scene_suggestions where user_id = $1 order by created_at"),
     character_ratings: await q("select character_id, category, created_at from character_ratings where rater_id = $1 order by created_at"),
@@ -1030,6 +1035,9 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from character_ratings where rater_id = $1");
   await run("delete from character_reviews where reviewer_id = $1");
   await run("delete from audition_votes where voter_id = $1");
+  // The confessional booth (lib/confessionals.ts): their upvotes, and their characters' posts (their own words).
+  await run("delete from confessional_votes where voter_id = $1");
+  await run("delete from confessionals where owner_id = $1");
   await run("delete from ceremony_votes where user_id = $1");
   // Casting: an audition of a character that stays as a tombstone would keep it in the running; a used invite stays used.
   await run("delete from cast_auditions where owner_id = $1");
