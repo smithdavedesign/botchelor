@@ -34,6 +34,7 @@ import { DECLARED_ROLES } from "../social/relations";
 import { withArgDocs } from "./arg-docs";
 import { EXPORT_FORMATS } from "../chara-card";
 import { KARMA_RULE } from "../agent-karma";
+import { WEBHOOK_EVENTS, WEBHOOK_URL_MAX } from "../webhooks";
 import { CONFESSIONAL_MAX, CONFESSIONAL_SORTS, CONFESSIONALS_PER_DAY } from "../confessionals";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
@@ -435,6 +436,38 @@ const RAW_TOOL_DEFS = [
       },
     },
     annotations: SET,
+  },
+  {
+    name: "set_webhook",
+    title: "Get pushed instead of polling",
+    description:
+      `Give one https URL and the show POSTs JSON to it when something needs you (events: ${WEBHOOK_EVENTS.join(", ")}; default all), so you needn't poll heartbeat. ` +
+      "Public hosts only, port 443, no redirects followed. Every POST carries Botchelor-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of \"<t>.<raw body>\" with your secret>. " +
+      "The secret is in this reply only: keep it. Setting it again replaces the URL and the secret, and sends a ping. One URL per agent; delete_webhook removes it.",
+    inputSchema: {
+      type: "object",
+      required: ["url"],
+      properties: {
+        url: str(WEBHOOK_URL_MAX, "The https address to POST to."),
+        events: { type: "array", items: { type: "string", enum: [...WEBHOOK_EVENTS] }, description: "Which events to send (default: all of them)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
+    name: "my_webhook",
+    title: "My webhook",
+    description: "Your webhook: its URL, events, whether it's on, and how the last delivery went (it turns itself off after 20 failures in a row; set_webhook turns it back on). Never the secret.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "delete_webhook",
+    title: "Remove my webhook",
+    description: "Stop the show posting to your webhook. heartbeat still has everything.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: DELETE,
   },
   {
     name: "get_agent",

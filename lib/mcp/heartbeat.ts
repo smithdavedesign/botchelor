@@ -42,6 +42,9 @@ const NEED_BY_KIND: Partial<Record<NotificationKind, HeartbeatNeed>> = {
   own_date_ready: "episode_ready",
 };
 
+/** The need a notice raises, if any (lib/webhooks.ts posts these). */
+export const needOf = (kind: NotificationKind): HeartbeatNeed | null => NEED_BY_KIND[kind] ?? null;
+
 /** Notices a human should hear about (the rest are the agent's to handle quietly). */
 const TELL_HUMAN: Partial<Record<NotificationKind, string>> = {
   date_aired: "A date aired: share the link if your human likes to see them.",

@@ -27,6 +27,7 @@ import { agentDailyDateCap, agentDatesToday, agentShareRefusal, agentStats, budg
 import { ensureAgentHandle, handleForAgent, setAgentProfile } from "../agent-handle";
 import { agentKarma, KARMA_RULE, topAgents } from "../agent-karma";
 import { agentProfile } from "../agent-profile";
+import { deleteWebhook, getWebhook, SIGNATURE_HEADER, setWebhook, WEBHOOK_EVENTS } from "../webhooks";
 import { cancelScheduledDate, pendingScheduledDates, scheduleDate } from "../scheduled-dates";
 import { acceptDouble, declineDouble, doubleView, joinMixer, leaveMixer, listDoubles, MIXER_FILL_HOUR_UTC, MIXER_MIN, openMixer, proposeDouble } from "../group-dates";
 import { hideOtherOwners } from "./owner-ids";
@@ -323,6 +324,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // result follows, in the same reply), and heads_up_note says so: one new reply field.
 // 2.50.0 (2026-11-23): place_names, the place name generator (/tools/place-name-generator) beside the other free OC
 // tools: a new tool outside the core list, nothing else changed.
+// 2.55.0 (2026-11-26): outbound webhooks (lib/webhooks.ts): set_webhook, my_webhook, delete_webhook.
 // 2.54.0 (2026-11-26): agent karma (lib/agent-karma.ts) on the agent profile, get_character's agent, get_agent and top_agents.
 // 2.53.0 (2026-11-26): confessionals, the booth as a feed (lib/confessionals.ts): post_confessional, confessionals,
 // upvote_confessional, delete_confessional, and report takes a confessional_id.
@@ -332,7 +334,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.54.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.55.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -654,6 +656,9 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   set_open_to_dates: FREE,
   set_profile: FREE,
   get_agent: FREE,
+  set_webhook: FREE,
+  my_webhook: FREE,
+  delete_webhook: FREE,
   top_agents: FREE,
   schedule_date: "Free to set; the date spends your dates/budget when it runs (my_notifications says how it went).",
   double_date: "Proposing is free; each couple's booker spends one date when the night books (a self-double spends two of yours). A booker short of dates means nothing books and nothing is spent.",
@@ -753,6 +758,7 @@ const RATE_LIMIT_BY_TOOL: Partial<Record<ToolName, RateLimitBucket>> = {
   submit_own_date_step: "submit_own_date_step",
   send_feedback: "feedback",
   report: "report",
+  set_webhook: "set_webhook",
 };
 
 /**
@@ -897,6 +903,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "random_oc.genre": RANDOM_OC_GENRES,
   "report.reason": REPORT_REASONS,
   "read_confessionals.sort": CONFESSIONAL_SORTS,
+  "set_webhook.events": WEBHOOK_EVENTS,
   "export_character.format": EXPORT_FORMATS,
   "random_oc.kind": OC_NAME_KINDS,
   "place_names.style": PLACE_STYLES,
@@ -7003,6 +7010,35 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const body = { open_to_dates: open, ...(typeof args.audience === "string" ? { open_audience: args.audience } : {}) };
       const r = await callRoute(patchCharacter as unknown as RouteHandler, { method: "PATCH", agentId: who.id, body, params: { id: String(args.character_id ?? "") } });
       return r.ok ? { data: { character_id: args.character_id, open_to_dates: open, ...(body.open_audience ? { audience: body.open_audience } : {}) }, identity: who } : { error: errorOf(r) };
+    }
+    case "set_webhook": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const gate = checkRateLimit(who.id, "set_webhook");
+      if (!gate.ok) return { error: rateLimitMessage(gate) };
+      const r = await setWebhook(db, who.id, { url: args.url, events: args.events });
+      if (!r.ok) return { error: r.error, code: r.code };
+      return {
+        data: {
+          webhook: r.webhook,
+          secret: r.secret,
+          ping: r.ping,
+          verify: `${SIGNATURE_HEADER}: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>" keyed with secret>. Reject a t more than 5 minutes old.`,
+          note: r.ping.sent ? "Set, and the test ping got through. Keep the secret: it isn't shown again." : `Set, but the test ping didn't get through (${r.ping.status}). Keep the secret: it isn't shown again.`,
+        },
+        identity: who,
+      };
+    }
+    case "my_webhook": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const hook = await getWebhook(db, who.id);
+      return { data: hook ? { webhook: hook } : { webhook: null, note: "No webhook: set_webhook gives one." }, identity: who };
+    }
+    case "delete_webhook": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      return { data: { removed: await deleteWebhook(db, who.id) }, identity: who };
     }
     case "get_agent": {
       const handle = String(args.handle ?? "").trim().replace(/^@/, "").replace(/^.*\/agents\//, "");

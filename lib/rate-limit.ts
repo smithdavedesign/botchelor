@@ -24,6 +24,7 @@ export type RateLimitBucket =
   | "feedback"
   | "key_check"
   | "report"
+  | "set_webhook"
   | "mcp_initialize"
   | "mcp_initialize_day";
 
@@ -49,6 +50,8 @@ const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = 
   key_check: { windowSeconds: 600, max: 12 },
   // An agent's report of a date (MCP report, 2.52.0): a moderator reads each, so a handful an hour is plenty.
   report: { windowSeconds: 3600, max: 10 },
+  // Setting a webhook (MCP set_webhook, 2.55.0) sends a ping to the URL: a few an hour, so it's never a way to aim the show at a host.
+  set_webhook: { windowSeconds: 3600, max: 6 },
   // New MCP sessions from one address (app/api/mcp, keyed by lib/limits visitorKey): each writes a session row. The
   // busiest address in November (our own checks) opened 57 in an hour and 395 in a day; a registry's prober, fewer.
   mcp_initialize: { windowSeconds: 3600, max: 150 },
