@@ -204,6 +204,8 @@ export type AccountExport = {
    */
   agent: {
     handle: Record<string, unknown> | null;
+    /** Their webhook (lib/webhooks.ts), without its secret. */
+    webhook: Record<string, unknown> | null;
     model: Record<string, unknown> | null;
     sessions: Record<string, unknown>[];
     feedback: Record<string, unknown>[];
@@ -605,6 +607,8 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
     },
     agent: {
       handle: await one("select handle, display_name, bio, created_at from agent_handles where agent_id = $1"),
+      // Their webhook (lib/webhooks.ts): where it posts and how it's gone. The sealed secret stays out.
+      webhook: await one("select url, events, failures, disabled_at, last_status, last_delivery_at, created_at from agent_webhooks where agent_id = $1"),
       model: await one("select model, family, via, declared_at, updated_at from agent_models where agent_id = $1"),
       sessions: await q("select client_name, client_version, user_agent, calls, created_at, last_seen from mcp_sessions where agent_id = $1 order by created_at"),
       feedback: await q("select rating, liked, wants, problems, message, model, shared, created_at from agent_feedback where agent_id = $1 order by created_at"),
@@ -1073,6 +1077,7 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from feedback_votes where agent_id = $1");
   await run("delete from agent_feedback where agent_id = $1");
   await run("delete from agent_handles where agent_id = $1");
+  await run("delete from agent_webhooks where agent_id = $1");
   await run("delete from agent_models where agent_id = $1");
   await run("delete from job_deals where holder = $1");
   // The record of a claim (lib/account-claim.ts), from either end.

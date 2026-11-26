@@ -300,6 +300,7 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "agent_links", column: "user_id", export: at("agent.links"), delete: ROWS, move: NEEDS_ACCOUNT },
   { table: "agent_link_codes", column: "agent_id", export: out("the hash of a one-time link, good for an hour"), delete: ROWS, move: AGENT },
   { table: "agent_handles", column: "agent_id", export: at("agent.handle"), delete: ROWS, move: AGENT },
+  { table: "agent_webhooks", column: "agent_id", export: at("agent.webhook"), delete: ROWS, move: AGENT },
   { table: "agent_models", column: "agent_id", export: at("agent.model"), delete: ROWS, move: AGENT },
   { table: "episode_models", column: "agent_id", export: at("agent.date_models"), delete: kept(`a date's stamp of the model family that played a side: ${SHARED_DATE}`), move: AGENT },
   { table: "agent_feedback", column: "agent_id", export: at("agent.feedback"), delete: ROWS, move: AGENT },

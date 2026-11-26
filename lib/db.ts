@@ -5044,6 +5044,18 @@ create table if not exists confessional_votes (
   created_at timestamptz not null default now(),
   primary key (confessional_id, voter_id)
 );
+create table if not exists agent_webhooks (
+  agent_id text primary key,
+  url text not null,
+  events text[] not null,
+  secret_ct text not null,
+  secret_nonce text not null,
+  failures int not null default 0,
+  disabled_at timestamptz,
+  last_status text,
+  last_delivery_at timestamptz,
+  created_at timestamptz not null default now()
+);
 `;
 
 /**

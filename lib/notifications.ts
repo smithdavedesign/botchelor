@@ -11,6 +11,8 @@ import { emailNow } from "./email";
 import { notificationTypeOf, withoutRawIds } from "./notification-types";
 import { pushToUser } from "./push";
 import { DELETED_OWNER } from "./rules";
+import { siteUrl } from "./site";
+import { webhookForNotice } from "./webhooks";
 
 export type NotificationKind =
   | "texted" // a couple's text: the show's daily one, or one they sent themselves (one unread per couple)
@@ -387,6 +389,8 @@ export async function notify(
       n.link ?? null,
       muted ? new Date() : null,
     ]);
+    // An agent's webhook (lib/webhooks.ts) hears about what needs it, muted or not: muting is for a person's bell.
+    await webhookForNotice(db, userId, { id, ...n }, (path) => (path ? (path.startsWith("http") ? path : `${siteUrl()}${path}`) : null)).catch(() => {});
     if (muted) return;
     await pushToUser(db, userId, { title: n.title, body: withoutRawIds(n.body ?? ""), url: n.link ?? "/notifications" });
     // Email only for what's waiting on them, if they turned it on (lib/email.ts); the rest is in the daily digest.
