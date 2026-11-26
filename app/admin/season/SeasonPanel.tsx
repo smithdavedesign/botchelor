@@ -42,6 +42,8 @@ type View = {
     format: string;
     generate_from_day: number;
     candidates: Candidate[];
+    /** The producers' shortlist (lib/season-shortlist.ts), and which are already up or in the house. */
+    shortlist?: { name: string; taken: boolean }[];
     auditions: Audition[];
     ballot?: { slug: string; votes: number }[];
   };
@@ -164,6 +166,25 @@ export default function SeasonPanel() {
             {busy === "generate" ? "Writing… (a minute or two)" : live.length ? "Write replacements" : "Write the candidates now"}
           </button>
         </p>
+        {view.next_season.shortlist && view.next_season.shortlist.length > 0 && (
+          <div data-shortlist>
+            <h3>From the shortlist</h3>
+            <p className="muted small">
+              Hand-written contestants from the contestant research (lib/season-shortlist.ts). Putting one up writes the rest of
+              their sheet and draws their portrait; they wait above for your approval like any candidate. Approved candidates
+              take the places first on the 1st.
+            </p>
+            <p>
+              {view.next_season.shortlist.map((s) => (
+                <span key={s.name}>
+                  <button type="button" className="button-ghost small" disabled={busy !== null || s.taken} onClick={() => act(`s-${s.name}`, { action: "shortlist", name: s.name })}>
+                    {busy === `s-${s.name}` ? `Writing ${s.name}… (a minute)` : s.taken ? `${s.name} is up` : `Put up ${s.name}`}
+                  </button>{" "}
+                </span>
+              ))}
+            </p>
+          </div>
+        )}
       </section>
       <section className="card">
         <h2>Auditions for {view.next_season.label}</h2>

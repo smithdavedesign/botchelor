@@ -88,7 +88,26 @@ const EXAMPLE = ALL_HOUSE_CHARACTERS[0];
  * What a draft is asked for beyond a new contestant (PRD styles-and-storylines phase 4): their pronouns, so the season's
  * lineup balances, and who they already know from before the show (lib/character-links.ts).
  */
-export type DraftBrief = { pronouns?: Pronouns; link?: { to: { name: string; archetype: string; bio: string }; kind: LinkKind }; circle?: CircleBrief };
+export type DraftBrief = { pronouns?: Pronouns; link?: { to: { name: string; archetype: string; bio: string }; kind: LinkKind }; circle?: CircleBrief; seed?: ShortlistSeed };
+
+/**
+ * A contestant the producers already sketched (lib/season-shortlist.ts): the model keeps these fields as written and
+ * writes the rest of the sheet around them.
+ */
+export type ShortlistSeed = {
+  name: string;
+  age: number;
+  pronouns: Pronouns;
+  bio: string;
+  traits: string[];
+  want: string;
+  dealbreaker: string;
+  appearance: string;
+  hue: number;
+  voice: string;
+  /** What they are when they're not a person (a minor god): the portrait still shows them as an adult human. */
+  kind_label?: string;
+};
 
 /**
  * What a newcomer's circle is written from (docs/PRDs/social-network.md section 6.2, Phase 2b), in the same call as the
@@ -133,6 +152,13 @@ export function draftMessages(taken: { name: string; archetype: string }[], brie
     `Don't copy anyone already on the show. Taken names and archetypes: ${taken.map((t) => `${t.name} (${t.archetype})`).join("; ")}.`,
     `For flavour, one existing contestant: ${JSON.stringify({ name: EXAMPLE.name, age: EXAMPLE.age, bio: EXAMPLE.bio, traits: EXAMPLE.traits, want: EXAMPLE.want, dealbreaker: EXAMPLE.dealbreaker, archetype: EXAMPLE.archetype, voice: EXAMPLE.voice, appearance: EXAMPLE.appearance, look: EXAMPLE.look })}`,
     ...(brief.pronouns ? [`This contestant uses ${brief.pronouns}.`] : []),
+    ...(brief.seed
+      ? [
+          `The producers already sketched this contestant: ${JSON.stringify(brief.seed)}. Keep the name, age, pronouns, bio, traits, want, dealbreaker, appearance, hue and voice exactly as given, ` +
+            `and write everything else (archetype, look, signals, soul, kit) so it fits them.` +
+            (brief.seed.kind_label ? ` They are a ${brief.seed.kind_label}, played straight; the portrait look shows them as an adult human of the given age.` : ""),
+        ]
+      : []),
     ...(link
       ? [
           `They arrive with history. ${link.to.name} (${link.to.archetype}: ${link.to.bio}) is their ${LINK_WORDS[link.kind].one} from before the show: ${LINK_WORDS[link.kind].brief}. ` +
