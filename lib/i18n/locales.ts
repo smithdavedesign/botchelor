@@ -33,9 +33,6 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 /** `<html lang>`: Portuguese is written for Brazil, where most of its speakers are. */
 export const HTML_LANG: Record<Locale, string> = { en: "en", es: "es", pt: "pt-BR", fr: "fr", de: "de", ja: "ja", ko: "ko", id: "id" };
 
-/** Open Graph's `og:locale`. */
-export const OG_LOCALE: Record<Locale, string> = { en: "en_US", es: "es_ES", pt: "pt_BR", fr: "fr_FR", de: "de_DE", ja: "ja_JP", ko: "ko_KR", id: "id_ID" };
-
 export const isLocale = (v: unknown): v is Locale => typeof v === "string" && (LOCALES as readonly string[]).includes(v);
 
 /**
