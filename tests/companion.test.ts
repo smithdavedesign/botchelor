@@ -19,7 +19,7 @@ import {
   sendMessage,
   setCompanionModelForTests,
 } from "@/lib/companion";
-import { FACTS_EVERY, FACTS_IN_PROMPT, FACTS_PER_THREAD, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary, SUMMARY_EVERY } from "@/lib/companion-memory";
+import { embedFacts, FACTS_EVERY, FACTS_IN_PROMPT, FACTS_PER_THREAD, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary, SUMMARY_EVERY } from "@/lib/companion-memory";
 import { replyBubbles } from "@/lib/companion-prompt";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
@@ -775,5 +775,60 @@ describe("the memory follow-up", () => {
     expect(facts[2].text).toBe("Their mum lives in Leicester.");
     const used = (await t.db.query<Any>(`select uses from companion_facts where text = 'They play the cello badly.'`)).rows[0];
     expect(used.uses).toBe(1);
+  });
+
+  it("finds a fact asked about by meaning, not by word, once there are more facts than fit (2026-11-08 sim's miss)", async () => {
+    const me = await person({ admin: true });
+    const { body } = await open(me.cookie);
+    const id = body.thread_id as string;
+    // A toy embedding: the food facts point one way, everything else another.
+    const FOOD = [1, 0, 0];
+    const add = (text: string, vec: number[], kind = "other") =>
+      t.db.query(`insert into companion_facts (id, thread_id, kind, text, embedding, embed_model) values ($1, $2, $3, $4, $5::jsonb, $6)`, [
+        crypto.randomUUID(),
+        id,
+        kind,
+        text,
+        JSON.stringify(vec),
+        "gemini-embedding-001",
+      ]);
+    for (let i = 0; i < FACTS_IN_PROMPT + 5; i++) await add(`Their friend number ${i} lives nearby.`, [0, 1, i / 100], "people");
+    await add("They are vegetarian.", FOOD, "dislikes");
+    const asked = "what don't I eat?";
+    const byWords = await factsForPrompt(t.db, id, asked, new Date(), { env: {}, queryVector: async () => null });
+    expect(byWords.map((f) => f.text)).not.toContain("They are vegetarian.");
+    const byMeaning = await factsForPrompt(t.db, id, asked, new Date(), { env: {}, queryVector: async () => [0.95, 0.05, 0] });
+    expect(byMeaning[0].text).toBe("They are vegetarian.");
+    // A failed embedding call is words alone, never an error.
+    const failing = await factsForPrompt(t.db, id, asked, new Date(), { env: {}, queryVector: async () => Promise.reject(new Error("down")) });
+    expect(failing).toHaveLength(FACTS_IN_PROMPT);
+  });
+
+  it("asks for no embedding when every fact fits in the prompt", async () => {
+    const me = await person({ admin: true });
+    const { body } = await open(me.cookie);
+    const id = body.thread_id as string;
+    await t.db.query(`insert into companion_facts (id, thread_id, kind, text, embedding, embed_model) values ($1, $2, 'other', 'They surf.', '[1,0]'::jsonb, 'gemini-embedding-001')`, [crypto.randomUUID(), id]);
+    let asked = 0;
+    await factsForPrompt(t.db, id, "do I surf?", new Date(), { env: {}, queryVector: async () => (asked++, [1, 0]) });
+    expect(asked).toBe(0);
+  });
+
+  it("embeds facts that have none, clears an edited one's, and stops at the first failure", async () => {
+    const me = await person({ admin: true });
+    const { body } = await open(me.cookie);
+    const id = body.thread_id as string;
+    for (const text of ["They surf.", "They have a cat called Miso.", "They work nights."])
+      await t.db.query(`insert into companion_facts (id, thread_id, kind, text) values ($1, $2, 'other', $3)`, [crypto.randomUUID(), id, text]);
+    expect(await embedFacts(t.db, id, { env: {} })).toBe(0); // no key, no vector given: nothing is sent anywhere
+    let n = 0;
+    expect(await embedFacts(t.db, id, { env: {}, vector: async () => (++n === 2 ? null : [n, 1]) })).toBe(1);
+    expect(await embedFacts(t.db, id, { env: {}, vector: async () => [3, 1] })).toBe(2);
+    expect(await embedFacts(t.db, id, { env: {}, vector: async () => [4, 1] })).toBe(0);
+    const row = (await t.db.query<Any>(`select id from companion_facts where thread_id = $1 and text = 'They surf.'`, [id])).rows[0];
+    const r = await memoryPost(req(`/api/companion/${id}/memory`, { op: "edit", id: row.id, text: "They surf most mornings." }, me.cookie), ctx(id));
+    expect(r.status).toBeLessThan(300);
+    const after = (await t.db.query<Any>(`select embedding from companion_facts where id = $1`, [row.id])).rows[0];
+    expect(after.embedding).toBeNull();
   });
 });

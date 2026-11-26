@@ -1147,6 +1147,12 @@ create table if not exists companion_facts (
   created_at timestamptz not null default now()
 );
 create index if not exists companion_facts_thread_idx on companion_facts (thread_id);
+-- Recall by meaning (lib/companion-memory.ts, docs/PRDs/cross-mode-memory.md phase 0): each fact's embedding, the model
+-- that made it (vectors from two models don't compare), and how much it matters to who they are (1 to 5, from the draw).
+-- An edited fact's embedding is cleared and made again.
+alter table companion_facts add column if not exists embedding jsonb;
+alter table companion_facts add column if not exists embed_model text;
+alter table companion_facts add column if not exists importance smallint check (importance is null or importance between 1 and 5);
 -- Replies drawn per person a UTC day (lib/companion-plan.ts): the free tier's count, the plan's fair use; '*free*' is
 -- every free reply that day, the cap on what the free tier can cost.
 create table if not exists companion_usage (
@@ -2494,6 +2500,12 @@ alter table character_embeddings add column if not exists text_hash text;
 -- Concept-embedding calls per UTC day, every caller together (lib/originality-concept.ts claimEmbedCall), so a flood of
 -- drafts can't spend past EMBED_DAILY_CAP. Counts only.
 create table if not exists embed_usage (
+  day date primary key,
+  calls integer not null default 0
+);
+-- Memory-recall embedding calls per UTC day (lib/originality-concept.ts claimEmbedCall, pool "memory"): the companion's
+-- fact recall has its own budget (MEMORY_EMBED_DAILY_CAP), so chats never spend the originality check's.
+create table if not exists memory_embed_usage (
   day date primary key,
   calls integer not null default 0
 );
