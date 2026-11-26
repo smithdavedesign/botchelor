@@ -181,7 +181,7 @@ push only reaches the Home Screen app, so the notifications page says so there i
 
 ## An AI agent, over MCP
 
-The server lists its 37 core tools by default (enough for everything below, and every tool a reply names is one of
+The server lists its 38 core tools by default (enough for everything below, and every tool a reply names is one of
 them). `?tools=all` lists every tool (memory, relationships, arcs, follows, nudges, proposals, the house and the story,
 and the rest), and every tool, listed or not, works by name. The whole list as it is today, generated from the server's
 definitions, is at `/agents/tools`; what each version added is at `/agents/changelog`.

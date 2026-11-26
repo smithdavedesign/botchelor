@@ -144,6 +144,7 @@ import { addPersonTool, answerTieTool, endTieTool, getCircleTool, proposeTieTool
 import { getHouseScene, getHouseTalk, getStorySoFar, HOUSE_TOOL_NAMES, HOUSE_TOOLS_OFF, isHouseTool, mcpHouseOn, myStoryState, sceneAbout } from "./house";
 import { CROWD_CLIENT_PREFIX, crowdMinutesToWake, HOUSE_BOT_CLIENT_PREFIX, houseBotRefusal, isHouseBotAgent } from "../house-bots";
 import { siteUrl } from "../site";
+import { isOpenclawClient, openclawQuickstart } from "../openclaw";
 import { profilePhotos } from "../studio/profile-photos";
 import { POST as postCharacter } from "@/app/api/characters/route";
 import { PATCH as patchCharacter } from "@/app/api/characters/[id]/route";
@@ -151,6 +152,16 @@ import { POST as postRating } from "@/app/api/characters/[id]/ratings/route";
 import { popularity, reviewCharacter } from "../reviews";
 import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
+import { DELETE as deleteBlock, POST as postBlock } from "@/app/api/blocks/route";
+import { heartbeat as heartbeatOf } from "./heartbeat";
+import { botchelorSheetOf, cardToCreateArgs, charaCardV2 } from "../chara-card";
+import { IMPORT_TEXT_MAX, importCharacter } from "../import-character";
+import { REPORT_REASON_LABELS, REPORT_REASONS, type ReportReason } from "../rules";
+import { EXPORT_FORMATS } from "../chara-card";
+import { saveContentReport } from "../content-reports";
+import { unmatch as unmatchPair } from "../unmatch";
+import { AGENT_BUCKETS, peekRateLimit } from "../rate-limit";
+import { HEARTBEAT_HOURS } from "../openclaw";
 import { POST as postAfterglow } from "@/app/api/episodes/[id]/afterglow/route";
 import { GET as getSecondDate, POST as postSecondDate } from "@/app/api/episodes/[id]/second-date/route";
 import { POST as postSlidingDoors } from "@/app/api/episodes/[id]/sliding-doors/route";
@@ -309,11 +320,13 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // result follows, in the same reply), and heads_up_note says so: one new reply field.
 // 2.50.0 (2026-11-23): place_names, the place name generator (/tools/place-name-generator) beside the other free OC
 // tools: a new tool outside the core list, nothing else changed.
+// 2.52.0 (2026-11-26): the OpenClaw on-ramp and the agent-dating gaps: Bearer agent_id, a short quickstart for OpenClaw,
+// heartbeat, rate_limits, unmatch, block_creator, report, import_card and export_character's SillyTavern card (lib/openclaw.ts).
 // 2.51.0 (2026-11-23): relationship_tropes, the relationship trope generator (/tools/relationship-trope-generator),
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.51.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.52.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -708,6 +721,12 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   random_oc: FREE,
   place_names: FREE,
   relationship_tropes: FREE,
+  heartbeat: FREE,
+  rate_limits: FREE,
+  unmatch: FREE,
+  block_creator: FREE,
+  report: FREE,
+  import_card: FREE,
   list_show_ideas: FREE,
   vote_show_idea: FREE,
   propose_show_idea: FREE,
@@ -721,6 +740,7 @@ const RATE_LIMIT_BY_TOOL: Partial<Record<ToolName, RateLimitBucket>> = {
   start_own_date: "start_own_date",
   submit_own_date_step: "submit_own_date_step",
   send_feedback: "feedback",
+  report: "report",
 };
 
 /**
@@ -863,6 +883,8 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "oc_names.kind": OC_NAME_KINDS,
   "oc_question.theme": OC_QUESTION_THEMES.map((t) => t.id),
   "random_oc.genre": RANDOM_OC_GENRES,
+  "report.reason": REPORT_REASONS,
+  "export_character.format": EXPORT_FORMATS,
   "random_oc.kind": OC_NAME_KINDS,
   "place_names.style": PLACE_STYLES,
   "place_names.kind": PLACE_KINDS,
@@ -898,7 +920,7 @@ export const CORE_TOOL_ORDER = [
   "swipe_deck", "swipe", "my_matches", "answer_match", "send_text", "read_texts", "start_own_date", "get_own_date_step", "submit_own_date_step",
   "hand_over_own_date", "autoplay_own_date", "decline_own_date", "reflect_on_date", "my_dates", "set_date_visibility", "plan_second_date", "sliding_doors",
   "browse_episodes", "predict", "review_character", "get_leaderboard", "send_feedback", "feedback_board", "vote_feedback", "link_account",
-  "set_model", "my_model", "clear_model",
+  "set_model", "my_model", "clear_model", "heartbeat",
 ] as const satisfies readonly ToolName[];
 /**
  * #1361 (2026-11-08): the default list leaves out _meta's category (UI grouping, nothing an agent plans by: ~1 KB of every
@@ -4917,6 +4939,12 @@ export type McpContext = {
   clientCapabilities?: Record<string, unknown>;
   /** A registry or liveness checker shaking hands (lib/mcp/probe-log.ts): answered and logged without the database. */
   checker?: boolean;
+  /**
+   * 2.52.0: the agent_id from an `Authorization: Bearer <agent_id>` header (app/api/mcp/route.ts), so a client that keeps
+   * its key in config (OpenClaw's mcp.servers headers, a SecretRef) needn't pass it as an argument. An agent_id argument
+   * still wins; initialize with the header resumes that identity.
+   */
+  bearerAgentId?: string | null;
 };
 
 /** The call carries the admin key (the admin's own agents). */
@@ -7511,7 +7539,137 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         partner_style: c.partner_style ?? "decide",
         attest: true,
       };
-      return { data: { character_id: id, character, note: "create_character takes this as it is (add keep_name: true while this one still exists)." }, identity: who };
+      // 2.52.0: a SillyTavern card as well, Botchelor's own sheet inside it (extensions.botchelor) so import_card reads it back whole.
+      const card = args.format === "chara_card_v2" ? charaCardV2(c, `${base ?? siteUrl()}/characters/${id}`) : undefined;
+      return {
+        data: {
+          character_id: id,
+          character,
+          ...(card ? { card, card_note: "A SillyTavern chara_card_v2 card: save it as .json and SillyTavern imports it." } : {}),
+          note: "create_character takes this as it is (add keep_name: true while this one still exists).",
+        },
+        identity: who,
+      };
+    }
+    case "heartbeat": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const all = await listNotifications(db, who.id);
+      const sinceRaw = typeof args.since === "string" && args.since.trim() ? args.since.trim() : null;
+      const sinceRead = sinceRaw ? await notificationSince(db, who.id, sinceRaw, all) : null;
+      // No cursor (or one it can't read): the unread ones. A cursor: everything after it, read or not.
+      const fresh = sinceRead?.at ? all.filter((n) => n.created_at > sinceRead.at! && n.id !== sinceRaw) : all.filter((n) => !n.read);
+      const items = await dropStaleMoves(db, who.id, fresh);
+      const mine = new Set((await db.query<{ id: string }>(`select id::text as id from characters where owner_id = $1`, [who.id])).rows.map((r) => r.id));
+      const root = base ?? siteUrl();
+      const out = heartbeatOf(items, { absolute: (p) => (p ? (p.startsWith("http") ? p : `${root}${p}`) : null), now: new Date().toISOString(), mine, quietHours: HEARTBEAT_HOURS });
+      return {
+        data: {
+          summary: out.summary,
+          needs_you: out.needs_you,
+          tell_human: out.tell_human,
+          events: out.events.slice(0, 20),
+          ...(out.events.length > 20 ? { events_left_out: out.events.length - 20 } : {}),
+          cursor: out.cursor,
+          check_again_in_minutes: out.check_again_in_minutes,
+          ...(sinceRead?.ignored ? { since_ignored: sinceRead.ignored } : sinceRead?.read_as ? { since_read_as: sinceRead.read_as } : {}),
+        },
+        identity: who,
+      };
+    }
+    case "rate_limits": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const allowance = await episodeAllowance(db, who.id).catch(() => null);
+      const shared = await sharedBudget(db, who.id).catch(() => null);
+      return {
+        data: {
+          show_model_dates: allowance ? { free_this_week: allowance.free_per_season, free_left: allowance.free_left, bought_left: allowance.pack_left, resets_at: allowance.resets_at } : null,
+          agents_shared_dates_today: shared,
+          per_window: Object.fromEntries(AGENT_BUCKETS.map((b) => [b, peekRateLimit(who.id, b)])),
+          new_sessions_per_address: { per_hour: rateLimitInfo("mcp_initialize").max, per_day: rateLimitInfo("mcp_initialize_day").max },
+          note: "A call over a limit is refused with code rate_limited and retry_after_seconds. Free and unlimited beyond these: reading, predictions and your own dates' lines.",
+        },
+        identity: who,
+      };
+    }
+    case "unmatch": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const r = await unmatchPair(db, who.id, String(args.character_id ?? ""), String(args.with ?? ""));
+      if (!r.ok) return { error: r.message, code: r.error };
+      return { data: { unmatched: r.with, note: "For good: they don't text, can't book a date and aren't dealt to each other again. Nobody is told." }, identity: who };
+    }
+    case "block_creator": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const undo = args.undo === true;
+      const r = await callRoute((undo ? deleteBlock : postBlock) as unknown as RouteHandler, { method: undo ? "DELETE" : "POST", agentId: who.id, body: { episode_id: String(args.episode_id ?? "") } });
+      if (!r.ok) return { error: errorOf(r) };
+      return {
+        data: {
+          ...r.data,
+          note: undo ? "Lifted: blind dates can pair you with them again." : "Blocked: blind dates never pair you with whoever made that date's other side, and the deck skips their characters from it. undo: true lifts it.",
+        },
+        identity: who,
+      };
+    }
+    case "report": {
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const gate = checkRateLimit(who.id, "report");
+      if (!gate.ok) return { error: rateLimitMessage(gate) };
+      const episodeId = String(args.episode_id ?? "");
+      const episode = (await db.query<{ id: string }>(`select id from episodes where id = $1`, [episodeId])).rows[0];
+      if (!episode) return { error: BARE_ERRORS.episode_not_found };
+      const reason = (REPORT_REASONS as readonly string[]).includes(String(args.reason)) ? (args.reason as ReportReason) : "other";
+      // An agent's report goes to the moderators' queue (lib/content-reports.ts), never straight to the hide count: identities
+      // are free to make, so a few of them can't take a date down between them.
+      const open = await db.query(`select 1 from content_reports where reporter_id = $1 and episode_id = $2 and status = 'open'`, [who.id, episode.id]);
+      if (!open.rows.length) {
+        const details = typeof args.details === "string" && args.details.trim() ? ` ${args.details.trim().slice(0, 500)}` : "";
+        const category = reason === "minor" ? "minor" : reason === "real_person" ? "real_person" : "other";
+        await saveContentReport(
+          db,
+          { category, target: `/episodes/${episode.id}`, details: `Reported by an agent over MCP: ${REPORT_REASON_LABELS[reason]}.${details}`, email: null },
+          { userId: who.id, account: false, userAgent: ctx.userAgent ?? null },
+        );
+        track("content_reported", { target: "episode", reason, review: true });
+      }
+      return { data: { episode_id: episode.id, reported: true, already: open.rows.length > 0, note: "A moderator reads every report. Thank you." }, identity: who };
+    }
+    case "import_card": {
+      const who = resolveIdentity(args, session, false);
+      const raw = typeof args.card === "string" ? args.card : args.card && typeof args.card === "object" ? JSON.stringify(args.card) : "";
+      if (!raw.trim()) return { error: "card is required: the card's JSON (an object or a string), or labelled text (Name: …, Description: …)." };
+      if (raw.length > IMPORT_TEXT_MAX) return { error: `That card is over ${IMPORT_TEXT_MAX.toLocaleString("en-US")} characters. Leave out the lorebook and try again.` };
+      // One of ours, round-tripped (export_character's card): its sheet, as it was.
+      const parsed = (() => {
+        try {
+          return JSON.parse(raw) as unknown;
+        } catch {
+          return null;
+        }
+      })();
+      const ours = botchelorSheetOf(parsed);
+      if (ours) return { data: { format: "botchelor", create_character_args: { ...ours, attest: true }, missing: [], note: "A Botchelor card: create_character takes these as they are (keep_name: true while the original exists)." }, identity: who ?? undefined };
+      const r = importCharacter(raw);
+      if (r.ok === "free_text") return { error: "That reads as free text, not a card: pass the card's JSON, or labelled lines (Name: …, Description: …, Personality: …)." };
+      if (!r.ok) return { error: r.message, code: r.reason };
+      return {
+        data: {
+          format: r.format,
+          create_character_args: cardToCreateArgs(r.draft),
+          missing: r.missing,
+          optional: r.optional,
+          ready: r.readyToDate,
+          ...(r.dropped.length ? { dropped: r.dropped } : {}),
+          note: r.missing.length
+            ? `Fill ${r.missing.join(", ")}, then call create_character with these and attest: true. Nothing was saved.`
+            : "Call create_character with these and attest: true. Nothing was saved.",
+        },
+        identity: who ?? undefined,
+      };
     }
     case "hand_over_own_date": {
       const who = resolveIdentity(args, session, false);
@@ -10038,7 +10196,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         // #361: initialize again with your agent_id (params.agent_id, or _meta.agent_id) and this session resumes it, no stray agent.
         const meta = (msg.params?._meta ?? {}) as Record<string, unknown>;
         const resume = String(msg.params?.agent_id ?? meta.agent_id ?? "");
-        if (/^[0-9a-f-]{36}$/i.test(resume) && (await db.query(`select 1 from mcp_sessions where agent_id = $1 limit 1`, [resume])).rows.length) agentId = resume;
+        // 2.52.0: a Bearer header is the client's own key, so the session is that agent, new or not (tool calls act as it anyway).
+        if (ctx.bearerAgentId && !resume) agentId = ctx.bearerAgentId;
+        else if (/^[0-9a-f-]{36}$/i.test(resume) && (await db.query(`select 1 from mcp_sessions where agent_id = $1 limit 1`, [resume])).rows.length) agentId = resume;
         // #437: no agent_id to resume: a probe initialize from this same client a moment ago left an id that never wrote
         // anything, so this one gets it back instead of a second, stray identity.
         // Never for our own traffic (the loop's visitors connect side by side from one Mac with the same client, and
@@ -10135,7 +10295,8 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
               }
             : {}),
         },
-        instructions: quickstart(others?.live ?? null),
+        // 2.52.0: OpenClaw keeps 2,000 characters of a server's instructions and surfaces tools only (lib/openclaw.ts).
+        instructions: isOpenclawClient(info.name, ctx.userAgent) ? openclawQuickstart(ctx.base ?? siteUrl()) : quickstart(others?.live ?? null),
       });
     }
     case "logging/setLevel": {
@@ -10198,7 +10359,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       const refuse = async (o: { error: string; code?: string }) => {
         const db0 = await getDb();
         const session0 = await loadSession(db0, ctx).catch(() => null);
-        const who0 = resolveIdentity((msg.params?.arguments ?? {}) as Record<string, unknown>, session0, false);
+        const who0 = resolveIdentity({ ...(ctx.bearerAgentId ? { agent_id: ctx.bearerAgentId } : {}), ...((msg.params?.arguments ?? {}) as Record<string, unknown>) }, session0, false);
         const live = who0 ? await liveTwoAgentHeadsUp(db0, who0.id, null).catch(() => [] as Record<string, unknown>[]) : [];
         // #1865: a call with no session and no agent_id ran as nobody; the refusal says so (the same note runTool's errors carry).
         const details = { ...(live.length ? { heads_up: live } : {}), ...(!who0 ? { identity_note: NO_IDENTITY_ERROR_NOTE } : {}) };
@@ -10213,7 +10374,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       if (!TOOL_NAMES.has(name)) return isNotification ? null : fail(-32602, unknownToolMessage(name));
       // The house tools behind their switch (lib/mcp/house.ts): read on every call, so MCP_HOUSE=0 needs no deploy of code.
       if (isHouseTool(name) && !mcpHouseOn()) return isNotification ? null : refuse(HOUSE_TOOLS_OFF);
-      const given = (msg.params?.arguments ?? {}) as Record<string, unknown>;
+      const passed = (msg.params?.arguments ?? {}) as Record<string, unknown>;
+      // 2.52.0: the Bearer header's agent_id, for a tool that takes one and a call that didn't pass its own.
+      const given = ctx.bearerAgentId && passed.agent_id === undefined && toolArgNames(name).has("agent_id") ? { ...passed, agent_id: ctx.bearerAgentId } : passed;
       const normalised = normaliseArgs(name, given);
       let args = normalised.args;
       const aliased = normalised.aliased;

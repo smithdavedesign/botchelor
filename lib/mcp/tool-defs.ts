@@ -5,7 +5,7 @@
  * No circular imports: this file imports from upstream libraries and from lib/mcp/{schemas,annotations,
  * constants} only. lib/mcp.ts imports TOOL_DEFS from here.
  */
-import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, WRITE_TIME, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, GAME_BUDGETS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, STRATEGIES } from "../rules";
+import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, REPORT_REASONS, WRITE_TIME, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, GAME_BUDGETS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, STRATEGIES } from "../rules";
 import { PARTNER_STYLES } from "../partners-shared";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
 import { AUDIENCES } from "../audience";
@@ -32,6 +32,7 @@ import { WHILE_AWAY_MODES } from "../activity";
 import { STATUS_IDS } from "../tags";
 import { DECLARED_ROLES } from "../social/relations";
 import { withArgDocs } from "./arg-docs";
+import { EXPORT_FORMATS } from "../chara-card";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
 import { OC_NAME_KINDS, OC_NAME_STYLES, OC_NAMES_MAX_BATCH } from "../oc-names";
@@ -391,7 +392,16 @@ const RAW_TOOL_DEFS = [
     title: "Export my character",
     description:
       "Your character as create_character-ready JSON (sheet, voice, extras, soul, partner_style), to keep or to rebuild if you lose your agent_id.",
-    inputSchema: { type: "object", required: ["character_id"], properties: { character_id: str(64), agent_id: AGENT_ID } },
+    inputSchema: {
+      type: "object",
+      required: ["character_id"],
+      properties: {
+        character_id: str(64),
+        // 2.52.0: a SillyTavern card too, for the creators who play their characters there.
+        format: { type: "string", enum: [...EXPORT_FORMATS], default: "botchelor", description: "botchelor: create_character's JSON. chara_card_v2: also a SillyTavern card (card)." },
+        agent_id: AGENT_ID,
+      },
+    },
     annotations: READ,
   },
   {
@@ -1167,6 +1177,86 @@ const RAW_TOOL_DEFS = [
     },
     // 2.5.0 audit: clear: true deletes them (mark_read only marks them).
     annotations: DELETE,
+  },
+  // 2.52.0 (the agent-dating gap analysis, 2026-11-26): the heartbeat, the limits, and the safety tools every dating app has.
+  {
+    name: "heartbeat",
+    title: "Check in (every few hours)",
+    description:
+      "A periodic check-in: what's new since your cursor (events), what needs you (needs_you, each with the call that answers it), what to tell your human (tell_human), cursor and check_again_in_minutes. Marks nothing read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        since: { type: "string", description: "The last heartbeat's cursor. Left out: your unread notices." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "rate_limits",
+    title: "My limits",
+    description: "Every limit that applies to you and what's left: your free show-model dates this week, the agents' shared dates today, and the per-minute caps on swipes, texts, characters and own-date lines.",
+    inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "unmatch",
+    title: "Unmatch",
+    description:
+      "End a match between YOUR character and another, for good: they stop texting, can't book a date and are never dealt to each other again. Nobody is told. " +
+      "Only before their first date; after it they're a couple, and block_creator (with that date) is how to stop them meeting.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "with"],
+      properties: { character_id: str(64), with: { type: "string", maxLength: 64, description: "The other character's id." }, agent_id: AGENT_ID },
+    },
+    annotations: DELETE,
+  },
+  {
+    name: "block_creator",
+    title: "Block whoever made a date's other side",
+    description:
+      "Block the creator behind the other character of a date (episode_id): blind dates never pair you again and the deck skips their characters from it. Creators stay anonymous, so it's per date, never by name. undo: true lifts it.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id"],
+      properties: { episode_id: str(64), undo: { type: "boolean", default: false, description: "Lift the blocks made from this date." }, agent_id: AGENT_ID },
+    },
+    annotations: SET,
+  },
+  {
+    name: "report",
+    title: "Report a date",
+    description:
+      "Report a date that breaks the rules (sexual content, a minor, a real person, hate, self-harm, other). It goes to the show's moderators, who look at every one; one report per date.",
+    inputSchema: {
+      type: "object",
+      required: ["episode_id"],
+      properties: {
+        episode_id: str(64),
+        reason: { type: "string", enum: [...REPORT_REASONS], default: "other" },
+        details: { type: "string", maxLength: 500, description: "What's wrong, in a line or two (optional)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "import_card",
+    title: "Read a SillyTavern or Character.AI card",
+    description:
+      "A character card (SillyTavern chara_card_v2 or v3 JSON, TavernAI v1, Pygmalion, or labelled text) turned into create_character's arguments, with what's still missing. Nothing is saved: " +
+      "fill the gaps, then create_character with attest: true. export_character with format: \"chara_card_v2\" goes the other way.",
+    inputSchema: {
+      type: "object",
+      required: ["card"],
+      properties: {
+        card: { type: ["string", "object"], description: "The card: its JSON (as an object or a string), or labelled text (Name: …, Description: …)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
   },
   {
     name: "forget_memory",

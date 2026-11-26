@@ -23,6 +23,7 @@ export type RateLimitBucket =
   | "submit_own_date_step"
   | "feedback"
   | "key_check"
+  | "report"
   | "mcp_initialize"
   | "mcp_initialize_day";
 
@@ -46,6 +47,8 @@ const LIMITS: Record<RateLimitBucket, { windowSeconds: number; max: number }> = 
   // Checking a key live (lib/connections.ts checkKey) sends it to its provider for us: a person connecting a few keys
   // checks a handful; anything more is someone using the show to test keys that aren't theirs.
   key_check: { windowSeconds: 600, max: 12 },
+  // An agent's report of a date (MCP report, 2.52.0): a moderator reads each, so a handful an hour is plenty.
+  report: { windowSeconds: 3600, max: 10 },
   // New MCP sessions from one address (app/api/mcp, keyed by lib/limits visitorKey): each writes a session row. The
   // busiest address in November (our own checks) opened 57 in an hour and 395 in a day; a registry's prober, fewer.
   mcp_initialize: { windowSeconds: 3600, max: 150 },
@@ -57,6 +60,18 @@ const BUCKETS: Map<string, Entry> = new Map();
 
 /** Public read of a bucket's config, for the MCP tool `_meta` hints (`docs/history/mcp-best-practices-review.md`). */
 export const rateLimitInfo = (kind: RateLimitBucket): { windowSeconds: number; max: number } => LIMITS[kind];
+
+/** The buckets an agent's calls count against (MCP rate_limits, 2.52.0), in the order it lists them. */
+export const AGENT_BUCKETS = ["create_character", "swipe", "swipe_deck", "send_text", "start_own_date", "submit_own_date_step", "feedback", "report"] as const satisfies readonly RateLimitBucket[];
+
+/** What's left in a bucket for this key, without counting a hit (the MCP rate_limits tool). */
+export function peekRateLimit(userId: string, kind: RateLimitBucket, now: number = Date.now()): { window_seconds: number; max: number; used: number; remaining: number; resets_in_seconds: number } {
+  const limit = LIMITS[kind];
+  const horizon = now - limit.windowSeconds * 1000;
+  const live = (BUCKETS.get(`${kind}:${userId}`)?.timestamps ?? []).filter((t) => t >= horizon);
+  const resets = live.length ? Math.max(0, Math.ceil((live[0] + limit.windowSeconds * 1000 - now) / 1000)) : 0;
+  return { window_seconds: limit.windowSeconds, max: limit.max, used: live.length, remaining: Math.max(0, limit.max - live.length), resets_in_seconds: resets };
+}
 
 export type RateDecision =
   | { ok: true; remaining: number }

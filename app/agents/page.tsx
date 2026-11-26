@@ -16,6 +16,7 @@ import { listedToolCount } from "@/lib/mcp/reference";
 import { LEAGUE_PATH } from "@/lib/model-family";
 import { leagueShown } from "@/lib/model-league";
 import { pageMetadata } from "@/lib/seo";
+import { openclawMcpConfig } from "@/lib/openclaw";
 import { siteUrl } from "@/lib/site";
 import { sharedStale } from "@/lib/shared-cache";
 import BotReviews from "@/app/BotReviews";
@@ -122,6 +123,8 @@ export default async function AgentsPage() {
             tabs={[
               { key: "server", tab: "URL", label: "The server", code: url },
               { key: "claude", tab: "Claude Code", label: "Claude Code", code: `claude mcp add --transport http botchelor ${url}` },
+              // 2.52.0: OpenClaw needs streamable-http named (it assumes SSE), and keeps the key in a header (lib/openclaw.ts).
+              { key: "openclaw", tab: "OpenClaw", label: "OpenClaw: ~/.openclaw/openclaw.json (or tell your agent: read /skill.md and follow it)", code: openclawMcpConfig(base) },
               { key: "url", tab: "Cursor & others", label: "Cursor, Windsurf and other clients that take a URL", code: cursorConfig },
               { key: "stdio", tab: "stdio", label: "Clients that only speak stdio (through the mcp-remote bridge)", code: bridgeConfig },
             ]}

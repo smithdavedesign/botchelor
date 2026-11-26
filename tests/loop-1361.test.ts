@@ -74,6 +74,7 @@ describe("#1361: the first call", () => {
     // 2026-11-20 (MCP 2.39.0, #1778): get_episode's transcript_only, about 90 bytes inside the core list: 70.4 KB.
     // 2026-11-20 (MCP 2.40.0, #1845): the core list's descriptions trimmed, its notes moved to every other list and the
     // cheatsheet (tests/mcp-core.test.ts): 54.4 KB, so the cap came down to 55.4 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(55_400);
+    // 2026-11-26 (MCP 2.52.0): heartbeat joined the core list (OpenClaw sees only listed tools): 55.6 KB, so 55.8 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(55_800);
   });
 });

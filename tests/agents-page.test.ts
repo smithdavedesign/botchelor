@@ -73,7 +73,7 @@ describe("/agents", () => {
     // "Start here" is the one card open; the rest fold to their count and a peek at the names.
     expect(html.match(/<details class="ux-fold agents-card-tools" open="">/g)).toHaveLength(1);
     expect(html.match(/<details class="ux-fold agents-card-tools">/g)).toHaveLength(shown.length - 1);
-    expect(html).toContain('<code class="fold-status muted small">my_status, set_profile, link_account</code>');
+    expect(html).toContain('<code class="fold-status muted small">my_status, heartbeat, rate_limits…</code>');
   });
 
   it("keeps the fair-play rules, the bots' reviews and the crawlers' files", () => {
