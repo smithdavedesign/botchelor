@@ -30,6 +30,7 @@ import { contentWords, EVERYDAY_WORDS } from "./quality";
 import { checkFields } from "./safety";
 import { weekIdOf as seasonIdAt } from "./season-window";
 import { venue, venuePhrase, type PlaceId } from "./venues";
+import { forgetEpisodes, rememberSfw } from "./character-memories";
 
 /** Max learned drift per signal axis. Small on purpose: a character evolves, it does not transform. */
 export const MEMORY_SIGNAL_CAP = 0.15;
@@ -746,7 +747,22 @@ export async function updateCharacterMemory(db: Db, characterId: string): Promis
       JSON.stringify(memory.met ?? []),
     ],
   );
+  await rememberReflections(db, characterId, memory, forgotten).catch(() => undefined);
   return memory;
+}
+
+/**
+ * Its reflections join its shared memory (lib/character-memories.ts), each kept past the REFLECTIONS_KEPT the learned
+ * layer carries; one its owner told it to forget goes from there too, with any chapter folded from it. Private (self):
+ * its own prompts and its maker's views only. Best-effort.
+ */
+async function rememberReflections(db: Db, characterId: string, memory: CharacterMemory, forgotten: readonly { kind: ForgetKind; item: string }[]): Promise<void> {
+  const gone = forgotten.filter((f) => f.kind === "reflection").map((f) => f.item);
+  if (gone.length) await forgetEpisodes(db, characterId, "reflection", null, gone);
+  for (const r of memory.sources?.reflections ?? []) {
+    const other = memory.people?.find((p) => p.last_episode_id === r.episode_id || p.name === r.with);
+    await rememberSfw(db, { characterId, source: "reflection", sourceRef: r.episode_id, text: `After your date with ${r.with}: ${r.text}`, visibility: "self", aboutId: other?.id ?? null, importance: 3, at: new Date(r.at) });
+  }
 }
 
 /**

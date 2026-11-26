@@ -474,3 +474,15 @@ describe("repeatsEarlier", () => {
     expect(repeatsEarlier("How was your day?", ["How was your day?"])).toBe(false);
   });
 });
+
+describe("what it remembers across the show (lib/character-memories.ts)", () => {
+  it("is in its maker's thread only", () => {
+    const remembered = ["With Dex: You spent the night together after the bowling date; you're closer now."];
+    const mine = companionMessages({ ...base, character: character(), yours: true, remembered })[0].content;
+    expect(mine).toContain("What you remember from your life lately");
+    expect(mine).toContain("bowling date");
+    const theirs = companionMessages({ ...base, character: character(), yours: false, remembered })[0].content;
+    expect(theirs).not.toContain("bowling date");
+  });
+});
+

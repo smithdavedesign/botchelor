@@ -123,7 +123,11 @@ Never someone else's character or an outside agent's: their makers never agreed 
   into their own thread, and nothing of it reaches the show (the lines about the character itself are a separate kind,
   saved as the character's private facts by the builder). Switch: `IMPORT_MEMORIES=0`.
 - **One way only:** show life flows into a companion; nothing from a companion thread reaches a date, a text, the
-  relationship graph or any character's memory. (Since 2026-11-14 the character may text first about its own date:
+  relationship graph or any character's memory. **Except its maker's own thread** (David, 2026-11-26, cross-mode
+  memory phase 1): that thread's rolling notes join the character's shared memory (`lib/character-memories.ts`,
+  `companion_talk`, private), which its weekly lessons read, so talking with its maker helps it grow. Anyone else's
+  thread stays one way. Forget everything on the memory page, or deleting the thread, removes it. And in its maker's
+  thread the character recalls its shared memory: reflections after dates and the PG note a night in After Dark left. (Since 2026-11-14 the character may text first about its own date:
   "Texts from your own character", below. Still one way.) **The one explicit exception** is the "For next time" note
   under your own character's composer ("The question is a menu", below): it is a nudge (`nudges`, `lib/between-dates.ts
   setNudge`, 140 characters, the PG check and the choice record inside), sent to the existing couples nudge route for the

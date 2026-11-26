@@ -12,6 +12,7 @@
 import type { Character } from "../character";
 import type { Db } from "../db";
 import { checkShowText } from "../safety";
+import { forgetEpisodes, rememberSfw } from "../character-memories";
 import { jsonOf } from "./facts";
 import { adultModel } from "./mode";
 import type { SceneLine } from "./scenes";
@@ -85,7 +86,23 @@ export async function rememberAfterDark(
         [self.id, other.id, ownerId, note],
       )
       .catch(() => {});
+    await noteEpisode(db, self.id, other.id, note, other.name);
   }
+}
+
+/**
+ * The note joins the character's shared memory (lib/character-memories.ts) in the SFW room, as the only thing of After
+ * Dark that ever does (David, 2026-11-26: "the nsfw nights should have some context back to sfw like they spent the
+ * night together"), one row per pair kept in step with the note: rewritten, edited, rewound or deleted with it. It
+ * passed the show's check already, and rememberSfw checks it again. Private (self). Best-effort.
+ */
+async function noteEpisode(db: Db, selfId: string, otherId: string, note: string | null, otherName?: string): Promise<void> {
+  if (!note) {
+    await forgetEpisodes(db, selfId, "after_dark_note", null, [otherId]);
+    return;
+  }
+  const name = otherName ?? (await db.query<{ name: string }>(`select name from characters where id = $1`, [otherId]).catch(() => ({ rows: [] as { name: string }[] }))).rows[0]?.name;
+  await rememberSfw(db, { characterId: selfId, source: "after_dark_note", sourceRef: otherId, text: name ? `With ${name}: ${note}` : note, visibility: "self", aboutId: otherId, importance: 4 });
 }
 
 /** One side's PG note as stored, for a rewind to put back as it was (restoreNotes). */
@@ -120,6 +137,7 @@ export async function restoreNotes(db: Db, aId: string, bId: string, before: rea
         )
       : db.query(`delete from adult_memories where character_id = $1 and other_id = $2`, [self, other])
     ).catch(() => {});
+    await noteEpisode(db, self, other, was?.note ?? null);
   }
 }
 
@@ -144,6 +162,7 @@ export async function setOwnNote(
   if (!mine) return { ok: false, status: 404, message: "There's no note of yours to change there." };
   if (text === null) {
     await db.query(`delete from adult_memories where character_id = $1 and other_id = $2 and owner_id = $3`, [selfId, otherId, ownerId]);
+    await noteEpisode(db, selfId, otherId, null);
     return { ok: true };
   }
   if (text.length > NOTE_MAX) return { ok: false, status: 400, message: `Keep the note to ${NOTE_MAX} characters.` };
@@ -151,6 +170,7 @@ export async function setOwnNote(
     return { ok: false, status: 422, message: "This note goes into their public dates and texts, so it has to stay PG: nothing sexual, nothing explicit, no innuendo." };
   }
   await db.query(`update adult_memories set note = $4, updated_at = now() where character_id = $1 and other_id = $2 and owner_id = $3`, [selfId, otherId, ownerId, text]);
+  await noteEpisode(db, selfId, otherId, text);
   return { ok: true };
 }
 

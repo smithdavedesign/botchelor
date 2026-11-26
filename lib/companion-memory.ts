@@ -8,7 +8,10 @@ import { maybeCrisis } from "./step-in";
 import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
 import { getPersona, type ScenePersona } from "./persona";
 import { escapeRegExp } from "./text";
-import { cosine, embed, embedKey, embedModel } from "./originality-concept";
+import { cosine, embed, embedModel } from "./originality-concept";
+import { meaningBonus, memoryEmbedOn, RECALL_TIMEOUT_MS } from "./recall";
+
+export { meaningBonus, memoryEmbedOn, RECALL_TIMEOUT_MS };
 
 /**
  * What a companion remembers about the person (docs/companions.md): short facts drawn from their own words every few
@@ -73,30 +76,8 @@ type Env = Record<string, string | undefined>;
  * provider until that has its own privacy review.
  */
 
-/** MEMORY_EMBED=0 turns recall by meaning off; otherwise it's on whenever an embedding key is set. */
-export const memoryEmbedOn = (env: Env = process.env): boolean => env.MEMORY_EMBED?.trim() !== "0" && Boolean(embedKey(env).key);
-/** How long a reply waits for its question's embedding before ranking by words alone. */
-export const RECALL_TIMEOUT_MS = 1200;
-/** The most a fact's meaning adds to its score: the same as a message sharing every one of its words. */
-const MEANING_WEIGHT = 6;
-/** Below this spread between the best match and the typical fact, nothing stands out by meaning and nothing is added. */
-const MEANING_MIN_SPREAD = 0.04;
 /** Facts embedded per draw, the new ones first: older facts of an active thread catch up a few at a time. */
 export const EMBED_PER_DRAW = 12;
-
-/**
- * Each fact's bonus by meaning, 0 to MEANING_WEIGHT: how far its similarity to the question sits above the thread's
- * median, as a share of how far the best one does. Relative on purpose, so it doesn't depend on the model's scale; and
- * nothing when no fact stands out (a "hi" is about nothing in particular). A fact without a usable vector gets 0.
- */
-export function meaningBonus(sims: readonly (number | null)[]): number[] {
-  const known = sims.filter((x): x is number => x !== null).sort((a, b) => a - b);
-  if (known.length < 2) return sims.map(() => 0);
-  const median = known[Math.floor(known.length / 2)];
-  const best = known[known.length - 1];
-  if (best - median < MEANING_MIN_SPREAD) return sims.map(() => 0);
-  return sims.map((x) => (x === null || x <= median ? 0 : (MEANING_WEIGHT * (x - median)) / (best - median)));
-}
 
 /**
  * The facts in the order a prompt takes them (pure, so the rule is tested without a database): pinned first, then by
@@ -347,6 +328,8 @@ export async function editFacts(db: Db, threadId: string, e: FactEdit, now: Date
   if (e.op === "forget_all") {
     await db.query(`delete from companion_facts where thread_id = $1`, [threadId]);
     await db.query(`update companion_threads set summary = null, summary_upto = null, facts_upto = (select max(created_at) from companion_messages where thread_id = $1) where id = $1`, [threadId]);
+    // What the thread taught its character goes too (lib/character-memories.ts companion_talk).
+    await (await import("./character-memories")).forgetThreadTalk(db, threadId);
     return null;
   }
   if (e.op === "edit" || e.op === "add") {

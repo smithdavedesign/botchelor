@@ -147,7 +147,8 @@ describe("(1) a recap that keeps up (chapter 2 carried chapter 1's recap word fo
 
   it("the PG note written at the same close reads a fenced reply too, instead of falling back", async () => {
     const stored: unknown[][] = [];
-    const db = { query: async (_sql: string, params: unknown[] = []) => (stored.push(params), { rows: [] }) } as unknown as Db;
+    // Only the notes themselves (the shared memory's row for each, lib/character-memories.ts, is its own query).
+    const db = { query: async (sql: string, params: unknown[] = []) => (sql.includes("adult_memories") && stored.push(params), { rows: [] }) } as unknown as Db;
     setAdultModelForTests(scripted('```json\n{"a": "You and Lexi left the fog for her place; you still owe her a pie.", "b": "You and Dex left the fog together; he knocked on wood twice."}\n```').model);
     await rememberAfterDark(db, "owner", dex(), lexi(), before, night);
     expect(stored.map((p) => p[3])).toEqual(["You and Lexi left the fog for her place; you still owe her a pie.", "You and Dex left the fog together; he knocked on wood twice."]);
