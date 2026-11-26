@@ -12,6 +12,7 @@
  *  - **Drama.** A character seeing more than one person knows it (public record only), and so does the director.
  */
 import { afterDarkNote, withAfterDark } from "./adult/memory";
+import { lifeMemories, withRemembered } from "./character-memories";
 import { shortName } from "./names";
 import { characterBlindView, characterPublicView, characterSelfView, loadCharacter, type Character } from "./character";
 import { recordChoice } from "./choice-history";
@@ -290,7 +291,7 @@ export async function sendDailyTexts(
       for (const who of [firstEnd, firstEnd === "lo" ? "hi" : "lo"] as const) {
         const me = who === "lo" ? lo : hi;
         const them = who === "lo" ? hi : lo;
-        const messages = buildTextMessages(me, them, withAfterDark(pairContext(rel, me.id, PUBLIC_ONLY, null), await afterDarkNote(db, me.id, them.id)), thread, {
+        const messages = buildTextMessages(me, them, withRemembered(withAfterDark(pairContext(rel, me.id, PUBLIC_ONLY, null), await afterDarkNote(db, me.id, them.id)), await lifeMemories(db, me.id, them.id, them.name)), thread, {
           nudge: await activeNudge(db, me.id, them.id),
           alsoSeeing: await alsoSeeing(db, me.id, them.id),
         });

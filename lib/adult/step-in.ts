@@ -72,6 +72,7 @@ import { stageShown } from "./stage-floor";
 import { STAGES } from "./stages";
 import { STEP_IN_NEVER_SAID, stepInNever, stepInNeverIn, type StepInNever } from "./step-in-lines";
 import { countFacts, drawFacts, factsForPrompt, memoryOn } from "./step-in-memory";
+import { lifeMemories, showFactsForStepIn } from "../character-memories";
 import { notePrefs, notePressure } from "./step-in-notes";
 import { openingHasSides, STEP_IN_CALL_TOKENS, STEP_IN_REPLY_TOKENS, STEP_IN_TURNS, stepInMessages, type StepInTurn } from "./step-in-prompt";
 import { beatForReader, mergeBeats, parsePlayed, storedBeats, storyMessages, storyView, type StepInStory } from "./step-in-story";
@@ -900,6 +901,8 @@ type DrawContext = {
   earlier: string[];
   /** What the character remembers about the viewer, when they have memory on (lib/adult/step-in-memory.ts). */
   facts: string[];
+  showFacts: string[];
+  life: string[];
   /** How well the two know each other, as the character is told it (lib/adult/step-in-bond.ts bondPromptLine); null for a first scene. */
   bond: string | null;
   /** How things stood before this reply (lib/adult/step-in-tracker.ts): the scene's continuity sheet; null with nothing noted yet. */
@@ -923,7 +926,7 @@ async function earlierScenes(db: Db, s: Pick<SceneRow, "id" | "owner_id" | "char
 }
 
 async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], replacing: readonly string[] = []): Promise<DrawContext | null> {
-  const [character, drawn, persona, earlier, facts, known] = await Promise.all([
+  const [character, drawn, persona, earlier, facts, known, showFacts, life] = await Promise.all([
     sceneCharacter(db, s.character_id),
     drawnSets(db),
     adultPersona(db, s.owner_id),
@@ -931,6 +934,10 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     factsForPrompt(db, s.owner_id, s.character_id).catch(() => [] as string[]),
     // Read only (the view lifts what's kept): a failure tells the character nothing, as for strangers.
     bondOf(db, s.owner_id, s.character_id, { lift: false }).catch(() => null),
+    // The show, carried in (lib/character-memories.ts; always on, David 2026-11-26): what the viewer told it there, and
+    // its own life. One way: nothing here goes back.
+    showFactsForStepIn(db, s.owner_id, s.character_id),
+    lifeMemories(db, s.character_id, null),
   ]);
   if (!character) return null;
   const rp = sceneRoleplay(s.roleplay);
@@ -945,6 +952,8 @@ async function drawContext(db: Db, s: SceneRow, rows: readonly MessageRow[], rep
     said: current.filter((m) => m.role === "character" && !isAside(m)).map((m) => m.text).reverse().slice(0, 150),
     earlier,
     facts,
+    showFacts,
+    life,
     bond: known ? bondPromptLine(known.bond, { roleplay: Boolean(rp && s.roleplay) }) : null,
     // The sheet that holds for the turns this reply is written after: a reply being drawn again isn't among them, so
     // what it brought in isn't on it (sheetFor falls back to how things stood before it).
@@ -1017,6 +1026,8 @@ async function draw(
       recap: s.recap,
       earlier: ctx.earlier,
       facts: ctx.facts,
+      showFacts: ctx.showFacts,
+      life: ctx.life,
       bond: ctx.bond,
       tracker: ctx.tracker,
       // The opening is for the scene's first reply only.

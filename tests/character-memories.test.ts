@@ -8,6 +8,9 @@ import {
   rankEpisodes,
   recallSfw,
   rememberSfw,
+  lifeMemories,
+  showFactsForStepIn,
+  withRemembered,
   type EpisodeRow,
 } from "@/lib/character-memories";
 import { restoreNotes, setOwnNote } from "@/lib/adult/memory";
@@ -136,4 +139,38 @@ describe("one mind, walled rooms (docs/PRDs/cross-mode-memory.md, phase 1)", () 
     expect(await embedEpisodes(t.db, A, 8, { env: {}, vector: async () => (++n === 2 ? null : [1, 0]) })).toBe(1);
     expect(await embedEpisodes(t.db, A, 8, { env: {} })).toBe(0);
   });
+
+  it("carries its life into dates, texts and nights, never its maker's private talks", async () => {
+    const E = HOUSE_CHARACTERS[4].id;
+    const F = HOUSE_CHARACTERS[5].id;
+    await rememberSfw(t.db, { characterId: E, source: "reflection", sourceRef: "e1", text: "After your date with Fen: you laughed more than you meant to.", visibility: "self", aboutId: F });
+    await rememberSfw(t.db, { characterId: E, source: "companion_talk", sourceRef: "thread-e", text: "They told you their mother is in hospital.", visibility: "self" });
+    await rememberSfw(t.db, { characterId: E, source: "after_dark_note", sourceRef: F, text: "With Fen: you spent the night together.", visibility: "self", aboutId: F });
+    const life = await lifeMemories(t.db, E, F, "Fen");
+    expect(life).toEqual(["After your date with Fen: you laughed more than you meant to."]);
+    expect(withRemembered({ a: 1 }, life)).toEqual({ a: 1, what_you_remember_from_your_life: life });
+    expect(withRemembered(null, [])).toBeNull();
+  });
+
+  it("never folds a maker's talks into a chapter a date could carry", async () => {
+    const G = HOUSE_CHARACTERS[6].id;
+    const long = new Date("2026-01-01T00:00:00Z");
+    for (let i = 0; i < EPISODES_LIVE + 3; i++)
+      await rememberSfw(t.db, { characterId: G, source: i % 2 ? "companion_talk" : "reflection", sourceRef: `g${i}`, text: `Memory number ${i} about a quiet walk.`, visibility: "self", at: new Date(long.getTime() + i * 3600_000) });
+    await consolidateMemories(t.db, null, new Date("2026-11-26T00:00:00Z"));
+    const talks = (await rows(G)).filter((r) => r.source === "companion_talk");
+    expect(talks.every((r) => r.folded_into === null)).toBe(true);
+  });
+
+  it("brings what the viewer told it on the show into Step in, and nothing of anyone else's", async () => {
+    const H = HOUSE_CHARACTERS[7].id;
+    for (const [id, user] of [["th-mine", "viewer-1"], ["th-theirs", "viewer-2"]] as const) {
+      await t.db.query(`insert into users (id) values ($1) on conflict do nothing`, [user]).catch(() => {});
+      await t.db.query(`insert into companion_threads (id, user_id, character_id) values ($1, $2, $3)`, [id, user, H]);
+    }
+    await t.db.query(`insert into companion_facts (id, thread_id, kind, text) values ('f1', 'th-mine', 'name', 'They go by Sam.'), ('f2', 'th-theirs', 'name', 'They go by Alex.')`);
+    expect(await showFactsForStepIn(t.db, "viewer-1", H)).toEqual(["They go by Sam."]);
+    expect(await showFactsForStepIn(t.db, "viewer-1", H, { MEMORY_EPISODES: "0" })).toEqual([]);
+  });
 });
+

@@ -23,6 +23,7 @@ import { drawLabel, ensureSet, inBackground, resolveSet } from "../sets";
 import { pairMemory } from "../memory";
 import { contentWords, lineIssues } from "../quality";
 import type { Turn } from "../conversation";
+import { lifeMemories } from "../character-memories";
 import { afterDarkNote, notesBetween, ownNotes, rememberAfterDark, restoreNotes, setOwnNote, type NoteRow } from "./memory";
 import { overnightSeed, tellShowNightsOver } from "./overnight";
 import {
@@ -624,7 +625,15 @@ export async function sceneMemories(db: Db, ownerId: string, a: Character | null
     const pm = await pairMemory(db, self.id, other.id, ownerId).catch(() => null);
     if (pm?.they_said) out.push(`${first(self)} remembers ${first(other)} saying: "${pm.they_said}"`);
   }
-  return out.slice(0, 8);
+  // Their lives on the show (lib/character-memories.ts, the SFW room; always on, David 2026-11-26), the memories about
+  // each other first: after the night's own memories, so they're the first to go when there are many.
+  for (const [self, other] of [
+    [a, b],
+    [b, a],
+  ] as const) {
+    for (const m of (await lifeMemories(db, self.id, other.id, other.name)).slice(0, 2)) out.push(`${first(self)} remembers from the show: ${m}`);
+  }
+  return out.slice(0, 10);
 }
 
 /** Where the scene is: the place the model last reported, else where their latest date was. */
