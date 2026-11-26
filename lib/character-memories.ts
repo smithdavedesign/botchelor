@@ -37,7 +37,7 @@ import type { Db } from "./db";
 import type { Model } from "./model";
 import { cosine, embed, embedModel } from "./originality-concept";
 import { checkShowText } from "./safety";
-import { meaningBonus, memoryEmbedOn } from "./companion-memory";
+import { meaningBonus, memoryEmbedOn } from "./recall";
 
 type Env = Record<string, string | undefined>;
 
