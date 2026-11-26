@@ -14,7 +14,7 @@ import { loadCharacter, type Character } from "./character";
 import { lessonsForPrompt } from "./character-lessons";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
 import { asksAboutLastDate, AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, namesAnotherDate, reachedFor, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, tooCloseTo, worldRest, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
-import { FACTS_EVERY, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary } from "./companion-memory";
+import { embedFacts, FACTS_EVERY, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
   COMPANION_GUEST_THREADS,
@@ -1600,7 +1600,9 @@ export async function companionFollowUp(db: Db, threadId: string, opts: { guest?
     // A guest's few replies would never reach a draw: theirs comes sooner (GUEST_FACTS_EVERY), so what's kept shows.
     const facts = await updateFacts(db, threadId, name, model, new Date(), opts.guest ? GUEST_FACTS_EVERY : FACTS_EVERY);
     const summary = await updateSummary(db, threadId, name, model);
-    if (process.env.COMPANION_DEBUG === "1") console.error(`[companion] follow-up ${threadId}: ${facts} facts, summary ${summary}`);
+    // Recall by meaning: new facts, edited ones and an older thread's catch up a few at a time (a no-op once all are).
+    const embedded = await embedFacts(db, threadId).catch(() => 0);
+    if (process.env.COMPANION_DEBUG === "1") console.error(`[companion] follow-up ${threadId}: ${facts} facts, ${embedded} embedded, summary ${summary}`);
   } catch (err) {
     // Memory is best-effort (the next message tries again), but a failure is recorded, never swallowed.
     const message = err instanceof Error ? err.message : String(err);

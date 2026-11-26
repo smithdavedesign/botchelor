@@ -89,23 +89,37 @@ export const EMBED_SLOW_TIMEOUT_MS = 8000;
 export const checkTimeoutMs = (env: Env = process.env): number => wholeNumber(env.EMBED_CHECK_TIMEOUT_MS, 0) || EMBED_CHECK_TIMEOUT_MS;
 
 const utcDay = (now: Date) => now.toISOString().slice(0, 10);
-/** The UTC day this process last found the cap spent: later calls that day don't ask the database again. */
-let cappedOn: string | null = null;
+/**
+ * Which daily budget a call spends. `concept` is the originality check's (EMBED_DAILY_CAP, embed_usage); `memory` is the
+ * companion's fact recall (lib/companion-memory.ts; MEMORY_EMBED_DAILY_CAP, memory_embed_usage), kept apart so a busy
+ * day of chats can never use up the originality check's calls, or the other way round.
+ */
+export type EmbedPool = "concept" | "memory";
+/** Memory-recall embedding calls a UTC day unless `MEMORY_EMBED_DAILY_CAP` says otherwise (0 turns them off). A fact or
+ * a question is ~20 tokens, so 20,000 calls is ~400k tokens: about 6¢ a day at gemini-embedding-001's list price. */
+export const DEFAULT_MEMORY_EMBED_DAILY_CAP = 20000;
+export const memoryEmbedDailyCap = (env: Env = process.env): number => wholeNumber(env.MEMORY_EMBED_DAILY_CAP, DEFAULT_MEMORY_EMBED_DAILY_CAP);
+/** What the text is for: Gemini embeds a question and the passages it should find differently (asymmetric retrieval). */
+export type EmbedTask = "SEMANTIC_SIMILARITY" | "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT";
+
+/** The UTC day this process last found each pool's cap spent: later calls that day don't ask the database again. */
+const cappedOn: Record<EmbedPool, string | null> = { concept: null, memory: null };
 
 /**
  * Takes one of today's embedding calls (UTC day). False once the cap is spent, or when the count can't be kept (an
  * uncounted call could run past the cap, so it isn't made). The first refusal of the day is logged once per process.
  */
-async function claimEmbedCall(db: Db, env: Env, now = new Date()): Promise<boolean> {
+async function claimEmbedCall(db: Db, env: Env, now = new Date(), pool: EmbedPool = "concept"): Promise<boolean> {
   const day = utcDay(now);
-  if (cappedOn === day) return false;
-  const cap = embedDailyCap(env);
+  if (cappedOn[pool] === day) return false;
+  const cap = pool === "memory" ? memoryEmbedDailyCap(env) : embedDailyCap(env);
+  const table = pool === "memory" ? "memory_embed_usage" : "embed_usage";
   let used = Number.POSITIVE_INFINITY;
   if (cap > 0) {
     try {
       const { rows } = await db.query<{ calls: number }>(
-        `insert into embed_usage (day, calls) values ($1, 1)
-           on conflict (day) do update set calls = embed_usage.calls + 1
+        `insert into ${table} (day, calls) values ($1, 1)
+           on conflict (day) do update set calls = ${table}.calls + 1
          returning calls`,
         [day],
       );
@@ -115,8 +129,12 @@ async function claimEmbedCall(db: Db, env: Env, now = new Date()): Promise<boole
     }
   }
   if (used <= cap) return true;
-  cappedOn = day;
-  console.log(`[embed] daily cap reached (${cap}): concept checks skipped until 00:00 UTC; the word-based check still runs`);
+  cappedOn[pool] = day;
+  console.log(
+    pool === "memory"
+      ? `[embed] memory daily cap reached (${cap}): companion facts rank by words alone until 00:00 UTC`
+      : `[embed] daily cap reached (${cap}): concept checks skipped until 00:00 UTC; the word-based check still runs`,
+  );
   return false;
 }
 
@@ -158,7 +176,8 @@ const recent = new Map<string, Vec>();
 export function clearEmbedCacheForTests(): void {
   recent.clear();
   keyLogged = null;
-  cappedOn = null;
+  cappedOn.concept = null;
+  cappedOn.memory = null;
 }
 
 /** Why an embedding didn't come back. `rate_limited`, `timeout` and `capped` end a backfill batch (pushing on won't help). */
@@ -172,15 +191,21 @@ export type EmbedResult = { ok: true; vec: Vec } | { ok: false; why: EmbedFailur
  * text. Gemini's own endpoint by default (it takes the truncated size); EMBED_URL points it at any OpenAI-compatible
  * /embeddings instead. `timeoutMs`: how long to wait (the slow budget unless an interactive caller passes the short one).
  */
-export async function embed(db: Db, text: string, opts: { env?: Env; timeoutMs?: number } = {}): Promise<EmbedResult> {
+export async function embed(
+  db: Db,
+  text: string,
+  opts: { env?: Env; timeoutMs?: number; pool?: EmbedPool; task?: EmbedTask } = {},
+): Promise<EmbedResult> {
   const env = opts.env ?? process.env;
   const { key, from } = embedKey(env);
   if (!key || !from) return { ok: false, why: "no_key" };
   const model = embedModel(env);
-  const hash = textHash(model, text);
+  const task = opts.task ?? "SEMANTIC_SIMILARITY";
+  // The task is part of the cache key: the same words embedded as a question and as a passage are different vectors.
+  const hash = textHash(model, task === "SEMANTIC_SIMILARITY" ? text : `${task}\n${text}`);
   const hit = recent.get(hash);
   if (hit) return { ok: true, vec: hit };
-  if (!(await claimEmbedCall(db, env))) return { ok: false, why: "capped" };
+  if (!(await claimEmbedCall(db, env, new Date(), opts.pool ?? "concept"))) return { ok: false, why: "capped" };
   logKeySource(from);
   const signal = AbortSignal.timeout(Math.max(1, Math.floor(opts.timeoutMs ?? EMBED_SLOW_TIMEOUT_MS)));
   try {
@@ -194,7 +219,7 @@ export async function embed(db: Db, text: string, opts: { env?: Env; timeoutMs?:
       : await fetch(`${GEMINI_BASE}/models/${encodeURIComponent(model)}:embedContent`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key },
-          body: JSON.stringify({ content: { parts: [{ text }] }, taskType: "SEMANTIC_SIMILARITY", outputDimensionality: EMBED_DIMS }),
+          body: JSON.stringify({ content: { parts: [{ text }] }, taskType: task, outputDimensionality: EMBED_DIMS }),
           signal,
         });
     console.log(`[embed] ${res.status} ${model}`);
