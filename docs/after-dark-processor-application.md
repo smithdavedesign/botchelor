@@ -177,3 +177,9 @@ decision against the deadlines, billing postbacks by kind and accounts flagged.
 4. A test purchase in the processor's test mode; watch `/admin/after-dark/providers` → Subscriptions for the postbacks
    (initial → active), then cancel it and watch it go to cancelled.
 5. Segpay charges its price point, so `AD_SUBSCRIPTION_PRICE_USD` must match it if it isn't $12.99.
+6. Tell the people who already came (2026-11-26): `scripts/after-dark/funnel.sql` (read-only) counts the waitlist, the
+   invite requests and the beta passes, and its last section prints the launch list (the After Dark waitlist, every
+   invite request, every ended beta month), once an address and without anyone who turned email off. Email them the
+   day the subscription opens. Since the same day, a signed-in person who has been in or asked to be lands on the
+   subscribe page from `/after-dark` instead of a not-found, and one whose beta month ran out is told so there
+   (`lib/adult/lapsed.ts`), so the link in that email works for them.

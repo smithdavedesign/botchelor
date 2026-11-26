@@ -4872,3 +4872,21 @@ its door says **Who's in** (it was "Characters", the old name of that page: `lib
   no data behind them here.
 
 **Proof:** `tests/after-dark-characters.test.ts`; the header in `tests/after-dark-frame.test.ts`.
+
+## People who have been in: no more bare not-found (2026-11-26)
+
+The revenue pass found that the warmest leads hit dead ends. While the public door is admins only, a signed-in person
+After Dark isn't open to got a not-found at `/after-dark`, including someone whose 30-day beta month had just run out
+or whose subscription had lapsed. On the subscribe page, an approved person whose month had ended was shown the invite
+form again. Now (`lib/adult/lapsed.ts`):
+
+- `/after-dark` sends a signed-in person who **knows After Dark** (`knowsAfterDark`: any pass row with a provider, or an
+  invite request) to `/after-dark/subscribe`, door shut or open. A stranger still gets the not-found: nothing says
+  After Dark exists to someone who hasn't met it. A pair's own night page still 404s for them (its layout decides
+  before the loading screen; `app/NotFoundBeforeLoading.tsx`).
+- The subscribe page tells someone whose **beta month or subscription ended** (`endedPass`; a taste and a reviewer's
+  pass are left out) when it ended and that everything they made is kept. With no processor it offers the waitlist
+  (ref `after-dark-lapsed`) instead of the invite form; with one, the subscription below.
+- `scripts/after-dark/funnel.sql` (read-only) counts the waitlist, invite requests and passes, and prints the launch
+  list for the day billing opens ([after-dark-processor-application.md](after-dark-processor-application.md) "Go
+  live", step 6).

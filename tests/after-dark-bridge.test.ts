@@ -279,4 +279,21 @@ describe("the source is saved with the request and counted where the owner revie
     expect(noSource).toMatch(/<form[^>]*data-invite-form="true"/);
     expect(noSource).not.toContain("data-invite-source");
   });
+
+  // lib/adult/lapsed.ts: an approved person whose beta month ran out was shown the invite form again.
+  it("tells someone whose beta month ended that it did, and offers the waitlist, never the invite form", async () => {
+    const me = await person();
+    await t.db.query(`insert into adult_invites (user_id, email, status, decided_at) values ($1, 'ada@example.com', 'approved', now() - interval '31 days')`, [me.id]);
+    await t.db.query(
+      `insert into adult_entitlements (user_id, subscription_status, period_end, age_verified_at, provider) values ($1, 'active', '2026-11-01T00:00:00Z', now(), 'beta')`,
+      [me.id],
+    );
+    const c = signedInCookie(me.id);
+    jar.cookies.set(c.slice(0, c.indexOf("=")), c.slice(c.indexOf("=") + 1).split(";")[0]);
+    const page = await html(await AfterDarkSubscribe({ searchParams: Promise.resolve({}) }));
+    expect(page).toContain('data-pass-ended="beta"');
+    expect(page).toContain("Your free month in the beta ended on November 1.");
+    expect(page).toContain("data-waitlist-lapsed");
+    expect(page).not.toContain("data-invite-form");
+  });
 });
