@@ -7,6 +7,7 @@ import WaitlistForm from "@/app/WaitlistForm";
 import { configuredProcessors, priceLabel, PROCESSOR_INFO, subscriptionPrice } from "@/lib/adult/billing";
 import { adTokensOn, tokenPacks } from "@/lib/adult/tokens";
 import { canAfterDark } from "@/lib/adult/entitlement";
+import { endedPass, type EndedPass } from "@/lib/adult/lapsed";
 import { inviteSource, invitePath } from "@/lib/adult/bridge";
 import { BETA_DAYS, getInvite } from "@/lib/adult/invites";
 import { tokensWord } from "@/lib/adult/price-words";
@@ -51,6 +52,9 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
   // The free taste shows only once it's opened in the settings (lib/adult/taste.ts tasteOpen): off until then.
   const taste = tasteOpen((await getAdultSettings(db).catch(() => null))?.rollout);
   // Shorts to point at, only when there are some (the link to an empty page was the only taste there was).
+  // Someone whose beta month or subscription has run out (lib/adult/lapsed.ts): told so, and what's next, before anything
+  // else, instead of being asked to request the invite they already had.
+  const ended = auth?.authenticated ? await endedPass(db, auth.userId).catch(() => null) : null;
   const shorts = Number((await db.query<{ n: number }>(`select count(*)::int as n from adult_shorts`).catch(() => ({ rows: [{ n: 0 }] }))).rows[0]?.n ?? 0);
 
   if (!processors.length) {
@@ -67,7 +71,15 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
             After Dark is where this season&apos;s cast (and your own characters, if you choose) carry on after the cameras stop: private, adults
             only, and never shown in the show.
           </p>
-          {auth?.authenticated ? (
+          {auth?.authenticated && ended ? (
+            <>
+              <EndedNotice ended={ended} billingOpen={false} />
+              <section className="card" data-waitlist-lapsed>
+                <p>Subscriptions open soon, with no invite needed. Leave your email and you&apos;ll hear the day they do.</p>
+                <WaitlistForm refSlug="after-dark-lapsed" />
+              </section>
+            </>
+          ) : auth?.authenticated ? (
             <>
               {taste && <TasteStep db={db} userId={auth.userId} />}
               <InviteStep db={db} userId={auth.userId} source={source} />
@@ -132,6 +144,7 @@ export default async function AfterDarkSubscribe({ searchParams }: { searchParam
           </p>
         )}
         {params.declined === "1" && <p className="error">The payment didn&apos;t go through. Nothing was charged; you can try again below.</p>}
+        {ended && params.done !== "1" && <EndedNotice ended={ended} billingOpen />}
         <p>
           After Dark is where this season&apos;s cast (and your own characters, if you choose) carry on after the cameras stop: private, adults
           only, and never shown in the show.
@@ -240,6 +253,20 @@ async function TasteStep({ db, userId }: { db: Db; userId: string }) {
   return <TasteForm hours={TASTE_HOURS} steps={TASTE_WRITES} />;
 }
 
+/**
+ * What ran out, and when (lib/adult/lapsed.ts): a beta month or a subscription. With billing open it leads to the
+ * subscription below; without, to the waitlist beside it. Their nights aren't deleted when a pass ends, so it says so.
+ */
+function EndedNotice({ ended, billingOpen }: { ended: EndedPass; billingOpen: boolean }) {
+  const when = ended.ended ? ` on ${ended.ended.toLocaleDateString("en-US", { day: "numeric", month: "long", timeZone: "UTC" })}` : "";
+  const what = ended.kind === "beta" ? `Your free month in the beta ended${when}.` : `Your subscription ended${when}.`;
+  return (
+    <p className="notice" data-pass-ended={ended.kind}>
+      {what} Everything you made is still here{billingOpen ? ": subscribe below to carry on where you left off." : "."}
+    </p>
+  );
+}
+
 /** A signed-in person's step in the beta: their request's status, or the form to ask. */
 async function InviteStep({ db, userId, source }: { db: Awaited<ReturnType<typeof getDb>>; userId: string; source: string | null }) {
   const invite = await getInvite(db, userId);
@@ -257,5 +284,7 @@ async function InviteStep({ db, userId, source }: { db: Awaited<ReturnType<typeo
       </p>
     );
   }
+  // Approved with no pass open: the month ran out, and the page above says so (EndedNotice); never the form again.
+  if (invite?.status === "approved") return null;
   return <InviteForm days={BETA_DAYS} source={source} />;
 }

@@ -115,6 +115,21 @@ describe("the public door", () => {
     expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);
   });
 
+  it("After Dark's home sends someone who has been in, or asked to be, to the subscribe page, door shut (lib/adult/lapsed.ts)", async () => {
+    const was = randomUUID();
+    await t.db.query(
+      `insert into adult_entitlements (user_id, subscription_status, period_end, age_verified_at, provider) values ($1, 'active', now() - interval '1 day', now(), 'beta')`,
+      [was],
+    );
+    signIn(was);
+    expect(await publicDoorOpen()).toBe(false);
+    expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);
+    const asked = randomUUID();
+    await t.db.query(`insert into adult_invites (user_id, email) values ($1, 'asked@example.com')`, [asked]);
+    signIn(asked);
+    expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);
+  });
+
   it("After Dark's home sends someone signed out to the visitor's page, door open or not: one button, Sign in (2026-11-22 audit)", async () => {
     expect(await publicDoorOpen()).toBe(false);
     expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { studioDoorLabel } from "@/lib/adult/door-links";
 import { afterDarkDoors } from "@/lib/adult/doors";
 import { notFound, redirect } from "next/navigation";
+import { knowsAfterDark } from "@/lib/adult/lapsed";
 import { listSwitchable } from "@/lib/adult/characters";
 import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
@@ -56,8 +57,10 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   // the invite request, the waitlist); until then, the same not-found as anywhere else. Someone signed out always does
   // (the 2026-11-22 audit: ad.botchelor.com showed a bare not-found, with no way for a member or a reviewer to sign in):
   // that page is the visitor's, with the sign-in, and shows nothing of anyone's nights.
+  // Someone who has been in before or asked to be (an ended beta month, a lapsed subscription, an invite request:
+  // lib/adult/lapsed.ts) lands there too: a bare not-found lost the warmest leads there are.
   if (!entitled.ok) {
-    if (entitled.why === "signed_out" || (await publicDoorOpen())) redirect("/after-dark/subscribe");
+    if (entitled.why === "signed_out" || (await publicDoorOpen()) || (await knowsAfterDark(db, auth!.userId))) redirect("/after-dark/subscribe");
     notFound();
   }
   // A device that hasn't entered this account's PIN gets nothing from here: the layout shows the PIN prompt instead.
