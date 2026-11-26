@@ -37,6 +37,7 @@
  * CHARACTER_LESSONS=0 turns all of it off without a deploy of code: nothing is written, no prompt carries a lesson, the
  * memory page and the recap leave them out, and no text is sent. Rows already written stay and come back with the switch.
  */
+import { episodesOf } from "./character-memories";
 import type { PromptLessons } from "./character";
 import { dateNumberSql } from "./date-number";
 import type { Db } from "./db";
@@ -129,7 +130,16 @@ export type LessonFacts = {
   before: string[];
   /** Lessons its owner told it to forget: never written again. */
   forgotten: string[];
+  /**
+   * What it has talked about lately with the person who made it, from their own companion thread's rolling notes
+   * (lib/character-memories.ts `companion_talk`; David, 2026-11-26: companion chats shape growth, the owner's thread only).
+   * Never anyone else's thread.
+   */
+  talks?: string[];
 };
+
+/** How many of its talks with its maker (each a thread's rolling notes) the writer reads. */
+export const TALKS_READ = 2;
 
 /**
  * SQL on `e`: a date a character may learn from. Aired in public, finished, not hidden by reports, not After Dark, and
@@ -323,6 +333,7 @@ export async function lessonFacts(db: Db, characterId: string, now: Date = new D
     flagged: flags.map((f) => f.text),
     before: known,
     forgotten,
+    talks: await episodesOf(db, characterId, "companion_talk", TALKS_READ),
   };
 }
 
@@ -373,6 +384,8 @@ export function lessonMessages(f: LessonFacts): ChatMessage[] {
     ...(f.flagged.length ? { people_said_these_lines_did_not_sound_like_you: f.flagged } : {}),
     ...(f.before.length ? { what_you_learned_before: f.before } : {}),
     ...(f.forgotten.length ? { let_go: f.forgotten.slice(0, 8) } : {}),
+    // Notes in the third person about the person it talks with; what it may learn from them is about itself.
+    ...(f.talks?.length ? { what_you_talked_about_lately_with_the_person_closest_to_you: f.talks } : {}),
   };
   return [
     { role: "system", content: SYSTEM },

@@ -4073,6 +4073,27 @@ create table if not exists adult_overnights (
   told_at timestamptz,
   primary key (episode_id, owner_id)
 );
+-- One mind, walled rooms (lib/character-memories.ts, docs/PRDs/cross-mode-memory.md phase 1): what a character
+-- remembers, from every mode, one row a memory. room is the wall: every reader selects room = 'sfw' itself. One row per
+-- (character, source, source_ref), so a writer syncs its own. folded_into: the chapter that stands for it in recall.
+create table if not exists character_episodes (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  room text not null check (room in ('sfw', 'adult')),
+  source text not null,
+  source_ref text not null,
+  about_id text,
+  visibility text not null check (visibility in ('public', 'owner', 'self')),
+  text text not null,
+  importance smallint not null default 3 check (importance between 1 and 5),
+  embedding jsonb,
+  embed_model text,
+  folded_into text,
+  folded_from jsonb,
+  created_at timestamptz not null default now(),
+  unique (character_id, source, source_ref)
+);
+create index if not exists character_episodes_recall_idx on character_episodes (character_id, room, created_at desc) where folded_into is null;
 -- Learning, weekly (lib/character-lessons.ts; David 2026-11-15, the drama wave's part 6): what a character has learned
 -- about itself, in its own words. One row a character a week (week: that week's Monday, UTC), claimed as 'pending'
 -- before the writer is called so two passes can't both write it. lines: up to three first-person sentences of at most

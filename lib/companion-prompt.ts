@@ -448,6 +448,11 @@ export function companionMessages(args: {
    */
   lessons?: PromptLessons | null;
   /**
+   * With `yours`: what it remembers from its life across the show (lib/character-memories.ts recallSfw, the SFW room
+   * only), best match for this message first: its reflections after dates, the PG note a night in After Dark left.
+   */
+  remembered?: readonly string[];
+  /**
    * The character's story state as lines (lib/story-state.ts companionStory): what it thinks of people on the show,
    * what it has heard and from whom, and what it wants this week. Its own, so a text can say "you won't believe what
    * Sable said about me". Empty for a character that holds none (and with STORY_STATE=0).
@@ -478,6 +483,7 @@ export function companionMessages(args: {
   const nudge = yours && lastDate ? (args.activeNudge?.trim() || null) : null;
   const photos = (args.photos ?? []).filter(Boolean);
   const lessons = yours && args.lessons?.lines.length ? args.lessons : null;
+  const remembered = yours ? (args.remembered ?? []).filter(Boolean).slice(0, 6) : [];
   const house = houseBlock(args.house);
   const first = c.name.trim().split(/\s+/)[0] || c.name;
   const self = characterSelfView(c);
@@ -592,6 +598,13 @@ export function companionMessages(args: {
           "What your dates have taught you about yourself lately (your own conclusions; they made you, so you can think out loud with them about these, in fresh words, when it fits, never as a list):",
           ...lessons.lines.map((l) => `- ${l}`),
           ...(lessons.trying_next ? [`- What you're trying next: ${lessons.trying_next}`] : []),
+        ]
+      : []),
+    ...(remembered.length
+      ? [
+          "",
+          "What you remember from your life lately (your own memories; bring one up only when it fits, in fresh words, never as a list, and keep anything private between you and them private):",
+          ...remembered.map((m) => `- ${m}`),
         ]
       : []),
     ...(args.story?.length

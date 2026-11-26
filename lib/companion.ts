@@ -14,6 +14,7 @@ import { loadCharacter, type Character } from "./character";
 import { lessonsForPrompt } from "./character-lessons";
 import { ClauseSplitter, spokenClause } from "./companion-live-shared";
 import { asksAboutLastDate, AVOID_LINES, BUBBLE_MAX, companionMessages, DEEP_TURNS, MAX_BUBBLES, namesAnotherDate, reachedFor, RECENT_TURNS, repeatsEarlier, replyBubbles, sceneReply, tooCloseTo, worldRest, type PromptRoleplay, type PromptScene, type PromptTurn } from "./companion-prompt";
+import { embedEpisodes, forgetThreadTalk, recallSfw, rememberSfw } from "./character-memories";
 import { embedFacts, FACTS_EVERY, factsForPrompt, GUEST_FACTS_EVERY, updateFacts, updateSummary } from "./companion-memory";
 import { forgetUnusedVoices, voiceUrl } from "./companion-voice";
 import {
@@ -74,7 +75,9 @@ export * from "./companion-shared";
  * Companions (docs/companions.md): a person talks one to one with a character, in a thread of their own that remembers
  * them. The house cast, the show's own agent-made cast (characters.companion_open) and the person's own characters, never
  * someone else's. PG like the show, the AI notice at the start and every three hours, the self-harm protocol on every
- * message, and nothing said here ever reaches a date, a text or anyone's memory of the show.
+ * message, and nothing said here ever reaches a date, a text or anyone's memory of the show, with one exception since
+ * 2026-11-26 (David: "companion chats shape growth, owner's thread only"): the rolling notes of a character's maker's own
+ * thread join that character's shared memory (lib/character-memories.ts), which its weekly lessons read.
  */
 
 /* ------------------------------------------------ the switch ------------------------------------------------ */
@@ -903,6 +906,9 @@ async function speak(
   const nudge = yours && lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
   // What it has learned about itself lately (lib/character-lessons.ts): its maker's thread only.
   const lessons = yours ? await lessonsForPrompt(db, character.id) : null;
+  // What it remembers from its life across the show (lib/character-memories.ts, the SFW room only): its reflections,
+  // the PG note a night in After Dark left. Its maker's thread only; this thread's own notes and its lessons come their own way.
+  const remembered = yours ? await recallSfw(db, character.id, { may: "maker", about: lastUser, skip: ["companion_talk", "lesson"] }).catch(() => []) : [];
   // What it thinks of people, has heard and wants this week (lib/story-state.ts): its own, so a text can mention it.
   const story = await companionStory(db, character, yours, now).catch(() => []);
   // What the house said about it lately (lib/house-texts.ts): public, so it can talk about it when they ask.
@@ -935,7 +941,7 @@ async function speak(
   const leanedAgain = (x: string, words: readonly string[]) =>
     `${x.slice(0, 300)} (that leaned on your own world again: ${words.slice(0, 4).map((w) => `"${w}"`).join(", ")}. Say it without your work, your hobbies or your sayings: plain words, in your own voice)`;
   const prompt = (o: { insteadOf: string | null; told?: boolean }) =>
-    companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, passedOn, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona, storyMode: o.told === true, worldWords: worldList });
+    companionMessages({ character, turns, deep, facts, summary: t.summary, length: t.reply_length, avoid, now, insteadOf: o.insteadOf, passedOn, cue: opts.cue, scene, call, yours, lastDate, activeNudge: nudge, photos, lessons, remembered, story, house, lockedPicture, persona, storyMode: o.told === true, worldWords: worldList });
 
   // Story mode (lib/narration.ts): in a scene, for someone on the narrated style (the Companion Plan's, and admins':
   // lib/writing-style.ts), the reply is written as prose in ONE call, where a script line used to get a narration pass
@@ -1221,6 +1227,9 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   const nudge = yours && lastDate ? await activeNudge(db, character.id, lastDate.partnerId).catch(() => null) : null;
   // What it has learned about itself lately (lib/character-lessons.ts): its maker's thread only.
   const lessons = yours ? await lessonsForPrompt(db, character.id) : null;
+  // What it remembers from its life across the show (lib/character-memories.ts, the SFW room only): its reflections,
+  // the PG note a night in After Dark left. Its maker's thread only; this thread's own notes and its lessons come their own way.
+  const remembered = yours ? await recallSfw(db, character.id, { may: "maker", about: lastUser, skip: ["companion_talk", "lesson"] }).catch(() => []) : [];
   // What it thinks of people, has heard and wants this week (lib/story-state.ts): its own, so a text can mention it.
   const story = await companionStory(db, character, yours, now).catch(() => []);
   // What the house said about it lately (lib/house-texts.ts): public, so it can talk about it when they ask.
@@ -1256,7 +1265,7 @@ export async function liveReply(db: Db, turn: LiveTurn, sink: LiveSink): Promise
   };
   try {
     const stream = model.stream(
-      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, lessons, story, house, lockedPicture, persona }),
+      companionMessages({ character, turns, facts, summary: t.summary, length: t.reply_length, avoid, now, call: true, live: true, yours, lastDate, activeNudge: nudge, photos, lessons, remembered, story, house, lockedPicture, persona }),
       { temperature: 0.9, frequencyPenalty: 0.3, maxTokens: 250, onUsage: (u) => usage.push(u), onModel: (id) => (served = id), signal },
     );
     reading: for await (const piece of stream) {
@@ -1582,6 +1591,8 @@ export async function reportMessage(db: Db, userId: string, threadId: string, me
 export async function deleteThread(db: Db, userId: string, threadId: string): Promise<{ ok: true } | CompanionFail> {
   const { rows } = await db.query(`delete from companion_threads where id = $1 and user_id = $2 returning id`, [threadId, userId]);
   if (!rows.length) return NOT_FOUND;
+  // What the thread taught its character (its maker's own) goes with it (lib/character-memories.ts).
+  await forgetThreadTalk(db, threadId);
   // Its voice notes go too (unless the same words are another reply's).
   await forgetUnusedVoices(db);
   return { ok: true };
@@ -1593,15 +1604,24 @@ export async function deleteThread(db: Db, userId: string, threadId: string): Pr
  */
 export async function companionFollowUp(db: Db, threadId: string, opts: { guest?: boolean } = {}): Promise<void> {
   try {
-    const t = (await db.query<{ character_id: string }>(`select character_id from companion_threads where id = $1`, [threadId])).rows[0];
+    const t = (await db.query<{ character_id: string; user_id: string }>(`select character_id, user_id from companion_threads where id = $1`, [threadId])).rows[0];
     if (!t) return;
-    const name = (await db.query<{ name: string }>(`select name from characters where id = $1`, [t.character_id])).rows[0]?.name ?? "the character";
+    const c = (await db.query<{ name: string; owner_id: string | null }>(`select name, owner_id from characters where id = $1`, [t.character_id])).rows[0];
+    const name = c?.name ?? "the character";
     const model = await modelFor(db);
     // A guest's few replies would never reach a draw: theirs comes sooner (GUEST_FACTS_EVERY), so what's kept shows.
     const facts = await updateFacts(db, threadId, name, model, new Date(), opts.guest ? GUEST_FACTS_EVERY : FACTS_EVERY);
     const summary = await updateSummary(db, threadId, name, model);
-    // Recall by meaning: new facts, edited ones and an older thread's catch up a few at a time (a no-op once all are).
+    // Its maker's own thread only (David, 2026-11-26): the rolling notes join the character's shared memory, which its
+    // weekly lessons read (lib/character-memories.ts companion_talk). Never anyone else's thread.
+    if (summary && c?.owner_id && c.owner_id === t.user_id) {
+      const notes = (await db.query<{ summary: string | null }>(`select summary from companion_threads where id = $1`, [threadId])).rows[0]?.summary;
+      if (notes) await rememberSfw(db, { characterId: t.character_id, source: "companion_talk", sourceRef: threadId, text: notes, visibility: "self", importance: 3 });
+    }
+    // Recall by meaning: new facts, edited ones and an older thread's catch up a few at a time (a no-op once all are),
+    // and the character's shared memory the same way.
     const embedded = await embedFacts(db, threadId).catch(() => 0);
+    await embedEpisodes(db, t.character_id).catch(() => 0);
     if (process.env.COMPANION_DEBUG === "1") console.error(`[companion] follow-up ${threadId}: ${facts} facts, ${embedded} embedded, summary ${summary}`);
   } catch (err) {
     // Memory is best-effort (the next message tries again), but a failure is recorded, never swallowed.

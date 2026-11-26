@@ -347,6 +347,8 @@ export async function editFacts(db: Db, threadId: string, e: FactEdit, now: Date
   if (e.op === "forget_all") {
     await db.query(`delete from companion_facts where thread_id = $1`, [threadId]);
     await db.query(`update companion_threads set summary = null, summary_upto = null, facts_upto = (select max(created_at) from companion_messages where thread_id = $1) where id = $1`, [threadId]);
+    // What the thread taught its character goes too (lib/character-memories.ts companion_talk).
+    await (await import("./character-memories")).forgetThreadTalk(db, threadId);
     return null;
   }
   if (e.op === "edit" || e.op === "add") {

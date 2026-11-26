@@ -41,6 +41,8 @@ export type AccountExport = {
   /** What each of the user's characters has learned from its dates (lib/memory.ts), with where it came from. */
   character_memory: Record<string, unknown>[];
   character_lessons: Record<string, unknown>[];
+  /** What each of their characters remembers from every mode (lib/character-memories.ts). */
+  character_episodes: Record<string, unknown>[];
   /** What the user told their characters to forget. */
   memory_forgets: Record<string, unknown>[];
   /** Their characters' reflections on each date (show-written or their own), by episode and character. */
@@ -324,6 +326,12 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
     character_lessons: await q(
       `select l.character_id, l.week, l.lines, l.trying_next, l.episodes, l.source, l.created_at from character_lessons l
          join characters c on c.id = l.character_id where c.owner_id = $1 and not c.is_house and l.source in ('model', 'template') order by l.created_at`,
+      [userId],
+    ),
+    // What their characters remember from every mode (lib/character-memories.ts), without the embeddings.
+    character_episodes: await q(
+      `select e.character_id, e.source, e.about_id, e.visibility, e.text, e.importance, e.folded_into, e.created_at from character_episodes e
+         join characters c on c.id = e.character_id where c.owner_id = $1 and not c.is_house and e.room = 'sfw' order by e.created_at`,
       [userId],
     ),
     memory_forgets: await q(
@@ -768,6 +776,8 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from memory_forgets where character_id = any($1)", [characterIds]);
   // What it learned about itself (lib/character-lessons.ts): written from its private side of its dates.
   await db.query("delete from character_lessons where character_id = any($1)", [characterIds]);
+  // Its shared memory from every mode (lib/character-memories.ts): private like the rest.
+  await db.query("delete from character_episodes where character_id = any($1)", [characterIds]);
   // Their texts between dates and any notes about them (lib/between-dates.ts) go too; the shared episodes stay.
   await db.query("delete from couple_texts where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
@@ -1154,6 +1164,14 @@ export async function deleteAfterDarkData(db: Db, userId: string): Promise<void>
       if (!/does not exist/.test(err instanceof Error ? err.message : "")) throw err;
     });
   }
+  // The PG notes their nights left in characters' shared memory (lib/character-memories.ts) go with the notes.
+  await db
+    .query(
+      `delete from character_episodes e using adult_memories m
+        where m.owner_id = $1 and e.source = 'after_dark_note' and e.character_id = m.character_id and e.source_ref = m.other_id`,
+      [userId],
+    )
+    .catch(() => {});
   let left = [...AFTER_DARK_OWNED];
   for (let pass = 0; pass < 4 && left.length; pass++) {
     const blocked: [string, string][] = [];

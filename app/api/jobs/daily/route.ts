@@ -8,6 +8,7 @@ import { settleDueBackings } from "@/lib/backing";
 import { pickWeeklyCastDate } from "@/lib/cast-date";
 import { sendCharacterWeeks, weeklyLifeDates } from "@/lib/character-life";
 import { runCharacterLessons } from "@/lib/character-lessons-job";
+import { consolidateMemories } from "@/lib/character-memories";
 import { sendCharacterQuestions } from "@/lib/character-questions";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
@@ -250,6 +251,11 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
       stopped: "error" as const,
     })),
   );
+  // Shared memory (lib/character-memories.ts): characters past their live rows get their oldest folded into a chapter,
+  // one call each on the show's free model (a template when it can't), FOLDS_PER_DAY at most. MEMORY_EPISODES=0: off.
+  const memories = await step("memory_chapters", () =>
+    consolidateMemories(db, getModel(undefined, false), new Date(), { deadline: t0 + 220_000 }).catch(() => ({ characters: 0, folded: 0 })),
+  );
   // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates. The cast's After Dark baselines are made
   // on After Dark's own host, where its media is (app/api/jobs/after-dark-daily, #1009).
   const candidates = await step("season_candidates", () =>
@@ -288,7 +294,7 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
     });
   }
   return {
-    body: { indexnow, embeddings, character_lessons: lessons, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
+    body: { indexnow, embeddings, character_lessons: lessons, memory_chapters: memories, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
     counts: {
       social_dynamics_ties: dynamics.ties,
       social_dynamics_contacts: dynamics.contacts,
