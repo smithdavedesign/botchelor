@@ -196,6 +196,27 @@ export async function recallSfw(
   return rankEpisodes(rows, { now: opts.now, query, model, aboutId: opts.aboutId }).slice(0, limit).map((r) => r.text);
 }
 
+/** Memories a date, a text or a night may carry: its maker's talks never (a date and a text are seen by others). */
+export const LIFE_SKIP: readonly EpisodeSource[] = ["companion_talk", "after_dark_note", "lesson"];
+/** How many a date, a text or a night carries. */
+export const LIFE_IN_PROMPT = 4;
+
+/**
+ * What a character brings to a date, a text or an After Dark night with `otherId` from its life so far (its older
+ * reflections and chapters, the ones about them first): never its maker's companion talks, since those were said in
+ * private and a date or a text is seen by others, and never the After Dark note or its lessons, which every one of those
+ * prompts already carries its own way. Best-effort: [] on any failure.
+ */
+export async function lifeMemories(db: Db, selfId: string, otherId: string | null, about = "", env: Env = process.env): Promise<string[]> {
+  return recallSfw(db, selfId, { may: "maker", about, aboutId: otherId, skip: LIFE_SKIP, limit: LIFE_IN_PROMPT, env }).catch(() => []);
+}
+
+/** A pair context (lib/relationships.ts pairContext) with what it remembers of its life added, for a date or a text. */
+export function withRemembered(ctx: Record<string, unknown> | null, lines: readonly string[]): Record<string, unknown> | null {
+  if (!lines.length) return ctx;
+  return { ...(ctx ?? {}), what_you_remember_from_your_life: [...lines] };
+}
+
 /** The rows of one source, newest first (the lessons writer's talks with its maker). */
 export async function episodesOf(db: Db, characterId: string, source: EpisodeSource, limit = 3): Promise<string[]> {
   const { rows } = await db
@@ -248,12 +269,12 @@ export function templateChapter(texts: readonly string[]): string {
  * least FOLD_MIN_AGE_DAYS old. Returns how many rows it folded (0 when nothing was due).
  */
 export async function foldCharacter(db: Db, characterId: string, model: Model | null, now: Date = new Date()): Promise<number> {
-  const { rows: live } = await db.query<{ n: number }>(`select count(*)::int as n from character_episodes where character_id = $1 and room = 'sfw' and folded_into is null and source <> 'chapter'`, [characterId]);
+  const { rows: live } = await db.query<{ n: number }>(`select count(*)::int as n from character_episodes where character_id = $1 and room = 'sfw' and folded_into is null and source not in ('chapter', 'companion_talk')`, [characterId]);
   const over = (live[0]?.n ?? 0) - EPISODES_LIVE;
   if (over <= 0) return 0;
   const { rows } = await db.query<{ id: string; text: string; visibility: EpisodeVisibility }>(
     `select id, text, visibility from character_episodes
-      where character_id = $1 and room = 'sfw' and folded_into is null and source <> 'chapter' and created_at < $2
+      where character_id = $1 and room = 'sfw' and folded_into is null and source not in ('chapter', 'companion_talk') and created_at < $2
       order by created_at asc limit $3`,
     [characterId, new Date(now.getTime() - FOLD_MIN_AGE_DAYS * DAY_MS).toISOString(), Math.min(FOLD_BATCH, Math.max(over, 2))],
   );
@@ -294,7 +315,7 @@ export async function foldCharacter(db: Db, characterId: string, model: Model | 
 export async function consolidateMemories(db: Db, model: Model | null, now: Date = new Date(), opts: { deadline?: number } = {}): Promise<{ characters: number; folded: number }> {
   if (!episodesOn()) return { characters: 0, folded: 0 };
   const { rows } = await db.query<{ character_id: string }>(
-    `select character_id from character_episodes where room = 'sfw' and folded_into is null and source <> 'chapter'
+    `select character_id from character_episodes where room = 'sfw' and folded_into is null and source not in ('chapter', 'companion_talk')
       group by character_id having count(*) > $1 order by count(*) desc limit $2`,
     [EPISODES_LIVE, FOLDS_PER_DAY],
   );
@@ -309,4 +330,29 @@ export async function consolidateMemories(db: Db, model: Model | null, now: Date
     }
   }
   return { characters, folded };
+}
+
+/* ------------------------------------------- the show, in After Dark ------------------------------------------- */
+
+/** How many of the viewer's show facts a Step in prompt carries. */
+export const SHOW_FACTS_IN_STEP_IN = 6;
+
+/**
+ * What a character knows about the viewer from their SFW companion thread with it, for Step in (David, 2026-11-26: "we
+ * don't need an opt in for this. The character should remember this"): the facts on that thread's memory page, the
+ * ones they pinned or edited first, then the lasting kinds, newest first. One way only: nothing from After Dark ever
+ * comes back to the show this way. Held to the show's check again as it's read. Best-effort: [] on any failure.
+ */
+export async function showFactsForStepIn(db: Db, viewer: string, characterId: string, env: Env = process.env): Promise<string[]> {
+  if (!episodesOn(env)) return [];
+  const { rows } = await db
+    .query<{ text: string }>(
+      `select f.text from companion_facts f join companion_threads t on t.id = f.thread_id
+        where t.user_id = $1 and t.character_id = $2
+        order by f.pinned desc, f.edited_by_user desc, (f.kind in ('name', 'people', 'work', 'boundaries', 'events')) desc, coalesce(f.importance, 3) desc, f.created_at desc
+        limit $3`,
+      [viewer, characterId, SHOW_FACTS_IN_STEP_IN],
+    )
+    .catch(() => ({ rows: [] as { text: string }[] }));
+  return rows.map((r) => r.text).filter((t) => checkShowText({ text: t }).ok);
 }

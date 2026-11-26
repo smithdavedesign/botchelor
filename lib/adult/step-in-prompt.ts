@@ -123,6 +123,12 @@ export function stepInTalkCraft(): string[] {
 export const STEP_IN_REMEMBERS =
   "What you remember about them from other times (things they told you about themselves; let one come up when it fits, the way someone who was listening would, never as a list, and never say you were told to remember):";
 
+/** The viewer's own words to the character on the show (its SFW companion thread), carried in. */
+export const STEP_IN_SHOW_REMEMBERS =
+  "What you know about them from talking on the show, away from here (things they told you about their life; let one come up when it fits, never as a list):";
+/** The character's own life on the show. */
+export const STEP_IN_LIFE = "What you remember of your own life lately (your dates and the people in them; yours to bring up lightly, never to recite):";
+
 /** How long a reply is (the brief: two to four short paragraphs), in place of story mode's own count. */
 export const STEP_IN_PARAGRAPHS = "Two to four short paragraphs, a few sentences each. No headings, no lists, no asterisks.";
 
@@ -215,6 +221,13 @@ export type StepInPrompt = {
   earlier?: readonly string[];
   /** What the character remembers about the viewer (lib/adult/step-in-memory.ts), when they've turned memory on. */
   facts?: readonly string[];
+  /**
+   * What the character knows about the viewer from their talks on the show (lib/character-memories.ts
+   * showFactsForStepIn: their SFW companion thread's facts), and what it remembers of its own life on the show
+   * (lifeMemories). Always on (David, 2026-11-26); one way, the show never reads After Dark.
+   */
+  showFacts?: readonly string[];
+  life?: readonly string[];
   /**
    * How well the two know each other (lib/adult/step-in-bond.ts bondPromptLine): one line from the level and the time
    * behind it, which says itself that it's never leave to go faster. Left out for strangers: a first scene is unchanged.
@@ -337,6 +350,8 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
   const viewerIs = args.roleplay?.you === 1 ? "b" : "a";
   const earlier = (args.earlier ?? []).filter(Boolean);
   const facts = (args.facts ?? []).filter(Boolean);
+  const showFacts = (args.showFacts ?? []).filter((f) => f && !facts.includes(f));
+  const life = (args.life ?? []).filter(Boolean);
   const call = args.form === "call";
   const talk = args.form === "talk";
   const sheet = sheetLines(c);
@@ -384,6 +399,8 @@ export function stepInMessages(args: StepInPrompt): ChatMessage[] {
     ...(args.bond ? ["", args.bond] : []),
     ...(earlier.length ? ["", "Earlier scenes the two of you have had (a line each; yours to remember lightly, never to recite):", ...earlier.map((l) => `- ${l}`)] : []),
     ...(facts.length ? ["", STEP_IN_REMEMBERS, ...facts.map((f) => `- ${f}`)] : []),
+    ...(showFacts.length ? ["", STEP_IN_SHOW_REMEMBERS, ...showFacts.map((f) => `- ${f}`)] : []),
+    ...(life.length ? ["", STEP_IN_LIFE, ...life.map((f) => `- ${f}`)] : []),
     ...(args.recap ? ["", `Earlier in this scene: ${args.recap}`] : []),
     ...(args.insteadOf ? ["", `You wrote this reply once already; write a different one, with other beats and other lines: ${args.insteadOf}`] : []),
   ].join("\n");

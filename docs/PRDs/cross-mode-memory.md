@@ -16,7 +16,8 @@ to `lib/persona-ext/`.
 
 ## David's decisions (2026-11-26)
 
-1. SFW memories cross into After Dark, opt-in, one way. Adult facts about a person never come back to SFW. Nights do
+1. SFW memories cross into After Dark, one way, **with no opt-in** (David, 2026-11-26: "We don't need a opt in for
+   this. The character should remember this"). Adult facts about a person never come back to SFW. Nights do
    carry back as PG context ("you spent the night together"): today's `adult_memories` note, which becomes an `sfw`
    episode every SFW mode can recall.
 2. Companion chats shape a character's growth from its owner's own thread only.
@@ -32,6 +33,7 @@ to `lib/persona-ext/`.
 | P0 | Embeddings and hybrid recall for companion facts, importance on each fact | **Shipped** (see below) |
 | P0b | The same for Step in's facts, on an embedding provider cleared for After Dark data | Next: needs a privacy review, adult data doesn't go to Google |
 | P1 | Shared memory with the room wall, writers, recall in the maker's companion thread, nightly chapters, owner-thread talks feeding lessons | **Shipped** (see below) |
+| P1b | Dates, texts, After Dark nights and Step in read the shared memory; Step in knows the viewer's show facts | **Shipped** (see below) |
 | P2 | Life record, field registry, persona fields with no code, MCP memory and life tools | Planned |
 | P3 | Goals, the first life room ("a day in their life"), trait growth v2 | Planned |
 | P4 | `request_feature`, the governance agent, `lib/persona-ext/`, the factory hookup | Planned |
@@ -68,3 +70,15 @@ to `lib/persona-ext/`.
 
 Not yet: dates and texts between characters reading it (they keep their own memory paths today), Step in and the
 adult room, the SFW→After Dark opt-in.
+
+## P1b as shipped (2026-11-26)
+
+- **Dates** (`lib/simulation.ts` buildDate) and **texts between characters** (`lib/texting.ts`, `lib/between-dates.ts`)
+  carry `lifeMemories`: up to 4 of the character's own older reflections and chapters, the ones about the other first,
+  in its own pair view (`what_you_remember_from_your_life`). Never its maker's companion talks (a date and a text are
+  seen by others), and never the After Dark note or lessons, which they carry their own way. Chapters never fold a
+  maker's talks, so they can't reach a date that way either.
+- **After Dark nights** (`lib/adult/scenes.ts` sceneMemories): up to 2 a side, after the night's own memories.
+- **Step in**: what the viewer told this character in their SFW companion thread (`showFactsForStepIn`, up to 6, pinned
+  and lasting kinds first) and the character's own life, always on. One way: nothing goes back.
+- Privacy notice (26 November) says all of it; the terms' date moves with it.

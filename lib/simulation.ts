@@ -25,6 +25,7 @@ import {
 import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character, type PromptLessons } from "./character";
 import { lessonsForPrompt } from "./character-lessons";
+import { lifeMemories, withRemembered } from "./character-memories";
 import type { CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
 import { leanedOnWords, loadCharacterMemory, pairMemory, pendingReflections, withPairMemory, withPendingReflections, type CharacterMemory } from "./memory";
@@ -229,6 +230,12 @@ export type DateParts = {
   lessonsA?: PromptLessons | null;
   lessonsB?: PromptLessons | null;
   /**
+   * What each side remembers of its life so far (lib/character-memories.ts lifeMemories: its older reflections and
+   * chapters, the ones about the other first; never its maker's private talks). Its own pair view only, never the engine.
+   */
+  lifeA?: string[];
+  lifeB?: string[];
+  /**
    * The season format's venue pool (lib/season-format.ts): the lobby's house dates deal from it when the season has
    * one (the island month's villa). Null/omitted deals from the whole library, exactly as before.
    */
@@ -287,6 +294,9 @@ export function assembleDate(p: DateParts): BuiltDate {
   // After Dark, only ever as its PG note (David's pick: on their public dates too).
   if (p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.afterDark.a);
   if (p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.afterDark.b);
+  // Its life so far, from every mode (lib/character-memories.ts): its own view only.
+  if (p.lifeA?.length) charA.pair = withRemembered(charA.pair ?? null, p.lifeA);
+  if (p.lifeB?.length) charB.pair = withRemembered(charB.pair ?? null, p.lifeB);
   // A side with no note still knows the one fixed fact of an overnight date that carried on (lib/overnight.ts): the
   // same slot, a template sentence, so their next date isn't written as if nothing happened. Never the engine.
   if (p.nightTogether && !p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.nightTogether);
@@ -538,6 +548,8 @@ export async function buildDate(
   const [secretsA, secretsB] = await Promise.all([secretsForDate(db, a.id).catch(() => []), secretsForDate(db, b.id).catch(() => [])]);
   // What each has learned about itself lately (lib/character-lessons.ts; null with CHARACTER_LESSONS=0): its own prompt only.
   const [lessonsA, lessonsB] = await Promise.all([lessonsForPrompt(db, a.id), lessonsForPrompt(db, b.id)]);
+  // What each remembers of its life so far (lib/character-memories.ts), the memories about the other first.
+  const [lifeA, lifeB] = await Promise.all([lifeMemories(db, a.id, b.id, b.sheet.name), lifeMemories(db, b.id, a.id, a.sheet.name)]);
   // What each thinks of the other, has heard about them and wants this week (lib/story-state.ts; null with STORY_STATE=0).
   // And the people in each one's life (lib/social/people-lines.ts; null with SOCIAL_PEOPLE_IN_PROMPTS=0): read each build,
   // never stored, the same while the network stands. Public rows only, unless the date is private (then also its host's
@@ -573,7 +585,7 @@ export async function buildDate(
     venuePool: opts.venuePool ?? null, producerPick: opts.producerPick ?? null, introduction: opts.introduction ?? null, people,
     extrasA: rowOf(a.id)?.extras ?? null, extrasB: rowOf(b.id)?.extras ?? null,
     hotTakesA: rowOf(a.id)?.hot_takes ?? null, hotTakesB: rowOf(b.id)?.hot_takes ?? null,
-    claimsA, claimsB, secretsA, secretsB, lessonsA, lessonsB, storyA, storyB,
+    claimsA, claimsB, secretsA, secretsB, lessonsA, lessonsB, lifeA, lifeB, storyA, storyB,
     overusedA, overusedB,
     thisWeekA: thisWeek(a.id, rowOf(a.id)?.this_week), thisWeekB: thisWeek(b.id, rowOf(b.id)?.this_week),
   });

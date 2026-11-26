@@ -19,6 +19,7 @@
  * conversation.
  */
 import { afterDarkNote, withAfterDark } from "./adult/memory";
+import { lifeMemories, withRemembered } from "./character-memories";
 import { textedLinks } from "./inbox";
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { activeNudge, alsoSeeing, buildTextMessages, dayOf, insertText, NUDGE_MAX, SHOW_THREAD_CHARS, threadFor, type TextVia } from "./between-dates";
@@ -195,7 +196,7 @@ async function houseReply(db: Db, p: Pair, creatorId: string, ownModel: Model | 
   const chain = await loadChain(db, p.lo, p.hi, { usableBy: creatorId });
   const names = p.mine === "lo" ? [p.me.name, house.name] : [house.name, p.me.name];
   const thread = threadFor(chain, names[0], names[1], ownModel ? dateTextsBudget() : SHOW_THREAD_CHARS);
-  const messages = buildTextMessages(house, p.me, withAfterDark(pairContext(p.rel, house.id, creatorId, null), await afterDarkNote(db, house.id, p.me.id)), thread, {
+  const messages = buildTextMessages(house, p.me, withRemembered(withAfterDark(pairContext(p.rel, house.id, creatorId, null), await afterDarkNote(db, house.id, p.me.id)), await lifeMemories(db, house.id, p.me.id, p.me.name)), thread, {
     nudge: null,
     alsoSeeing: await alsoSeeing(db, house.id, p.me.id),
     open: Boolean(ownModel),
@@ -244,7 +245,7 @@ async function ownTextPrompt(db: Db, p: Pair, userId: string, hint: string, open
   const chain = await loadChain(db, p.lo, p.hi, { usableBy: userId });
   const names = p.mine === "lo" ? [p.me.name, p.them.name] : [p.them.name, p.me.name];
   const thread = threadFor(chain, names[0], names[1], open ? dateTextsBudget() : SHOW_THREAD_CHARS);
-  const messages = buildTextMessages(p.me, p.them, withAfterDark(pairContext(p.rel, p.me.id, userId, null), await afterDarkNote(db, p.me.id, p.them.id)), thread, {
+  const messages = buildTextMessages(p.me, p.them, withRemembered(withAfterDark(pairContext(p.rel, p.me.id, userId, null), await afterDarkNote(db, p.me.id, p.them.id)), await lifeMemories(db, p.me.id, p.them.id, p.them.name)), thread, {
     nudge: hint || (await activeNudge(db, p.me.id, p.them.id)),
     alsoSeeing: await alsoSeeing(db, p.me.id, p.them.id),
     open,
