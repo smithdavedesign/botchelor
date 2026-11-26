@@ -69,6 +69,8 @@ import { companionOpen } from "@/lib/companion-shared";
 import TalkButton from "@/app/companion/TalkButton";
 import { companionGuestFromCookies } from "@/lib/companion-access";
 import LearnedPanel from "./LearnedPanel";
+import LifePanel from "./LifePanel";
+import { loadFields, loadLife, proposalsOf } from "@/lib/life-record";
 import OriginalityPanel from "@/app/create/OriginalityPanel";
 import StoryPanel from "./StoryPanel";
 import TalkPanel from "./TalkPanel";
@@ -185,6 +187,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       .then((cast) => cast ?? ownSecretsCard(db, id).then((own) => (own ? { ...own, own: true } : null)))
       .catch(() => null),
   ]);
+  // Its life record (lib/life-record.ts): public entries for everyone, all of them and its field asks for its owner.
+  const lifeP = Promise.all([loadLife(db, id), loadFields(db), isOwner ? proposalsOf(db, id) : Promise.resolve([])])
+    .then(([entries, fields, asks]) => ({ entries: isOwner ? entries : entries.filter((e) => e.visibility === "public"), fields, asks }))
+    .catch(soft("character page: life record", null));
   // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
   const shownExtrasP =
     isOwner && viewerId
@@ -385,6 +391,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     inviteNow,
     peopleView,
     placesMenu,
+    life,
   ] = await Promise.all([
     firstP,
     shownExtrasP,
@@ -426,6 +433,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     // and for their owner the places to pick from. Null with SOCIAL_DECLARE=0 (or SOCIAL_TIES=0): no People tab.
     theirPeople(db, id, viewerId).catch(() => null),
     isOwner && !c.house && viewerId ? placeMenu(db, viewerId).catch(() => null) : Promise.resolve(null),
+    lifeP,
   ]);
   const week = thisWeek(c.id, c.this_week);
   // The People tab: for their owner always (to add to it), for anyone else when there's someone in it.
@@ -971,6 +979,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       </section>
 
       {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} name={c.name} pronouns={c.pronouns} />}
+
+      {life && (life.entries.length > 0 || (isOwner && !c.house)) && (
+        <LifePanel characterId={c.id} name={shortName(c.name)} owner={isOwner} entries={life.entries} fields={life.fields} asks={life.asks} />
+      )}
 
       {photos.length > 0 && (
         <section className="card profile-photos" aria-label="Photos">

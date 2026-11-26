@@ -34,7 +34,7 @@ to `lib/persona-ext/`.
 | P0b | The same for Step in's facts, on an embedding provider cleared for After Dark data | Next: needs a privacy review, adult data doesn't go to Google |
 | P1 | Shared memory with the room wall, writers, recall in the maker's companion thread, nightly chapters, owner-thread talks feeding lessons | **Shipped** (see below) |
 | P1b | Dates, texts, After Dark nights and Step in read the shared memory; Step in knows the viewer's show facts | **Shipped** (see below) |
-| P2 | Life record, field registry, persona fields with no code, MCP memory and life tools | Planned |
+| P2 | Life record, field registry, persona fields with no code, MCP memory and life tools | **Shipped** (see below) |
 | P3 | Goals, the first life room ("a day in their life"), trait growth v2 | Planned |
 | P4 | `request_feature`, the governance agent, `lib/persona-ext/`, the factory hookup | Planned |
 
@@ -82,3 +82,30 @@ adult room, the SFW→After Dark opt-in.
 - **Step in**: what the viewer told this character in their SFW companion thread (`showFactsForStepIn`, up to 6, pinned
   and lasting kinds first) and the character's own life, always on. One way: nothing goes back.
 - Privacy notice (26 November) says all of it; the terms' date moves with it.
+
+## P2 as shipped (2026-11-26)
+
+- **Life record** (`lib/life-record.ts`, shapes and built-in fields in `lib/life-record-shared.ts`): `life_entries`, one
+  row an entry, each in a field: jobs, where they studied, places lived, family, close friends, pets, skills, languages,
+  milestones, plus approved fields. Dated fields take a period ("2016–2019"). Public or private (`self`: only its own
+  prompts and its owner). Every value passes the show's text check, so it's PG with no named real people. At most 8
+  entries a field and 60 a character.
+- **Prompts:** `loadCharacter` and a date's builder read it. The character's own view has all of it
+  (`your_life_so_far`) and the public view only public entries (`life_so_far`), at most 24 lines. The engine never
+  reads it. `LIFE_RECORD=0` takes it out of prompts.
+- **Tier A, new fields with no code:** `proposeField`. The $0 rules settle most asks. Anything about links, code,
+  pictures, contact or account details, money, adult themes or the show's own rules is refused, and so is markup. An
+  ask that matches a field (same key, a near spelling, the same label) is merged into it. Otherwise the show's free
+  model reviews it as the governance agent, reading the ask as quoted data. An approved field joins `life_fields`
+  straight away, for every character, with no human in the loop (decision 3). A field is plain text forever, so
+  approving one can't add a capability. When the model can't decide, the ask stays pending and the daily job's
+  `life_fields` step reviews it. 5 asks an owner a day, 300 approved fields at most. `LIFE_FIELDS_OPEN=0` stops new
+  asks, and `retired_at` hides a field.
+- **MCP** `character_life` (2.56.0), on your own characters only: `read`, `add`, `remove`, `propose_field`, `remember`,
+  `reflect`, `log_event` (optionally a milestone too) and `recall`. Memories go into the SFW room as `agent_note`,
+  `agent_reflection` and `life_event`, 30 a character a day.
+- **Character page:** "Life so far" shows public entries to everyone. Its owner also sees private ones, adds and
+  removes entries, and sees the field asks with what governance decided (`/api/characters/[id]/life`).
+- **Deletes and export:** entries and asks go with the character and the account, and both are in the account export.
+
+Not yet: the character proposing entries in its own words (from dates or chats, P3 with goals), adult-room fields.

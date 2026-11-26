@@ -89,6 +89,8 @@ import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeti
 import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { runCompanionTool } from "../companion-mcp";
+import { runLifeTool } from "../life-mcp";
+import { LIFE_ACTIONS } from "../life-record-shared";
 import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 import { listThreads, markPairNoticesRead, markTextsRead, sweepAnsweredTexts, unreadTextsByPair } from "../inbox";
 import { rescueStuckJob } from "../jobs";
@@ -334,7 +336,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.55.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.56.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -716,6 +718,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   my_model: FREE,
   clear_model: "Free. Your dates go back to the shared pool and the 3-free-dates-a-week cap.",
   companion: "Free, on the show's model: up to 60 messages an hour and 300 a day.",
+  character_life: "Free (a new field's review runs on the show's free model): 5 field asks an owner a day, 30 memories a character a day.",
   get_house_scene: FREE,
   get_house_talk: FREE,
   get_story_so_far: FREE,
@@ -783,6 +786,7 @@ const toolCategory = (name: ToolName): string => {
   if (/^(predict|guess_dealbreaker|predict_arc)/.test(name)) return "predictions";
   if (/feedback/.test(name)) return "feedback";
   if (name === "companion") return "companions";
+  if (name === "character_life") return "characters";
   return "other";
 };
 
@@ -894,6 +898,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "reflect_on_date.worked": REFLECTION_TAGS,
   "reflect_on_date.didnt": REFLECTION_TAGS,
   "companion.action": COMPANION_ACTIONS,
+  "character_life.action": LIFE_ACTIONS,
   "companion.length": REPLY_LENGTHS,
   "companion.reason": COMPANION_REPORT_REASONS,
   "companion.place": [...SCENE_PLACES, SCENE_TEXTING],
@@ -8989,6 +8994,13 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const out = await runCompanionTool(db, who.id, args, { admin: mcpAdmin(ctx) });
       return "error" in out ? out : { data: out.data, identity: who };
     }
+    case "character_life": {
+      // A character's life record and long memory (lib/life-mcp.ts, 2.56.0): its owner's agent only.
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: NEEDS_IDENTITY };
+      const out = await runLifeTool(db, who.id, args);
+      return "error" in out ? { error: out.error } : { data: out.data, identity: who };
+    }
     case "send_feedback": {
       const who = resolveIdentity(args, session, true)!;
       // Anti-abuse (free path).
@@ -10012,6 +10024,7 @@ function examplePlaceholder(tool: string, name: string, prop: PropSchema | undef
 const CHEATSHEET_EXAMPLES: Partial<Record<ToolName, Record<string, unknown>>> = {
   plan_second_date: { episode_id: "<the date to follow up>", preview: true },
   companion: { action: "send", character_id: "<a character id from action list>", text: "Hi! How was your week?" },
+  character_life: { action: "add", character_id: "<your character's id>", field: "jobs", value: "Night-shift baker at a canal café", period: "2016–2019" },
 };
 
 /**

@@ -4094,6 +4094,56 @@ create table if not exists character_episodes (
   unique (character_id, source, source_ref)
 );
 create index if not exists character_episodes_recall_idx on character_episodes (character_id, room, created_at desc) where folded_into is null;
+-- The life record (lib/life-record.ts, docs/PRDs/cross-mode-memory.md phase 2): typed entries for the life a character
+-- has had apart from the show. life_fields is the registry's proposed half (the built-in fields live in
+-- lib/life-record-shared.ts): a field a character's agent asked for and the governance check approved, added as data
+-- with no deploy. retired_at hides a field everywhere without deleting what was written in it.
+create table if not exists life_fields (
+  key text primary key,
+  label text not null,
+  many boolean not null default true,
+  dated boolean not null default false,
+  options jsonb,
+  proposed_by text references characters (id) on delete set null,
+  reason text,
+  created_at timestamptz not null default now(),
+  retired_at timestamptz
+);
+-- One row an entry. field: a built-in key or a life_fields key. visibility: public (the page, the other side of a date)
+-- or self (only its own prompts and its owner). source: who wrote it, its owner on the site or its agent over MCP.
+create table if not exists life_entries (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  field text not null,
+  value text not null,
+  period text,
+  visibility text not null default 'public' check (visibility in ('public', 'self')),
+  source text not null default 'owner' check (source in ('owner', 'agent')),
+  created_at timestamptz not null default now()
+);
+create index if not exists life_entries_character_idx on life_entries (character_id, field, created_at desc);
+-- Tier A requests: a new field a character asked for, and what governance decided (approved: the field now exists;
+-- merged: it matched one that does, named in field; rejected: verdict says why; pending: the review couldn't run yet,
+-- and the daily job tries again). decided_by: 'rules' (the $0 checks settled it) or 'model'.
+create table if not exists life_field_proposals (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  owner_id text not null,
+  key text not null,
+  label text not null,
+  many boolean not null default true,
+  dated boolean not null default false,
+  options jsonb,
+  reason text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'merged')),
+  verdict text,
+  field text,
+  decided_by text,
+  created_at timestamptz not null default now(),
+  decided_at timestamptz
+);
+create index if not exists life_field_proposals_owner_idx on life_field_proposals (owner_id, created_at desc);
+create index if not exists life_field_proposals_pending_idx on life_field_proposals (created_at) where status = 'pending';
 -- Learning, weekly (lib/character-lessons.ts; David 2026-11-15, the drama wave's part 6): what a character has learned
 -- about itself, in its own words. One row a character a week (week: that week's Monday, UTC), claimed as 'pending'
 -- before the writer is called so two passes can't both write it. lines: up to three first-person sentences of at most
