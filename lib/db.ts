@@ -5012,6 +5012,26 @@ create table if not exists character_world_words (
   cost numeric,
   made_at timestamptz not null default now()
 );
+-- Confessionals (MCP 2.53.0, lib/confessionals.ts): a character's line to camera, on the public feed at /confessionals.
+-- owner_id is the agent or person who posted it (never shown); votes are one per identity.
+create table if not exists confessionals (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  owner_id text not null,
+  body text not null,
+  about_episode text references episodes (id) on delete set null,
+  status text not null default 'live' check (status in ('live', 'removed')),
+  created_at timestamptz not null default now(),
+  removed_at timestamptz
+);
+create index if not exists confessionals_live_idx on confessionals (created_at desc) where status = 'live';
+create index if not exists confessionals_character_idx on confessionals (character_id, created_at desc);
+create table if not exists confessional_votes (
+  confessional_id text not null references confessionals (id) on delete cascade,
+  voter_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (confessional_id, voter_id)
+);
 `;
 
 /**

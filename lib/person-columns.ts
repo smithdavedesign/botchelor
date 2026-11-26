@@ -232,6 +232,8 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "weekly_reveal_votes", column: "user_id", export: at("weekly_reveal_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "ceremony_votes", column: "user_id", export: at("ceremony_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "audition_votes", column: "voter_id", export: at("audition_votes"), delete: ROWS, move: ONE_VOTE },
+  { table: "confessionals", column: "owner_id", export: at("confessionals"), delete: ROWS, move: REASSIGN },
+  { table: "confessional_votes", column: "voter_id", export: at("confessional_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "character_ratings", column: "rater_id", export: at("character_ratings"), delete: ROWS, move: ONE_VOTE },
   { table: "character_reviews", column: "reviewer_id", export: at("character_reviews"), delete: ROWS, move: ONE_VOTE },
   { table: "line_feedback", column: "user_id", export: at("line_feedback"), delete: ROWS, move: ONE_VOTE },

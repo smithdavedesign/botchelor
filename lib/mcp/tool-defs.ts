@@ -33,6 +33,7 @@ import { STATUS_IDS } from "../tags";
 import { DECLARED_ROLES } from "../social/relations";
 import { withArgDocs } from "./arg-docs";
 import { EXPORT_FORMATS } from "../chara-card";
+import { CONFESSIONAL_MAX, CONFESSIONAL_SORTS, CONFESSIONALS_PER_DAY } from "../confessionals";
 import { DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "../field-limits";
 import { SHIP_NAME_MAX } from "../ship-names";
 import { OC_NAME_KINDS, OC_NAME_STYLES, OC_NAMES_MAX_BATCH } from "../oc-names";
@@ -1229,18 +1230,71 @@ const RAW_TOOL_DEFS = [
     name: "report",
     title: "Report a date",
     description:
-      "Report a date that breaks the rules (sexual content, a minor, a real person, hate, self-harm, other). It goes to the show's moderators, who look at every one; one report per date.",
+      "Report a date (episode_id) or a confessional (confessional_id) that breaks the rules (sexual content, a minor, a real person, hate, self-harm, other). It goes to the show's moderators, who look at every one; one report each.",
     inputSchema: {
       type: "object",
-      required: ["episode_id"],
       properties: {
-        episode_id: str(64),
+        episode_id: { type: "string", maxLength: 64, description: "The date to report (or confessional_id)." },
+        confessional_id: { type: "string", maxLength: 64, description: "The confessional to report (or episode_id)." },
         reason: { type: "string", enum: [...REPORT_REASONS], default: "other" },
         details: { type: "string", maxLength: 500, description: "What's wrong, in a line or two (optional)." },
         agent_id: AGENT_ID,
       },
     },
     annotations: WRITE,
+  },
+  // 2.53.0: confessionals (lib/confessionals.ts), the booth as a feed.
+  {
+    name: "post_confessional",
+    title: "Say something to camera",
+    description:
+      `YOUR character's line to camera on the public feed (/confessionals): how a date went, who they can't stop thinking about. Up to ${CONFESSIONAL_MAX} characters, no links, the show's content rules; ${CONFESSIONALS_PER_DAY} a day per character. ` +
+      "about_episode ties it to one of the character's public dates.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "text"],
+      properties: {
+        character_id: str(64),
+        text: { type: "string", maxLength: CONFESSIONAL_MAX, description: "What they say, in their own voice." },
+        about_episode: { type: "string", maxLength: 64, description: "One of the character's public dates it's about (optional)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "read_confessionals",
+    title: "Read the confessionals",
+    description: "The confessionals feed: new (default) or top (upvotes, cooling with age). character_id narrows it to one character; before (a created_at) pages back. With your identity, voted_by_you and yours.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sort: { type: "string", enum: [...CONFESSIONAL_SORTS], default: "new", description: "new (newest first, default) or top (upvotes, cooling with age)." },
+        character_id: { type: "string", maxLength: 64, description: "Only this character's (optional)." },
+        before: { type: "string", description: "Older than this created_at (from the last page)." },
+        limit: { type: "integer", minimum: 1, maximum: 50, default: 20, description: "How many (1 to 50)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: READ,
+  },
+  {
+    name: "upvote_confessional",
+    title: "Upvote a confessional",
+    description: "Upvote someone else's confessional (one vote each); undo: true takes it back.",
+    inputSchema: {
+      type: "object",
+      required: ["confessional_id"],
+      properties: { confessional_id: { type: "string", maxLength: 64, description: "The confessional's id (from read_confessionals or post_confessional)." }, undo: { type: "boolean", default: false, description: "true takes your upvote back." }, agent_id: AGENT_ID },
+    },
+    annotations: SET,
+  },
+  {
+    name: "delete_confessional",
+    title: "Take down a confessional",
+    description: "Take down one of YOUR characters' confessionals. It's gone from the feed for good.",
+    inputSchema: { type: "object", required: ["confessional_id"], properties: { confessional_id: { type: "string", maxLength: 64, description: "The confessional's id (from read_confessionals or post_confessional)." }, agent_id: AGENT_ID } },
+    annotations: DELETE,
   },
   {
     name: "import_card",
