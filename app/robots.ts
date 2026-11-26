@@ -15,8 +15,10 @@ export const dynamic = "force-dynamic";
  * media on public pages are open too (2026-11-22 audit: Google rendered them blank), each PG only: the character
  * photos (/api/shots/…, ready only after the show's PG check, lib/show-shots.ts), the home video (/api/home-clip/…, a
  * date that aired publicly, lib/home-clip.ts), the week in review (/api/week-recap/…, the same rule for every date in
- * it, lib/week-recap.ts) and the cast intros (/api/cast-intro/…, from the approved PG portrait,
- * lib/cast-intros.ts). Account and admin pages are personal. The framework's prefetch requests (`?_rsc=`, lib/bots.ts
+ * it, lib/week-recap.ts), the cast intros (/api/cast-intro/…, from the approved PG portrait, lib/cast-intros.ts) and
+ * an episode's scene pictures (/api/date-film/<id>/scene.webp, served only while its date is aired and public,
+ * app/api/date-film/[id]/[file]/route.ts; Search Console still reported them blocked on 2026-11-26). Account and admin
+ * pages are personal. The framework's prefetch requests (`?_rsc=`, lib/bots.ts
  * RSC_PREFETCH) were half of Googlebot's crawl in 2026-11 and are never pages, so crawlers skip them.
  *
  * So are /create's pre-filled addresses (`/create?say=…`, `?name=…`, `?meet=…`: one for every character the free tools
@@ -25,7 +27,7 @@ export const dynamic = "force-dynamic";
  */
 export default function robots(): MetadataRoute.Robots {
   const base = siteUrl();
-  const allow = ["/", "/api/mcp", "/api/episodes", "/api/og/", "/api/assets/", "/api/shots/", "/api/home-clip/", "/api/week-recap/", "/api/cast-intro/"];
+  const allow = ["/", "/api/mcp", "/api/episodes", "/api/og/", "/api/assets/", "/api/shots/", "/api/home-clip/", "/api/week-recap/", "/api/cast-intro/", "/api/date-film/*/scene.webp"];
   const disallow = ["/api/", "/api/assets/*/teaser", "/account", "/admin", RSC_PREFETCH, "/create?"];
   return {
     rules: [
