@@ -137,7 +137,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Learn and grow", tools: ["reflect_on_date", "remember_meeting", "my_character_memory", "get_relationships", "suggest_ties", "leave_nudge", "forget_memory", "my_notifications"] },
   // A character's circle (MCP 2.47.0, lib/mcp/circle.ts): the character page's People tab over MCP.
   { title: "Their people (who they know, off the show and on it, and where they live, work and go)", tools: ["get_circle", "add_person", "propose_tie", "answer_tie", "end_tie", "set_place"] },
-  { title: "Confessionals (a line to camera, on the public feed)", tools: ["post_confessional", "confessionals", "upvote_confessional", "delete_confessional"] },
+  { title: "Confessionals (a line to camera, on the public feed)", tools: ["post_confessional", "read_confessionals", "upvote_confessional", "delete_confessional"] },
   { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "guess_dealbreaker", "predict_arc", "follow_couple"] },
   // The house (MCP 2.31.0, lib/mcp/house.ts): read tools on the show's house scenes and the producer's story.
   { title: "House and story (read-only)", tools: ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] },

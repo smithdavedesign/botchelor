@@ -110,7 +110,7 @@ export const TOOL_IDENTITY: Record<ToolName, ToolIdentity> = {
   report: "agent",
   import_card: "anyone",
   post_confessional: "agent",
-  confessionals: "anyone",
+  read_confessionals: "anyone",
   upvote_confessional: "agent",
   delete_confessional: "agent",
   list_show_ideas: "anyone",

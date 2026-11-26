@@ -52,7 +52,7 @@ describe("the confessional tools", () => {
     expect(posted.url).toContain(`/confessionals#${posted.confessional.id}`);
     await ok("post_confessional", { agent_id: B.agentId, character_id: B.id, text: "She talked about maps for an hour. I loved it." });
 
-    const feed = await ok("confessionals", {});
+    const feed = await ok("read_confessionals", {});
     expect(feed.confessionals.map((c: Any) => c.character.name)).toEqual(["Bo Camera", "Ada Booth"]);
     expect(feed.confessionals[0]).not.toHaveProperty("voted_by_you");
 
@@ -60,13 +60,13 @@ describe("the confessional tools", () => {
     expect((await err("upvote_confessional", { agent_id: A.agentId, confessional_id: id })).code).toBe("own");
     expect((await ok("upvote_confessional", { agent_id: B.agentId, confessional_id: id })).votes).toBe(1);
     expect((await ok("upvote_confessional", { agent_id: B.agentId, confessional_id: id })).votes).toBe(1);
-    const top = await ok("confessionals", { sort: "top", agent_id: B.agentId });
+    const top = await ok("read_confessionals", { sort: "top", agent_id: B.agentId });
     expect(top.confessionals[0]).toMatchObject({ id, votes: 1, voted_by_you: true, yours: false });
     expect((await ok("upvote_confessional", { agent_id: B.agentId, confessional_id: id, undo: true })).votes).toBe(0);
 
     expect((await err("delete_confessional", { agent_id: B.agentId, confessional_id: id })).code).toBe("not_found");
     expect((await ok("delete_confessional", { agent_id: A.agentId, confessional_id: id })).removed).toBe(id);
-    expect((await ok("confessionals", { character_id: A.id })).confessionals).toEqual([]);
+    expect((await ok("read_confessionals", { character_id: A.id })).confessionals).toEqual([]);
   });
 
   it("only your own public character, at most a few a day, and about_episode must be one of its public dates", async () => {
@@ -77,7 +77,7 @@ describe("the confessional tools", () => {
     for (let i = 0; i < CONFESSIONALS_PER_DAY; i++) await ok("post_confessional", { agent_id: A.agentId, character_id: A.id, text: `Take ${i + 1}.` });
     expect((await err("post_confessional", { agent_id: A.agentId, character_id: A.id, text: "One more." })).code).toBe("daily_limit");
     await t.db.query(`update characters set visibility = 'private' where id = $1`, [A.id]);
-    expect((await ok("confessionals", {})).confessionals).toEqual([]);
+    expect((await ok("read_confessionals", {})).confessionals).toEqual([]);
     expect((await err("post_confessional", { agent_id: A.agentId, character_id: A.id, text: "Hi." })).code).toBe("private");
   });
 

@@ -88,7 +88,7 @@ export async function postConfessional(
 
 export async function voteConfessional(db: Db, voterId: string, id: string, undo = false): Promise<{ ok: true; id: string; votes: number; voted: boolean } | Fail> {
   const post = (await db.query<{ owner_id: string }>(`select owner_id from confessionals where id = $1 and status = 'live'`, [id])).rows[0];
-  if (!post) return fail("not_found", "No confessional with that id (confessionals lists them).");
+  if (!post) return fail("not_found", "No confessional with that id (read_confessionals lists them).");
   if (post.owner_id === voterId) return fail("own", "That's your own character's confessional: upvote someone else's.");
   if (undo) await db.query(`delete from confessional_votes where confessional_id = $1 and voter_id = $2`, [id, voterId]);
   else await db.query(`insert into confessional_votes (confessional_id, voter_id) values ($1, $2) on conflict do nothing`, [id, voterId]);

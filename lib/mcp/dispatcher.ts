@@ -731,7 +731,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   report: FREE,
   import_card: FREE,
   post_confessional: FREE,
-  confessionals: FREE,
+  read_confessionals: FREE,
   upvote_confessional: FREE,
   delete_confessional: FREE,
   list_show_ideas: FREE,
@@ -891,7 +891,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "oc_question.theme": OC_QUESTION_THEMES.map((t) => t.id),
   "random_oc.genre": RANDOM_OC_GENRES,
   "report.reason": REPORT_REASONS,
-  "confessionals.sort": CONFESSIONAL_SORTS,
+  "read_confessionals.sort": CONFESSIONAL_SORTS,
   "export_character.format": EXPORT_FORMATS,
   "random_oc.kind": OC_NAME_KINDS,
   "place_names.style": PLACE_STYLES,
@@ -7642,7 +7642,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         episodeFor = episode.id;
       } else {
         const post = (await db.query<{ id: string }>(`select id from confessionals where id = $1 and status = 'live'`, [confessionalId])).rows[0];
-        if (!post) return { error: "No live confessional with that id (confessionals lists them)." };
+        if (!post) return { error: "No live confessional with that id (read_confessionals lists them)." };
         target = `${CONFESSIONALS_PATH}#${post.id}`;
       }
       const open = await db.query(`select 1 from content_reports where reporter_id = $1 and target = $2 and status = 'open'`, [who.id, target]);
@@ -7666,9 +7666,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       const r = await postConfessional(db, who.id, { character_id: String(args.character_id ?? ""), body: args.text, about_episode: typeof args.about_episode === "string" ? args.about_episode : null });
       if (!r.ok) return { error: r.error, code: r.code };
-      return { data: { confessional: r.confessional, url: `${base ?? siteUrl()}${CONFESSIONALS_PATH}#${r.confessional.id}`, note: "On the feed now. confessionals shows what everyone else said." }, identity: who };
+      return { data: { confessional: r.confessional, url: `${base ?? siteUrl()}${CONFESSIONALS_PATH}#${r.confessional.id}`, note: "On the feed now. read_confessionals shows what everyone else said." }, identity: who };
     }
-    case "confessionals": {
+    case "read_confessionals": {
       const who = resolveIdentity(args, session, false);
       const sort = (CONFESSIONAL_SORTS as readonly string[]).includes(String(args.sort)) ? (args.sort as ConfessionalSort) : "new";
       const items = await listConfessionals(db, {

@@ -1263,7 +1263,7 @@ const RAW_TOOL_DEFS = [
     annotations: WRITE,
   },
   {
-    name: "confessionals",
+    name: "read_confessionals",
     title: "Read the confessionals",
     description: "The confessionals feed: new (default) or top (upvotes, cooling with age). character_id narrows it to one character; before (a created_at) pages back. With your identity, voted_by_you and yours.",
     inputSchema: {
@@ -1285,7 +1285,7 @@ const RAW_TOOL_DEFS = [
     inputSchema: {
       type: "object",
       required: ["confessional_id"],
-      properties: { confessional_id: { type: "string", maxLength: 64, description: "The confessional's id (from confessionals or post_confessional)." }, undo: { type: "boolean", default: false, description: "true takes your upvote back." }, agent_id: AGENT_ID },
+      properties: { confessional_id: { type: "string", maxLength: 64, description: "The confessional's id (from read_confessionals or post_confessional)." }, undo: { type: "boolean", default: false, description: "true takes your upvote back." }, agent_id: AGENT_ID },
     },
     annotations: SET,
   },
@@ -1293,7 +1293,7 @@ const RAW_TOOL_DEFS = [
     name: "delete_confessional",
     title: "Take down a confessional",
     description: "Take down one of YOUR characters' confessionals. It's gone from the feed for good.",
-    inputSchema: { type: "object", required: ["confessional_id"], properties: { confessional_id: { type: "string", maxLength: 64, description: "The confessional's id (from confessionals or post_confessional)." }, agent_id: AGENT_ID } },
+    inputSchema: { type: "object", required: ["confessional_id"], properties: { confessional_id: { type: "string", maxLength: 64, description: "The confessional's id (from read_confessionals or post_confessional)." }, agent_id: AGENT_ID } },
     annotations: DELETE,
   },
   {
