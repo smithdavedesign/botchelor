@@ -503,3 +503,53 @@ export async function startersAdminView(db: Db, now: Date = new Date()): Promise
     showing: pickStarters(pool).map((p) => ({ id: p.id, names: `${p.a.name} × ${p.b.name}`, title: p.title, pinned: p.pinned })),
   };
 }
+
+// ---------------- the season's poster (app/seasons/[slug]/opengraph-image.tsx, poster.png) ----------------
+
+export type PosterFace = { id: string; name: string; hue: number | null; portrait: string | null; house: boolean };
+
+export type SeasonPosterData = {
+  season: SeasonRef;
+  month: string;
+  phase: SeasonPagePhase;
+  def: SeasonFormatDef;
+  arc: SeasonArc | null;
+  lead: SeasonLead | null;
+  /** In season, the stored suitors still in it (left out once they leave); in preseason, the top of casting's board. */
+  faces: PosterFace[];
+  facesAre: "suitors" | "auditions";
+  places: number;
+};
+
+/**
+ * What the season's poster shows: the lead and their suitors (or, before the cast is picked on the 1st, the top of
+ * casting's board, as many as there are places). Lighter than loadSeasonLive: no starters, schedule or premiere.
+ */
+export async function loadSeasonPoster(db: Db, seasonId: string, phase: SeasonPagePhase, def: SeasonFormatDef, now: Date = new Date()): Promise<SeasonPosterData> {
+  const places = suitorPlaces(def);
+  const [lead, suitors, board] = await Promise.all([
+    seasonLead(db, seasonId).catch(() => null),
+    phase === "season" ? seasonSuitors(db, seasonId).catch(() => [] as SuitorCard[]) : null,
+    phase === "preseason" ? castingBoard(db, null, now).catch(() => null) : null,
+  ]);
+  const faces: PosterFace[] = suitors
+    ? suitors.filter((s) => s.state !== "left").map((s) => ({ id: s.id, name: s.name, hue: s.hue, portrait: s.portrait, house: s.house }))
+    : board && board.season_id === seasonId
+      ? board.auditions
+          .filter((a) => a.character_id !== lead?.id)
+          .slice(0, places)
+          .map((a) => ({ id: a.character_id, name: a.name, hue: a.hue, portrait: a.portrait, house: false }))
+      : [];
+  return {
+    season: seasonRef(seasonId),
+    month: seasonMonth(seasonId),
+    phase,
+    def,
+    arc: phase === "season" ? seasonArc(now, def) : null,
+    lead,
+    faces,
+    facesAre: suitors ? "suitors" : "auditions",
+    places,
+  };
+}
+

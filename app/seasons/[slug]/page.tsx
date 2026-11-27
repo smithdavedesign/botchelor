@@ -45,13 +45,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // next; any other (this month's classic season, or one further ahead) is the Reunion's for now, so it only says its name.
   if (seasonPagePhase(id) || Date.now() < seasonWindow(new Date(`${id}T00:00:00Z`)).end.getTime()) {
     const live = seasonPageLiveOn() ? await liveSeasonFormat(await getDb(), id).catch(() => null) : null;
-    if (live) return pageMetadata({ ...seasonLiveMeta(s, live.def, live.phase), path: s.path });
+    // The poster beside this page (opengraph-image.tsx) is its share card, not the site's.
+    if (live) return pageMetadata({ ...seasonLiveMeta(s, live.def, live.phase), path: s.path, image: null });
     return { title: `Season ${s.number}, ${s.label} · Botchelor`, robots: { index: false, follow: true } };
   }
   return pageMetadata({
     title: `Season ${s.number}, ${s.label}: the finale · Botchelor`,
     description: `Previously on Botchelor: how ${s.label} went. Every couple's season in a line, the dates to rewatch, the awards, and who stayed and who left.`,
     path: s.path,
+    image: null,
   });
 }
 
