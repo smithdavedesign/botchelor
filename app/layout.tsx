@@ -77,6 +77,7 @@ import "./ux/prompts.css";
 import "./ux/phone.css";
 // The motion kit (pass 2 of the visual pop audit): fill, rise, sheen, slide together, tilt, count-up.
 import "./ux/motion.css";
+import Spotlight from "./motion/Spotlight";
 // The show's stage past the front door (the visual pop audit, 2026-11-20): SetHero, FaceRibbon, LoopClip.
 import "./ux/stage.css";
 import "./ux/chrome.css";
@@ -266,6 +267,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           </SeasonStrip>
         )}
         <main id="main">{children}</main>
+        {/* A follow spot on the dark title bands, mouse only (app/motion/Spotlight.tsx). */}
+        <Spotlight />
         <footer className="site-footer">
           {/* The footer in the page's own column (David 2026-11-17, "keep it contained within content wrapper"): the letter
               and the show's accounts on the left, four groups beside them (columns on a wide screen, rows that fold on a

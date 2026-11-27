@@ -11,6 +11,7 @@ import { compatibilityHref, RANDOM_SHIP_TOOL_PATH, SHIP_TOOL_PATH, TOOLS_PATH } 
 import { getDb } from "@/lib/db";
 import { STAGE_LABELS } from "@/lib/relationship-stages";
 import { shipCouple, type ShipCouple } from "@/lib/ship-couple";
+import Petals from "@/app/motion/Petals";
 
 type Props = { params: Promise<{ a: string; b: string }> };
 
@@ -122,6 +123,7 @@ export default async function ShipPage({ params }: Props) {
                       Top pick
                     </span>
                   )}
+                  {i === 0 && <Petals delay={1.95} />}
                 </li>
               ))}
             </ol>
