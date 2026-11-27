@@ -8,7 +8,6 @@
  * `story` (1080×1920, a phone story). Served at /seasons/<slug>/opengraph-image and /seasons/<slug>/poster.png?format=.
  * Words stay English: a share card is read by whoever the link reaches, and a crawler sends no language.
  */
-import "server-only";
 import { ImageResponse } from "next/og";
 import { markedImageResponse, SHARE_CARD_CACHE } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";

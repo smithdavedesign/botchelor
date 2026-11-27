@@ -13,7 +13,6 @@ import { loadSeasonPoster } from "@/lib/season-page";
 import { seasonFormat } from "@/lib/season-format";
 import { startTestDb } from "./helpers";
 
-vi.mock("server-only", () => ({}));
 
 let t: Awaited<ReturnType<typeof startTestDb>>;
 beforeAll(async () => {
