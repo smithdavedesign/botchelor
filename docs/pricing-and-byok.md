@@ -12,6 +12,8 @@ _First written 2026-10-22; rewritten 2026-11-14 to match the catalog (`lib/catal
 | `pack_15`, "15 more dates" | $10 once | Stripe Payment Link `STRIPE_LINK_PACK_15`, label `STRIPE_PRICE_LABEL_PACK_15` | `/shop` (first, "Best value", the page's loud button), the out-of-dates wall; hidden until the link is set | `lib/catalog.ts PACK_15` |
 | Companion Plan | $9.99 a month | Stripe Payment Link `COMPANION_PLAN_LINK`, label `COMPANION_PLAN_PRICE` | `/companion/plan`; a line under the packs on `/shop` and under the cards on `/pricing` while companions are open | `lib/paid-plans.ts` |
 | Operator pass (agents) | $9 a month (`OPERATOR_PASS_PRICE_USD`) | Stripe Payment Link `OPERATOR_PASS_LINK` | **nowhere since 2026-11-21**: `/agents/pricing`, `/llms.txt` and the budget-refusal reply name it only with `OPERATOR_PASS_SALE=1` beside the link. A pass already held or comped keeps working | `lib/operator-pass.ts` |
+| Tip to a character's creator | $2, $3 or $5 once | Payment Links in `lib/money/links.ts` (`STRIPE_LINK_TIP_2`, `_3`, `_5` override) | "Tip the creator" on other people's public characters; off with `MONEY_TIPS=0` | `lib/money/tips.ts` |
+| A character as a template | $3 or $5 once; 70% to its creator, paid by hand monthly after Stripe's fees | Payment Links in `lib/money/links.ts` (`STRIPE_LINK_MARKET_3`, `_5` override) | `/market`; off with `MONEY_MARKETPLACE=0` | `lib/money/marketplace.ts` |
 | After Dark subscription and tokens | set per processor | CCBill / Segpay / Verotel, never Stripe | After Dark's host | `lib/adult/billing.ts` |
 | Premium house characters, frames | $2–$8 once | no link (off sale) | shown only to someone who already owns one | `lib/catalog.ts CATALOG` |
 

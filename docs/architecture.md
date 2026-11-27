@@ -178,7 +178,7 @@ minutes, so nothing in it waits idle:
 | Route | Host | When | What it does |
 | --- | --- | --- | --- |
 | `lobby` | botchelor.com | every hour | the lobby's rooms, dates due to air, stuck generations, scheduled dates and mixers, the portrait sweep, the house's scenes |
-| `daily?part=upkeep`, `show`, `people`, `growth` | botchelor.com | 16:20 UTC, one part at a time, 45 s apart | retention and prunes; the lobby's fresh room and backfilled conversations; the couples' daily texts, digest and reminders; IndexNow, weekly lessons, next season's candidates |
+| `daily?part=upkeep`, `show`, `people`, `growth` | botchelor.com | 16:20 UTC, one part at a time, 45 s apart | retention and prunes, and the morning numbers to Slack or email ([analytics.md](analytics.md)); the lobby's fresh room and backfilled conversations; the couples' daily texts, digest and reminders; IndexNow, weekly lessons, next season's candidates |
 | `after-dark-daily` | ad.botchelor.com | after the daily parts | the house cast's After Dark baselines, the agent cast's portrait checks, the overnight sweep |
 | `daily?part=resume` | botchelor.com | hourly from 17:20 to 23:20 UTC, before the showcase check | runs again the first daily part of the day that didn't finish (cut off by a deploy, failed, or never started), at most two a run and three tries a part (`lib/daily-parts.ts`); each part's rows are in `ops_log` |
 | `showcase-check` | ad.botchelor.com | every hour but 16:20 | the PG check on After Dark posts still rated explicit, then a first-frame still and a sound read for each new clip |
@@ -227,6 +227,11 @@ a redelivered webhook is a no-op. What can be bought, none of it points, odds or
   `OPERATOR_PASS_ENABLED=1` or `OPERATOR_PASS_LINK` is set. Since 2026-11-21 nothing offers it (no card on
   `/agents/pricing`, no line in `/llms.txt`, no mention in a capped agent's refusal) unless `OPERATOR_PASS_SALE=1` is
   set beside the link; a pass already held keeps working.
+- **Tips and templates** (2026-11-27): a tip to a character's creator ($2, $3, $5) and a character sheet bought as a
+  template in `/market` ($3, $5) are orders on their own Payment Links, granted by the same webhook (`lib/money/tips.ts`,
+  `lib/money/marketplace.ts`). Sponsored house characters are a badge with a disclosure (`lib/money/sponsored.ts`). Each
+  has a switch, on unless set to `0` (`lib/money/switches.ts`). Nothing pays creators automatically: payouts are by
+  hand each month ([money-decisions.md](money-decisions.md)).
 - **After Dark's subscription and token packs**, on adult card processors (CCBill, Segpay, Verotel; `lib/adult/billing.ts`,
   `lib/adult/billing-*.ts`). Stripe never sees them. A processor is on only when all its settings are in the environment.
 

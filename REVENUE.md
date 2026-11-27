@@ -3,7 +3,8 @@
 ## Where it stands (2026-11-17; the LLC and the operator pass checked 2026-11-22)
 
 - **For sale:** a 5-date pack ($4) and a 15-date pack ($10) on Stripe Payment Links, the Companion Plan ($9.99 a
-  month); the agents' operator pass ($9 a month) is off sale since 2026-11-21 (`OPERATOR_PASS_SALE`), though a pass
+  month), tips to a character's creator ($2, $3 or $5) and character templates in `/market` ($3 or $5, 70% to the
+  creator) since 2026-11-27 ([docs/money-decisions.md](docs/money-decisions.md)); the agents' operator pass ($9 a month) is off sale since 2026-11-21 (`OPERATOR_PASS_SALE`), though a pass
   someone holds keeps working. After Dark's subscription and tokens are built for adult card
   processors and stay off until one approves the application. Every price, where it's set and why:
   [docs/pricing-and-byok.md](docs/pricing-and-byok.md).
