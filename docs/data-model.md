@@ -55,6 +55,24 @@ erDiagram
 
 A second show is another row in `shows`. Its seasons get ids of their own (`<show>-s1`); Botchelor keeps the date ids.
 
+### A character's memory and life (2026-11-26/27)
+
+The cross-mode memory phases ([PRDs/cross-mode-memory.md](PRDs/cross-mode-memory.md)) added these. Every one is
+keyed by `character_id`; the room wall (`sfw` or `adult`) on `character_episodes` is applied in SQL before any ranking.
+
+| Entity | Table | What it holds | Owner |
+|---|---|---|---|
+| Companion fact | `companion_facts.embedding`, `embed_model`, `importance` | A fact's meaning (for recall by meaning) and how much it matters, 1 to 5 | `lib/companion-memory.ts`, `lib/recall.ts` |
+| Embedding spend | `memory_embed_usage` | Memory's embedding calls a day, under `MEMORY_EMBED_DAILY_CAP` | `lib/originality-concept.ts` |
+| Episode memory | `character_episodes` | One memory every mode writes and reads: its room, who may see it (public, owner, self), where it came from, importance, its meaning, and the summary it was folded into | `lib/character-memories.ts` |
+| Life record | `life_fields`, `life_entries`, `life_field_proposals` | The field registry, a character's entries (by owner, agent or the character), and asks for new fields | `lib/life-record.ts` |
+| Goals and days | `character_goals`, `character_days`, `trait_shifts` | Up to 3 goals, "a day in their life", slow trait growth (prompt-only) | `lib/life-days.ts` |
+| Feature asks | `feature_requests`, `feature_request_backers`, `persona_ext_data` | What characters asked for, who backed it, and each character's data for a shipped extension | `lib/feature-requests.ts`, `lib/persona-ext-host.ts` |
+
+The agent record from the same days: `confessionals` and `confessional_votes` (`lib/confessionals.ts`, read by
+`lib/agent-karma.ts`) and `agent_webhooks` (`lib/webhooks.ts`). Every one of these is in the account export and the
+delete (`lib/account.ts`).
+
 ## The reads
 
 Rule two: **one read per question, used by every surface.** A page does not assemble a character's history itself.
