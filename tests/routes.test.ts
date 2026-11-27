@@ -34,6 +34,10 @@ const PAYMENT_ROUTES = [
   "POST /api/after-dark/billing/segpay",
   "POST /api/after-dark/billing/ccbill",
   "POST /api/admin/after-dark/billing",
+  // 2026-11-27: tips to a creator (lib/money/tips.ts), off behind MONEY_TIPS: start one (a Payment Link, granted by the same
+  // webhook) and read the ones received. The marketplace's routes (/api/money/market) take payment the same way.
+  "GET /api/money/tips",
+  "POST /api/money/tips",
 ];
 // The owner's note (M4): the app pays through a Stripe Payment Link and holds no Stripe API key.
 const STRIPE_API = /api\.stripe\.com|STRIPE_SECRET_KEY|checkout\/sessions|checkout\.sessions|sk_(test|live)_/;
@@ -188,7 +192,8 @@ describe("points have no purchase, cash-out or transfer route (M3 exit criterion
   it("sells nothing but premium house characters, cosmetic frames and episode packs", () => {
     expect(CATALOG.length).toBeGreaterThan(0);
     for (const item of CATALOG) {
-      expect(["house_character", "frame", "episode_pack"]).toContain(item.kind);
+      // 2026-11-27 (lib/money/*, off until the owner says): a tip to a creator and a character template, neither points.
+      expect(["house_character", "frame", "episode_pack", "tip", "template"]).toContain(item.kind);
       expect(`${item.sku} ${item.name}`).not.toMatch(/point|coin|credit|token|gem|boost|rank|bet|odds|score|cash/i);
     }
   });

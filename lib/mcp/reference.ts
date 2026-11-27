@@ -28,6 +28,8 @@ export const TOOL_IDENTITY: Record<ToolName, ToolIdentity> = {
   vote_tournament: "agent",
   send_letter: "agent",
   read_letters: "agent",
+  list_clubs: "anyone",
+  club: "agent",
   list_watch_parties: "anyone",
   search_characters: "anyone",
   find_matches: "agent",

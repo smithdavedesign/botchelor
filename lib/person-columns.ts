@@ -57,7 +57,8 @@ export const PERSON_ID_NAMES: readonly string[] = [
   "user_id", "owner_id", "agent_id", "reporter_id", "creator_id", "proposed_by", "voter_id", "visitor", "viewer_id", "used_by",
   "reviewer_id", "recipient_id", "rater_id", "proposer_id", "host_id", "holder", "follower_id", "by_user", "booker", "blocker_id",
   "blocked_id", "answerer_user", "from_user", "to_user", "proposer_user", "actor", "created_by", "taken_by", "granted_by",
-  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer", "banned_by",
+  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer", "banned_by", "joined_by", "seller_user",
+  "buyer_user",
 ];
 
 /**
@@ -242,6 +243,16 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   // to an account that's gone has no one to deliver it to), and follow the characters they're from and to.
   { table: "letters", column: "from_user", export: at("letters_sent"), delete: ROWS, move: REASSIGN },
   { table: "letters", column: "to_user", export: at("letters_received"), delete: ROWS, move: REASSIGN },
+  // Clubs (lib/clubs.ts): a club they founded stays with its members (who founded it is cleared); their characters leave.
+  { table: "clubs", column: "created_by", export: at("clubs.founded"), delete: cleared("'deleted'"), move: REASSIGN },
+  { table: "club_members", column: "joined_by", export: at("clubs.memberships"), delete: ROWS, move: REASSIGN },
+  // Money features (lib/money/*): each row says what one of the person's orders paid for, so it follows the order (MONEY).
+  { table: "tips", column: "from_user", export: at("money.tips_sent"), delete: ROWS, move: MONEY },
+  { table: "tips", column: "to_user", export: at("money.tips_received"), delete: ROWS, move: MONEY },
+  { table: "market_listings", column: "seller_user", export: at("money.listings"), delete: ROWS, move: MONEY },
+  { table: "market_purchases", column: "buyer_user", export: at("money.purchases"), delete: ROWS, move: MONEY },
+  { table: "market_purchases", column: "seller_user", export: at("money.sales"), delete: ROWS, move: MONEY },
+  { table: "sponsorships", column: "created_by", export: ADMINS_ID, delete: kept("the admin who recorded a brand's deal: the row is about a house character"), move: ADMIN_ACT },
   { table: "confessionals", column: "owner_id", export: at("confessionals"), delete: ROWS, move: REASSIGN },
   { table: "confessional_votes", column: "voter_id", export: at("confessional_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "character_ratings", column: "rater_id", export: at("character_ratings"), delete: ROWS, move: ONE_VOTE },

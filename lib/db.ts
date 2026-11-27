@@ -273,6 +273,18 @@ begin
     alter table orders add constraint orders_kind_check check (kind in ('house_character', 'frame', 'episode_pack'));
   end if;
 end $$;
+-- Money features (lib/money/*, 2026-11-27): tips and marketplace templates are orders too. Replaced in place, once.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conrelid = 'orders'::regclass and conname = 'orders_kind_check'
+       and pg_get_constraintdef(oid) like '%template%'
+  ) then
+    alter table orders drop constraint if exists orders_kind_check;
+    alter table orders add constraint orders_kind_check check (kind in ('house_character', 'frame', 'episode_pack', 'tip', 'template'));
+  end if;
+end $$;
 
 -- Closing a season looks for finales aired since the last closed season (lib/seasons.ts).
 create index if not exists episodes_revealed_idx on episodes (revealed_at) where revealed_at is not null;
@@ -5280,6 +5292,74 @@ create table if not exists letters (
 create index if not exists letters_to_idx on letters (to_user, deliver_at desc);
 create index if not exists letters_from_idx on letters (from_user, sent_at desc);
 create index if not exists letters_pair_idx on letters (from_character, to_character, sent_at desc);
+-- Clubs (lib/clubs.ts, Agent World phase 3, 2026-11-27): characters band together under a name, a motto and an
+-- emoji. Public, PG, checked; members are public characters, each in a few clubs at most; the club's season race is
+-- computed from its members' public dates, so nothing is stored but who's in.
+create table if not exists clubs (
+  id text primary key,
+  name text not null,
+  motto text not null default '',
+  emoji text not null default '✨',
+  founder_character text references characters (id) on delete set null,
+  created_by text not null,
+  created_at timestamptz not null default now(),
+  closed_at timestamptz
+);
+create unique index if not exists clubs_name_idx on clubs (lower(name)) where closed_at is null;
+create table if not exists club_members (
+  club_id text not null references clubs (id) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  joined_by text not null,
+  joined_at timestamptz not null default now(),
+  primary key (club_id, character_id)
+);
+create index if not exists club_members_character_idx on club_members (character_id);
+-- Money features (lib/money/*, Agent World phase 6, 2026-11-27), built behind switches that stay off until the owner
+-- says (MONEY_TIPS, MONEY_MARKETPLACE, MONEY_SPONSORED). Every payment is an orders row (lib/payments.ts, the Stripe
+-- webhook grants it); these tables only say what a paid order was for, so whether one counts is always the order's status.
+-- Tips: a viewer's tip to a character's creator.
+create table if not exists tips (
+  order_id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  from_user text not null,
+  to_user text not null,
+  message text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists tips_character_idx on tips (character_id, created_at desc);
+create index if not exists tips_to_idx on tips (to_user);
+-- The creator marketplace: a creator lists a character's sheet as a template; a buyer's paid order gets them their own copy.
+create table if not exists market_listings (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  seller_user text not null,
+  sku text not null,
+  blurb text not null default '',
+  created_at timestamptz not null default now(),
+  delisted_at timestamptz
+);
+create unique index if not exists market_listings_live_idx on market_listings (character_id) where delisted_at is null;
+create table if not exists market_purchases (
+  order_id text primary key,
+  listing_id text not null references market_listings (id) on delete cascade,
+  buyer_user text not null,
+  seller_user text not null,
+  copy_id text references characters (id) on delete set null,
+  created_at timestamptz not null default now(),
+  claimed_at timestamptz
+);
+create index if not exists market_purchases_buyer_idx on market_purchases (buyer_user);
+-- Sponsored house characters: a brand's character on the cast for a while, always labelled as sponsored. ends_at > starts_at is checked in lib/money/sponsored.ts.
+create table if not exists sponsorships (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  brand text not null,
+  disclosure text not null,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  created_by text not null,
+  created_at timestamptz not null default now()
+);
 `;
 
 /**

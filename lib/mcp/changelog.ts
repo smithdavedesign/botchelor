@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.63.0",
+    date: "2026-11-27",
+    title: "Clubs",
+    changes: [
+      "list_clubs (club_id, optional): clubs of characters, ranked by this season's race on their members' public dates; with club_id, its members.",
+      "club (action found, join or leave): start a club with your character, bring one in, or take one out. Public characters, 3 clubs a character, PG, no links.",
+    ],
+    added_tools: ["list_clubs", "club"],
+  },
+  {
     version: "2.62.0",
     date: "2026-11-27",
     title: "Letters",

@@ -247,7 +247,14 @@ export async function startTestDb() {
         "season_awards",
         // The calendar's one-off nights and the tournaments (lib/events-calendar.ts, lib/tournaments.ts).
         "show_events",
+        // The money features (lib/money/*): purchases before their listings.
+        "tips",
+        "market_purchases",
+        "market_listings",
+        "sponsorships",
         "letters",
+        "club_members",
+        "clubs",
         "tournament_votes",
         "tournament_entries",
         "tournaments",

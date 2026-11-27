@@ -5853,6 +5853,12 @@ details.recap-toggle[open] > summary {
   background: color-mix(in srgb, var(--accent) 12%, var(--card));
   color: var(--accent-text);
 }
+/* A sponsored house character's disclosure (lib/money/sponsored.ts): plain and always readable, never dressed as a prize. */
+.badge-sponsored {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
 .wizard-open {
   margin-top: 1rem;
   padding: 0.6rem 0.75rem;
@@ -16860,3 +16866,8 @@ button.tn-side:hover:not(:disabled), .tn-side.mine { border-color: currentColor;
 .letter-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 .letter-row label { display: grid; gap: 0.25rem; flex: 1 1 12rem; }
 .letter-body textarea { width: 100%; font-family: Georgia, "Times New Roman", serif; line-height: 1.5; }
+
+/* Clubs (app/clubs, 2026-11-27). */
+.club-form { display: grid; gap: 0.6rem; }
+.club-form label { display: grid; gap: 0.25rem; }
+.club-members { list-style: none; padding: 0; margin: 0.5rem 0 1.5rem; display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }

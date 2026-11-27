@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "MALLOC_ARENA_MAX=2 next start",
     "test": "vitest run",
+    "sdk:types": "UPDATE_SDK=1 vitest run tests/sdk.test.ts -t \"match the server\"",
     "gate": "node scripts/gate.mjs",
     "e2e": "node scripts/e2e.mjs",
     "e2e:after-dark": "node scripts/e2e-after-dark.mjs",
