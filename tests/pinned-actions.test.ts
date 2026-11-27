@@ -33,7 +33,7 @@ describe("pinned action bars", () => {
     const bar = src.indexOf('<div className="wizard-actions">');
     const attest = src.lastIndexOf('<label className="check wizard-attest">', bar);
     expect(attest).toBeGreaterThan(0);
-    const barEnd = src.indexOf("</div>", src.indexOf("Create ${sheet.name", bar));
+    const barEnd = src.indexOf("</div>", src.indexOf('tr("Create {name}", { name: sheet.name })', bar));
     const why = src.indexOf('className="wizard-still wizard-why"');
     expect(why).toBeGreaterThan(bar);
     expect(why).toBeLessThan(barEnd);
