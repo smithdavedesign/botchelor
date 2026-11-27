@@ -20,7 +20,11 @@ class TimedShards extends BaseSequencer {
 
 export default defineConfig({
   resolve: {
-    alias: [{ find: /^@\//, replacement: `${root}/` }],
+    alias: [
+      { find: /^@\//, replacement: `${root}/` },
+      // Next's font loaders only exist inside its compiler (app/fonts.ts): a stub under test.
+      { find: /^next\/font\/google$/, replacement: `${root}/tests/stubs/next-font-google.ts` },
+    ],
   },
   test: {
     environment: "node",

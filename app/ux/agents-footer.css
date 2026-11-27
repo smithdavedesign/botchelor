@@ -1273,7 +1273,7 @@ button.chip-toggle.is-on {
   margin: 0 0 var(--space-2);
   padding: 0 0 0 var(--space-3);
   border-left: 3px solid var(--accent);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   line-height: 1.35;
 }
@@ -1292,7 +1292,7 @@ button.chip-toggle.is-on {
   white-space: nowrap;
 }
 .agents-numbers strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
 }
 .agents-proof-more {
@@ -1501,7 +1501,7 @@ button.chip-toggle.is-on {
   margin: 0;
 }
 .league-headline strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   line-height: 1.1;
   font-variant-numeric: tabular-nums;

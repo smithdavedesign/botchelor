@@ -1,0 +1,147 @@
+/* The finish (2026-11-27, Dave: "make the site feel like a designer's touch"): the small surfaces a visitor touches on
+   every page, set once so they all speak the show's language. Tokens only (tests/css-tokens.test.ts); colours come
+   from the theme's own tokens, so dark mode follows without a second block. */
+
+:root {
+  /* Paper grain: a faint, fixed noise over the page's paper, the way printed matter has a tooth. Dark specks at a few
+     per cent: felt on the cream paper, invisible on the night one. */
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.25 0 0 0 0 0.1 0 0 0 0 0.2 0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>");
+  /* The rose of the show, for selections and the form controls' own fill. */
+  --select-bg: color-mix(in srgb, var(--accent) 24%, transparent);
+  accent-color: var(--accent-btn);
+  scrollbar-color: color-mix(in srgb, var(--field) 70%, transparent) transparent;
+}
+
+body {
+  background-image: var(--paper-grain);
+}
+
+::selection {
+  background: var(--select-bg);
+  color: inherit;
+}
+
+/* ---------------- Type with character ---------------- */
+/* Headings break into even lines, never one word left alone; body text avoids an orphan on its last line. */
+h1,
+h2,
+h3,
+.lede,
+.kicker {
+  text-wrap: balance;
+}
+p,
+li,
+blockquote,
+figcaption {
+  text-wrap: pretty;
+}
+/* Quotation marks hang into the margin where the browser can, so a quote's words line up with the text above. */
+blockquote,
+.episode-hero-title,
+.bestline {
+  hanging-punctuation: first last;
+}
+/* Fraunces' own voice: its headings a little soft (rounder terminals), and the show's title cards (the set heroes, the
+   contestant card, an episode, the home stage) fully soft with the wonky letterforms of a TV title. */
+h1,
+h2,
+h3 {
+  font-variation-settings: "SOFT" 40;
+}
+:is(.set-hero, .contestant-card, .episode-hero, .home-open) h1 {
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+}
+/* The show's quoted titles and best lines in Fraunces' real italic (it was a slanted roman before 2026-11-27). */
+.episode-hero-title,
+.bestline {
+  font-variation-settings: "SOFT" 100;
+}
+/* Figures that sit in rows or change (meters, counts, prices, tables) keep one width, so columns line up. */
+table,
+.meter,
+.badge,
+.chip,
+.price,
+.token-pill {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- The rose seal (app/RoseSeal.tsx) ---------------- */
+/* The show's mark, stamped wherever the show seals something: a 404, a ship's top pick, the paid pack, the footer. */
+.rose-seal {
+  --seal-wax: #b5123f;
+  --seal-wax-light: #e5356b;
+  --seal-rose: #ffd6e2;
+  display: inline-block;
+  flex: none;
+  width: var(--seal-size, 3rem);
+  height: var(--seal-size, 3rem);
+  vertical-align: middle;
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--seal-wax) 35%, transparent));
+}
+.rose-seal-lg {
+  --seal-size: 5.5rem;
+}
+.rose-seal-sm {
+  --seal-size: 1.4rem;
+}
+.not-found .rose-seal {
+  display: block;
+  margin: 0 auto var(--space-3);
+  rotate: -8deg;
+}
+
+/* ---------------- Ticket stub edges ---------------- */
+/* A card that is a ticket to something (an episode, a pack of dates) gets the two half-moon notches of a torn stub: drawn on top of the card in the page's own paper colour, so the card keeps its shadow. */
+.ticket {
+  --ticket-notch: 0.8rem;
+  --ticket-at: 62%;
+  position: relative;
+}
+.ticket::before,
+.ticket::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--ticket-at) - var(--ticket-notch));
+  width: calc(var(--ticket-notch) * 2);
+  height: calc(var(--ticket-notch) * 2);
+  /* The card's own edge colour, so the cut reads as part of its outline. */
+  border: 1px solid;
+  border-color: inherit;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 12%, transparent);
+  pointer-events: none;
+}
+.ticket::before {
+  left: calc(var(--ticket-notch) * -1 - 1px);
+  clip-path: inset(0 0 0 50%);
+}
+.ticket::after {
+  right: calc(var(--ticket-notch) * -1 - 1px);
+  clip-path: inset(0 50% 0 0);
+}
+/* Where the stub tears: under the paid pack's strip of venues; through the middle of an episode row. */
+.pricing-card.ticket {
+  --ticket-at: 6rem;
+}
+.episode-item.ticket {
+  --ticket-at: 50%;
+}
+/* The paid pack's seal sits on its top corner, half off the card, like a sealed envelope's. */
+.pricing-seal {
+  position: absolute;
+  top: calc(var(--space-3) * -1);
+  right: calc(var(--space-3) * -1);
+  z-index: 1;
+  rotate: 12deg;
+}
+/* Pressed just above the stamp's corner. */
+.ship-seal {
+  position: absolute;
+  right: calc(var(--space-3) - 0.5rem);
+  bottom: calc(var(--space-3) + 1.1rem);
+  --seal-size: 1.6rem;
+  rotate: 14deg;
+}

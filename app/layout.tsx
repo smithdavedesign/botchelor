@@ -77,7 +77,11 @@ import "./ux/prompts.css";
 import "./ux/phone.css";
 // The motion kit (pass 2 of the visual pop audit): fill, rise, sheen, slide together, tilt, count-up.
 import "./ux/motion.css";
+import "./ux/finish.css";
 import Spotlight from "./motion/Spotlight";
+import NightBar from "./motion/NightBar";
+import { fontVariables } from "./fonts";
+import RoseSeal from "./RoseSeal";
 // The show's stage past the front door (the visual pop audit, 2026-11-20): SetHero, FaceRibbon, LoopClip.
 import "./ux/stage.css";
 import "./ux/chrome.css";
@@ -213,7 +217,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const t = tFor(locale);
 
   return (
-    <html lang={HTML_LANG[locale]} data-theme={themeAttribute(theme)}>
+    <html lang={HTML_LANG[locale]} data-theme={themeAttribute(theme)} className={fontVariables}>
       <head>
         {google && (
           <>
@@ -269,6 +273,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <main id="main">{children}</main>
         {/* A follow spot on the dark title bands, mouse only (app/motion/Spotlight.tsx). */}
         <Spotlight />
+        {/* The browser bar in the night colour while a theater is open (app/motion/NightBar.tsx). */}
+        <NightBar />
         <footer className="site-footer">
           {/* The footer in the page's own column (David 2026-11-17, "keep it contained within content wrapper"): the letter
               and the show's accounts on the left, four groups beside them (columns on a wide screen, rows that fold on a
@@ -337,6 +343,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <p className="footer-adults">{t("Every character is a fictional adult (18+), and every episode is written by an AI model.")}</p>
           <CrisisResources t={t} />
           <p className="footer-legal">
+            {/* The show's seal signs the page (app/RoseSeal.tsx); not on After Dark's host, which has its own night mark. */}
+            {!adHost && <RoseSeal size="sm" />}
             {t("Adults (18+) only")} · {t("No real people")} · {adHost ? "Every character is AI-generated fiction" : t("Points are free and can't be bought")} · © {new Date().getUTCFullYear()} {OPERATOR}
             {/* Never the address whole in the markup, where Cloudflare's email obfuscation would rewrite it (app/SupportEmail.tsx). */}
             {support && (

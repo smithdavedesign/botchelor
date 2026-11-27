@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./ux/finish.css";
+import RoseSeal from "./RoseSeal";
+import { fontVariables } from "./fonts";
 
 export const metadata: Metadata = {
   title: "Not found · Botchelor",
@@ -18,7 +21,7 @@ export const metadata: Metadata = {
  */
 export default function GlobalNotFound() {
   return (
-    <html lang="en">
+    <html lang="en" className={fontVariables}>
       <body>
         <header className="site-header">
           <a href="/" className="logo">
@@ -27,6 +30,7 @@ export default function GlobalNotFound() {
         </header>
         <main id="main">
           <article className="not-found">
+            <RoseSeal size="lg" />
             <p className="kicker">404</p>
             <h1>This page isn&apos;t on the show</h1>
             <p className="muted">The link may be old, or what it pointed to is private or gone.</p>

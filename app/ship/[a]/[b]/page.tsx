@@ -12,6 +12,7 @@ import { getDb } from "@/lib/db";
 import { STAGE_LABELS } from "@/lib/relationship-stages";
 import { shipCouple, type ShipCouple } from "@/lib/ship-couple";
 import Petals from "@/app/motion/Petals";
+import RoseSeal from "@/app/RoseSeal";
 
 type Props = { params: Promise<{ a: string; b: string }> };
 
@@ -123,6 +124,8 @@ export default async function ShipPage({ params }: Props) {
                       Top pick
                     </span>
                   )}
+                  {/* The show's seal pressed beside the stamp (app/RoseSeal.tsx). */}
+                  {i === 0 && <RoseSeal size="sm" className="ship-seal" />}
                   {i === 0 && <Petals delay={1.95} />}
                 </li>
               ))}

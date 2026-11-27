@@ -284,7 +284,7 @@
 }
 .age-gate-card p.age-gate-pair-title {
   margin: var(--space-1) 0 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   color: var(--ink);
 }

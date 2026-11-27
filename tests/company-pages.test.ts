@@ -246,7 +246,7 @@ describe("the company pages", () => {
     // Two cards: Free, then More dates with both packs as lines in it. One loud button on the whole page.
     expect([...grid().matchAll(/<li class="(pricing-card[^"]*)" id="([a-z-]+)"/g)].map((m) => `${m[2]}: ${m[1]}`)).toEqual([
       "free: pricing-card rise-in",
-      "pack: pricing-card pricing-card--featured rise-in",
+      "pack: pricing-card pricing-card--featured rise-in ticket",
     ]);
     expect([...grid().matchAll(/data-pricing-pack="([a-z0-9_]+)"/g)].map((m) => m[1])).toEqual(["pack_5", "pack_15"]);
     expect(grid()).toContain('<h2>More dates</h2><p class="pricing-price">from $4 <span class="muted small">paid once</span></p>');

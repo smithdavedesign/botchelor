@@ -15,7 +15,7 @@
   color: var(--set-hero-accent);
 }
 .name {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   font-weight: 700;
   color: var(--on-photo);

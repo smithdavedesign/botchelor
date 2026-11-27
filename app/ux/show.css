@@ -217,7 +217,7 @@ ol.home-features {
 }
 .contestant .meta .contestant-name .badge {
   margin: 0;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: var(--text-2xs);
   line-height: 1.6;
   letter-spacing: normal;
@@ -367,7 +367,7 @@ ol.home-features {
 }
 .award-card .award-name {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   line-height: 1.2;
   color: var(--on-photo);
@@ -1677,7 +1677,7 @@ details.recap-toggle[open] .recap-toggle-hide {
 }
 .reveal-line {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   font-weight: 800;
   line-height: 1.15;
@@ -1788,7 +1788,7 @@ details.recap-toggle[open] .recap-toggle-hide {
   color: var(--ink);
 }
 .season-arc-name {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-weight: 800;
   font-size: var(--text-md);
 }
@@ -2007,7 +2007,7 @@ details.recap-toggle[open] .recap-toggle-hide {
 .mixer-rounds-n {
   flex: 0 0 auto;
   min-width: 1.5rem;
-  font-family: var(--font-display, "Fraunces", Georgia, serif);
+  font-family: var(--font-display, var(--font-display), Georgia, serif);
   font-weight: 800;
 }
 .mixer-rounds-pair {
