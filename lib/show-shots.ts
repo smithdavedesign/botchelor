@@ -22,6 +22,7 @@ import type { Db } from "./db";
 import { dataColumn, keepBytes, readBytes } from "./object-store";
 import { characterPortrait, HOUSE_PORTRAIT_IDS } from "./portraits";
 import { EXPRESSIONS, SHOTS, type Expression, type Shot } from "./show-shots-shared";
+import { nextSeasonStart, seasonIdOf } from "./season-window";
 import { resizedWebp } from "./thumbs";
 import { drawWithWorkersAi, workersAiBudget, workersAiConfig } from "./workers-ai";
 
@@ -174,7 +175,35 @@ type RunOpts = {
   fetchImpl?: typeof fetch;
 };
 
-/** Who gets shots first: the house cast, then whoever aired the most dates in the last two weeks (with a portrait). */
+/**
+ * Who a lead season puts on screen, this month's and next month's: the lead (the stored cast's, else the
+ * admin's pick), the stored suitors, and the top six of casting's board for the next one. The show kit's batch draws these
+ * first after the house cast, so the rose card and the poster have their shots before the season.
+ */
+async function leadSeasonCastIds(db: Db, now: Date = new Date()): Promise<string[]> {
+  const thisSeason = seasonIdOf(now);
+  const nextSeason = seasonIdOf(nextSeasonStart(now));
+  const { rows } = await db.query<{ id: string }>(
+    `select character_id as id from (
+       select s.character_id, 0 as rank, s.slot as ord from season_casts s where s.season_id = any($1::text[]) and s.source in ('lead', 'suitor') and s.withdrawn_at is null
+       union all
+       select l.character_id, 0, -1 from season_leads l where l.season_id = any($1::text[])
+       union all
+       select * from (
+         select a.character_id, 1 as rank, -(select count(*) from audition_votes v where v.season_id = a.season_id and v.character_id = a.character_id)::int as ord
+           from cast_auditions a where a.season_id = $2 and a.status in ('open', 'approved')
+          order by 3, a.created_at limit 6
+       ) top
+     ) x
+     order by rank, ord
+     limit 24`,
+    [[thisSeason, nextSeason], nextSeason],
+  );
+  return [...new Set(rows.map((r) => r.id))];
+}
+
+/** Who gets shots first: the house cast, then a lead season's cast (this month's and next's), then whoever aired the most
+ * dates in the last two weeks (with a portrait). */
 async function queue(db: Db, limit: number): Promise<string[]> {
   const { rows } = await db.query<{ id: string }>(
     `select c.id
@@ -187,7 +216,8 @@ async function queue(db: Db, limit: number): Promise<string[]> {
       limit $1`,
     [limit],
   );
-  return [...new Set([...HOUSE_PORTRAIT_IDS, ...rows.map((r) => r.id)])];
+  const season = await leadSeasonCastIds(db).catch(() => [] as string[]);
+  return [...new Set([...HOUSE_PORTRAIT_IDS, ...season, ...rows.map((r) => r.id)])];
 }
 
 /**

@@ -8,7 +8,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
  * 4:00 PM PST", which is Monday). The server renders UTC days; after the page loads the browser regroups by its local
  * day, the same way LocalTime swaps in local times.
  */
-export default function CalendarDays({ items }: { items: { id: string; at: string; node: ReactNode }[] }) {
+export default function CalendarDays({ items, locale }: { items: { id: string; at: string; node: ReactNode }[]; locale: string }) {
   // null until the page loads: the server's UTC days, so the first render matches what it sent.
   const [zone, setZone] = useState<string | null>(null);
   useEffect(() => {
@@ -17,7 +17,7 @@ export default function CalendarDays({ items }: { items: { id: string; at: strin
   const timeZone = zone ?? "UTC";
   const key = (at: string) => new Date(at).toLocaleDateString("en-CA", { timeZone });
   const label = (at: string) =>
-    new Date(at).toLocaleDateString(zone ? undefined : "en-US", { weekday: "long", month: "long", day: "numeric", timeZone });
+    new Date(at).toLocaleDateString(locale, { weekday: "long", month: "long", day: "numeric", timeZone });
   const days = new Map<string, { label: string; items: typeof items }>();
   for (const item of items) {
     const k = key(item.at);

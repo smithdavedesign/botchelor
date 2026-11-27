@@ -9,7 +9,8 @@ import { ART_STYLES } from "@/lib/art-style";
 import { sessionCookies } from "@/lib/http";
 import { characterPortrait, HOUSE_PORTRAIT_IDS } from "@/lib/portraits";
 import { checkAdultText } from "@/lib/safety";
-import { drawShowShots, EXPRESSION_LOOKS, KEEP_AGE, SHOT_ATTEMPTS, SHOT_NEURONS, shotFile, shotPrompt, shotsFor, shotSeed, SHOTS_RESERVE_NEURONS } from "@/lib/show-shots";
+import { setLeadOverride } from "@/lib/season-cast";
+import { drawShowShots, EXPRESSION_LOOKS, KEEP_AGE, SHOT_ATTEMPTS, SHOT_NEURONS, shotFile, shotPrompt, shotsFor, shotSeed, shotSource, SHOTS_RESERVE_NEURONS } from "@/lib/show-shots";
 import { EXPRESSIONS, expressionFor, expressionOfWord, faceForTurn, latestFace, SHOTS, type Shot } from "@/lib/show-shots-shared";
 import { api, BASE_URL, newUserCookie, setupEpisode, startTestDb, userIdOf, validCharacter } from "./helpers";
 
@@ -292,6 +293,33 @@ describe("drawing the shots", () => {
     expect((await rowsOf(c.id)).map((r) => [r.status, r.attempts])).toEqual([["failed", 0]]);
     // The next day it's drawn with the rest.
     expect(await drawShowShots(t.db, { characterId: c.id, baseUrl: SITE, now: NIGHT, fetchImpl: fakeWorker().fetchImpl })).toMatchObject({ drawn: 9, stopped: "done" });
+  });
+
+  it("draws a lead season's cast right after the house cast: the lead and casting's top, before whoever dated most", async () => {
+    await keys();
+    workerOn();
+    hive();
+    // The house cast already has every shot.
+    for (const id of HOUSE_PORTRAIT_IDS) {
+      const source = await shotSource(t.db, id, SITE);
+      if (!source) continue;
+      for (const shot of SHOTS)
+        await t.db.query(`insert into show_shots (id, character_id, portrait_key, style, shot, status, model) values ($1, $2, $3, $4, $5, 'ready', 'm')`, [
+          crypto.randomUUID(),
+          id,
+          source.portraitKey,
+          source.style,
+          shot,
+        ]);
+    }
+    // December's lead (the admin's pick) and a top audition, against someone with more dates this fortnight.
+    const lead = await withPortrait();
+    const auditioner = await withPortrait({ gender: "man" });
+    await setLeadOverride(t.db, "2026-12-01", lead.id);
+    await t.db.query(`insert into cast_auditions (season_id, character_id, owner_id, status) values ('2026-12-01', $1, 'owner-aud', 'open')`, [auditioner.id]);
+    const w = fakeWorker();
+    expect(await drawShowShots(t.db, { baseUrl: SITE, now: NIGHT, max: 18, fetchImpl: w.fetchImpl })).toMatchObject({ drawn: 18, characters: 2 });
+    expect(w.calls.filter((c) => c.to === "portrait").map((c) => c.url)).toEqual([`${SITE}/api/assets/${lead.assetId}`, `${SITE}/api/assets/${auditioner.assetId}`]);
   });
 
   it("shows no old faces after a new portrait or style, and draws the new ones", async () => {

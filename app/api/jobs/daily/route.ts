@@ -48,6 +48,7 @@ import { DYNAMICS_BUDGET_MS, runSocialDynamics } from "@/lib/social/dynamics";
 import { computeSocialMetrics, METRICS_BUDGET_MS } from "@/lib/social/metrics-job";
 import { settleSuggestions } from "@/lib/social/suggest";
 import { alertLowBalances } from "@/lib/spend";
+import { sendMetricsDigest } from "@/lib/metrics-digest";
 
 // A fresh template date (~10 model calls) plus a few backfilled conversations (~8 calls each).
 export const maxDuration = 300;
@@ -103,9 +104,12 @@ async function upkeep({ db, step }: Ctx): Promise<PartResult> {
   // The providers' balances read once a day (lib/spend.ts), and the admins emailed when one that doesn't top itself up
   // has under a week left at its recent pace. Billing APIs only: nothing spends.
   const lowBalances = await step("low_balances", () => alertLowBalances(db).catch(() => 0));
+  // The morning numbers (lib/metrics-digest.ts): yesterday's visitors, funnel, money and sources to Slack or email, once a
+  // UTC day. A handful of reads, no model call. METRICS_DIGEST=0: off.
+  const digest = await step("metrics_digest", () => sendMetricsDigest(db).catch(() => ({ sent: null, day: "", reason: "failed" as const })));
   return {
-    body: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances, media_deleted: media?.deleted ?? null },
-    counts: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances, media_deleted: media?.deleted ?? null, media_failed: media?.failed ?? null },
+    body: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances, media_deleted: media?.deleted ?? null, metrics_digest: digest },
+    counts: { own_dates_cleared: ownDatesCleared, low_balances: lowBalances, media_deleted: media?.deleted ?? null, media_failed: media?.failed ?? null, metrics_digest: digest.sent ?? digest.reason ?? null },
   };
 }
 

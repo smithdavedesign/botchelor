@@ -4625,7 +4625,7 @@ button.rating-chip:hover {
   /* A dark backing: pink outline on the scene alone was hard to find over a busy backdrop (2026-11-27 UX pass). */
   background: color-mix(in srgb, black 55%, transparent);
   border-color: color-mix(in srgb, white 40%, transparent);
-  color: #fff;
+  color: var(--on-photo);
 }
 .theater-transport {
   position: absolute;

@@ -168,7 +168,7 @@ export async function datePhotoFacts(db: Db, episodeId: string, viewerId: string
  * share card 8-11 s (2026-11-01 audit, R7). So every picture goes in as a small JPEG, made here a few at a time
  * (lib/thumbs.ts withResizeSlot). Null when sharp or the picture isn't there: the snapshot paints a gradient instead.
  */
-async function smallJpeg(bytes: Buffer, size: { width: number; height: number }): Promise<string | null> {
+export async function smallJpeg(bytes: Buffer, size: { width: number; height: number }): Promise<string | null> {
   try {
     const { default: sharp } = await import("sharp");
     const out = await withResizeSlot(() => sharp(bytes).resize({ ...size, fit: "cover", position: "attention" }).jpeg({ quality: 78 }).toBuffer());
@@ -191,7 +191,7 @@ async function castFile(publicPath: string): Promise<Buffer | null> {
  * of ~40 KB at the most.
  */
 const kept = new Map<string, Promise<string | null>>();
-function castJpeg(publicPath: string, size: { width: number; height: number }): Promise<string | null> {
+export function castJpeg(publicPath: string, size: { width: number; height: number }): Promise<string | null> {
   const key = `${publicPath}@${size.width}x${size.height}`;
   let made = kept.get(key);
   if (!made) {
