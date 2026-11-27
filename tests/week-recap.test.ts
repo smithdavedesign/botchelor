@@ -374,6 +374,6 @@ describe("the pages", () => {
     await expect(weekMeta()).rejects.toThrow(NOT_FOUND);
     await expect(WeekOfPage({ params: Promise.resolve({ id: THIS_WEEK() }) })).rejects.toThrow(NOT_FOUND);
     expect((await file(THIS_WEEK(), "recap.mp4")).status).toBe(404);
-    expect(readFileSync("app/watch/page.tsx", "utf8")).toContain('{weekRecapOn() && <Link href="/week">The week in review</Link>}');
+    expect(readFileSync("app/watch/page.tsx", "utf8")).toContain('{weekRecapOn() && <Link href="/week">{t("The week in review")}</Link>}');
   });
 });

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getT } from "@/lib/i18n/server";
+import { english, type T } from "@/lib/i18n/translate";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import VenuePhoto from "@/app/VenuePhoto";
@@ -70,20 +72,20 @@ export async function generateMetadata({ searchParams }: { searchParams: Search 
 }
 
 /** "in 2h 10m", "in 4 min", for a premiere's start. */
-function startsIn(iso: string | null, now: number): string {
-  if (!iso) return "soon";
+function startsIn(iso: string | null, now: number, t: T = english): string {
+  if (!iso) return t("soon");
   const mins = Math.max(1, Math.round((new Date(iso).getTime() - now) / 60_000));
-  return mins >= 60 ? `in ${Math.floor(mins / 60)}h ${mins % 60}m` : `in ${mins} min`;
+  return mins >= 60 ? t("in {h}h {m}m", { h: Math.floor(mins / 60), m: mins % 60 }) : t("in {m} min", { m: mins });
 }
 
 /** "Airs in 6 min", or "Airs any minute" once its window has closed and it's waiting for its turn on air. */
-function airsIn(iso: string, now: number): string {
+function airsIn(iso: string, now: number, t: T = english): string {
   const mins = Math.round((new Date(iso).getTime() - now) / 60_000);
-  if (mins < 1) return "Airs any minute";
-  return mins >= 60 ? `Airs in ${Math.floor(mins / 60)}h ${mins % 60}m` : `Airs in ${mins} min`;
+  if (mins < 1) return t("Airs any minute");
+  return mins >= 60 ? t("Airs in {h}h {m}m", { h: Math.floor(mins / 60), m: mins % 60 }) : t("Airs in {m} min", { m: mins });
 }
 
-function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
+function RoomCard({ room, action, t = english }: { room: LobbyEntry; action: string; t?: T }) {
   const [a, b] = room.characters;
   return (
     // "Start it" starts it (lib/watch.ts syncRoom `start`); any other way into a waiting room asks first. Not prefetched:
@@ -100,7 +102,7 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
           <span className="nowrap">{a.name} ×</span> <span className="nowrap">{b.name}</span>
         </strong>
         <span className="muted">
-          {room.kind === "template" ? "Open room" : "Premiere"} · {room.phase_label}
+          {room.kind === "template" ? t("Open room") : t("Premiere")} · {room.phase_label}
           {/* "Date 7", as every badge numbers a date (lib/rules.ts dateBadge): "SEVENTH DATE" was cut off on a phone. */}
           {room.date_number && <span className="badge watch-lobby-second">{dateBadge(room.date_number)}</span>}
         </span>
@@ -115,7 +117,7 @@ function RoomCard({ room, action }: { room: LobbyEntry; action: string }) {
 const REPLAYS_SHOWN = 12;
 
 /** One unaired date in the "Airing soon" strip: the pair, when it airs, and the call to predict it. */
-function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
+function AiringCard({ episode, now, t = english }: { episode: AiringSoon; now: number; t?: T }) {
   const [a, b] = episode.characters;
   return (
     <li>
@@ -127,9 +129,9 @@ function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
         <strong className="watch-airing-names">
           {a.name} × {b.name}
         </strong>
-        <span className="chip watch-airing-when">{airsIn(episode.airs_at, now)}</span>
+        <span className="chip watch-airing-when">{airsIn(episode.airs_at, now, t)}</span>
         <span className="watch-airing-call">
-          {episode.my_pick ? `You picked ${endingLabel(episode.my_pick, dateNumberOf(episode))}` : "Call it →"}
+          {episode.my_pick ? t("You picked {ending}", { ending: t(endingLabel(episode.my_pick, dateNumberOf(episode))) }) : `${t("Call it")} →`}
         </span>
       </Link>
     </li>
@@ -146,6 +148,8 @@ function AiringCard({ episode, now }: { episode: AiringSoon; now: number }) {
 export default async function WatchLobbyPage({ searchParams }: { searchParams: Search }) {
   const page = parsePage((await searchParams).page);
   const db = await getDb();
+  // The page in the visitor's language (docs/i18n.md): its own words; the cards and votes it holds are next.
+  const t = await getT();
   const viewerId = userIdFromCookieStore(await cookies());
   // Someone signed out sees what everyone does: from a few seconds' shared copy (lib/shared-cache.ts). What's the same
   // for everyone (the private-date count, the reunion, the week's shifts, the season's format) is shared by all.
@@ -205,11 +209,11 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           feed.map((e) => ({ name: `${e.characters[0].name} × ${e.characters[1].name}`, path: e.share_path })),
         )}
       />
-      <ShowTabs active="/watch" />
-      <h1 className="watch-title">Watch a date</h1>
+      <ShowTabs active="/watch" t={t} />
+      <h1 className="watch-title">{t("Watch a date")}</h1>
       <p className="lede watch-intro">
-        AI characters on blind dates nobody steers. Call the ending before it airs.{" "}
-        <a href="#how-it-works">How it works</a>
+        {t("AI characters on blind dates nobody steers. Call the ending before it airs.")}{" "}
+        <a href="#how-it-works">{t("How it works")}</a>
       </p>
 
       {/* 0. Airing soon: call it (the 2026-11-20 mobile audit, A1). Calling the ending is the page's promise, so the dates
@@ -217,12 +221,12 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {airing.length > 0 && (
         <section className="watch-block watch-airing-block" aria-labelledby="airing-soon">
           <h2 id="airing-soon" className="watch-block-head">
-            Airing soon: call it
+            {t("Airing soon: call it")}
           </h2>
           {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
           <ul className="watch-airing scroll-row">
             {airing.map((episode) => (
-              <AiringCard key={episode.id} episode={episode} now={now} />
+              <AiringCard key={episode.id} episode={episode} now={now} t={t} />
             ))}
           </ul>
         </section>
@@ -235,19 +239,19 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         <h2 id="on-now" className="watch-block-head">
           {live.length > 0 ? (
             <>
-              <span className="watch-dot" aria-hidden /> Live now
+              <span className="watch-dot" aria-hidden /> {t("Live now")}
             </>
           ) : featured ? (
-            "Just aired"
+            t("Just aired")
           ) : (
-            "Tonight"
+            t("Tonight")
           )}
         </h2>
         {live.length > 0 ? (
           <div className="watch-lead" id="live-now">
             <div className="watch-lobby">
               {live.map((r) => (
-                <RoomCard key={r.id} room={r} action={showCrowd(r.watching, { insider }) ? `● ${r.watching} watching` : "● Live"} />
+                <RoomCard key={r.id} room={r} t={t} action={showCrowd(r.watching, { insider }) ? `● ${t("{n} watching", { n: r.watching })}` : `● ${t("Live")}`} />
               ))}
             </div>
           </div>
@@ -285,34 +289,34 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             {/* A studio's light, switched off (the seasons page's ON AIR light, dimmed). */}
             <span className="off-air" aria-hidden="true">
               <span className="off-air-dot" />
-              Off air
+              {t("Off air")}
             </span>{" "}
-            <strong>Nothing live right now.</strong>{" "}
+            <strong>{t("Nothing live right now.")}</strong>{" "}
             <span className="muted">
               {ready.length
-                ? "Start an open room: anyone who joins in the next few minutes watches it with you."
+                ? t("Start an open room: anyone who joins in the next few minutes watches it with you.")
                 : upcoming.length
-                  ? `The next premiere starts ${startsIn(upcoming[0].starts_at, now)}.`
-                  : "A new open room is added every hour."}
+                  ? t("The next premiere starts {when}.", { when: startsIn(upcoming[0].starts_at, now, t) })
+                  : t("A new open room is added every hour.")}
             </span>
           </p>
         )}
         {ready.length > 0 && (
           <>
-            <h3 className="watch-subhead">Ready to start</h3>
-            <StripPager label="Rooms ready to start">
+            <h3 className="watch-subhead">{t("Ready to start")}</h3>
+            <StripPager label={t("Rooms ready to start")}>
               {ready.map((r) => (
-                <RoomCard key={r.id} room={r} action="Start it" />
+                <RoomCard key={r.id} room={r} t={t} action={t("Start it")} />
               ))}
             </StripPager>
           </>
         )}
         {upcoming.length > 0 && (
           <>
-            <h3 className="watch-subhead">Premieres coming up</h3>
-            <StripPager label="Premieres coming up">
+            <h3 className="watch-subhead">{t("Premieres coming up")}</h3>
+            <StripPager label={t("Premieres coming up")}>
               {upcoming.map((r) => (
-                <RoomCard key={r.id} room={r} action={`Starts ${startsIn(r.starts_at, now)}`} />
+                <RoomCard key={r.id} room={r} t={t} action={t("Starts {when}", { when: startsIn(r.starts_at, now, t) })} />
               ))}
             </StripPager>
           </>
@@ -324,7 +328,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {voting && (
         <section className="watch-block" aria-labelledby="vote-now">
           <h2 id="vote-now" className="watch-block-head">
-            Vote before it airs
+            {t("Vote before it airs")}
           </h2>
           {recoupling && recoupling.choices.length > 0 && <RecouplingCard board={recoupling} now={now} insider={insider} />}
           {/* A Botchelor season (lib/ceremony.ts): the house and Sunday's rose ceremony, where the Recoupling would sit. */}
@@ -343,7 +347,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       {/* 3. Recent: the archive, 12 a page. */}
       <section className="watch-block" id="latest" aria-labelledby="latest-head">
         <h2 id="latest-head" className="watch-block-head">
-          Recent episodes{page > 1 ? ` · page ${page}` : ""}
+          {t("Recent episodes")}{page > 1 ? ` · ${t("page {n}", { n: page })}` : ""}
         </h2>
         {listed.length ? (
           <ul className="list watch-latest-list">
@@ -352,18 +356,18 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             ))}
           </ul>
         ) : featured ? (
-          <p className="muted">The only one so far is the date at the top.</p>
+          <p className="muted">{t("The only one so far is the date at the top.")}</p>
         ) : latest.total > 0 ? (
           <p className="muted">
-            There&apos;s no page {page}: the latest episodes run to page {latest.pages}.{" "}
-            <Link href={`${pagePath(latest.pages)}#latest`}>Go to page {latest.pages}</Link>.
+            {t("There's no page {n}: the latest episodes run to page {last}.", { n: page, last: latest.pages })}{" "}
+            <Link href={`${pagePath(latest.pages)}#latest`}>{t("Go to page {n}", { n: latest.pages })}</Link>.
           </p>
         ) : (
           <p className="muted">
-            Nothing has aired yet. <Link href="/create">Send a character on a date</Link>.
+            {t("Nothing has aired yet.")} <Link href="/create">{t("Send a character on a date")}</Link>.
           </p>
         )}
-        <Pager page={page} pages={latest.pages} label="Latest episodes pages" href={(n) => `${pagePath(n)}#latest`} prev="Newer" next="Older" />
+        <Pager page={page} pages={latest.pages} label={t("Latest episodes pages")} href={(n) => `${pagePath(n)}#latest`} prev={t("Newer")} next={t("Older")} />
 
         {privateDates > 0 && (
           <p className="private-teaser private-teaser-compact">
@@ -371,9 +375,10 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
               <Icon name="lock" />
             </span>
             <span>
-              <strong>{privateDates}</strong> private {privateDates === 1 ? "date" : "dates"} this week, seen only by
-              {privateDates === 1 ? " its creators" : " their creators"}. Yours are in{" "}
-              <Link href="/account#your-dates">your dates</Link>.
+              {privateDates === 1
+                ? t("{n} private date this week, seen only by its creators.", { n: privateDates })
+                : t("{n} private dates this week, seen only by their creators.", { n: privateDates })}{" "}
+              {t("Yours are in")} <Link href="/account#your-dates">{t("your dates")}</Link>.
             </span>
           </p>
         )}
@@ -382,11 +387,11 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         {replays.length > 0 && (
           <details className="watch-replays ux-fold">
             <summary>
-              <h3>Replays</h3> <span className="muted small">{replays.length > REPLAYS_SHOWN ? `the newest ${REPLAYS_SHOWN} of ${replays.length}` : replays.length}</span>
+              <h3>{t("Replays")}</h3> <span className="muted small">{replays.length > REPLAYS_SHOWN ? t("the newest {n} of {total}", { n: REPLAYS_SHOWN, total: replays.length }) : replays.length}</span>
             </summary>
-            <StripPager label="Replays">
+            <StripPager label={t("Replays")}>
               {replays.slice(0, REPLAYS_SHOWN).map((r) => (
-                <RoomCard key={r.id} room={r} action="Replay" />
+                <RoomCard key={r.id} room={r} t={t} action={t("Replay")} />
               ))}
             </StripPager>
           </details>
@@ -394,59 +399,55 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
       </section>
 
       {/* The season's games, each on its own page now. The ids keep old links (emails, Discord posts) landing here. */}
-      <nav className="watch-elsewhere" aria-label="More from the show">
-        <span className="watch-elsewhere-head">More from the show</span>
+      <nav className="watch-elsewhere" aria-label={t("More from the show")}>
+        <span className="watch-elsewhere-head">{t("More from the show")}</span>
         {/* The words of docs/glossary.md: /reunion is "This season so far" (the Season tab), the points are a scoreboard. */}
-        <Link href="/reunion">This season so far</Link>
+        <Link href="/reunion">{t("This season so far")}</Link>
         <Link id="season-pool" href="/reunion#season-pool">
-          Season scoreboard and backing
+          {t("Season scoreboard and backing")}
         </Link>
         <Link id="cast-chat" href="/reunion#cast-chat">
-          The cast chat
+          {t("The cast chat")}
         </Link>
-        <Link href="/house">The house</Link>
+        <Link href="/house">{t("The house")}</Link>
         {/* The week's best dates in about a minute (lib/week-recap.ts): gone with its switch. */}
-        {weekRecapOn() && <Link href="/week">The week in review</Link>}
+        {weekRecapOn() && <Link href="/week">{t("The week in review")}</Link>}
         <Link id="best-callers" href="/calls#best-callers">
-          Best callers
+          {t("Best callers")}
         </Link>
         <Link id="leagues" href="/calls#leagues">
-          Leagues
+          {t("Leagues")}
         </Link>
       </nav>
       <OpenOnHash />
 
       <details className="watch-how-details ux-fold" id="how-it-works">
-        <summary>How it works</summary>
+        <summary>{t("How it works")}</summary>
         <p>
-          The audience picks the situation. Nobody steers how it ends, not even us. Watch one with the room: chat, react,
-          and call the ending before it airs.
+          {t("The audience picks the situation. Nobody steers how it ends, not even us. Watch one with the room: chat, react, and call the ending before it airs.")}
         </p>
         <ul className="watch-how">
           <li>
-            <strong>Live room.</strong> A date plays on one shared clock for everyone in the room: chat, react and vote
-            before the decision.
+            <strong>{t("Live room.")}</strong> {t("A date plays on one shared clock for everyone in the room: chat, react and vote before the decision.")}
           </li>
           <li>
-            <strong>Replay.</strong> A room that has ended, any time, in theater mode.
+            <strong>{t("Replay.")}</strong> {t("A room that has ended, any time, in theater mode.")}
           </li>
           <li>
-            <strong>Episode page.</strong> The whole date to read at your pace; predict the ending before it airs.
+            <strong>{t("Episode page.")}</strong> {t("The whole date to read at your pace; predict the ending before it airs.")}
           </li>
           <li>
-            <strong>Second date.</strong> When both characters want another, an owner books it. It&apos;s marked and
-            follows the first.
+            <strong>{t("Second date.")}</strong> {t("When both characters want another, an owner books it. It's marked and follows the first.")}
           </li>
           <li>
-            <strong>Private dates.</strong> They play out behind closed doors: you&apos;ll never see one unless it&apos;s
-            yours. Only their creators do.
+            <strong>{t("Private dates.")}</strong> {t("They play out behind closed doors: you'll never see one unless it's yours. Only their creators do.")}
           </li>
         </ul>
       </details>
 
       <p className="muted small">
-        Premiere your own date: open it from <Link href="/account#your-dates">your dates</Link> and press &ldquo;Start the
-        premiere&rdquo;. Or <Link href="/create">send a character on one</Link>.
+        {t("Premiere your own date: open it from")} <Link href="/account#your-dates">{t("your dates")}</Link>{" "}
+        {t("and press “Start the premiere”. Or")} <Link href="/create">{t("send a character on one")}</Link>.
       </p>
     </article>
   );
