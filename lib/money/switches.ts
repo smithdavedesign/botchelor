@@ -3,11 +3,11 @@
  * says"). Each feature is off unless its env var is exactly "1", read per request so turning one on needs no rebuild.
  * While a switch is off its API answers 404 and no page shows it, so nothing about it is visible on the live site.
  *
- *  - MONEY_TIPS: a viewer tips a character's creator ($1, $3 or $5, lib/money/tips.ts).
+ *  - MONEY_TIPS: a viewer tips a character's creator ($2, $3 or $5, lib/money/tips.ts).
  *  - MONEY_MARKETPLACE: a creator sells a copy of a character's sheet as a template (lib/money/marketplace.ts).
  *  - MONEY_SPONSORED: a brand's house character on the cast, labelled sponsored (lib/money/sponsored.ts).
  *
- * Turning tips or the marketplace on also needs a Payment Link per sku (STRIPE_LINK_TIP_1 and so on, lib/stripe.ts),
+ * Turning tips or the marketplace on also needs a Payment Link per sku (STRIPE_LINK_TIP_2 and so on, lib/stripe.ts),
  * and the payout question settled first (docs/money-decisions.md): the money lands in the owner's Stripe account.
  */
 type Env = Record<string, string | undefined>;

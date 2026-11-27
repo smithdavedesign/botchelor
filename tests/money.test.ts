@@ -61,7 +61,7 @@ describe("tips", () => {
     await character("house1", "house", { house: true });
     expect(await startTip(t.db, "alice", { character_id: "ada", sku: "tip_3" }, ON)).toMatchObject({ ok: false, code: "own" });
     expect(await startTip(t.db, "bob", { character_id: "house1", sku: "tip_3" }, ON)).toMatchObject({ ok: false, code: "house" });
-    expect(await startTip(t.db, "bob", { character_id: "ada", sku: "tip_1" }, ON)).toMatchObject({ ok: false, code: "unavailable" });
+    expect(await startTip(t.db, "bob", { character_id: "ada", sku: "tip_2" }, ON)).toMatchObject({ ok: false, code: "unavailable" });
     const started = await startTip(t.db, "bob", { character_id: "ada", sku: "tip_3", note: "Loved the pier date." }, ON);
     if (!started.ok) throw new Error(started.error);
     expect(started.url).toContain(`client_reference_id=${started.order_id}`);

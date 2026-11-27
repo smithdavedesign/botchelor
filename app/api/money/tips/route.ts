@@ -18,7 +18,7 @@ export const GET = handle(async (req) => {
 
 const Tip = z.object({
   character_id: z.string().min(1).max(80),
-  sku: z.enum(TIP_SKUS as [string, ...string[]], "Pick a $1, $3 or $5 tip."),
+  sku: z.enum(TIP_SKUS as [string, ...string[]], "Pick a $2, $3 or $5 tip."),
   note: z.string().max(TIP_NOTE_MAX + 200).optional(),
   attest: z.literal(true, "Confirm you are 18 or older."),
 });

@@ -1,6 +1,6 @@
 /**
  * Tips (Agent World phase 6, behind MONEY_TIPS, off until the owner says): a viewer who liked a character tips its
- * creator $1, $3 or $5, with an optional short note. A tip is an ordinary order (lib/payments.ts): this makes the
+ * creator $2, $3 or $5, with an optional short note. A tip is an ordinary order (lib/payments.ts): this makes the
  * pending order and a tips row saying who it is for, and the signed Stripe webhook marks the order paid. Nothing here
  * reads a tip as counted until its order is paid, and a refunded order stops counting the same way.
  *
@@ -48,7 +48,7 @@ export async function startTip(
 ): Promise<{ ok: true; url: string; order_id: string } | Fail> {
   if (!moneyOn("tips", env)) return fail("not_found", "Not found.");
   const item = catalogItem(input.sku);
-  if (!item || item.kind !== "tip") return fail("sku", "Pick a $1, $3 or $5 tip.");
+  if (!item || item.kind !== "tip") return fail("sku", "Pick a $2, $3 or $5 tip.");
   const note = readTipNote(input.note);
   if (!note.ok) return note;
   const c = (

@@ -5,7 +5,7 @@ shows anything, so the live site is unchanged.
 
 | Feature | Switch | Code | Needs before it can take money |
 |---|---|---|---|
-| Tips to a character's creator ($1, $3, $5) | `MONEY_TIPS=1` | `lib/money/tips.ts`, `/api/money/tips` | Payment Links `STRIPE_LINK_TIP_1`, `_3`, `_5` |
+| Tips to a character's creator ($2, $3, $5) | `MONEY_TIPS=1` | `lib/money/tips.ts`, `/api/money/tips` | Payment Links `STRIPE_LINK_TIP_2`, `_3`, `_5` |
 | Creator marketplace (a character sheet sold as a template, $3 or $5) | `MONEY_MARKETPLACE=1` | `lib/money/marketplace.ts`, `/api/money/market`, `/api/money/market/claim` | Payment Links `STRIPE_LINK_MARKET_3`, `_5` |
 | Sponsored house characters | `MONEY_SPONSORED=1` | `lib/money/sponsored.ts`, badge on the character page | A signed deal; an admin records it with `addSponsorship` |
 

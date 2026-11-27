@@ -91,7 +91,7 @@ export const PACK_15: CatalogItem = {
  * creator's character sheet sold as a template. They are catalog items so the webhook prices and grants them like any
  * order, and neither is in the shop. Each needs its own Payment Link (STRIPE_LINK_<SKU>) before it can be bought.
  */
-export const TIP_ITEMS: readonly CatalogItem[] = [1, 3, 5].map((d) => ({
+export const TIP_ITEMS: readonly CatalogItem[] = [2, 3, 5].map((d) => ({
   sku: `tip_${d}`,
   kind: "tip" as const,
   name: `A $${d} tip`,
