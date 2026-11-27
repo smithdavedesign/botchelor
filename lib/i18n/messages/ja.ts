@@ -6,7 +6,7 @@ const catalog: Catalog = {
   "client": {
     "Watch": "観る",
     "Chat": "チャット",
-    "Characters": "キャラクター",
+    "Characters": "キャラ",
     "Studio": "スタジオ",
     "Account": "アカウント",
     "Dating": "デート",

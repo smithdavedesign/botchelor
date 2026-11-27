@@ -62,7 +62,7 @@ import HomeClip from "./HomeClip";
 import { PROMO } from "@/lib/promo-videos";
 import HomeExpressBox from "./HomeExpressBox";
 import HomeOpen from "./HomeOpen";
-import { getT } from "@/lib/i18n/server";
+import { getLocale, getT } from "@/lib/i18n/server";
 import { msg } from "@/lib/i18n/translate";
 import { homeOpenOn, homePhoneClipOn, openKicker, openLine, openTonight, type OpenTonight } from "@/lib/home-open";
 
@@ -115,7 +115,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   }
   const cookieStore = await cookies();
   // The page in the visitor's language (docs/i18n.md): a first visit's page is translated; an owner's, not yet.
-  const t = await getT();
+  const [t, locale] = await Promise.all([getT(), getLocale()]);
   const viewerId = userIdFromCookieStore(cookieStore);
   const db = viewerId ? await getDb() : null;
   const conn = db ?? (await getDb());
@@ -229,7 +229,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       // The season strip under the header steps aside on this screen whenever it would say the season's arc.
       arc: openKicker(new Date(), seasonDef) !== null,
       line: openLine(onSeason, leads),
-      lede: [expressBox ? t("Describe a character in a sentence.") : t("Make a character in a minute."), casting ? castingFirstDateLine(casting, t) : t("They go on a blind date an AI writes."), t("You watch it air. Free, no sign-up.")].join(" "),
+      // Japanese runs its sentences together; every other language here puts a space between them.
+      lede: [expressBox ? t("Describe a character in a sentence.") : t("Make a character in a minute."), casting ? castingFirstDateLine(casting, t) : t("They go on a blind date an AI writes."), t("You watch it air. Free, no sign-up.")].join(locale === "ja" ? "" : " "),
       // On a phone the clip stands on the stage, playing in the first screen (HOME_PHONE_CLIP=0: under the box again).
       stage: homePhoneClipOn(),
     };
