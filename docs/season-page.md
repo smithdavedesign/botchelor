@@ -95,3 +95,10 @@ card.
 The show kit's batch (`lib/show-shots.ts`) draws a lead season's cast right after the house cast, this month's and
 next's (the lead, the stored suitors and the top six of casting's board), so the rose shot is usually there before the
 season starts. An admin can still draw one character's at any time (`/api/admin/show-shots`).
+
+## The promo cuts
+
+`GET /api/seasons/<slug>/cast` gives the poster's cast as public JSON (the lead with their rose shot, the suitors or
+casting's top, each with their bio's first sentence). `scripts/clips/season-promo.mjs` renders it on the Mac as the cast
+reveal (`video/src/CastReveal.tsx`, 9:16 and 16:9) into `~/BotchelorClips/season/<slug>/`, with a caption, and with
+`--trailer <episode_id>` makes that date's branded clip closing on the season (give it the pilot once it has aired).

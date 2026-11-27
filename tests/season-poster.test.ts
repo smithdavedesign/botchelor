@@ -3,6 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { GET as getCast } from "@/app/api/seasons/[slug]/cast/route";
 import { GET as getPoster } from "@/app/seasons/[slug]/poster.png/route";
 import { POSTER_FORMATS, seasonPoster } from "@/app/seasons/season-poster";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -103,5 +104,24 @@ describe("the season's poster", () => {
     expect((await sharp(Buffer.from(await ok.arrayBuffer())).metadata()).width).toBe(POSTER_FORMATS.ph.width);
     const no = await getPoster(new Request("https://botchelor.test/seasons/nope/poster.png"), { params: Promise.resolve({ slug: "nope" }) });
     expect(no.status).toBe(404);
+  });
+
+  it("gives the promo video the cast as JSON, each with their bio's first sentence, and turns away a month with no lead", async () => {
+    await december();
+    vi.useFakeTimers({ now: NOV28, toFake: ["Date"] });
+    const res = await getCast(new Request("https://botchelor.test/api/seasons/december-2026/cast"), { params: Promise.resolve({ slug: "december-2026" }) });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.season).toMatchObject({ month: "December", title: "The Botchelor", phase: "preseason", places: 5 });
+    expect(body.lead).toMatchObject({ id: LEAD, rose: null });
+    expect(body.lead.line.length).toBeGreaterThan(0);
+    expect(body.faces.map((f: { id: string; line: string }) => [f.id, f.line])).toEqual([
+      ["p-cy", "A suitor with a story."],
+      ["p-ana", "A suitor with a story."],
+      ["p-bo", "A suitor with a story."],
+    ]);
+    expect(body.faces_are).toBe("auditions");
+    const none = await getCast(new Request("https://botchelor.test/api/seasons/january-2027/cast"), { params: Promise.resolve({ slug: "january-2027" }) });
+    expect(none.status).toBe(404);
   });
 });

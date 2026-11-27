@@ -508,6 +508,23 @@ export async function startersAdminView(db: Db, now: Date = new Date()): Promise
 
 export type PosterFace = { id: string; name: string; hue: number | null; portrait: string | null; house: boolean };
 
+/** A face with its one line (bioLine), for the cast reveal video (GET /api/seasons/<slug>/cast). */
+export type CastFace = PosterFace & { line: string };
+
+/**
+ * The season's cast as the promo video reads it (scripts/clips/season-promo.mjs): the poster's lead and faces, each with
+ * their bio's first sentence. Public: only public characters are on the poster, and these are their public bios.
+ */
+export async function seasonCastLines(db: Db, d: SeasonPosterData): Promise<{ lead: (CastFace & { wants: string | null }) | null; faces: CastFace[] }> {
+  const ids = [...(d.lead ? [d.lead.id] : []), ...d.faces.map((f) => f.id)];
+  const { rows } = ids.length ? await db.query<{ id: string; bio: string }>(`select id, bio from characters where id = any($1::text[])`, [ids]) : { rows: [] };
+  const bio = new Map(rows.map((r) => [r.id, bioLine(r.bio ?? "", 140)]));
+  return {
+    lead: d.lead ? { id: d.lead.id, name: d.lead.name, hue: d.lead.hue, portrait: d.lead.portrait, house: d.lead.house, line: bio.get(d.lead.id) ?? "", wants: d.lead.wants } : null,
+    faces: d.faces.map((f) => ({ ...f, line: bio.get(f.id) ?? "" })),
+  };
+}
+
 export type SeasonPosterData = {
   season: SeasonRef;
   month: string;
