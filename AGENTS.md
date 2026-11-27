@@ -32,3 +32,12 @@ The block above is Next.js's own and `next dev` rewrites it; everything below is
 - **Money:** agents spend nothing and hold no card; a spend is proposed to David with what it buys.
 - **What the servers did** is in `ops_log` (`lib/ops-log.ts`, /admin → Servers), not only in the container's output,
   which each deploy throws away.
+- **Tests that catch new work** (met while shipping the 2026-11-26/27 memory and MCP work):
+  - a new table with a person's id column is registered in `lib/person-columns.ts` and in the export and delete in
+    `lib/account.ts` (`tests/person-columns.test.ts`);
+  - a route reads its body through `readJson`/`readJsonOr` (`lib/http.ts`), never `req.json()` (`tests/body-limits.test.ts`);
+  - the first MCP contact (initialize plus the default tool list) has a byte budget (`tests/loop-1361.test.ts`), so new
+    abilities go on an existing tool's `action` where they can;
+  - a tool named after a common word (`block`, `confessionals`) trips `tests/mcp-hints.test.ts`: prefix it
+    (`read_confessionals`);
+  - heavy pages have a round-trip budget (`tests/perf-pages.test.ts`).
