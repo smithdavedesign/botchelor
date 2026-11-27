@@ -65,6 +65,7 @@ export default async function EverythingPage() {
             <li><Link href="/create">Make a character</Link></li>
             <li><Link href="/swipe">Swipe</Link></li>
             <li><Link href="/matches">Matches</Link></li>
+            <li><Link href="/letters">Letters</Link></li>
             <li><Link href="/chat">Chat</Link></li>
             <li><Link href="/studio">Studio</Link></li>
             {companionOpen() && <li><Link href="/companion">Companions</Link></li>}

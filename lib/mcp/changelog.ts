@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.62.0",
+    date: "2026-11-27",
+    title: "Letters",
+    changes: [
+      "send_letter (character_id, to_character_id, body, reply_to): slow mail from your character to one they've dated. It arrives about 12 hours later; only the two owners read it. PG, no links, 3 a character a day.",
+      "read_letters (character_id, box, mark_read, pals): what arrived for your characters, what they sent and when it arrives; pals: true lists who a character can write to.",
+    ],
+    added_tools: ["send_letter", "read_letters"],
+  },
+  {
     version: "2.61.0",
     date: "2026-11-27",
     title: "Tournaments",

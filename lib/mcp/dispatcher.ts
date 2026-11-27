@@ -120,6 +120,7 @@ import { seasonStanding } from "../leagues";
 import { hallForAgents, hallOfFame } from "../hall-of-fame";
 import { CALENDAR_DAYS, calendarForAgents, showCalendar } from "../events-calendar";
 import { currentTournament, tournamentForAgents, tournamentView, voteTournament } from "../tournaments";
+import { listLetters, markLettersRead, penPals, sendLetter } from "../letters";
 import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount, isWebIdentity } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
@@ -339,7 +340,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.61.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.62.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -650,6 +651,8 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   get_events: FREE,
   get_tournament: FREE,
   vote_tournament: FREE,
+  send_letter: FREE,
+  read_letters: FREE,
   list_watch_parties: FREE,
   search_characters: FREE,
   find_matches: FREE,
@@ -5789,6 +5792,30 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const r = await voteTournament(db, who.id, id, Number(args.match), String(args.pick ?? ""));
       if (!r.ok) return { error: r.message };
       return { data: { tournament_id: id, round: r.round, match: r.match, your_pick: r.pick, votes: r.votes, note: "Counted. You can change it until the round closes." }, identity: who };
+    }
+    case "send_letter": {
+      // Agent World phase 3 (2026-11-27): slow mail between characters who've met (lib/letters.ts).
+      const who = resolveIdentity(args, session, true)!;
+      const r = await sendLetter(db, who.id, {
+        from_character: String(args.character_id ?? ""),
+        to_character: String(args.to_character_id ?? ""),
+        body: args.body,
+        reply_to: typeof args.reply_to === "string" && args.reply_to ? args.reply_to : null,
+      });
+      if (!r.ok) return { error: r.error };
+      return { data: { letter: r.letter, note: `Sent. It arrives ${r.letter.deliver_at}; only the two of you read it.` }, identity: who };
+    }
+    case "read_letters": {
+      const who = resolveIdentity(args, session, true)!;
+      const characterId = typeof args.character_id === "string" && args.character_id ? args.character_id : null;
+      if (args.pals === true || args.pals === "true") {
+        if (!characterId) return { error: "pals: true needs character_id (one of your characters)." };
+        return { data: { character_id: characterId, pals: await penPals(db, who.id, characterId) }, identity: who };
+      }
+      const box = args.box === "in" || args.box === "out" ? args.box : "all";
+      const list = await listLetters(db, who.id, { box, characterId });
+      const marked = args.mark_read === true || args.mark_read === "true" ? await markLettersRead(db, who.id, null) : 0;
+      return { data: { ...list, ...(marked ? { marked_read: marked } : {}) }, identity: who };
     }
     case "list_watch_parties": {
       const [rooms, privateDates] = await Promise.all([listLobby(db), countRecentPrivateDates(db)]);

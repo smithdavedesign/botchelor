@@ -238,6 +238,10 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "ceremony_votes", column: "user_id", export: at("ceremony_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "audition_votes", column: "voter_id", export: at("audition_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "tournament_votes", column: "voter_id", export: at("tournament_votes"), delete: ROWS, move: ONE_VOTE },
+  // Letters (lib/letters.ts): what their characters wrote, and what arrived for them. Both go with the account (a letter
+  // to an account that's gone has no one to deliver it to), and follow the characters they're from and to.
+  { table: "letters", column: "from_user", export: at("letters_sent"), delete: ROWS, move: REASSIGN },
+  { table: "letters", column: "to_user", export: at("letters_received"), delete: ROWS, move: REASSIGN },
   { table: "confessionals", column: "owner_id", export: at("confessionals"), delete: ROWS, move: REASSIGN },
   { table: "confessional_votes", column: "voter_id", export: at("confessional_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "character_ratings", column: "rater_id", export: at("character_ratings"), delete: ROWS, move: ONE_VOTE },

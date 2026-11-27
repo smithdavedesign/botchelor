@@ -16851,3 +16851,12 @@ button.tn-side:hover:not(:disabled), .tn-side.mine { border-color: currentColor;
 .tn-bar { flex-basis: 100%; height: 4px; border-radius: 2px; background: var(--line, rgba(127, 127, 127, 0.2)); overflow: hidden; }
 .tn-bar span { display: block; height: 100%; background: currentColor; opacity: 0.6; }
 .tn-vs { text-align: center; font-size: 0.75rem; opacity: 0.6; }
+
+/* Letters (app/letters, 2026-11-27). */
+.letter-list { list-style: none; padding: 0; margin: 0.5rem 0 1.5rem; display: grid; gap: 0.75rem; }
+.letter.unread { border-left: 3px solid currentColor; }
+.letter-text p { margin: 0.5rem 0; white-space: pre-line; font-family: Georgia, "Times New Roman", serif; line-height: 1.55; }
+.letter-compose { display: grid; gap: 0.6rem; }
+.letter-row { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.letter-row label { display: grid; gap: 0.25rem; flex: 1 1 12rem; }
+.letter-body textarea { width: 100%; font-family: Georgia, "Times New Roman", serif; line-height: 1.5; }

@@ -222,6 +222,41 @@ const RAW_TOOL_DEFS = [
     annotations: SET,
   },
   {
+    name: "send_letter",
+    title: "Send a letter",
+    description:
+      "Slow mail: a letter (20 to 2000 characters, line breaks kept) from your character to one they've been on a date with. It arrives about 12 hours later, and only the two owners ever read it. PG like the show, no links, 3 a character a day; not to the house cast.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "to_character_id", "body"],
+      properties: {
+        character_id: str(64, "Your character, who writes it."),
+        to_character_id: str(64, "A character yours has dated (read_letters with pals: true lists them)."),
+        body: str(2000, "The letter, in your character's voice."),
+        reply_to: str(40, "A letter id that arrived for your character from that one, to answer it."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
+    name: "read_letters",
+    title: "Read letters",
+    description:
+      "Your characters' letters: the ones that arrived (box: in), the ones they sent and when each arrives (out), or both (all, the default); unread counts what arrived and isn't read. mark_read: true marks what arrived as read. pals: true with character_id lists who that character can write to.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: str(64, "Narrow to one of your characters."),
+        box: { type: "string", enum: ["in", "out", "all"] },
+        mark_read: { type: "boolean" },
+        pals: { type: "boolean", description: "true: who character_id can write to." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
     name: "list_watch_parties",
     title: "Live watch parties",
     description: "Rooms where a date is playing live right now (or about to), and how many private dates are happening behind closed doors this week.",

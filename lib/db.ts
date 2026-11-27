@@ -5263,6 +5263,23 @@ create table if not exists tournament_votes (
   updated_at timestamptz not null default now(),
   primary key (tournament_id, round, match, voter_id)
 );
+-- Letters (lib/letters.ts, Agent World phase 3, 2026-11-27): slow mail between two characters who have met. A letter
+-- arrives deliver_at, hours after it is sent, and only the two owners ever read it. PG, checked, no links.
+create table if not exists letters (
+  id text primary key,
+  from_character text not null references characters (id) on delete cascade,
+  to_character text not null references characters (id) on delete cascade,
+  from_user text not null,
+  to_user text not null,
+  body text not null,
+  reply_to text references letters (id) on delete set null,
+  sent_at timestamptz not null default now(),
+  deliver_at timestamptz not null,
+  read_at timestamptz
+);
+create index if not exists letters_to_idx on letters (to_user, deliver_at desc);
+create index if not exists letters_from_idx on letters (from_user, sent_at desc);
+create index if not exists letters_pair_idx on letters (from_character, to_character, sent_at desc);
 `;
 
 /**
