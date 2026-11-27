@@ -25,6 +25,7 @@ import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./
 import { getCharacterHistory, type CharacterRecord } from "./game";
 import { extrasForPrompt, extrasVisible, hasExtras, publicExtras, voiceExamples, type CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
+import { lifeRecordForPrompt } from "./life-record";
 import { baseSignals, sheetSignals } from "./temperament";
 import type { PromptTexts } from "./text-chain";
 import { detectLanguage, languageName, type LanguageCode } from "./language";
@@ -61,6 +62,11 @@ export type Character = {
   extras: CharacterExtras;
   /** What's new in their life this week (lib/life.ts), or null. Public; dialogue flavour only. */
   thisWeek: string | null;
+  /**
+   * Their life record (lib/life-record.ts): `self` is all of it, for their own prompts; `public` leaves private entries
+   * out, for anyone else's. Empty when they have none. Dialogue flavour only.
+   */
+  life?: { self: Record<string, string[]>; public: Record<string, string[]> };
   /**
    * Set only on a date's characters (lib/simulation.ts): this side's view of its relationship with the person it's
    * meeting (lib/relationships.ts pairContext): where they stand, what the other has told it, their inside jokes,
@@ -231,21 +237,24 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
   );
   const r = rows[0];
   if (!r) return null;
-  const [soul, memory, history] = await Promise.all([
+  const [soul, memory, history, life] = await Promise.all([
     loadSoul(db, id),
     loadCharacterMemory(db, id),
     getCharacterHistory(db, id),
+    lifeRecordForPrompt(db, id),
   ]);
   const sheet: CharacterSheet = {
     name: r.name, age: r.age, bio: r.bio, traits: r.traits, want: r.want,
     dealbreaker: r.dealbreaker, house: r.is_house, appearance: r.appearance ?? undefined,
     pronouns: r.pronouns ?? undefined, voice: r.voice ?? undefined,
   };
-  return assembleCharacter({
+  const c = assembleCharacter({
     id: r.id, sheet, ownerId: r.owner_id, hue: r.avatar_hue, soul, memory, record: history.record, extras: r.extras,
     thisWeek: thisWeek(r.id, r.this_week),
     physical: r.look,
   });
+  if (Object.keys(life.self).length) c.life = life;
+  return c;
 }
 
 /** The minimal deterministic input the engine reads. The engine's type is unchanged. */
@@ -327,6 +336,8 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
     // Their own details: things they know about themselves and may bring up (never the other's).
     ...(Object.keys(details).length ? { details } : {}),
     ...(c.thisWeek ? { whats_new_this_week: c.thisWeek } : {}),
+    // Their life so far (lib/life-record.ts): theirs to draw on, a little at a time, never recited as a list.
+    ...(c.life && Object.keys(c.life.self).length ? { your_life_so_far: c.life.self } : {}),
     // Opinions they really hold (living dates, lib/hot-takes.ts): theirs to argue for.
     ...(c.hotTakes?.length ? { hot_takes: c.hotTakes } : {}),
     ...languageNote(c),
@@ -350,6 +361,7 @@ export function characterPublicView(c: Character): Record<string, unknown> {
     // Public details only: Go deeper's private two (baggage, what wins them over) stay with the character (publicExtras).
     ...(hasExtras(publicExtras(c.extras)) && Object.keys(extrasForPrompt(publicExtras(c.extras))).length ? { details: extrasForPrompt(publicExtras(c.extras)) } : {}),
     ...(c.thisWeek ? { this_week: c.thisWeek } : {}),
+    ...(c.life && Object.keys(c.life.public).length ? { life_so_far: c.life.public } : {}),
   };
 }
 

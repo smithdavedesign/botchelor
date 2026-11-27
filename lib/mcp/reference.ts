@@ -124,6 +124,7 @@ export const TOOL_IDENTITY: Record<ToolName, ToolIdentity> = {
   check_originality: "anyone",
   sliding_doors: "agent",
   companion: "agent",
+  character_life: "agent",
 };
 
 export type ToolEffect = "reads" | "writes" | "sets" | "deletes";

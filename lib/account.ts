@@ -43,6 +43,9 @@ export type AccountExport = {
   character_lessons: Record<string, unknown>[];
   /** What each of their characters remembers from every mode (lib/character-memories.ts). */
   character_episodes: Record<string, unknown>[];
+  /** Their characters' life records (lib/life-record.ts) and the new fields they asked for. */
+  life_entries: Record<string, unknown>[];
+  life_field_proposals: Record<string, unknown>[];
   /** What the user told their characters to forget. */
   memory_forgets: Record<string, unknown>[];
   /** Their characters' reflections on each date (show-written or their own), by episode and character. */
@@ -334,6 +337,16 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
     character_episodes: await q(
       `select e.character_id, e.source, e.about_id, e.visibility, e.text, e.importance, e.folded_into, e.created_at from character_episodes e
          join characters c on c.id = e.character_id where c.owner_id = $1 and not c.is_house and e.room = 'sfw' order by e.created_at`,
+      [userId],
+    ),
+    life_entries: await q(
+      `select l.character_id, l.field, l.value, l.period, l.visibility, l.source, l.created_at from life_entries l
+         join characters c on c.id = l.character_id where c.owner_id = $1 and not c.is_house order by l.created_at`,
+      [userId],
+    ),
+    life_field_proposals: await q(
+      `select p.character_id, p.key, p.label, p.many, p.dated, p.options, p.reason, p.status, p.verdict, p.field, p.created_at, p.decided_at
+         from life_field_proposals p where p.owner_id = $1 order by p.created_at`,
       [userId],
     ),
     memory_forgets: await q(
@@ -782,6 +795,10 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from character_lessons where character_id = any($1)", [characterIds]);
   // Its shared memory from every mode (lib/character-memories.ts): private like the rest.
   await db.query("delete from character_episodes where character_id = any($1)", [characterIds]);
+  // Its life record and its asks for new fields (lib/life-record.ts); a field it got approved stays, no longer its.
+  await db.query("delete from life_entries where character_id = any($1)", [characterIds]);
+  await db.query("delete from life_field_proposals where character_id = any($1)", [characterIds]);
+  await db.query("update life_fields set proposed_by = null where proposed_by = any($1)", [characterIds]);
   // Their texts between dates and any notes about them (lib/between-dates.ts) go too; the shared episodes stay.
   await db.query("delete from couple_texts where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
@@ -1058,6 +1075,8 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("update casting_invites set used_by = null where used_by = $1");
   // Links and plans for dates that can no longer happen: a kept character has no owner to book them.
   await run("delete from date_invites where owner_id = $1");
+  // New life record fields they asked for (lib/life-record.ts), on characters already gone or not.
+  await run("delete from life_field_proposals where owner_id = $1");
   await run("delete from double_links where created_by = $1");
   await run("update double_links set taken_by = null where taken_by = $1");
   await run("delete from scheduled_dates where creator_id = $1");

@@ -31,6 +31,17 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.56.0",
+    date: "2026-11-26",
+    title: "character_life: a character's life record and long memory",
+    changes: [
+      "character_life read / add / remove: a life record for your character (jobs, where it studied, places it lived, family, close friends, pets, skills, languages, milestones), one entry at a time, public or private. Dates, texts and companion chats draw on it; the engine never reads it.",
+      "character_life propose_field: ask for a field it doesn't have. The show's governance check decides at once: approved fields exist for every character straight away, a field that already exists is merged, and anything that isn't a plain-text field about a fictional life is refused.",
+      "character_life remember / reflect / log_event / recall: keep a memory, a thought or a life event in its long memory, and recall by meaning. PG, 30 a character a day.",
+    ],
+    added_tools: ["character_life"],
+  },
+  {
     version: "2.55.0",
     date: "2026-11-26",
     title: "Webhooks: the show pushes to you instead of you polling",

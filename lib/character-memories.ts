@@ -41,7 +41,11 @@ import { meaningBonus, memoryEmbedOn } from "./recall";
 
 type Env = Record<string, string | undefined>;
 
-export const EPISODE_SOURCES = ["reflection", "after_dark_note", "lesson", "companion_talk", "chapter"] as const;
+/**
+ * agent_note, agent_reflection and life_event (P2) come from the character's own agent over MCP (lib/life-mcp.ts):
+ * something to remember, a thought about itself, and a thing that happened in its life. Its owner's words, like a fact.
+ */
+export const EPISODE_SOURCES = ["reflection", "after_dark_note", "lesson", "companion_talk", "chapter", "agent_note", "agent_reflection", "life_event"] as const;
 export type EpisodeSource = (typeof EPISODE_SOURCES)[number];
 export type EpisodeVisibility = "public" | "owner" | "self";
 

@@ -43,6 +43,7 @@ import { PLACE_KINDS, PLACE_NAMES_MAX_BATCH, PLACE_STYLES } from "../place-names
 import { TROPE_MOODS, TROPE_NAME_MAX, TROPES_MAX_BATCH } from "../relationship-tropes";
 import { RANDOM_OC_GENRES, RANDOM_OC_MAX_BATCH } from "../random-oc";
 import { OC_QUESTION_THEMES } from "../oc-questions";
+import { AGENT_MEMORY_MAX, FIELD_LABEL_MAX, FIELD_OPTION_MAX, FIELD_OPTIONS_MAX, FIELD_REASON_MAX, LIFE_ACTIONS, LIFE_PERIOD_MAX, LIFE_TOOL_DESCRIPTION, LIFE_VALUE_MAX } from "../life-record-shared";
 import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 
 /**
@@ -1685,6 +1686,35 @@ const RAW_TOOL_DEFS = [
         reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
         fact_id: str(64, "forget: the fact (an id from memory)."),
         limit: { type: "integer", minimum: 1, maximum: 50, description: "read: how many of the newest messages (default 20)." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: WRITE,
+  },
+  {
+    name: "character_life",
+    title: "Your character's life record and long memory",
+    description: LIFE_TOOL_DESCRIPTION,
+    inputSchema: {
+      type: "object",
+      required: ["action", "character_id"],
+      properties: {
+        action: { type: "string", enum: [...LIFE_ACTIONS], description: "What to do (see the description)." },
+        character_id: str(64, "One of your characters (my_status lists them)."),
+        field: str(32, "add: the field's key (read lists them), e.g. jobs."),
+        value: str(LIFE_VALUE_MAX, "add: the entry, e.g. \"Night-shift baker at a canal café\"."),
+        period: str(LIFE_PERIOD_MAX, "add (dated fields) / log_event with milestone: when, e.g. \"2016–2019\"."),
+        private: { type: "boolean", description: "add / remember: keep it to its own prompts and you (default: public)." },
+        entry_id: str(64, "remove: the entry (an id from read)."),
+        label: str(FIELD_LABEL_MAX, "propose_field: the field's name, e.g. \"Past job titles\"."),
+        many: { type: "boolean", description: "propose_field: many entries (default) or one." },
+        dated: { type: "boolean", description: "propose_field: entries can say when." },
+        options: { type: "array", maxItems: FIELD_OPTIONS_MAX, items: str(FIELD_OPTION_MAX), description: "propose_field: the only values it takes, when it's a choice." },
+        reason: str(FIELD_REASON_MAX, "propose_field: why characters need it."),
+        text: str(AGENT_MEMORY_MAX, "remember / reflect / log_event: one sentence."),
+        milestone: { type: "boolean", description: "log_event: also add it to milestones." },
+        query: str(300, "recall: what to remember about; best match first."),
+        limit: { type: "integer", minimum: 1, maximum: 20, description: "recall: how many (default 8)." },
         agent_id: AGENT_ID,
       },
     },

@@ -108,6 +108,25 @@ services:
       - key: COMPANION_OPEN
         value: "1"
         scope: RUN_AND_BUILD_TIME
+      # Cross-mode memory (docs/PRDs/cross-mode-memory.md). Each is on by default; "0" turns it off without a deploy of
+      # code. MEMORY_EPISODES: the shared memory every mode reads and writes. MEMORY_EMBED: recall by meaning (words only
+      # without it). LIFE_RECORD: the life record in prompts (the page still shows it). LIFE_FIELDS_OPEN: characters'
+      # asks for new life record fields. MEMORY_EMBED_DAILY_CAP takes a number (default 20000 embeddings a day).
+      # - key: MEMORY_EPISODES
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: MEMORY_EMBED
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: LIFE_RECORD
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: LIFE_FIELDS_OPEN
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: MEMORY_EMBED_DAILY_CAP
+      #   value: "20000"
+      #   scope: RUN_AND_BUILD_TIME
       # Writing styles (docs/writing-styles.md, 2026-11-17): the Narrated style, stories and the longer memory come with
       # the Companion Plan. Uncomment to change it without a deploy of code: "admins" = admins only again; "0" = off for
       # everyone on both sides (kept stories still read).

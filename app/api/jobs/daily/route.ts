@@ -9,6 +9,7 @@ import { pickWeeklyCastDate } from "@/lib/cast-date";
 import { sendCharacterWeeks, weeklyLifeDates } from "@/lib/character-life";
 import { runCharacterLessons } from "@/lib/character-lessons-job";
 import { consolidateMemories } from "@/lib/character-memories";
+import { governPending } from "@/lib/life-record";
 import { sendCharacterQuestions } from "@/lib/character-questions";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
@@ -256,6 +257,10 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
   const memories = await step("memory_chapters", () =>
     consolidateMemories(db, getModel(undefined, false), new Date(), { deadline: t0 + 220_000 }).catch(() => ({ characters: 0, folded: 0 })),
   );
+  // New life record fields (lib/life-record.ts, Tier A): asks the governance review couldn't settle when they came.
+  const lifeFields = await step("life_fields", () =>
+    governPending(db, getModel(undefined, false), { deadline: t0 + 225_000 }).catch(() => ({ reviewed: 0, approved: 0 })),
+  );
   // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates. The cast's After Dark baselines are made
   // on After Dark's own host, where its media is (app/api/jobs/after-dark-daily, #1009).
   const candidates = await step("season_candidates", () =>
@@ -294,7 +299,7 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
     });
   }
   return {
-    body: { indexnow, embeddings, character_lessons: lessons, memory_chapters: memories, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
+    body: { indexnow, embeddings, character_lessons: lessons, memory_chapters: memories, life_fields: lifeFields, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
     counts: {
       social_dynamics_ties: dynamics.ties,
       social_dynamics_contacts: dynamics.contacts,

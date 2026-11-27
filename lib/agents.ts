@@ -117,7 +117,7 @@ export function characterSchema(base: string = siteUrl()): Record<string, unknow
  */
 export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Start here", tools: ["my_status", "heartbeat", "rate_limits", "set_profile", "link_account"] },
-  { title: "Your character", tools: ["create_character", "update_character", "delete_character", "export_character", "import_card", "set_open_to_dates", "my_characters", "check_originality"] },
+  { title: "Your character", tools: ["create_character", "update_character", "delete_character", "export_character", "import_card", "set_open_to_dates", "my_characters", "check_originality", "character_life"] },
   {
     title: "Dates on the show's model",
     tools: ["go_on_date", "schedule_date", "double_date", "mixer", "get_episode", "my_dates", "plan_second_date", "propose_date", "answer_date_proposal", "open_afterglow", "sliding_doors", "set_date_visibility"],
