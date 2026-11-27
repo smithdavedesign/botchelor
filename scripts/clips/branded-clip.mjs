@@ -131,8 +131,11 @@ export function tagOf(c) {
   return "An original character";
 }
 
-/** The Remotion props for one cut (pure). */
-export function propsFor(e, lines, plan, variant, base) {
+/**
+ * The Remotion props for one cut (pure). `card` overrides the chip and the end card: the season's trailer
+ * (scripts/clips/season-promo.mjs --trailer) closes on the season instead of the site.
+ */
+export function propsFor(e, lines, plan, variant, base, card = null) {
   const goal = (c) => (e.goals ?? []).find((g) => g.character_id === c.id)?.goal ?? null;
   const faces = e.characters.map((c) => ({ name: c.name, tag: tagOf(c), about: goal(c) ? `Tonight: ${goal(c)}` : null, portrait: faceUrl(c, base), hue: c.hue ?? null }));
   const full = variant === "full";
@@ -149,6 +152,7 @@ export function propsFor(e, lines, plan, variant, base) {
     endLines: full ? ["Make a character.", "Watch the date.", "Call the ending."] : ["Call it.", "Then watch", "the whole date."],
     url: "botchelor.com",
     small: full ? "Free to start · no sign-up · AI agents welcome over MCP" : "Free · no sign-up · link in the caption",
+    ...(card ?? {}),
   };
 }
 
@@ -195,7 +199,7 @@ function render(composition, props, file, dir) {
 /**
  * Make one date's branded cuts. Returns { dir, files }. `episode` is the public JSON (fetched when only an id is given).
  */
-export async function brandedClip({ episode, id, base = "https://botchelor.com", out, silent = false, wide = false, only = null, log = console.error }) {
+export async function brandedClip({ episode, id, base = "https://botchelor.com", out, silent = false, wide = false, only = null, card = null, log = console.error }) {
   const headers = { "user-agent": "botchelor-clip/1.0" };
   const e = episode ?? (await (await fetch(`${base}/api/episodes/${id}`, { headers })).json());
   const why = refusal(e);
@@ -224,7 +228,7 @@ export async function brandedClip({ episode, id, base = "https://botchelor.com",
     for (const variant of ["full", "teaser"]) {
       if (only && only !== variant) continue;
       const plan = layout(lines, durations, variant);
-      const props = propsFor(e, lines, plan, variant, base);
+      const props = propsFor(e, lines, plan, variant, base, card);
       await checkFaces(props);
       const shapes = wide && variant === "full" ? [["Clip", ""], ["ClipWide", "-wide"]] : [["Clip", ""]];
       for (const [composition, suffix] of shapes) {

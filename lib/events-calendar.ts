@@ -23,6 +23,8 @@ import { GENERATE_FROM_DAY } from "./season-gen";
 import { seasonRef } from "./season-ref";
 import { nextSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
 import { premiereSlots } from "./sunday-premiere";
+// The show's fixed titles and blurbs are marked for /calendar to translate (docs/i18n.md); agents and the .ics read English.
+import { msg } from "./i18n/translate";
 import { listTournaments, tournamentView } from "./tournaments";
 
 type Env = Record<string, string | undefined>;
@@ -87,8 +89,8 @@ function seasonEvents(def: SeasonFormatDef, inSeason: Date, env: Env): ShowEvent
       show({
         id: `vote:${sunday}`,
         kind: "vote",
-        title: "Who goes home? The vote opens",
-        blurb: "Vote on which suitor the lead sends home on Sunday.",
+        title: msg("Who goes home? The vote opens"),
+        blurb: msg("Vote on which suitor the lead sends home on Sunday."),
         starts_at: ceremonyVoteOpensAt(sunday).toISOString(),
         ends_at: ceremonyRunsAt(sunday, env).toISOString(),
         path: "/reunion",
@@ -97,8 +99,8 @@ function seasonEvents(def: SeasonFormatDef, inSeason: Date, env: Env): ShowEvent
     show({
       id: `ceremony:${sunday}`,
       kind: finale ? "finale" : "ceremony",
-      title: finale ? "The final rose" : `Rose ceremony, week ${i + 1}`,
-      blurb: finale ? "The lead hands out the season's last rose." : "The lead hands out roses, and someone goes home.",
+      title: finale ? msg("The final rose") : `Rose ceremony, week ${i + 1}`,
+      blurb: finale ? msg("The lead hands out the season's last rose.") : msg("The lead hands out roses, and someone goes home."),
       starts_at: ceremonyRunsAt(sunday, env).toISOString(),
       path: "/reunion",
     });
@@ -109,21 +111,21 @@ function seasonEvents(def: SeasonFormatDef, inSeason: Date, env: Env): ShowEvent
     show({
       id: `recoupling:${night}`,
       kind: "recoupling",
-      title: last ? "The Recoupling: the season's last night" : "Recoupling night",
-      blurb: last ? "The audience decides who's in trouble, and the season ends on it." : "Couples are tested, and the audience votes on who's in trouble.",
+      title: last ? msg("The Recoupling: the season's last night") : msg("Recoupling night"),
+      blurb: last ? msg("The audience decides who's in trouble, and the season ends on it.") : msg("Couples are tested, and the audience votes on who's in trouble."),
       starts_at: nightRunsAt(night).toISOString(),
       path: "/watch",
     });
   });
   const lastNight = dayId(new Date(end.getTime() - DAY_MS));
   if (!def.lead) {
-    show({ id: `finale:${lastNight}`, kind: "finale", title: "Finale night", blurb: "The season's last dates air.", starts_at: at(lastNight, MIXER_FILL_HOUR_UTC).toISOString(), path: "/watch" });
+    show({ id: `finale:${lastNight}`, kind: "finale", title: msg("Finale night"), blurb: msg("The season's last dates air."), starts_at: at(lastNight, MIXER_FILL_HOUR_UTC).toISOString(), path: "/watch" });
   }
   show({
     id: `reunion:${ref.id}`,
     kind: "reunion",
-    title: "The Reunion",
-    blurb: "The season closes: its golden couple, its awards, and the finale page. The Hall of Fame updates.",
+    title: msg("The Reunion"),
+    blurb: msg("The season closes: its golden couple, its awards, and the finale page. The Hall of Fame updates."),
     starts_at: end.toISOString(),
     path: "/reunion",
   });
@@ -132,8 +134,8 @@ function seasonEvents(def: SeasonFormatDef, inSeason: Date, env: Env): ShowEvent
     show({
       id: `casting:${ref.id}`,
       kind: "casting",
-      title: "Casting opens for next month",
-      blurb: "The show writes next season's newcomers. See who's up, and audition your own character.",
+      title: msg("Casting opens for next month"),
+      blurb: msg("The show writes next season's newcomers. See who's up, and audition your own character."),
       starts_at: castingFrom.toISOString(),
       path: "/casting",
     });
@@ -174,7 +176,7 @@ export async function showCalendar(db: Db, now: Date = new Date(), days: number 
       id: `premiere:${p.sunday}`,
       kind: "premiere",
       title: p.kind === "pilot" ? `Pilot: meet ${p.lead.name}` : p.finale ? `Finale premiere: ${p.lead.name}'s last date` : `Sunday premiere: ${p.lead.name} on a date`,
-      blurb: p.kind === "pilot" ? `${p.format.title} starts next month. Meet its lead first.` : "A live watch party: the lead's date plays for everyone at once.",
+      blurb: p.kind === "pilot" ? `${p.format.title} starts next month. Meet its lead first.` : msg("A live watch party: the lead's date plays for everyone at once."),
       starts_at: p.at.toISOString(),
       ends_at: null,
       path: "/watch",
@@ -195,7 +197,7 @@ export async function showCalendar(db: Db, now: Date = new Date(), days: number 
         id: `tournament:${b.id}:${r.round}`,
         kind: "tournament",
         title: `${b.title}: ${r.name.toLowerCase()}`,
-        blurb: r.round === 1 ? `${b.size} characters, one bracket, and the audience votes on who goes through.` : "Voting opens on the next round of the bracket.",
+        blurb: r.round === 1 ? `${b.size} characters, one bracket, and the audience votes on who goes through.` : msg("Voting opens on the next round of the bracket."),
         starts_at: r.opens_at,
         ends_at: r.closes_at,
         path: b.path,
@@ -215,16 +217,16 @@ export async function showCalendar(db: Db, now: Date = new Date(), days: number 
     {
       id: "nightly:dates",
       kind: "special",
-      title: "Tonight's dates",
-      blurb: "New blind dates air through the evening. Call how each one ends before it airs.",
+      title: msg("Tonight's dates"),
+      blurb: msg("New blind dates air through the evening. Call how each one ends before it airs."),
       time_utc: "all evening",
       path: "/watch",
     },
     {
       id: "nightly:dare",
       kind: "vote",
-      title: "The dare vote closes",
-      blurb: "Vote on the dare the producers slip to tomorrow's house date. One vote a day.",
+      title: msg("The dare vote closes"),
+      blurb: msg("Vote on the dare the producers slip to tomorrow's house date. One vote a day."),
       time_utc: hhmm(0),
       path: "/watch",
     },
@@ -233,8 +235,8 @@ export async function showCalendar(db: Db, now: Date = new Date(), days: number 
     every_night.push({
       id: "nightly:mixer",
       kind: "speed_dating",
-      title: "Speed-dating mixer",
-      blurb: "Four to six singles in one room, paired round by round. Seat your character before it runs.",
+      title: msg("Speed-dating mixer"),
+      blurb: msg("Four to six singles in one room, paired round by round. Seat your character before it runs."),
       time_utc: hhmm(MIXER_FILL_HOUR_UTC, 20),
       path: "/matches",
     });

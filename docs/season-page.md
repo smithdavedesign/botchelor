@@ -79,3 +79,26 @@ drops out on its own.
 - /casting: a quiet "What is The Botchelor? →".
 - The sitemap lists the live lead season's page (daily); its metadata is phase-aware and indexable while live. A
   classic season not closed yet is noindex.
+
+## The poster
+
+The page's link preview is its own poster (`app/seasons/season-poster.tsx`, David 2026-11-27 for the Product Hunt
+launch): the show's stage behind, the lead holding out a rose (their show kit's rose shot, else their portrait), and the
+suitors in a row, or in preseason the top of casting's board ("Casting · top of the vote"), with the season's clock
+("Starts Tuesday, December 1", then "Night N of 31 · N days to the final rose"). Words stay English, like every share
+card.
+
+- `/seasons/<slug>/opengraph-image`: 1200×630, the preview.
+- `/seasons/<slug>/poster.png?format=og|ph|story`: the same layout as a file to post: `ph` is 1270×760 (a Product Hunt
+  gallery image), `story` 1080×1920 (a phone story).
+
+The show kit's batch (`lib/show-shots.ts`) draws a lead season's cast right after the house cast, this month's and
+next's (the lead, the stored suitors and the top six of casting's board), so the rose shot is usually there before the
+season starts. An admin can still draw one character's at any time (`/api/admin/show-shots`).
+
+## The promo cuts
+
+`GET /api/seasons/<slug>/cast` gives the poster's cast as public JSON (the lead with their rose shot, the suitors or
+casting's top, each with their bio's first sentence). `scripts/clips/season-promo.mjs` renders it on the Mac as the cast
+reveal (`video/src/CastReveal.tsx`, 9:16 and 16:9) into `~/BotchelorClips/season/<slug>/`, with a caption, and with
+`--trailer <episode_id>` makes that date's branded clip closing on the season (give it the pilot once it has aired).
