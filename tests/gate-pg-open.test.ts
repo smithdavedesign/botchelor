@@ -202,12 +202,12 @@ describe("the builder's 18+ box is the creator's attestation (POST /api/characte
   it("the builder's one box asks the person's age, and only a ticked box sends the answer", () => {
     const wizard = readFileSync(join(__dirname, "..", "app/create/CreateWizard.tsx"), "utf8");
     // Both places it's drawn: a first character's Create on top, and above the bar for everyone else.
-    const box = "<span aria-hidden>✍️ </span>I&apos;m 18 or older, and this is my own original character: a fictional adult, not a real person.";
+    const box = '<span aria-hidden>✍️ </span>{tr("I\'m 18 or older, and this is my own original character: a fictional adult, not a real person.")}';
     expect(wizard.split(box)).toHaveLength(3);
     expect(wizard).not.toContain("</span>This is my own original character");
     expect(wizard).toContain("...(attest ? { over_18: true } : {}),");
     // Create stays greyed out until it's ticked, and says so.
     expect(wizard.match(/disabled=\{busy !== null \|\| !attest \|\| !identityOk \|\| !profileOk\}/g)).toHaveLength(2);
-    expect(wizard).toContain("&ldquo;I&apos;m 18 or older&rdquo;");
+    expect(wizard).toContain('{tr("“I\'m 18 or older”")}');
   });
 });

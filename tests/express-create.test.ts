@@ -378,7 +378,7 @@ describe("the builder's first screen", () => {
     expect(button).toContain('data-track="express-meet"');
     // Once there's a sentence the same button is "Make them", and drafting, "Drafting them…".
     const wizard = readFileSync(join(__dirname, "..", "app/create/CreateWizard.tsx"), "utf8");
-    expect(wizard).toContain('{expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to make them" : "Make them"}');
+    expect(wizard).toContain('{expressBusy ? tr("Drafting them…") : expressText.trim().length < EXPRESS_TEXT_MIN ? tr("Type a sentence to make them") : tr("Make them")}');
     // No line under it: on a phone the bar is stuck to the bottom of the screen, and taller it covers the examples.
     expect(html).not.toContain("express-note");
     expect(html).toContain('<p class="muted wizard-intro">An original fictional adult, from a sentence. It&#x27;s free, and you can change anything after.</p>');

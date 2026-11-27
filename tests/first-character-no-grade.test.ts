@@ -31,12 +31,12 @@ describe("what people see", () => {
     // The panel only when Create isn't on top (a second character on, or an edit).
     expect(wizard).toMatch(/\{!createOnTop && \(\s*<OriginalityPanel/);
     // Create at the top of the review: the promise (the one #wizard-attest) and the button, before the read-back.
-    const review = wizard.slice(wizard.indexOf('{edit ? "Review" : "Review & create"}'));
+    const review = wizard.slice(wizard.indexOf('{edit ? tr("Review") : tr("Review & create")}'));
     const top = review.slice(0, review.indexOf("</div>"));
     expect(top).toContain("{createOnTop && (");
     expect(top).toContain('id="wizard-attest"');
     expect(top).toContain('data-track="create-top"');
-    expect(review.indexOf('data-track="create-top"')).toBeLessThan(review.indexOf("Add depth?"));
+    expect(review.indexOf('data-track="create-top"')).toBeLessThan(review.indexOf('tr("Add depth?")'));
     // The bar's promise steps aside for it, so there's one checkbox with that id.
     expect(wizard).toContain("{step === last && !createOnTop && (");
     expect(wizard.match(/id="wizard-attest"/g)).toHaveLength(2);
