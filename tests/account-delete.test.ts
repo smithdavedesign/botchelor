@@ -55,7 +55,7 @@ describe("Delete my account, at the foot of /account", () => {
 
   it("is where the account page's own line and /contact's privacy route point", () => {
     const panel = readFileSync("app/account/AccountPanel.tsx", "utf8");
-    expect(panel).toContain("<a href={`#${DELETE_ACCOUNT_ID}`}>Delete my account</a> at the foot of this page.");
+    expect(panel).toContain('<a href={`#${DELETE_ACCOUNT_ID}`}>{t("Delete my account")}</a> {t("at the foot of this page.")}');
     expect(panel).not.toContain('see <Link href="/privacy">Privacy</Link>');
     expect(CONTACT_ROUTES.find((r) => r.id === "privacy")?.href).toBe(`/account#${DELETE_ACCOUNT_ID}`);
     // Only an account sees it: an anonymous visitor has nothing to delete.

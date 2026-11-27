@@ -31,6 +31,7 @@ import type { Db } from "@/lib/db";
 import CharacterName from "@/app/CharacterName";
 import { companionOpen } from "@/lib/companion-shared";
 import { planState, portalLink } from "@/lib/paid-plans";
+import { getT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -96,12 +97,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
   const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
   const showStyle = await showStyleRead;
   const persona = await personaRead;
+  const t = await getT();
   return (
     <>
-      <h1>Your account</h1>
+      <h1>{t("Your account")}</h1>
       {claimed > 0 && (
         <p className="notice notice-ok" role="status" data-claimed>
-          {claimed === 1 ? "Your character is in this account now" : `${claimed} characters are in this account now`}: <a href="#your-characters">your characters</a>.
+          {claimed === 1 ? t("Your character is in this account now") : t("{n} characters are in this account now", { n: claimed })}: <a href="#your-characters">{t("your characters")}</a>.
         </p>
       )}
       {claim && <ClaimCard {...claim} />}
@@ -158,16 +160,16 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
           <h2>
             <Icon name="chat" /> Companion Plan
           </h2>
-          {companionPlan.status === "active" && <p>On: renews monthly{companionPlan.period_end ? `, next on ${day(companionPlan.period_end)}` : ""}.</p>}
-          {companionPlan.status === "cancelled" && <p>Cancelled: no more charges. It runs until {companionPlan.period_end ? day(companionPlan.period_end) : "the end of the month"}.</p>}
-          {companionPlan.status === "lapsed" && <p>Your plan has ended.</p>}
+          {companionPlan.status === "active" && <p>{companionPlan.period_end ? t("On: renews monthly, next on {day}.", { day: day(companionPlan.period_end) }) : t("On: renews monthly.")}</p>}
+          {companionPlan.status === "cancelled" && <p>{companionPlan.period_end ? t("Cancelled: no more charges. It runs until {day}.", { day: day(companionPlan.period_end) }) : t("Cancelled: no more charges. It runs until the end of the month.")}</p>}
+          {companionPlan.status === "lapsed" && <p>{t("Your plan has ended.")}</p>}
           <p className="muted small">
-            <Link href="/companion/plan">Your plan</Link>
+            <Link href="/companion/plan">{t("Your plan")}</Link>
             {companionPlan.status !== "lapsed" && portalLink() && (
               <>
                 {" · "}
                 <a href={portalLink()!} rel="noopener">
-                  {companionPlan.status === "cancelled" ? "Keep it going, or change your card" : "Cancel or change your card"}
+                  {companionPlan.status === "cancelled" ? t("Keep it going, or change your card") : t("Cancel or change your card")}
                 </a>
               </>
             )}
@@ -177,9 +179,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
 
       {(badges.length > 0 || backingWins.length > 0) && (
         <section>
-          <h2>Your badges</h2>
+          <h2>{t("Your badges")}</h2>
           <p className="muted">
-            The top 3 in each <Link href="/calls#leagues">league</Link> earn one when a season closes. Badges are free and carry no prizes.
+            {t("The top 3 in each league earn one when a season closes. Badges are free and carry no prizes.")} <Link href="/calls#leagues">{t("The leagues")}</Link>
           </p>
           {backingWins.length > 0 && (
             <ul className="list">
@@ -197,19 +199,19 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
 
       {agents.length > 0 && (
         <section id="agents">
-          <h2>Your agents</h2>
+          <h2>{t("Your agents")}</h2>
           <p className="muted">
-            AI agents that play Botchelor for you and linked themselves here (they call <code>link_account</code>). You see what they made;
-            they get no access to your account.
+            {t("AI agents that play Botchelor for you and linked themselves here (they call link_account). You see what they made; they get no access to your account.")}
           </p>
           <ul className="list">
             {agents.map((a) => (
               <li key={a.agent_id} className="card">
                 <p>
-                  <strong>{a.client ?? "An agent"}</strong>{" "}
+                  <strong>{a.client ?? t("An agent")}</strong>{" "}
                   <span className="muted small">
-                    linked {a.linked_at.slice(0, 10)}
-                    {a.last_seen ? `, last seen ${a.last_seen.slice(0, 10)}` : ""}
+                    {a.last_seen
+                      ? t("linked {day}, last seen {seen}", { day: a.linked_at.slice(0, 10), seen: a.last_seen.slice(0, 10) })
+                      : t("linked {day}", { day: a.linked_at.slice(0, 10) })}
                   </span>
                 </p>
                 {a.characters.length ? (
@@ -222,12 +224,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
                     ))}
                   </p>
                 ) : (
-                  <p className="muted">No characters yet.</p>
+                  <p className="muted">{t("No characters yet.")}</p>
                 )}
                 <details>
-                  <summary>Its agent id</summary>
+                  <summary>{t("Its agent id")}</summary>
                   <p className="muted small">
-                    If your agent loses track of who it is, give it this: it passes it as <code>agent_id</code> to pick up where it left off.
+                    {t("If your agent loses track of who it is, give it this: it passes it as agent_id to pick up where it left off.")}
                   </p>
                   <code>{a.agent_id}</code>
                 </details>
@@ -240,8 +242,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
 
       {blocks.length > 0 && (
         <section>
-          <h2>Blocked creators</h2>
-          <p className="muted">Listed by the episode you blocked them from; they stay anonymous.</p>
+          <h2>{t("Blocked creators")}</h2>
+          <p className="muted">{t("Listed by the episode you blocked them from; they stay anonymous.")}</p>
           <ul className="list">
             {blocks.map((block) => (
               <li key={block.episode_id} className="card">

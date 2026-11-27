@@ -27,7 +27,7 @@ describe("/account's jump links", () => {
     expect(read("app/account/PasswordSettings.tsx")).toContain('id="password"');
     expect(read("app/ThemeSetting.tsx")).toContain('id="appearance"');
     expect(read("app/account/PersonaCard.tsx")).toContain('id="persona"');
-    expect(panel).toContain('<nav className="account-jumps scroll-row" aria-label="On this page">');
+    expect(panel).toContain('<nav className="account-jumps scroll-row" aria-label={t("On this page")}>');
   });
 
   // UX audit 2026-11-22: on desktop the hidden scrollbar left the last chips cut off at the right; a character's name
