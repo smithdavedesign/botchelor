@@ -3,7 +3,20 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { requestJson } from "../../request";
-import { entryLine, LIFE_PERIOD_MAX, LIFE_VALUE_MAX, type FieldProposal, type LifeEntry, type LifeFieldDef } from "@/lib/life-record-shared";
+import {
+  entryLine,
+  GOAL_MAX,
+  GOALS_ACTIVE,
+  GROWTH_TRAITS,
+  LIFE_PERIOD_MAX,
+  LIFE_VALUE_MAX,
+  type FieldProposal,
+  type LifeDay,
+  type LifeEntry,
+  type LifeFieldDef,
+  type LifeGoal,
+  type TraitShift,
+} from "@/lib/life-record-shared";
 
 /**
  * A character's life so far (lib/life-record.ts): jobs, places, family and the rest, grouped by field. Everyone sees the
@@ -17,6 +30,9 @@ export default function LifePanel({
   entries,
   fields,
   asks,
+  goals,
+  days,
+  shifts,
 }: {
   characterId: string;
   name: string;
@@ -24,6 +40,10 @@ export default function LifePanel({
   entries: LifeEntry[];
   fields: LifeFieldDef[];
   asks: FieldProposal[];
+  goals: LifeGoal[];
+  days: LifeDay[];
+  /** Owner only: how it has been changing, newest first. */
+  shifts: TraitShift[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -33,6 +53,23 @@ export default function LifePanel({
   const [period, setPeriod] = useState("");
   const [hidden, setHidden] = useState(false);
   const def = fields.find((f) => f.key === field);
+  const [goal, setGoalText] = useState("");
+
+  async function post(body: Record<string, unknown>, fail: string): Promise<boolean> {
+    setBusy(true);
+    setError(null);
+    const r = await requestJson(`/api/characters/${characterId}/life`, body).catch(() => ({ ok: false, message: "Network error. Try again." }));
+    setBusy(false);
+    if (r.ok) router.refresh();
+    else setError(r.message ?? fail);
+    return r.ok;
+  }
+  const active = goals.filter((g) => g.status === "active");
+  const reached = goals.filter((g) => g.status === "done");
+  const traitWord = (s: TraitShift) => {
+    const t = GROWTH_TRAITS.find((x) => x.id === s.trait);
+    return t ? (s.delta > 0 ? t.up : t.down).replace(/yourself/, "themselves") : s.trait;
+  };
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +98,74 @@ export default function LifePanel({
   return (
     <section className="card character-life" aria-label="Life so far">
       <h2>{name}&apos;s life so far</h2>
+      {(active.length > 0 || reached.length > 0 || owner) && (
+        <div>
+          <strong>Working towards</strong>
+          {active.length === 0 && <p className="muted small">{owner ? `Nothing yet. ${name} may come up with something, or give them a goal.` : "Nothing right now."}</p>}
+          <ul className="list">
+            {active.map((g) => (
+              <li key={g.id}>
+                {g.text} <span className="muted small">({g.progress}%{g.source === "character" ? `, ${name}'s own idea` : ""})</span>
+                {owner && (
+                  <>
+                    {" "}
+                    <button type="button" className="link-button" disabled={busy} onClick={() => void post({ action: "goal_status", goal_id: g.id, status: "done" }, "Couldn't change that.")}>
+                      Done
+                    </button>{" "}
+                    <button type="button" className="link-button" disabled={busy} onClick={() => void post({ action: "goal_status", goal_id: g.id, status: "dropped" }, "Couldn't change that.")}>
+                      Drop
+                    </button>
+                  </>
+                )}
+              </li>
+            ))}
+            {reached.slice(0, 3).map((g) => (
+              <li key={g.id} className="muted">
+                ✓ {g.text}
+              </li>
+            ))}
+          </ul>
+          {owner && active.length < GOALS_ACTIVE && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void post({ action: "add_goal", text: goal }, "Couldn't add that goal.").then((ok) => ok && setGoalText(""));
+              }}
+            >
+              <input value={goal} onChange={(e) => setGoalText(e.target.value)} maxLength={GOAL_MAX} placeholder="Get back into painting" aria-label="A new goal" />{" "}
+              <button type="submit" className="button" disabled={busy || goal.trim().length < 4}>
+                Add goal
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+      {days.length > 0 && (
+        <div>
+          <strong>A day in {name}&apos;s life</strong>
+          {days.map((d) => (
+            <blockquote key={d.day} className="small">
+              {d.text}
+            </blockquote>
+          ))}
+        </div>
+      )}
+      {owner && shifts.length > 0 && (
+        <details>
+          <summary>🔒 How {name} has been changing (only you see this)</summary>
+          <p className="muted small">Small, slow changes from what {name} has lived. They shape how {name} talks, never how a date ends. Undo any you don&apos;t want.</p>
+          <ul className="list">
+            {shifts.slice(0, 12).map((s) => (
+              <li key={s.id} className={s.vetoed ? "muted" : undefined}>
+                {s.vetoed ? <s>A little {traitWord(s)}</s> : <>A little {traitWord(s)}</>} <span className="muted small">— {s.reason}</span>{" "}
+                <button type="button" className="link-button" disabled={busy} onClick={() => void post({ action: "veto_shift", shift_id: s.id, undo: s.vetoed }, "Couldn't change that.")}>
+                  {s.vetoed ? "Keep it after all" : "Undo"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {groups.length === 0 && <p className="muted">{owner ? "Nothing yet. What has their life held apart from dating?" : "Nothing here yet."}</p>}
       {groups.map(({ f, items }) => (
         <div key={f.key}>

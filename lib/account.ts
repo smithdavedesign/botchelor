@@ -46,6 +46,10 @@ export type AccountExport = {
   /** Their characters' life records (lib/life-record.ts) and the new fields they asked for. */
   life_entries: Record<string, unknown>[];
   life_field_proposals: Record<string, unknown>[];
+  /** Their characters' goals, days in their life and growth (lib/life-days.ts). */
+  character_goals: Record<string, unknown>[];
+  character_days: Record<string, unknown>[];
+  trait_shifts: Record<string, unknown>[];
   /** What the user told their characters to forget. */
   memory_forgets: Record<string, unknown>[];
   /** Their characters' reflections on each date (show-written or their own), by episode and character. */
@@ -347,6 +351,21 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
     life_field_proposals: await q(
       `select p.character_id, p.key, p.label, p.many, p.dated, p.options, p.reason, p.status, p.verdict, p.field, p.created_at, p.decided_at
          from life_field_proposals p where p.owner_id = $1 order by p.created_at`,
+      [userId],
+    ),
+    character_goals: await q(
+      `select g.character_id, g.text, g.progress, g.status, g.source, g.created_at, g.done_at from character_goals g
+         join characters c on c.id = g.character_id where c.owner_id = $1 and not c.is_house order by g.created_at`,
+      [userId],
+    ),
+    character_days: await q(
+      `select d.character_id, d.day, d.text, d.moved, d.created_at from character_days d
+         join characters c on c.id = d.character_id where c.owner_id = $1 and not c.is_house and d.text <> '' order by d.created_at`,
+      [userId],
+    ),
+    trait_shifts: await q(
+      `select t.character_id, t.trait, t.delta, t.reason, t.created_at, t.vetoed_at from trait_shifts t
+         join characters c on c.id = t.character_id where c.owner_id = $1 and not c.is_house order by t.created_at`,
       [userId],
     ),
     memory_forgets: await q(
@@ -799,6 +818,10 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from life_entries where character_id = any($1)", [characterIds]);
   await db.query("delete from life_field_proposals where character_id = any($1)", [characterIds]);
   await db.query("update life_fields set proposed_by = null where proposed_by = any($1)", [characterIds]);
+  // Its goals, days and growth (lib/life-days.ts).
+  await db.query("delete from character_goals where character_id = any($1)", [characterIds]);
+  await db.query("delete from character_days where character_id = any($1)", [characterIds]);
+  await db.query("delete from trait_shifts where character_id = any($1)", [characterIds]);
   // Their texts between dates and any notes about them (lib/between-dates.ts) go too; the shared episodes stay.
   await db.query("delete from couple_texts where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);

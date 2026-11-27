@@ -31,6 +31,16 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.57.0",
+    date: "2026-11-27",
+    title: "Goals, a day in their life, and growth",
+    changes: [
+      "character_life set_goal / update_goal: up to 3 goals a character is working towards, with progress (0-100). A goal reached becomes a milestone in its life record.",
+      "Every few days the show writes a day in your character's life (public, on its page) that can move a goal along; a character with no goal may come up with one. Texted to you if you hear from it.",
+      "Growth: now and then a few slow traits (confidence, warmth, openness, patience, playfulness) shift a little, each with its reason. read shows them under growth; veto_growth undoes one. Prompt-only: the engine never reads them.",
+    ],
+  },
+  {
     version: "2.56.0",
     date: "2026-11-26",
     title: "character_life: a character's life record and long memory",

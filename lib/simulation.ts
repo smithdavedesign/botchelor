@@ -24,7 +24,7 @@ import {
 } from "./engine";
 import type { BoxScore, DateSetup } from "./game";
 import { assembleCharacter, type Character, type PromptLessons } from "./character";
-import { lifeRecordForPrompt } from "./life-record";
+import { lifeRecordForPrompt, type LifePrompt } from "./life-record";
 import { lessonsForPrompt } from "./character-lessons";
 import { lifeMemories, withRemembered } from "./character-memories";
 import type { CharacterExtras } from "./extras";
@@ -237,8 +237,8 @@ export type DateParts = {
   lifeA?: string[];
   lifeB?: string[];
   /** Each side's life record (lib/life-record.ts lifeRecordForPrompt): all of it in its own view, public entries in the other's. */
-  recordA?: { self: Record<string, string[]>; public: Record<string, string[]> };
-  recordB?: { self: Record<string, string[]>; public: Record<string, string[]> };
+  recordA?: LifePrompt;
+  recordB?: LifePrompt;
   /**
    * The season format's venue pool (lib/season-format.ts): the lobby's house dates deal from it when the season has
    * one (the island month's villa). Null/omitted deals from the whole library, exactly as before.
@@ -299,8 +299,8 @@ export function assembleDate(p: DateParts): BuiltDate {
   if (p.afterDark?.a) charA.pair = withAfterDark(charA.pair ?? null, p.afterDark.a);
   if (p.afterDark?.b) charB.pair = withAfterDark(charB.pair ?? null, p.afterDark.b);
   // Its life so far, from every mode (lib/character-memories.ts): its own view only.
-  if (p.recordA && Object.keys(p.recordA.self).length) charA.life = p.recordA;
-  if (p.recordB && Object.keys(p.recordB.self).length) charB.life = p.recordB;
+  if (p.recordA && (Object.keys(p.recordA.self).length || p.recordA.goals?.length || p.recordA.growth?.length)) charA.life = p.recordA;
+  if (p.recordB && (Object.keys(p.recordB.self).length || p.recordB.goals?.length || p.recordB.growth?.length)) charB.life = p.recordB;
   if (p.lifeA?.length) charA.pair = withRemembered(charA.pair ?? null, p.lifeA);
   if (p.lifeB?.length) charB.pair = withRemembered(charB.pair ?? null, p.lifeB);
   // A side with no note still knows the one fixed fact of an overnight date that carried on (lib/overnight.ts): the

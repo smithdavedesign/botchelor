@@ -127,6 +127,17 @@ services:
       # - key: MEMORY_EMBED_DAILY_CAP
       #   value: "20000"
       #   scope: RUN_AND_BUILD_TIME
+      # Phase 3 (lib/life-days.ts): LIFE_DAYS "0" stops the day-in-their-life writer (goals still work); TRAIT_GROWTH "0"
+      # stops new growth shifts and takes growth out of prompts; LIFE_DAYS_PER_DAY caps the days written a day (default 40).
+      # - key: LIFE_DAYS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: TRAIT_GROWTH
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: LIFE_DAYS_PER_DAY
+      #   value: "40"
+      #   scope: RUN_AND_BUILD_TIME
       # Writing styles (docs/writing-styles.md, 2026-11-17): the Narrated style, stories and the longer memory come with
       # the Companion Plan. Uncomment to change it without a deploy of code: "admins" = admins only again; "0" = off for
       # everyone on both sides (kept stories still read).

@@ -58,7 +58,7 @@ export const FIELD_OPTION_MAX = 40;
 export const FIELD_REASON_MAX = 280;
 
 export type LifeVisibility = "public" | "self";
-export type LifeSource = "owner" | "agent";
+export type LifeSource = "owner" | "agent" | "character";
 
 export type LifeEntry = {
   id: string;
@@ -127,7 +127,7 @@ export function lifeForPrompt(entries: readonly LifeEntry[], fields: readonly Li
 }
 
 /** The MCP `life` tool's actions (lib/life-mcp.ts). */
-export const LIFE_ACTIONS = ["read", "add", "remove", "propose_field", "remember", "reflect", "log_event", "recall"] as const;
+export const LIFE_ACTIONS = ["read", "add", "remove", "propose_field", "remember", "reflect", "log_event", "recall", "set_goal", "update_goal", "veto_growth"] as const;
 export type LifeAction = (typeof LIFE_ACTIONS)[number];
 /** A memory an agent writes (remember, reflect, log_event): its length, and how many one character takes a day. */
 export const AGENT_MEMORY_MAX = 280;
@@ -139,4 +139,57 @@ export const LIFE_TOOL_DESCRIPTION =
   "add: an entry (field, value, period like \"2016–2019\" on dated fields, private: true to keep it to its own prompts); remove: one (entry_id). " +
   "propose_field: ask for a field it doesn't have (label, many, dated, options, reason). The show's governance check decides at once: approved fields exist for every character straight away, an ask that matches a field is merged into it, and anything that isn't a plain-text field about a fictional life (links, contact details, money, adult themes, the show's rules) is refused. " +
   "remember: something for it to keep (private: true keeps it to its own prompts). reflect: a thought it has about itself. log_event: something that happened in its life (milestone: true also adds it to milestones). " +
-  "recall: what it remembers, best match to query first. Everything is PG, about the character, with no real people; dates, texts and its companion chats draw on it, and the engine never reads it, so it changes what it talks about, never how a date ends.";
+  "recall: what it remembers, best match to query first. " +
+  `set_goal: something it's working towards (text, up to 3 at once); update_goal: goal_id with progress (0-100) or status done / dropped. Every few days the show writes a day in its life that moves its goals along, and now and then it grows a little (more confident, warmer…), each shift with its reason: read lists them, veto_growth (shift_id) undoes one. ` +
+  "Everything is PG, about the character, with no real people; dates, texts and its companion chats draw on it, and the engine never reads it, so it changes what it talks about, never how a date ends.";
+
+// ---- Phase 3: goals, a day in their life, growth (lib/life-days.ts) ----
+
+/** Goals a character holds at once, and a goal's length. */
+export const GOALS_ACTIVE = 3;
+export const GOAL_MAX = 100;
+export const GOAL_STATUSES = ["active", "done", "dropped"] as const;
+export type GoalStatus = (typeof GOAL_STATUSES)[number];
+export type LifeGoal = { id: string; text: string; progress: number; status: GoalStatus; source: "owner" | "agent" | "character"; created_at: string; done_at: string | null };
+
+/** One "day in their life": a few sentences in the character's own words, public. */
+export type LifeDay = { day: string; text: string; goal: string | null; created_at: string };
+export const DAY_TEXT_MAX = 600;
+
+/**
+ * The slow traits that grow (trait growth v2): each shift is at most TRAIT_STEP, a trait's sum at most TRAIT_CAP either
+ * way, and each says why. Prompt-only: the engine reads the sheet's temperament, never these.
+ */
+export const GROWTH_TRAITS = [
+  { id: "confidence", up: "more sure of yourself", down: "less sure of yourself" },
+  { id: "warmth", up: "warmer with people", down: "cooler with people" },
+  { id: "openness", up: "more open to new things", down: "more guarded" },
+  { id: "patience", up: "more patient", down: "quicker to lose patience" },
+  { id: "playfulness", up: "more playful", down: "more serious" },
+] as const;
+export type GrowthTrait = (typeof GROWTH_TRAITS)[number]["id"];
+export const GROWTH_TRAIT_IDS = GROWTH_TRAITS.map((t) => t.id) as GrowthTrait[];
+export const TRAIT_STEP = 0.05;
+export const TRAIT_CAP = 0.3;
+export type TraitShift = { id: string; trait: GrowthTrait; delta: number; reason: string; created_at: string; vetoed: boolean };
+
+/** Each trait's total from the shifts its owner didn't veto, clamped to ±TRAIT_CAP. */
+export function traitTotals(shifts: readonly Pick<TraitShift, "trait" | "delta" | "vetoed">[]): Partial<Record<GrowthTrait, number>> {
+  const out: Partial<Record<GrowthTrait, number>> = {};
+  for (const s of shifts) if (!s.vetoed) out[s.trait] = (out[s.trait] ?? 0) + s.delta;
+  for (const k of Object.keys(out) as GrowthTrait[]) out[k] = Math.max(-TRAIT_CAP, Math.min(TRAIT_CAP, Math.round(out[k]! * 100) / 100));
+  return out;
+}
+
+/** "You've grown a little more sure of yourself lately (finished the boat)": the growth a prompt carries, biggest first. */
+export function growthLines(shifts: readonly TraitShift[]): string[] {
+  const totals = traitTotals(shifts);
+  return GROWTH_TRAITS.filter((t) => Math.abs(totals[t.id] ?? 0) >= TRAIT_STEP)
+    .sort((a, b) => Math.abs(totals[b.id]!) - Math.abs(totals[a.id]!))
+    .map((t) => {
+      const v = totals[t.id]!;
+      const how = Math.abs(v) < 0.15 ? "a little " : Math.abs(v) >= 0.25 ? "much " : "";
+      const why = shifts.find((s) => s.trait === t.id && !s.vetoed && Math.sign(s.delta) === Math.sign(v))?.reason;
+      return `You've grown ${how}${v > 0 ? t.up : t.down} lately${why ? ` (${why})` : ""}.`;
+    });
+}

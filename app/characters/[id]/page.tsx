@@ -189,7 +189,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   ]);
   // Its life record (lib/life-record.ts): public entries for everyone, all of them and its field asks for its owner.
   const lifeP = loadLifeAll(db, id, { asks: isOwner })
-    .then(({ entries, fields, asks }) => ({ entries: isOwner ? entries : entries.filter((e) => e.visibility === "public"), fields, asks }))
+    .then(({ entries, fields, asks, goals, days, shifts }) => ({
+      entries: isOwner ? entries : entries.filter((e) => e.visibility === "public"),
+      fields,
+      asks,
+      goals,
+      days,
+      shifts: isOwner ? shifts : [],
+    }))
     .catch(soft("character page: life record", null));
   // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
   const shownExtrasP =
@@ -980,8 +987,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} name={c.name} pronouns={c.pronouns} />}
 
-      {life && (life.entries.length > 0 || (isOwner && !c.house)) && (
-        <LifePanel characterId={c.id} name={shortName(c.name)} owner={isOwner} entries={life.entries} fields={life.fields} asks={life.asks} />
+      {life && (life.entries.length > 0 || life.goals.length > 0 || life.days.length > 0 || (isOwner && !c.house)) && (
+        <LifePanel characterId={c.id} name={shortName(c.name)} owner={isOwner} entries={life.entries} fields={life.fields} asks={life.asks} goals={life.goals} days={life.days} shifts={life.shifts} />
       )}
 
       {photos.length > 0 && (
