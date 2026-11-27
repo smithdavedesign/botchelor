@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN } from "@/lib/express-text";
+import { useT } from "@/app/I18nProvider";
+import { msg } from "@/lib/i18n/translate";
 
 /**
  * One-sentence create, on the home page (2026-11-15: 12 visitors opened /create and 4 finished; the box was a click
@@ -20,10 +22,13 @@ import { EXPRESS_EXAMPLES, EXPRESS_SAY_KEY, EXPRESS_TEXT_MAX, EXPRESS_TEXT_MIN }
  * an empty field sends that example (2026-11-22 audit: on a phone the example was cut off, read as already typed, and the
  * button then only asked for a sentence).
  */
-const EXAMPLE = "a retired lighthouse keeper";
+// In the page's language, as the examples are: the box takes a sentence in any language (lib/express-create.ts reads it).
+const EXAMPLE = msg("a retired lighthouse keeper");
 
 export default function HomeExpressBox() {
   const field = useRef<HTMLInputElement>(null);
+  const t = useT();
+  const example = t(EXAMPLE);
   return (
     <form
       className="home-express"
@@ -31,7 +36,7 @@ export default function HomeExpressBox() {
       method="get"
       onSubmit={(e) => {
         const input = field.current;
-        if (input && !input.value.trim()) input.value = EXAMPLE;
+        if (input && !input.value.trim()) input.value = example;
         const text = String(new FormData(e.currentTarget).get("say") ?? "").trim();
         if (text.length < EXPRESS_TEXT_MIN) return;
         try {
@@ -44,7 +49,7 @@ export default function HomeExpressBox() {
       }}
     >
       <label htmlFor="home-express-text" className="home-express-label">
-        Describe someone in a sentence
+        {t("Describe someone in a sentence")}
       </label>
       <div className="home-express-row">
         <input
@@ -56,15 +61,15 @@ export default function HomeExpressBox() {
           maxLength={EXPRESS_TEXT_MAX}
           autoComplete="off"
           enterKeyHint="go"
-          placeholder={`e.g. ${EXAMPLE}`}
+          placeholder={t("e.g. {example}", { example })}
         />
         {/* "Make", the one verb for making a character (docs/glossary.md); the data-track name stays. */}
         <button type="submit" data-track="home-express">
-          Make them
+          {t("Make them")}
         </button>
       </div>
-      <div className="express-examples home-express-examples" role="group" aria-label="Examples that fill the box">
-        <span className="muted small">Try</span>
+      <div className="express-examples home-express-examples" role="group" aria-label={t("Examples that fill the box")}>
+        <span className="muted small">{t("Try")}</span>
         {EXPRESS_EXAMPLES.map((ex) => (
           <button
             key={ex.label}
@@ -74,12 +79,13 @@ export default function HomeExpressBox() {
             onClick={() => {
               const input = field.current;
               if (!input) return;
-              input.value = ex.text;
+              const text = t(ex.text);
+              input.value = text;
               input.focus();
-              input.setSelectionRange(ex.text.length, ex.text.length);
+              input.setSelectionRange(text.length, text.length);
             }}
           >
-            {ex.label}
+            {t(ex.label)}
           </button>
         ))}
       </div>

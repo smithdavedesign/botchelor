@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/app/Icon";
+import { useT } from "@/app/I18nProvider";
 import PhoneFrame from "@/app/PhoneFrame";
 import { flush, queueEvent } from "@/app/engagement";
 import { clipCounter, clipWhere, PHONE_MEDIA, type ClipCounter } from "@/lib/clip-count";
@@ -36,7 +37,8 @@ export type HomeClipProps = {
  * data, or the browser won't autoplay: then the poster stays with a play button. Sound never: the clip's voiced cut is
  * for the social sites, and the whole date is one tap away.
  */
-export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref, caption, kicker = "A real date from the show", watchLabel = "Watch the whole date", track = "home-clip", home }: HomeClipProps) {
+export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref, caption, kicker, watchLabel, track = "home-clip", home }: HomeClipProps) {
+  const t = useT();
   const video = useRef<HTMLVideoElement>(null);
   // "wait": before the page is live (no button yet, so it doesn't flash); "still": the poster and a play button.
   const [state, setState] = useState<"wait" | "still" | "playing">("wait");
@@ -110,7 +112,7 @@ export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref,
     <figure className="home-clip">
       <PhoneFrame short>
         <div className="home-clip-screen" style={{ aspectRatio: `${width} / ${height}` }}>
-          <video ref={video} className="home-clip-video" muted loop playsInline preload="none" poster={posterSrc} width={width} height={height} aria-label={`A clip of the date: ${caption}`}>
+          <video ref={video} className="home-clip-video" muted loop playsInline preload="none" poster={posterSrc} width={width} height={height} aria-label={t("A clip of the date: {caption}", { caption })}>
             <source src={loopSrc} type="video/mp4" />
           </video>
           {/* On the stage, the playing clip is itself the way in (app/ux/front.css shows it on a phone only). The caption's
@@ -118,22 +120,22 @@ export default function HomeClip({ loopSrc, posterSrc, width, height, watchHref,
           {stage && state === "playing" && (
             <Link className="home-clip-tap" href={watchHref} prefetch={false} tabIndex={-1} aria-hidden="true" data-track={`${track}-watch`} data-track-where="home_phone" onClick={leaving}>
               <span className="home-clip-tap-cue">
-                <Icon name="play" /> Watch
+                <Icon name="play" /> {t("Watch")}
               </span>
             </Link>
           )}
           {state === "still" && (
-            <button type="button" className="home-clip-play" onClick={tapPlay} aria-label="Play the clip" data-track={`${track}-play`}>
+            <button type="button" className="home-clip-play" onClick={tapPlay} aria-label={t("Play the clip")} data-track={`${track}-play`}>
               <Icon name="play" />
             </button>
           )}
         </div>
       </PhoneFrame>
       <figcaption className="home-clip-cap">
-        <span className="home-clip-kicker">{kicker}</span>
+        <span className="home-clip-kicker">{kicker ?? t("A real date from the show")}</span>
         <span className="home-clip-who">{caption}</span>
         <Link className="button-ghost home-clip-watch" href={watchHref} data-track={`${track}-watch`} onClick={counting ? leaving : undefined}>
-          <Icon name="play" /> {watchLabel}
+          <Icon name="play" /> {watchLabel ?? t("Watch the whole date")}
         </Link>
       </figcaption>
     </figure>

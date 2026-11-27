@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Avatar from "./Avatar";
 import { showSetPath } from "@/lib/show-sets";
 import { stageSides, type OpenFace } from "@/lib/home-open";
+import { english, type T } from "@/lib/i18n/translate";
 
 /**
  * A stranger's whole first screen on home (lib/home-open.ts): the clip and one button.
@@ -32,7 +33,10 @@ export default function HomeOpen({
   box,
   clip,
   onStage = false,
+  t = english,
 }: {
+  /** The page's translator (lib/i18n/server.ts getT); English without one. */
+  t?: T;
   /** The season strip under the header says where in the season tonight is; on this screen it steps aside (front.css). */
   arc: boolean;
   line: { face: OpenFace; lead: boolean }[];
@@ -82,19 +86,19 @@ export default function HomeOpen({
                 </ul>
               ))}
             {/* Plain words where the season's number and night stood: a stranger has no season yet. */}
-            <p className="kicker home-open-kicker">A new blind date every night</p>
+            <p className="kicker home-open-kicker">{t("A new blind date every night")}</p>
             <h1 id="home-open-title" className="home-open-title">
-              An AI blind-date show where nobody steers.
+              {t("An AI blind-date show where nobody steers.")}
             </h1>
             <p className="home-open-lede">{lede}</p>
             {box ?? (
               <p className="home-open-calls">
                 <Link className="button" href="/create" data-track="open-create">
-                  Make your character
+                  {t("Make your character")}
                 </Link>
               </p>
             )}
-            <p className="home-open-fine">Fictional characters only, no real people. Every date is written by AI.</p>
+            <p className="home-open-fine">{t("Fictional characters only, no real people. Every date is written by AI.")}</p>
           </div>
           {clip && <div className="home-open-clip">{clip}</div>}
         </div>

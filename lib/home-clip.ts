@@ -18,6 +18,7 @@
  *   once the date has aired (and only an aired date has a clip). Read through /api/home-clip/<id>/cut.mp4.
  * Nothing here touches a date: it is a picture of one that already aired.
  */
+import { english, type T } from "./i18n/translate";
 import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
 import { dateNumberSql } from "./date-number";
@@ -214,10 +215,13 @@ export async function episodeCut(db: Db, episodeId: string): Promise<EpisodeCut 
  * The line under the clip: who, and how it ended when that is public (it is, once the date has aired). "How it ended: a
  * fifth date", in a sentence's case (2026-11-22 audit: "It ended: A fifth date" read as two headings).
  */
-export function clipCaption(clip: Pick<HomeClip, "names" | "ending">): string {
+export function clipCaption(clip: Pick<HomeClip, "names" | "ending">, t: T = english): string {
   const pair = `${clip.names[0]} × ${clip.names[1]}`;
   if (!clip.ending) return pair;
-  return `${pair} · How it ended: ${clip.ending.charAt(0).toLowerCase()}${clip.ending.slice(1)}`;
+  // English lowercases the ending into the sentence; a translated ending (lib/rules.ts ENDING_LABELS) stays as written.
+  const translated = t(clip.ending);
+  const ending = translated !== clip.ending ? translated : `${clip.ending.charAt(0).toLowerCase()}${clip.ending.slice(1)}`;
+  return t("{pair} · How it ended: {ending}", { pair, ending });
 }
 
 export type ClipFile = { key: string | null; bytes: Buffer | null; mime: "video/mp4" | "image/jpeg" };
