@@ -165,6 +165,8 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "date_roleplays", column: "proposer_user", export: at("date_roleplays"), delete: ROWS, move: REASSIGN },
   { table: "date_roleplays", column: "answerer_user", export: at("date_roleplays"), delete: ROWS, move: REASSIGN },
   { table: "date_invites", column: "owner_id", export: at("date_links.invites"), delete: ROWS, move: REASSIGN },
+  // New life record fields their characters asked for (lib/life-record.ts): what they made, so it follows them.
+  { table: "life_field_proposals", column: "owner_id", export: at("life_field_proposals"), delete: ROWS, move: REASSIGN },
   { table: "double_links", column: "created_by", export: at("date_links.doubles_made"), delete: ROWS, move: REASSIGN },
   { table: "double_links", column: "taken_by", export: at("date_links.doubles_taken"), delete: cleared("null"), move: REASSIGN },
   { table: "group_nights", column: "created_by", export: at("double_dates.nights"), delete: kept(SHARED_DATE), move: REASSIGN },
@@ -329,6 +331,8 @@ export const LOOK_ALIKES: readonly LookAlike[] = [
   { table: "web_events", column: "host", holds: "which of our sites the event came in on (show or after dark)" },
   { table: "ops_log", column: "host", holds: "which of our servers wrote the row (show, after-dark, or local for a developer's machine): lib/ops-log.ts" },
   { table: "date_roleplays", column: "proposed_by", holds: "the character the proposal is from (a character's id); the person is proposer_user" },
+  { table: "life_fields", column: "proposed_by", holds: "the character that asked for the field (a character's id), cleared when it goes; the person is life_field_proposals.owner_id" },
+  { table: "life_field_proposals", column: "decided_by", holds: "what settled the ask: 'rules' or 'model', never a person" },
   { table: "swipe_impressions", column: "viewer", holds: "the character whose deck it was (a character's id)" },
   { table: "unmatches", column: "by_character", holds: "the character whose side ended the match (a character's id)" },
   { table: "character_opinions", column: "holder_id", holds: "the character who holds the opinion (a character's id)" },
