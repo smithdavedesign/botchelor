@@ -180,6 +180,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // database round trips in a row, ~70 ms each from New York to the database in Oregon). The owner is known from the
   // character itself, so nothing waits on the ratings to find out.
   const isOwner = Boolean(viewerId) && c.owner_id === viewerId;
+  // A sponsored house character always shows who sponsors it (lib/money/sponsored.ts; nothing while MONEY_SPONSORED is off).
+  const sponsorP = c.house ? sponsorOf(db, c.id).catch(soft("character page: sponsor", null)) : Promise.resolve(null);
+  // A tip to the creator (lib/money/tips.ts): on someone else's public character, never the house's or your own.
+  const tipOpen = moneyOn("tips") && !c.house && !c.private && !isOwner && c.owner_id !== DELETED_OWNER;
+  const tipCountP = tipOpen ? tipsFor(db, c.id).then((t) => t.tips).catch(soft("character page: tips", 0)) : Promise.resolve(0);
   const auth = authFromCookieStore(cookieStore);
   const firstP = Promise.all([
     getCharacterDatesPage(db, id, viewerId, parsePage(sp.dates)),
@@ -579,11 +584,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const castingBadges = await castingBadgesP;
   const credits = await creditsP;
   const leading = await castingLeadP.then((l) => (l?.lead.id === c.id ? l : null));
-  // A sponsored house character always shows who sponsors it (lib/money/sponsored.ts; nothing while MONEY_SPONSORED is off).
-  const sponsor = c.house ? await sponsorOf(db, c.id).catch(soft("character page: sponsor", null)) : null;
-  // A tip to the creator (lib/money/tips.ts): on someone else's public character, never the house's or your own.
-  const tipOpen = moneyOn("tips") && !c.house && !c.private && !isOwner && c.owner_id !== DELETED_OWNER;
-  const tipCount = tipOpen ? await tipsFor(db, c.id).then((t) => t.tips).catch(soft("character page: tips", 0)) : 0;
+  const sponsor = await sponsorP;
+  const tipCount = await tipCountP;
   const leadWords = leading ? (leading.phase === "season" ? "This season's lead" : `${leading.month}'s lead`) : null;
   const intro = await introOf(db, c.id);
   // The contestant card (the visual pop audit, 2026-11-20). Behind it, the place of their latest aired date (the record's
