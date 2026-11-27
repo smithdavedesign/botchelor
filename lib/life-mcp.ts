@@ -7,8 +7,10 @@
 import { randomUUID } from "node:crypto";
 import { embedEpisodes, recallSfw, rememberSfw, type EpisodeSource } from "./character-memories";
 import type { Db } from "./db";
+import { requestFeature } from "./feature-requests";
 import { setGoal, updateGoal, vetoShift } from "./life-days";
-import { addEntry, loadLifeAll, proposalsOf, proposeField, removeEntry } from "./life-record";
+import { extManifests, setExtData } from "./persona-ext-host";
+import { addEntry, loadLifeAll, proposeField, removeEntry } from "./life-record";
 import { AGENT_MEMORIES_PER_DAY, AGENT_MEMORY_MAX, LIFE_ACTIONS, tidyLife, traitTotals, type GoalStatus, type LifeAction } from "./life-record-shared";
 import { getModel, type Model } from "./model";
 import { inBackground } from "./sets";
@@ -31,19 +33,48 @@ export async function runLifeTool(db: Db, ownerId: string, args: Record<string, 
   if (rows[0].owner_id !== ownerId) return { error: "That character isn't yours: the life tool works on characters you made.", code: "not_yours" };
 
   if (action === "read") {
-    const [all, asks, memories] = await Promise.all([loadLifeAll(db, characterId), proposalsOf(db, characterId, 10), recallSfw(db, characterId, { may: "maker", skip: ["companion_talk"], limit: 10 })]);
+    const [all, memories] = await Promise.all([loadLifeAll(db, characterId, { asks: true }), recallSfw(db, characterId, { may: "maker", skip: ["companion_talk"], limit: 10 })]);
+    const extensions = extManifests().map((m) => ({ ...m, data: all.ext.find((x) => x.ext === m.slug)?.data ?? null }));
     return {
       data: {
         character_id: characterId,
         entries: all.entries,
         fields: all.fields.map((f) => ({ key: f.key, label: f.label, many: f.many, dated: f.dated, ...(f.options?.length ? { options: f.options } : {}), origin: f.origin })),
-        field_asks: asks,
+        field_asks: all.asks.slice(0, 10),
         goals: all.goals,
         days: all.days,
         growth: { shifts: all.shifts, totals: traitTotals(all.shifts) },
         memories,
+        feature_requests: all.features,
+        ...(extensions.length ? { extensions } : {}),
       },
     };
+  }
+
+  if (action === "request_feature") {
+    const r = await requestFeature(
+      db,
+      { characterId, ownerId, title: str(args.title), ask: str(args.ask) },
+      { model: deps.model !== undefined ? deps.model : getModel(undefined, false) },
+    );
+    if (!r.ok) return { error: r.message, code: r.error };
+    const q = r.request;
+    const note =
+      q.status === "approved"
+        ? "Approved: the show's agents build it as an extension, most-backed first, and read shows it when it's live."
+        : q.status === "field"
+          ? "That's information about a life: ask for it with propose_field and it can exist today."
+          : q.status === "merged"
+            ? "Someone asked for the same thing: this backs theirs."
+            : q.status === "rejected"
+              ? "Refused (verdict says why)."
+              : "The review couldn't run just now; it runs again within a day (read shows where it stands).";
+    return { data: { feature_request: q, note } };
+  }
+
+  if (action === "ext_set") {
+    const r = await setExtData(db, characterId, str(args.extension), args.data, { clear: args.clear === true });
+    return r.ok ? { data: { extension: str(args.extension), data: r.data } } : { error: r.message, code: r.error };
   }
 
   if (action === "set_goal") {

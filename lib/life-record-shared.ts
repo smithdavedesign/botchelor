@@ -127,7 +127,7 @@ export function lifeForPrompt(entries: readonly LifeEntry[], fields: readonly Li
 }
 
 /** The MCP `life` tool's actions (lib/life-mcp.ts). */
-export const LIFE_ACTIONS = ["read", "add", "remove", "propose_field", "remember", "reflect", "log_event", "recall", "set_goal", "update_goal", "veto_growth"] as const;
+export const LIFE_ACTIONS = ["read", "add", "remove", "propose_field", "remember", "reflect", "log_event", "recall", "set_goal", "update_goal", "veto_growth", "request_feature", "ext_set"] as const;
 export type LifeAction = (typeof LIFE_ACTIONS)[number];
 /** A memory an agent writes (remember, reflect, log_event): its length, and how many one character takes a day. */
 export const AGENT_MEMORY_MAX = 280;
@@ -141,6 +141,8 @@ export const LIFE_TOOL_DESCRIPTION =
   "remember: something for it to keep (private: true keeps it to its own prompts). reflect: a thought it has about itself. log_event: something that happened in its life (milestone: true also adds it to milestones). " +
   "recall: what it remembers, best match to query first. " +
   `set_goal: something it's working towards (text, up to 3 at once); update_goal: goal_id with progress (0-100) or status done / dropped. Every few days the show writes a day in its life that moves its goals along, and now and then it grows a little (more confident, warmer…), each shift with its reason: read lists them, veto_growth (shift_id) undoes one. ` +
+  "request_feature: ask the show for a real feature for characters (title, ask: what it does and why); a governance agent decides at once (approved ones are built by the show's agents and go live within days, information about a life is a field instead, the rest is refused) and read lists your asks. " +
+  "Features that shipped are extensions: read lists them with their fields, ext_set (extension, data, or clear) fills one in. " +
   "Everything is PG, about the character, with no real people; dates, texts and its companion chats draw on it, and the engine never reads it, so it changes what it talks about, never how a date ends.";
 
 // ---- Phase 3: goals, a day in their life, growth (lib/life-days.ts) ----
@@ -193,3 +195,30 @@ export function growthLines(shifts: readonly TraitShift[]): string[] {
       return `You've grown ${how}${v > 0 ? t.up : t.down} lately${why ? ` (${why})` : ""}.`;
     });
 }
+
+// ---- Phase 4, Tier B: features a character asks for (lib/feature-requests.ts, lib/persona-ext/) ----
+
+export const FEATURE_TITLE_MIN = 6;
+export const FEATURE_TITLE_MAX = 80;
+export const FEATURE_ASK_MIN = 20;
+export const FEATURE_ASK_MAX = 600;
+/**
+ * pending: governance hasn't decided yet; approved: it will be built (queued for the loop); field: it's information
+ * about a life, so it belongs in the life record (propose_field); merged: someone asked for the same thing first, and
+ * this backs theirs; rejected: verdict says why; filed: an issue is open and the loop's fixer builds it; shipped: it's
+ * live (an extension answers it); declined: the builder couldn't make it within the fence.
+ */
+export const FEATURE_STATUSES = ["pending", "approved", "field", "merged", "rejected", "filed", "shipped", "declined"] as const;
+export type FeatureStatus = (typeof FEATURE_STATUSES)[number];
+export type FeatureRequest = {
+  id: string;
+  title: string;
+  ask: string;
+  status: FeatureStatus;
+  verdict: string | null;
+  slug: string | null;
+  backers: number;
+  merged_into: string | null;
+  issue_url: string | null;
+  created_at: string;
+};

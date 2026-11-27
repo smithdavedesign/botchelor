@@ -20,6 +20,8 @@ import type { Db } from "./db";
 import type { Model } from "./model";
 import { checkShowText } from "./safety";
 import { editDistance } from "./mcp/edit-distance";
+import { FEATURE_COLS, requestOf, type FeatureRow } from "./feature-requests";
+import { extForPrompt, liveExtensions, type ExtRow } from "./persona-ext-host";
 import {
   BUILTIN_LIFE_FIELDS,
   FIELD_KEY_RE,
@@ -36,6 +38,7 @@ import {
   lifeForPrompt,
   tidyLife,
   growthLines,
+  type FeatureRequest,
   type FieldProposal,
   type LifeDay,
   type LifeGoal,
@@ -86,13 +89,17 @@ const fieldsOf = (rows: readonly FieldRow[] | null | undefined): LifeFieldDef[] 
  * A character's entries, the registry and (for its owner) its field asks, in one round trip: what the character page
  * and a prompt read. Proposed fields come only when it has entries.
  */
-export type LifeAll = { entries: LifeEntry[]; fields: LifeFieldDef[]; asks: FieldProposal[]; goals: LifeGoal[]; days: LifeDay[]; shifts: TraitShift[] };
+/**
+ * ext: its data for persona extensions (lib/persona-ext-host.ts), one row an extension. features: the features its owner
+ * asked for (lib/feature-requests.ts), with `asks` only (the owner's view).
+ */
+export type LifeAll = { entries: LifeEntry[]; fields: LifeFieldDef[]; asks: FieldProposal[]; goals: LifeGoal[]; days: LifeDay[]; shifts: TraitShift[]; ext: ExtRow[]; features: FeatureRequest[] };
 
 type GoalJson = Omit<LifeGoal, "progress"> & { progress: number | string };
 type ShiftJson = Omit<TraitShift, "delta"> & { delta: number | string };
 
 export async function loadLifeAll(db: Db, characterId: string, opts: { asks?: boolean } = {}): Promise<LifeAll> {
-  const { rows } = await db.query<{ entries: EntryRow[] | null; fields: FieldRow[] | null; asks: ProposalRow[] | null; goals: GoalJson[] | null; days: LifeDay[] | null; shifts: ShiftJson[] | null }>(
+  const { rows } = await db.query<{ entries: EntryRow[] | null; fields: FieldRow[] | null; asks: ProposalRow[] | null; goals: GoalJson[] | null; days: LifeDay[] | null; shifts: ShiftJson[] | null; ext: ExtRow[] | null; features: FeatureRow[] | null }>(
     `select
        (select json_agg(e order by e.created_at desc) from (select id, field, value, period, visibility, source, created_at from life_entries
           where character_id = $1 order by created_at desc limit $2) e) as entries,
@@ -105,7 +112,10 @@ export async function loadLifeAll(db: Db, characterId: string, opts: { asks?: bo
        (select json_agg(d order by d.created_at desc) from (select day, text, goal_id as goal, created_at from character_days
           where character_id = $1 and text <> '' order by created_at desc limit 3) d) as days,
        (select json_agg(t order by t.created_at desc) from (select id, trait, delta, reason, created_at, vetoed_at is not null as vetoed from trait_shifts
-          where character_id = $1 order by created_at desc limit 40) t) as shifts`,
+          where character_id = $1 order by created_at desc limit 40) t) as shifts,
+       (select json_agg(x) from (select ext, data from persona_ext_data where character_id = $1 order by ext limit 50) x) as ext,
+       case when $4::boolean then (select json_agg(q order by q.created_at desc) from (select ${FEATURE_COLS} from feature_requests
+          where character_id = $1 order by created_at desc limit 10) q) end as features`,
     [characterId, LIFE_ENTRIES_MAX, REGISTRY_MAX, opts.asks === true],
   );
   const r = rows?.[0];
@@ -116,6 +126,8 @@ export async function loadLifeAll(db: Db, characterId: string, opts: { asks?: bo
     goals: (r?.goals ?? []).map(({ id, text, progress, status, source, created_at, done_at }) => ({ id, text, progress: Number(progress), status, source, created_at, done_at })),
     days: r?.days ?? [],
     shifts: (r?.shifts ?? []).map((t) => ({ ...t, delta: Number(t.delta) })),
+    ext: r?.ext ?? [],
+    features: (r?.features ?? []).map((q) => requestOf(q, liveExtensions())),
   };
 }
 
@@ -129,12 +141,13 @@ export async function lifeRecordForPrompt(db: Db, characterId: string, env: Env 
   const none = { self: {}, public: {} };
   if (!lifeRecordOn(env)) return none;
   try {
-    const { entries, fields, goals, shifts } = await loadLifeAll(db, characterId);
+    const { entries, fields, goals, shifts, ext } = await loadLifeAll(db, characterId);
     const active = goals.filter((g) => g.status === "active").map((g) => (g.progress > 0 ? `${g.text} (${g.progress}% of the way)` : g.text));
     const growth = env.TRAIT_GROWTH?.trim() === "0" ? [] : growthLines(shifts);
     return {
-      self: entries.length ? lifeForPrompt(entries, fields, "self") : {},
-      public: entries.length ? lifeForPrompt(entries, fields, "public") : {},
+      // Persona extensions' lines (lib/persona-ext-host.ts) sit beside the record's fields, under each extension's title.
+      self: { ...(entries.length ? lifeForPrompt(entries, fields, "self") : {}), ...extForPrompt(ext, "self", env) },
+      public: { ...(entries.length ? lifeForPrompt(entries, fields, "public") : {}), ...extForPrompt(ext, "public", env) },
       ...(active.length ? { goals: active } : {}),
       ...(growth.length ? { growth } : {}),
     };
@@ -265,14 +278,6 @@ export async function governanceReview(model: Model, ask: FieldAsk & { key: stri
 
 type ProposalRow = { id: string; key: string; label: string; status: ProposalStatus; verdict: string | null; field: string | null; created_at: Date | string };
 const proposalOf = (r: ProposalRow): FieldProposal => ({ ...r, created_at: new Date(r.created_at).toISOString() });
-
-export async function proposalsOf(db: Db, characterId: string, limit = 20): Promise<FieldProposal[]> {
-  const { rows } = await db.query<ProposalRow>(
-    `select id, key, label, status, verdict, field, created_at from life_field_proposals where character_id = $1 order by created_at desc limit $2`,
-    [characterId, limit],
-  );
-  return (rows ?? []).map(proposalOf);
-}
 
 async function decide(db: Db, id: string, status: ProposalStatus, verdict: string, field: string | null, by: "rules" | "model"): Promise<void> {
   await db.query(`update life_field_proposals set status = $2, verdict = $3, field = $4, decided_by = $5, decided_at = now() where id = $1`, [id, status, verdict, field, by]);

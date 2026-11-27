@@ -10,6 +10,7 @@ import { sendCharacterWeeks, weeklyLifeDates } from "@/lib/character-life";
 import { runCharacterLessons } from "@/lib/character-lessons-job";
 import { consolidateMemories } from "@/lib/character-memories";
 import { governPending } from "@/lib/life-record";
+import { governPendingFeatures } from "@/lib/feature-requests";
 import { lifeDays } from "@/lib/life-days";
 import { sendCharacterQuestions } from "@/lib/character-questions";
 import { sendDailyTexts } from "@/lib/between-dates";
@@ -262,6 +263,10 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
   const lifeFields = await step("life_fields", () =>
     governPending(db, getModel(undefined, false), { deadline: t0 + 225_000 }).catch(() => ({ reviewed: 0, approved: 0 })),
   );
+  // Features characters asked for (lib/feature-requests.ts, Tier B): asks the governance agent couldn't settle when they came.
+  const featureAsks = await step("feature_requests", () =>
+    governPendingFeatures(db, getModel(undefined, false), { deadline: t0 + 228_000 }).catch(() => ({ reviewed: 0, approved: 0 })),
+  );
   // A day in their life (lib/life-days.ts): owned characters due one get a few sentences of their day, which can move a
   // goal and, at most weekly, grow a trait. On the show's free model, LIFE_DAYS_PER_DAY a day at most. LIFE_DAYS=0: off.
   const days = await step("life_days", () =>
@@ -305,7 +310,7 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
     });
   }
   return {
-    body: { indexnow, embeddings, character_lessons: lessons, memory_chapters: memories, life_fields: lifeFields, life_days: days, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
+    body: { indexnow, embeddings, character_lessons: lessons, memory_chapters: memories, life_fields: lifeFields, feature_requests: featureAsks, life_days: days, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
     counts: {
       social_dynamics_ties: dynamics.ties,
       social_dynamics_contacts: dynamics.contacts,

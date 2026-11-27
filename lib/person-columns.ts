@@ -167,6 +167,9 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "date_invites", column: "owner_id", export: at("date_links.invites"), delete: ROWS, move: REASSIGN },
   // New life record fields their characters asked for (lib/life-record.ts): what they made, so it follows them.
   { table: "life_field_proposals", column: "owner_id", export: at("life_field_proposals"), delete: ROWS, move: REASSIGN },
+  // Features they asked the show for, and the ones they back (lib/feature-requests.ts).
+  { table: "feature_requests", column: "owner_id", export: at("feature_requests"), delete: ROWS, move: REASSIGN },
+  { table: "feature_request_backers", column: "owner_id", export: at("feature_request_backers"), delete: ROWS, move: merge(["request_id"]) },
   { table: "double_links", column: "created_by", export: at("date_links.doubles_made"), delete: ROWS, move: REASSIGN },
   { table: "double_links", column: "taken_by", export: at("date_links.doubles_taken"), delete: cleared("null"), move: REASSIGN },
   { table: "group_nights", column: "created_by", export: at("double_dates.nights"), delete: kept(SHARED_DATE), move: REASSIGN },
@@ -333,6 +336,7 @@ export const LOOK_ALIKES: readonly LookAlike[] = [
   { table: "date_roleplays", column: "proposed_by", holds: "the character the proposal is from (a character's id); the person is proposer_user" },
   { table: "life_fields", column: "proposed_by", holds: "the character that asked for the field (a character's id), cleared when it goes; the person is life_field_proposals.owner_id" },
   { table: "life_field_proposals", column: "decided_by", holds: "what settled the ask: 'rules' or 'model', never a person" },
+  { table: "feature_requests", column: "decided_by", holds: "what settled the ask: 'rules' or 'model', never a person" },
   { table: "swipe_impressions", column: "viewer", holds: "the character whose deck it was (a character's id)" },
   { table: "unmatches", column: "by_character", holds: "the character whose side ended the match (a character's id)" },
   { table: "character_opinions", column: "holder_id", holds: "the character who holds the opinion (a character's id)" },

@@ -336,7 +336,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.57.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.58.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -718,7 +718,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   my_model: FREE,
   clear_model: "Free. Your dates go back to the shared pool and the 3-free-dates-a-week cap.",
   companion: "Free, on the show's model: up to 60 messages an hour and 300 a day.",
-  character_life: "Free (a new field's review runs on the show's free model): 5 field asks an owner a day, 30 memories a character a day.",
+  character_life: "Free (field and feature reviews run on the show's free model): 5 field asks an owner a day, 3 feature asks an owner a week, 30 memories a character a day.",
   get_house_scene: FREE,
   get_house_talk: FREE,
   get_story_so_far: FREE,
