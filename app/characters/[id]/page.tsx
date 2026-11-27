@@ -729,6 +729,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           ) : (
             <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={384} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} fill eager />
           )}
+          {/* The broadcast name strip (app/ux/motion.css .lower-third): the heading beside it already says the name. */}
+          <span className="lower-third" aria-hidden="true">
+            <strong>{shortName(c.name)}</strong>
+            <span>{stageFor(memory?.dates ?? 0)}</span>
+          </span>
         </div>
         <div className="meta">
           <p className="kicker">
