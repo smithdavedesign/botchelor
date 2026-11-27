@@ -341,3 +341,60 @@
     translate: 0 0.6rem;
   }
 }
+
+/* ---------------- The cut (app/PageLoading.tsx), 2026-11-27 ----------------
+   A tap dissolves to the page's outline and the outline to the page (React's <ViewTransition> on the loading screen),
+   quick enough to read as a cut, not a wait. Clicks pass through while it runs. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition {
+    pointer-events: none;
+  }
+  ::view-transition-old(root) {
+    animation: 0.16s ease-in both page-cut-out;
+  }
+  ::view-transition-new(root) {
+    animation: 0.24s ease-out both page-cut-in;
+  }
+  ::view-transition-old(.page-cut) {
+    animation: 0.16s ease-in both page-cut-out;
+  }
+  ::view-transition-new(.page-cut) {
+    animation: 0.24s ease-out both page-cut-in;
+  }
+}
+@keyframes page-cut-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes page-cut-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------------- Follow spot (app/motion/Spotlight.tsx), 2026-11-27 ----------------
+   A soft pool of light trails a mouse across a set hero or a contestant card. Under the words and over the set (z-index
+   -1 after the stage, inside the band's own stacking context); fades in when the pointer arrives and out when it goes. */
+.set-hero::after,
+.contestant-card::after {
+  --spot-light: color-mix(in srgb, var(--on-photo) 22%, transparent);
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(circle 20rem at var(--spot-x, 50%) var(--spot-y, 50%), var(--spot-light), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .set-hero::after,
+  .contestant-card::after {
+    transition: opacity 0.4s var(--ease-out);
+  }
+}
+.set-hero.spotlit::after,
+.contestant-card.spotlit::after {
+  opacity: 1;
+}
