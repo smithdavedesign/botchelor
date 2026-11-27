@@ -23,6 +23,13 @@ describe("the ffmpeg binary", () => {
   });
 
   it("goes with the five routes that run it, and no others", () => {
-    expect(Object.keys(config.outputFileTracingIncludes ?? {})).toEqual(["/api/admin/after-dark/moments", "/api/admin/after-dark/export", "/api/admin/showcase/animate", "/api/jobs/showcase-check", "/api/face-kit"]);
+    const includes = Object.entries(config.outputFileTracingIncludes ?? {});
+    const withFfmpeg = includes.filter(([, files]) => files.some((f) => f.includes("ffmpeg-static"))).map(([route]) => route);
+    expect(withFfmpeg).toEqual(["/api/admin/after-dark/moments", "/api/admin/after-dark/export", "/api/admin/showcase/animate", "/api/jobs/showcase-check", "/api/face-kit"]);
+    // The only other files traced in by hand are the share cards' fonts (lib/og-type.tsx, about 800 KB), and only into the
+    // routes that draw a card.
+    const others = includes.filter(([route]) => !withFfmpeg.includes(route));
+    expect(others.every(([, files]) => files.length === 1 && files[0] === "./assets/fonts/*.ttf")).toBe(true);
+    expect(others.every(([route]) => /opengraph-image$|\.png$|^\/api\/og\//.test(route))).toBe(true);
   });
 });
