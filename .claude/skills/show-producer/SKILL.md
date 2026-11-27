@@ -28,6 +28,10 @@ You are the executive producer. You don't write code here: you decide what is wo
 4. **Live numbers, when you can reach them** (interactive only): the botchelor MCP server or a
    read-only database session: what aired, votes cast, calls made, which pages people reach.
 
+5. **The format playbook**, [../showrunner/formats.md](../showrunner/formats.md). Weigh each move against the
+   clock: is its week coming up, does it exist half-built ("already there"), and what would surface it? At least
+   one bet on the sheet should be a playbook move, named by its number and title.
+
 ## Judge each idea
 
 - **Drama:** does it raise stakes a viewer can feel (a deadline, a rivalry, a reveal, a goodbye)?

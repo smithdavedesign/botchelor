@@ -31,6 +31,13 @@ description: |
 | Page words | the page itself, through `t()` (docs/i18n.md) |
 | Clip and promo captions | `scripts/clips/branded-clip.mjs` `captionOf`, `scripts/clips/season-promo.mjs` |
 
+## Writing a playbook move
+
+When the request names a move from [../showrunner/formats.md](../showrunner/formats.md), its "words" line is
+your brief. Write every line it lists as a template over the public record, not as fixed prose about one
+character. Follow the move's own guardrails too: the villain edit cites a number, and hometowns' families are
+invented house characters, never real people.
+
 ## Rules
 
 - **Templates over model calls.** Prefer a few hand-written variants picked by a seed

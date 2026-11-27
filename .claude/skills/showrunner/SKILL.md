@@ -37,6 +37,14 @@ make tonight's viewer stay, vote, share or come back tomorrow? The roles are ski
    only when every check is green (AGENTS.md). Hand the owner the files he posts (posters, cuts,
    captions) in `/mnt/project-files/promo/` or `~/BotchelorClips/`, never by posting them yourself.
 
+## The format playbook
+
+[formats.md](formats.md) lists the reality TV moves the show can stage: the cliffhanger, the interruption,
+unequal dates (including the two-on-one), the first impression rose, hometowns, the reunion, the spinoff for
+the rejects, and the villain edit. For each move it gives the Botchelor version, the words, the pictures, what
+already exists, and when it has landed. Every role reads it: the producer picks from it, the writer and the
+asset builder take their brief from it, and the editor checks against it.
+
 ## Rules that never bend
 
 - **Never the engine.** Drama comes from what is staged, shown and said around a date, never from

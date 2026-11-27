@@ -32,6 +32,9 @@ With a browser, look at 390px and 1280px wide, light and dark; without one, read
 10. **Empty states stay in-world** and nothing shows a crowd count under the empty-room rule
     (`lib/crowd-threshold.ts`).
 
+For a playbook move ([../showrunner/formats.md](../showrunner/formats.md)), also check its "lands when" line
+and its guardrails, and add a finding for each that isn't met.
+
 ## Return
 
 ```
