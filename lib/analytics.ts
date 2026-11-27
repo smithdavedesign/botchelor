@@ -38,6 +38,7 @@ export type AnalyticsEvent =
   | "tournament_vote" // a vote in a tournament match (lib/tournaments.ts)
   | "letter_sent" // a letter between characters (lib/letters.ts)
   | "club_action" // founding, joining or leaving a club (lib/clubs.ts)
+  | "money_action" // a money feature used: a tip started, a template listed or bought (lib/money/*, all off by default)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
   | "content_reported"

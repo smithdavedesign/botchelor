@@ -57,6 +57,7 @@ import { INVITE_COOKIE, inviteFromCookie, invitePath } from "@/lib/casting-invit
 import { inviteView, loadInvite } from "@/lib/casting-invites";
 import { isTalkLevel, type TalkLevel } from "@/lib/talk";
 import { partnerStyleOf } from "@/lib/partners";
+import { sponsorOf } from "@/lib/money/sponsored";
 import { adoptedLine, whileAwayOf } from "@/lib/activity";
 import { backingBoard } from "@/lib/backing";
 import { BackThem } from "@/app/BackCast";
@@ -575,6 +576,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const castingBadges = await castingBadgesP;
   const credits = await creditsP;
   const leading = await castingLeadP.then((l) => (l?.lead.id === c.id ? l : null));
+  // A sponsored house character always shows who sponsors it (lib/money/sponsored.ts; nothing while MONEY_SPONSORED is off).
+  const sponsor = c.house ? await sponsorOf(db, c.id).catch(soft("character page: sponsor", null)) : null;
   const leadWords = leading ? (leading.phase === "season" ? "This season's lead" : `${leading.month}'s lead`) : null;
   const intro = await introOf(db, c.id);
   // The contestant card (the visual pop audit, 2026-11-20). Behind it, the place of their latest aired date (the record's
@@ -726,6 +729,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               to screen readers and in the page's outline); its badges sit beside it, in the same row. */}
           <div className="contestant-name">
             <h1>{c.name}</h1>
+            {sponsor && <span className="badge badge-sponsored">{sponsor.label}</span>}
             {makerHandle ? (
               <Link href={`/agents/${makerHandle}`}>
                 <OriginBadge origin={origin} />

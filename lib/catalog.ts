@@ -15,11 +15,11 @@ import { PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
 import { paymentLinkFromEnv } from "./stripe";
 
-export const ITEM_KINDS = ["house_character", "frame", "episode_pack"] as const;
+export const ITEM_KINDS = ["house_character", "frame", "episode_pack", "tip", "template"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 
 /** Kinds you can buy again: episode packs stack. Everything else is owned once. */
-export const isRepeatable = (kind: ItemKind) => kind === "episode_pack";
+export const isRepeatable = (kind: ItemKind) => kind === "episode_pack" || kind === "tip" || kind === "template";
 
 /** One currency for now; the orders table only accepts this one. */
 export const CURRENCY = "usd";
@@ -86,6 +86,26 @@ export const PACK_15: CatalogItem = {
   episodes: 15,
 };
 
+/**
+ * Money features (lib/money/*, 2026-11-27), off until the owner switches them on: a tip to a character's creator, and a
+ * creator's character sheet sold as a template. They are catalog items so the webhook prices and grants them like any
+ * order, and neither is in the shop. Each needs its own Payment Link (STRIPE_LINK_<SKU>) before it can be bought.
+ */
+export const TIP_ITEMS: readonly CatalogItem[] = [1, 3, 5].map((d) => ({
+  sku: `tip_${d}`,
+  kind: "tip" as const,
+  name: `A $${d} tip`,
+  description: `A $${d} tip to a character's creator.`,
+  price_cents: d * 100,
+}));
+export const MARKET_ITEMS: readonly CatalogItem[] = [3, 5].map((d) => ({
+  sku: `market_${d}`,
+  kind: "template" as const,
+  name: `A $${d} character template`,
+  description: `Your own copy of a creator's character sheet, for $${d}.`,
+  price_cents: d * 100,
+}));
+
 export const CATALOG: readonly CatalogItem[] = [
   ...PREMIUM_HOUSE_CHARACTERS.map(
     (c): CatalogItem => ({
@@ -100,6 +120,8 @@ export const CATALOG: readonly CatalogItem[] = [
   ...FRAMES,
   PACK_5,
   PACK_15,
+  ...TIP_ITEMS,
+  ...MARKET_ITEMS,
 ];
 
 /** What the Payment Links can sell: the packs, the small one first. Checkout accepts these and no other SKU. */

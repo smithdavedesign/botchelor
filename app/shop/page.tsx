@@ -38,6 +38,8 @@ const KIND_LABELS: Record<ItemKind, string> = {
   house_character: "Premium house character",
   frame: "Profile frame",
   episode_pack: "Episode pack",
+  tip: "Tip",
+  template: "Character template",
 };
 
 /** Off-sale items show only to someone who already owns one (restored by hand), so they know it still works. */
@@ -45,6 +47,8 @@ const OWNED_NOTES: Record<ItemKind, string> = {
   house_character: "Yours. Pick them when you send your character on a date.",
   frame: "Yours. It shows around your name on league boards.",
   episode_pack: "Bought before. Buy again whenever you like; the dates add up.",
+  tip: "Sent.",
+  template: "Yours. The copy is in your characters.",
 };
 
 /** "$9.99 a month" as a headline: the amount big, the rest beside it. A label with no leading amount is shown whole. */
@@ -94,7 +98,7 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   const packs = onSale(env);
   const lead = packs.find((i) => i.sku === PACK_15.sku) ?? packs[0];
   const tiles = lead ? [lead, ...packs.filter((i) => i !== lead)] : packs;
-  const ownedOffSale = CATALOG.filter((i) => !PACKS.includes(i) && owned.includes(i.sku));
+  const ownedOffSale = CATALOG.filter((i) => !PACKS.includes(i) && i.kind !== "tip" && i.kind !== "template" && owned.includes(i.sku));
   // Buying needs an account (app/api/checkout): an anonymous player's tokens would live in one browser's cookie.
   const signInToBuy = open && sessionsSignable() && !viewer?.authenticated;
   // One word for one thing (2026-10-31 UX audit: the nav said "dates left", this page "tokens", the pack "Episode pack"):
