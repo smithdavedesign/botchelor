@@ -484,6 +484,28 @@ follower count. The follow state is one read started beside the page's first que
 
 - **Tests:** `tests/character-follow.test.ts`.
 
+## 15. Ready for the show (2026-11-27)
+
+David: connect the show's production skills (`.claude/skills/show-*`) to character building. The show stages format
+moves (`.claude/skills/showrunner/formats.md`: hometowns, the villain edit, the cliffhanger…), and each move needs
+something from a character's card. `lib/show-ready.ts` says which.
+
+- **`showReadiness(extras, record)`** returns the moves a character can carry now, the ones the creator could unlock
+  (and the details each still needs), the ones waiting only on the record (a rivalry, an exit), and a 0–100 score. It
+  reads `publicExtras` only, never anything owner-only. Pure, so the builder runs it on a draft.
+- **Two new details:** `extras.family` ("Who they'd bring home", public, for Hometowns; invented, never a real person),
+  and `extras.villain_ok`, the owner's yes to the villain edit. A user's character is never framed as the villain
+  without it. The house cast is the show's own.
+- **The builder's review** shows "Ready for the show" (`app/create/ShowReadyPanel.tsx`): the score, the moves they can
+  already carry, up to three details to add (each a jump back to its step), and the villain checkbox. It never blocks
+  saving.
+- **`voiceBreaks(line, extras)`**: the show writer's check for any line it puts in a character's mouth (a never-say,
+  or a sample line recited word for word, the same checks as the dates' critic).
+- **Moment cards:** `/characters/<id>/moment.png?m=<milestone>&format=og|story` draws one of their milestones as a card
+  to post. Its owner gets a 📤 next to each milestone on the Story tab. Public dates only, and the other side is named
+  only for milestones that don't tell how the date ended.
+- **Tests:** `tests/show-ready.test.ts`.
+
 ## The house cast
 `lib/house-kits.ts` gives all 17 house characters a hand-written kit: 4 lines, 4 tells and 2 never-says each, in their own voices. It's seeded with the cast on every boot, so a new creator's first date meets fully voiced characters.
 

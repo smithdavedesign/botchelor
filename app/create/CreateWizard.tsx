@@ -31,6 +31,7 @@ import { isLooksLine, looksAppearance } from "@/lib/looks";
 import FactsStep from "./FactsStep";
 import DeeperStep from "./DeeperStep";
 import DepthMeter from "./DepthMeter";
+import ShowReadyPanel from "./ShowReadyPanel";
 import { sheetWords } from "@/lib/sheet-words";
 import { SPARKS } from "@/lib/sparks";
 import DeckPreview, { EXAMPLE } from "./DeckPreview";
@@ -1905,6 +1906,9 @@ export default function CreateWizard({
             {/* On the depth track only (an edit, or "Add depth"): right after a one-sentence draft, "40 words: the sweet
                 spot is 400–999" read as a verdict on a character that's ready to date (2026-11-22 audit). */}
             {depth && <DepthMeter words={sheetLength} />}
+
+            {/* Which of the show's format moves they can carry (lib/show-ready.ts), and what would unlock more. */}
+            <ShowReadyPanel extras={extras} setExtras={setExtras} name={sheet.name} jump={(to) => jump(to === "voice" ? S.voice : S.details)} />
 
             {/* Not on someone's first character: the tips wait for its first date (the character's page). */}
             {!createOnTop && (

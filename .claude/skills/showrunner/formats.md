@@ -11,7 +11,10 @@ format that would need the show to *steer* an outcome (pick a winner, force a br
 and show what the engine already did, or add a choice the audience or a booker makes.
 
 Before you propose a move, check what already exists (listed under "already there") so you surface it rather
-than rebuild it.
+than rebuild it, and check that the cast can carry it ("needs from the character"). A move is cast only with
+characters whose public card has what the move needs. `showReadiness` in `lib/show-ready.ts` says which moves
+each character can carry and what's missing. Never invent a missing detail: skip that character, or have
+`casting-director` ask the creator for it.
 
 ---
 
@@ -25,6 +28,7 @@ It must never cut before something that has already aired publicly elsewhere.
 **Words.** A hold line ("And then she said...") and a resolve line, both templates over the public transcript.
 **Pictures.** An end card with the two faces and "To be continued", sized for stories.
 **Already there.** The nightly producer beat; `lib/house-kits.ts` has cliffhanger dialogue.
+**Needs from the character.** A dodge line (`extras.lines.dodge`) for the hold, and at least one public tension in `lib/story-state.ts`.
 **Lands when.** Every episode and night page ends on an open question. The question appears nowhere above it.
 
 ## 2. The interruption ("Can I steal him for a second?")
@@ -38,6 +42,7 @@ the record lacks.
 **Pictures.** A split card: the date on one side, the interrupter on the other.
 **Already there.** Check `lib/situations.ts`, `lib/house-scenes.ts` and `lib/dares.ts` for an interruption-like
 beat before adding one.
+**Needs from the character.** A rivalry on the record (`rivals` or a triangle in `lib/story-state.ts`), and an annoyed tell (`extras.tells.annoyed`) for the reaction.
 **Lands when.** A viewer can see who interrupted whom, and why (the rivalry is linked).
 
 ## 3. Unequal dates (one-on-one, group, two-on-one)
@@ -51,6 +56,7 @@ verdict decides who stays. The show never decides.
 **Words.** Date cards ("Tonight's one-on-one goes to..."), the two-on-one tease and the walk-out line.
 **Pictures.** A date card per type, and a two-on-one card with both faces and one rose.
 **Already there.** `lib/group-dates.ts` (double dates) and the format weeks in `lib/season-format.ts`.
+**Needs from the character.** Nothing new. Uses the dates the season already books.
 **Lands when.** The season page shows each suitor's date count and the next one-on-one.
 
 ## 4. The first impression rose
@@ -63,6 +69,7 @@ scores. The audience's vote can't send that suitor home in week 1. Say so on the
 **Pictures.** A first impression card: the lead, the rose, the winner.
 **Already there.** Week 1 in `lib/season-format.ts` is "First impressions"; check `lib/beats.ts`, `lib/moves.ts`
 and `lib/rules.ts` for an existing rose.
+**Needs from the character.** A hello line (`extras.lines.hello`) for the arrival, and a portrait or show-kit rose shot for the card.
 **Lands when.** Week 1's vote page shows who is safe and why.
 
 ## 5. Hometowns
@@ -74,6 +81,7 @@ family lines). They are never real people. Their verdict is an engine beat.
 **Words.** The family's lines, the verdict and the drive home.
 **Pictures.** A hometown set (the suitor's place, drawn the way show sets are) and a family card.
 **Already there.** Week 3 "Hometowns" (`meet_the_parents`) in `lib/season-format.ts`. Surface it before rebuilding it.
+**Needs from the character.** `extras.hometown` and `extras.family` (who they'd bring home). Without both, the suitor's hometown is skipped, never invented.
 **Lands when.** Hometowns week has its own page section and a share card per family.
 
 ## 6. The reunion ("The Suitors Tell All")
@@ -85,6 +93,7 @@ questions, which are collected as a vote. The confrontations come from the seaso
 **Words.** Question cards, answers in each suitor's voice and the host's links between them.
 **Pictures.** A reunion poster with every suitor in a row, and a clip per confrontation.
 **Already there.** Exits and the confessionals; `lib/ending-detail.ts`.
+**Needs from the character.** An upset line (`extras.lines.upset`), and an exit on record (a ceremony that sent them home).
 **Lands when.** The reunion airs the week after the finale with its own page and poster.
 
 ## 7. The spinoff for the rejects
@@ -96,6 +105,7 @@ other or the audience's characters. It runs on the same engine, the same rules a
 **Words.** The pitch, the title and each returning suitor's "why I'm back" line.
 **Pictures.** Its own poster and logo treatment (the season poster's layout with a new palette).
 **Already there.** Exits and the season-cast machinery. This is a new format, so propose it as an M or L bet.
+**Needs from the character.** An exit on record and their life record's goals (`lib/life-days.ts`), for "why I'm back".
 **Lands when.** An exited suitor's page links to their next chance.
 
 ## 8. The villain edit
@@ -109,6 +119,7 @@ misdeed, and never attach it to a user's own character without that owner's opt-
 **Words.** A villain's confessional style, the other suitors' lines about them and the vote tease.
 **Pictures.** A "Who's here for the wrong reasons?" card.
 **Already there.** `lib/story-state.ts` rivals; the `villain` tags in `lib/house*.ts`.
+**Needs from the character.** At least two public rivals, and for a user's character, the owner's opt-in (`extras.villain_ok`). House characters need no opt-in.
 **Lands when.** The season page names the season's antagonist with the numbers behind it.
 
 ---

@@ -16,6 +16,7 @@ make tonight's viewer stay, vote, share or come back tomorrow? The roles are ski
 | Step | Skill | Output | In the factory (Agent HQ) |
 |---|---|---|---|
 | 1. Produce | `show-producer` | A beat sheet: ranked bets, each with impact, effort and the file it lands in | `/show-producer` (report) |
+| 1b. Cast | `show-casting` | Who's ready for which move, and what to ask each creator for | `/show-casting` (report) |
 | 2. Write | `show-writer` | In-world copy: ceremony lines, exits, twists, teases, empty states | `/show-writer` (PR) |
 | 3. Build assets | `show-assets` | Visuals: share cards, posters, Remotion cuts, sets, show-kit shots | `/show-assets` (PR) |
 | 4. Edit | `show-editor` | A pass/fail review against docs/show-style.md, with fixes | `/show-editor` (report) |
@@ -27,7 +28,7 @@ make tonight's viewer stay, vote, share or come back tomorrow? The roles are ski
    `docs/seasons.md` (formats, the producer, the house, confrontations, December's The Botchelor),
    `docs/season-page.md` and the newest entries of `ROADMAP.md` "Now". Note today's date against the
    season's clock: preseason, which week, the next Sunday ceremony, the finale.
-2. **Produce.** Follow `show-producer`. Pick at most three bets for this cycle; prefer the one that
+2. **Produce.** Follow `show-producer`, and `show-casting` when a bet needs particular characters. Pick at most three bets for this cycle; prefer the one that
    lands before the next on-air moment (a premiere, a ceremony, a launch).
 3. **Make.** For each bet, follow `show-writer` for words and `show-assets` for pictures and video.
    One bet, one commit. Keep the engine's rules (below).
@@ -53,6 +54,15 @@ asset builder take their brief from it, and the editor checks against it.
 - **Never spoil.** Nothing above the fold says how a date a viewer could still call ended.
 - **Only the public record.** Public, aired dates between public characters; never After Dark data
   on a show surface; every viewer-visible generated line passes the PG checks (`lib/safety.ts`).
+- **Only the public card.** A show surface or skill uses a character's public card
+  (`publicExtras`, `lib/extras.ts`) and their aired record. Never their soul, temperament,
+  opinions, story-state wants, lessons, private facts, baggage or What-they're-hiding: those are
+  owner-only (docs/character-depth.md, the "Public?" column). Never invent a detail the card lacks
+  (a hometown, a family, a rivalry): skip the character, or ask the creator through
+  `show-casting`.
+- **A user's character is cast, never typecast.** The villain edit, or any framing that makes a
+  user's character look bad, needs the owner's yes (`extras.villain_ok`). The house cast is the
+  show's own. A creator's character is someone's work, and the show treats it that way.
 - **No claim is judged true.** A rivalry board or a tease names who said what, never who is right
   (`lib/story-state.ts`: `is_true` is server-side only).
 - **$0 by default.** Free models and Workers AI for drawing; a paid call is proposed to the owner

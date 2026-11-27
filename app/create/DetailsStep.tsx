@@ -27,6 +27,7 @@ export type SetExtras = (update: (prev: CharacterExtras) => CharacterExtras) => 
 const PLACEHOLDERS: Partial<Record<TextDetail, string>> = {
   occupation: "Lighthouse keeper",
   hometown: "a fishing village",
+  family: "Her nan, who runs the bakery and trusts nobody",
   world: "Ours, or a floating sky-city, a starship, an elven court",
   backstory: "Grew up above her parents' bakery, ran away to sea at 19, came home to take over the ovens and has been too busy to date since",
   style: "Thrifted cardigans and mismatched socks",
@@ -277,9 +278,10 @@ export default function DetailsStep({ extras, setExtras, name }: { extras: Chara
       </Group>
 
       <p className="detail-section-label">Optional: it all shows on their card</p>
-      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "world", "backstory", "star_sign", "love_language", "language"])} issues={toFix(["extra_occupation", "extra_hometown", "extra_world", "extra_backstory"])}>
+      <Group title="The basics" filled={filledOf(extras, ["occupation", "hometown", "family", "world", "backstory", "star_sign", "love_language", "language"])} issues={toFix(["extra_occupation", "extra_hometown", "extra_family", "extra_world", "extra_backstory"])}>
         <DetailField k="occupation" extras={extras} setExtras={setExtras} />
         <DetailField k="hometown" extras={extras} setExtras={setExtras} />
+        <DetailField k="family" extras={extras} setExtras={setExtras} />
         <DetailField k="world" extras={extras} setExtras={setExtras} />
         <DetailField k="backstory" extras={extras} setExtras={setExtras} />
         <div className="detail-pair">

@@ -8,6 +8,8 @@
  * Only what has aired publicly between public characters is shown, and no ending: the starters are picked to mix
  * endings, but a card never says which (the Watch and RSS rule: the ending is the episode's to tell).
  */
+import type { CharacterExtras } from "./extras";
+import { showReadiness, type ShowField, type ShowMoveId } from "./show-ready";
 import { castingBoard, type AuditionCard } from "./auditions";
 import { ceremonyRunsAt, ceremonyVoteOpensAt } from "./ceremony";
 import type { Db } from "./db";
@@ -509,7 +511,9 @@ export async function startersAdminView(db: Db, now: Date = new Date()): Promise
 export type PosterFace = { id: string; name: string; hue: number | null; portrait: string | null; house: boolean };
 
 /** A face with its one line (bioLine), for the cast reveal video (GET /api/seasons/<slug>/cast). */
-export type CastFace = PosterFace & { line: string };
+/** A face's show readiness from its public card (lib/show-ready.ts): for the casting director and the producer. */
+export type CastReady = { score: number; ready: ShowMoveId[]; asks: ShowField[] };
+export type CastFace = PosterFace & { line: string; show_ready: CastReady };
 
 /**
  * The season's cast as the promo video reads it (scripts/clips/season-promo.mjs): the poster's lead and faces, each with
@@ -517,11 +521,21 @@ export type CastFace = PosterFace & { line: string };
  */
 export async function seasonCastLines(db: Db, d: SeasonPosterData): Promise<{ lead: (CastFace & { wants: string | null }) | null; faces: CastFace[] }> {
   const ids = [...(d.lead ? [d.lead.id] : []), ...d.faces.map((f) => f.id)];
-  const { rows } = ids.length ? await db.query<{ id: string; bio: string }>(`select id, bio from characters where id = any($1::text[])`, [ids]) : { rows: [] };
+  const { rows } = ids.length
+    ? await db.query<{ id: string; bio: string; extras: CharacterExtras | null }>(`select id, bio, extras from characters where id = any($1::text[])`, [ids])
+    : { rows: [] };
   const bio = new Map(rows.map((r) => [r.id, bioLine(r.bio ?? "", 140)]));
+  const extras = new Map(rows.map((r) => [r.id, r.extras]));
+  // Card details only (showReadiness reads publicExtras): moves that wait on the record (a rivalry, an exit) are the producer's to check.
+  const ready = (id: string, house: boolean): CastReady => {
+    const r = showReadiness(extras.get(id), { house });
+    return { score: r.score, ready: r.ready, asks: r.asks };
+  };
   return {
-    lead: d.lead ? { id: d.lead.id, name: d.lead.name, hue: d.lead.hue, portrait: d.lead.portrait, house: d.lead.house, line: bio.get(d.lead.id) ?? "", wants: d.lead.wants } : null,
-    faces: d.faces.map((f) => ({ ...f, line: bio.get(f.id) ?? "" })),
+    lead: d.lead
+      ? { id: d.lead.id, name: d.lead.name, hue: d.lead.hue, portrait: d.lead.portrait, house: d.lead.house, line: bio.get(d.lead.id) ?? "", wants: d.lead.wants, show_ready: ready(d.lead.id, d.lead.house) }
+      : null,
+    faces: d.faces.map((f) => ({ ...f, line: bio.get(f.id) ?? "", show_ready: ready(f.id, f.house) })),
   };
 }
 
