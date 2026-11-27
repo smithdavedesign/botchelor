@@ -7,7 +7,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CATALOGS } from "@/lib/i18n/catalogs";
-import { localeFromAcceptLanguage, pickLocale } from "@/lib/i18n/locales";
+import { localeFromAcceptLanguage, newCharacterLanguage, pickLocale } from "@/lib/i18n/locales";
 import { translator } from "@/lib/i18n/translate";
 
 const ROOT = join(__dirname, "..");
@@ -93,5 +93,18 @@ describe("picking the language", () => {
     const t = translator({ "{n} unread": "{n} sin leer" });
     expect(t("{n} unread", { n: 3 })).toBe("3 sin leer");
     expect(t("Not translated yet")).toBe("Not translated yet");
+  });
+});
+
+describe("a new character's language", () => {
+  it("is the site's, and unset in English (the sheet's own language, as before)", () => {
+    expect(newCharacterLanguage("es")).toBe("es");
+    expect(newCharacterLanguage("ja")).toBe("ja");
+    expect(newCharacterLanguage("en")).toBeNull();
+  });
+  it("is applied by the builder to a new character only, never over a pick", () => {
+    const src = readFileSync(join(ROOT, "app/create/CreateWizard.tsx"), "utf8");
+    expect(src).toContain("return edit || !language || e.language ? e : { ...e, language };");
+    expect(src).toContain("useState<CharacterExtras>(() => init?.extras ?? withSiteLanguage(");
   });
 });

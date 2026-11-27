@@ -39,6 +39,8 @@ import type { DeckCard } from "@/lib/house-deck";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { languageName } from "@/lib/language";
+import { useLocale } from "@/app/I18nProvider";
+import { newCharacterLanguage } from "@/lib/i18n/locales";
 import {
   hasExtras,
   LOVE_LANGUAGES,
@@ -478,7 +480,15 @@ export default function CreateWizard({
   const [imageSignals, setImageSignals] = useState<ImageSignals | null>(null);
   const [styledFromImage, setStyledFromImage] = useState(false);
   const [soul, setSoul] = useState<Soul>(init?.soul ?? EMPTY_SOUL);
-  const [extras, setExtrasState] = useState<CharacterExtras>(init?.extras ?? (startHometown ? { hometown: startHometown } : {}));
+  // A new character speaks the site's language (docs/i18n.md; David, 2026-11-27) unless one is picked, so someone using
+  // the site in Spanish gets a character whose dates and texts are in Spanish. English adds nothing: unset is the sheet's
+  // own language, as before. "Speaks" (DetailsStep) shows it and can change it; an edit keeps what was saved.
+  const siteLocale = useLocale();
+  const withSiteLanguage = (e: CharacterExtras): CharacterExtras => {
+    const language = newCharacterLanguage(siteLocale);
+    return edit || !language || e.language ? e : { ...e, language };
+  };
+  const [extras, setExtrasState] = useState<CharacterExtras>(() => init?.extras ?? withSiteLanguage(startHometown ? { hometown: startHometown } : {}));
   const setExtras = useCallback((update: (prev: CharacterExtras) => CharacterExtras) => setExtrasState(update), []);
   // The appearance line the looks builder last wrote: replaced as the picks change, unless it's been typed over.
   const autoAppearance = useRef<string | null>(init?.extras.looks ? looksAppearance(init.extras.looks) : null);
@@ -621,7 +631,7 @@ export default function CreateWizard({
       if (typeof d.appearance === "string") setAppearance(d.appearance);
       if (typeof d.hue === "number") setHue(d.hue);
       if (d.soul) setSoul({ ...EMPTY_SOUL, ...d.soul });
-      if (d.extras && typeof d.extras === "object") setExtrasState(d.extras);
+      if (d.extras && typeof d.extras === "object") setExtrasState(withSiteLanguage(d.extras));
       if (typeof d.autonomy === "string") setAutonomy(d.autonomy);
       if (Array.isArray(d.hiding)) setHiding(d.hiding.filter((x: unknown): x is string => typeof x === "string"));
       // The steps already reached stay open (the audit, 2026-10-31: a reload restored every field but locked steps 2–7).
@@ -715,7 +725,7 @@ export default function CreateWizard({
       setPronouns(str(d.pronouns));
       setVoice(str(d.voice));
       const extra: CharacterExtras = d.extras && typeof d.extras === "object" ? d.extras : {};
-      setExtrasState(extra);
+      setExtrasState(withSiteLanguage(extra));
       setLookChanged(false);
       // Their own words about the look stay theirs; otherwise the line is the suggested look's, replaced as picks change.
       const looksLine = extra.looks?.gender ? looksAppearance(extra.looks) : "";
@@ -810,7 +820,7 @@ export default function CreateWizard({
       setVoice(s(d.voice));
       setAppearance(s(d.appearance));
       if (s(d.appearance)) appearanceTyped.current = true;
-      setExtrasState(d.extras && typeof d.extras === "object" ? d.extras : {});
+      setExtrasState(withSiteLanguage(d.extras && typeof d.extras === "object" ? d.extras : {}));
       setSoul(EMPTY_SOUL);
       setHiding([]);
       setExpressOpen(false);

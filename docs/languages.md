@@ -24,6 +24,7 @@ our own traffic left out (docs/analytics.md).
 character's page; `language` in the MCP character schema, 21 languages in `lib/language.ts LANGUAGE_NAMES`) is the language a character
 speaks on dates and in texts. Unset, it's the language its sheet is written in (bio, want and dealbreaker), else
 English. The house cast and every English sheet are unchanged: nothing about language goes into their prompts.
+On /create a new character starts on the site's language when that isn't English (docs/i18n.md, 2026-11-27).
 
 - **Its own prompt** (`characterSelfView`) says `you_speak`; the other side's view of it says `they_speak`. Every date
   turn, morning-after text, between-dates text and match chat reads these views, so they all speak it.
