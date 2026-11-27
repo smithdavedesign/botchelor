@@ -16,7 +16,8 @@ import type { Db } from "../db";
 import { createPendingOrder } from "../payments";
 import { listedCharacterSql } from "../public-cast";
 import { CHARACTER_REJECTION_MESSAGES, checkShowText } from "../safety";
-import { paymentLinkFromEnv, paymentLinkUrl } from "../stripe";
+import { paymentLinkUrl } from "../stripe";
+import { moneyLink } from "./links";
 import { moneyOn } from "./switches";
 
 type Env = Record<string, string | undefined>;
@@ -60,7 +61,7 @@ export async function startTip(
   if (!c || c.visibility !== "public") return fail("no_character", "No such character.");
   if (c.is_house || !c.owner_id) return fail("house", `${c.name} is one of the show's own: there's no creator to tip.`);
   if (c.owner_id === fromUser) return fail("own", "You can't tip yourself.");
-  const link = paymentLinkFromEnv(env, item.sku);
+  const link = moneyLink(env, item.sku);
   if (!link) return fail("unavailable", "Tips aren't open yet. Nothing was charged.");
   const orderId = await createPendingOrder(db, fromUser, item);
   await db.query(`insert into tips (order_id, character_id, from_user, to_user, message) values ($1, $2, $3, $4, $5)`, [orderId, c.id, fromUser, c.owner_id, note.note]);

@@ -69,6 +69,7 @@ export const PUBLIC_PATHS = [
   "/calendar",
   "/tournaments",
   "/clubs",
+  "/market",
   "/house",
   "/graph",
   "/casting",

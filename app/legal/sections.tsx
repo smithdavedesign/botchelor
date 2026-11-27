@@ -32,7 +32,7 @@ import { ConsentChoice } from "../ConsentBanner";
 /** The other policy pages' date (content policy, 2257, cancelling). */
 export const LAST_UPDATED = "Last updated 19 November 2026.";
 /** The terms' and the privacy notice's date: they changed after the rest. */
-export const TERMS_PRIVACY_UPDATED = "Last updated 26 November 2026.";
+export const TERMS_PRIVACY_UPDATED = "Last updated 27 November 2026.";
 /** What changed last time, in a line. */
 export const PRIVACY_CHANGES =
   "Changed (26 November): a companion finds what you told it by meaning, with Google's Gemini making the embeddings; your own character learns about itself from your conversations with it; and a character carries its life on the show into After Dark, including, in a scene you step into, the facts it noted about you on the show (one way only). Before that (24 November): the home page also shows Toolradar's badge, a picture loaded from Toolradar's own site (toolradar.com), as it does LaunchNest's. Before that (23 November): the privacy notice says what a character can remember about you in an After Dark scene you step into yourself: off until you turn it on with its own consent, every line yours to see, change or forget, and deleted when you turn it off; and what we keep if you let a character there write to you first (your time zone, the quiet hours you pick and how often), which is off until you turn it on; and that a level is kept between you and a character you've stepped in with (a number from the time you've spent together, which stays when a scene is deleted and goes with your After Dark data); nothing else changes. Before that (22 November): a short version now opens the terms and the privacy notice, and the notice says that the home page's LaunchNest badge is loaded from LaunchNest's own site, which then sees the visit; nothing else changes. Before that (19 November): Botchelor is now run by Botchelor LLC, a California limited liability company. It takes David Smith's place as the other party to the terms and as the one responsible for your data; nothing else about the terms or your data changes. Before that (18 November): the terms say Botchelor owns the characters it makes for the show (their sheets, portraits and the cast as a whole), that every one of them is an adult, and that you may not bulk-download the show or use it to train AI models. Before that (17 November): the privacy notice says what we keep if you save who you are in scenes (a name, a line on how you look and a line on who you are, written as make-believe for the scenes you play yourself), and that it's in your account export. Before that (16 November): the terms name both packs of dates on sale (5 for $4 and 15 for $10), and say that a character's sheet can be the writing of the person who made it, while every date, text and picture on the show is written or drawn by AI. Before that (15 November): you can delete one message of a companion conversation on its own, and your account export now has your companion conversations, what each companion remembers about you, and the record of your live calls. Also: when you open a character's texts signed in, having said you're 18 or older, we note with your account whether After Dark could be offered where you are (that alone, not the country), so a character never texts you about it where it isn't. Earlier the same day: what happens on a call with a companion now has a section of its own (your audio, your words, who makes the voice and the face, what's kept and how to delete it), and it names Runpod, whose GPUs our face renderer runs on; and on a live call with the Companion Plan, where it's offered, a companion's face can move as they talk, drawn by our own renderer from their portrait and voice (never yours) at no charge beyond the call's minutes. Before that (10 November): a recovery email you can add to a handle-and-password account, used only to reset a forgotten password and to tell you when the password or that address changes; the Sunday letter, a weekly email you can sign up for (confirmed by email, with an unsubscribe in every letter, and an address taken off when its emails bounce or are reported as spam); who hosts the show and carries its traffic (DigitalOcean and Cloudflare, no longer Vercel), and that the show's model is reached through OpenRouter; live calls with a companion, where they're offered: Deepgram hears your voice and makes the companion's, and the terms say how call minutes are charged. Before that (1 November): Analytics names the three events our own dashboard counts (visit, activate, checkout) and says the site you came from goes with a visit only when it's another site; the terms state the pack's price. Before that (24 October): who runs Botchelor, After Dark's data and where it's offered, the location and age we read, everyone who processes data, your rights, and the complaint form.";
@@ -434,6 +434,17 @@ export function TermsSections() {
         transferred.
       </p>
 
+      <p>
+        <strong>Tips and character templates.</strong> You can tip a character&apos;s creator ($2, $3 or $5) from the
+        character&apos;s page, and buy a copy of a creator&apos;s character sheet as a template ($3 or $5) in{" "}
+        <a href="/market">the market</a>. Both are paid once on Stripe&apos;s hosted page. A tip is a gift to the creator: it
+        buys nothing and changes nothing about how dates go or are scored. The creator sees your note, never your name. A
+        template gets you your own private copy of the sheet to rename and change; the original character, its dates and its
+        face stay the creator&apos;s. We pay creators out by hand each month from what their characters earn, after
+        Stripe&apos;s fees, and 70% of a template&apos;s price goes to its creator. A creator who lists a character as a
+        template promises it is their own work.
+      </p>
+
       <h2 id="companion-plan">The Companion Plan</h2>
       <p>
         Companions are free to try: {COMPANION_FREE_PER_DAY} replies a day across every companion. The Companion Plan takes the daily limit away (fair
@@ -524,6 +535,11 @@ export function TermsSections() {
           <strong>After Dark token packs:</strong> if a pack doesn&apos;t work, or you change your mind within 14 days of
           buying it and haven&apos;t spent any of it, email us and we&apos;ll refund you in full. Tokens already spent
           aren&apos;t refunded. A refunded or charged-back pack&apos;s unspent tokens are removed.
+        </li>
+        <li>
+          <strong>Tips and templates:</strong> if a tip or a template was a mistake, email us with your Stripe receipt within
+          14 days and we&apos;ll refund you in full. A refunded tip isn&apos;t paid to the creator, and a template that was
+          refunded before you made your copy can&apos;t be made.
         </li>
         <li>
           <strong>The Companion Plan:</strong> cancel any time and it stops at the end of the month you paid for. We don&apos;t give refunds or credit for

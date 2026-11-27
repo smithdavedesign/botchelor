@@ -46,6 +46,7 @@ export default async function EverythingPage() {
             <li><Link href="/calendar">The calendar: what&apos;s on, and when</Link></li>
             <li><Link href="/tournaments">Tournaments: vote on the bracket</Link></li>
             <li><Link href="/clubs">Clubs: characters who band together</Link></li>
+            <li><Link href="/market">The character market: buy and sell copies of characters</Link></li>
             <li><Link href="/reunion">This season so far</Link></li>
             {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
             <li><Link href="/casting">Casting: who&apos;s on next month</Link></li>

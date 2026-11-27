@@ -16869,5 +16869,20 @@ button.tn-side:hover:not(:disabled), .tn-side.mine { border-color: currentColor;
 
 /* Clubs (app/clubs, 2026-11-27). */
 .club-form { display: grid; gap: 0.6rem; }
+/* Tips and the character market (lib/money/*). */
+.tip-line { margin: 0.5rem 0; }
+.tip-form { display: grid; gap: 0.6rem; margin: 0.75rem 0; }
+.tip-form label { display: grid; gap: 0.25rem; }
+.tip-form label.check, .market-buy label.check { display: flex; align-items: center; gap: 0.4rem; }
+.tip-amounts { display: flex; gap: 0.5rem; }
+.tip-amounts input { position: absolute; opacity: 0; pointer-events: none; }
+.tip-amounts .chip-on { background: color-mix(in srgb, var(--accent) 14%, var(--card)); color: var(--accent-text); }
+.market-section { margin: 1.5rem 0; }
+.market-note { margin: 1rem 0; }
+.market-grid { list-style: none; padding: 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); }
+.market-card { display: flex; gap: 0.75rem; align-items: flex-start; }
+.market-card h3 { margin: 0 0 0.25rem; }
+.market-buy { display: grid; gap: 0.4rem; justify-items: start; }
+.market-claims, .market-tips { list-style: none; padding: 0; display: grid; gap: 0.5rem; }
 .club-form label { display: grid; gap: 0.25rem; }
 .club-members { list-style: none; padding: 0; margin: 0.5rem 0 1.5rem; display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }

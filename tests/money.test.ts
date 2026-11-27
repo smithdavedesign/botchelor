@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { deleteAccount } from "@/lib/account";
 import { buyTemplate, claimTemplate, delistTemplate, listTemplate, marketListings, purchasesOf, salesOf } from "@/lib/money/marketplace";
 import { addSponsorship, endSponsorship, sponsorOf } from "@/lib/money/sponsored";
+import { moneyLink } from "@/lib/money/links";
 import { moneyOn } from "@/lib/money/switches";
 import { readTipNote, startTip, tipsFor, tipsReceived } from "@/lib/money/tips";
 import { grantOrder } from "@/lib/payments";
@@ -42,16 +43,35 @@ async function pay(orderId: string, cents: number) {
   expect(await grantOrder(t.db, { orderId, sessionId: `cs_${orderId}`, paymentLink: "plink_1", amountTotal: cents, currency: "usd" })).toBe("granted");
 }
 
+const OFF: Record<string, string> = { MONEY_TIPS: "0", MONEY_MARKETPLACE: "0", MONEY_SPONSORED: "0" };
+
 describe("the switches", () => {
-  it("are all off unless set to 1, and the APIs answer 404 while off", async () => {
-    expect(moneyOn("tips", {})).toBe(false);
-    expect(moneyOn("marketplace", { MONEY_MARKETPLACE: "true" })).toBe(false);
+  it("are on unless set to 0, and the APIs answer 404 while off", async () => {
+    expect(moneyOn("tips", {})).toBe(true);
+    expect(moneyOn("marketplace", { MONEY_MARKETPLACE: " 0 " })).toBe(false);
     expect(moneyOn("sponsored", { MONEY_SPONSORED: "1" })).toBe(true);
     await character("ada", "alice");
-    expect(await startTip(t.db, "bob", { character_id: "ada", sku: "tip_3" }, {})).toMatchObject({ ok: false, code: "not_found" });
-    const tip = await tipRoute(new Request("http://x/api/money/tips", { method: "POST", body: JSON.stringify({ character_id: "ada", sku: "tip_3", attest: true }) }));
-    expect(tip.status).toBe(404);
-    expect((await marketRoute(new Request("http://x/api/money/market"))).status).toBe(404);
+    expect(await startTip(t.db, "bob", { character_id: "ada", sku: "tip_3" }, OFF)).toMatchObject({ ok: false, code: "not_found" });
+    const saved = process.env.MONEY_TIPS;
+    const savedM = process.env.MONEY_MARKETPLACE;
+    process.env.MONEY_TIPS = "0";
+    process.env.MONEY_MARKETPLACE = "0";
+    try {
+      const tip = await tipRoute(new Request("http://x/api/money/tips", { method: "POST", body: JSON.stringify({ character_id: "ada", sku: "tip_3", attest: true }) }));
+      expect(tip.status).toBe(404);
+      expect((await marketRoute(new Request("http://x/api/money/market"))).status).toBe(404);
+    } finally {
+      if (saved === undefined) delete process.env.MONEY_TIPS;
+      else process.env.MONEY_TIPS = saved;
+      if (savedM === undefined) delete process.env.MONEY_MARKETPLACE;
+      else process.env.MONEY_MARKETPLACE = savedM;
+    }
+  });
+
+  it("sell every money sku through a live Payment Link, which STRIPE_LINK_<SKU> can replace", () => {
+    for (const sku of ["tip_2", "tip_3", "tip_5", "market_3", "market_5"]) expect(moneyLink({}, sku)?.href).toMatch(/^https:\/\/buy\.stripe\.com\//);
+    expect(moneyLink({ STRIPE_LINK_TIP_2: "https://buy.stripe.com/other" }, "tip_2")?.href).toBe("https://buy.stripe.com/other");
+    expect(moneyLink({}, "pack_5")).toBeNull();
   });
 });
 
@@ -61,7 +81,6 @@ describe("tips", () => {
     await character("house1", "house", { house: true });
     expect(await startTip(t.db, "alice", { character_id: "ada", sku: "tip_3" }, ON)).toMatchObject({ ok: false, code: "own" });
     expect(await startTip(t.db, "bob", { character_id: "house1", sku: "tip_3" }, ON)).toMatchObject({ ok: false, code: "house" });
-    expect(await startTip(t.db, "bob", { character_id: "ada", sku: "tip_2" }, ON)).toMatchObject({ ok: false, code: "unavailable" });
     const started = await startTip(t.db, "bob", { character_id: "ada", sku: "tip_3", note: "Loved the pier date." }, ON);
     if (!started.ok) throw new Error(started.error);
     expect(started.url).toContain(`client_reference_id=${started.order_id}`);
@@ -90,7 +109,7 @@ describe("the marketplace", () => {
     if (!listed.ok) throw new Error(listed.error);
     expect(await listTemplate(t.db, "alice", { character_id: "ada", sku: "market_5" }, ON)).toMatchObject({ ok: false, code: "already_listed" });
     expect((await marketListings(t.db, "bob", ON)).map((l) => [l.character.id, l.price_cents, l.yours ?? false])).toEqual([["ada", 500, false]]);
-    expect(await marketListings(t.db, "bob", {})).toEqual([]);
+    expect(await marketListings(t.db, "bob", OFF)).toEqual([]);
     expect(await buyTemplate(t.db, "alice", listed.id, ON)).toMatchObject({ ok: false, code: "own" });
 
     const bought = await buyTemplate(t.db, "bob", listed.id, ON);
@@ -141,7 +160,7 @@ describe("sponsored cast", () => {
     if (!s.ok) throw new Error(s.error);
     expect(await addSponsorship(t.db, "admin", { character_id: "house1", brand: "Other", starts_at: days(5), ends_at: days(20) })).toMatchObject({ ok: false, code: "overlap" });
     expect(await sponsorOf(t.db, "house1", NOW, ON)).toMatchObject({ brand: "Acme Tea", label: "Sponsored by Acme Tea" });
-    expect(await sponsorOf(t.db, "house1", NOW, {})).toBeNull();
+    expect(await sponsorOf(t.db, "house1", NOW, OFF)).toBeNull();
     expect(await sponsorOf(t.db, "house1", days(11), ON)).toBeNull();
     expect(await endSponsorship(t.db, s.id, NOW)).toBe(true);
     expect(await sponsorOf(t.db, "house1", days(1), ON)).toBeNull();
