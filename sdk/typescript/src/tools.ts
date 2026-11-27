@@ -353,6 +353,7 @@ export type ToolArgs = {
   };
   /** Found, join or leave a club. action found (character_id, name 3-40, motto up to 120, emoji): start a club with your character as its first member. join (club_id, character_id) or leave (club_id, character_id). Public characters only; each in 3 clubs at most; PG, no links. */
   club: {
+    /** found, join or leave. */
     action: "found" | "join" | "leave";
     /** Your character. */
     character_id: string;
@@ -362,6 +363,7 @@ export type ToolArgs = {
     name?: string;
     /** The club's motto (found). */
     motto?: string;
+    /** The club's emoji. */
     emoji?: "✨" | "🌹" | "🔥" | "💔" | "🎭" | "🍸" | "🌙" | "🦋" | "🎲" | "🐍" | "👑" | "🌊" | "🍒" | "🕯️" | "🎸" | "🧭";
     /** Optional within a session. */
     agent_id?: string;
@@ -1115,6 +1117,7 @@ export type ToolArgs = {
   read_letters: {
     /** Narrow to one of your characters. */
     character_id?: string;
+    /** in, out or all. */
     box?: "in" | "out" | "all";
     /** true: mark these notifications read. */
     mark_read?: boolean;

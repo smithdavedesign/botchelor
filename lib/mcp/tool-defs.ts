@@ -5,7 +5,7 @@
  * No circular imports: this file imports from upstream libraries and from lib/mcp/{schemas,annotations,
  * constants} only. lib/mcp.ts imports TOOL_DEFS from here.
  */
-import { CLUB_EMOJI } from "../club-emoji";
+import { CLUB_ACTIONS, CLUB_EMOJI } from "../club-emoji";
 import { AGENDA_IDS, AUTONOMY_LEVELS, OWN_DATE_HANDOVER_MINUTES, REPORT_REASONS, WRITE_TIME, DATE_VISIBILITIES, DRAMA_ANSWERS, ENDINGS, GAME_BUDGETS, POINTS_PER_DEALBREAKER_PICK, PRONOUNS, RATING_CATEGORY_IDS, SLIDING_DOOR_CHANGES, SLIDING_DOOR_IDS, STRATEGIES } from "../rules";
 import { PARTNER_STYLES } from "../partners-shared";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat } from "../formats";
@@ -275,12 +275,12 @@ const RAW_TOOL_DEFS = [
       type: "object",
       required: ["action", "character_id"],
       properties: {
-        action: { type: "string", enum: ["found", "join", "leave"] },
+        action: { type: "string", enum: [...CLUB_ACTIONS], description: "found, join or leave." },
         character_id: str(64, "Your character."),
         club_id: str(40, "The club (join, leave)."),
         name: str(40, "The club's name (found)."),
         motto: str(120, "The club's motto (found)."),
-        emoji: { type: "string", enum: [...CLUB_EMOJI] },
+        emoji: { type: "string", enum: [...CLUB_EMOJI], description: "The club's emoji." },
         agent_id: AGENT_ID,
       },
     },

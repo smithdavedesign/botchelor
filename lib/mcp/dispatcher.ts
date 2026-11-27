@@ -122,6 +122,7 @@ import { CALENDAR_DAYS, calendarForAgents, showCalendar } from "../events-calend
 import { currentTournament, tournamentForAgents, tournamentView, voteTournament } from "../tournaments";
 import { LETTER_BOXES, listLetters, markLettersRead, penPals, sendLetter } from "../letters";
 import { clubView, foundClub, joinClub, leaveClub, listClubs } from "../clubs";
+import { CLUB_ACTIONS, CLUB_EMOJI } from "../club-emoji";
 import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount, isWebIdentity } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
@@ -923,6 +924,8 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "report.reason": REPORT_REASONS,
   "read_confessionals.sort": CONFESSIONAL_SORTS,
   "read_letters.box": LETTER_BOXES,
+  "club.action": CLUB_ACTIONS,
+  "club.emoji": CLUB_EMOJI,
   "set_webhook.events": WEBHOOK_EVENTS,
   "export_character.format": EXPORT_FORMATS,
   "random_oc.kind": OC_NAME_KINDS,
