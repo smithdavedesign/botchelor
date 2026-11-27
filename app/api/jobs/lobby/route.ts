@@ -16,6 +16,7 @@ import { announceBallotResult } from "@/lib/season-vote";
 import { judgePendingDares } from "@/lib/dare-verdict";
 import { settleDueDares } from "@/lib/dare-points";
 import { runDueRecoupling } from "@/lib/recoupling";
+import { runDueBombshell } from "@/lib/bombshell";
 import { runDueCeremony } from "@/lib/ceremony";
 import { runSundayPremiere } from "@/lib/sunday-premiere";
 import { runWalkOnRoses } from "@/lib/casting";
@@ -109,6 +110,8 @@ async function pass(): Promise<Record<string, unknown>> {
   const recoupling = await runDueRecoupling(db).catch(() => null);
   // The rose ceremony (lib/ceremony.ts, a Botchelor season only): opens Sunday's vote on Thursday, holds it at the ceremony hour.
   const ceremony = await runDueCeremony(db).catch(() => null);
+  // The bombshell (lib/bombshell.ts): after the first ceremony the audience votes an audition in; it walks in on Thursday.
+  const bombshell = await runDueBombshell(db).catch(() => null);
   // Open casting (lib/casting.ts): Sunday's roses for the walk-ons, after the house's ceremony (the finale's people's rose
   // follows the final rose). In the preseason too; nothing without a lead format picked.
   const walkOns = await runWalkOnRoses(db).catch(() => null);
@@ -248,7 +251,7 @@ async function pass(): Promise<Record<string, unknown>> {
   // The story check (lib/story-check.ts): aired dates whose lines and ending disagree are kept off the featured places,
   // a few short paid calls a pass (featured first), within its own time budget; not on a run that's already long.
   const storyCheck = Date.now() - started > LONG_RUN_MS ? null : await storyCheckSweep(db).catch(() => null);
-  return { ok: true, ...lobby, cast_opened: castOpened, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, stale_edges_healed: staleHealed, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away };
+  return { ok: true, ...lobby, cast_opened: castOpened, message_episodes_filled: messageEpisodes, season_keys: seasonKeys, awards_filled: awardsFilled, portraits, story_check: storyCheck, overnight, situation, season_ballot: ballot, dare_verdicts: dareVerdicts.length, dare_points_settled: darePoints.reduce((n, d) => n + d.voters, 0), recoupling, premiere, ceremony, bombshell, walk_ons: walkOns, reveal, season_pool: pool, secrets, cast_chat: castChat, story_state: storyState, stages_filled: stagesFilled, stale_edges_healed: staleHealed, tags_filled: tagsFilled, house_texts: houseTexts, producer, house_scene: houseScene, house_upkeep: houseKept, confrontation, challenge, social, ties_lapsed: tiesLapsed, discord, newsletter, aired, stuck_generations: stuck, handed_over, sets_rechecked, sets_drawn, scheduled_dates: scheduled, mixers, ...away };
 }
 
 export const GET = handle(run);

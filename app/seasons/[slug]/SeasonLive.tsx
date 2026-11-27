@@ -10,6 +10,7 @@ import { SEASON_PREMISE, type ScheduleLine, type SeasonLiveData, type Starter, t
 import { premiereEndsAt } from "@/lib/sunday-premiere";
 import PremiereCountdown from "../PremiereCountdown";
 import SeasonLeadFace from "../SeasonLeadFace";
+import FantasyLeague from "./FantasyLeague";
 import { premiereLabel } from "../season-visuals";
 
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
@@ -77,7 +78,7 @@ function ScheduleWhen({ line }: { line: ScheduleLine }) {
  * screen at 390 px. Every part with nothing to show is left out, never an empty box.
  */
 export default function SeasonLive({ data }: { data: SeasonLiveData }) {
-  const { season, month, def, phase, arc, lead, starters, casting, suitors, schedule, contrast, premiere } = data;
+  const { season, month, def, phase, arc, lead, starters, casting, suitors, schedule, contrast, premiere, previously, tea } = data;
   const leadShort = lead?.short ?? "the lead";
   return (
     <article className="season-live page-wide">
@@ -120,6 +121,18 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
           </p>
         )}
       </SetHero>
+
+      {/* "Previously on" (lib/season-story.ts): the night opens on what already aired. */}
+      {previously && previously.length > 0 && (
+        <section className="card previously-on" aria-labelledby="season-previously-head" data-previously>
+          <p className="kicker" id="season-previously-head">
+            Previously on {def.title}
+          </p>
+          {previously.map((l, i) => (
+            <p key={i}>{l}</p>
+          ))}
+        </section>
+      )}
 
       {starters.length > 0 && (
         <section className="season-live-starters" aria-labelledby="season-starters-head" data-track-area="season-starters">
@@ -224,6 +237,46 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
           )}
         </section>
       </div>
+
+      {/* The tea (lib/season-story.ts): the last week's storylines, each linked to the date it happened on. */}
+      {tea.length > 0 && (
+        <section id="tea" className="card tea-board" aria-labelledby="season-tea-head" data-track-area="tea">
+          <p className="kicker">The tea</p>
+          <h2 id="season-tea-head">Who&apos;s feuding, who&apos;s flirting, who said what</h2>
+          <ul className="tea-list">
+            {tea.map((t) => (
+              <li key={`${t.day}-${t.faces.map((f) => f.id).join("-")}`} className="tea-item">
+                <span className="tea-faces" aria-hidden="true">
+                  {t.faces.map((f) => (
+                    <Avatar key={f.id} seed={f.id} name={f.name} hue={f.hue} house={f.house} portraitSrc={f.portrait} size={32} decorative />
+                  ))}
+                </span>
+                <span className="tea-text">
+                  <span>{t.logline}</span>
+                  <span className="muted small">
+                    {t.faces.map((f, i) => (
+                      <span key={f.id}>
+                        {i > 0 ? " · " : ""}
+                        <Link href={`/characters/${f.id}`}>{f.name}</Link>
+                      </span>
+                    ))}
+                    {t.episode_id && (
+                      <>
+                        {" · "}
+                        <Link href={`/episodes/${t.episode_id}`} data-track="tea-date">
+                          Where it happened →
+                        </Link>
+                      </>
+                    )}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {phase === "season" && <FantasyLeague />}
 
       {schedule.length > 0 && (
         <section className="card season-live-when" aria-labelledby="season-when-head">

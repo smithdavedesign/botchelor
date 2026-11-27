@@ -227,6 +227,10 @@ export async function startTestDb() {
         // The rose ceremony (lib/ceremony.ts): its Sundays, votes, badges and the admin's lead pick.
         "ceremony_votes",
         "ceremonies",
+        // The bombshell and the fantasy league (lib/bombshell.ts, lib/fantasy.ts).
+        "bombshells",
+        "bombshell_votes",
+        "fantasy_picks",
         // The Sunday premiere (lib/sunday-premiere.ts): keyed by Sunday, which outlives a reset.
         "premieres",
         "suitor_badges",
