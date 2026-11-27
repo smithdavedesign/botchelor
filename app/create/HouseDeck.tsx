@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Avatar from "../Avatar";
+import { useT } from "@/app/I18nProvider";
+import { english, type T } from "@/lib/i18n/translate";
 // Only the type: lib/house-deck.ts builds the cards on the server, so the whole cast never comes to the browser.
 import type { DeckCard } from "@/lib/house-deck";
 
 /** "Juniper, Dex and Sable": first names, joined as a sentence says them. */
-export function firstNames(cards: readonly Pick<DeckCard, "name">[]): string {
+export function firstNames(cards: readonly Pick<DeckCard, "name">[], t: T = english): string {
   const names = cards.map((c) => c.name.split(/\s+/)[0]);
-  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : (names[0] ?? "");
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} ${t("and")} ${names[names.length - 1]}` : (names[0] ?? "");
 }
 
 /** How long each card stays in front before the next one comes forward. */
@@ -22,6 +24,7 @@ export const TURN_MS = 3600;
  * card is read out; the two behind are set dressing.
  */
 export default function HouseDeck({ cards, still = false }: { cards: readonly DeckCard[]; still?: boolean }) {
+  const tr = useT();
   const [front, setFront] = useState(0);
   const [resting, setResting] = useState(false);
   useEffect(() => {
@@ -36,7 +39,7 @@ export default function HouseDeck({ cards, still = false }: { cards: readonly De
         const place = (n - front + cards.length) % cards.length;
         return (
           <div key={c.id} className={`swipe-card wizard-deck-card house-deck-card is-${place === 0 ? "front" : place === 1 ? "next" : "back"}`} aria-hidden={place === 0 ? undefined : true}>
-            <span className="badge wizard-deck-example-tag">On the show</span>
+            <span className="badge wizard-deck-example-tag">{tr("On the show")}</span>
             <div className="swipe-photo">
               <Avatar seed={c.id} name={c.name} hue={c.hue} house portraitSrc={c.portrait} size={140} decorative />
             </div>
@@ -47,7 +50,7 @@ export default function HouseDeck({ cards, still = false }: { cards: readonly De
               </h2>
               <p className="swipe-bio">{c.bio}</p>
               <div className="swipe-prompt">
-                <p className="swipe-prompt-q">Dealbreaker</p>
+                <p className="swipe-prompt-q">{tr("Dealbreaker")}</p>
                 <p className="swipe-prompt-a">{c.dealbreaker}</p>
               </div>
               <ul className="chips swipe-interests">
@@ -58,7 +61,7 @@ export default function HouseDeck({ cards, still = false }: { cards: readonly De
                 ))}
               </ul>
               <p className="swipe-looking">
-                <strong>Looking for:</strong> {c.want}
+                <strong>{tr("Looking for:")}</strong> {c.want}
               </p>
             </div>
           </div>
@@ -73,6 +76,7 @@ export default function HouseDeck({ cards, still = false }: { cards: readonly De
  * question, so the screen has somebody on it.
  */
 export function HouseStrip({ cards }: { cards: readonly DeckCard[] }) {
+  const t = useT();
   if (!cards.length) return null;
   return (
     <p className="house-strip">
@@ -82,7 +86,7 @@ export function HouseStrip({ cards }: { cards: readonly DeckCard[] }) {
         ))}
       </span>
       <span>
-        {firstNames(cards)} are on the show. Yours is a sentence away.
+        {t("{names} are on the show. Yours is a sentence away.", { names: firstNames(cards, t) })}
       </span>
     </p>
   );
