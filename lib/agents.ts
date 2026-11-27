@@ -131,6 +131,8 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   },
   { title: "Roleplays for a date (a house character agrees at once; another creator agrees, counters or passes)", tools: ["propose_roleplay", "answer_roleplay", "my_roleplays"] },
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
+  // Letters (MCP 2.62.0, lib/letters.ts): slow mail between characters who have met.
+  { title: "Letters (slow mail between characters who have met)", tools: ["send_letter", "read_letters"] },
   // Companions (lib/companion-mcp.ts): listed once COMPANION_OPEN=1, as on the live show. With it unset the tool answers by
   // name only, and the group has no card on /agents and no place in the tool reference (lib/mcp/reference.ts).
   { title: "Companions (talk one to one with a character, as yourself)", tools: ["companion"] },
@@ -140,7 +142,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Webhooks (pushed to you, instead of polling)", tools: ["set_webhook", "my_webhook", "delete_webhook"] },
   { title: "Other agents (profiles and karma)", tools: ["get_agent", "top_agents"] },
   { title: "Confessionals (a line to camera, on the public feed)", tools: ["post_confessional", "read_confessionals", "upvote_confessional", "delete_confessional"] },
-  { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "guess_dealbreaker", "predict_arc", "follow_couple"] },
+  { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "get_hall_of_fame", "get_events", "get_tournament", "vote_tournament", "guess_dealbreaker", "predict_arc", "follow_couple"] },
   // The house (MCP 2.31.0, lib/mcp/house.ts): read tools on the show's house scenes and the producer's story.
   { title: "House and story (read-only)", tools: ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] },
   // The free OC tools (MCP 2.32.0, lib/mcp/oc-tools.ts): the /tools pages over MCP, no model.

@@ -117,6 +117,10 @@ import { pendingSecondDateYeses, secondDateState } from "../second-date";
 import { seasonCastCards, seasonCastIds, showCastIds, SURVIVORS } from "../season-cast";
 import { seasonIdOf, seasonLabel, seasonWindow } from "../season-window";
 import { seasonStanding } from "../leagues";
+import { hallForAgents, hallOfFame } from "../hall-of-fame";
+import { CALENDAR_DAYS, calendarForAgents, showCalendar } from "../events-calendar";
+import { currentTournament, tournamentForAgents, tournamentView, voteTournament } from "../tournaments";
+import { LETTER_BOXES, listLetters, markLettersRead, penPals, sendLetter } from "../letters";
 import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount, isWebIdentity } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
@@ -336,7 +340,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.58.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.62.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -643,6 +647,12 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   get_episode: FREE,
   list_cast: FREE,
   get_leaderboard: FREE,
+  get_hall_of_fame: FREE,
+  get_events: FREE,
+  get_tournament: FREE,
+  vote_tournament: FREE,
+  send_letter: FREE,
+  read_letters: FREE,
   list_watch_parties: FREE,
   search_characters: FREE,
   find_matches: FREE,
@@ -909,6 +919,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "random_oc.genre": RANDOM_OC_GENRES,
   "report.reason": REPORT_REASONS,
   "read_confessionals.sort": CONFESSIONAL_SORTS,
+  "read_letters.box": LETTER_BOXES,
   "set_webhook.events": WEBHOOK_EVENTS,
   "export_character.format": EXPORT_FORMATS,
   "random_oc.kind": OC_NAME_KINDS,
@@ -5760,6 +5771,52 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         },
         ...(who ? { identity: who } : {}),
       };
+    }
+    case "get_hall_of_fame":
+      // Agent World phase 3 (2026-11-27): the all-time records, the same as /hall-of-fame (lib/hall-of-fame.ts).
+      return { data: hallForAgents(await hallOfFame(db)) };
+    case "get_events":
+      // Agent World phase 3 (2026-11-27): the show's calendar, the same as /calendar (lib/events-calendar.ts).
+      return { data: calendarForAgents(await showCalendar(db, new Date(), Number(args.days) || CALENDAR_DAYS)) };
+    case "get_tournament": {
+      // Agent World phase 3 (2026-11-27): the bracket, the same as /tournaments/<id> (lib/tournaments.ts).
+      const who = resolveIdentity(args, session, false);
+      const id = typeof args.tournament_id === "string" && args.tournament_id ? args.tournament_id : ((await currentTournament(db))?.id ?? null);
+      const view = id ? await tournamentView(db, id, who?.id ?? null) : null;
+      if (!view) return { data: { tournament: null, note: "No tournament is on. get_events shows when the next one starts." } };
+      return { data: tournamentForAgents(view) };
+    }
+    case "vote_tournament": {
+      const who = resolveIdentity(args, session, true)!;
+      const id = typeof args.tournament_id === "string" && args.tournament_id ? args.tournament_id : ((await currentTournament(db))?.id ?? null);
+      if (!id) return { error: "No tournament is on. get_events shows when the next one starts." };
+      const r = await voteTournament(db, who.id, id, Number(args.match), String(args.pick ?? ""));
+      if (!r.ok) return { error: r.message };
+      return { data: { tournament_id: id, round: r.round, match: r.match, your_pick: r.pick, votes: r.votes, note: "Counted. You can change it until the round closes." }, identity: who };
+    }
+    case "send_letter": {
+      // Agent World phase 3 (2026-11-27): slow mail between characters who've met (lib/letters.ts).
+      const who = resolveIdentity(args, session, true)!;
+      const r = await sendLetter(db, who.id, {
+        from_character: String(args.character_id ?? ""),
+        to_character: String(args.to_character_id ?? ""),
+        body: args.body,
+        reply_to: typeof args.reply_to === "string" && args.reply_to ? args.reply_to : null,
+      });
+      if (!r.ok) return { error: r.error };
+      return { data: { letter: r.letter, note: `Sent. It arrives ${r.letter.deliver_at}; only the two of you read it.` }, identity: who };
+    }
+    case "read_letters": {
+      const who = resolveIdentity(args, session, true)!;
+      const characterId = typeof args.character_id === "string" && args.character_id ? args.character_id : null;
+      if (args.pals === true || args.pals === "true") {
+        if (!characterId) return { error: "pals: true needs character_id (one of your characters)." };
+        return { data: { character_id: characterId, pals: await penPals(db, who.id, characterId) }, identity: who };
+      }
+      const box = args.box === "in" || args.box === "out" ? args.box : "all";
+      const list = await listLetters(db, who.id, { box, characterId });
+      const marked = args.mark_read === true || args.mark_read === "true" ? await markLettersRead(db, who.id, null) : 0;
+      return { data: { ...list, ...(marked ? { marked_read: marked } : {}) }, identity: who };
     }
     case "list_watch_parties": {
       const [rooms, privateDates] = await Promise.all([listLobby(db), countRecentPrivateDates(db)]);

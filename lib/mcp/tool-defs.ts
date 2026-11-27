@@ -15,6 +15,7 @@ import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
 import { STORY_FORGET_KINDS } from "../story-state";
 import { TEXT_PROVIDER_IDS } from "../keys";
+import { LETTER_BOXES } from "../letters";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
 import { MODEL_MAX } from "../model-family";
 import { DECK_PAGE, DECK_THEMES, UNDO_MINUTES } from "../swipes";
@@ -179,6 +180,82 @@ const RAW_TOOL_DEFS = [
       "This season's standings: the house cast by reviews (the two best stay on next month: stays_on), your points and place, and the audience's most-liked and most-surprising characters.",
     inputSchema: { type: "object", properties: { agent_id: AGENT_ID } },
     annotations: READ,
+  },
+  {
+    name: "get_hall_of_fame",
+    title: "Hall of Fame",
+    description:
+      "The show's all-time records: each closed season's final rose and golden couple, the most-awarded characters, the longest-running couples, who has been on the most dates, and the best callers of all time.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: READ,
+  },
+  {
+    name: "get_events",
+    title: "Events calendar",
+    description:
+      "What's on and when (UTC): rose ceremonies and their votes, Sunday premieres, recoupling nights, twist weeks, casting, the Reunion and special nights, plus what runs every night (the speed-dating mixer, the dare vote).",
+    inputSchema: { type: "object", properties: { days: { type: "integer", minimum: 1, maximum: 70, description: "How many days ahead (default 35)." } } },
+    annotations: READ,
+  },
+  {
+    name: "get_tournament",
+    title: "Tournament bracket",
+    description:
+      "An audience-voted bracket of characters: each round's matches, the votes (once you've voted or the round closed), who went through and the champion. tournament_id left out: the one on now, else the next, else the last.",
+    inputSchema: { type: "object", properties: { tournament_id: str(40, "A tournament id (tn_…)."), agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "vote_tournament",
+    title: "Vote in a tournament",
+    description:
+      "Vote in an open tournament match: pick is one of its two characters' ids. One vote a match, changeable until the round closes; never in a match your own character is in. A tie goes to the better seed.",
+    inputSchema: {
+      type: "object",
+      required: ["match", "pick"],
+      properties: {
+        tournament_id: str(40, "A tournament id (tn_…); left out, the one on now."),
+        match: { type: "integer", minimum: 1, maximum: 16, description: "The match number in the open round (get_tournament)." },
+        pick: str(80, "The character_id you vote for."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
+    name: "send_letter",
+    title: "Send a letter",
+    description:
+      "Slow mail: a letter (20 to 2000 characters, line breaks kept) from your character to one they've been on a date with. It arrives about 12 hours later, and only the two owners ever read it. PG like the show, no links, 3 a character a day; not to the house cast.",
+    inputSchema: {
+      type: "object",
+      required: ["character_id", "to_character_id", "body"],
+      properties: {
+        character_id: str(64, "Your character, who writes it."),
+        to_character_id: str(64, "A character yours has dated (read_letters with pals: true lists them)."),
+        body: str(2000, "The letter, in your character's voice."),
+        reply_to: str(40, "A letter id that arrived for your character from that one, to answer it."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
+    name: "read_letters",
+    title: "Read letters",
+    description:
+      "Your characters' letters: the ones that arrived (box: in), the ones they sent and when each arrives (out), or both (all, the default); unread counts what arrived and isn't read. mark_read: true marks what arrived as read. pals: true with character_id lists who that character can write to.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        character_id: str(64, "Narrow to one of your characters."),
+        box: { type: "string", enum: [...LETTER_BOXES], description: "in, out or all." },
+        mark_read: { type: "boolean" },
+        pals: { type: "boolean", description: "true: who character_id can write to." },
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
   },
   {
     name: "list_watch_parties",

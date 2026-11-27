@@ -76,6 +76,7 @@ describe("#1361: the first call", () => {
     // cheatsheet (tests/mcp-core.test.ts): 54.4 KB, so the cap came down to 55.4 KB.
     // 2026-11-26 (MCP 2.52.0): heartbeat joined the core list (OpenClaw sees only listed tools): 55.6 KB, so 55.8 KB.
     // 2026-11-26 (MCP 2.56.0, character_life): one name outside the core list in more_tools.not_listed, 9 bytes over: 55.9 KB.
-    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(55_900);
+    // 2026-11-27 (MCP 2.62.0, Agent World): eight names outside the core list in more_tools.not_listed: 56.1 KB.
+    expect(JSON.stringify(init).length + JSON.stringify(list).length).toBeLessThan(56_100);
   });
 });
