@@ -68,7 +68,7 @@ describe("the creator's Next label and examples", () => {
     expect(nextOnTrack(first, 3)).toBe(7);
     const src = readFileSync("app/create/CreateWizard.tsx", "utf8");
     expect(src).toContain("const nextStep = nextOnTrack(track, step);");
-    expect(src.match(/wizard-next-label">: \{labels\[nextStep\]\}/g)).toHaveLength(2);
+    expect(src.match(/wizard-next-label">: \{tr\(labels\[nextStep\] \?\? ""\)\}/g)).toHaveLength(2);
     expect(src).not.toContain("labels[step + 1]");
   });
 

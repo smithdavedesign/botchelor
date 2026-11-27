@@ -5,6 +5,8 @@ import Avatar from "../Avatar";
 import HouseDeck from "./HouseDeck";
 import { promptLabel, type CharacterExtras } from "@/lib/extras";
 import type { DeckCard } from "@/lib/house-deck";
+import { useT } from "@/app/I18nProvider";
+import { clientMsg } from "@/lib/i18n/translate";
 
 type Props = {
   seed: string;
@@ -31,23 +33,13 @@ type Props = {
 export const EXAMPLE = {
   name: "Marisol Vane",
   age: "31",
-  bio: "Restores antique clocks and is late to everything. Keeps a list of strangers' dogs she has met, ranked.",
-  traits: ["dry", "loyal", "chaotic"] as const,
-  want: "Someone who argues about the best biscuit and loses gracefully",
-  dealbreaker: "Clapping when the plane lands",
-  job: "Clock restorer · Lisbon",
-  prompt: { q: "The way to win me over is…", a: "Know which of your watches is fast, and by how much." },
-  interests: ["Clocks", "Night swims", "Ranking dogs"],
-} as const;
-
-/** The form's placeholders: the example, said as one ("e.g. Marisol Vane"). */
-export const SHEET_EXAMPLE = {
-  name: `e.g. ${EXAMPLE.name}`,
-  age: `e.g. ${EXAMPLE.age}`,
-  bio: `e.g. ${EXAMPLE.bio}`,
-  traits: EXAMPLE.traits.map((t) => `e.g. ${t}`),
-  want: `e.g. ${EXAMPLE.want}`,
-  dealbreaker: `e.g. ${EXAMPLE.dealbreaker}`,
+  bio: clientMsg("Restores antique clocks and is late to everything. Keeps a list of strangers' dogs she has met, ranked."),
+  traits: [clientMsg("dry"), clientMsg("loyal"), clientMsg("chaotic")] as const,
+  want: clientMsg("Someone who argues about the best biscuit and loses gracefully"),
+  dealbreaker: clientMsg("Clapping when the plane lands"),
+  job: clientMsg("Clock restorer · Lisbon"),
+  prompt: { q: clientMsg("The way to win me over is…"), a: clientMsg("Know which of your watches is fast, and by how much.") },
+  interests: [clientMsg("Clocks"), clientMsg("Night swims"), clientMsg("Ranking dogs")],
 } as const;
 
 /**
@@ -61,6 +53,7 @@ export const SHEET_EXAMPLE = {
  * the first thing typed (a name, usually) switches it to their own, stand-ins and all.
  */
 export default function DeckPreview({ seed, name, age, hue, portrait, bio, want, extras, picture, examples = [], typing = false }: Props) {
+  const t = useT();
   const job = [extras.occupation?.trim(), extras.hometown?.trim()].filter(Boolean).join(" · ");
   const prompts = (extras.prompts ?? []).filter((p) => p.answer?.trim());
   const interests = (extras.hobbies ?? []).filter((h) => h.trim());
@@ -69,20 +62,20 @@ export default function DeckPreview({ seed, name, age, hue, portrait, bio, want,
   // the show, tagged as theirs, rather than the made-up example in initials.
   if (empty && examples.length > 0) {
     return (
-      <aside className="wizard-deck" aria-label="How others will see them">
-        <p className="kicker">How others will see them</p>
+      <aside className="wizard-deck" aria-label={t("How others will see them")}>
+        <p className="kicker">{t("How others will see them")}</p>
         <HouseDeck cards={examples} still={typing} />
-        <p className="muted small wizard-deck-example-note">Three characters already on the show. Yours appears here as you type.</p>
+        <p className="muted small wizard-deck-example-note">{t("Three characters already on the show. Yours appears here as you type.")}</p>
         {picture}
       </aside>
     );
   }
   if (empty) {
     return (
-      <aside className="wizard-deck" aria-label="How others will see them">
-        <p className="kicker">How others will see them</p>
+      <aside className="wizard-deck" aria-label={t("How others will see them")}>
+        <p className="kicker">{t("How others will see them")}</p>
         <div className="swipe-card wizard-deck-card wizard-deck-example">
-          <span className="badge wizard-deck-example-tag">Example</span>
+          <span className="badge wizard-deck-example-tag">{t("Example")}</span>
           <div className="swipe-photo">
             <Avatar seed="deck-example" name={EXAMPLE.name} hue={hue} portraitSrc={null} size={140} decorative />
           </div>
@@ -91,33 +84,33 @@ export default function DeckPreview({ seed, name, age, hue, portrait, bio, want,
               {EXAMPLE.name}
               <span className="swipe-age">, {EXAMPLE.age}</span>
             </h2>
-            <p className="swipe-job">{EXAMPLE.job}</p>
-            <p className="swipe-bio">{EXAMPLE.bio}</p>
+            <p className="swipe-job">{t(EXAMPLE.job)}</p>
+            <p className="swipe-bio">{t(EXAMPLE.bio)}</p>
             <div className="swipe-prompt">
-              <p className="swipe-prompt-q">{EXAMPLE.prompt.q}</p>
-              <p className="swipe-prompt-a">{EXAMPLE.prompt.a}</p>
+              <p className="swipe-prompt-q">{t(EXAMPLE.prompt.q)}</p>
+              <p className="swipe-prompt-a">{t(EXAMPLE.prompt.a)}</p>
             </div>
             <ul className="chips swipe-interests">
               {EXAMPLE.interests.map((i) => (
                 <li key={i} className="chip">
-                  {i}
+                  {t(i)}
                 </li>
               ))}
             </ul>
             <p className="swipe-looking">
-              <strong>Looking for:</strong> {EXAMPLE.want}
+              <strong>{t("Looking for:")}</strong> {t(EXAMPLE.want)}
             </p>
           </div>
         </div>
-        <p className="muted small wizard-deck-example-note">Yours appears here as you type.</p>
+        <p className="muted small wizard-deck-example-note">{t("Yours appears here as you type.")}</p>
         {picture}
       </aside>
     );
   }
-  const shown = name.trim() || "Your character";
+  const shown = name.trim() || t("Your character");
   return (
-    <aside className="wizard-deck" aria-label="How others will see them">
-      <p className="kicker">How others will see them</p>
+    <aside className="wizard-deck" aria-label={t("How others will see them")}>
+      <p className="kicker">{t("How others will see them")}</p>
       <div className="swipe-card wizard-deck-card">
         <div className="swipe-photo">
           <Avatar seed={seed} name={name.trim() || "?"} hue={hue} portraitSrc={portrait} size={140} decorative />
@@ -128,7 +121,7 @@ export default function DeckPreview({ seed, name, age, hue, portrait, bio, want,
             {age.trim() && <span className="swipe-age">, {age.trim()}</span>}
           </h2>
           {job && <p className="swipe-job">{job}</p>}
-          <p className={bio.trim() ? "swipe-bio" : "swipe-bio muted"}>{bio.trim() || "A short bio goes here."}</p>
+          <p className={bio.trim() ? "swipe-bio" : "swipe-bio muted"}>{bio.trim() || t("A short bio goes here.")}</p>
           {prompts.map((p) => (
             <div key={p.id} className="swipe-prompt">
               <p className="swipe-prompt-q">{promptLabel(p.id)}</p>
@@ -145,7 +138,7 @@ export default function DeckPreview({ seed, name, age, hue, portrait, bio, want,
             </ul>
           )}
           <p className="swipe-looking">
-            <strong>Looking for:</strong> {want.trim() || <span className="muted">what they want from a date</span>}
+            <strong>{t("Looking for:")}</strong> {want.trim() || <span className="muted">{t("what they want from a date")}</span>}
           </p>
         </div>
       </div>

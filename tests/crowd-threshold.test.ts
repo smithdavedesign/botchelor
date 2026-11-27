@@ -282,6 +282,8 @@ describe("the call sites", () => {
   it("every file that puts a crowd count into words either uses the helper or is excused by name", () => {
     const offenders = sources().filter((f) => {
       if (f === "lib/crowd-threshold.ts" || CALL_SITES.includes(f) || f in ALLOWED_WITHOUT) return false;
+      // The translations (lib/i18n/messages): the words of strings whose own call sites are checked here.
+      if (f.startsWith("lib/i18n/messages/")) return false;
       const src = readFileSync(join(ROOT, f), "utf8");
       return CROWD_PHRASES.some((re) => re.test(src));
     });

@@ -105,7 +105,14 @@ place.
 
 **The review queue** is at `/admin/season` (an admin account or the admin password). It has:
 - next month's candidates with their portraits, and buttons to approve, reject, redo a portrait, or write more;
-- this month's cast and where each member came from.
+- this month's cast and where each member came from;
+- the producers' shortlist (2026-11-26, [#2190](https://github.com/smithdavedesign/botchelor/pull/2190)): Maren
+  Halloway, Hennie Okonkwo-Vale, Dash Moreno and Hosmund, the hand-written contestants from the 2026-11-20 contestant
+  research (one copy each, as the builder's sparks in `lib/sparks.ts`). "Put up" makes one a pending candidate for next
+  month ([`lib/season-shortlist.ts`](../lib/season-shortlist.ts)): the director model writes the rest of the sheet
+  (archetype, look, temperament, soul, kit) around the producers' words, kept as written, and the portrait is drawn and
+  checked like any other. A shortlisted one waits for an admin's approval like a generated one; nothing joins on its
+  own.
 
 On the 1st, approved candidates join. If nobody reviewed them, the ones whose portrait passed join anyway, so the
 season starts.

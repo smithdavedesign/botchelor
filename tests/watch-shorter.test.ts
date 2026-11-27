@@ -7,7 +7,7 @@ const page = readFileSync(new URL("../app/watch/page.tsx", import.meta.url), "ut
 describe("Watch stays short", () => {
   it("links the season so far in one line, never the whole special", () => {
     expect(page).not.toContain("ReunionPanel");
-    expect(page).toContain('<Link href="/reunion">This season so far</Link>');
+    expect(page).toContain('<Link href="/reunion">{t("This season so far")}</Link>');
   });
 
   it("is three blocks: on now, vote before it airs, recent episodes (the 2026-11-14 design audit)", () => {
@@ -55,7 +55,7 @@ describe("Watch stays short", () => {
   });
 
   it("keeps the latest episodes paged and crawlable", () => {
-    expect(page).toContain("<Pager page={page} pages={latest.pages} label=\"Latest episodes pages\" href={(n) => `${pagePath(n)}#latest`}");
+    expect(page).toContain("<Pager page={page} pages={latest.pages} label={t(\"Latest episodes pages\")} href={(n) => `${pagePath(n)}#latest`}");
   });
 });
 
@@ -83,7 +83,7 @@ describe("Watch loads lightly", () => {
 // screen, Sable × Nell sat beside Nell × Sable, and the recent episodes started on the fifth screen, after the votes.
 describe("Watch's first screens", () => {
   it("heads the block with what it holds: live, just aired, or tonight", () => {
-    expect(page).toMatch(/Live now\s*<\/>\s*\) : featured \? \(\s*"Just aired"\s*\) : \(\s*"Tonight"\s*\)/);
+    expect(page).toMatch(/\{t\("Live now"\)\}\s*<\/>\s*\) : featured \? \(\s*t\("Just aired"\)\s*\) : \(\s*t\("Tonight"\)\s*\)/);
     expect(page).not.toContain('"On now"');
     expect(page).not.toContain("watch-lead-kicker");
   });
