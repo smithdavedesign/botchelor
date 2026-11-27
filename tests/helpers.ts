@@ -248,6 +248,8 @@ export async function startTestDb() {
         // The calendar's one-off nights and the tournaments (lib/events-calendar.ts, lib/tournaments.ts).
         "show_events",
         "letters",
+        "club_members",
+        "clubs",
         "tournament_votes",
         "tournament_entries",
         "tournaments",

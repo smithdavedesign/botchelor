@@ -101,6 +101,7 @@ describe("launch checks: robots.txt, sitemap and og:image", () => {
         "/hall-of-fame",
         "/calendar",
         "/tournaments",
+        "/clubs",
         "/house",
         "/graph",
         "/casting",

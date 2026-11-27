@@ -167,6 +167,8 @@ export type AccountExport = {
   /** Letters their characters wrote, and the ones that arrived for them (lib/letters.ts). */
   letters_sent: Record<string, unknown>[];
   letters_received: Record<string, unknown>[];
+  /** Clubs they founded, and which clubs their characters are in (lib/clubs.ts). */
+  clubs: { founded: Record<string, unknown>[]; memberships: Record<string, unknown>[] };
   /** Places they paid to suggest on a filming date (lib/scene-suggestions.ts). */
   scene_suggestions: Record<string, unknown>[];
   /** Their ratings and reviews of other people's characters (lib/ratings.ts, lib/reviews.ts). */
@@ -563,7 +565,7 @@ async function exportClaims(db: Db, userId: string, nested: boolean): Promise<Pi
 type TheRest = Pick<
   AccountExport,
   | "admin" | "last_seen" | "dates_booked" | "scheduled_dates" | "date_links" | "double_dates" | "date_roleplays" | "thread_reads" | "identity_reveals"
-  | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "tournament_votes" | "letters_sent" | "letters_received" | "scene_suggestions" | "character_ratings"
+  | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "tournament_votes" | "letters_sent" | "letters_received" | "clubs" | "scene_suggestions" | "character_ratings"
   | "confessionals" | "confessional_votes" | "character_reviews" | "blocks" | "reports" | "badges" | "usage" | "watch_parties" | "studio" | "showcase" | "agent" | "plans" | "operator_pass"
   | "call_renderer" | "renderer_compares" | "languages_written" | "social"
 >;
@@ -617,6 +619,10 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
     // Who a letter came from is a character, never the other owner's id.
     letters_sent: await q("select id, from_character, to_character, body, reply_to, sent_at, deliver_at from letters where from_user = $1 order by sent_at"),
     letters_received: await q("select id, from_character, to_character, body, reply_to, sent_at, deliver_at, read_at from letters where to_user = $1 and deliver_at <= now() order by sent_at"),
+    clubs: {
+      founded: await q("select id, name, motto, emoji, founder_character, created_at, closed_at from clubs where created_by = $1 order by created_at"),
+      memberships: await q("select club_id, character_id, joined_at from club_members where joined_by = $1 order by joined_at"),
+    },
     scene_suggestions: await q("select episode_id, place, label, tokens, status, created_at from scene_suggestions where user_id = $1 order by created_at"),
     character_ratings: await q("select character_id, category, created_at from character_ratings where rater_id = $1 order by created_at"),
     character_reviews: await q("select character_id, stars, body, via, created_at, updated_at from character_reviews where reviewer_id = $1 order by created_at"),
@@ -1123,6 +1129,8 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from ceremony_votes where user_id = $1");
   await run("delete from tournament_votes where voter_id = $1");
   await run("delete from letters where from_user = $1 or to_user = $1");
+  await run("delete from club_members where joined_by = $1");
+  await run("update clubs set created_by = 'deleted' where created_by = $1");
   // Casting: an audition of a character that stays as a tombstone would keep it in the running; a used invite stays used.
   await run("delete from cast_auditions where owner_id = $1");
   await run("update casting_invites set used_by = null where used_by = $1");

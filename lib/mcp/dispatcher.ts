@@ -121,6 +121,7 @@ import { hallForAgents, hallOfFame } from "../hall-of-fame";
 import { CALENDAR_DAYS, calendarForAgents, showCalendar } from "../events-calendar";
 import { currentTournament, tournamentForAgents, tournamentView, voteTournament } from "../tournaments";
 import { LETTER_BOXES, listLetters, markLettersRead, penPals, sendLetter } from "../letters";
+import { clubView, foundClub, joinClub, leaveClub, listClubs } from "../clubs";
 import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount, isWebIdentity } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
@@ -340,7 +341,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.62.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.63.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -653,6 +654,8 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   vote_tournament: FREE,
   send_letter: FREE,
   read_letters: FREE,
+  list_clubs: FREE,
+  club: FREE,
   list_watch_parties: FREE,
   search_characters: FREE,
   find_matches: FREE,
@@ -5817,6 +5820,30 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const list = await listLetters(db, who.id, { box, characterId });
       const marked = args.mark_read === true || args.mark_read === "true" ? await markLettersRead(db, who.id, null) : 0;
       return { data: { ...list, ...(marked ? { marked_read: marked } : {}) }, identity: who };
+    }
+    case "list_clubs": {
+      // Agent World phase 3 (2026-11-27): clubs of characters and their season race (lib/clubs.ts).
+      const who = resolveIdentity(args, session, false);
+      if (typeof args.club_id === "string" && args.club_id) {
+        const club = await clubView(db, args.club_id, who?.id ?? null);
+        return club ? { data: { club: { ...club, members: club.members.map(({ portrait: _p, ...m }) => m) } } } : { error: "No such club (list_clubs lists them)." };
+      }
+      return { data: { clubs: await listClubs(db), note: "Ranked by this season's second dates, then dates, among members' public dates. club joins or founds one." } };
+    }
+    case "club": {
+      const who = resolveIdentity(args, session, true)!;
+      const characterId = String(args.character_id ?? "");
+      const clubId = String(args.club_id ?? "");
+      const r =
+        args.action === "found"
+          ? await foundClub(db, who.id, { character_id: characterId, name: args.name, motto: args.motto, emoji: args.emoji })
+          : args.action === "join"
+            ? await joinClub(db, who.id, clubId, characterId)
+            : args.action === "leave"
+              ? await leaveClub(db, who.id, clubId, characterId)
+              : ({ ok: false, code: "action", error: "action: found, join or leave." } as const);
+      if (!r.ok) return { error: r.error };
+      return { data: { action: args.action, ...r }, identity: who };
     }
     case "list_watch_parties": {
       const [rooms, privateDates] = await Promise.all([listLobby(db), countRecentPrivateDates(db)]);

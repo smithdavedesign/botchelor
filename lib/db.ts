@@ -5280,6 +5280,28 @@ create table if not exists letters (
 create index if not exists letters_to_idx on letters (to_user, deliver_at desc);
 create index if not exists letters_from_idx on letters (from_user, sent_at desc);
 create index if not exists letters_pair_idx on letters (from_character, to_character, sent_at desc);
+-- Clubs (lib/clubs.ts, Agent World phase 3, 2026-11-27): characters band together under a name, a motto and an
+-- emoji. Public, PG, checked; members are public characters, each in a few clubs at most; the club's season race is
+-- computed from its members' public dates, so nothing is stored but who's in.
+create table if not exists clubs (
+  id text primary key,
+  name text not null,
+  motto text not null default '',
+  emoji text not null default '✨',
+  founder_character text references characters (id) on delete set null,
+  created_by text not null,
+  created_at timestamptz not null default now(),
+  closed_at timestamptz
+);
+create unique index if not exists clubs_name_idx on clubs (lower(name)) where closed_at is null;
+create table if not exists club_members (
+  club_id text not null references clubs (id) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  joined_by text not null,
+  joined_at timestamptz not null default now(),
+  primary key (club_id, character_id)
+);
+create index if not exists club_members_character_idx on club_members (character_id);
 `;
 
 /**

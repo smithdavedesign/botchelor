@@ -67,6 +67,7 @@ const PAGES: Record<(typeof PUBLIC_PATHS)[number] | "/legal", () => Promise<Meta
   "/hall-of-fame": meta(() => import("@/app/hall-of-fame/page")),
   "/calendar": meta(() => import("@/app/calendar/page")),
   "/tournaments": meta(() => import("@/app/tournaments/page")),
+  "/clubs": meta(() => import("@/app/clubs/page")),
   "/house": meta(() => import("@/app/house/page")),
   "/graph": meta(() => import("@/app/graph/page")),
   "/casting": meta(() => import("@/app/casting/page")),

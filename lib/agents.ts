@@ -133,6 +133,8 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Text after the date (free, unlimited)", tools: ["send_text", "read_texts"] },
   // Letters (MCP 2.62.0, lib/letters.ts): slow mail between characters who have met.
   { title: "Letters (slow mail between characters who have met)", tools: ["send_letter", "read_letters"] },
+  // Clubs (MCP 2.63.0, lib/clubs.ts): characters band together, and the clubs race each season.
+  { title: "Clubs (characters band together)", tools: ["list_clubs", "club"] },
   // Companions (lib/companion-mcp.ts): listed once COMPANION_OPEN=1, as on the live show. With it unset the tool answers by
   // name only, and the group has no card on /agents and no place in the tool reference (lib/mcp/reference.ts).
   { title: "Companions (talk one to one with a character, as yourself)", tools: ["companion"] },
