@@ -210,7 +210,7 @@
     animation: title-settle 0.9s var(--ease-out) 0.05s backwards;
   }
   .set-hero .set-hero-words > .lede {
-    animation: rise-in 0.9s var(--ease-out) 0.2s backwards;
+    animation: lift-in 0.9s var(--ease-out) 0.2s backwards;
   }
   .set-hero .set-hero-words > .kicker::before {
     content: "";
@@ -299,7 +299,7 @@
     animation: wipe-in 0.7s var(--ease-out) 0.6s backwards;
   }
   .lower-third > * {
-    animation: rise-in 0.6s var(--ease-out) 0.9s backwards;
+    animation: lift-in 0.6s var(--ease-out) 0.9s backwards;
   }
   .episode-hero-kicker {
     animation: wipe-in 0.8s var(--ease-out) 0.15s backwards;
@@ -333,4 +333,11 @@
   padding: 0.3rem 0.7rem 0.3rem 0.65rem;
   border-left: 4px solid var(--lower-third-bar, var(--accent));
   background: color-mix(in srgb, var(--card-dark) 70%, transparent);
+}
+/* A one-off lift on load for the title card's lede and the lower third's words (time-based, unlike the scroll-tied
+   rise-in, which keeps its forwards fill). */
+@keyframes lift-in {
+  from {
+    translate: 0 0.6rem;
+  }
 }
