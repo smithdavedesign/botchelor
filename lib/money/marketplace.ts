@@ -25,7 +25,8 @@ import { createPendingOrder } from "../payments";
 import { withPortraits } from "../portrait-sql";
 import { listedCharacterSql } from "../public-cast";
 import { CHARACTER_REJECTION_MESSAGES, checkShowText } from "../safety";
-import { paymentLinkFromEnv, paymentLinkUrl } from "../stripe";
+import { paymentLinkUrl } from "../stripe";
+import { moneyLink } from "./links";
 import { moneyOn } from "./switches";
 
 type Env = Record<string, string | undefined>;
@@ -122,7 +123,7 @@ export async function buyTemplate(db: Db, buyerUser: string, listingId: string, 
   if (l.seller_user === buyerUser) return fail("own", "That's your own listing.");
   const item = catalogItem(l.sku);
   if (!item) return fail("no_listing", "That listing isn't on sale.");
-  const link = paymentLinkFromEnv(env, item.sku);
+  const link = moneyLink(env, item.sku);
   if (!link) return fail("unavailable", "The marketplace isn't open yet. Nothing was charged.");
   const orderId = await createPendingOrder(db, buyerUser, item);
   await db.query(`insert into market_purchases (order_id, listing_id, buyer_user, seller_user) values ($1, $2, $3, $4)`, [orderId, l.id, buyerUser, l.seller_user]);

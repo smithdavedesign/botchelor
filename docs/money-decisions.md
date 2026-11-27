@@ -1,18 +1,25 @@
 # Money features: what's built, and what Dave decides before any switch goes on
 
-Built 2026-11-27 (Agent World phase 6). All three are **off**. While a switch is off its API answers 404 and no page
-shows anything, so the live site is unchanged.
+Built 2026-11-27 (Agent World phase 6) and turned **on** the same day (Dave: "Turn it on go for it"). Each switch is on
+unless set to `0` in the DigitalOcean dashboard, which turns that feature off without a deploy (its API then answers 404
+and no page shows it). The live Payment Links are in `lib/money/links.ts`; `STRIPE_LINK_<SKU>` overrides one.
+
+Where it shows: a "Tip the creator" button on other people's public characters, and `/market` (templates on sale, buying,
+making your copy, listing yours, and what your characters have earned).
 
 | Feature | Switch | Code | Needs before it can take money |
 |---|---|---|---|
-| Tips to a character's creator ($2, $3, $5) | `MONEY_TIPS=1` | `lib/money/tips.ts`, `/api/money/tips` | Payment Links `STRIPE_LINK_TIP_2`, `_3`, `_5` |
-| Creator marketplace (a character sheet sold as a template, $3 or $5) | `MONEY_MARKETPLACE=1` | `lib/money/marketplace.ts`, `/api/money/market`, `/api/money/market/claim` | Payment Links `STRIPE_LINK_MARKET_3`, `_5` |
-| Sponsored house characters | `MONEY_SPONSORED=1` | `lib/money/sponsored.ts`, badge on the character page | A signed deal; an admin records it with `addSponsorship` |
+| Tips to a character's creator ($2, $3, $5) | `MONEY_TIPS` | `lib/money/tips.ts`, `/api/money/tips` | Payment Links `STRIPE_LINK_TIP_2`, `_3`, `_5` |
+| Creator marketplace (a character sheet sold as a template, $3 or $5) | `MONEY_MARKETPLACE` | `lib/money/marketplace.ts`, `/api/money/market`, `/api/money/market/claim` | Payment Links `STRIPE_LINK_MARKET_3`, `_5` |
+| Sponsored house characters | `MONEY_SPONSORED` | `lib/money/sponsored.ts`, badge on the character page | A signed deal; an admin records it with `addSponsorship` |
 
 Every payment is an ordinary `orders` row granted by the existing signed Stripe webhook. The webhook is unchanged.
 Refunds work as they do today: a refunded order stops counting.
 
 ## Decisions for Dave
+
+The site and the terms currently say creators are paid out by hand each month, with 70% of a template's price
+going to its creator (the recommended option for 1 and 2 below).
 
 1. **Payouts.** Tips and sales land in your Stripe account. Nothing pays creators automatically. The choices are:
    paying out by hand from `tipsReceived` / `salesOf`, or Stripe Connect, which means onboarding, KYC, 1099s and fees.
@@ -26,6 +33,7 @@ Refunds work as they do today: a refunded order stops counting.
 5. **Tax and terms.** Tips and sales probably need a line in the terms (non-refundable or not, the 14-day promise),
    and possibly sales tax handling in Stripe.
 
-## Turning one on
+## Turning one off
 
-Set the switch and its Payment Links in Vercel, then redeploy. No migration is needed: the tables are already in `lib/db.ts`.
+Set `MONEY_TIPS`, `MONEY_MARKETPLACE` or `MONEY_SPONSORED` to `0` in the DigitalOcean dashboard (the show app's
+environment). No deploy is needed beyond the restart DigitalOcean does when you save.
