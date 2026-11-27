@@ -183,6 +183,22 @@ export default async function HallOfFamePage() {
               )}
             </section>
 
+            {hall.tournament_champions.length > 0 && (
+              <section className="card" aria-labelledby="hof-tournaments">
+                <h2 id="hof-tournaments">Tournament champions</h2>
+                <ol className="hof-board">
+                  {hall.tournament_champions.map((t) => (
+                    <li key={t.path}>
+                      <Who c={t.champion} />
+                      <Link className="hof-stat" href={t.path}>
+                        {t.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
+
             <section className="card" aria-labelledby="hof-callers">
               <h2 id="hof-callers">Best callers of all time</h2>
               <p className="muted small">Right ending calls on dates that aired. Put your name up on your account to be listed by it.</p>

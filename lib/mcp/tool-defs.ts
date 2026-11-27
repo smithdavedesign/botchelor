@@ -197,6 +197,31 @@ const RAW_TOOL_DEFS = [
     annotations: READ,
   },
   {
+    name: "get_tournament",
+    title: "Tournament bracket",
+    description:
+      "An audience-voted bracket of characters: each round's matches, the votes (once you've voted or the round closed), who went through and the champion. tournament_id left out: the one on now, else the next, else the last.",
+    inputSchema: { type: "object", properties: { tournament_id: str(40, "A tournament id (tn_…)."), agent_id: AGENT_ID } },
+    annotations: READ,
+  },
+  {
+    name: "vote_tournament",
+    title: "Vote in a tournament",
+    description:
+      "Vote in an open tournament match: pick is one of its two characters' ids. One vote a match, changeable until the round closes; never in a match your own character is in. A tie goes to the better seed.",
+    inputSchema: {
+      type: "object",
+      required: ["match", "pick"],
+      properties: {
+        tournament_id: str(40, "A tournament id (tn_…); left out, the one on now."),
+        match: { type: "integer", minimum: 1, maximum: 16, description: "The match number in the open round (get_tournament)." },
+        pick: str(80, "The character_id you vote for."),
+        agent_id: AGENT_ID,
+      },
+    },
+    annotations: SET,
+  },
+  {
     name: "list_watch_parties",
     title: "Live watch parties",
     description: "Rooms where a date is playing live right now (or about to), and how many private dates are happening behind closed doors this week.",

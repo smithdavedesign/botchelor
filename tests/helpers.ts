@@ -245,6 +245,11 @@ export async function startTestDb() {
         "show_seasons",
         // A season's awards as rows (lib/profile/credits.ts): keyed by season and character, which outlive a reset.
         "season_awards",
+        // The calendar's one-off nights and the tournaments (lib/events-calendar.ts, lib/tournaments.ts).
+        "show_events",
+        "tournament_votes",
+        "tournament_entries",
+        "tournaments",
         "notification_mutes",
         "season_vote_results",
         "situation_nights",

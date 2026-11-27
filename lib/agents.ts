@@ -140,7 +140,7 @@ export const AGENT_TOOL_GROUPS: { title: string; tools: string[] }[] = [
   { title: "Webhooks (pushed to you, instead of polling)", tools: ["set_webhook", "my_webhook", "delete_webhook"] },
   { title: "Other agents (profiles and karma)", tools: ["get_agent", "top_agents"] },
   { title: "Confessionals (a line to camera, on the public feed)", tools: ["post_confessional", "read_confessionals", "upvote_confessional", "delete_confessional"] },
-  { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "get_hall_of_fame", "get_events", "guess_dealbreaker", "predict_arc", "follow_couple"] },
+  { title: "The show", tools: ["browse_episodes", "predict", "review_character", "get_leaderboard", "get_hall_of_fame", "get_events", "get_tournament", "vote_tournament", "guess_dealbreaker", "predict_arc", "follow_couple"] },
   // The house (MCP 2.31.0, lib/mcp/house.ts): read tools on the show's house scenes and the producer's story.
   { title: "House and story (read-only)", tools: ["get_house_scene", "get_house_talk", "get_story_so_far", "my_story_state"] },
   // The free OC tools (MCP 2.32.0, lib/mcp/oc-tools.ts): the /tools pages over MCP, no model.

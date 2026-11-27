@@ -23,6 +23,7 @@ import { GENERATE_FROM_DAY } from "./season-gen";
 import { seasonRef } from "./season-ref";
 import { nextSeasonStart, seasonIdOf, seasonWindow } from "./season-window";
 import { premiereSlots } from "./sunday-premiere";
+import { listTournaments, tournamentView } from "./tournaments";
 
 type Env = Record<string, string | undefined>;
 
@@ -185,6 +186,23 @@ export async function showCalendar(db: Db, now: Date = new Date(), days: number 
     if (!r.success) continue;
     events.push({ ...r.data, starts_at: iso(r.data.starts_at), ends_at: r.data.ends_at ? iso(r.data.ends_at) : null, source: "admin" });
   }
+  // Each round of a tournament on now or coming up (lib/tournaments.ts): when its voting opens.
+  const brackets = (await listTournaments(db, now).catch(() => [])).filter((x) => x.status !== "finished");
+  for (const b of brackets) {
+    const v = await tournamentView(db, b.id, null, now).catch(() => null);
+    for (const r of v?.rounds ?? []) {
+      events.push({
+        id: `tournament:${b.id}:${r.round}`,
+        kind: "tournament",
+        title: `${b.title}: ${r.name.toLowerCase()}`,
+        blurb: r.round === 1 ? `${b.size} characters, one bracket, and the audience votes on who goes through.` : "Voting opens on the next round of the bracket.",
+        starts_at: r.opens_at,
+        ends_at: r.closes_at,
+        path: b.path,
+        source: "show",
+      });
+    }
+  }
   const seen = new Set<string>();
   const shown = events
     .filter((e) => {
@@ -320,6 +338,7 @@ export function calendarForAgents(cal: ShowCalendar) {
     casting: "create_character, then audition from /casting.",
     speed_dating: "Seat a character with the mixer tool (join).",
     premiere: "browse_episodes lists it once it airs.",
+    tournament: "get_tournament shows the bracket; vote_tournament votes in an open match.",
   };
   return {
     from: cal.from,

@@ -162,6 +162,8 @@ export type AccountExport = {
   confessionals: Record<string, unknown>[];
   confessional_votes: Record<string, unknown>[];
   ceremony_votes: Record<string, unknown>[];
+  /** Their votes in tournament matches (lib/tournaments.ts). */
+  tournament_votes: Record<string, unknown>[];
   /** Places they paid to suggest on a filming date (lib/scene-suggestions.ts). */
   scene_suggestions: Record<string, unknown>[];
   /** Their ratings and reviews of other people's characters (lib/ratings.ts, lib/reviews.ts). */
@@ -558,7 +560,7 @@ async function exportClaims(db: Db, userId: string, nested: boolean): Promise<Pi
 type TheRest = Pick<
   AccountExport,
   | "admin" | "last_seen" | "dates_booked" | "scheduled_dates" | "date_links" | "double_dates" | "date_roleplays" | "thread_reads" | "identity_reveals"
-  | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "scene_suggestions" | "character_ratings"
+  | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "tournament_votes" | "scene_suggestions" | "character_ratings"
   | "confessionals" | "confessional_votes" | "character_reviews" | "blocks" | "reports" | "badges" | "usage" | "watch_parties" | "studio" | "showcase" | "agent" | "plans" | "operator_pass"
   | "call_renderer" | "renderer_compares" | "languages_written" | "social"
 >;
@@ -608,6 +610,7 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
     confessionals: await q("select id, character_id, body, about_episode, status, created_at, removed_at from confessionals where owner_id = $1 order by created_at"),
     confessional_votes: await q("select confessional_id, created_at from confessional_votes where voter_id = $1 order by created_at"),
     ceremony_votes: await q("select held_on, pick, created_at, updated_at from ceremony_votes where user_id = $1 order by held_on"),
+    tournament_votes: await q("select tournament_id, round, match, pick, created_at, updated_at from tournament_votes where voter_id = $1 order by created_at"),
     scene_suggestions: await q("select episode_id, place, label, tokens, status, created_at from scene_suggestions where user_id = $1 order by created_at"),
     character_ratings: await q("select character_id, category, created_at from character_ratings where rater_id = $1 order by created_at"),
     character_reviews: await q("select character_id, stars, body, via, created_at, updated_at from character_reviews where reviewer_id = $1 order by created_at"),
@@ -1112,6 +1115,7 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from confessional_votes where voter_id = $1");
   await run("delete from confessionals where owner_id = $1");
   await run("delete from ceremony_votes where user_id = $1");
+  await run("delete from tournament_votes where voter_id = $1");
   // Casting: an audition of a character that stays as a tombstone would keep it in the running; a used invite stays used.
   await run("delete from cast_auditions where owner_id = $1");
   await run("update casting_invites set used_by = null where used_by = $1");

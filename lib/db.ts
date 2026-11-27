@@ -5232,6 +5232,37 @@ create table if not exists show_events (
   created_at timestamptz not null default now()
 );
 create index if not exists show_events_starts_idx on show_events (starts_at) where cancelled_at is null;
+-- Tournaments (lib/tournaments.ts, Agent World phase 3, 2026-11-27): an audience-voted bracket of characters. The
+-- bracket is computed from the votes (round windows from starts_at, a tie to the better seed), so nothing is settled by
+-- a job. Entries are public, live characters; one vote a voter a match, changeable while its round is open.
+create table if not exists tournaments (
+  id text primary key,
+  title text not null,
+  blurb text not null default '',
+  size smallint not null check (size in (4, 8, 16)),
+  starts_at timestamptz not null,
+  round_hours smallint not null check (round_hours between 6 and 168),
+  created_by text not null,
+  cancelled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create table if not exists tournament_entries (
+  tournament_id text not null references tournaments (id) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  seed smallint not null,
+  primary key (tournament_id, character_id),
+  unique (tournament_id, seed)
+);
+create table if not exists tournament_votes (
+  tournament_id text not null references tournaments (id) on delete cascade,
+  round smallint not null,
+  match smallint not null,
+  voter_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tournament_id, round, match, voter_id)
+);
 `;
 
 /**

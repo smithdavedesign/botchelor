@@ -16,7 +16,8 @@ import type { Db } from "./db";
 import { publicDateSql } from "./date-number";
 import { withPortraits } from "./portrait-sql";
 import { listedCharacterSql } from "./public-cast";
-import { closedSeasons, seasonRef, type SeasonRef } from "./season-ref";
+import { closedSeasons, type SeasonRef } from "./season-ref";
+import { tournamentChampions } from "./tournaments";
 
 /** How many rows each board shows. */
 export const HALL_BOARD_SIZE = 10;
@@ -42,6 +43,8 @@ export type HallOfFame = {
   most_dates: HallDater[];
   best_callers: HallCaller[];
   sharpest_callers: HallCaller[];
+  /** Each finished tournament's champion (lib/tournaments.ts), the newest first. */
+  tournament_champions: { title: string; path: string; ends_at: string; champion: HallChar }[];
   numbers: { seasons: number; dates_aired: number; second_dates: number; calls: number };
 };
 
@@ -69,7 +72,7 @@ export async function hallOfFame(db: Db, now: Date = new Date()): Promise<HallOf
   const seasonIds = seasons.map((s) => s.id);
   const pub = publicDateSql("e");
 
-  const [roses, goldens, awarded, couples, daters, callers, numbers] = await Promise.all([
+  const [roses, goldens, awarded, couples, daters, callers, numbers, brackets] = await Promise.all([
     db.query<{ season_id: string; lead_id: string; final_rose: string }>(
       `select season_id, lead_id, final_rose from ceremonies where finale and final_rose is not null and season_id = any($1)`,
       [seasonIds],
@@ -116,6 +119,7 @@ export async function hallOfFame(db: Db, now: Date = new Date()): Promise<HallOf
               (select count(*)::int from predictions p join episodes e on e.id = p.episode_id
                 where e.revealed_at is not null and e.visibility = 'public' and e.ending is not null) as calls`,
     ),
+    tournamentChampions(db, now).catch(() => []),
   ]);
 
   const chars = await charactersById(db, [
@@ -124,6 +128,7 @@ export async function hallOfFame(db: Db, now: Date = new Date()): Promise<HallOf
     ...awarded.rows.map((r) => r.character_id),
     ...couples.rows.flatMap((r) => [r.character_a, r.character_b]),
     ...daters.rows.map((r) => r.id),
+    ...brackets.map((b) => b.champion.id),
   ]);
   const roseBy = new Map(roses.rows.map((r) => [r.season_id, r]));
   const goldenBy = new Map(goldens.rows.map((r) => [r.season_id, r]));
@@ -173,6 +178,10 @@ export async function hallOfFame(db: Db, now: Date = new Date()): Promise<HallOf
     }),
     best_callers: best,
     sharpest_callers: sharpest,
+    tournament_champions: brackets.flatMap((b) => {
+      const c = chars.get(b.champion.id);
+      return c ? [{ title: b.tournament.title, path: b.tournament.path, ends_at: b.tournament.ends_at, champion: c }] : [];
+    }),
     numbers: { seasons: seasons.length, ...n },
   };
 }
@@ -201,6 +210,7 @@ export function hallForAgents(h: HallOfFame) {
     most_dates: h.most_dates.map((r) => ({ character: who(r.character), dates_aired: r.dates, second_dates: r.second_dates })),
     best_callers: h.best_callers.map((r) => ({ name: r.name ?? "A viewer", right: r.right, called: r.called, accuracy_pct: r.accuracy })),
     sharpest_callers: h.sharpest_callers.map((r) => ({ name: r.name ?? "A viewer", right: r.right, called: r.called, accuracy_pct: r.accuracy })),
+    tournament_champions: h.tournament_champions.map((t) => ({ tournament: t.title, ended_at: t.ends_at, champion: who(t.champion) })),
     note:
       "All-time records from dates that aired publicly. Champions are each closed season's final rose and golden couple. " +
       `Sharpest callers count only callers with at least ${SHARPEST_MIN_CALLS} calls. Callers are named by display name only. ` +

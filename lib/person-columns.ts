@@ -237,6 +237,7 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "weekly_reveal_votes", column: "user_id", export: at("weekly_reveal_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "ceremony_votes", column: "user_id", export: at("ceremony_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "audition_votes", column: "voter_id", export: at("audition_votes"), delete: ROWS, move: ONE_VOTE },
+  { table: "tournament_votes", column: "voter_id", export: at("tournament_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "confessionals", column: "owner_id", export: at("confessionals"), delete: ROWS, move: REASSIGN },
   { table: "confessional_votes", column: "voter_id", export: at("confessional_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "character_ratings", column: "rater_id", export: at("character_ratings"), delete: ROWS, move: ONE_VOTE },
@@ -299,6 +300,9 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "web_events", column: "user_id", export: out("a click log with ids taken out of its paths and nothing typed, kept 400 days: deleted with the account"), delete: ROWS, move: LOG },
   { table: "analytics_events", column: "user_id", export: out("funnel events (a small enum each): deleted with the account"), delete: ROWS, move: LOG },
   { table: "money_entries", column: "created_by", export: ADMINS_ID, delete: kept("the admin who entered a bill: the books stay"), move: ADMIN_ACT },
+  // The calendar's one-off nights and the tournaments (lib/events-calendar.ts, lib/tournaments.ts): the admin who set one up.
+  { table: "show_events", column: "created_by", export: ADMINS_ID, delete: kept("the admin who put a night on the calendar: the show's schedule stays"), move: ADMIN_ACT },
+  { table: "tournaments", column: "created_by", export: ADMINS_ID, delete: kept("the admin who set up a bracket: the bracket stays"), move: ADMIN_ACT },
 
   // Agents: an agent's id is a person id like any other (it can be deleted and exported), and is never claimed.
   { table: "agent_links", column: "agent_id", export: at("agent.links"), delete: ROWS, move: AGENT },
