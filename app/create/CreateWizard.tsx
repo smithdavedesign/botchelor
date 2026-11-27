@@ -33,13 +33,14 @@ import DeeperStep from "./DeeperStep";
 import DepthMeter from "./DepthMeter";
 import { sheetWords } from "@/lib/sheet-words";
 import { SPARKS } from "@/lib/sparks";
-import DeckPreview, { SHEET_EXAMPLE } from "./DeckPreview";
+import DeckPreview, { EXAMPLE } from "./DeckPreview";
 import { HouseStrip } from "./HouseDeck";
 import type { DeckCard } from "@/lib/house-deck";
 import { findCliches } from "@/lib/originality";
 import { AVATAR_HUES, imageTraits, type ImageSignals } from "@/lib/avatar";
 import { languageName } from "@/lib/language";
-import { useLocale } from "@/app/I18nProvider";
+import { useLocale, useT } from "@/app/I18nProvider";
+import { msg } from "@/lib/i18n/translate";
 import { newCharacterLanguage } from "@/lib/i18n/locales";
 import {
   hasExtras,
@@ -226,19 +227,25 @@ export async function pickSample<T extends { name: string }>(
 const S = { identity: 0, voice: 1, look: 2, details: 3, facts: 4, deeper: 5, soul: 6, review: 7 } as const;
 // "Inner life" in both (2026-10-31 UX audit, B6): the step is the private soul; autonomy moved to the send sheet.
 // "Go deeper" (David 2026-11-01): hot takes, what they're hiding, their last relationship, what wins them over, fun or serious.
-const STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Go deeper", "Inner life", "Review"] as const;
-const EDIT_STEPS = ["Identity", "Voice", "Look", "Dating profile", "More about them", "Go deeper", "Inner life", "Review"] as const;
+const STEPS = [msg("Identity"), msg("Voice"), msg("Look"), msg("Dating profile"), msg("More about them"), msg("Go deeper"), msg("Inner life"), msg("Review")] as const;
+const EDIT_STEPS = STEPS;
 const DRAFT_KEY = "botchelor:create-draft:v1";
 
 function words(s: string): number {
   return s.trim().split(/\s+/).filter(Boolean).length;
 }
 
+/** A translated line split around its `{key}`, for a line with a button in the middle. */
+const around = (line: string, key: string): [string, string] => {
+  const [before = "", after = ""] = line.split(`{${key}}`);
+  return [before, after];
+};
+
 /** What they're hiding, as it's sent: trimmed, blanks left out. */
 const hidingList = (xs: readonly string[]) => xs.map((x) => x.trim()).filter(Boolean);
 
-/** "a, b and c". */
-const listWords = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+/** "a, b and c" (`and` in the page's language where it's said in it). */
+const listWords = (xs: string[], and = "and") => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} ${and} ${xs[xs.length - 1]}`);
 
 /** The steps a new character can skip: everything but who they are, their look, the dating profile and the review. */
 const OPTIONAL_STEPS: readonly number[] = [S.voice, S.facts, S.deeper, S.soul];
@@ -273,12 +280,19 @@ export function nextOnTrack(track: readonly number[], step: number): number {
  * person sees all of them at once and can go straight to each (app/create/sheet-issues.ts).
  */
 function SheetIssueList({ issues, edit, stepLabel, onGo }: { issues: readonly FormIssue[]; edit: boolean; stepLabel: (s: IssueStep) => string; onGo: (i: FormIssue) => void }) {
+  const tr = useT();
   const SHOWN = 8;
   const n = issues.length;
   return (
     <div className="sheet-issues" role="status">
       <p className="sheet-issues-title">
-        {n === 1 ? "One thing doesn't" : `${n} things don't`} fit the PG show yet. Fix {n === 1 ? "it" : "them"} to {edit ? "save" : "create them"}:
+        {n === 1
+          ? edit
+            ? tr("One thing doesn't fit the PG show yet. Fix it to save:")
+            : tr("One thing doesn't fit the PG show yet. Fix it to create them:")
+          : edit
+            ? tr("{n} things don't fit the PG show yet. Fix them to save:", { n })
+            : tr("{n} things don't fit the PG show yet. Fix them to create them:", { n })}
       </p>
       <ul>
         {issues.slice(0, SHOWN).map((i) => (
@@ -291,7 +305,7 @@ function SheetIssueList({ issues, edit, stepLabel, onGo }: { issues: readonly Fo
           </li>
         ))}
       </ul>
-      {n > SHOWN && <p className="muted small">and {n - SHOWN} more, marked on their steps.</p>}
+      {n > SHOWN && <p className="muted small">{tr("and {n} more, marked on their steps.", { n: n - SHOWN })}</p>}
     </div>
   );
 }
@@ -319,6 +333,7 @@ function Stepper({
    */
   filled?: readonly boolean[];
 }) {
+  const tr = useT();
   // Seven steps don't fit a 375px phone: the rail scrolls sideways, so bring the current step into view.
   const rail = useRef<HTMLOListElement>(null);
   useEffect(() => {
@@ -326,7 +341,7 @@ function Stepper({
     current?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [step]);
   return (
-    <ol ref={rail} className="wizard-rail" aria-label="Progress">
+    <ol ref={rail} className="wizard-rail" aria-label={tr("Progress")}>
       {labels.map((label, i) => {
         const done = i < max && (filled?.[i] ?? true);
         const state = i === step ? "current" : done ? "done" : "todo";
@@ -337,23 +352,23 @@ function Stepper({
               type="button"
               className="wizard-rail-dot"
               aria-current={i === step ? "step" : undefined}
-              aria-label={`Step ${i + 1}: ${label}${i === step ? " (this step)" : done ? " (done)" : i < max ? " (empty)" : ""}${fix ? `, ${fix} to fix` : ""}`}
+              aria-label={`${tr("Step {n}: {label}", { n: i + 1, label: tr(label) })}${i === step ? tr(" (this step)") : done ? tr(" (done)") : i < max ? tr(" (empty)") : ""}${fix ? tr(", {n} to fix", { n: fix }) : ""}`}
               disabled={i > max}
               onClick={() => i <= max && onJump(i)}
             >
               <span className="wizard-rail-num">{fix ? "!" : done && i !== step ? "✓" : i + 1}</span>
             </button>
             <span className="wizard-rail-label">
-              {label}
-              {optional.includes(i) && <span className="wizard-rail-optional">optional</span>}
+              {tr(label)}
+              {optional.includes(i) && <span className="wizard-rail-optional">{tr("optional")}</span>}
             </span>
           </li>
         );
       })}
       {/* On a phone the labels are hidden: the current one, said once under the dots. */}
       <li className="wizard-rail-caption" aria-hidden="true">
-        Step {step + 1} of {labels.length} · {labels[step]}
-        {optional.includes(step) && " (optional)"}
+        {tr("Step {n} of {total} · {label}", { n: step + 1, total: labels.length, label: tr(labels[step] ?? "") })}
+        {optional.includes(step) && tr(" (optional)")}
       </li>
     </ol>
   );
@@ -484,6 +499,7 @@ export default function CreateWizard({
   // the site in Spanish gets a character whose dates and texts are in Spanish. English adds nothing: unset is the sheet's
   // own language, as before. "Speaks" (DetailsStep) shows it and can change it; an edit keeps what was saved.
   const siteLocale = useLocale();
+  const tr = useT();
   const withSiteLanguage = (e: CharacterExtras): CharacterExtras => {
     const language = newCharacterLanguage(siteLocale);
     return edit || !language || e.language ? e : { ...e, language };
@@ -915,12 +931,12 @@ export default function CreateWizard({
     if (step === S.identity) {
       const firstBlankTrait = traits.findIndex((t) => !t.trim());
       return [
-        !sheet.name.trim() ? { what: "a name", field: '[name="name"]' } : nameTooLong ? { what: `a name of ${NAME_MAX_WORDS} words or fewer`, field: '[name="name"]' } : nameClash ? { what: "a name nobody on the show has", field: '[name="name"]' } : null,
-        !(Number.isFinite(ageNum) && ageNum >= 18) ? { what: "an adult age (18 or over)", field: '[name="age"]' } : null,
-        words(sheet.bio) < 1 ? { what: "a bio", field: '[name="bio"]' } : null,
-        firstBlankTrait >= 0 ? { what: "three traits", field: `[name="trait${firstBlankTrait + 1}"]` } : null,
-        !sheet.want.trim() ? { what: "what they want", field: '[name="want"]' } : null,
-        !sheet.dealbreaker.trim() ? { what: "a dealbreaker", field: '[name="dealbreaker"]' } : null,
+        !sheet.name.trim() ? { what: tr("a name"), field: '[name="name"]' } : nameTooLong ? { what: tr("a name of {n} words or fewer", { n: NAME_MAX_WORDS }), field: '[name="name"]' } : nameClash ? { what: tr("a name nobody on the show has"), field: '[name="name"]' } : null,
+        !(Number.isFinite(ageNum) && ageNum >= 18) ? { what: tr("an adult age (18 or over)"), field: '[name="age"]' } : null,
+        words(sheet.bio) < 1 ? { what: tr("a bio"), field: '[name="bio"]' } : null,
+        firstBlankTrait >= 0 ? { what: tr("three traits"), field: `[name="trait${firstBlankTrait + 1}"]` } : null,
+        !sheet.want.trim() ? { what: tr("what they want"), field: '[name="want"]' } : null,
+        !sheet.dealbreaker.trim() ? { what: tr("a dealbreaker"), field: '[name="dealbreaker"]' } : null,
       ].filter((m): m is { what: string; field: string } => m !== null);
     }
     if (step === S.details && !profileOk) {
@@ -931,11 +947,11 @@ export default function CreateWizard({
       const out: { what: string; field: string }[] = [];
       if (answered < PROFILE_MIN_PROMPTS) {
         const n = PROFILE_MIN_PROMPTS - answered;
-        out.push({ what: `${n} more answered prompt${n === 1 ? "" : "s"}`, field: blank >= 0 ? `[name="extra_prompt_${blank}"]` : ".prompt-edit" });
+        out.push({ what: n === 1 ? tr("1 more answered prompt") : tr("{n} more answered prompts", { n }), field: blank >= 0 ? `[name="extra_prompt_${blank}"]` : ".prompt-edit" });
       }
       if (interests < PROFILE_MIN_INTERESTS) {
         const n = PROFILE_MIN_INTERESTS - interests;
-        out.push({ what: `${n} more interest${n === 1 ? "" : "s"}`, field: "#hobby-input" });
+        out.push({ what: n === 1 ? tr("1 more interest") : tr("{n} more interests", { n }), field: "#hobby-input" });
       }
       return out;
     }
@@ -1205,12 +1221,12 @@ export default function CreateWizard({
             that acted on the saved character mid-edit. */}
         {edit && (
           <button type="button" className="link-button wizard-picture-btn" onClick={() => setPictureOpen(true)}>
-            Change picture
+            {tr("Change picture")}
           </button>
         )}
       </span>
       <div className="wizard-preview-meta">
-        <strong>{sheet.name || created?.name || "Your character"}</strong>
+        <strong>{sheet.name || created?.name || tr("Your character")}</strong>
         {sheet.age && <span className="muted"> · {sheet.age}</span>}
         {pronouns && <span className="muted"> · {pronouns}</span>}
         {extras.occupation?.trim() && <span className="wizard-preview-job">{extras.occupation}</span>}
@@ -1275,7 +1291,7 @@ export default function CreateWizard({
   const stock = firstCliche ? `“${firstCliche.phrase}” is a phrase a lot of the cast uses. ${firstCliche.tip}` : null;
   const bioHint =
     sheet.bio.trim() && words(sheet.bio) < 8
-      ? "Thin bios make generic dates. Give them one specific detail: a job, a habit, a story they'd tell."
+      ? tr("Thin bios make generic dates. Give them one specific detail: a job, a habit, a story they'd tell.")
       : null;
 
   return (
@@ -1283,33 +1299,32 @@ export default function CreateWizard({
       <div className="wizard-main">
       {edit ? (
         <>
-          <p className="kicker">Edit</p>
-          <h1>Edit {init?.name}</h1>
+          <p className="kicker">{tr("Edit")}</p>
+          <h1>{tr("Edit {name}", { name: init?.name ?? "" })}</h1>
           {/* The full intro once, on the first step; after that one short line, so every step doesn't open on it. */}
           {step === 0 ? (
             <p className="muted">
-              Change anything — every step is open. What they&apos;ve learned from their dates stays exactly as it is, and
-              past dates keep their endings; your edits shape the dates to come.
+              {tr("Change anything — every step is open. What they've learned from their dates stays exactly as it is, and past dates keep their endings; your edits shape the dates to come.")}
             </p>
           ) : (
-            <p className="muted small wizard-intro-short">Every step is open. Past dates and what they&apos;ve learned stay as they are.</p>
+            <p className="muted small wizard-intro-short">{tr("Every step is open. Past dates and what they've learned stay as they are.")}</p>
           )}
         </>
       ) : (
         <>
-          <p className="kicker">Create</p>
-          <h1>Build your character</h1>
+          <p className="kicker">{tr("Create")}</p>
+          <h1>{tr("Build your character")}</h1>
           {/* One line (2026-11-08 UI audit, item 10: five lines of intro pushed the first field off a phone's first screen;
               that nobody steers a date is on the home page and in the questions). The one box's says it's free and nothing
               is final (2026-11-22 audit: the page never said free), still two lines on a 360px phone. */}
-          {step === S.identity && expressOpen && <p className="muted wizard-intro">An original fictional adult, from a sentence. It&apos;s free, and you can change anything after.</p>}
+          {step === S.identity && expressOpen && <p className="muted wizard-intro">{tr("An original fictional adult, from a sentence. It's free, and you can change anything after.")}</p>}
           {step === S.identity && !expressOpen && (
             <p className="muted wizard-intro">
               {depth
-                ? "An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional."
+                ? tr("An original fictional adult. Only who they are and a short dating profile are needed; the rest is optional.")
                 : firstCharacter
-                  ? "An original fictional adult, in three steps. Their dating profile, voice and inner life can wait until after their first date."
-                  : "An original fictional adult, in four steps. Their voice and inner life can wait until after their first date."}
+                  ? tr("An original fictional adult, in three steps. Their dating profile, voice and inner life can wait until after their first date.")
+                  : tr("An original fictional adult, in four steps. Their voice and inner life can wait until after their first date.")}
             </p>
           )}
         </>
@@ -1333,22 +1348,19 @@ export default function CreateWizard({
       />
       {!expressOpen && livePreview}
       {edit && (
-        <ModalSheet open={pictureOpen} onClose={() => setPictureOpen(false)} title={`${shortName(sheet.name || init?.name || "Their")}'s picture`}>
+        <ModalSheet open={pictureOpen} onClose={() => setPictureOpen(false)} title={tr("{name}'s picture", { name: shortName(sheet.name || init?.name || "") })}>
           <PortraitPanel id={edit.id} name={sheet.name || init?.name || "them"} portrait={portrait} onPortrait={setPortrait} hasLooks={Boolean(init?.extras.looks?.gender)} signedIn={Boolean(init?.signedIn)} />
         </ModalSheet>
       )}
       {edit && (
-        <ModalSheet open={redraw !== null} onClose={leaveEdit} title="Saved ✓">
-          <p>
-            You changed {shortName(sheet.name || init?.name || "their")}&apos;s look. Redraw their portrait from the new
-            look? It&apos;s free.
-          </p>
+        <ModalSheet open={redraw !== null} onClose={leaveEdit} title={tr("Saved ✓")}>
+          <p>{tr("You changed {name}'s look. Redraw their portrait from the new look? It's free.", { name: shortName(sheet.name || init?.name || "") })}</p>
           <div className="sheet-actions">
             <button type="button" className="button-ghost" onClick={leaveEdit} disabled={redraw === "working"}>
-              Not now
+              {tr("Not now")}
             </button>
             <button type="button" className="primary" onClick={() => void redrawPortrait()} disabled={redraw === "working"}>
-              {redraw === "working" ? "Drawing…" : "Redraw portrait"}
+              {redraw === "working" ? tr("Drawing…") : tr("Redraw portrait")}
             </button>
           </div>
           {redraw && typeof redraw === "object" && (
@@ -1372,20 +1384,20 @@ export default function CreateWizard({
         >
           <div className="wizard-fields express-fields">
             <label htmlFor="express-text" className="wizard-legend express-label">
-              Describe them in a sentence or two
+              {tr("Describe them in a sentence or two")}
             </label>
             <textarea
               id="express-text"
               name="express_text"
               rows={3}
               maxLength={EXPRESS_TEXT_MAX}
-              placeholder="A lighthouse keeper who repairs old radios and listens to ships talk at night."
+              placeholder={tr("A lighthouse keeper who repairs old radios and listens to ships talk at night.")}
               value={expressText}
               onChange={(e) => setExpressText(e.target.value)}
               aria-describedby="express-count"
             />
-            <div className="express-examples" role="group" aria-label="Examples that fill the box">
-              <span className="muted small">Try</span>
+            <div className="express-examples" role="group" aria-label={tr("Examples that fill the box")}>
+              <span className="muted small">{tr("Try")}</span>
               {EXPRESS_EXAMPLES.map((ex) => (
                 <button
                   key={ex.label}
@@ -1393,11 +1405,12 @@ export default function CreateWizard({
                   className="look-chip"
                   data-track="express-example"
                   onClick={() => {
-                    expressExample.current = ex.text;
-                    setExpressText(ex.text);
+                    const text = tr(ex.text);
+                    expressExample.current = text;
+                    setExpressText(text);
                   }}
                 >
-                  {ex.label}
+                  {tr(ex.label)}
                 </button>
               ))}
               {/* Said only near the end of the box: a sentence or two never gets there. */}
@@ -1407,9 +1420,9 @@ export default function CreateWizard({
             </div>
             <label className="express-name">
               <span>
-                Name <span className="muted">(optional)</span>
+                {tr("Name")} <span className="muted">{tr("(optional)")}</span>
               </span>
-              <input type="text" name="express_name" maxLength={40} placeholder="Leave it blank and we'll pick one" value={expressName} onChange={(e) => setExpressName(e.target.value)} />
+              <input type="text" name="express_name" maxLength={40} placeholder={tr("Leave it blank and we'll pick one")} value={expressName} onChange={(e) => setExpressName(e.target.value)} />
             </label>
           </div>
           <div className="wizard-actions express-actions">
@@ -1417,19 +1430,19 @@ export default function CreateWizard({
                 read as broken). In the label, not a line under it: on a phone this bar is stuck to the bottom of the screen,
                 and any taller it covers the examples. */}
             <button type="submit" disabled={expressBusy || expressText.trim().length < EXPRESS_TEXT_MIN} data-track="express-meet">
-              {expressBusy ? "Drafting them…" : expressText.trim().length < EXPRESS_TEXT_MIN ? "Type a sentence to make them" : "Make them"}
+              {expressBusy ? tr("Drafting them…") : expressText.trim().length < EXPRESS_TEXT_MIN ? tr("Type a sentence to make them") : tr("Make them")}
             </button>
             {/* The ways out, always one tap away, in the same bar as the button (it sticks to the bottom on a phone). */}
             <p className="muted small express-alt">
               <button type="button" className="link-button" onClick={() => openForm()} disabled={expressBusy} data-track="express-form">
-                Fill it in myself
+                {tr("Fill it in myself")}
               </button>
               {" · "}
               <button type="button" className="link-button" onClick={() => void applySample()} disabled={expressBusy}>
-                Use a sample character
+                {tr("Use a sample character")}
               </button>
               {" · "}
-              <Link href={IMPORT_PATH}>Import one from another app</Link>
+              <Link href={IMPORT_PATH}>{tr("Import one from another app")}</Link>
             </p>
           </div>
         </form>
@@ -1446,41 +1459,41 @@ export default function CreateWizard({
       >
         {step === S.identity && (
           <fieldset className="wizard-fields">
-            <legend className="wizard-legend">Who are they?</legend>
+            <legend className="wizard-legend">{tr("Who are they?")}</legend>
             {!edit && (
               <p className="muted sample-row">
-                In a hurry?{" "}
+                {tr("In a hurry?")}{" "}
                 <button type="button" className="secondary small" data-track="surprise_identity" onClick={() => void surpriseIdentity()}>
-                  🎲 Surprise me — fill the blanks
+                  {tr("🎲 Surprise me — fill the blanks")}
                 </button>{" "}
                 <button type="button" className="secondary small" onClick={() => void applySample()}>
-                  Use a sample character
+                  {tr("Use a sample character")}
                 </button>
                 {!imported && !startPair && (
                   <>
                     {" "}
-                    or <Link href={IMPORT_PATH}>bring one from another app</Link>
+                    {tr("or")} <Link href={IMPORT_PATH}>{tr("bring one from another app")}</Link>
                   </>
                 )}
                 {expressOffered && !expressNote && (
                   <>
                     {" "}
-                    or{" "}
+                    {tr("or")}{" "}
                     <button type="button" className="link-button" data-track="express-back" onClick={() => setExpressOpen(true)}>
-                      describe them in a sentence
+                      {tr("describe them in a sentence")}
                     </button>
                   </>
                 )}
               </p>
             )}
             <label>
-              Name
+              {tr("Name")}
               <input
                 type="text"
                 name="name"
                 required
                 maxLength={40}
-                placeholder={SHEET_EXAMPLE.name}
+                placeholder={tr("e.g. {example}", { example: EXAMPLE.name })}
                 value={sheet.name}
                 aria-invalid={nameClash || nameTooLong || issueMap.has("name") || undefined}
                 aria-describedby={[nameClash ? "name-taken" : "", issueMap.has("name") ? "issue-name" : "", "name-words"].filter(Boolean).join(" ")}
@@ -1491,16 +1504,18 @@ export default function CreateWizard({
             {/* Counted as they type (roleplay names run long): the save takes NAME_MAX_WORDS words. */}
             <p id="name-words" className={nameTooLong ? "error small name-words" : "muted small name-words"} aria-live="polite">
               {nameTooLong
-                ? `${nameWords(sheet.name)} words: a name can have at most ${NAME_MAX_WORDS}. Shorten it here (a nickname works).`
-                : `${nameWords(sheet.name)}/${NAME_MAX_WORDS} words`}
+                ? tr("{n} words: a name can have at most {max}. Shorten it here (a nickname works).", { n: nameWords(sheet.name), max: NAME_MAX_WORDS })
+                : tr("{n}/{max} words", { n: nameWords(sheet.name), max: NAME_MAX_WORDS })}
             </p>
             {nameClash && (
               <div id="name-taken" className="name-taken" role="status">
                 <p className="error">
-                  There&apos;s already a {nameTaken.name} on the show. Pick another name{nameTaken.free.length ? ", or one of these free ones:" : "."}
+                  {nameTaken.free.length
+                    ? tr("There's already a {name} on the show. Pick another name, or one of these free ones:", { name: nameTaken.name })
+                    : tr("There's already a {name} on the show. Pick another name.", { name: nameTaken.name })}
                 </p>
                 {nameTaken.free.length > 0 && (
-                  <div className="voice-picks" role="group" aria-label="Free names">
+                  <div className="voice-picks" role="group" aria-label={tr("Free names")}>
                     {nameTaken.free.map((n) => (
                       <button key={n} type="button" className="look-chip" onClick={() => setField("name", n)}>
                         {n}
@@ -1511,17 +1526,17 @@ export default function CreateWizard({
               </div>
             )}
             <label>
-              Age (18 or older)
-              <input type="number" name="age" required min={18} max={1000} step={1} placeholder={SHEET_EXAMPLE.age} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
+              {tr("Age (18 or older)")}
+              <input type="number" name="age" required min={18} max={1000} step={1} placeholder={tr("e.g. {example}", { example: EXAMPLE.age })} value={sheet.age} onChange={(e) => setField("age", e.target.value)} />
             </label>
             <label>
-              Short bio
-              <textarea name="bio" required maxLength={500} rows={3} placeholder={SHEET_EXAMPLE.bio} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} {...invalidProps(issueMap.get("bio"), "bio")} />
+              {tr("Short bio")}
+              <textarea name="bio" required maxLength={500} rows={3} placeholder={tr("e.g. {example}", { example: tr(EXAMPLE.bio) })} value={sheet.bio} onChange={(e) => setField("bio", e.target.value)} {...invalidProps(issueMap.get("bio"), "bio")} />
             </label>
             <FieldIssue k="bio" />
             {bioHint && <p className="hint-nudge">💡 {bioHint}</p>}
             {stock && <p className="hint-nudge">✨ {stock}</p>}
-            <label>Three traits</label>
+            <label>{tr("Three traits")}</label>
             <div className="traits">
               {[0, 1, 2].map((i) => (
                 <input
@@ -1530,8 +1545,8 @@ export default function CreateWizard({
                   name={`trait${i + 1}`}
                   required
                   maxLength={TRAIT_MAX}
-                  aria-label={`Trait ${i + 1}`}
-                  placeholder={SHEET_EXAMPLE.traits[i]}
+                  aria-label={tr("Trait {n}", { n: i + 1 })}
+                  placeholder={tr("e.g. {example}", { example: tr(EXAMPLE.traits[i]) })}
                   value={traits[i]}
                   onChange={(e) => setTraits((prev) => prev.map((t, j) => (j === i ? e.target.value : t)))}
                   {...invalidProps(issueMap.get(`trait${i + 1}`), `trait${i + 1}`)}
@@ -1543,20 +1558,20 @@ export default function CreateWizard({
             ))}
             <TypeTagChips value={typeTags} onChange={setTypeTags} traits={traits} bio={sheet.bio} />
             <label>
-              What they want from a date
-              <input type="text" name="want" required maxLength={WANT_MAX} placeholder={SHEET_EXAMPLE.want} value={sheet.want} onChange={(e) => setField("want", e.target.value)} {...invalidProps(issueMap.get("want"), "want")} />
+              {tr("What they want from a date")}
+              <input type="text" name="want" required maxLength={WANT_MAX} placeholder={tr("e.g. {example}", { example: tr(EXAMPLE.want) })} value={sheet.want} onChange={(e) => setField("want", e.target.value)} {...invalidProps(issueMap.get("want"), "want")} />
             </label>
             <FieldIssue k="want" />
             <label>
-              Their dealbreaker <span className="muted">(kept secret — the audience tries to guess it)</span>
-              <input type="text" name="dealbreaker" required maxLength={DEALBREAKER_MAX} placeholder={SHEET_EXAMPLE.dealbreaker} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} {...invalidProps(issueMap.get("dealbreaker"), "dealbreaker")} />
+              {tr("Their dealbreaker")} <span className="muted">{tr("(kept secret — the audience tries to guess it)")}</span>
+              <input type="text" name="dealbreaker" required maxLength={DEALBREAKER_MAX} placeholder={tr("e.g. {example}", { example: tr(EXAMPLE.dealbreaker) })} value={sheet.dealbreaker} onChange={(e) => setField("dealbreaker", e.target.value)} {...invalidProps(issueMap.get("dealbreaker"), "dealbreaker")} />
             </label>
             <FieldIssue k="dealbreaker" />
             <fieldset className="pronoun-pick">
               <legend>
-                Pronouns <span className="muted">(so nobody on the date gets it wrong)</span>
+                {tr("Pronouns")} <span className="muted">{tr("(so nobody on the date gets it wrong)")}</span>
               </legend>
-              {[["she/her", "she/her"], ["he/him", "he/him"], ["they/them", "they/them"], ["", "Not saying"]].map(([value, label]) => (
+              {[["she/her", "she/her"], ["he/him", "he/him"], ["they/them", "they/them"], ["", tr("Not saying")]].map(([value, label]) => (
                 <label key={label} className={`pronoun-chip${pronouns === value ? " chosen" : ""}`}>
                   <input type="radio" name="pronouns" value={value} checked={pronouns === value} onChange={() => setPronouns(value)} />
                   {label}
@@ -1793,7 +1808,7 @@ export default function CreateWizard({
                 <label className="check wizard-attest">
                   <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
                   <span>
-                    <span aria-hidden>✍️ </span>I&apos;m 18 or older, and this is my own original character: a fictional adult, not a real person.
+                    <span aria-hidden>✍️ </span>{tr("I'm 18 or older, and this is my own original character: a fictional adult, not a real person.")}
                   </span>
                 </label>
                 <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk} data-track="create-top">
@@ -1923,21 +1938,21 @@ export default function CreateWizard({
           <div className="wizard-actions wizard-actions-edit">
             {step > 0 ? (
               <button type="button" className="link-button" onClick={back} disabled={busy !== null}>
-                ← Back
+                {tr("← Back")}
               </button>
             ) : (
               <Link className="wizard-cancel" href={`/characters/${edit.id}`}>
-                Cancel
+                {tr("Cancel")}
               </Link>
             )}
             <span className="wizard-edit-actions">
               {step < last && (
                 <button type="submit" className="secondary" disabled={!canAdvance}>
-                  Next<span className="wizard-next-label">: {labels[nextStep]}</span>
+                  {tr("Next")}<span className="wizard-next-label">: {tr(labels[nextStep] ?? "")}</span>
                 </button>
               )}
               <button type="button" onClick={() => void saveEdits()} disabled={busy !== null || !identityOk}>
-                {busy === "character" ? "Saving…" : saved ? "Saved ✓" : "Save changes"}
+                {busy === "character" ? tr("Saving…") : saved ? tr("Saved ✓") : tr("Save changes")}
               </button>
             </span>
           </div>
@@ -1949,7 +1964,7 @@ export default function CreateWizard({
             <label className="check wizard-attest">
               <input id="wizard-attest" type="checkbox" checked={attest} onChange={(e) => setAttest(e.target.checked)} required />
               <span>
-                <span aria-hidden>✍️ </span>I&apos;m 18 or older, and this is my own original character: a fictional adult, not a real person.
+                <span aria-hidden>✍️ </span>{tr("I'm 18 or older, and this is my own original character: a fictional adult, not a real person.")}
               </span>
             </label>
           )}
@@ -1959,55 +1974,55 @@ export default function CreateWizard({
               <p className="wizard-still wizard-why" role="status">
                 {createWhy === "attest" ? (
                   <>
-                    Tick{" "}
+                    {around(tr("Tick {box} above to create them."), "box")[0]}
                     <button type="button" className="link-button" onClick={() => document.getElementById("wizard-attest")?.focus()}>
-                      &ldquo;I&apos;m 18 or older&rdquo;
-                    </button>{" "}
-                    above to create them.
+                      {tr("“I'm 18 or older”")}
+                    </button>
+                    {around(tr("Tick {box} above to create them."), "box")[1]}
                   </>
                 ) : (
                   <>
-                    To create them, finish{" "}
+                    {around(tr("To create them, finish {step}."), "step")[0]}
                     <button type="button" className="link-button" onClick={() => jump(createWhy === "identity" ? S.identity : S.details)}>
-                      {createWhy === "identity" ? "the Identity step" : "the Dating profile"}
+                      {createWhy === "identity" ? tr("the Identity step") : tr("the Dating profile")}
                     </button>
-                    .
+                    {around(tr("To create them, finish {step}."), "step")[1]}
                   </>
                 )}
               </p>
             )}
             {triedNext && stillNeeded.length > 0 && (
               <p className="wizard-still" role="status">
-                To go on, add {listWords(stillNeeded.map((m) => m.what))}.{" "}
+                {tr("To go on, add {list}.", { list: listWords(stillNeeded.map((m) => m.what), tr("and")) })}{" "}
                 <button type="button" className="link-button" onClick={() => showMe(stillNeeded[0].field)}>
-                  Show me
+                  {tr("Show me")}
                 </button>
               </p>
             )}
             {step > 0 ? (
               <button type="button" className={step === last ? "link-button wizard-back" : "button-ghost"} onClick={back} disabled={busy !== null}>
-                {step === last ? "← Back" : "Back"}
+                {step === last ? tr("← Back") : tr("Back")}
               </button>
             ) : (
               <Link className="button-ghost" href="/">
-                Cancel
+                {tr("Cancel")}
               </Link>
             )}
             {step < last ? (
               <button type="submit">
-                Next<span className="wizard-next-label">: {labels[nextStep]}</span>
+                {tr("Next")}<span className="wizard-next-label">: {tr(labels[nextStep] ?? "")}</span>
               </button>
             ) : (
               <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk}>
-                {busy === "character" ? "Creating…" : `Create ${sheet.name || "character"}`}
+                {busy === "character" ? tr("Creating…") : sheet.name ? tr("Create {name}", { name: sheet.name }) : tr("Create character")}
               </button>
             )}
           </div>
           </>
         )}
-        {edit && !identityOk && <p className="error">Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.</p>}
+        {edit && !identityOk && <p className="error">{tr("Fill in the Identity step (a name nobody on the show has, an adult age, bio, three traits, want, dealbreaker) to save.")}</p>}
         {issues.length > 0 && (edit || triedSave || step === last) && (
-          <SheetIssueList issues={issues} edit={Boolean(edit)} stepLabel={(st) => labels[S[st]]} onGo={goToIssue} />
+          <SheetIssueList issues={issues} edit={Boolean(edit)} stepLabel={(st) => tr(labels[S[st]])} onGo={goToIssue} />
         )}
         {/* The past-PG door (lib/adult/past-pg.ts) once a Create stopped on going past PG, as it did on the server's refusal. */}
         {!edit && pastPgDoor && triedSave && !error && issues.some((i) => isPastPg(i.reason)) && <PastPgDoor door={pastPgDoor} place="save" />}
@@ -2031,7 +2046,7 @@ export default function CreateWizard({
         picture={
           edit && (
             <button type="button" className="link-button wizard-picture-btn" onClick={() => setPictureOpen(true)}>
-              Change picture
+              {tr("Change picture")}
             </button>
           )
         }
@@ -2069,22 +2084,23 @@ type ExpressNote =
   | { kind: "drafted"; ready: boolean; missing: string[]; nameTaken: boolean; inventedName: boolean; inventedAge: boolean; look: boolean };
 
 function ExpressPrefill({ note, door }: { note: ExpressNote; door: PastPgDoorLink | null }) {
+  const tr = useT();
   if (note.kind === "drafted" && note.ready) return null;
   return (
-    <section className="card pair-prefill import-prefill express-prefill" aria-label="From your description" role="status">
+    <section className="card pair-prefill import-prefill express-prefill" aria-label={tr("From your description")} role="status">
       {note.kind === "failed" && note.pastPg && door ? (
         <PastPgDoor door={door} place="express" />
       ) : note.kind === "failed" ? (
         <p>
-          <strong>{note.line}</strong> Fill in the rest, or tap 🎲 to fill the blanks.
+          <strong>{note.line}</strong> {tr("Fill in the rest, or tap 🎲 to fill the blanks.")}
         </p>
       ) : note.nameTaken ? (
         <p>
-          <strong>Someone on the show already has that name.</strong> Everything else is drafted below: pick another name and go on.
+          <strong>{tr("Someone on the show already has that name.")}</strong> {tr("Everything else is drafted below: pick another name and go on.")}
         </p>
       ) : (
         <p>
-          <strong>The draft came back short.</strong> {note.missing.length ? `Still to add: ${listWords(note.missing)}.` : "Check what's here and add the rest."}
+          <strong>{tr("The draft came back short.")}</strong> {note.missing.length ? tr("Still to add: {list}.", { list: listWords(note.missing, tr("and")) }) : tr("Check what's here and add the rest.")}
         </p>
       )}
     </section>
