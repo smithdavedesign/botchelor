@@ -14,6 +14,7 @@ import { SEASON_FORMAT_SLUGS, SEASON_FORMATS, seasonFormat } from "@/lib/season-
 import { seasonFormatSlug, setSeasonFormat } from "@/lib/season-format-store";
 import { stageRecouplingNight } from "@/lib/recoupling";
 import { generateCandidates, GENERATE_FROM_DAY, listCandidates, makePortrait, reviewCandidate } from "@/lib/season-gen";
+import { addShortlistCandidate, SHORTLIST_NAMES, shortlistTaken } from "@/lib/season-shortlist";
 import { nextSeasonStart, seasonIdOf, seasonLabel } from "@/lib/season-window";
 import { seasonBallotTally } from "@/lib/season-vote";
 
@@ -61,6 +62,7 @@ async function view() {
     castingLead(db, now).catch(() => null),
     premiereAdminView(db, now).catch(() => null),
   ]);
+  const shortlisted = await shortlistTaken(db);
   // The Botchelor (lib/ceremony.ts): who the lead would be, and is. The default lead is picked with the cast on the 1st
   // (the most reviewed of last season's survivors); a pick here overrides it, and until then the panel shows the pick.
   const leadNames = new Map(
@@ -92,6 +94,8 @@ async function view() {
       format: nextFormat,
       generate_from_day: GENERATE_FROM_DAY,
       candidates: candidates.map((c) => ({ ...c, portrait: c.portrait_asset ? portraits.get(c.portrait_asset) ?? null : null })),
+      // The producers' shortlist (lib/season-shortlist.ts): hand-written contestants to put up beside the generated ones.
+      shortlist: SHORTLIST_NAMES.map((name) => ({ name, taken: shortlisted.has(name) })),
       // People's characters up for the cast (lib/auditions.ts): approved ones take the open places before candidates.
       auditions,
       // The viewers' vote for next season's format (lib/season-vote.ts): the winner runs unless a format is picked here.
@@ -113,13 +117,14 @@ const Input = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reject"), character_id: z.string().min(1).max(80) }),
   z.object({ action: z.literal("portrait"), character_id: z.string().min(1).max(80) }),
   z.object({ action: z.literal("generate") }),
+  z.object({ action: z.literal("shortlist"), name: z.enum(SHORTLIST_NAMES) }),
   z.object({ action: z.literal("format"), season_id: z.string().min(4).max(10), slug: z.enum(SEASON_FORMAT_SLUGS) }),
   z.object({ action: z.literal("recoupling") }),
   z.object({ action: z.literal("audition"), character_id: z.string().min(1).max(80), verdict: z.enum(["approved", "rejected"]) }),
   z.object({ action: z.literal("lead"), season_id: z.string().min(4).max(10), character_id: z.string().min(1).max(80).nullable() }),
 ]);
 
-/** Approve or reject a candidate or an audition, redo a portrait, write next month's candidates, or pick a season's format. */
+/** Approve or reject a candidate or an audition, redo a portrait, write next month's candidates, put up a shortlisted one, or pick a season's format. */
 export const POST = handle(async (req: Request) => {
   if (!(await authorized(req))) return json(NOT_AUTHORIZED, 403);
   const input = parseBody(Input, await readJson(req), "invalid_request");
@@ -154,6 +159,9 @@ export const POST = handle(async (req: Request) => {
     // Stage the recoupling night now, off-cycle (lib/recoupling.ts): the same run the season's last night gets.
     const r = await stageRecouplingNight(db);
     note = r.ran ? `The Recoupling ran: ${r.booked} booked, ${r.failed} failed — watch it at /mixers/${r.night_id}.` : `Not run: ${r.reason}.`;
+  } else if (input.action === "shortlist") {
+    const r = await addShortlistCandidate(db, seasonIdOf(nextSeasonStart(new Date())), input.name);
+    note = r.ok ? `${input.name} is up for ${seasonLabel(seasonIdOf(nextSeasonStart(new Date())))}. Portrait: ${r.portrait}` : r.reason;
   } else if (input.action === "portrait") {
     note = await makePortrait(db, input.character_id);
   } else {
