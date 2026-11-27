@@ -23,6 +23,7 @@
  * Sacred rule: a rose never touches points, odds, pairings or endings. The pass is rows and templates ($0); a rose's
  * second date costs what any speed date does, about a cent on the show's model.
  */
+import { english, type T } from "./i18n/translate";
 import { track } from "./analytics";
 import { markShowPaidRequest } from "./cast-date-request";
 import { CEREMONY_RUNS_AT_MINUTE, ceremonyHourUtc, ceremonyRunsAt, houseOf, suitorBadgesOf } from "./ceremony";
@@ -141,8 +142,10 @@ export const castingHeroLine = (c: Pick<Casting, "phase" | "month" | "lead">): s
  * "Botchelor": a stranger doesn't know the role). A name the screen doesn't otherwise show, so it says who they are
  * (2026-11-22 audit: "Nell, next season's lead" left a stranger asking who Nell is).
  */
-export const castingFirstDateLine = (c: Pick<Casting, "phase" | "lead">): string =>
-  `Their first date is with ${shortName(c.lead.name)}, who leads ${c.phase === "season" ? "this month's season" : "next month's season"}.`;
+export const castingFirstDateLine = (c: Pick<Casting, "phase" | "lead">, t: T = english): string =>
+  c.phase === "season"
+    ? t("Their first date is with {name}, who leads this month's season.", { name: shortName(c.lead.name) })
+    : t("Their first date is with {name}, who leads next month's season.", { name: shortName(c.lead.name) });
 
 /**
  * The lead this booking's blind date goes to, or null for the usual blind date: casting is on, the date is in the

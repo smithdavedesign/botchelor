@@ -26,6 +26,9 @@ export const english: T = (s, vars) => fill(s, vars);
  */
 export const msg = <S extends string>(english: S): S => english;
 
+/** `msg` for a string written outside a client component but shown by one, so it goes in the catalog's `client` half. */
+export const clientMsg = msg;
+
 /** Each language's catalog, in two halves: what the browser needs, and the rest (rendered on the server only). */
 export type Catalog = { client: Messages; server: Messages };
 export type Catalogs = Record<Exclude<Locale, "en">, Catalog>;

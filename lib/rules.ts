@@ -12,9 +12,9 @@ export const DATE_VISIBILITIES = ["public", "unlisted", "private"] as const;
 export type DateVisibility = (typeof DATE_VISIBILITIES)[number];
 
 export const ENDING_LABELS: Record<Ending, string> = {
-  second_date: "A second date",
-  friends: "Just friends",
-  disaster: "A disaster",
+  second_date: msg("A second date"),
+  friends: msg("Just friends"),
+  disaster: msg("A disaster"),
 };
 
 /**

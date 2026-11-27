@@ -4,6 +4,7 @@
  * (app/create/CreateWizard.tsx) load these without the content filter's word lists, which the screening in
  * lib/express-create.ts needs and the browser never runs (2026-11-22 audit).
  */
+import { clientMsg } from "./i18n/translate";
 import { CHARACTER_REJECTION_MESSAGES } from "./safety-reasons";
 
 /** The box takes about a tweet: a sentence or two, not a card (that is /import's job). */
@@ -23,9 +24,9 @@ export const EXPRESS_CLIENT_TIMEOUT_MS = 16_000;
  * he (2026-11-22 audit: "Storm chaser" said neither, so its draft had no look to suggest).
  */
 export const EXPRESS_EXAMPLES: readonly { label: string; text: string }[] = [
-  { label: "Night baker", text: "A night-shift baker who names all her sourdough starters and can't do small talk before sunrise." },
-  { label: "Stuntman", text: "A retired stuntman in his fifties who now teaches ballroom dancing and is afraid of escalators." },
-  { label: "Storm chaser", text: "A storm-chasing meteorologist who is fearless in a tornado and hopeless at first dates, and he knows it." },
+  { label: clientMsg("Night baker"), text: clientMsg("A night-shift baker who names all her sourdough starters and can't do small talk before sunrise.") },
+  { label: clientMsg("Stuntman"), text: clientMsg("A retired stuntman in his fifties who now teaches ballroom dancing and is afraid of escalators.") },
+  { label: clientMsg("Storm chaser"), text: clientMsg("A storm-chasing meteorologist who is fearless in a tornado and hopeless at first dates, and he knows it.") },
 ];
 
 /** Why a draft did not happen; each opens the usual form with one plain sentence (expressFailureLine). */

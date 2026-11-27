@@ -30,8 +30,10 @@ function usedStrings(): { file: string; client: boolean; keys: string[] }[] {
     const src = readFileSync(f, "utf8");
     if (!/from "(@\/lib\/i18n\/[\w-]+|\.\/i18n\/[\w-]+|@\/app\/I18nProvider)"/.test(src)) continue;
     const keys = [...src.matchAll(/\b(?:t|tr|msg)\(\s*("(?:[^"\\]|\\.)*")/g)].map((m) => JSON.parse(m[1]) as string);
+    const shown = [...src.matchAll(/\bclientMsg\(\s*("(?:[^"\\]|\\.)*")/g)].map((m) => JSON.parse(m[1]) as string);
     const client = /^\s*["']use client["']/.test(src);
     found.push({ file: relative(ROOT, f), client, keys });
+    if (shown.length) found.push({ file: relative(ROOT, f), client: true, keys: shown });
   }
   return found;
 }

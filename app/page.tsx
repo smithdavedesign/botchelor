@@ -31,7 +31,7 @@ import { castingFirstDateLine, castingHeroLine, castingLead } from "@/lib/castin
 import { GENERATE_FROM_DAY } from "@/lib/season-gen";
 import { userIdFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
-import { FREE_EPISODES_PER_SEASON, PODIUM_SIZE } from "@/lib/rules";
+import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { cleanRef } from "@/lib/waitlist";
 import { IMPORT_CAI_PATH } from "@/lib/import-character";
 import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
@@ -62,6 +62,8 @@ import HomeClip from "./HomeClip";
 import { PROMO } from "@/lib/promo-videos";
 import HomeExpressBox from "./HomeExpressBox";
 import HomeOpen from "./HomeOpen";
+import { getT } from "@/lib/i18n/server";
+import { msg } from "@/lib/i18n/translate";
 import { homeOpenOn, homePhoneClipOn, openKicker, openLine, openTonight, type OpenTonight } from "@/lib/home-open";
 
 export const dynamic = "force-dynamic";
@@ -75,24 +77,19 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 // How it works, in three rows with an icon (2026-10-31 UX audit, A2): the six feature cards and the four long steps said
 // the same things; what's left of them (the soul, looks, seasons) is in the questions below.
 const STEPS: { icon: IconName; title: string; body: string }[] = [
-  { icon: "wand", title: "Make an original character", body: "A name, a short bio, three traits, a want and a dealbreaker, or 🎲 Surprise me fills the blanks. A private soul and their looks if you like." },
-  { icon: "send", title: "Send them on a blind date", body: "An engine decides how it ends and the AI writes it as a short episode. Nobody can steer it, not even you." },
-  { icon: "tv", title: "Watch it air", body: "Viewers call the ending for free points. Characters remember every date, and sparks and rivalries build." },
+  { icon: "wand", title: msg("Make an original character"), body: msg("A name, a short bio, three traits, a want and a dealbreaker, or 🎲 Surprise me fills the blanks. A private soul and their looks if you like.") },
+  { icon: "send", title: msg("Send them on a blind date"), body: msg("An engine decides how it ends and the AI writes it as a short episode. Nobody can steer it, not even you.") },
+  { icon: "tv", title: msg("Watch it air"), body: msg("Viewers call the ending for free points. Characters remember every date, and sparks and rivalries build.") },
 ];
 
-const FAQ = [
-  // The first date uses one of the week's free dates (lib/allowance.ts): nothing reserves it separately, so say that.
-  { q: "Is it free?", a: `Yes. ${FREE_EPISODES_PER_SEASON} free dates a week, no sign-up; your first date uses one of them. Points can never be bought, and optional packs add dates, never points or odds.` },
-  { q: "Can I steer the date?", a: "No, and that's the point. A deterministic engine decides the outcome; the AI only writes the dialogue to match it." },
-  { q: "How do I date someone else's character?", a: "Swipe for your character. A like both ways is a match: the two of them text, and each decides whether it wants a date. If both do, you book it, and their chat goes into the date. This season's house cast needs no match." },
-  { q: "Is my character's soul private?", a: "Yes. The soul is a private side only you see, and it can surprise you on a date. It can be kept local-only so it never touches any model, and you can delete it anytime." },
-  { q: "Can I choose how they look?", a: "Yes. Pick their looks and a portrait is drawn from them, free; or describe them in your own words, or style them from an image read in your browser." },
-  { q: "What's a season?", a: `A month. When it closes on the 1st, the top ${PODIUM_SIZE} in each friend league earn a badge, the two best-reviewed cast members stay on, and the open places go to people's own characters first: audition yours on the casting page and the votes decide.` },
-  { q: "Who can use it?", a: "Characters are fictional adults only — no real people, no sexual content. Every episode is AI-labeled with a report button." },
-  { q: "Do I need an account?", a: "No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices." },
+// The three questions a first visit asks; the rest are on /faq (the audit, 2026-11-11, 2.1). The first date uses one of
+// the week's free dates (lib/allowance.ts): nothing reserves it separately, so the answer says that.
+/** In the page's language (docs/i18n.md). The first answer carries a number, so it's a template. */
+const homeFaq = (t: (s: string, v?: Record<string, string | number>) => string) => [
+  { q: t("Is it free?"), a: t("Yes. {n} free dates a week, no sign-up; your first date uses one of them. Points can never be bought, and optional packs add dates, never points or odds.", { n: FREE_EPISODES_PER_SEASON }) },
+  { q: t("Can I steer the date?"), a: t("No, and that's the point. A deterministic engine decides the outcome; the AI only writes the dialogue to match it.") },
+  { q: t("Do I need an account?"), a: t("No sign-up to start. Make a character and send it on a date right away; sign in later to keep it across devices.") },
 ];
-/** The questions the home page answers itself: is it free, can I steer it, do I need an account. */
-const HOME_FAQ = [FAQ[0], FAQ[1], FAQ[FAQ.length - 1]];
 
 /**
  * The landing page, pitched at AI-friendly roleplayers, with two front doors (the 2026-11-07 outside reviews: too many
@@ -117,6 +114,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     redirect(`/reviews?${q}`);
   }
   const cookieStore = await cookies();
+  // The page in the visitor's language (docs/i18n.md): a first visit's page is translated; an owner's, not yet.
+  const t = await getT();
   const viewerId = userIdFromCookieStore(cookieStore);
   const db = viewerId ? await getDb() : null;
   const conn = db ?? (await getDb());
@@ -230,7 +229,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       // The season strip under the header steps aside on this screen whenever it would say the season's arc.
       arc: openKicker(new Date(), seasonDef) !== null,
       line: openLine(onSeason, leads),
-      lede: `${expressBox ? "Describe a character in a sentence." : "Make a character in a minute."} ${casting ? castingFirstDateLine(casting) : "They go on a blind date an AI writes."} You watch it air. Free, no sign-up.`,
+      lede: [expressBox ? t("Describe a character in a sentence.") : t("Make a character in a minute."), casting ? castingFirstDateLine(casting, t) : t("They go on a blind date an AI writes."), t("You watch it air. Free, no sign-up.")].join(" "),
       // On a phone the clip stands on the stage, playing in the first screen (HOME_PHONE_CLIP=0: under the box again).
       stage: homePhoneClipOn(),
     };
@@ -295,10 +294,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           line={open.line}
           lede={open.lede}
           onStage={open.stage}
+          t={t}
           box={expressBox ? <HomeExpressBox /> : null}
           clip={
             clip ? (
-              <HomeClip loopSrc={clip.loop_src} posterSrc={clip.poster_src} width={clip.width} height={clip.height} watchHref={clip.watch_href} caption={clipCaption(clip)} home={{ stage: open.stage }} />
+              <HomeClip loopSrc={clip.loop_src} posterSrc={clip.poster_src} width={clip.width} height={clip.height} watchHref={clip.watch_href} caption={clipCaption(clip, t)} home={{ stage: open.stage }} />
             ) : (
               <HomeClip
                 loopSrc={PROMO.homeLoop.src}
@@ -306,9 +306,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                 width={PROMO.homeLoop.width}
                 height={PROMO.homeLoop.height}
                 watchHref="/watch"
-                caption="Juniper Vale × Nell Abiodun · How does it end?"
-                kicker="From the show"
-                watchLabel="Watch episodes"
+                caption={`Juniper Vale × Nell Abiodun · ${t("How does it end?")}`}
+                kicker={t("From the show")}
+                watchLabel={t("Watch episodes")}
                 home={{ stage: open.stage }}
               />
             )
@@ -406,7 +406,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       )}
       {/* With the clip up top, the real date a first visit calls the ending of (app/FirstRunCall.tsx) follows it. */}
       {(open ? featured : clip && featured) && featured && (
-        <section className="home-date" aria-label="A date from the show">
+        <section className="home-date" aria-label={t("A date from the show")}>
           <DateExcerpt date={featured} call={!creator} wide />
         </section>
       )}
@@ -434,8 +434,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {aired && aired.items.length > 0 && (
         <section className="home-aired">
           <div className="section-head">
-            <h2>Just aired</h2>
-            <Link href="/watch">Watch more →</Link>
+            <h2>{t("Just aired")}</h2>
+            <Link href="/watch">{t("Watch more")} →</Link>
           </div>
           {/* A shelf of small title cards, not rows (docs/show-style.md: faces first). Three: the hero already plays the
               latest and /watch has the rest (the audit, 2026-11-11, 2.1: six cards, two of them the same mixer). */}
@@ -455,7 +455,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
       {!creator && (
       <section className="home-how">
-        <h2>How it works</h2>
+        <h2>{t("How it works")}</h2>
         <ol className="features home-features">
           {STEPS.map((f) => (
             <li className="feature card" key={f.title}>
@@ -463,8 +463,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                 <Icon name={f.icon} />
               </span>
               <div>
-                <h3>{f.title}</h3>
-                <p className="muted">{f.body}</p>
+                <h3>{t(f.title)}</h3>
+                <p className="muted">{t(f.body)}</p>
               </div>
             </li>
           ))}
@@ -523,16 +523,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
       {!creator && (
       <section className="faq">
-        <h2>Questions</h2>
+        <h2>{t("Questions")}</h2>
         {/* The three a first visit asks; the rest are on /faq (the audit, 2026-11-11, 2.1: eight rows repeated that page). */}
-        {HOME_FAQ.map((item) => (
+        {homeFaq(t).map((item) => (
           <details className="card ux-fold" key={item.q}>
             <summary>{item.q}</summary>
             <p className="muted">{item.a}</p>
           </details>
         ))}
         <p className="faq-more">
-          <Link href="/faq">More questions →</Link>
+          <Link href="/faq">{t("More questions")} →</Link>
         </p>
       </section>
       )}
@@ -540,7 +540,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {!creator && (
         <p className="cta-row cta-final">
           <Link className="button" href="/create">
-            Make your character
+            {t("Make your character")}
           </Link>
         </p>
       )}
@@ -549,18 +549,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           app, the seasons, Step in and the bots' reviews, the landings search hadn't fetched (2026-11-22 audit: the home
           page linked none of them for a first visit). An owner's page has its own lines for these in the cast section above. */}
       {!creator && open && (
-        <nav className="home-more-links" aria-label="More of Botchelor">
+        <nav className="home-more-links" aria-label={t("More of Botchelor")}>
           <p className="muted small home-sky-line">
-            Free tools:{" "}
-            {FREE_TOOLS.map((t, i) => (
-              <Fragment key={t.path}>
+            {t("Free tools:")}{" "}
+            {FREE_TOOLS.map((tool, i) => (
+              <Fragment key={tool.path}>
                 {i > 0 && " · "}
-                <Link href={t.path}>{t.inline}</Link>
+                <Link href={tool.path}>{t(tool.name)}</Link>
               </Fragment>
             ))}
           </p>
           <p className="muted small home-sky-line">
-            Coming from another app?{" "}
+            {t("Coming from another app?")}{" "}
             {ALTERNATIVES.map((a, i) => (
               <Fragment key={a.slug}>
                 {i > 0 && " · "}
@@ -568,18 +568,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               </Fragment>
             ))}
             {" · "}
-            <Link href="/import">import your character</Link>
+            <Link href="/import">{t("import your character")}</Link>
           </p>
           <p className="muted small home-sky-line">
-            The show: <Link href="/seasons">every season so far</Link> · <Link href="/casting">casting for next month</Link>
+            {t("The show:")} <Link href="/seasons">{t("every season so far")}</Link> · <Link href="/casting">{t("casting for next month")}</Link>
             {stepInOpen() && (
               <>
                 {" · "}
-                <Link href="/step-in">step into a date yourself</Link>
+                <Link href="/step-in">{t("step into a date yourself")}</Link>
               </>
             )}
             {" · "}
-            <Link href="/reviews">what the bots say about it</Link>
+            <Link href="/reviews">{t("what the bots say about it")}</Link>
           </p>
         </nav>
       )}
