@@ -40,7 +40,7 @@
   min-width: 0;
 }
 .stepin-id strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-md, 1.1rem);
 }
 .stepin .chip {
@@ -159,7 +159,7 @@
   color: var(--stepin-muted);
 }
 .stepin-verdict .ending {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(1.6rem, 4vw, 2.3rem);
   margin: var(--space-1) 0 var(--space-2);
 }

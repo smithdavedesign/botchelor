@@ -967,7 +967,7 @@ img.avatar-photo {
 }
 .ad-scenes-head h2 {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
 }
 .ad-scenes-head p {
   margin: 0.2rem 0 0;
@@ -2624,7 +2624,7 @@ button.ad-studio-fold-head:active:not(:disabled) {
   text-transform: uppercase;
 }
 .ad-home-feature-names {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   line-height: 1.15;
 }
@@ -2966,7 +2966,7 @@ button.ad-pp-face:hover:not(:disabled) {
   min-width: 0;
 }
 .ad-pp-chosen-names {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   line-height: 1.2;
 }
@@ -5156,7 +5156,7 @@ button.ad-si-pick.on {
   padding: var(--space-2) var(--space-3) var(--space-3);
 }
 .ad-char-name {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   line-height: 1.2;
   overflow-wrap: anywhere;

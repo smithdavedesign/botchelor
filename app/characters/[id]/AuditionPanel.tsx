@@ -5,6 +5,7 @@ import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { AUDITION_BLOCKS } from "@/lib/audition-words";
 import type { MyAudition } from "@/lib/auditions";
+import Icon from "@/app/Icon";
 
 /**
  * The owner's audition for next month's cast (lib/auditions.ts): what stands in the way, the button with what being
@@ -19,7 +20,7 @@ export default function AuditionPanel({ id, name, audition: a }: { id: string; n
     return (
       <section className="card audition-panel" aria-labelledby="audition-head">
         <p className="kicker">On the cast · {a.on_cast.label}</p>
-        <h2 id="audition-head">🎬 {name} is on the show</h2>
+        <h2 id="audition-head"><Icon name="clapper" /> {name} is on the show</h2>
         <p className="small">
           For {a.on_cast.label}, anyone can take {name} on a date by name, the show books it into the lobby&apos;s dates, and viewers can
           back it. Its sheet is locked until {until}. If it&apos;s one of the two best-loved when the month ends, it stays on.

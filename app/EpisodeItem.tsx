@@ -39,7 +39,7 @@ export default function EpisodeItem({ episode }: { episode: EpisodeView }) {
   const format = episode.format && !(mixer && episode.format === "speed_date") ? episode.format : null;
   const later = (dateNo && dateNo > 1) || episode.followup_of ? dateBadge(dateNo ?? episode.date_number ?? 2) : null;
   return (
-    <li className="card episode-item tap-card">
+    <li className="card episode-item tap-card ticket">
       <VenuePhoto venue={episode.venue} className="episode-item-photo">
         <span className="pair-faces">
           <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} size={44} decorative />

@@ -87,9 +87,18 @@ High Contrast) keeps a real border on buttons and badges, since gradients and sh
 ## Typography
 
 - **Display:** Fraunces (serif), weights 600–800 — the "title card" look. Used for the wordmark, `h1`, and
-  section-flavour headings (`.venue`).
+  section-flavour headings (`.venue`). Headings carry a little of its SOFT axis; the show's title cards (set heroes,
+  the contestant card, an episode, the home stage) are fully soft with WONK on; quoted titles use its real italic.
 - **Body/UI:** Inter, weights 400–700, with a system-font fallback stack.
-- Loaded from Google Fonts (the one allowed stylesheet host) with `display=swap`.
+- Self-hosted by next/font (`app/fonts.ts`, 2026-11-27), reached in CSS as `var(--font-display)` and
+  `var(--font-body)`. Never a literal family name in a stylesheet.
+
+### The finish (`app/ux/finish.css`, 2026-11-27)
+
+The small surfaces every page shares: a faint paper grain, the rose for text selection, form controls and scrollbars
+in the theme's colours, balanced headings and orphan-free paragraphs, tabular figures in meters, chips and prices.
+The **rose seal** (`app/RoseSeal.tsx`) is the show's one repeated mark: the 404s, the paid pack, a ship's top pick,
+the footer. A card that is a ticket to something (an episode row, the paid pack) gets `.ticket`'s stub notches.
 
 Every type size is a fluid token: `clamp(min, preferred, max)` grows from the phone size to the desktop size,
 so small text never drops below 12px on a phone, and a control's label shrinks a little in a narrow card rather

@@ -117,7 +117,7 @@
 }
 .season-hero-names {
   margin: 0.1rem 0 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-weight: 700;
   font-size: var(--text-2xl);
   line-height: 1.1;
@@ -179,7 +179,7 @@
 }
 .season-previously h2 {
   margin: 0 0 var(--space-2);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -188,7 +188,7 @@
 }
 .season-narrative {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-md);
   line-height: 1.7;
 }
@@ -423,7 +423,7 @@
 }
 .season-now-clock {
   margin: var(--space-1) 0 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   font-size: var(--text-lg);
   color: color-mix(in srgb, var(--on-photo) 90%, transparent);
@@ -917,7 +917,7 @@
 }
 .season-live .set-hero .season-now-clock {
   margin: var(--space-2) 0 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   font-size: var(--text-md);
   color: var(--on-photo);
@@ -1181,7 +1181,7 @@
   margin: 0;
 }
 .season-lead-face figcaption a {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   font-weight: 600;
   text-decoration: none;
@@ -1256,7 +1256,7 @@
   background: color-mix(in srgb, var(--card-dark) 60%, transparent);
 }
 .premiere-clock b {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;

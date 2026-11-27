@@ -70,7 +70,7 @@ h3 {
 }
 /* The show's eyebrow labels, one look (.kicker's): small capitals in the body face, whatever element carries them. */
 :is(.kicker, .watch-lead-kicker, .watch-tonight-kicker, .tonight-band-eyebrow, .tonight-slot-label, .matches-label, .episode-prev-label) {
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -348,7 +348,7 @@ h3 {
     gap: var(--space-3);
   }
   .date-excerpt.is-wide .date-excerpt-who strong {
-    font-family: "Fraunces", Georgia, serif;
+    font-family: var(--font-display), Georgia, serif;
     font-size: var(--text-2xl);
     line-height: 1.15;
   }

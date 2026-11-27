@@ -465,7 +465,7 @@ body:has(.set-hero) {
 .contestant-card .meta h1 {
   margin: 0;
   color: var(--on-photo);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   text-shadow: 0 2px 20px color-mix(in srgb, black 50%, transparent);
 }
 .contestant-card .contestant-job {
@@ -491,7 +491,7 @@ body:has(.set-hero) {
 }
 .contestant-stats strong {
   margin-right: var(--space-1);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-md);
   color: var(--on-photo);
 }

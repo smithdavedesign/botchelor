@@ -124,7 +124,7 @@
   text-decoration: none;
 }
 .agent-date-venue {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   color: var(--accent-text);
   overflow-wrap: anywhere;

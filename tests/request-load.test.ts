@@ -108,12 +108,21 @@ describe("a wrong address", () => {
   it("gets a page built once: its own document, the way back, and nothing read per request", () => {
     expect(config.experimental?.globalNotFound).toBe(true);
     const html = render(createElement(GlobalNotFound));
-    expect(html.startsWith('<html lang="en">')).toBe(true);
+    // The fonts' variables ride on <html> (app/fonts.ts).
+    expect(html.startsWith('<html lang="en" class="')).toBe(true);
     expect(html).toContain('<body><header class="site-header"><a href="/" class="logo">Botchelor</a></header>');
-    expect(html).toContain('<main id="main"><article class="not-found"><p class="kicker">404</p><h1>This page isn&#x27;t on the show</h1>');
+    // The show's seal over the 404 (app/RoseSeal.tsx), then the words.
+    expect(html).toContain('<main id="main"><article class="not-found"><svg class="rose-seal rose-seal-lg"');
+    expect(html).toContain('<p class="kicker">404</p><h1>This page isn&#x27;t on the show</h1>');
     expect(html).toContain('<a class="button" href="/">Back to the show</a><a class="button secondary" href="/characters">See the characters</a>');
-    // No cookies, no headers, no database: only the stylesheet and a type.
-    expect(source("app/global-not-found.tsx").match(/^import .*$/gm)).toEqual(['import type { Metadata } from "next";', 'import "./globals.css";']);
+    // No cookies, no headers, no database: only the stylesheets, a type, the seal and the fonts (all static).
+    expect(source("app/global-not-found.tsx").match(/^import .*$/gm)).toEqual([
+      'import type { Metadata } from "next";',
+      'import "./globals.css";',
+      'import "./ux/finish.css";',
+      'import RoseSeal from "./RoseSeal";',
+      'import { fontVariables } from "./fonts";',
+    ]);
     // A page that calls notFound() keeps the site's layout and the same words.
     expect(source("app/not-found.tsx")).toContain("<h1>This page isn&apos;t on the show</h1>");
   });

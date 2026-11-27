@@ -88,7 +88,7 @@
   margin: 0.55rem 0 0.9rem;
   max-width: 14ch;
   color: var(--mo-white);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--mo-title);
   font-weight: 800;
   line-height: 0.96;
@@ -264,7 +264,7 @@
   margin: 0.3rem 0 0.35rem;
   overflow: hidden;
   color: var(--mo-white);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   font-weight: 700;
   line-height: 1.15;
@@ -292,7 +292,7 @@
 .slateCount strong {
   display: block;
   color: var(--mo-white);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--mo-count);
   font-weight: 800;
   line-height: 1.05;
@@ -539,7 +539,7 @@
 .stats dd {
   margin: 0;
   color: var(--ink);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--mo-stat);
   font-weight: 800;
   line-height: 1;
@@ -662,7 +662,7 @@
 .epTitle {
   margin: 0.35rem 0 0.5rem;
   color: var(--mo-white);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   font-weight: 800;
   line-height: 1.1;
@@ -827,7 +827,7 @@
 .viewerCaption {
   margin: 0;
   color: var(--mo-white);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   font-weight: 700;
 }
@@ -902,14 +902,14 @@
   border-radius: 50%;
   background: var(--grad);
   color: var(--accent-ink);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-md);
   font-weight: 800;
   box-shadow: var(--shadow);
 }
 .lineSteps h3 {
   margin: 0.8rem 0 0.3rem;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-md);
 }
 .lineSteps p {

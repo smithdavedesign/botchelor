@@ -16,6 +16,7 @@ import { placeAt } from "@/lib/venues";
 import { trackConversion } from "@/app/conversion";
 import CharacterName from "@/app/CharacterName";
 import { withoutLeadName } from "@/app/episodes/[id]/lead-name";
+import { useOnAirTab } from "@/app/motion/useOnAirTab";
 
 /** Where to go once the date is decided, so a finished room is never a dead end (David, 2026-10-18). */
 function RoomNext({ state }: { state: RoomState }) {
@@ -238,6 +239,8 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
   const [a, b] = state.characters;
   // The pre-show countdown to the first lines, from the room's synced clock, ticking locally between syncs.
   const preshowLeft = useCountdown(state.clock.started && !state.clock.ended ? state.clock.preshow_left : null);
+  // The tab's ON AIR dot while the date is playing (app/motion/useOnAirTab.ts).
+  useOnAirTab(state.clock.started && !state.clock.ended && state.clock.phase !== "preshow");
 
   if (theater) {
     return <Theater state={state} sync={sync} onExit={() => setTheater(false)} preshowLeft={preshowLeft} onStart={waiting ? startDate : undefined} />;

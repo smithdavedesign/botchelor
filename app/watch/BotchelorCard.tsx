@@ -9,6 +9,7 @@ import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { CeremonyBoard, SuitorState } from "@/lib/ceremony";
 import type { NextPremiere } from "@/lib/premiere-clock";
 import { showSetBackground } from "@/lib/show-sets";
+import Icon from "@/app/Icon";
 
 const STATE_WORD: Record<SuitorState, string> = { in: "still in", out: "went home", final_rose: "the final rose", runner_up: "runner-up" };
 
@@ -50,7 +51,7 @@ export default function BotchelorCard({
   return (
     <section id="rose-ceremony" className="card botchelor-card" aria-labelledby="botchelor-head" data-track-area="rose-ceremony">
       <p className="kicker">This season · one lead, your characters as the suitors</p>
-      <h2 id="botchelor-head">🌹 {board.title}</h2>
+      <h2 id="botchelor-head"><Icon name="rose" /> {board.title}</h2>
       {/* The lead and the suitors on the show's stage, and the last verdict under the rose (lib/show-sets.ts). */}
       <div className="botchelor-house on-set" style={{ backgroundImage: showSetBackground("stage", 0.35) }}>
         <Link href={`/characters/${board.lead.id}`} className="botchelor-lead">

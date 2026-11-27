@@ -23,6 +23,9 @@ export type IconName =
   | "users"
   // Added from the design system (components/core/Icon.jsx), 2026-11-11: the same Lucide grid and stroke.
   | "heart"
+  // The finish pass (2026-11-27): the rose and the letter, for the show's badges that were 🌹 and 💌.
+  | "rose"
+  | "mail"
   | "x"
   | "check"
   | "chevronRight"
@@ -125,6 +128,20 @@ const PATHS: Record<IconName, ReactNode> = {
   // From the design system: heart/x/check for picks and closes, chevrons for back, flame/eye for After Dark's labels,
   // sparkles for the Constellation, clapper for the dates meter, volume/share/image/wand/more for the gallery and
   // "Make more". Same 24px grid, 2px stroke, round caps; Lucide paths.
+  rose: (
+    <>
+      <path d="M12 3c-3 0-5 2.2-5 4.8C7 10.7 9.3 13 12 13s5-2.3 5-5.2" />
+      <path d="M17 7.8C17 5.7 15.3 4 13.3 4 11.5 4 10 5.4 10 7.1c0 1.5 1.2 2.6 2.6 2.6 1.2 0 2.1-.9 2.1-2" />
+      <path d="M12 13v8" />
+      <path d="M12 17c-1.4-2-3.6-2.6-5.5-2 .8 2.2 3.1 3.1 5.5 2Z" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect width="20" height="16" x="2" y="4" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </>
+  ),
   heart: <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
   check: <path d="M20 6 9 17l-5-5" />,

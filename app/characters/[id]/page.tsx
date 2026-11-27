@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
 import { AiFiction, AiTag } from "@/app/AiLabel";
 import CharacterName from "@/app/CharacterName";
 import { introOf } from "@/lib/cast-intros";
@@ -515,7 +516,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const stepInEntry = stepIn && (
     <section className="card stepin-entry" aria-labelledby="stepin-entry-title">
       <div>
-        <h2 id="stepin-entry-title">🎬 Step into the date</h2>
+        <h2 id="stepin-entry-title"><Icon name="clapper" /> Step into the date</h2>
         <p className="muted small">Go on a date with {shortName(c.name)} yourself, live, line by line. {shortName(c.name)} is an AI character on a show.</p>
       </div>
       <Link className={stepInLeads ? "button" : "button secondary"} href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character">
@@ -764,15 +765,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 title="The Botchelor: one lead, suitors made by people, and a rose ceremony every Sunday"
                 data-track="lead-badge"
               >
-                🌹 {leadWords}
+                <Icon name="rose" /> {leadWords}
               </Link>
             )}
             {castingBadges.map((b) => (
               <span key={b.key} className="badge" title={b.title} data-casting-badge={b.key}>
-                🌹 {b.label}
+                <Icon name="rose" /> {b.label}
               </span>
             ))}
-            {!c.house && dating?.open_to_dates && <span className="badge badge-open">💌 Open to dates</span>}
+            {!c.house && dating?.open_to_dates && <span className="badge badge-open"><Icon name="mail" /> Open to dates</span>}
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
                 💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
               </span>}

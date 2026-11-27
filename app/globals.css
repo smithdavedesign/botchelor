@@ -1,4 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700&display=swap");
+/* The two faces (app/fonts.ts, self-hosted by next/font, which sets these on <html>). These are only the fallback for a
+   document without that class: zero specificity, so the real ones always win. */
+:where(:root) {
+  --font-display: "Fraunces";
+  --font-body: "Inter";
+}
+
 
 /*
  * Design tokens. Every colour pairing below is checked against WCAG 2.2 (see docs/brand.md, "Contrast"):
@@ -284,7 +290,7 @@
 
 body {
   margin: 0;
-  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--paper);
   line-height: 1.55;
@@ -573,7 +579,7 @@ h3.section,
 .bestline,
 .logo,
 .threshold-title {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
 }
 
 h1 {
@@ -1604,7 +1610,7 @@ button.chosen {
 }
 
 .matchup .vs {
-  font-family: "Fraunces", serif;
+  font-family: var(--font-display), serif;
   font-size: var(--text-xl);
   color: var(--muted);
 }
@@ -1736,7 +1742,7 @@ button.chosen {
   border-radius: var(--radius-md);
   background-size: cover;
   color: var(--on-photo);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -2307,7 +2313,7 @@ details.settings[open] > summary {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--accent-text);
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-body), sans-serif;
 }
 
 /* ---------------- responsive ---------------- */
@@ -2523,7 +2529,7 @@ button.button-ghost:hover:not(:disabled) {
 
 .feature h3 {
   margin: 0 0 0.35rem;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
 }
 
@@ -2567,7 +2573,7 @@ button.button-ghost:hover:not(:disabled) {
 .bot-card blockquote {
   flex: 1;
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-md);
   line-height: 1.4;
 }
@@ -3834,7 +3840,7 @@ html.phone-open body {
 }
 .phone-title {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: 1.7rem;
   font-weight: 800;
   line-height: 1.15;
@@ -4046,7 +4052,7 @@ html.phone-open body {
   color: var(--accent-text);
 }
 .swipe-prompt-a {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-md);
   line-height: 1.35;
 }
@@ -4399,7 +4405,7 @@ button.rating-chip:hover {
   margin: 0;
   padding: 0 1.5rem;
   text-align: center;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(1.2rem, 3vw, 2.1rem);
   color: rgba(255, 255, 255, 0.55);
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
@@ -4413,7 +4419,7 @@ button.rating-chip:hover {
   right: 0;
   text-align: center;
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(1.1rem, 2.5vw, 1.6rem);
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.85);
@@ -4425,7 +4431,7 @@ button.rating-chip:hover {
   display: grid;
   place-items: center;
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(1.2rem, 3vw, 2rem);
   color: rgba(255, 255, 255, 0.8);
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.7);
@@ -4503,7 +4509,7 @@ button.rating-chip:hover {
   min-width: 0;
 }
 .theater-id strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   min-width: 0;
   max-width: 100%;
@@ -5703,7 +5709,7 @@ details.recap-toggle[open] > summary {
   min-width: 0;
 }
 .wizard-preview-meta strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
 }
 .wizard-preview-meta .chips {
@@ -5716,7 +5722,7 @@ details.recap-toggle[open] > summary {
   margin: 0;
 }
 .wizard-legend {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   font-weight: 700;
   padding: 0;
@@ -5952,7 +5958,7 @@ button.dice:hover:not(:disabled) {
 }
 .detail-group > summary {
   cursor: pointer;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-weight: 700;
   font-size: var(--text-md);
 }
@@ -6207,7 +6213,7 @@ button.dice:hover:not(:disabled) {
 }
 .profile-prompt blockquote {
   margin: 0.3rem 0 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   line-height: 1.3;
 }
@@ -10745,7 +10751,7 @@ html.ad-studio-locked {
   align-items: end;
 }
 .ship-form .ship-x {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   font-weight: 700;
   color: var(--accent-text);
@@ -10787,7 +10793,7 @@ html.ad-studio-locked {
 /* A name wraps only between words, never inside one (visual audit 2026-11-20: "Barnabunipe / r"): it sizes down to
    its tile instead, by its longest word (--len, set by the page; Fraunces runs about 0.6em a letter, 0.7 to be safe). */
 .ship-names strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: min(var(--text-xl), calc(140cqi / var(--len, 8)));
 }
 .ship-names li:first-child {
@@ -10941,7 +10947,7 @@ html.ad-studio-locked {
 }
 .rship-x {
   align-self: center;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   font-weight: 700;
   color: var(--accent-text);
@@ -10958,7 +10964,7 @@ html.ad-studio-locked {
   margin: 0;
 }
 .rship-name strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-display);
   line-height: 1.1;
   overflow-wrap: anywhere;
@@ -11049,7 +11055,7 @@ html.ad-studio-locked {
   min-width: 0;
 }
 .names-list strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   overflow-wrap: anywhere;
 }
@@ -11175,7 +11181,7 @@ html.ad-studio-locked {
   border-radius: var(--radius);
 }
 .questions-asked {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   line-height: 1.3;
   margin: 0 0 var(--space-3);
@@ -11264,7 +11270,7 @@ html.ad-studio-locked {
   border-radius: 999px;
   background: var(--soft);
   color: var(--accent-text);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-sm);
   white-space: nowrap;
 }
@@ -11278,7 +11284,7 @@ html.ad-studio-locked {
   border-radius: var(--radius-md) var(--radius-md) var(--radius-xs) var(--radius-md);
   background: var(--soft);
   color: var(--ink);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-sm);
   line-height: 1.35;
 }
@@ -11304,7 +11310,7 @@ html.ad-studio-locked {
   display: block;
   height: 1.35em;
   overflow: hidden;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   font-weight: 700;
   line-height: 1.35;
@@ -11314,7 +11320,7 @@ html.ad-studio-locked {
 }
 /* The example chemistry score, and its meter filling (app/ux/motion.css .fill-in). */
 .tool-chem-score {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   line-height: 1;
 }
@@ -11621,7 +11627,7 @@ html.ad-studio-locked {
   gap: var(--space-2);
 }
 .chem-score-num strong {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: clamp(3rem, 10vw, 4.5rem);
   line-height: 1;
 }
@@ -11696,7 +11702,7 @@ html.ad-studio-locked {
 .true-love-head span {
   background: var(--soft);
   color: var(--accent-text);
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
 }
 .true-love-row:last-child span {
   background: var(--grad);
@@ -12206,7 +12212,7 @@ main:has(> .episode-page) {
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 10px 24px rgba(0, 0, 0, 0.45);
 }
 .episode-hero-x {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.75);
 }
@@ -12224,7 +12230,7 @@ main:has(> .episode-page) {
 /* The title card's own pieces (docs/show-style.md): the episode's title, and the cold open above the card. */
 .episode-hero-title {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   font-weight: 600;
   font-size: var(--text-xl);
@@ -12266,7 +12272,7 @@ main:has(> .episode-page) {
 }
 /* An episode's title on a list row: the billing, not another badge. */
 .episode-item-title {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   font-weight: 600;
   color: var(--accent-text);
@@ -12289,7 +12295,7 @@ main:has(> .episode-page) {
 .episode-hero-setting {
   margin: 0;
   max-width: 38rem;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.92);
@@ -12371,7 +12377,7 @@ main:has(> .episode-page) {
 }
 .episode-wants li strong {
   display: block;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
 }
 .episode-predict {
   scroll-margin-top: 5rem;
@@ -13252,7 +13258,7 @@ html.constellation-locked body {
 }
 .graph-teaser-title {
   margin: 0;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-2xl);
   font-weight: 700;
   line-height: 1.15;
@@ -14340,7 +14346,7 @@ details > summary.small {
 }
 .characters-hub .dir-name {
   display: block;
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-lg);
   line-height: 1.2;
   overflow-wrap: anywhere;
@@ -16080,7 +16086,7 @@ button.confessional-clip:hover:not(:disabled) {
   text-decoration: none;
 }
 .episode-shelf-title {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.92);
@@ -16170,7 +16176,7 @@ button.confessional-clip:hover:not(:disabled) {
   box-shadow: 0 0 0 3px var(--card), 0 8px 24px -12px rgba(36, 16, 34, 0.45);
 }
 .couple-head .ending {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-size: var(--text-xl);
   margin: 0.35rem 0 0.1rem;
 }
@@ -16209,7 +16215,7 @@ button.confessional-clip:hover:not(:disabled) {
   margin: 0;
 }
 .couple-date-venue {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: var(--font-display), Georgia, serif;
   font-style: italic;
   color: var(--accent-text);
 }

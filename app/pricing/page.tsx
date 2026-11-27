@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import PackVenues from "@/app/PackVenues";
 import PlanFace from "@/app/PlanFace";
+import RoseSeal from "@/app/RoseSeal";
 import SetHero from "@/app/SetHero";
 import WeeklyTime from "@/app/WeeklyTime";
 import { formatPrice, onSale, PACK_5 } from "@/lib/catalog";
@@ -101,7 +102,9 @@ export default function PricingPage() {
         {upgrade === "pack" ? (
           // More dates, as one card: every pack on sale (lib/catalog.ts onSale: the 5-pack always, the 15-pack once its
           // link is set) is a line in it, and the one button goes to the shop, where they're bought.
-          <li className={card("pack")} id="pack">
+          <li className={`${card("pack")} ticket`} id="pack">
+            {/* The show's seal on the paid pack (app/RoseSeal.tsx), and the card cut like a ticket (app/ux/finish.css). */}
+            <RoseSeal className="pricing-seal" />
             {/* One place for each date the first pack buys (app/PackVenues.tsx). */}
             <PackVenues dates={PACK_5.episodes} />
             <h2>More dates</h2>

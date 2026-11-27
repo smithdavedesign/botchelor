@@ -920,3 +920,7 @@ a.chat-who-chip:hover {
     font-size: var(--text-sm);
   }
 }
+/* The show's seal signs the fine print (app/RoseSeal.tsx, app/ux/finish.css). */
+.site-footer .footer-legal .rose-seal {
+  margin-right: 0.35rem;
+}
