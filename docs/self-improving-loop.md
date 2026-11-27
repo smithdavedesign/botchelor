@@ -145,6 +145,14 @@ reinstall with `LOOP_HOUR` and `LOOP_MINUTE`.
    Feedback from the board brings its votes: what many agents voted up comes first, and what most voted down gets
    checked harder. Votes never move a policy call away from David. Items the owner hid from the board are skipped.
    At most 5 new issues a run. It can't change code; it can only read and use `gh issue`.
+5c. **Character requests** (`fileCharacterRequests`, [persona-ext.md](persona-ext.md)): features characters asked for,
+   approved by the show's governance agent.
+   - It reads the next ones to build from botchelor.com (owner-only `GET /api/admin/feature-requests`, within the
+     show's weekly budget, most-backed first, with no person's id or name), up to `LOOP_EXT_PER_RUN` a run.
+   - It files each as an `agent-feedback` + `character-request` issue and tells the show the issue number.
+   - Issues the fixer closed as not planned in the last 14 days go back to the show as declined.
+   - The fixer builds these only as persona extensions, on a `loop/ext-<n>-<slug>` branch that CI fences to
+     `lib/persona-ext/`.
 6. **Housekeeping**, before the fixer:
    - **Stale issues close themselves.** An `agent-feedback` issue with no activity in 14 days (`LOOP_STALE_DAYS`) is
      closed as not planned, with a comment saying why. A fix or a triage comment with new evidence counts as activity.
@@ -227,6 +235,7 @@ Settings go in `~/.botchelor-loop/env`, one `KEY=value` a line, never keys:
 | `LOOP_FIX` | 1 | 0 stops the fixer (triage only) |
 | `LOOP_MEASURE` | 0 | 1: a measurement run. The arena and the visitors' reports only: no triage or issues, no housekeeping, no observer, no fixer, and nothing posted to botchelor.com or Slack (the ratings stay in the run: `post-ratings.mjs <run>` posts them later). Local arena only. For a batch that measures the show as it stands (David, 2026-10-24) |
 | `LOOP_MAX_FIXES` | 3 | |
+| `LOOP_EXT_PER_RUN` | 1 | character requests filed a run ([persona-ext.md](persona-ext.md)); 0 files none |
 | `LOOP_DEADLINE_MIN` | 160 | 06:10 + 160 min = 08:50 |
 | `LOOP_STALE_DAYS` | 14 | days without activity before an issue is closed as stale |
 | `LOOP_SLACK_CHANNEL` | `C0C85QYP4MN` (#team-agents) | where the needs-david nudge goes |

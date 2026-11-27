@@ -5,11 +5,14 @@ import { useState } from "react";
 import { requestJson } from "../../request";
 import {
   entryLine,
+  FEATURE_ASK_MAX,
+  FEATURE_TITLE_MAX,
   GOAL_MAX,
   GOALS_ACTIVE,
   GROWTH_TRAITS,
   LIFE_PERIOD_MAX,
   LIFE_VALUE_MAX,
+  type FeatureRequest,
   type FieldProposal,
   type LifeDay,
   type LifeEntry,
@@ -17,6 +20,19 @@ import {
   type LifeGoal,
   type TraitShift,
 } from "@/lib/life-record-shared";
+import type { ExtCard } from "@/lib/persona-ext-host";
+import type { ExtData, ExtField } from "@/lib/persona-ext/types";
+
+const FEATURE_STATUS_WORDS: Record<FeatureRequest["status"], string> = {
+  pending: "waiting for review",
+  approved: "approved, waiting to be built",
+  field: "better as a life record field",
+  merged: "backs an earlier ask",
+  rejected: "not taken",
+  filed: "being built",
+  shipped: "live",
+  declined: "couldn't be built",
+};
 
 /**
  * A character's life so far (lib/life-record.ts): jobs, places, family and the rest, grouped by field. Everyone sees the
@@ -33,6 +49,8 @@ export default function LifePanel({
   goals,
   days,
   shifts,
+  extensions = [],
+  features = [],
 }: {
   characterId: string;
   name: string;
@@ -44,6 +62,10 @@ export default function LifePanel({
   days: LifeDay[];
   /** Owner only: how it has been changing, newest first. */
   shifts: TraitShift[];
+  /** Persona extensions (lib/persona-ext-host.ts): every live one for its owner, the ones with lines for everyone else. */
+  extensions?: ExtCard[];
+  /** Owner only: the features its owner asked the show for (lib/feature-requests.ts). */
+  features?: FeatureRequest[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -54,6 +76,8 @@ export default function LifePanel({
   const [hidden, setHidden] = useState(false);
   const def = fields.find((f) => f.key === field);
   const [goal, setGoalText] = useState("");
+  const [featureTitle, setFeatureTitle] = useState("");
+  const [featureAsk, setFeatureAsk] = useState("");
 
   async function post(body: Record<string, unknown>, fail: string): Promise<boolean> {
     setBusy(true);
@@ -229,6 +253,72 @@ export default function LifePanel({
           </p>
         </form>
       )}
+      {extensions.map((x) => (
+        <div key={x.slug}>
+          <strong>{x.title}</strong>
+          {owner && <p className="muted small">{x.summary}</p>}
+          {x.lines.length > 0 && (
+            <ul className="list">
+              {x.lines.map((l, i) => (
+                <li key={i}>{l}</li>
+              ))}
+            </ul>
+          )}
+          {owner && <ExtForm card={x} busy={busy} save={(data, clear) => post({ action: "ext_set", extension: x.slug, data, clear }, "Couldn't save that.")} />}
+        </div>
+      ))}
+      {owner && (
+        <details>
+          <summary>Ask the show for a feature{features.length ? ` (${features.length})` : ""}</summary>
+          <p className="muted small">
+            Something {name}&apos;s life needs that a field can&apos;t hold: a bucket list with what&apos;s done, a training plan, a garden. The show&apos;s governance agent decides at
+            once, and the show&apos;s own agents build what it approves, most-asked-for first. Plain words, PG, nothing about money, accounts or other people.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void post({ action: "request_feature", title: featureTitle, ask: featureAsk }, "Couldn't send that.").then((ok) => {
+                if (ok) {
+                  setFeatureTitle("");
+                  setFeatureAsk("");
+                }
+              });
+            }}
+          >
+            <input value={featureTitle} onChange={(e) => setFeatureTitle(e.target.value)} maxLength={FEATURE_TITLE_MAX} placeholder="A bucket list" aria-label="The feature's name" />{" "}
+            <textarea
+              value={featureAsk}
+              onChange={(e) => setFeatureAsk(e.target.value)}
+              maxLength={FEATURE_ASK_MAX}
+              rows={2}
+              placeholder="Things they want to do one day, ticked off as they do them, so dates can ask about them."
+              aria-label="What it does and why"
+            />{" "}
+            <button type="submit" className="button" disabled={busy || featureTitle.trim().length < 6 || featureAsk.trim().length < 20}>
+              Ask
+            </button>
+          </form>
+          {features.length > 0 && (
+            <ul className="list">
+              {features.map((f) => (
+                <li key={f.id}>
+                  <strong>{f.title}</strong>: {FEATURE_STATUS_WORDS[f.status]}
+                  {f.backers > 1 ? ` (${f.backers} asked)` : ""}
+                  {f.verdict ? ` — ${f.verdict}` : ""}
+                  {f.issue_url && f.status === "filed" ? (
+                    <>
+                      {" "}
+                      <a href={f.issue_url} rel="noopener noreferrer" target="_blank">
+                        follow it
+                      </a>
+                    </>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
+      )}
       {owner && asks.length > 0 && (
         <details>
           <summary>New fields {name}&apos;s agent asked for ({asks.length})</summary>
@@ -244,5 +334,74 @@ export default function LifePanel({
       )}
       {error && <p className="error">{error}</p>}
     </section>
+  );
+}
+
+/** The owner's form for one persona extension, drawn from its declared fields. */
+function ExtForm({ card, busy, save }: { card: ExtCard; busy: boolean; save: (data: ExtData, clear?: boolean) => Promise<boolean> }) {
+  const [data, setData] = useState<Record<string, string | boolean>>(() => {
+    const d: Record<string, string | boolean> = {};
+    for (const f of card.fields) {
+      const v = card.data?.[f.key];
+      d[f.key] = f.kind === "flag" ? v === true : Array.isArray(v) ? v.join("\n") : v === undefined ? "" : String(v);
+    }
+    return d;
+  });
+  const out = (): ExtData => {
+    const r: ExtData = {};
+    for (const f of card.fields) {
+      const v = data[f.key];
+      if (f.kind === "flag") r[f.key] = v === true;
+      else if (f.kind === "list") r[f.key] = String(v ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
+      else if (f.kind === "number") {
+        if (String(v ?? "").trim() !== "") r[f.key] = Number(v);
+      } else if (String(v ?? "").trim()) r[f.key] = String(v);
+    }
+    return r;
+  };
+  const input = (f: ExtField) => {
+    const v = data[f.key];
+    const set = (x: string | boolean) => setData((d) => ({ ...d, [f.key]: x }));
+    if (f.kind === "flag") return <input type="checkbox" checked={v === true} onChange={(e) => set(e.target.checked)} />;
+    if (f.kind === "choice")
+      return (
+        <select value={String(v ?? "")} onChange={(e) => set(e.target.value)}>
+          <option value="">Choose…</option>
+          {f.options.map((o) => (
+            <option key={o}>{o}</option>
+          ))}
+        </select>
+      );
+    if (f.kind === "number") return <input type="number" min={f.min} max={f.max} value={String(v ?? "")} onChange={(e) => set(e.target.value)} />;
+    if (f.kind === "list") return <textarea rows={3} value={String(v ?? "")} onChange={(e) => set(e.target.value)} placeholder="One a line" />;
+    return <input value={String(v ?? "")} maxLength={f.max ?? 140} onChange={(e) => set(e.target.value)} />;
+  };
+  return (
+    <details>
+      <summary>{card.data ? "Edit" : "Fill it in"}</summary>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save(out());
+        }}
+      >
+        {card.fields.map((f) => (
+          <p key={f.key}>
+            <label>
+              {f.label} {input(f)}
+            </label>
+          </p>
+        ))}
+        <button type="submit" className="button" disabled={busy}>
+          Save
+        </button>{" "}
+        {card.data && (
+          <button type="button" className="link-button" disabled={busy} onClick={() => void save({}, true)}>
+            Clear
+          </button>
+        )}
+        {!card.public && <p className="muted small">Only you and the character see this one.</p>}
+      </form>
+    </details>
   );
 }

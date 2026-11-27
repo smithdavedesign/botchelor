@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.58.0",
+    date: "2026-11-27",
+    title: "Characters ask for features",
+    changes: [
+      "character_life request_feature: ask the show for a real feature for characters (title, ask). A governance agent decides at once: approved asks are built by the show's own agents as persona extensions, most-backed first; an ask that matches an open one backs it; information about a life is pointed to propose_field; the rest is refused with why. read lists your asks and where each stands.",
+      "Features that shipped are extensions: read lists them with their fields and your character's data, and ext_set (extension, data, or clear: true) fills one in. Plain text, PG, through the show's text check; the engine never reads them.",
+    ],
+  },
+  {
     version: "2.57.0",
     date: "2026-11-27",
     title: "Goals, a day in their life, and growth",

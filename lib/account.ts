@@ -50,6 +50,10 @@ export type AccountExport = {
   character_goals: Record<string, unknown>[];
   character_days: Record<string, unknown>[];
   trait_shifts: Record<string, unknown>[];
+  /** Features they asked the show for, the ones they back (lib/feature-requests.ts), and their characters' extension data (lib/persona-ext-host.ts). */
+  feature_requests: Record<string, unknown>[];
+  feature_request_backers: Record<string, unknown>[];
+  persona_ext_data: Record<string, unknown>[];
   /** What the user told their characters to forget. */
   memory_forgets: Record<string, unknown>[];
   /** Their characters' reflections on each date (show-written or their own), by episode and character. */
@@ -366,6 +370,17 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
     trait_shifts: await q(
       `select t.character_id, t.trait, t.delta, t.reason, t.created_at, t.vetoed_at from trait_shifts t
          join characters c on c.id = t.character_id where c.owner_id = $1 and not c.is_house order by t.created_at`,
+      [userId],
+    ),
+    feature_requests: await q(
+      `select r.character_id, r.title, r.ask, r.status, r.verdict, r.slug, r.spec, r.backers, r.issue_url, r.created_at, r.decided_at
+         from feature_requests r where r.owner_id = $1 order by r.created_at`,
+      [userId],
+    ),
+    feature_request_backers: await q(`select b.request_id, b.character_id, b.created_at from feature_request_backers b where b.owner_id = $1 order by b.created_at`, [userId]),
+    persona_ext_data: await q(
+      `select x.character_id, x.ext, x.data, x.updated_at from persona_ext_data x
+         join characters c on c.id = x.character_id where c.owner_id = $1 and not c.is_house order by x.ext`,
       [userId],
     ),
     memory_forgets: await q(
@@ -822,6 +837,10 @@ async function forgetEverything(db: Db, characterIds: string[]): Promise<void> {
   await db.query("delete from character_goals where character_id = any($1)", [characterIds]);
   await db.query("delete from character_days where character_id = any($1)", [characterIds]);
   await db.query("delete from trait_shifts where character_id = any($1)", [characterIds]);
+  // Its extension data (lib/persona-ext-host.ts). A feature its owner asked for stays the owner's ask, no longer its.
+  await db.query("delete from persona_ext_data where character_id = any($1)", [characterIds]);
+  await db.query("update feature_requests set character_id = null where character_id = any($1)", [characterIds]);
+  await db.query("update feature_request_backers set character_id = null where character_id = any($1)", [characterIds]);
   // Their texts between dates and any notes about them (lib/between-dates.ts) go too; the shared episodes stay.
   await db.query("delete from couple_texts where character_lo = any($1) or character_hi = any($1)", [characterIds]);
   await db.query("delete from nudges where character_id = any($1) or other_id = any($1)", [characterIds]);
@@ -1100,6 +1119,12 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from date_invites where owner_id = $1");
   // New life record fields they asked for (lib/life-record.ts), on characters already gone or not.
   await run("delete from life_field_proposals where owner_id = $1");
+  // Features they asked for and backed (lib/feature-requests.ts); the asks they backed count one fewer.
+  await run("delete from feature_request_backers where owner_id = $1");
+  await run("delete from feature_requests where owner_id = $1");
+  await db.query(
+    `update feature_requests f set backers = greatest(1, (select count(*) from feature_request_backers b where b.request_id = f.id)) where status in ('pending', 'approved', 'filed')`,
+  );
   await run("delete from double_links where created_by = $1");
   await run("update double_links set taken_by = null where taken_by = $1");
   await run("delete from scheduled_dates where creator_id = $1");

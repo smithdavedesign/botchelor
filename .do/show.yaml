@@ -138,6 +138,25 @@ services:
       # - key: LIFE_DAYS_PER_DAY
       #   value: "40"
       #   scope: RUN_AND_BUILD_TIME
+      # Phase 4 (lib/feature-requests.ts, docs/persona-ext.md): FEATURE_REQUESTS "0" stops new feature asks;
+      # FEATURE_MIN_BACKERS is how many owners must back an ask before the loop files it (default 1);
+      # FEATURE_BUILDS_PER_WEEK caps what the loop files in 7 days (default 2). PERSONA_EXT "0" turns every persona
+      # extension off; PERSONA_EXT_OFF is a comma-separated list of slugs to turn off one at a time (the kill switch).
+      # - key: FEATURE_REQUESTS
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: FEATURE_MIN_BACKERS
+      #   value: "1"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: FEATURE_BUILDS_PER_WEEK
+      #   value: "2"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: PERSONA_EXT
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
+      # - key: PERSONA_EXT_OFF
+      #   value: "bucket_list"
+      #   scope: RUN_AND_BUILD_TIME
       # Writing styles (docs/writing-styles.md, 2026-11-17): the Narrated style, stories and the longer memory come with
       # the Companion Plan. Uncomment to change it without a deploy of code: "admins" = admins only again; "0" = off for
       # everyone on both sides (kept stories still read).

@@ -36,7 +36,7 @@ to `lib/persona-ext/`.
 | P1b | Dates, texts, After Dark nights and Step in read the shared memory; Step in knows the viewer's show facts | **Shipped** (see below) |
 | P2 | Life record, field registry, persona fields with no code, MCP memory and life tools | **Shipped** (see below) |
 | P3 | Goals, the first life room ("a day in their life"), trait growth v2 | **Shipped** (see below) |
-| P4 | `request_feature`, the governance agent, `lib/persona-ext/`, the factory hookup | Planned |
+| P4 | `request_feature`, the governance agent, `lib/persona-ext/`, the factory hookup | **Shipped** (see below, and [../persona-ext.md](../persona-ext.md)) |
 
 ## P0 as shipped (2026-11-26)
 
@@ -144,3 +144,27 @@ All in `lib/life-days.ts`. `loadLifeAll` reads it with the life record in one ro
   account export.
 
 Not yet: more life rooms (they wait until people come back for this one), goals that steer the weekly life dates.
+
+## P4 as shipped (2026-11-27)
+
+The whole flow is in [docs/persona-ext.md](../persona-ext.md).
+
+- **Asks** (`lib/feature-requests.ts`): an owner asks on the character page, or its agent asks over MCP
+  (`character_life request_feature`), 3 a week at most.
+  - The $0 rules refuse links, accounts, money, adult themes, the show's machinery and other people's data.
+  - An ask that says the same as an open one backs it instead, one backer an owner.
+- **Governance:** the show's free model reads the ask as quoted data and decides at once. It approves what can be a
+  persona extension, points information about a life to `propose_field`, and rejects the rest. A pending ask is
+  reviewed again by the daily job. No human.
+- **The factory hookup:** the self-improving loop files the approved asks each morning as `character-request` issues,
+  most-backed first, `FEATURE_BUILDS_PER_WEEK` (default 2) at most. Its fixer builds them in `lib/persona-ext/<slug>/`
+  and merges once green.
+- **The fence:**
+  - Extensions are pure functions over their own data, and the host checks every line (plain text, the show's text check).
+  - `tests/persona-ext-fence.test.ts` checks imports and forbidden APIs.
+  - The CI path fence (`scripts/persona-ext-fence.mjs`) holds a `loop/ext-*` branch to the extension's folder.
+  - `PERSONA_EXT=0` and `PERSONA_EXT_OFF` are the kill switches.
+  - The engine never reads an extension.
+- **The page** shows each live extension with the owner's form, and the owner's asks with where each stands. MCP is
+  2.58.0, and `character_life read` lists the extensions and the asks.
+- No extension has shipped yet: the first comes from the first approved ask.

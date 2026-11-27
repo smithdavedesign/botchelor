@@ -4186,6 +4186,54 @@ create table if not exists trait_shifts (
   vetoed_at timestamptz
 );
 create index if not exists trait_shifts_character_idx on trait_shifts (character_id, created_at desc);
+-- Phase 4, Tier B (lib/feature-requests.ts): a real feature a character's owner asked for (the page, or its agent over
+-- MCP), and what the governance agent decided. status: pending (not reviewed yet), approved (to be built), field (it's
+-- life record information: propose_field), merged (backs merged_into, an earlier ask that says the same), rejected,
+-- filed (the self-improving loop opened issue_number, its fixer builds it in lib/persona-ext/), declined (the fixer
+-- couldn't build it within the fence). Shipped isn't stored: a live extension names the request it answers. slug,
+-- build_title, spec: governance's name and two-to-four-sentence plan for the builder. backers: owners who asked for it,
+-- counted from feature_request_backers.
+create table if not exists feature_requests (
+  id text primary key,
+  character_id text references characters (id) on delete set null,
+  owner_id text not null,
+  title text not null,
+  ask text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'field', 'merged', 'rejected', 'filed', 'declined')),
+  verdict text,
+  decided_by text,
+  slug text,
+  build_title text,
+  spec text,
+  merged_into text,
+  backers integer not null default 1,
+  issue_number integer,
+  issue_url text,
+  created_at timestamptz not null default now(),
+  decided_at timestamptz,
+  filed_at timestamptz
+);
+create index if not exists feature_requests_owner_idx on feature_requests (owner_id, created_at desc);
+create index if not exists feature_requests_character_idx on feature_requests (character_id, created_at desc);
+create index if not exists feature_requests_open_idx on feature_requests (status, backers desc) where status in ('pending', 'approved', 'filed');
+-- One row an owner backing a request: their own ask, or a later one that said the same.
+create table if not exists feature_request_backers (
+  request_id text not null references feature_requests (id) on delete cascade,
+  owner_id text not null,
+  character_id text references characters (id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (request_id, owner_id)
+);
+create index if not exists feature_request_backers_owner_idx on feature_request_backers (owner_id);
+-- A character's data for one persona extension (lib/persona-ext-host.ts): validated against the extension's declared
+-- fields, at most 2 KB. Extensions never store anything themselves.
+create table if not exists persona_ext_data (
+  character_id text not null references characters (id) on delete cascade,
+  ext text not null,
+  data jsonb not null,
+  updated_at timestamptz not null default now(),
+  primary key (character_id, ext)
+);
 -- Learning, weekly (lib/character-lessons.ts; David 2026-11-15, the drama wave's part 6): what a character has learned
 -- about itself, in its own words. One row a character a week (week: that week's Monday, UTC), claimed as 'pending'
 -- before the writer is called so two passes can't both write it. lines: up to three first-person sentences of at most

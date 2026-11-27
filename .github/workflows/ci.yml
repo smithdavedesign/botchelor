@@ -44,6 +44,11 @@ jobs:
       - run: >-
           git diff --name-only --diff-filter=d HEAD^1 HEAD -- '*.ts' '*.tsx' '*.mts' '*.mjs' '*.js' '*.cjs' |
           xargs -r -d '\n' npx oxlint --report-unused-disable-directives-severity=error --no-error-on-unmatched-pattern
+      # The persona-ext fence (docs/persona-ext.md): a branch the loop's fixer opens for a character's feature request
+      # (loop/ext-<issue>-<slug>) may change only lib/persona-ext/<slug>/, its registry line and its test.
+      - run: node scripts/persona-ext-fence.mjs
+        env:
+          HEAD_REF: ${{ github.head_ref }}
 
   test:
     runs-on: ubuntu-latest

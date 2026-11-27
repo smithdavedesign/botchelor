@@ -43,7 +43,7 @@ import { PLACE_KINDS, PLACE_NAMES_MAX_BATCH, PLACE_STYLES } from "../place-names
 import { TROPE_MOODS, TROPE_NAME_MAX, TROPES_MAX_BATCH } from "../relationship-tropes";
 import { RANDOM_OC_GENRES, RANDOM_OC_MAX_BATCH } from "../random-oc";
 import { OC_QUESTION_THEMES } from "../oc-questions";
-import { AGENT_MEMORY_MAX, GOAL_STATUSES, FIELD_LABEL_MAX, FIELD_OPTION_MAX, FIELD_OPTIONS_MAX, FIELD_REASON_MAX, LIFE_ACTIONS, LIFE_PERIOD_MAX, LIFE_TOOL_DESCRIPTION, LIFE_VALUE_MAX } from "../life-record-shared";
+import { AGENT_MEMORY_MAX, FEATURE_ASK_MAX, FEATURE_TITLE_MAX, GOAL_STATUSES, FIELD_LABEL_MAX, FIELD_OPTION_MAX, FIELD_OPTIONS_MAX, FIELD_REASON_MAX, LIFE_ACTIONS, LIFE_PERIOD_MAX, LIFE_TOOL_DESCRIPTION, LIFE_VALUE_MAX } from "../life-record-shared";
 import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 
 /**
@@ -1718,6 +1718,11 @@ const RAW_TOOL_DEFS = [
         shift_id: str(64, "veto_growth: the shift (an id from read's growth)."),
         undo: { type: "boolean", description: "veto_growth: take the veto back." },
         milestone: { type: "boolean", description: "log_event: also add it to milestones." },
+        title: str(FEATURE_TITLE_MAX, "request_feature: its name, e.g. \"A bucket list\"."),
+        ask: str(FEATURE_ASK_MAX, "request_feature: what it does and why."),
+        extension: str(32, "ext_set: the extension's slug (read lists them)."),
+        data: { type: "object", description: "ext_set: values for the extension's fields." },
+        clear: { type: "boolean", description: "ext_set: remove its data." },
         query: str(300, "recall: what to remember about; best match first."),
         limit: { type: "integer", minimum: 1, maximum: 20, description: "recall: how many (default 8)." },
         agent_id: AGENT_ID,
