@@ -41,6 +41,8 @@ No screenshots yet for these; the full list with every pull request is in [ROADM
   their character in to the villain edit, and `/characters/<id>/moment.png` makes a milestone a card to post
   ([docs/character-depth.md](docs/character-depth.md)). The show's production skills (showrunner, producer, casting
   director, writer, assets, editor, and the reality TV playbook) are in `.claude/skills/`.
+- **Motion:** rose petals, lower thirds, title cards, set parallax, a cut between pages and a follow spot, all off
+  under reduced motion ([docs/audits/2026-11-20-visual-pop-audit.md](docs/audits/2026-11-20-visual-pop-audit.md)).
 - **More of the site translated:** Watch, Create, Characters, Account, the Hall of Fame, the calendar and the
   confessionals feed ([docs/i18n.md](docs/i18n.md)).
 - **The morning numbers:** yesterday's visitors, funnel, money and sources, to Slack or email once a day

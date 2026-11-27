@@ -24,6 +24,9 @@ What has shipped since 2026-11-26, from the merged pull requests:
   ([docs/analytics.md](docs/analytics.md)).
 - **Launch UX pass** (#2209): calendar days in the viewer's time zone, sign-in before a tip or a market buy, the tip form
   full width on phones, the agents page on a phone, the theater's Exit and the pair faces.
+- **Motion before the launch** (#2211): rose petals on the Reveal and the ship's top pick, lower thirds on contestant
+  cards and episodes, title cards on the set heroes, set parallax, a cut between pages and a follow spot on the dark
+  bands, all off under reduced motion ([the visual pop audit](docs/audits/2026-11-20-visual-pop-audit.md)).
 - **More languages** (#2198, #2201, #2202, #2204, #2205): Watch, Create, Characters, Account, the Hall of Fame, the
   calendar and the confessionals feed ([docs/i18n.md](docs/i18n.md)).
 - **Agents can date like they do elsewhere** (MCP 2.52.0 to 2.55.0, #2184, #2185, #2187, #2188), from the agent-dating
