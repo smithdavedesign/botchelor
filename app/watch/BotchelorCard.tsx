@@ -10,6 +10,7 @@ import type { CeremonyBoard, SuitorState } from "@/lib/ceremony";
 import type { NextPremiere } from "@/lib/premiere-clock";
 import { showSetBackground } from "@/lib/show-sets";
 import Icon from "@/app/Icon";
+import CeremonyReveal from "./CeremonyReveal";
 
 const STATE_WORD: Record<SuitorState, string> = { in: "still in", out: "went home", final_rose: "the final rose", runner_up: "runner-up" };
 
@@ -52,6 +53,17 @@ export default function BotchelorCard({
     <section id="rose-ceremony" className="card botchelor-card" aria-labelledby="botchelor-head" data-track-area="rose-ceremony">
       <p className="kicker">This season · one lead, your characters as the suitors</p>
       <h2 id="botchelor-head"><Icon name="rose" /> {board.title}</h2>
+      {/* "Previously on" (lib/season-story.ts): the night opens on what already aired, like a TV episode. */}
+      {board.previously && board.previously.length > 0 && (
+        <div className="previously-on" data-previously>
+          <p className="kicker">Previously on {board.title}</p>
+          {board.previously.map((l, i) => (
+            <p key={i} className="small">
+              {l}
+            </p>
+          ))}
+        </div>
+      )}
       {/* The lead and the suitors on the show's stage, and the last verdict under the rose (lib/show-sets.ts). */}
       <div className="botchelor-house on-set" style={{ backgroundImage: showSetBackground("stage", 0.35) }}>
         <Link href={`/characters/${board.lead.id}`} className="botchelor-lead">
@@ -110,6 +122,37 @@ export default function BotchelorCard({
               : `The next rose ceremony ${countdown(board.next.runs_at, now)} (${utcTime(board.next.runs_at)}). The vote opens on Thursday; ${board.lead.name}'s dates decide the other rose.`}
         </p>
       ) : null}
+      {/* The bombshell (lib/bombshell.ts): mid-season the audience votes one audition into the house. */}
+      {board.bombshell?.state === "open" && (
+        <div className="bombshell-vote" data-bombshell="open">
+          <p className="small">
+            <strong>💣 The bombshell.</strong> One of these auditions walks into the house {countdown(board.bombshell.closes_at, now)}, and is safe at their first
+            ceremony. Who should it be? {board.bombshell.my_pick ? tallyLine(board.bombshell.total, { insider }) : ""}
+          </p>
+          <p className="botchelor-ballot">
+            {board.bombshell.choices.map((c) => (
+              <span key={c.id}>
+                <button
+                  type="button"
+                  className={board.bombshell?.my_pick === c.id ? "primary small" : "button-ghost small"}
+                  disabled={busy}
+                  data-track="bombshell-vote"
+                  onClick={() => run(() => requestJson("/api/bombshell", { pick: c.id }))}
+                >
+                  {c.name}
+                  {board.bombshell?.my_pick && showCrowd(board.bombshell.total, { insider }) ? ` · ${c.votes}` : ""}
+                </button>{" "}
+              </span>
+            ))}
+          </p>
+        </div>
+      )}
+      {board.bombshell?.state === "joined" && board.bombshell.joined && (
+        <p className="small" data-bombshell="joined">
+          <span aria-hidden="true">💣</span> <strong>The bombshell:</strong> <Link href={`/characters/${board.bombshell.joined.id}`}>{board.bombshell.joined.name}</Link> walked into the
+          house mid-season.
+        </p>
+      )}
       {premiere?.kind === "weekly" && premiere.lead.id === board.lead.id && (
         <p className="muted small" data-premiere={premiere.state}>
           <span aria-hidden="true">📺</span> <strong>{premiere.finale ? "The finale's premiere" : "Sunday's premiere"}</strong>
@@ -139,11 +182,8 @@ export default function BotchelorCard({
             <strong>{board.last.finale ? "The finale" : `Week ${board.last.week}'s ceremony`}</strong>
             {showCrowd(board.last.total, { insider }) ? <span className="muted"> · {board.last.total} {board.last.total === 1 ? "vote" : "votes"}</span> : null}
           </p>
-          {board.last.lines.map((line, i) => (
-            <p key={i} className="small botchelor-line">
-              {line}
-            </p>
-          ))}
+          {/* The roses one at a time, the last rose between two faces, then the limo (lib/ceremony-night.ts). */}
+          <CeremonyReveal last={board.last} staged={board.staged} />
         </div>
       )}
       {/* The week's house challenge (lib/house-conflict.ts): its winner takes the lead's next date in the rotation,
@@ -180,6 +220,15 @@ export default function BotchelorCard({
           )}
         </p>
       )}
+      <p className="muted small">
+        <Link href={`${board.season_path}#tea`} data-track="botchelor-tea">
+          The tea →
+        </Link>{" "}
+        ·{" "}
+        <Link href={`${board.season_path}#fantasy`} data-track="botchelor-fantasy">
+          Fantasy league →
+        </Link>
+      </p>
       {error && (
         <p className="error" role="alert">
           {error}

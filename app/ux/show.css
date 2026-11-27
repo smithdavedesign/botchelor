@@ -2633,3 +2633,110 @@ main:has(> .couple-page) {
 .verdict-card .share-next-theater {
   margin: 0;
 }
+
+/* Ceremony night (lib/ceremony-night.ts, app/watch/CeremonyReveal.tsx): the roses one at a time, then the limo. */
+.ceremony-steps {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.ceremony-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ceremony-step > p {
+  margin: 0;
+  flex: 1 1 12rem;
+}
+.ceremony-step.is-home .ceremony-face {
+  opacity: 0.7;
+}
+.ceremony-step.is-last {
+  display: grid;
+}
+.ceremony-faces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.ceremony-face {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+.ceremony-rose {
+  font-size: var(--text-lg);
+}
+.ceremony-limo {
+  display: grid;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--accent);
+  background: var(--soft);
+  border-radius: var(--radius-md);
+}
+.ceremony-limo blockquote {
+  margin: 0;
+  font-style: italic;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ceremony-reveal[data-reveal="playing"] .ceremony-steps-item:last-child {
+    animation: ceremony-step-in 0.6s ease-out both;
+  }
+}
+@keyframes ceremony-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* "Previously on", the tea and the bombshell (lib/season-story.ts, lib/bombshell.ts). */
+.previously-on .kicker {
+  margin-bottom: var(--space-1);
+}
+.previously-on p {
+  margin: 0 0 var(--space-1);
+}
+.tea-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.tea-item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.tea-faces {
+  display: inline-flex;
+  flex: none;
+}
+.tea-faces > * + * {
+  margin-left: calc(-1 * var(--space-2));
+}
+.tea-text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.bombshell-vote {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+}
+.fantasy-suitors .casting-slot.is-picked {
+  outline: 2px solid var(--accent);
+}

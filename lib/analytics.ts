@@ -23,6 +23,8 @@ export type AnalyticsEvent =
   | "show_idea_proposed" // a show idea was proposed and is waiting for an admin: person or agent, never the words
   | "recoupling_vote" // a vote on the recoupling night (lib/recoupling.ts)
   | "ceremony_vote" // a vote on who goes home at Sunday's rose ceremony (lib/ceremony.ts)
+  | "bombshell_vote" // a vote on which audition walks into the house mid-season (lib/bombshell.ts)
+  | "fantasy_draft" // a fantasy league draft of three suitors (lib/fantasy.ts)
   | "premiere_built" // the Sunday premiere's room was built: its kind, tries and the notices it sent (lib/sunday-premiere.ts)
   | "reveal_vote" // a vote on Sunday's reveal (lib/weekly-reveal.ts)
   | "cast_backed" // a viewer backed a cast member for the month (lib/backing.ts)

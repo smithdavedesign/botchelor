@@ -8,6 +8,7 @@
  * Only what has aired publicly between public characters is shown, and no ending: the starters are picked to mix
  * endings, but a card never says which (the Watch and RSS rule: the ending is the episode's to tell).
  */
+import { seasonPreviously, teaBoard, type TeaItem } from "./season-story";
 import type { CharacterExtras } from "./extras";
 import { showReadiness, type ShowField, type ShowMoveId } from "./show-ready";
 import { castingBoard, type AuditionCard } from "./auditions";
@@ -376,6 +377,10 @@ export type SeasonLiveData = {
   contrast: string | null;
   /** The next Sunday premiere when it is this season's (the pilot in preseason, then each Sunday's), else null. */
   premiere: NextPremiere | null;
+  /** In season: "Previously on" (lib/season-story.ts), two or three lines; null before anything aired. */
+  previously: string[] | null;
+  /** In season: the tea, the last week's storylines linked to their dates (lib/season-story.ts). */
+  tea: TeaItem[];
 };
 
 /**
@@ -384,12 +389,14 @@ export type SeasonLiveData = {
  * stored cast). A part that fails to load is left out, never the page.
  */
 export async function loadSeasonLive(db: Db, seasonId: string, phase: SeasonPagePhase, def: SeasonFormatDef, now: Date = new Date(), env: Env = process.env): Promise<SeasonLiveData> {
-  const [lead, pool, board, suitors, next] = await Promise.all([
+  const [lead, pool, board, suitors, next, previously, tea] = await Promise.all([
     seasonLead(db, seasonId).catch(() => null),
     starterPool(db, seasonId).catch(() => [] as Starter[]),
     phase === "preseason" ? castingBoard(db, null, now).catch(() => null) : null,
     phase === "season" ? seasonSuitors(db, seasonId).catch(() => [] as SuitorCard[]) : null,
     nextPremiere(db, now, env).catch(() => null),
+    phase === "season" ? seasonPreviously(db, seasonId, now, env).catch(() => null) : null,
+    phase === "season" ? teaBoard(db, seasonId, now, env).catch(() => [] as TeaItem[]) : ([] as TeaItem[]),
   ]);
   const premiere = next && next.season_id === seasonId ? next : null;
   const places = suitorPlaces(def);
@@ -409,6 +416,8 @@ export async function loadSeasonLive(db: Db, seasonId: string, phase: SeasonPage
     schedule: seasonSchedule(def, seasonId, phase, lead?.short ?? null, now, env, premiere),
     contrast: formatContrast(def, month),
     premiere,
+    previously,
+    tea,
   };
 }
 

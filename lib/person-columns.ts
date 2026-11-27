@@ -237,6 +237,8 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "recoupling_votes", column: "user_id", export: at("recoupling_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "weekly_reveal_votes", column: "user_id", export: at("weekly_reveal_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "ceremony_votes", column: "user_id", export: at("ceremony_votes"), delete: ROWS, move: ONE_VOTE },
+  { table: "bombshell_votes", column: "user_id", export: at("bombshell_votes"), delete: ROWS, move: ONE_VOTE },
+  { table: "fantasy_picks", column: "user_id", export: at("fantasy_picks"), delete: ROWS, move: ONE_VOTE },
   { table: "audition_votes", column: "voter_id", export: at("audition_votes"), delete: ROWS, move: ONE_VOTE },
   { table: "tournament_votes", column: "voter_id", export: at("tournament_votes"), delete: ROWS, move: ONE_VOTE },
   // Letters (lib/letters.ts): what their characters wrote, and what arrived for them. Both go with the account (a letter

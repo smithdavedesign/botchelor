@@ -3998,6 +3998,36 @@ create table if not exists ceremonies (
   created_at timestamptz not null default now(),
   primary key (season_id, held_on)
 );
+-- The bombshell (lib/bombshell.ts): one a season, the ballot frozen when it opens (the shortlisted auditions off the
+-- cast), joined_at set once by the pass that brings the pick in. bombshell_votes: one vote a viewer, changeable.
+create table if not exists bombshells (
+  season_id text primary key,
+  opens_at timestamptz not null,
+  closes_at timestamptz not null,
+  choices jsonb not null,
+  joined text,
+  joined_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create table if not exists bombshell_votes (
+  season_id text not null,
+  user_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (season_id, user_id)
+);
+-- The fantasy league (lib/fantasy.ts): three suitors a viewer a season, drafted until the first ceremony's vote opens.
+create table if not exists fantasy_picks (
+  season_id text not null,
+  user_id text not null,
+  picks jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (season_id, user_id)
+);
+-- The exit interviews (lib/ceremony-night.ts): who went home and their lines to camera, written once when it is held.
+alter table ceremonies add column if not exists exits jsonb;
 -- One vote a viewer a ceremony ("Who goes home?"), changeable until the ceremony runs.
 create table if not exists ceremony_votes (
   held_on text not null,

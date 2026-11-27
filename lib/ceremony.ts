@@ -34,11 +34,14 @@ import type { Ending } from "./rules";
 import { forgetLoadedSeasonCast, housePrizes } from "./season-cast";
 import { ceremonySundays, nextCeremonySunday, type SeasonFormatDef } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
-import { seasonNumber } from "./season-ref";
+import { seasonNumber, seasonPath } from "./season-ref";
 import { seasonIdOf, seasonWindow } from "./season-window";
 import { shotsJsonSql, shotUrl } from "./show-shots-sql";
 import { winnerOf } from "./situations";
 import { venuePhrase } from "./venues";
+import type { BombshellBoard } from "./bombshell";
+import { ceremonyRevealOn, exitInterview, exitInterviewsOn, type ExitInterview } from "./ceremony-night";
+import { publicExtras, type CharacterExtras } from "./extras";
 
 /** How many days before a Sunday its vote opens (Thursday). */
 export const VOTE_OPEN_DAYS = 3;
@@ -89,6 +92,8 @@ type CeremonyRow = {
   total: number | null;
   remaining: string[] | null;
   lines: CeremonyLine[] | null;
+  /** The exit interviews (lib/ceremony-night.ts), written when the ceremony is held. Only the last-ceremony read selects it. */
+  exits?: ExitInterview[] | null;
 };
 
 const rowOf = async (db: Db, heldOn: string): Promise<CeremonyRow | null> =>
@@ -317,10 +322,15 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
   } else {
     const tally = await tallyOf(db, heldOn);
     total = [...tally.values()].reduce((s, n) => s + n, 0);
+    // The bombshell (lib/bombshell.ts) is safe at their first ceremony: they walked in after the week's dates were dealt.
+    // Only while enough others are left for the week to send someone home.
+    const joinedNow = await import("./bombshell").then((m) => m.bombshellImmune(db, seasonId, since)).catch(() => new Set<string>());
+    const immune = suitors.filter((s) => !joinedNow.has(s)).length >= 2 ? joinedNow : new Set<string>();
+    const eligible = suitors.filter((s) => !immune.has(s));
     // Only suitors still in count (one may have been withdrawn since the ballot froze).
-    const stillIn = row.choices.filter((c) => suitors.includes(c.id));
+    const stillIn = row.choices.filter((c) => eligible.includes(c.id));
     const voted = winnerOf(stillIn, tally);
-    const twoGo = suitors.length >= 4;
+    const twoGo = eligible.length >= 4;
     lines.push(`Sunday night at the house. ${leadName} holds ${suitors.length - (twoGo ? 2 : 1)} ${suitors.length - (twoGo ? 2 : 1) === 1 ? "rose" : "roses"} for ${suitors.length} suitors.`);
     if (voted) {
       goneByVote = voted.id;
@@ -334,7 +344,7 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
     } else {
       lines.push(`Nobody voted this week, so ${leadName}'s dates had to speak for everyone.`);
     }
-    const rest = verdicts.filter((v) => v.suitor !== goneByVote);
+    const rest = verdicts.filter((v) => v.suitor !== goneByVote && !immune.has(v.suitor));
     if (twoGo || !goneByVote) {
       goneByLead = rest[0].suitor;
       lines.push(`${leadName}'s own week decided the rest: ${whyHome(nameOf(goneByLead), rest[0])}`);
@@ -345,15 +355,29 @@ export async function runCeremony(db: Db, def: SeasonFormatDef, heldOn: string, 
       lines.push(`And with no vote to lean on, the dates sent ${nameOf(goneByVote)} home too. ${whyHome(nameOf(goneByVote), rest[1])}`);
     }
     const remaining = suitors.filter((s) => s !== goneByVote && s !== goneByLead);
+    for (const b of immune) lines.push(`${nameOf(b)}, the bombshell, was safe this week: no rose needed.`);
     lines.push(remaining.length === 2 ? `Two remain: ${remaining.map(nameOf).join(" and ")}. The final rose on the last Sunday.` : `Still in: ${remaining.map(nameOf).join(", ")}.`);
   }
 
   const gone = [goneByVote, goneByLead].filter((s): s is string => Boolean(s));
   const remaining = finale ? (finalRose ? [finalRose] : []) : suitors.filter((s) => !gone.includes(s));
+  // The limo (lib/ceremony-night.ts): who went home says a few lines on the way out, from their week and their public card.
+  const exits: ExitInterview[] = [];
+  const leaving: [string, "vote" | "lead"][] = finale
+    ? suitors.filter((s) => s !== finalRose).map((s) => [s, "lead"] as [string, "lead"])
+    : gone.map((s) => [s, s === goneByVote ? "vote" : "lead"] as [string, "vote" | "lead"]);
+  if (exitInterviewsOn() && leaving.length) {
+    const cards = await db.query<{ id: string; extras: CharacterExtras | null }>(`select id, extras from characters where id = any($1)`, [leaving.map(([id]) => id)]);
+    const extrasOf = new Map(cards.rows.map((r) => [r.id, publicExtras(r.extras)]));
+    for (const [id, by] of leaving) {
+      const v = verdicts.find((x) => x.suitor === id) ?? null;
+      exits.push({ id, by, lines: exitInterview({ lead: leadName, by, week: v, extras: extrasOf.get(id), place: placeShort }) });
+    }
+  }
   await db.query(
-    `update ceremonies set eliminated_by_vote = $3, eliminated_by_lead = $4, final_rose = $5, votes = $6, total = $7, remaining = $8::jsonb, lines = $9::jsonb
+    `update ceremonies set eliminated_by_vote = $3, eliminated_by_lead = $4, final_rose = $5, votes = $6, total = $7, remaining = $8::jsonb, lines = $9::jsonb, exits = $10::jsonb
       where season_id = $1 and held_on = $2`,
-    [seasonId, heldOn, goneByVote, goneByLead, finalRose, votes, total, JSON.stringify(remaining), JSON.stringify(lines)],
+    [seasonId, heldOn, goneByVote, goneByLead, finalRose, votes, total, JSON.stringify(remaining), JSON.stringify(lines), JSON.stringify(exits)],
   );
 
   // Who leaves with what (once a character a season), and the cast: a suitor sent home is off at once, like a withdrawal.
@@ -448,7 +472,22 @@ export type CeremonyBoard = {
   /** The open vote, with counts once this viewer has voted (as on the situation vote). */
   vote: { held_on: string; closes_at: string; choices: { id: string; name: string; votes: number }[]; my_pick: string | null; total: number } | null;
   /** The newest ceremony held, in the show's words. */
-  last: { held_on: string; week: number; finale: boolean; lines: string[]; went_home: CeremonyFace[]; final_rose: CeremonyFace | null; votes: number; total: number } | null;
+  last: {
+    held_on: string;
+    week: number;
+    finale: boolean;
+    lines: string[];
+    went_home: CeremonyFace[];
+    final_rose: CeremonyFace | null;
+    votes: number;
+    total: number;
+    /** For the staged reveal (lib/ceremony-night.ts): who kept a rose, who each went home by, the runners-up, the limo. */
+    kept: CeremonyFace[];
+    voted_out: CeremonyFace | null;
+    lead_out: CeremonyFace | null;
+    runners_up: CeremonyFace[];
+    exits: ExitInterview[];
+  } | null;
   /**
    * Open casting (lib/casting.ts): "Walk-ons this week" in words (the count under the empty-room rule) and the people's
    * rose once the finale handed it out. Null with casting switched off.
@@ -459,6 +498,14 @@ export type CeremonyBoard = {
    * scene is. From today's prize or the next one; null without one (or once its day has passed).
    */
   challenge: { winner: CeremonyFace; title: string | null; day: string; scene_path: string | null } | null;
+  /** The bombshell (lib/bombshell.ts): the mid-season vote while it's open, or who walked in. */
+  bombshell: BombshellBoard | null;
+  /** "Previously on" (lib/season-story.ts): the night's opening lines. */
+  previously: string[] | null;
+  /** The staged reveal is on (lib/ceremony-night.ts CEREMONY_REVEAL). */
+  staged: boolean;
+  /** The season page, where the tea and the fantasy league are. */
+  season_path: string;
 };
 
 async function facesOf(db: Db, ids: readonly string[]): Promise<{ faces: Map<string, CeremonyFace>; roses: Map<string, string> }> {
@@ -483,6 +530,8 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
   // The walk-ons' line (open casting), started now so it rides alongside the board's own reads. Imported here:
   // lib/casting.ts reads this module's hour and house.
   const walkOnsP = import("./casting").then((m) => m.walkOnsLine(db, viewerId, now)).catch(() => null);
+  const bombshellP = import("./bombshell").then((m) => m.bombshellBoard(db, viewerId, now)).catch(() => null);
+  const previouslyP = import("./season-story").then((m) => m.seasonPreviously(db, seasonId, now)).catch(() => null);
   const { lead, suitors } = await houseOf(db, seasonId);
   if (!lead) return null;
   const [all, badges, lastRow] = await Promise.all([
@@ -490,7 +539,7 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
     // The suitors' badges only: the people's rose is a walk-on's (lib/casting.ts), never a suitor's state.
     db.query<{ character_id: string; badge: "suitor" | "runner_up" | "final_rose"; week: number }>(`select character_id, badge, week from suitor_badges where season_id = $1 and badge <> 'peoples_rose'`, [seasonId]),
     db.query<CeremonyRow>(
-      `select season_id, held_on, week, lead_id, choices, finale, held_at, eliminated_by_vote, eliminated_by_lead, final_rose, votes, total, remaining, lines
+      `select season_id, held_on, week, lead_id, choices, finale, held_at, eliminated_by_vote, eliminated_by_lead, final_rose, votes, total, remaining, lines, exits
          from ceremonies where season_id = $1 and held_at is not null order by held_on desc limit 1`,
       [seasonId],
     ),
@@ -533,6 +582,11 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
         final_rose: lr.final_rose ? face(lr.final_rose) : null,
         votes: lr.votes ?? 0,
         total: lr.total ?? 0,
+        kept: lr.finale ? [] : (lr.remaining ?? []).map(face),
+        voted_out: lr.eliminated_by_vote ? face(lr.eliminated_by_vote) : null,
+        lead_out: lr.eliminated_by_lead ? face(lr.eliminated_by_lead) : null,
+        runners_up: lr.finale ? suitorCards.filter((x) => x.state === "runner_up").map(({ state: _s, week: _w, ...f }) => f) : [],
+        exits: Array.isArray(lr.exits) ? lr.exits : [],
       }
     : null;
   // The week's challenge prize, from the loaded cast (lib/season-cast.ts housePrizes): no read of its own.
@@ -541,7 +595,7 @@ export async function ceremonyBoard(db: Db, viewerId: string | null, now: Date =
   const challenge: CeremonyBoard["challenge"] = prize
     ? { winner: face(prize.winner), title: prize.title, day: prize.day, scene_path: prize.scene ? `/house?scene=${encodeURIComponent(prize.scene)}#scene-${prize.scene}` : null }
     : null;
-  return { title: def.title, lead: { ...face(lead), rose: roses.get(lead) ?? null }, suitors: suitorCards, next, vote, last, walk_ons: await walkOnsP, challenge };
+  return { title: def.title, lead: { ...face(lead), rose: roses.get(lead) ?? null }, suitors: suitorCards, next, vote, last, walk_ons: await walkOnsP, challenge, bombshell: await bombshellP, previously: await previouslyP, staged: ceremonyRevealOn(), season_path: seasonPath(seasonId) };
 }
 
 export type CeremonySummary = {

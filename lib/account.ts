@@ -162,6 +162,9 @@ export type AccountExport = {
   confessionals: Record<string, unknown>[];
   confessional_votes: Record<string, unknown>[];
   ceremony_votes: Record<string, unknown>[];
+  /** Their bombshell votes and fantasy league drafts (lib/bombshell.ts, lib/fantasy.ts). */
+  bombshell_votes: Record<string, unknown>[];
+  fantasy_picks: Record<string, unknown>[];
   /** Their votes in tournament matches (lib/tournaments.ts). */
   tournament_votes: Record<string, unknown>[];
   /** Letters their characters wrote, and the ones that arrived for them (lib/letters.ts). */
@@ -567,7 +570,7 @@ async function exportClaims(db: Db, userId: string, nested: boolean): Promise<Pi
 type TheRest = Pick<
   AccountExport,
   | "admin" | "last_seen" | "dates_booked" | "scheduled_dates" | "date_links" | "double_dates" | "date_roleplays" | "thread_reads" | "identity_reveals"
-  | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "tournament_votes" | "letters_sent" | "letters_received" | "clubs" | "money" | "scene_suggestions" | "character_ratings"
+  | "afterglow_consents" | "auditions" | "casting_invites_used" | "audition_votes" | "ceremony_votes" | "bombshell_votes" | "fantasy_picks" | "tournament_votes" | "letters_sent" | "letters_received" | "clubs" | "money" | "scene_suggestions" | "character_ratings"
   | "confessionals" | "confessional_votes" | "character_reviews" | "blocks" | "reports" | "badges" | "usage" | "watch_parties" | "studio" | "showcase" | "agent" | "plans" | "operator_pass"
   | "call_renderer" | "renderer_compares" | "languages_written" | "social"
 >;
@@ -617,6 +620,8 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
     confessionals: await q("select id, character_id, body, about_episode, status, created_at, removed_at from confessionals where owner_id = $1 order by created_at"),
     confessional_votes: await q("select confessional_id, created_at from confessional_votes where voter_id = $1 order by created_at"),
     ceremony_votes: await q("select held_on, pick, created_at, updated_at from ceremony_votes where user_id = $1 order by held_on"),
+    bombshell_votes: await q("select season_id, pick, created_at, updated_at from bombshell_votes where user_id = $1 order by season_id"),
+    fantasy_picks: await q("select season_id, picks, created_at, updated_at from fantasy_picks where user_id = $1 order by season_id"),
     tournament_votes: await q("select tournament_id, round, match, pick, created_at, updated_at from tournament_votes where voter_id = $1 order by created_at"),
     // Who a letter came from is a character, never the other owner's id.
     letters_sent: await q("select id, from_character, to_character, body, reply_to, sent_at, deliver_at from letters where from_user = $1 order by sent_at"),
@@ -1137,6 +1142,8 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from confessional_votes where voter_id = $1");
   await run("delete from confessionals where owner_id = $1");
   await run("delete from ceremony_votes where user_id = $1");
+  await run("delete from bombshell_votes where user_id = $1");
+  await run("delete from fantasy_picks where user_id = $1");
   await run("delete from tournament_votes where voter_id = $1");
   await run("delete from letters where from_user = $1 or to_user = $1");
   await run("delete from club_members where joined_by = $1");

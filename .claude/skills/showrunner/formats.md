@@ -125,3 +125,18 @@ misdeed, and never attach it to a user's own character without that owner's opt-
 ---
 
 **Quick wins.** Moves 1, 3 and 4 need the least new machinery. They mostly surface what the engine already does.
+
+## Built show-night pieces (2026-11-27, docs/show-nights.md)
+
+These already ship, so a beat sheet builds on them rather than rebuilding them:
+
+- **The staged reveal** (`lib/ceremony-night.ts` `revealSteps`, `app/watch/CeremonyReveal.tsx`): the roses one at a
+  time, the last rose between two faces. New ceremony copy should read well one step at a time.
+- **Exit interviews** (`exitInterview`, `ceremonies.exits`): the limo lines. The writer improves the templates there,
+  and a character's own `lines.upset` sample opens theirs.
+- **The tea** and **"Previously on"** (`lib/season-story.ts`): built from the producer's public loglines and the last
+  ceremony. Better loglines make both better.
+- **The bombshell** (`lib/bombshell.ts`): the audience votes a shortlisted audition into the house after week one. It
+  is safe at its first ceremony. A natural partner for move 2 (the interruption) and move 8 (the villain edit).
+- **The fantasy league** (`lib/fantasy.ts`): fans draft three suitors. Copy and cards about "who's winning the
+  league" are fair game, from aggregates only.

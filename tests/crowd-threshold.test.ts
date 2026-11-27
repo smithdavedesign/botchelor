@@ -250,6 +250,7 @@ const CALL_SITES = [
   "app/casting/page.tsx",
   "app/characters/(list)/page.tsx",
   "app/reunion/page.tsx",
+  "app/seasons/[slug]/FantasyLeague.tsx",
   "app/seasons/[slug]/page.tsx",
   "app/shows/ShowIdeas.tsx",
   "app/shows/page.tsx",
