@@ -8,6 +8,6 @@ import { siteCard } from "@/app/site-card";
  */
 export const dynamic = "force-static";
 
-export function GET(): Response {
+export async function GET(): Promise<Response> {
   return siteCard({ headers: { "cache-control": "public, max-age=86400, s-maxage=604800" } });
 }

@@ -15,6 +15,7 @@ import { seasonMonth } from "@/lib/season-cast";
 import { seasonFormat, type SeasonFormatDef } from "@/lib/season-format";
 import { seasonFormatSlug } from "@/lib/season-format-store";
 import { seasonLabel } from "@/lib/season-window";
+import Icon from "@/app/Icon";
 import InviteApply from "./InviteApply";
 import InviteCookie from "./InviteCookie";
 
@@ -43,7 +44,8 @@ function Gone({ code, state }: { code: string; state: "closed" | "invalid" | "ex
   return (
     <article className="page-narrow casting-invite" data-invite-state={state}>
       <InviteCookie code={code} keep={false} />
-      <p className="kicker">🌹 Casting invite</p>
+      <p className="kicker">
+        <Icon name="rose" /> Casting invite</p>
       <h1>{words.title}</h1>
       <p className="muted">{words.line}</p>
       <p>
@@ -124,7 +126,8 @@ async function yours(db: Db, code: string, view: Extract<InviteView, { state: "y
   return (
     <article className="page-narrow casting-invite" data-invite-state="yours">
       <InviteCookie code={code} keep={false} />
-      <p className="kicker">🌹 Your casting invite</p>
+      <p className="kicker">
+        <Icon name="rose" /> Your casting invite</p>
       <h1>{standing ? `${first} is in` : `${first}'s application`}</h1>
       <p className="lede">
         {audition === "approved"
@@ -212,7 +215,8 @@ export default async function CastingInvitePage({ params }: Props) {
   return (
     <article className="page-narrow casting-invite" data-invite-state="open">
       <InviteCookie code={code} keep expiresAt={view.expires_at} />
-      <p className="kicker">🌹 A casting invite from Botchelor</p>
+      <p className="kicker">
+        <Icon name="rose" /> A casting invite from Botchelor</p>
       <h1>{title}</h1>
       <Offer casting={casting} def={def} label={label} />
       <p className="small muted">

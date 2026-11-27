@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { OG_BODY, OG_DISPLAY, OG_NIGHT, OgLetterbox, ogFontOptions } from "@/lib/og-type";
 import { markedImageResponse, SHARE_CARD_CACHE } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
@@ -9,10 +10,10 @@ import { seasonLabel } from "@/lib/season-window";
 
 export const dynamic = "force-dynamic";
 
-const INK = "#241022";
-const MUTED = "#7a6a7e";
-const PAPER = "#fdf6f4";
-const ACCENT = "#e5356b";
+const INK = OG_NIGHT.ink;
+const MUTED = OG_NIGHT.soft;
+const PAPER = OG_NIGHT.bg;
+const ACCENT = OG_NIGHT.accent;
 
 /** Milestones that say nothing about how the date ended, so the card may name who it was with. */
 const NEUTRAL: ReadonlySet<MilestoneId> = new Set(["first_date", "rematch", "five_dates", "ten_dates", "twenty_five_dates"]);
@@ -56,7 +57,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const card = new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: tall ? "column" : "row", alignItems: "center", justifyContent: "center", gap: tall ? 60 : 64, padding: tall ? 90 : 70, background: PAPER, color: INK, borderTop: `24px solid ${ACCENT}`, fontFamily: "sans-serif" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: tall ? "column" : "row", alignItems: "center", justifyContent: "center", gap: tall ? 60 : 64, padding: tall ? 90 : 70, background: PAPER, color: INK, position: "relative", fontFamily: OG_BODY }}>
+        <OgLetterbox />
         {portrait ? (
           // eslint-disable-next-line @next/next/no-img-element -- Satori renders a plain <img>, not next/image
           <img src={portrait} alt="" width={face} height={face} style={{ borderRadius: 72, objectFit: "cover", border: `10px solid ${ACCENT}`, flex: "0 0 auto" }} />
@@ -67,14 +69,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         )}
         <div style={{ display: "flex", flexDirection: "column", alignItems: tall ? "center" : "flex-start", textAlign: tall ? "center" : "left", maxWidth: tall ? 900 : 700 }}>
           <div style={{ display: "flex", fontSize: tall ? 40 : 30, color: ACCENT, fontWeight: 700, letterSpacing: 2 }}>{`BOTCHELOR · ${seasonLabel(m.season).toUpperCase()}`}</div>
-          <div style={{ display: "flex", marginTop: 26, padding: "8px 22px", borderRadius: 999, background: "#fde4ec", color: ACCENT, fontSize: tall ? 34 : 24, fontWeight: 700, letterSpacing: 3 }}>A MOMENT</div>
-          <div style={{ display: "flex", fontSize: tall ? 84 : 60, fontWeight: 800, marginTop: 8, lineHeight: 1.1 }}>{title}</div>
+          <div style={{ display: "flex", marginTop: 26, padding: "8px 22px", borderRadius: 999, background: "rgba(255,94,140,0.16)", color: ACCENT, fontSize: tall ? 34 : 24, fontWeight: 700, letterSpacing: 3 }}>A MOMENT</div>
+          <div style={{ display: "flex", fontFamily: OG_DISPLAY, fontSize: tall ? 84 : 60, fontWeight: 800, marginTop: 8, lineHeight: 1.1 }}>{title}</div>
           <div style={{ display: "flex", fontSize: tall ? 52 : 38, color: MUTED, marginTop: 18 }}>{withWho ? `${c.name}, ${withWho}` : c.name}</div>
           <div style={{ display: "flex", fontSize: tall ? 36 : 26, color: MUTED, marginTop: tall ? 60 : 30 }}>AI characters on blind dates nobody steers · botchelor.com</div>
         </div>
       </div>
     ),
-    { width, height, headers: SHARE_CARD_CACHE },
+    { width, height, headers: SHARE_CARD_CACHE, ...(await ogFontOptions()) },
   );
   return portrait ? markedImageResponse(card) : card;
 }

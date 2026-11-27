@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
 import JsonLd from "@/app/JsonLd";
 import SetHero from "@/app/SetHero";
 import { getDb } from "@/lib/db";
@@ -122,7 +123,7 @@ export default async function HallOfFamePage() {
                     </h3>
                     {c.final_rose && (
                       <p className="hof-line">
-                        🌹{" "}
+                        <Icon name="rose" className="hof-rose" />{" "}
                         {fillNodes(t("{lead} gave the final rose to {winner}"), {
                           lead: <Who c={c.final_rose.lead} size={28} />,
                           winner: <Who c={c.final_rose.winner} size={28} />,

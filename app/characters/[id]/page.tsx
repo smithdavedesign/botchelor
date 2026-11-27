@@ -682,7 +682,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {inviteLine && (
         <p className="casting-invite-nudge">
           <Link href={inviteLine.href} data-track="casting-invite-nudge">
-            🌹 Apply {shortName(c.name)} to {inviteLine.month}&apos;s Botchelor →
+            <Icon name="rose" /> Apply {shortName(c.name)} to {inviteLine.month}&apos;s Botchelor →
           </Link>
         </p>
       )}

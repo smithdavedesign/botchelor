@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Avatar from "@/app/Avatar";
+import RoseSeal from "@/app/RoseSeal";
 import { requestJson } from "@/app/request";
 import { countdown } from "@/lib/countdown";
 import { showCrowd } from "@/lib/crowd-threshold";
@@ -62,6 +63,7 @@ export default function FantasyLeague() {
           return (
             <li key={s.id} className={`casting-slot is-taken${mine ? " is-picked" : ""}${s.out ? " is-out" : ""}`}>
               <Avatar seed={s.id} name={s.name} hue={s.hue} house={s.house} portraitSrc={s.portrait} size={48} decorative />
+              {mine && <RoseSeal size="sm" className="fantasy-stamp" />}
               <span className="casting-slot-text">
                 <Link href={`/characters/${s.id}`}>
                   <strong>{s.name}</strong>

@@ -7,6 +7,8 @@ import { SHOW_WORD_REDIRECTS } from "./lib/site-redirects";
 
 /** ffmpeg-static's binary and what Node needs to load the package (lib/media-tools/ffmpeg.ts). */
 const FFMPEG = ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffmpeg-static/index.js", "./node_modules/ffmpeg-static/package.json"];
+// The share cards' fonts (assets/fonts, read by lib/og-type.tsx): Fraunces and Inter as TTF, which next/og needs.
+const OG_FONTS = ["./assets/fonts/*.ttf"];
 
 const afterDark = afterDarkNextConfig(process.env, siteUrl(process.env));
 
@@ -37,6 +39,13 @@ const nextConfig: NextConfig = {
     "/api/jobs/showcase-check": FFMPEG,
     // A face kit's loop (lib/face-kit.ts collectFaceKits): three frames of it, cut for the PG check, as the page polls.
     "/api/face-kit": FFMPEG,
+    // The share cards' fonts (lib/og-type.tsx reads assets/fonts at run time): only the routes that draw a card.
+    "/opengraph-image": OG_FONTS,
+    "/share-card.png": OG_FONTS,
+    "/**/opengraph-image": OG_FONTS,
+    "/characters/[id]/moment.png": OG_FONTS,
+    "/seasons/[slug]/poster.png": OG_FONTS,
+    "/api/og/**": OG_FONTS,
   },
   // The house cast's portraits and the venue backdrops in public/cast were drawn by a model: they carry the XMP mark
   // (scripts/stamp-ai-marks.mjs) and go out with the same "AI-generated" headers as every other generated file

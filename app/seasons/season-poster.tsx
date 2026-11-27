@@ -9,6 +9,7 @@
  * Words stay English: a share card is read by whoever the link reaches, and a crawler sends no language.
  */
 import { ImageResponse } from "next/og";
+import { OG_BODY, OG_DISPLAY, OgSeal, ogFontOptions } from "@/lib/og-type";
 import { markedImageResponse, SHARE_CARD_CACHE } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { castJpeg, portraitJpeg, smallJpeg } from "@/lib/date-photo";
@@ -131,8 +132,11 @@ function Words({ d, title, sub, clock, scale, center = false }: { d: { number: n
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: center ? "center" : "flex-start", textAlign: center ? "center" : "left" }}>
       <div style={{ display: "flex", fontSize: Math.round(26 * scale), color: PINK, letterSpacing: 5, fontWeight: 700 }}>{`SEASON ${d.number} · ${d.month.toUpperCase()}`}</div>
-      <div style={{ display: "flex", fontSize: Math.round(92 * scale), color: WHITE, fontWeight: 800, lineHeight: 1.02, marginTop: 6 }}>{title}</div>
-      <div style={{ display: "flex", fontSize: Math.round(30 * scale), color: SOFT, marginTop: Math.round(14 * scale), lineHeight: 1.3 }}>{sub}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: Math.round(16 * scale), marginTop: 6 }}>
+        <div style={{ display: "flex", fontFamily: OG_DISPLAY, fontSize: Math.round(96 * scale), color: WHITE, fontWeight: 800, lineHeight: 1.02, letterSpacing: -1 }}>{title}</div>
+        <OgSeal size={Math.round(70 * scale)} rotate={-10} />
+      </div>
+      <div style={{ display: "flex", fontFamily: OG_DISPLAY, fontStyle: "italic", fontWeight: 600, fontSize: Math.round(32 * scale), color: SOFT, marginTop: Math.round(14 * scale), lineHeight: 1.3 }}>{sub}</div>
       {clock && (
         <div style={{ display: "flex", marginTop: Math.round(22 * scale) }}>
           <div style={{ display: "flex", padding: `${Math.round(10 * scale)}px ${Math.round(22 * scale)}px`, borderRadius: 999, background: PINK, color: "#fff", fontSize: Math.round(26 * scale), fontWeight: 700 }}>{clock}</div>
@@ -144,7 +148,7 @@ function Words({ d, title, sub, clock, scale, center = false }: { d: { number: n
 
 function Frame({ bg, width, height, children }: { bg: string | null; width: number; height: number; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", width, height, position: "relative", background: "#140818", fontFamily: "sans-serif" }}>
+    <div style={{ display: "flex", width, height, position: "relative", background: "#140818", fontFamily: OG_BODY }}>
       {bg && (
         // eslint-disable-next-line @next/next/no-img-element -- Satori renders a plain <img>, not next/image
         <img src={bg} alt="" width={width} height={height} style={{ position: "absolute", top: 0, left: 0, width, height, objectFit: "cover" }} />
@@ -205,7 +209,7 @@ export async function seasonPoster(db: Db, seasonId: string, format: PosterForma
         {body}
       </Frame>
     ),
-    { ...size, headers: SHARE_CARD_CACHE },
+    { ...size, headers: SHARE_CARD_CACHE, ...(await ogFontOptions()) },
   );
   // The stage and the faces are drawn pictures: marked AI-generated, in the PNG's XMP and its headers (lib/ai-mark.ts).
   return pictured ? markedImageResponse(card) : card;

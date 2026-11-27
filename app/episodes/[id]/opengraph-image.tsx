@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { OG_BODY, OG_DISPLAY, OG_NIGHT, OgLetterbox, ogFontOptions } from "@/lib/og-type";
 import { markedImageResponse, SHARE_CARD_CACHE } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
@@ -10,10 +11,10 @@ export const alt = "A Botchelor episode box score";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const INK = "#2a1a2e";
-const MUTED = "#6b5a6e";
-const PAPER = "#fff8f3";
-const ACCENT = "#d6336c";
+const INK = OG_NIGHT.ink;
+const MUTED = OG_NIGHT.soft;
+const PAPER = OG_NIGHT.bg;
+const ACCENT = OG_NIGHT.accent;
 
 /** The box score share card (PRD "Further ideas"). Numbers only after the finale airs, so it can't leak the outcome. */
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
@@ -59,7 +60,8 @@ export default async function Image({ params }: { params: Promise<{ id: string }
 
   const card = new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: 80, background: PAPER, color: INK, borderTop: `24px solid ${ACCENT}`, fontFamily: "sans-serif" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: 80, background: PAPER, color: INK, position: "relative", fontFamily: OG_BODY }}>
+        <OgLetterbox />
         <div style={{ display: "flex", fontSize: 34, color: ACCENT, fontWeight: 700 }}>Botchelor · box score</div>
         {episode && (
           <div style={{ display: "flex", alignItems: "center", gap: 22, marginTop: 18 }}>
@@ -68,13 +70,13 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             {tile(episode.characters[1], portraits[1])}
           </div>
         )}
-        <div style={{ display: "flex", fontSize: 56, fontWeight: 800, marginTop: 14 }}>{names}</div>
+        <div style={{ display: "flex", fontFamily: OG_DISPLAY, fontSize: 56, fontWeight: 800, marginTop: 14 }}>{names}</div>
         {box ? (
           <div style={{ display: "flex", flexDirection: "column", marginTop: 30, gap: 18 }}>
             {DATE_VARIABLES.map((v) => (
               <div key={v} style={{ display: "flex", alignItems: "center", gap: 20 }}>
                 <div style={{ display: "flex", width: 300, fontSize: 30, color: MUTED }}>{VARIABLE_LABELS[v]}</div>
-                <div style={{ display: "flex", width: 560, height: 30, background: "#ecdde3", borderRadius: 15 }}>
+                <div style={{ display: "flex", width: 560, height: 30, background: "rgba(255,247,242,0.14)", borderRadius: 15 }}>
                   <div style={{ display: "flex", width: `${box[v].final * 5.6}px`, height: 30, background: ACCENT, borderRadius: 15 }} />
                 </div>
                 <div style={{ display: "flex", fontSize: 30, fontWeight: 700, width: 90 }}>{box[v].delta > 0 ? `+${box[v].delta}` : String(box[v].delta)}</div>
@@ -91,7 +93,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         )}
       </div>
     ),
-    { ...size, headers: SHARE_CARD_CACHE },
+    { ...size, headers: SHARE_CARD_CACHE, ...(await ogFontOptions()) },
   );
   // A card with a generated portrait in it is marked AI-generated, in its PNG's XMP and its headers (lib/ai-mark.ts).
   return portraits.some(Boolean) ? markedImageResponse(card) : card;
