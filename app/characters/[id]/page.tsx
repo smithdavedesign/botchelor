@@ -70,7 +70,7 @@ import TalkButton from "@/app/companion/TalkButton";
 import { companionGuestFromCookies } from "@/lib/companion-access";
 import LearnedPanel from "./LearnedPanel";
 import LifePanel from "./LifePanel";
-import { loadFields, loadLife, proposalsOf } from "@/lib/life-record";
+import { loadLifeAll } from "@/lib/life-record";
 import OriginalityPanel from "@/app/create/OriginalityPanel";
 import StoryPanel from "./StoryPanel";
 import TalkPanel from "./TalkPanel";
@@ -188,8 +188,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       .catch(() => null),
   ]);
   // Its life record (lib/life-record.ts): public entries for everyone, all of them and its field asks for its owner.
-  const lifeP = Promise.all([loadLife(db, id), loadFields(db), isOwner ? proposalsOf(db, id) : Promise.resolve([])])
-    .then(([entries, fields, asks]) => ({ entries: isOwner ? entries : entries.filter((e) => e.visibility === "public"), fields, asks }))
+  const lifeP = loadLifeAll(db, id, { asks: isOwner })
+    .then(({ entries, fields, asks }) => ({ entries: isOwner ? entries : entries.filter((e) => e.visibility === "public"), fields, asks }))
     .catch(soft("character page: life record", null));
   // The owner also sees its private facts (marked as theirs alone); everyone else gets the public card.
   const shownExtrasP =

@@ -59,7 +59,7 @@ type FieldRow = { key: string; label: string; many: boolean; dated: boolean; opt
 /** The registry: built-in fields first, then approved ones in the order they were added. */
 export async function loadFields(db: Db): Promise<LifeFieldDef[]> {
   const { rows } = await db.query<FieldRow>(`select key, label, many, dated, options from life_fields where retired_at is null order by created_at asc limit $1`, [REGISTRY_MAX]);
-  return [...BUILTIN_LIFE_FIELDS, ...(rows ?? []).map((r) => ({ key: r.key, label: r.label, many: r.many, dated: r.dated, options: r.options, origin: "proposed" as const }))];
+  return fieldsOf(rows);
 }
 
 type EntryRow = { id: string; field: string; value: string; period: string | null; visibility: "public" | "self"; source: LifeSource; created_at: Date | string };
@@ -73,14 +73,37 @@ export async function loadLife(db: Db, characterId: string): Promise<LifeEntry[]
   return (rows ?? []).map(entryOf);
 }
 
+const fieldsOf = (rows: readonly FieldRow[] | null | undefined): LifeFieldDef[] => [
+  ...BUILTIN_LIFE_FIELDS,
+  ...(rows ?? []).map((r) => ({ key: r.key, label: r.label, many: r.many, dated: r.dated, options: r.options, origin: "proposed" as const })),
+];
+
+/**
+ * A character's entries, the registry and (for its owner) its field asks, in one round trip: what the character page
+ * and a prompt read. Proposed fields come only when it has entries.
+ */
+export async function loadLifeAll(db: Db, characterId: string, opts: { asks?: boolean } = {}): Promise<{ entries: LifeEntry[]; fields: LifeFieldDef[]; asks: FieldProposal[] }> {
+  const { rows } = await db.query<{ entries: EntryRow[] | null; fields: FieldRow[] | null; asks: ProposalRow[] | null }>(
+    `select
+       (select json_agg(e order by e.created_at desc) from (select id, field, value, period, visibility, source, created_at from life_entries
+          where character_id = $1 order by created_at desc limit $2) e) as entries,
+       (select json_agg(f order by f.created_at) from (select key, label, many, dated, options, created_at from life_fields
+          where retired_at is null order by created_at asc limit $3) f) as fields,
+       case when $4::boolean then (select json_agg(p order by p.created_at desc) from (select id, key, label, status, verdict, field, created_at
+          from life_field_proposals where character_id = $1 order by created_at desc limit 20) p) end as asks`,
+    [characterId, LIFE_ENTRIES_MAX, REGISTRY_MAX, opts.asks === true],
+  );
+  const r = rows?.[0];
+  return { entries: (r?.entries ?? []).map(entryOf), fields: fieldsOf(r?.fields), asks: (r?.asks ?? []).map(proposalOf) };
+}
+
 /** What a character knows of its own life, for prompts: `{ self, public }`, or empty when off or on any failure. */
 export async function lifeRecordForPrompt(db: Db, characterId: string, env: Env = process.env): Promise<{ self: Record<string, string[]>; public: Record<string, string[]> }> {
   const none = { self: {}, public: {} };
   if (!lifeRecordOn(env)) return none;
   try {
-    const entries = await loadLife(db, characterId);
+    const { entries, fields } = await loadLifeAll(db, characterId);
     if (!entries.length) return none;
-    const fields = await loadFields(db);
     return { self: lifeForPrompt(entries, fields, "self"), public: lifeForPrompt(entries, fields, "public") };
   } catch {
     return none;
