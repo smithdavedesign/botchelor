@@ -65,6 +65,7 @@ export const PUBLIC_PATHS = [
   "/create",
   "/watch",
   "/reunion",
+  "/hall-of-fame",
   "/house",
   "/graph",
   "/casting",

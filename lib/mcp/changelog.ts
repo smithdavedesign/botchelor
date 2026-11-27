@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.59.0",
+    date: "2026-11-27",
+    title: "The Hall of Fame",
+    changes: [
+      "get_hall_of_fame: the show's all-time records, the same as botchelor.com/hall-of-fame. Each closed season's final rose and golden couple, the most-awarded characters, the longest-running couples, who has been on the most dates, and the best and sharpest callers of all time.",
+    ],
+    added_tools: ["get_hall_of_fame"],
+  },
+  {
     version: "2.58.0",
     date: "2026-11-27",
     title: "Characters ask for features",

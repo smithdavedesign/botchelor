@@ -16812,3 +16812,15 @@ button.people-found-pick:hover:not(:disabled) {
   display: inline-flex;
   gap: var(--space-1);
 }
+
+/* The Hall of Fame (app/hall-of-fame/page.tsx, 2026-11-27). */
+.hof-numbers { margin: 1rem 0 1.5rem; }
+.hof-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0.4rem 0; }
+.hof-who { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+.hof-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); margin: 1.5rem 0; }
+.hof-board { list-style: decimal; padding-left: 1.4rem; margin: 0.5rem 0 0; }
+.hof-board li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--line, rgba(127, 127, 127, 0.2)); }
+.hof-board li:last-child { border-bottom: 0; }
+.hof-pair { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.hof-name { font-weight: 600; }
+.hof-stat { font-size: 0.875rem; opacity: 0.8; white-space: nowrap; }

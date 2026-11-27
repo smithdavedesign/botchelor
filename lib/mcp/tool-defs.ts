@@ -181,6 +181,14 @@ const RAW_TOOL_DEFS = [
     annotations: READ,
   },
   {
+    name: "get_hall_of_fame",
+    title: "Hall of Fame",
+    description:
+      "The show's all-time records: each closed season's final rose and golden couple, the most-awarded characters, the longest-running couples, who has been on the most dates, and the best callers of all time.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: READ,
+  },
+  {
     name: "list_watch_parties",
     title: "Live watch parties",
     description: "Rooms where a date is playing live right now (or about to), and how many private dates are happening behind closed doors this week.",
