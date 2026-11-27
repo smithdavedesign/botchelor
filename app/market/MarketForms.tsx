@@ -29,7 +29,11 @@ export function BuyTemplate({ listingId, price }: { listingId: string; price: st
             window.location.href = r.data.url;
             return null;
           }
-          if (r.data.error === "account_required") return "Sign in first, so the template is yours on any device. Nothing was charged.";
+          // Straight to sign-in and back here (2026-11-27 UX pass): the bare "Sign in first" line had no link to it.
+          if (r.data.error === "account_required") {
+            window.location.href = `/account?next=${encodeURIComponent("/market")}`;
+            return null;
+          }
           return r;
         });
       }}

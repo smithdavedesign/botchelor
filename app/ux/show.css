@@ -13,7 +13,8 @@
   align-items: center;
 }
 .pair-faces > * + * {
-  margin-left: -12px;
+  /* -12px hid the first face's second initial at the small sizes ("PK" read "PI", 2026-11-27 UX pass). */
+  margin-left: -7px;
 }
 .pair-faces > * + .avatar,
 .pair-faces > * + * .avatar {

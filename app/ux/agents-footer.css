@@ -1236,11 +1236,14 @@ button.chip-toggle.is-on {
 }
 .agents-top {
   display: grid;
+  /* minmax(0, 1fr): an auto column grew to the code box's longest line, 446px on a 390px phone (2026-11-27 visual audit). */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   margin: var(--space-4) 0;
 }
 .agents-top > .card {
   margin: 0;
+  min-width: 0;
 }
 @media (min-width: 960px) {
   .agents-top {
