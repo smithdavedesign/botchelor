@@ -46,6 +46,8 @@ import { ART_STYLE_LABEL, ART_STYLES, isArtStyle, type ArtStyle } from "@/lib/ar
 import { pickerDemand } from "@/lib/tag-demand";
 import { byDemand, isStatus, STATUSES, tagById, tagsIn, type Status, type TagId } from "@/lib/tags";
 import FilterSeen from "@/app/characters/FilterSeen";
+import { getT } from "@/lib/i18n/server";
+import { english, type T } from "@/lib/i18n/translate";
 
 export const dynamic = "force-dynamic";
 
@@ -80,10 +82,10 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 /** A private character's name (David, #309/#509): never linked, no portrait, no details. */
-function PrivateName({ name }: { name: string }) {
+function PrivateName({ name, t = english }: { name: string; t?: T }) {
   return (
     <span className="directory-private">
-      <strong>{name}</strong> <Icon name="lock" label="private" />
+      <strong>{name}</strong> <Icon name="lock" label={t("private")} />
     </span>
   );
 }
@@ -100,7 +102,7 @@ const EAGER_CARDS = 4;
  * it, each its own target.
  * `origin={false}` on the cast tab, where every card is the show's own and a "Cast" chip on each says nothing.
  */
-function Entry({ e, badge, origin = true, talk = false, eager = false, actions, own = false }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean; eager?: boolean; actions?: CardActions; /** The viewer's own, on the Yours tab: its doors, not a date verb. */ own?: boolean }) {
+function Entry({ e, badge, origin = true, talk = false, eager = false, actions, own = false, t = english }: { e: DirectoryEntry; badge?: string; origin?: boolean; talk?: boolean; eager?: boolean; actions?: CardActions; /** The viewer's own, on the Yours tab: its doors, not a date verb. */ own?: boolean; t?: T }) {
   if (e.private && !own) {
     return (
       <li className="card dir-card is-private">
@@ -108,8 +110,8 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
           <Avatar seed={e.id} name={e.name} hue={null} house={false} size={CARD_PORTRAIT} fill decorative />
         </div>
         <div className="dir-card-body">
-          <PrivateName name={e.name} />
-          <p className="muted small">Private: their creator keeps them to themselves.</p>
+          <PrivateName name={e.name} t={t} />
+          <p className="muted small">{t("Private: their creator keeps them to themselves.")}</p>
         </div>
       </li>
     );
@@ -175,7 +177,7 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
           </p>
         )}
         {e.traits.length > 0 && (
-          <ul className="chips" aria-label="Traits">
+          <ul className="chips" aria-label={t("Traits")}>
             {e.traits.slice(0, 3).map((trait) => (
               <li className="chip" key={trait}>
                 {trait}
@@ -192,10 +194,10 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
         {own && (
           <div className="dir-actions">
             <Link className="button secondary dir-verb" href={`/chat?character=${encodeURIComponent(e.id)}`} prefetch={false} data-track="yours-chat">
-              Chats
+              {t("Chats")}
             </Link>
             <Link className="button secondary" href={`/studio?character=${encodeURIComponent(e.id)}`} prefetch={false} data-track="yours-studio">
-              Studio
+              {t("Studio")}
             </Link>
           </div>
         )}
@@ -228,13 +230,13 @@ function findFilters(sp: Search): Find {
  * Find a character by name, trait or a word from their bio, and narrow it by type, love life (docs/tags.md) and how
  * they're drawn (lib/art-style.ts): a plain GET form (?q=&type=&status=&style=), so it works without a script.
  */
-function SearchForm({ q, find: { type, status, style }, demand }: { q: string; find: Find; demand?: Record<string, number> }) {
+function SearchForm({ q, find: { type, status, style }, demand, t = english }: { q: string; find: Find; demand?: Record<string, number>; t?: T }) {
   // The type menu, most wanted first: who people talk to here (lib/tag-demand.ts), else the census (lib/tags.ts).
   const typeMenu = byDemand(tagsIn("type"), "sfw", demand);
   return (
     <form className="characters-search" action="/characters" method="get" role="search">
       <label className="sr-only" htmlFor="characters-q">
-        Find a character
+        {t("Find a character")}
       </label>
       <input
         id="characters-q"
@@ -242,15 +244,15 @@ function SearchForm({ q, find: { type, status, style }, demand }: { q: string; f
         name="q"
         defaultValue={q}
         maxLength={DIRECTORY_QUERY_MAX}
-        placeholder="A name or a trait"
+        placeholder={t("A name or a trait")}
         autoComplete="off"
         enterKeyHint="search"
       />
       <label className="sr-only" htmlFor="characters-type">
-        Type
+        {t("Type")}
       </label>
       <select id="characters-type" name="type" defaultValue={type ?? ""}>
-        <option value="">Any type</option>
+        <option value="">{t("Any type")}</option>
         {typeMenu.map((t) => (
           <option key={t.id} value={t.id}>
             {t.icon} {t.label}
@@ -258,10 +260,10 @@ function SearchForm({ q, find: { type, status, style }, demand }: { q: string; f
         ))}
       </select>
       <label className="sr-only" htmlFor="characters-status">
-        Love life
+        {t("Love life")}
       </label>
       <select id="characters-status" name="status" defaultValue={status ?? ""}>
-        <option value="">Any love life</option>
+        <option value="">{t("Any love life")}</option>
         {STATUSES.map((st) => (
           <option key={st.id} value={st.id}>
             {st.icon} {st.label}
@@ -269,10 +271,10 @@ function SearchForm({ q, find: { type, status, style }, demand }: { q: string; f
         ))}
       </select>
       <label className="sr-only" htmlFor="characters-style">
-        Style
+        {t("Style")}
       </label>
       <select id="characters-style" name="style" defaultValue={style ?? ""}>
-        <option value="">Any style</option>
+        <option value="">{t("Any style")}</option>
         {ART_STYLES.map((id) => (
           <option key={id} value={id}>
             {ART_STYLE_LABEL[id]}
@@ -280,7 +282,7 @@ function SearchForm({ q, find: { type, status, style }, demand }: { q: string; f
         ))}
       </select>
       <button type="submit" className="button secondary">
-        Find
+        {t("Find")}
       </button>
       {style && <FilterSeen event="style_filter" props={{ style, page: "characters" }} />}
     </form>
@@ -329,6 +331,7 @@ export default async function CharactersPage({ searchParams }: Props) {
   ]);
   // ?tab=yours, for someone who has a character (anyone else gets the cast, as an unknown tab always did).
   const yours = one(sp.tab) === "yours" && mine !== null;
+  const t = await getT();
   const viewer: Viewer = { userId: viewerId, mine, stepIn: stepIn?.kind === "member" || stepIn?.kind === "guest", stepInEntry: stepIn !== null && (mine !== null || stepIn.kind === "sign_in") };
 
   return (
@@ -336,21 +339,21 @@ export default async function CharactersPage({ searchParams }: Props) {
       {/* 2026-10-31 UX audit: on a phone the first screen was all words (a paragraph restating the tabs, a helper line,
           the season's rules) and no faces. One line each now, and the cards are two to a row. */}
       <div className="section-head characters-head">
-        <h1>Characters</h1>
+        <h1>{t("Characters")}</h1>
         {/* The way in for anyone browsing (David, 2026-10-25: "we don't have one, we should have one here"). Outlined: the
             nav's "Make your character" is the filled one, and it's the same words. */}
         <Link className="button secondary" href="/create">
-          Make your character
+          {t("Make your character")}
         </Link>
       </div>
-      <p className="muted">Everyone on the show: the cast, and the characters people and AI agents made.</p>
-      <SearchForm q={q} find={find} demand={demand?.types} />
+      <p className="muted">{t("Everyone on the show: the cast, and the characters people and AI agents made.")}</p>
+      <SearchForm q={q} find={find} demand={demand?.types} t={t} />
       {/* A search is across every tab, so no tab is the current one while it shows. An owner's own lead the strip
           (2026-11-16: it was a line of text above the search; someone without a character never sees the tab). */}
       {/* The tabs, and beside them the same people as a map (ViewSwitch: the Constellation on the tab's group). */}
       <div className="characters-strip">
-        <CharactersTabs current={finding ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} />
-        <ViewSwitch current="cards" spot={finding ? null : yours ? "yours" : tab} />
+        <CharactersTabs current={finding ? null : yours ? "yours" : tab} companions={companionOpen()} yours={mine !== null} t={t} />
+        <ViewSwitch current="cards" spot={finding ? null : yours ? "yours" : tab} t={t} />
       </div>
       {/* Awaited here, not rendered as async components, so the whole page is one server render (and testable). */}
       {finding ? await searchResults(q, find, viewer) : yours && viewerId ? await yoursTab(viewerId) : tab === "cast" ? await castTab({ season, thisId, castIds, now, pairsPage: parsePage(sp.pairs), viewer }) : await madeByTab({ tab, page: pageOf(sp.page), privateCount: counts.private, viewer, insider })}
@@ -386,11 +389,11 @@ const teaserFor = (group: OriginGroup) =>
  * "The relationship graph" on a tab: the group's preview (app/graph/GraphTeaser.tsx), or `children` while there's nothing
  * to draw (and no section at all without them).
  */
-function GraphSection({ group, teaser, children }: { group: SkyGroup; teaser: Teaser | null; children?: ReactNode }) {
+function GraphSection({ group, teaser, children, t = english }: { group: SkyGroup; teaser: Teaser | null; children?: ReactNode; t?: T }) {
   if (!teaser && !children) return null;
   return (
     <section id="graph" aria-labelledby="graph-title">
-      <h2 id="graph-title">The relationship graph</h2>
+      <h2 id="graph-title">{t("The relationship graph")}</h2>
       {teaser ? <GraphTeaser teaser={teaser} group={group} /> : children}
     </section>
   );
@@ -400,7 +403,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
   const viewerId = viewer.userId;
   // Talk on every card once companions are open (lib/companion-shared.ts).
   const talk = companionOpen();
-  const db = await getDb();
+  const [db, t] = await Promise.all([getDb(), getT()]);
   const nextId = seasonIdOf(nextSeasonStart(now));
   // The cast's boards are the same for everyone: one shared copy a few seconds old (lib/shared-cache.ts).
   const everyones = shared(`characters:cast:${nextId}:${castIds.join(",")}`, async () => {
@@ -442,18 +445,18 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
       {/* The weekly earned slot's winner (lib/cast-date.ts): their prize, a date with the cast to book here. */}
       {castDateWin && <CastDatePrize prize={castDateWin} />}
       <section>
-        <h2>This season: {seasonLabel(thisId)}</h2>
-        <p className="muted">The show&apos;s own. Each month the two best-reviewed stay and two newcomers join.</p>
+        <h2>{t("This season: {season}", { season: seasonLabel(thisId) })}</h2>
+        <p className="muted">{t("The show's own. Each month the two best-reviewed stay and two newcomers join.")}</p>
         <ul className="gallery grid-balanced" style={{ "--cols": balancedColumns(season.length, 4) } as CSSProperties}>
           {season.map((e, i) => (
-            <Entry key={e.id} e={e} origin={false} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
+            <Entry key={e.id} e={e} origin={false} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} t={t} />
           ))}
         </ul>
       </section>
       {viewer.stepInEntry && season.length > 0 && (
         <section className="card stepin-entry-card" aria-labelledby="stepin-cast-title">
-          <h2 id="stepin-cast-title">🎬 Step into the date</h2>
-          <p className="muted small">Go on a date with one of them yourself, live, line by line. They&apos;re AI characters on a show.</p>
+          <h2 id="stepin-cast-title">{t("🎬 Step into the date")}</h2>
+          <p className="muted small">{t("Go on a date with one of them yourself, live, line by line. They're AI characters on a show.")}</p>
           <ul className="stepin-entry-faces">
             {season.map((e) => (
               <li key={e.id}>
@@ -470,10 +473,10 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
       {/* Shown once there are candidates (2026-10-31 UX audit, A4: for most of the month it only said "check back"). */}
       {upcoming.length > 0 && (
         <section id="next-season">
-          <h2>Next season&apos;s candidates: {seasonLabel(nextId)}</h2>
+          <h2>{t("Next season's candidates: {season}", { season: seasonLabel(nextId) })}</h2>
           <ul className="gallery grid-balanced" style={{ "--cols": balancedColumns(upcoming.length, 4) } as CSSProperties}>
             {upcoming.map((e) => (
-              <Entry key={e.id} e={e} origin={false} badge={statusOf.get(e.id) === "approved" ? "Joining next season" : "Candidate"} />
+              <Entry key={e.id} e={e} origin={false} badge={statusOf.get(e.id) === "approved" ? t("Joining next season") : t("Candidate")} t={t} />
             ))}
           </ul>
         </section>
@@ -484,7 +487,7 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
         <section className="top-rated">
           {/* All time (lib/ratings.ts, no window): the Season tab's fan favourite is this season's, so the two can differ
               and each says which it is (the 2026-11-22 audit: Nell here, Barnaby there, neither scoped). */}
-          <h2>Top rated of all time</h2>
+          <h2>{t("Top rated of all time")}</h2>
           <ul className="top-rated-strip">
             {leaderboards.map(({ category, top }) => (
               // The whole tile is the link (2026-11-07 audit, item 18: the name alone was a ~36px target on a phone).
@@ -492,15 +495,15 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
                 <span className="muted small">
                   {category.emoji} {category.board}
                 </span>
-                {hidden.has(top[0].id) ? <PrivateName name={top[0].name} /> : <CharacterName character={top[0]} size={28} className="stretch" />}
+                {hidden.has(top[0].id) ? <PrivateName name={top[0].name} t={t} /> : <CharacterName character={top[0]} size={28} className="stretch" />}
                 {/* An agent-made leader wears its badge (lib/origin.ts), as everywhere a character is featured. */}
                 {!hidden.has(top[0].id) && isAgentMade(top[0].origin) && <OriginBadge origin={top[0].origin} />}
               </li>
             ))}
           </ul>
           <details className="ux-fold top-rated-more">
-            <summary>The full audience leaderboard, all time</summary>
-            <p className="muted small">Just for fun: ratings never change a date, the odds or prediction points.</p>
+            <summary>{t("The full audience leaderboard, all time")}</summary>
+            <p className="muted small">{t("Just for fun: ratings never change a date, the odds or prediction points.")}</p>
           <div className="boards">
             {leaderboards.map(({ category, top }) => (
               <div key={category.id} className="card board">
@@ -508,20 +511,20 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
                   {category.emoji} {category.board}
                 </h3>
                 <ol className="board-list">
-                  {top.map((t) => (
-                    <li key={t.id} className="tap-card">
-                      {hidden.has(t.id) ? (
+                  {top.map((r) => (
+                    <li key={r.id} className="tap-card">
+                      {hidden.has(r.id) ? (
                         <>
-                          <Avatar seed={t.id} name={t.name} hue={null} house={false} size={28} />
-                          <PrivateName name={t.name} />
+                          <Avatar seed={r.id} name={r.name} hue={null} house={false} size={28} />
+                          <PrivateName name={r.name} t={t} />
                         </>
                       ) : (
                         <>
-                          <CharacterName character={t} size={28} className="stretch" />
-                          {isAgentMade(t.origin) && <OriginBadge origin={t.origin} />}
+                          <CharacterName character={r} size={28} className="stretch" />
+                          {isAgentMade(r.origin) && <OriginBadge origin={r.origin} />}
                         </>
                       )}
-                      <span className="board-count">{t.count}</span>
+                      <span className="board-count">{r.count}</span>
                     </li>
                   ))}
                 </ol>
@@ -536,14 +539,14 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
 
       {proposals.length > 0 && (
         <section>
-          <h2>Your matchmaking</h2>
+          <h2>{t("Your matchmaking")}</h2>
           <ul className="list">
             {proposals.map((p) => (
               <li key={p.id} className="card">
                 <strong>
                   <CharacterName character={p.character_a} /> + <CharacterName character={p.character_b} />
                 </strong>{" "}
-                <span className="badge">{p.paid_off ? "Second date! Points earned" : "Waiting"}</span>
+                <span className="badge">{p.paid_off ? t("Second date! Points earned") : t("Waiting")}</span>
               </li>
             ))}
           </ul>
@@ -551,28 +554,28 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
       )}
 
       <section id="graph">
-        <h2>The relationship graph</h2>
+        <h2>{t("The relationship graph")}</h2>
         {/* The way into /graph: the cast's corner of it, drawn (the plain link it replaced while there's nothing to draw). */}
         {teaser ? (
           <GraphTeaser teaser={teaser} group="cast" />
         ) : (
           <p className="muted small">
-            <Link href="/graph">See it as a constellation →</Link>
+            <Link href="/graph">{t("See it as a constellation →")}</Link>
           </p>
         )}
         {edges.length ? (
           // Folded (2026-10-31 UX audit: every pairing was a card in the page, a screen or two on a phone); paging opens it.
           <details className="ux-fold graph-pairs" open={pairs.page > 1}>
           <summary>
-            Who&apos;s dated whom ({edges.length} {edges.length === 1 ? "pair" : "pairs"})
+            {edges.length === 1 ? t("Who's dated whom (1 pair)") : t("Who's dated whom ({n} pairs)", { n: edges.length })}
           </summary>
           <ul className="list">
             {pairs.items.map((e) =>
               hidden.has(e.a_id) || hidden.has(e.b_id) ? (
                 // A couple with a private character: the names only, never linked, nothing about their dates.
                 <li key={`${e.a}-${e.b}`} className="card is-private">
-                  {hidden.has(e.a_id) ? <PrivateName name={e.a} /> : <strong>{e.a}</strong>} ×{" "}
-                  {hidden.has(e.b_id) ? <PrivateName name={e.b} /> : <strong>{e.b}</strong>}
+                  {hidden.has(e.a_id) ? <PrivateName name={e.a} t={t} /> : <strong>{e.a}</strong>} ×{" "}
+                  {hidden.has(e.b_id) ? <PrivateName name={e.b} t={t} /> : <strong>{e.b}</strong>}
                 </li>
               ) : (
               <li key={`${e.a}-${e.b}`} className="card graph-row tap-card">
@@ -594,20 +597,20 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
               ),
             )}
           </ul>
-          <Pager page={pairs.page} pages={pairs.pages} label="Relationship graph pages" href={(n) => pageHref("/characters", {}, "pairs", n, "graph")} scroll={false} />
+          <Pager page={pairs.page} pages={pairs.pages} label={t("Relationship graph pages")} href={(n) => pageHref("/characters", {}, "pairs", n, "graph")} scroll={false} />
           </details>
         ) : (
-          <p className="muted">No dates yet. Once characters start meeting, their history shows up here.</p>
+          <p className="muted">{t("No dates yet. Once characters start meeting, their history shows up here.")}</p>
         )}
       </section>
 
       {earlier.length > 0 && (
         <details className="earlier-cast ux-fold">
-          <summary>Off this season ({earlier.length})</summary>
-          <p className="muted small">House characters from earlier seasons, and the premium ones. Their cards and dates stay up.</p>
+          <summary>{t("Off this season ({n})", { n: earlier.length })}</summary>
+          <p className="muted small">{t("House characters from earlier seasons, and the premium ones. Their cards and dates stay up.")}</p>
           <ul className="gallery">
             {earlier.map((e) => (
-              <Entry key={e.id} e={e} origin={false} talk={talk} />
+              <Entry key={e.id} e={e} origin={false} talk={talk} t={t} />
             ))}
           </ul>
         </details>
@@ -619,34 +622,33 @@ async function castTab({ season, thisId, castIds, now, pairsPage, viewer }: { se
 async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "people" | "originals" | "agents"; page: number; privateCount: number; viewer: Viewer; insider: boolean }) {
   // Talk on every card once companions are open (lib/companion-shared.ts).
   const talk = companionOpen();
-  const db = await getDb();
+  const [db, t] = await Promise.all([getDb(), getT()]);
   const group: OriginGroup = tab === "people" ? "person" : tab === "originals" ? "cast" : "agent";
   const [list, teaser] = await Promise.all([forViewer(viewer.userId, `characters:${tab}:${page}`, () => listTab(db, tab, page)), teaserFor(group)]);
   const verbs = await cardVerbs(viewer, list.entries.filter((e) => !e.private).map((e) => e.id));
   const what = tab === "people" ? "characters made by people" : tab === "originals" ? "the show's original characters" : "characters made by AI agents";
   // How many people's characters, said here and not on the tab; to a stranger only from CROWD_MIN up (the empty-room
   // rule, lib/crowd-threshold.ts: "2 characters" is a sign saying nobody's here).
-  const peopleCount = tab === "people" ? crowdLine(list.total, { one: "character", many: "characters" }, { insider }) : "";
+  const peopleCount = tab === "people" ? crowdLine(list.total, { one: t("character"), many: t("characters") }, { insider }) : "";
   return (
     <section>
       <JsonLd data={itemListJsonLd(`Botchelor: ${what}`, list.entries.filter((e) => !e.private).map((e) => ({ name: e.name, path: `/characters/${e.id}` })))} />
       <p className="muted">
         {tab === "people" ? (
           <>
-            {peopleCount ? `${peopleCount} people built on the site.` : "Original characters people built on the site."} <Link href="/create">Make your own</Link>.
+            {peopleCount ? t("{count} people built on the site.", { count: peopleCount }) : t("Original characters people built on the site.")} <Link href="/create">{t("Make your own")}</Link>.
           </>
         ) : tab === "originals" ? (
-          <>The show&apos;s own characters: written and drawn by Botchelor, a few new ones every day.</>
+          <>{t("The show's own characters: written and drawn by Botchelor, a few new ones every day.")}</>
         ) : (
           <>
-            Original characters AI agents built over MCP. A few are run by the show&apos;s own scripts: those say
-            &ldquo;Run by the show&rdquo;. <Link href="/agents">Send your agent</Link>.
+            {t("Original characters AI agents built over MCP. A few are run by the show's own scripts: those say “Run by the show”.")} <Link href="/agents">{t("Send your agent")}</Link>.
           </>
         )}
         {privateCount > 0 && (
           <>
             {" "}
-            A private character (<Icon name="lock" label="locked" />) shows only its name.
+            {t("A private character")} (<Icon name="lock" label={t("locked")} />) {t("shows only its name.")}
           </>
         )}
       </p>
@@ -656,30 +658,30 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
           // character: people's characters lead; the bots are there for whoever wants them. A later page is wanted, so it opens.
           <details className="ux-fold agents-fold" open={insider || page > 1}>
             <summary>
-              {list.total} {list.total === 1 ? "character" : "characters"} made by AI agents
+              {list.total === 1 ? t("1 character made by AI agents") : t("{n} characters made by AI agents", { n: list.total })}
             </summary>
             <ul className="gallery">
               {list.entries.map((e, i) => (
-                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
+                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} t={t} />
               ))}
             </ul>
-            <Pager page={list.page} pages={list.pages} label={`${TAB_LABEL[tab]} pages`} href={(n) => tabHref(tab, n)} prev="Newer" next="Older" />
+            <Pager page={list.page} pages={list.pages} label={t("{list} pages", { list: t(TAB_LABEL[tab]) })} href={(n) => tabHref(tab, n)} prev={t("Newer")} next={t("Older")} />
           </details>
         ) : (
           <>
             <ul className="gallery">
               {list.entries.map((e, i) => (
-                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
+                <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} t={t} />
               ))}
             </ul>
-            <Pager page={list.page} pages={list.pages} label={`${TAB_LABEL[tab]} pages`} href={(n) => tabHref(tab, n)} prev="Newer" next="Older" />
+            <Pager page={list.page} pages={list.pages} label={t("{list} pages", { list: t(TAB_LABEL[tab]) })} href={(n) => tabHref(tab, n)} prev={t("Newer")} next={t("Older")} />
           </>
         )
       ) : (
-        <p className="muted">None yet.</p>
+        <p className="muted">{t("None yet.")}</p>
       )}
       {/* Who this tab's characters have dated, as on the cast tab: drawn once any of them has a public date. */}
-      <GraphSection group={group} teaser={teaser} />
+      <GraphSection group={group} teaser={teaser} t={t} />
     </section>
   );
 }
@@ -687,7 +689,7 @@ async function madeByTab({ tab, page, privateCount, viewer, insider }: { tab: "p
 /** A search's results (?q=), with the same cards: every tab at once, at most DIRECTORY_SEARCH_LIMIT. */
 /** Yours: every character the viewer owns, newest first, each with its own doors (its chats, its Studio). Private ones in full: they're theirs. */
 async function yoursTab(viewerId: string) {
-  const db = await getDb();
+  const [db, t] = await Promise.all([getDb(), getT()]);
   const ids = await ownCharacterIds(db, viewerId);
   // Their characters' corner of the Constellation, from its cached public build: theirs alone, so never a shared copy.
   const [entries, teaser] = await Promise.all([
@@ -699,17 +701,17 @@ async function yoursTab(viewerId: string) {
   return (
     <section>
       <p className="muted">
-        {entries.length === 1 ? "Your character." : `Your ${entries.length} characters.`} Open one&apos;s chats or its Studio from here, or <Link href="/create">make another</Link>.
+        {entries.length === 1 ? t("Your character.") : t("Your {n} characters.", { n: entries.length })} {t("Open one's chats or its Studio from here, or")} <Link href="/create">{t("make another")}</Link>.
       </p>
       <ul className="gallery">
         {entries.map((e, i) => (
-          <Entry key={e.id} e={e} own eager={i < EAGER_CARDS} badge={e.private ? "Private" : undefined} origin={false} />
+          <Entry key={e.id} e={e} own eager={i < EAGER_CARDS} badge={e.private ? t("Private") : undefined} origin={false} t={t} />
         ))}
       </ul>
-      <GraphSection group="yours" teaser={teaser}>
+      <GraphSection group="yours" teaser={teaser} t={t}>
         {/* Nothing to draw yet: the public sky only has aired, public dates. */}
         <p className="muted small">
-          Once one of yours has a public date, who they&apos;ve dated shows up here. <Link href="/graph">See the whole constellation →</Link>
+          {t("Once one of yours has a public date, who they've dated shows up here.")} <Link href="/graph">{t("See the whole constellation →")}</Link>
         </p>
       </GraphSection>
     </section>
@@ -718,6 +720,7 @@ async function yoursTab(viewerId: string) {
 
 async function searchResults(q: string, find: Find, viewer: Viewer) {
   const talk = companionOpen();
+  const t = await getT();
   const { entries, more } = await searchDirectory(await getDb(), q, DIRECTORY_SEARCH_LIMIT, find);
   const verbs = await cardVerbs(viewer, entries.map((e) => e.id));
   const n = entries.length;
@@ -728,30 +731,36 @@ async function searchResults(q: string, find: Find, viewer: Viewer) {
   return (
     <section className="characters-results" aria-labelledby="characters-results-title">
       <h2 id="characters-results-title">
-        {n ? `${more ? `More than ${n}` : n} ${n === 1 && !more ? "character matches" : "characters match"} ${asked}` : `Nobody matches ${asked}`}
+        {n
+          ? more
+            ? t("More than {n} characters match {asked}", { n, asked })
+            : n === 1
+              ? t("1 character matches {asked}", { asked })
+              : t("{n} characters match {asked}", { n, asked })
+          : t("Nobody matches {asked}", { asked })}
       </h2>
       <p className="muted">
         {q
           ? n
-            ? "Their name, traits or bio has every word you searched for."
-            : "No name, trait or bio on the show has every one of those words."
+            ? t("Their name, traits or bio has every word you searched for.")
+            : t("No name, trait or bio on the show has every one of those words.")
           : n
-            ? "Love life is what their aired dates say; a private date never counts."
-            : "Nobody on the show fits all of that yet."}{" "}
-        <Link href="/characters">Clear the search</Link>
+            ? t("Love life is what their aired dates say; a private date never counts.")
+            : t("Nobody on the show fits all of that yet.")}{" "}
+        <Link href="/characters">{t("Clear the search")}</Link>
       </p>
       {n ? (
         <ul className="gallery">
           {entries.map((e, i) => (
-            <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} />
+            <Entry key={e.id} e={e} talk={talk} eager={i < EAGER_CARDS} actions={verbs.get(e.id)} t={t} />
           ))}
         </ul>
       ) : (
         <p className="characters-results-empty">
-          Try a shorter word, or <Link href="/create">make the character you were looking for</Link>.
+          {t("Try a shorter word, or")} <Link href="/create">{t("make the character you were looking for")}</Link>.
         </p>
       )}
-      {more && <p className="muted">These are the first {DIRECTORY_SEARCH_LIMIT}. Add a word to narrow it down.</p>}
+      {more && <p className="muted">{t("These are the first {n}. Add a word to narrow it down.", { n: DIRECTORY_SEARCH_LIMIT })}</p>}
     </section>
   );
 }
