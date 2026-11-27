@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
@@ -14,7 +15,18 @@ const AMOUNTS = [
  * Tip a character's creator (lib/money/tips.ts): pick an amount, add a note if you like, and pay on Stripe. The tip
  * counts once Stripe confirms it. The creator sees the note and "A viewer", never who you are.
  */
-export default function TipCreator({ characterId, name, tips }: { characterId: string; name: string; tips: number }) {
+export default function TipCreator({
+  characterId,
+  name,
+  tips,
+  needsAccount = false,
+}: {
+  characterId: string;
+  name: string;
+  tips: number;
+  /** A signed-out visitor where tips need an account (app/api/money/tips): they're told before the form, not after it. */
+  needsAccount?: boolean;
+}) {
   const { busy, error, run } = useAction();
   const [open, setOpen] = useState(false);
   const [sku, setSku] = useState<string>("tip_3");
@@ -35,6 +47,24 @@ export default function TipCreator({ characterId, name, tips }: { characterId: s
       </p>
     );
   }
+  const signIn = `/account?next=${encodeURIComponent(`/characters/${characterId}`)}`;
+  if (needsAccount) {
+    // The UX pass (2026-11-27): a visitor filled the form, ticked 18+, pressed Tip and only then read "Sign in first".
+    return (
+      <div className="tip-form card">
+        <p className="kicker">Tip the creator</p>
+        <p className="small">Tips go through a free account (a handle and a password, no email), so we know whose tip it is if a payment goes wrong.</p>
+        <div className="letter-row">
+          <Link className="button" href={signIn}>
+            Sign in to tip
+          </Link>
+          <button type="button" className="button secondary" onClick={() => setOpen(false)}>
+            Not now
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <form
       className="tip-form card"
@@ -46,7 +76,10 @@ export default function TipCreator({ characterId, name, tips }: { characterId: s
             window.location.href = r.data.url;
             return null;
           }
-          if (r.data.error === "account_required") return "Sign in first, so your tip is tied to your account. Nothing was charged.";
+          if (r.data.error === "account_required") {
+            window.location.href = signIn;
+            return null;
+          }
           return r;
         });
       }}

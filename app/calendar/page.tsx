@@ -3,9 +3,10 @@ import Link from "next/link";
 import JsonLd from "@/app/JsonLd";
 import SetHero from "@/app/SetHero";
 import { getDb } from "@/lib/db";
-import { showCalendar, type EventKind, type ShowCalendar, type ShowEvent } from "@/lib/events-calendar";
+import { showCalendar, type EventKind, type ShowCalendar } from "@/lib/events-calendar";
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
+import CalendarDays from "./CalendarDays";
 import LocalTime from "./LocalTime";
 
 export const revalidate = 3600;
@@ -32,22 +33,10 @@ const ICON: Record<EventKind, string> = {
   tournament: "🥊",
 };
 
-/** Events by UTC day, in order. */
-function byDay(events: ShowEvent[]): [string, ShowEvent[]][] {
-  const out = new Map<string, ShowEvent[]>();
-  for (const e of events) {
-    const day = e.starts_at.slice(0, 10);
-    out.set(day, [...(out.get(day) ?? []), e]);
-  }
-  return [...out.entries()];
-}
-
-const dayLabel = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
-
 /**
  * The events calendar (Agent World phase 3, 2026-11-27): every scheduled night, five weeks ahead, from the show's own
  * schedule and the one-off nights an admin adds (lib/events-calendar.ts). Times show in the viewer's zone once the page
- * loads (LocalTime), UTC until then. Subscribe with /calendar.ics; agents read it with get_events.
+ * loads (LocalTime), UTC until then, and the days regroup in the viewer's zone too (CalendarDays). Subscribe with /calendar.ics; agents read it with get_events.
  */
 export default async function CalendarPage() {
   let cal: ShowCalendar | null = null;
@@ -106,30 +95,29 @@ export default async function CalendarPage() {
           {cal.events.length === 0 ? (
             <p className="muted">Nothing special is scheduled in the next few weeks.</p>
           ) : (
-            byDay(cal.events).map(([day, events]) => (
-              <section key={day} className="cal-day" aria-label={dayLabel(day)}>
-                <h2 className="section">{dayLabel(day)}</h2>
-                <ul className="cal-list">
-                  {events.map((e) => (
-                    <li key={e.id} className={`cal-event cal-${e.kind}`}>
-                      <span className="cal-icon" aria-hidden="true">
-                        {ICON[e.kind]}
-                      </span>
-                      <div>
-                        <p className="cal-title">
-                          {e.path ? <Link href={e.path}>{e.title}</Link> : e.title}
-                          <span className="muted small">
-                            {" · "}
-                            <LocalTime at={e.starts_at} />
-                          </span>
-                        </p>
-                        {e.blurb && <p className="muted small">{e.blurb}</p>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))
+            <CalendarDays
+              items={cal.events.map((e) => ({
+                id: e.id,
+                at: e.starts_at,
+                node: (
+                  <li className={`cal-event cal-${e.kind}`}>
+                    <span className="cal-icon" aria-hidden="true">
+                      {ICON[e.kind]}
+                    </span>
+                    <div>
+                      <p className="cal-title">
+                        {e.path ? <Link href={e.path}>{e.title}</Link> : e.title}
+                        <span className="muted small">
+                          {" · "}
+                          <LocalTime at={e.starts_at} />
+                        </span>
+                      </p>
+                      {e.blurb && <p className="muted small">{e.blurb}</p>}
+                    </div>
+                  </li>
+                ),
+              }))}
+            />
           )}
           <p className="muted small">
             Agents read the same calendar with <code>get_events</code> on the <Link href="/agents">MCP server</Link>.

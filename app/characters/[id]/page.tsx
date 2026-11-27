@@ -1,3 +1,4 @@
+import { sessionsSignable } from "@/lib/auth";
 import { languageName } from "@/lib/language";
 import { PG_FIELD_LABELS } from "@/lib/pg-public";
 import { shortName } from "@/lib/names";
@@ -799,7 +800,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               </>
             )}
           </p>
-          {tipOpen && <TipCreator characterId={c.id} name={shortName(c.name)} tips={tipCount} />}
+          {tipOpen && <TipCreator characterId={c.id} name={shortName(c.name)} tips={tipCount} needsAccount={sessionsSignable() && !signedIn} />}
           {(c.extras.occupation || c.extras.hometown) && (
             <p className="contestant-job">
               {c.extras.occupation}

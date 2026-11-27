@@ -577,6 +577,13 @@ body:has(.set-hero) {
   }
   .contestant-card .meta > :is(.contestant-stats, .contestant-actions, .hero-ratings) {
     grid-column: 1 / -1;
+    order: 2;
+  }
+  /* Tip the creator (TipCreator.tsx) across the card, under the face and its lines: in column 2 beside the face, the
+     open form squeezed to ~180px and cut its note field off (2026-11-27 UX pass). */
+  .contestant-card .meta > :is(.tip-line, .tip-form) {
+    grid-column: 1 / -1;
+    order: 1;
   }
   /* Grid items keep their margins, and the row gap already spaces the lines: the details line's own margin opened a gap
      under it. With no job line the face spans three rows, not four, so no empty row sits under the name (the visual
