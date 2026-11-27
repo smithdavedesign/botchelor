@@ -1,3 +1,4 @@
+import { ViewTransition } from "react";
 import Loading from "@/app/Loading";
 
 /** The outline of what's coming: a character's page, a date, a couple, or a list of cards. */
@@ -22,73 +23,79 @@ const Lines = ({ widths }: { widths: number[] }) => (
  * under the page when it arrived, a layout shift (2026-11-22 audit).
  */
 export default function PageLoading({ shape, label, width }: { shape: PageShape; label: string; width?: "wide" | "full" }) {
+  // The cut (2026-11-27): the outline coming in and the page replacing it are view transitions (React's
+  // <ViewTransition>, app/ux/motion.css .page-cut), so a tap dissolves to the outline and the outline to the page, like
+  // a cut on television, instead of swapping in one frame. Only here: a page refreshing itself never shows the outline,
+  // so it never flashes. Browsers without view transitions swap as before; reduced motion swaps at once.
   return (
-    <div className={`page-skeleton page-skeleton-${shape}${width ? ` page-${width}` : ""}`} aria-busy="true">
-      <p className="page-skeleton-status" role="status">
-        <Loading /> <span>{label}</span>
-      </p>
-      <div className="page-skeleton-body" aria-hidden="true">
-        {shape === "profile" && (
-          <>
-            <div className="sk-head">
-              <span className="sk sk-circle sk-face-lg" />
-              <div className="sk-head-text">
-                <span className="sk sk-title" />
-                <Lines widths={[45, 30]} />
+    <ViewTransition enter="page-cut" exit="page-cut" default="none">
+      <div className={`page-skeleton page-skeleton-${shape}${width ? ` page-${width}` : ""}`} aria-busy="true">
+        <p className="page-skeleton-status" role="status">
+          <Loading /> <span>{label}</span>
+        </p>
+        <div className="page-skeleton-body" aria-hidden="true">
+          {shape === "profile" && (
+            <>
+              <div className="sk-head">
+                <span className="sk sk-circle sk-face-lg" />
+                <div className="sk-head-text">
+                  <span className="sk sk-title" />
+                  <Lines widths={[45, 30]} />
+                </div>
               </div>
-            </div>
-            {[0, 1].map((i) => (
-              <div key={i} className="sk-card">
-                <Lines widths={[35, 90, 80, 60]} />
-              </div>
-            ))}
-          </>
-        )}
-        {shape === "date" && (
-          <>
-            <div className="sk sk-hero">
-              <span className="sk-hero-faces">
-                <span className="sk sk-circle sk-face" />
-                <span className="sk sk-circle sk-face" />
-              </span>
-            </div>
-            <span className="sk sk-title" />
-            <div className="sk-card">
-              <Lines widths={[90, 85, 70, 88, 60]} />
-            </div>
-          </>
-        )}
-        {shape === "couple" && (
-          <>
-            <div className="sk-card sk-couple">
-              <span className="sk sk-circle sk-face-lg" />
-              <span className="sk sk-circle sk-face-lg" />
-              <div className="sk-head-text">
-                <span className="sk sk-title" />
-                <Lines widths={[50]} />
-              </div>
-            </div>
-            <div className="sk-card">
-              <Lines widths={[30, 90, 75, 85]} />
-            </div>
-          </>
-        )}
-        {shape === "list" && (
-          <>
-            <span className="sk sk-title" />
-            <div className="sk-grid">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="sk-card sk-tile">
-                  <span className="sk sk-circle sk-face" />
-                  <div className="sk-head-text">
-                    <Lines widths={[70, 45]} />
-                  </div>
+              {[0, 1].map((i) => (
+                <div key={i} className="sk-card">
+                  <Lines widths={[35, 90, 80, 60]} />
                 </div>
               ))}
-            </div>
-          </>
-        )}
+            </>
+          )}
+          {shape === "date" && (
+            <>
+              <div className="sk sk-hero">
+                <span className="sk-hero-faces">
+                  <span className="sk sk-circle sk-face" />
+                  <span className="sk sk-circle sk-face" />
+                </span>
+              </div>
+              <span className="sk sk-title" />
+              <div className="sk-card">
+                <Lines widths={[90, 85, 70, 88, 60]} />
+              </div>
+            </>
+          )}
+          {shape === "couple" && (
+            <>
+              <div className="sk-card sk-couple">
+                <span className="sk sk-circle sk-face-lg" />
+                <span className="sk sk-circle sk-face-lg" />
+                <div className="sk-head-text">
+                  <span className="sk sk-title" />
+                  <Lines widths={[50]} />
+                </div>
+              </div>
+              <div className="sk-card">
+                <Lines widths={[30, 90, 75, 85]} />
+              </div>
+            </>
+          )}
+          {shape === "list" && (
+            <>
+              <span className="sk sk-title" />
+              <div className="sk-grid">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="sk-card sk-tile">
+                    <span className="sk sk-circle sk-face" />
+                    <div className="sk-head-text">
+                      <Lines widths={[70, 45]} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </ViewTransition>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Icon from "@/app/Icon";
+import Petals from "@/app/motion/Petals";
 
 /**
  * The show's one signature motion (the design system, 2026-11-11): a sealed envelope that unseals to lift a result
@@ -38,6 +39,9 @@ export default function Reveal({
 }) {
   const key = `bz-reveal-seen-${id}`;
   const [state, setState] = useState<"sealed" | "opening" | "open">(sealed ? "sealed" : "open");
+  // Petals fall as the card lifts out (app/motion/Petals.tsx), only on the unseal that plays: they stay mounted after
+  // it, so the last ones finish falling instead of vanishing when the state turns "open".
+  const [petals, setPetals] = useState(false);
   useEffect(() => {
     if (sealed) {
       setState("sealed");
@@ -56,6 +60,7 @@ export default function Reveal({
       return;
     }
     setState("opening");
+    setPetals(true);
     const t = setTimeout(() => setState("open"), 2700);
     return () => clearTimeout(t);
   }, [sealed, key]);
@@ -70,6 +75,7 @@ export default function Reveal({
             <Icon name={state === "sealed" ? "lock" : "unlock"} />
           </span>
         </div>
+        {petals && <Petals delay={1.1} />}
         {state !== "sealed" && (
           <div className="reveal-card">
             {who}

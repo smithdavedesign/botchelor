@@ -119,3 +119,19 @@ Each pass goes live before the next.
 
 An interactive version of this audit, with each effect running on the show's own assets, was shared with David
 privately.
+
+## Follow-up, 2026-11-27
+
+All three passes shipped (ROADMAP: #1919 to #1966). Before the Product Hunt launch, four more pieces went on top, all in
+`app/ux/motion.css` and all off under reduced motion:
+
+- **Rose petals** (`app/motion/Petals.tsx`): a dozen fall once when Sunday's envelope unseals and when a ship's top
+  pick is stamped. Pure CSS, server-rendered, never in the way of a click.
+- **Lower thirds**: a broadcast name strip wipes in over the contestant card's face (hidden on phones, where the face
+  is a thumbnail), and an episode's kicker sits on a plate with the bar.
+- **Title cards**: a set hero's heading settles into focus, its lede rises, and a short rule draws in before the kicker.
+  The words are on screen from the first frame.
+- **Parallax on the sets**: the set drifts down behind the words as the band scrolls away (view timelines only).
+
+Still open: face loops for the 14 house characters without one (about $15 on fal, David's call), and the page-to-page
+portrait morph (React's `<ViewTransition>`), which can't pair while the character page shows its loading screen first.
