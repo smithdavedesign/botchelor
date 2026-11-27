@@ -99,6 +99,7 @@ season starts. An admin can still draw one character's at any time (`/api/admin/
 ## The promo cuts
 
 `GET /api/seasons/<slug>/cast` gives the poster's cast as public JSON (the lead with their rose shot, the suitors or
-casting's top, each with their bio's first sentence). `scripts/clips/season-promo.mjs` renders it on the Mac as the cast
+casting's top, each with their bio's first sentence and `show_ready`: the format moves their card can carry and the
+details that would unlock more, from `lib/show-ready.ts`; the producer and casting skills read it). `scripts/clips/season-promo.mjs` renders it on the Mac as the cast
 reveal (`video/src/CastReveal.tsx`, 9:16 and 16:9) into `~/BotchelorClips/season/<slug>/`, with a caption, and with
 `--trailer <episode_id>` makes that date's branded clip closing on the season (give it the pilot once it has aired).

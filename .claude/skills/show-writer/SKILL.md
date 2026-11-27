@@ -46,6 +46,12 @@ invented house characters, never real people.
 - **A character's own words stay theirs.** Quote a date's lines verbatim and trim only by whole
   sentences (branded-clip.mjs `bubbleText`). Exits and confessionals in a character's voice come
   from their memory (`lib/character-memories.ts`, `lib/life-record.ts`), PG side only.
+- **Speak in their voice kit.** A line in a character's mouth (a tease, an exit, a confessional, a
+  hometown family's verdict on them) follows their card: the rhythm of their sample lines
+  (`extras.lines`), their tells (`extras.tells`), and never a phrase from `extras.never_says`. Run
+  every quoted line through `voiceBreaks(line, extras)` (`lib/show-ready.ts`), the same never-say and
+  echo checks the dates' critic runs, and rewrite or fall back to a template when it returns
+  anything. Never copy a sample line word for word: match it, don't recite it.
 - **No verdicts on claims.** A line can say someone said something, never that it was true.
 - **Every visible page string is translated.** A new `t("…")` needs all seven catalogs in
   `lib/i18n/messages/` (`tests/i18n.test.ts` fails otherwise). A sentence with a face or a link in

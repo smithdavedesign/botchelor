@@ -62,6 +62,8 @@ export const MAX_HOBBIES = 5;
 export const TEXT_DETAILS = {
   occupation: { label: "Occupation", max: 60 },
   hometown: { label: "Hometown", max: 60 },
+  /** Who they'd bring home to meet a date (2026-11-27): the show's Hometowns week casts them (lib/show-ready.ts). Invented, never a real person. */
+  family: { label: "Who they'd bring home", max: 120 },
   /** Where they come from when it isn't our world (a fantasy kingdom, a starship, an underwater city). */
   world: { label: "Their world", max: 80 },
   /** A few sentences of past (David, 2026-11-18): where they're from, what shaped them, why they're dating now. */
@@ -237,6 +239,8 @@ export const ExtrasInput = z
     wins_them_over: opt(WINS_THEM_OVER_MAX),
     /** Go deeper: whether they date for fun or take it seriously. */
     mood: z.enum(MOOD_IDS).optional(),
+    /** The owner's yes to the show framing them as a season's antagonist (the villain edit, lib/show-ready.ts). Public. */
+    villain_ok: z.boolean().optional(),
   })
   .strict();
 export type ExtrasInputType = z.infer<typeof ExtrasInput>;
@@ -272,6 +276,8 @@ export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   wins_them_over?: string;
   /** Go deeper: how they date (MOODS). On the card. */
   mood?: MoodId;
+  /** The owner said yes to the villain edit (lib/show-ready.ts). Stored only when true. */
+  villain_ok?: true;
 };
 
 /** Keeps only the filled entries of a keyed group; undefined when none are. */
@@ -333,6 +339,7 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   const wins = input.wins_them_over?.trim();
   if (wins) out.wins_them_over = wins;
   if (input.mood) out.mood = input.mood;
+  if (input.villain_ok) out.villain_ok = true;
   return out;
 }
 
@@ -579,6 +586,7 @@ export function extrasJsonSchema(): Record<string, unknown> {
         maxLength: WINS_THEM_OVER_MAX,
         description: "Private: what really wins them over. When the other does it, it lands, and it weighs in their own see-them-again answer.",
       },
+      villain_ok: { type: "boolean", description: "true: the show may frame them as a season's villain, from their real record." },
       mood: { type: "string", enum: [...MOOD_IDS], description: "How they date: playful (here for fun), balanced, or earnest (takes it seriously). Sets their tone on dates; two that don't match make friction." },
       hot_takes: {
         type: "array",
@@ -618,6 +626,10 @@ export const SUGGESTIONS: Partial<Record<TextDetail | "hobbies", readonly string
   hometown: [
     "a fishing village with one traffic light", "a desert town with a famous diner", "a city where it always seems to be raining", "a mountain hamlet famous for goats",
     "an island you can walk around in an hour", "a suburb that peaked in 1987", "a canal town full of bicycles", "somewhere with excellent bakeries",
+  ],
+  family: [
+    "A grandmother who has opinions about everyone's shoes", "Two older brothers who run the family diner", "A best friend of twenty years who vets every date",
+    "A mum who will ask about their intentions within five minutes", "A dad who only talks about the weather, warmly", "Three cousins and a very loud dog",
   ],
   style: [
     "Thrifted cardigans and mismatched socks", "All black, one loud pair of shoes", "Linen everything, permanently creased", "Vintage suits two sizes too big",

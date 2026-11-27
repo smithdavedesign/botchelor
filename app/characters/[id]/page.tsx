@@ -1110,6 +1110,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               {memory.milestones!.map((m) => (
                 <li className="chip" key={m.id}>
                   <Link href={`/episodes/${m.episode_id}`}>{m.label}</Link>
+                  {/* The owner's share card of this moment (moment.png): the show's cheapest marketing is a creator posting it. */}
+                  {isOwner && !c.private && (
+                    <>
+                      {" "}
+                      <a href={`/characters/${c.id}/moment.png?m=${m.id}`} target="_blank" rel="noopener" className="small" aria-label={`Share card: ${m.label}`} title="A card of this moment to post">
+                        📤
+                      </a>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

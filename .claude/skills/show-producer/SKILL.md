@@ -32,6 +32,10 @@ You are the executive producer. You don't write code here: you decide what is wo
    clock: is its week coming up, does it exist half-built ("already there"), and what would surface it? At least
    one bet on the sheet should be a playbook move, named by its number and title.
 
+6. **Who can carry it.** `GET /api/seasons/<slug>/cast` gives each face's `show_ready` (the moves
+   their card can carry and what it's missing; `lib/show-ready.ts`). A bet that needs a cast the
+   season doesn't have goes to `show-casting` first.
+
 ## Judge each idea
 
 - **Drama:** does it raise stakes a viewer can feel (a deadline, a rivalry, a reveal, a goodbye)?

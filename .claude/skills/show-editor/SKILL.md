@@ -32,6 +32,10 @@ With a browser, look at 390px and 1280px wide, light and dark; without one, read
 10. **Empty states stay in-world** and nothing shows a crowd count under the empty-room rule
     (`lib/crowd-threshold.ts`).
 
+Every line in a character's mouth passes `voiceBreaks` (`lib/show-ready.ts`), and nothing on the
+surface comes from an owner-only field (`showrunner`'s "Only the public card"). A user's character
+framed as a villain without `extras.villain_ok` is a blocking finding.
+
 For a playbook move ([../showrunner/formats.md](../showrunner/formats.md)), also check its "lands when" line
 and its guardrails, and add a finding for each that isn't met.
 
