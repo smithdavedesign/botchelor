@@ -19,6 +19,12 @@ description: |
 | A character's expressions and moments | The show kit (`lib/show-shots.ts`): nine shots per contestant from their portrait, free, PG-checked, drawn nightly; read with `shotsFor` | the lead's rose shot on the rose card and poster |
 | Site copies of videos | small cuts in `public/press/video` (`lib/promo-videos.ts`): ffmpeg 720p, CRF 27, `-movflags +faststart` | the home hero, /press |
 
+## Building a playbook move
+
+When the request names a move from [../showrunner/formats.md](../showrunner/formats.md), its "pictures" line is
+your brief. Build it on the toolbox above: the season poster's layout for a format's poster, `CastReveal`'s
+scenes for its clip, and the share-card pattern for its card.
+
 ## Rules
 
 - **Look at what you made.** Render it (a test that writes the PNG, `npx remotion still … --frame N`)
