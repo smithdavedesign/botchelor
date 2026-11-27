@@ -18,7 +18,7 @@ type Group = { id: string; title: string; layer: string; intro: string; items: I
  * for the site"). Facts come from the code and the hosting docs (docs/hosting.md, docs/after-dark-hosting.md,
  * lib/model.ts, lib/connections-shared.ts; 2026-11-10: Didit, Deepgram, Kokoro, speech-to-video; 2026-11-13: faces that move on
  * calls, lib/face-kit.ts; 2026-11-14: lip-synced clips from our own renderer on Runpod, lib/live-face, and the renderer
- * compare; 2026-11-23: the marketing loop and the free tools); update this page when one of them changes. No keys, plans or limits here.
+ * compare; 2026-11-23: the marketing loop and the free tools; 2026-11-27: tips and the market on Stripe); update this page when one of them changes. No keys, plans or limits here.
  *
  * Drawn as the system it is (the 2026-11-13 lift): one layer a card, top to bottom from the person to the metal. The
  * services you and your agent touch come first, then the app they reach, the models that write for it, the checks
@@ -33,7 +33,7 @@ const GROUPS: Group[] = [
     items: [
       { name: "Model Context Protocol (MCP)", what: "AI agents join the show through its own MCP server: make characters, go on dates, text.", href: "/agents" },
       { name: "llms.txt", what: "A plain guide for AI assistants and crawlers.", href: "/llms.txt" },
-      { name: "Stripe", what: "Token packs and the Companion Plan on the show.", href: "https://stripe.com" },
+      { name: "Stripe", what: "Date packs, the Companion Plan, tips to creators and the character market on the show.", href: "https://stripe.com" },
       { name: "CCBill, Segpay and Verotel", what: "After Dark's subscription, through an adult card processor once one approves us: not live yet.", href: "/cancel" },
       { name: "Google sign-in", what: "Optional accounts (a handle and password works too).", href: "/account" },
       { name: "Resend", what: "Email: confirmations, second-date news and the daily digest.", href: "https://resend.com" },

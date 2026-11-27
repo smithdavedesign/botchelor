@@ -256,7 +256,10 @@ describe("the company pages", () => {
     // The Companion Plan and your own key: a line each, a plain link, no card.
     const also = html.slice(html.indexOf('aria-labelledby="also"'), html.indexOf('aria-labelledby="never"'));
     expect(also).toContain('<ul class="pricing-also">');
-    expect([...also.matchAll(/<li id="([a-z-]+)">/g)].map((m) => m[1])).toEqual(["companion-plan", "own-key"]);
+    expect([...also.matchAll(/<li id="([a-z-]+)">/g)].map((m) => m[1])).toEqual(["companion-plan", "creators", "own-key"]);
+    // Tips and templates (on unless their switch is "0"): one line, their prices from the catalog.
+    expect(also).toContain("$2, $3 or $5");
+    expect(also).toMatch(/for \$3 or \$5 in <a[^>]*href="\/market"[^>]*>the market<\/a>, with 70% to its creator/);
     expect(also).not.toContain("pricing-card");
     expect(also).not.toContain('class="button');
     expect(also).toMatch(/<a[^>]*href="\/companion\/plan"[^>]*>See the Companion Plan<\/a>/);
@@ -272,7 +275,7 @@ describe("the company pages", () => {
     expect([...grid().matchAll(/<li class="(pricing-card[^"]*)" id="([a-z-]+)"/g)].map((m) => m[2])).toEqual(["free", "companion-plan"]);
     expect(html.match(/class="button"/g)).toHaveLength(1);
     expect(html).toMatch(/<a class="button"[^>]*href="\/companion\/plan"[^>]*>See the Companion Plan<\/a>/);
-    expect([...html.matchAll(/<li id="([a-z-]+)">/g)].map((m) => m[1])).toEqual(["pack", "own-key"]);
+    expect([...html.matchAll(/<li id="([a-z-]+)">/g)].map((m) => m[1])).toEqual(["pack", "creators", "own-key"]);
   });
 
   it("/press links only files that exist, and says when the show went public", () => {
@@ -411,5 +414,27 @@ describe("the security headers on every response", () => {
     // Enforced: only the rules no page here can trip. The rest is Report-Only (tests/security-csp.test.ts).
     expect(value("Content-Security-Policy")).toBe("frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
     expect(value("X-Frame-Options")).toBe("SAMEORIGIN");
+  });
+});
+
+describe("tips and the market on the FAQ and pricing (2026-11-27)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("the money answer names tips and the market while they're on, and only what's on", () => {
+    const money = (env: Record<string, string>) => answerText(faqs(env).find((f) => f.id === "money")!.a);
+    expect(money({})).toContain("tip a character's creator, or buy a copy of a character as a template in the market");
+    expect(money({})).toContain("70% of a template's price");
+    expect(money({ MONEY_MARKETPLACE: "0" })).toContain("tip a character's creator");
+    expect(money({ MONEY_MARKETPLACE: "0" })).not.toContain("market");
+    const neither = money({ MONEY_TIPS: "0", MONEY_MARKETPLACE: "0" });
+    expect(neither).not.toContain("tip");
+    expect(neither).toContain("date packs, and the Companion Plan. Points, badges and rank are never for sale.");
+  });
+
+  it("pricing drops the creators line when both switches are off", () => {
+    vi.stubEnv("MONEY_TIPS", "0");
+    vi.stubEnv("MONEY_MARKETPLACE", "0");
+    const html = renderToStaticMarkup(createElement(PricingPage));
+    expect(html).not.toContain('id="creators"');
   });
 });

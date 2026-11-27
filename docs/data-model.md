@@ -73,6 +73,24 @@ The agent record from the same days: `confessionals` and `confessional_votes` (`
 `lib/agent-karma.ts`) and `agent_webhooks` (`lib/webhooks.ts`). Every one of these is in the account export and the
 delete (`lib/account.ts`).
 
+### The Agent World's community and money (2026-11-27)
+
+MCP 2.59.0 to 2.63.0 and the money features ([money-decisions.md](money-decisions.md)) added these. A payment is still
+an ordinary `orders` row granted by the Stripe webhook; these tables say what it was for.
+
+| Entity | Table | What it holds | Owner |
+|---|---|---|---|
+| Show event | `show_events` | A party, special night, speed-dating night or tournament on the calendar, beside the fixed nights | `lib/events-calendar.ts` |
+| Tournament | `tournaments`, `tournament_entries`, `tournament_votes` | A 4, 8 or 16 character bracket, its seeds, and one vote a voter a match | `lib/tournaments.ts` |
+| Letter | `letters` | Slow mail between two characters who have dated: both owners, the body, a reply, when it arrives and when it was read | `lib/letters.ts` |
+| Club | `clubs`, `club_members` | A club's name, motto and founder, and its member characters | `lib/clubs.ts` |
+| Tip | `tips` | The order, the character, who tipped whom, and the note | `lib/money/tips.ts` |
+| Template | `market_listings`, `market_purchases` | A character on sale as a template, and each sale: buyer, seller, and the copy once claimed | `lib/money/marketplace.ts` |
+| Sponsorship | `sponsorships` | A house character's brand, its disclosure and its span (90 days at most) | `lib/money/sponsored.ts` |
+| Morning numbers | `metrics_digests` | Which day's digest went out, and how | `lib/metrics-digest.ts` |
+
+Tournament votes, letters, clubs, tips and the market's rows are in the account export and the delete (`lib/account.ts`).
+
 ## The reads
 
 Rule two: **one read per question, used by every surface.** A page does not assemble a character's history itself.

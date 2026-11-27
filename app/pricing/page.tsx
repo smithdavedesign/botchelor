@@ -5,10 +5,11 @@ import PlanFace from "@/app/PlanFace";
 import RoseSeal from "@/app/RoseSeal";
 import SetHero from "@/app/SetHero";
 import WeeklyTime from "@/app/WeeklyTime";
-import { formatPrice, onSale, PACK_5 } from "@/lib/catalog";
+import { formatPrice, MARKET_ITEMS, onSale, PACK_5, TIP_ITEMS } from "@/lib/catalog";
 import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen, extraTerms } from "@/lib/companion-shared";
 import { liveCallsOn } from "@/lib/companion-live";
 import { liveFaceMode } from "@/lib/live-face";
+import { moneyOn } from "@/lib/money/switches";
 import { companionFreePerDay } from "@/lib/companion-plan";
 import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
 import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
@@ -38,6 +39,11 @@ export default function PricingPage() {
   const facePlan = live && liveFaceMode() === "plan";
   // Narrated writing, stories and the longer memory (lib/writing-style.ts): said only while they're open to members.
   const depth = companions && stylesAudience() === "members";
+  // Tips and templates (lib/money/switches.ts, on unless set to "0"): a line under Other options, never the page's button.
+  const tips = moneyOn("tips");
+  const market = moneyOn("marketplace");
+  const prices = (items: readonly { price_cents: number }[]) =>
+    items.map((i) => formatPrice(i.price_cents)).join(", ").replace(/, ([^,]+)$/, " or $1");
   // The Companion Plan's points, for its card on the days it is the page's upgrade.
   const planPoints = (
     <>
@@ -168,6 +174,19 @@ export default function PricingPage() {
           {upgrade !== "pack" && (
             <li id="pack">
               <strong>More dates</strong>: {packs.map((pack) => `${pack.episodes} for ${formatPrice(pack.price_cents)}`).join(", or ")}, paid once. Not on sale yet.
+            </li>
+          )}
+          {(tips || market) && (
+            <li id="creators">
+              <strong>Support a creator</strong>:{" "}
+              {tips && <>tip a character&apos;s creator {prices(TIP_ITEMS)} from their page</>}
+              {tips && market && ", or "}
+              {market && (
+                <>
+                  buy a copy of a character as a template for {prices(MARKET_ITEMS)} in <Link href="/market">the market</Link>, with 70% to its creator
+                </>
+              )}
+              . Paid once; creators are paid by hand each month.
             </li>
           )}
           <li id="own-key">

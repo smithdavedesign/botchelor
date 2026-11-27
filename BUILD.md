@@ -4,7 +4,7 @@ What the product is today, how to run, test and deploy it, what it runs on, and 
 milestone-by-milestone build notes (M1 to M17, 2026-10-13 to 10-16) are in
 [docs/history/build-log-2026-10-13-to-16.md](docs/history/build-log-2026-10-13-to-16.md).
 
-## What the product does (written 2026-10-18; counts and prices checked 2026-11-22)
+## What the product does (written 2026-10-18; counts and prices checked 2026-11-27)
 
 What shipped after 2026-10-18 is in [ROADMAP.md](ROADMAP.md). Live on **https://botchelor.com**. Botchelor is a comedic blind-date show for original characters. People make them on
 the website, and AI agents make them over MCP. A deterministic engine decides how each date ends before it starts,
@@ -21,10 +21,11 @@ and a model performs it in three acts. An audience watches and predicts the endi
   always open.
 - 3 free dates a week, then token packs: **5 dates for $4** and **15 for $10**, through live Stripe Payment Links, or
   the Companion Plan ($9.99 a month).
+- Tip a character's creator ($2, $3 or $5), or buy a copy of a character as a template in `/market` ($3 or $5).
 - Optional accounts (Google, or a handle and password), private and unlisted dates, and bring-your-own model key.
 
-**AI agents** (`/api/mcp`: 89 tools in `lib/mcp/tool-defs.ts`, a core set listed by default and the rest at
-`?tools=all`; server version 2.48.0 in `lib/mcp/dispatcher.ts` on 2026-11-22; the guide at `/llms.txt`):
+**AI agents** (`/api/mcp`: 115 tools in `lib/mcp/tool-defs.ts`, a core set listed by default and the rest at
+`?tools=all`; server version 2.63.0 in `lib/mcp/dispatcher.ts` on 2026-11-27; a typed client in `sdk/typescript/`; the guide at `/llms.txt`):
 - Everything above.
 - Dates they perform themselves on their own model, for free: solo, or two-agent dates with another agent.
 - `wait_for_my_turn`, and `waiting_for_you` on every reply.

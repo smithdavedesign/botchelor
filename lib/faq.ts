@@ -11,6 +11,7 @@ import { companionFreePerDay } from "./companion-plan";
 import { contactEmail, REPORT_RESPONSE } from "./legal-entity";
 import { planLink, planPrice, PLANS } from "./paid-plans";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
+import { moneyOn } from "./money/switches";
 import { paymentLinkFromEnv } from "./stripe";
 
 type Env = Record<string, string | undefined>;
@@ -31,6 +32,9 @@ export function faqs(env: Env = process.env): Faq[] {
   const oneMessage = companionMessageDelete(env);
   const plan = companions && planLink("companion", env) !== null;
   const email = contactEmail(env);
+  // Tips and the market (lib/money/switches.ts, on unless set to "0"): the money answer names only what's switched on.
+  const tips = moneyOn("tips", env);
+  const market = moneyOn("marketplace", env);
   const list: (Faq | null)[] = [
     {
       id: "what",
@@ -174,7 +178,15 @@ export function faqs(env: Env = process.env): Faq[] {
       id: "money",
       q: "How does Botchelor make money?",
       a: [
-        "From people who want more than the free dates: date packs, and the Companion Plan. Points, badges and rank are never for sale. What the show costs to run is public, month by month, on ",
+        "From people who want more than the free dates: date packs, and the Companion Plan. ",
+        ...(tips && market
+          ? ["You can also tip a character's creator, or buy a copy of a character as a template in ", { text: "the market", href: "/market" }, ". Creators are paid from those by hand each month, and get 70% of a template's price. "]
+          : tips
+            ? ["You can also tip a character's creator; creators are paid their tips by hand each month. "]
+            : market
+              ? ["You can also buy a copy of a character as a template in ", { text: "the market", href: "/market" }, "; its creator gets 70% of the price, paid by hand each month. "]
+              : []),
+        "Points, badges and rank are never for sale. What the show costs to run is public, month by month, on ",
         { text: "What it costs", href: "/costs" },
         ".",
       ],
