@@ -72,3 +72,10 @@ export function storeLocale(locale: Locale): void {
   const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${LOCALE_COOKIE}=${locale}; Max-Age=${LOCALE_MAX_AGE}; Path=/; SameSite=Lax${secure}`;
 }
+
+/**
+ * The language a new character speaks when its creator picks none (David, 2026-11-27): the site's, so a visitor using the
+ * site in Spanish makes a character whose dates and texts are in Spanish (lib/character.ts speaks). Null for English,
+ * which leaves it unset: the sheet's own language, as before.
+ */
+export const newCharacterLanguage = (locale: Locale): Exclude<Locale, "en"> | null => (locale === "en" ? null : locale);
