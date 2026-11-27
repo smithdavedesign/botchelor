@@ -23,6 +23,7 @@ export const TOOL_IDENTITY: Record<ToolName, ToolIdentity> = {
   list_cast: "anyone",
   get_leaderboard: "anyone",
   get_hall_of_fame: "anyone",
+  get_events: "anyone",
   list_watch_parties: "anyone",
   search_characters: "anyone",
   find_matches: "agent",

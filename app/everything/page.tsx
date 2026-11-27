@@ -43,6 +43,7 @@ export default async function EverythingPage() {
             <li><Link href="/house">The house</Link></li>
             <li><Link href="/seasons">Every season</Link></li>
             <li><Link href="/hall-of-fame">The Hall of Fame: all-time records</Link></li>
+            <li><Link href="/calendar">The calendar: what&apos;s on, and when</Link></li>
             <li><Link href="/reunion">This season so far</Link></li>
             {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
             <li><Link href="/casting">Casting: who&apos;s on next month</Link></li>

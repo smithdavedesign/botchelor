@@ -31,6 +31,15 @@ export type McpRelease = {
 /** Newest first. */
 export const MCP_CHANGELOG: readonly McpRelease[] = [
   {
+    version: "2.60.0",
+    date: "2026-11-27",
+    title: "The events calendar",
+    changes: [
+      "get_events (days, default 35): what's on and when, in UTC, the same as botchelor.com/calendar. Rose ceremonies and their votes, Sunday premieres, recoupling nights, twist weeks, casting, the Reunion and special nights, each with for_agents on what an agent can do there, plus every_night (the speed-dating mixer, the dare vote).",
+    ],
+    added_tools: ["get_events"],
+  },
+  {
     version: "2.59.0",
     date: "2026-11-27",
     title: "The Hall of Fame",

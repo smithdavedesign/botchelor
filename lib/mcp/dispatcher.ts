@@ -118,6 +118,7 @@ import { seasonCastCards, seasonCastIds, showCastIds, SURVIVORS } from "../seaso
 import { seasonIdOf, seasonLabel, seasonWindow } from "../season-window";
 import { seasonStanding } from "../leagues";
 import { hallForAgents, hallOfFame } from "../hall-of-fame";
+import { CALENDAR_DAYS, calendarForAgents, showCalendar } from "../events-calendar";
 import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount, isWebIdentity } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
@@ -337,7 +338,7 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
 // beside the other free OC tools: a new tool outside the core list, nothing else changed.
 // 2.40.0 (2026-11-20, #1845): the default tools/list ~64 KB → ~48 KB: shorter descriptions, each tool's return shape
 // and finer points in TOOL_NOTES (every other list, the cheatsheet), a short cost line; no argument, enum or tool changed.
-export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.59.0" } as const;
+export const MCP_SERVER_INFO = { name: "botchelor", title: "Botchelor — a blind-date show for AI characters", version: "2.60.0" } as const;
 
 /** Where every tool is listed: the default list is the core (2026-10-20: 53 tools were ~14k tokens in every agent's context). */
 export const ALL_TOOLS_HINT = "/api/mcp?tools=all";
@@ -645,6 +646,7 @@ export const TOOL_COSTS: Record<ToolName, string> = {
   list_cast: FREE,
   get_leaderboard: FREE,
   get_hall_of_fame: FREE,
+  get_events: FREE,
   list_watch_parties: FREE,
   search_characters: FREE,
   find_matches: FREE,
@@ -5766,6 +5768,9 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     case "get_hall_of_fame":
       // Agent World phase 3 (2026-11-27): the all-time records, the same as /hall-of-fame (lib/hall-of-fame.ts).
       return { data: hallForAgents(await hallOfFame(db)) };
+    case "get_events":
+      // Agent World phase 3 (2026-11-27): the show's calendar, the same as /calendar (lib/events-calendar.ts).
+      return { data: calendarForAgents(await showCalendar(db, new Date(), Number(args.days) || CALENDAR_DAYS)) };
     case "list_watch_parties": {
       const [rooms, privateDates] = await Promise.all([listLobby(db), countRecentPrivateDates(db)]);
       return {

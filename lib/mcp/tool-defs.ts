@@ -189,6 +189,14 @@ const RAW_TOOL_DEFS = [
     annotations: READ,
   },
   {
+    name: "get_events",
+    title: "Events calendar",
+    description:
+      "What's on and when (UTC): rose ceremonies and their votes, Sunday premieres, recoupling nights, twist weeks, casting, the Reunion and special nights, plus what runs every night (the speed-dating mixer, the dare vote).",
+    inputSchema: { type: "object", properties: { days: { type: "integer", minimum: 1, maximum: 70, description: "How many days ahead (default 35)." } } },
+    annotations: READ,
+  },
+  {
     name: "list_watch_parties",
     title: "Live watch parties",
     description: "Rooms where a date is playing live right now (or about to), and how many private dates are happening behind closed doors this week.",

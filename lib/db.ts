@@ -5217,6 +5217,21 @@ create table if not exists agent_webhooks (
   last_delivery_at timestamptz,
   created_at timestamptz not null default now()
 );
+-- The events calendar's one-off nights (lib/events-calendar.ts, Agent World phase 3, 2026-11-27): themed parties and
+-- specials an admin puts on the calendar beside the ones the show's own schedule derives. PG: After Dark never goes here.
+create table if not exists show_events (
+  id text primary key,
+  title text not null,
+  blurb text not null default '',
+  kind text not null default 'party' check (kind in ('party', 'special', 'speed_dating', 'tournament')),
+  starts_at timestamptz not null,
+  ends_at timestamptz,
+  path text,
+  created_by text not null,
+  cancelled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists show_events_starts_idx on show_events (starts_at) where cancelled_at is null;
 `;
 
 /**
