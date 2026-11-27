@@ -1,6 +1,7 @@
 import IntentLink from "@/app/IntentLink";
 import { navChatOn } from "@/lib/nav-chat";
 import { showIdeasOn } from "@/lib/show-ideas-switch";
+import { english, msg, type T } from "@/lib/i18n/translate";
 
 /**
  * The show's one address (the 2026-11-07 product review, "do 1-5" item 4): every spectator surface carries the same
@@ -24,32 +25,33 @@ import { showIdeasOn } from "@/lib/show-ideas-switch";
  * Prefetched on intent only (app/IntentLink.tsx): the strip is on every spectator page.
  */
 const TABS = [
-  { href: "/watch", label: "Watch" },
-  { href: "/house", label: "House" },
-  { href: "/reunion", label: "Season" },
+  { href: "/watch", label: msg("Watch") },
+  { href: "/house", label: msg("House") },
+  { href: "/reunion", label: msg("Season") },
 ] as const;
-const SHOWS = { href: "/shows", label: "Shows" } as const;
+const SHOWS = { href: "/shows", label: msg("Shows") } as const;
 
 /** The strip before 2026-11-15, with NAV_CHAT=0. */
 const TABS_BEFORE = [
-  { href: "/watch", label: "Watch" },
-  { href: "/showcase", label: "Reels" },
-  { href: "/reunion", label: "Reunion" },
-  { href: "/reviews", label: "Reviews" },
-  { href: "/graph", label: "Constellation" },
+  { href: "/watch", label: msg("Watch") },
+  { href: "/showcase", label: msg("Reels") },
+  { href: "/reunion", label: msg("Reunion") },
+  { href: "/reviews", label: msg("Reviews") },
+  { href: "/graph", label: msg("Constellation") },
 ] as const;
 
 export type ShowTab = (typeof TABS)[number]["href"] | (typeof TABS_BEFORE)[number]["href"] | typeof SHOWS.href;
 
-export default function ShowTabs({ active }: { active: ShowTab }) {
+/** `t`: the page's translator (lib/i18n/server.ts getT) where the page is translated; English without one. */
+export default function ShowTabs({ active, t: tr = english }: { active: ShowTab; t?: T }) {
   const chat = navChatOn();
   const tabs: readonly { href: ShowTab; label: string }[] = [...(chat ? TABS : TABS_BEFORE), ...(showIdeasOn() ? [SHOWS] : [])];
   const here = tabs.some((t) => t.href === active) ? active : null;
   return (
-    <nav className="tabs show-tabs" aria-label="The show">
+    <nav className="tabs show-tabs" aria-label={tr("The show")}>
       {tabs.map((t) => (
         <IntentLink key={t.href} href={t.href} aria-current={t.href === here ? "page" : undefined}>
-          {t.label}
+          {tr(t.label)}
         </IntentLink>
       ))}
     </nav>
