@@ -35,6 +35,8 @@ export type AnalyticsEvent =
   | "casting_invites_made" // the admin made creator invite codes (lib/casting-invites.ts): how many
   | "casting_invite_used" // an invite applied a character, or its date was tried again (lib/casting-invites.ts): the code, the character, whether the lead's date booked
   | "dare_vote" // a vote on tonight's dare (lib/dares.ts)
+  | "tournament_vote" // a vote in a tournament match (lib/tournaments.ts)
+  | "letter_sent" // a letter between characters (lib/letters.ts)
   | "purchase_completed"
   | "purchase_refunded" // a full refund made in Stripe took the pack's unused dates back
   | "content_reported"

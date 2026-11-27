@@ -42,6 +42,9 @@ export default async function EverythingPage() {
             <li><Link href="/watch">Watch tonight&apos;s dates</Link></li>
             <li><Link href="/house">The house</Link></li>
             <li><Link href="/seasons">Every season</Link></li>
+            <li><Link href="/hall-of-fame">The Hall of Fame: all-time records</Link></li>
+            <li><Link href="/calendar">The calendar: what&apos;s on, and when</Link></li>
+            <li><Link href="/tournaments">Tournaments: vote on the bracket</Link></li>
             <li><Link href="/reunion">This season so far</Link></li>
             {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
             <li><Link href="/casting">Casting: who&apos;s on next month</Link></li>
@@ -62,6 +65,7 @@ export default async function EverythingPage() {
             <li><Link href="/create">Make a character</Link></li>
             <li><Link href="/swipe">Swipe</Link></li>
             <li><Link href="/matches">Matches</Link></li>
+            <li><Link href="/letters">Letters</Link></li>
             <li><Link href="/chat">Chat</Link></li>
             <li><Link href="/studio">Studio</Link></li>
             {companionOpen() && <li><Link href="/companion">Companions</Link></li>}

@@ -5217,6 +5217,69 @@ create table if not exists agent_webhooks (
   last_delivery_at timestamptz,
   created_at timestamptz not null default now()
 );
+-- The events calendar's one-off nights (lib/events-calendar.ts, Agent World phase 3, 2026-11-27): themed parties and
+-- specials an admin puts on the calendar beside the ones the show's own schedule derives. PG: After Dark never goes here.
+create table if not exists show_events (
+  id text primary key,
+  title text not null,
+  blurb text not null default '',
+  kind text not null default 'party' check (kind in ('party', 'special', 'speed_dating', 'tournament')),
+  starts_at timestamptz not null,
+  ends_at timestamptz,
+  path text,
+  created_by text not null,
+  cancelled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists show_events_starts_idx on show_events (starts_at) where cancelled_at is null;
+-- Tournaments (lib/tournaments.ts, Agent World phase 3, 2026-11-27): an audience-voted bracket of characters. The
+-- bracket is computed from the votes (round windows from starts_at, a tie to the better seed), so nothing is settled by
+-- a job. Entries are public, live characters; one vote a voter a match, changeable while its round is open.
+create table if not exists tournaments (
+  id text primary key,
+  title text not null,
+  blurb text not null default '',
+  size smallint not null check (size in (4, 8, 16)),
+  starts_at timestamptz not null,
+  round_hours smallint not null check (round_hours between 6 and 168),
+  created_by text not null,
+  cancelled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create table if not exists tournament_entries (
+  tournament_id text not null references tournaments (id) on delete cascade,
+  character_id text not null references characters (id) on delete cascade,
+  seed smallint not null,
+  primary key (tournament_id, character_id),
+  unique (tournament_id, seed)
+);
+create table if not exists tournament_votes (
+  tournament_id text not null references tournaments (id) on delete cascade,
+  round smallint not null,
+  match smallint not null,
+  voter_id text not null,
+  pick text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (tournament_id, round, match, voter_id)
+);
+-- Letters (lib/letters.ts, Agent World phase 3, 2026-11-27): slow mail between two characters who have met. A letter
+-- arrives deliver_at, hours after it is sent, and only the two owners ever read it. PG, checked, no links.
+create table if not exists letters (
+  id text primary key,
+  from_character text not null references characters (id) on delete cascade,
+  to_character text not null references characters (id) on delete cascade,
+  from_user text not null,
+  to_user text not null,
+  body text not null,
+  reply_to text references letters (id) on delete set null,
+  sent_at timestamptz not null default now(),
+  deliver_at timestamptz not null,
+  read_at timestamptz
+);
+create index if not exists letters_to_idx on letters (to_user, deliver_at desc);
+create index if not exists letters_from_idx on letters (from_user, sent_at desc);
+create index if not exists letters_pair_idx on letters (from_character, to_character, sent_at desc);
 `;
 
 /**
