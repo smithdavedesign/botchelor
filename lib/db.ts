@@ -5360,6 +5360,12 @@ create table if not exists sponsorships (
   created_by text not null,
   created_at timestamptz not null default now()
 );
+-- The morning numbers (lib/metrics-digest.ts): one row per UTC day whose digest went out, claimed before sending.
+create table if not exists metrics_digests (
+  day text primary key,
+  via text not null,
+  sent_at timestamptz not null default now()
+);
 `;
 
 /**
