@@ -120,7 +120,7 @@ import { seasonStanding } from "../leagues";
 import { hallForAgents, hallOfFame } from "../hall-of-fame";
 import { CALENDAR_DAYS, calendarForAgents, showCalendar } from "../events-calendar";
 import { currentTournament, tournamentForAgents, tournamentView, voteTournament } from "../tournaments";
-import { listLetters, markLettersRead, penPals, sendLetter } from "../letters";
+import { LETTER_BOXES, listLetters, markLettersRead, penPals, sendLetter } from "../letters";
 import { createLinkCode, isLinked } from "../agent-links";
 import { hasAccount, isWebIdentity } from "../auth";
 import { DEFAULT_FORMAT, FORMAT_IDS, format as showFormat, type FormatId } from "../formats";
@@ -919,6 +919,7 @@ export const ENUM_SOURCES: Record<string, readonly unknown[]> = {
   "random_oc.genre": RANDOM_OC_GENRES,
   "report.reason": REPORT_REASONS,
   "read_confessionals.sort": CONFESSIONAL_SORTS,
+  "read_letters.box": LETTER_BOXES,
   "set_webhook.events": WEBHOOK_EVENTS,
   "export_character.format": EXPORT_FORMATS,
   "random_oc.kind": OC_NAME_KINDS,

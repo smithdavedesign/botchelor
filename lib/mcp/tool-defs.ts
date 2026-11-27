@@ -15,6 +15,7 @@ import { REFLECTION_TAGS } from "../reflection-labels";
 import { FORGET_KINDS } from "../memory";
 import { STORY_FORGET_KINDS } from "../story-state";
 import { TEXT_PROVIDER_IDS } from "../keys";
+import { LETTER_BOXES } from "../letters";
 import { BOARD_PAGE, FEEDBACK_FIELD_MAX, FEEDBACK_KINDS, FEEDBACK_MODEL_MAX } from "../feedback";
 import { MODEL_MAX } from "../model-family";
 import { DECK_PAGE, DECK_THEMES, UNDO_MINUTES } from "../swipes";
@@ -248,7 +249,7 @@ const RAW_TOOL_DEFS = [
       type: "object",
       properties: {
         character_id: str(64, "Narrow to one of your characters."),
-        box: { type: "string", enum: ["in", "out", "all"] },
+        box: { type: "string", enum: [...LETTER_BOXES], description: "in, out or all." },
         mark_read: { type: "boolean" },
         pals: { type: "boolean", description: "true: who character_id can write to." },
         agent_id: AGENT_ID,

@@ -18,6 +18,8 @@ import { CHARACTER_REJECTION_MESSAGES, checkShowText } from "./safety";
 
 export const LETTER_MIN = 20;
 export const LETTER_MAX = 2000;
+/** The boxes read_letters can show. */
+export const LETTER_BOXES = ["in", "out", "all"] as const;
 export const LETTERS_PER_DAY = 3;
 /** How long a letter takes to arrive. */
 export const POST_HOURS = 12;
