@@ -1802,7 +1802,7 @@ export default function CreateWizard({
 
         {step === S.review && (
           <fieldset className="wizard-fields">
-            <legend className="wizard-legend">{edit ? "Review" : "Review & create"}</legend>
+            <legend className="wizard-legend">{edit ? tr("Review") : tr("Review & create")}</legend>
             {createOnTop && (
               <div className="wizard-create-top">
                 <label className="check wizard-attest">
@@ -1812,46 +1812,48 @@ export default function CreateWizard({
                   </span>
                 </label>
                 <button type="submit" disabled={busy !== null || !attest || !identityOk || !profileOk} data-track="create-top">
-                  {busy === "character" ? "Creating…" : `Create ${sheet.name || "character"}`}
+                  {busy === "character" ? tr("Creating…") : sheet.name ? tr("Create {name}", { name: sheet.name }) : tr("Create character")}
                 </button>
               </div>
             )}
             {!edit && !depth && (
               <div className="notice wizard-depth">
                 <p>
-                  <strong>Add depth?</strong>{" "}
+                  <strong>{tr("Add depth?")}</strong>{" "}
                   {firstCharacter
-                    ? "Their dating profile, voice, more about them, what makes them deeper, their inner life: five short optional steps, now or any time from their page. Skip them and the profile is written from their sheet."
-                    : "Their voice, more about them, what makes them deeper, their inner life: four short optional steps, now or any time from their page."}
+                    ? tr("Their dating profile, voice, more about them, what makes them deeper, their inner life: five short optional steps, now or any time from their page. Skip them and the profile is written from their sheet.")
+                    : tr("Their voice, more about them, what makes them deeper, their inner life: four short optional steps, now or any time from their page.")}
                 </p>
                 <button type="button" className="secondary small" onClick={addDepth} data-track="create-add-depth">
-                  Add depth now
+                  {tr("Add depth now")}
                 </button>
               </div>
             )}
             {fromSample && !edit && (
               <p className="notice wizard-sample-note">
-                <strong>{sheet.name || "A sample character"}</strong>, ready to go. Create them as they are, or change anything first with
-                the Edit links below.
+                <strong>{sheet.name || tr("A sample character")}</strong>
+                {tr(", ready to go. Create them as they are, or change anything first with the Edit links below.")}
               </p>
             )}
             {expressNote?.kind === "drafted" && expressNote.ready && !edit && (
               <p className="notice wizard-sample-note" data-track="express-ready">
-                <strong>{sheet.name ? `Check ${shortName(sheet.name)}, tick the box, create.` : "Check them, tick the box, create."}</strong>{" "}
-                We drafted them from your words
-                {expressNote.inventedName || expressNote.inventedAge
-                  ? ` (${listWords([expressNote.inventedName ? "the name" : "", expressNote.inventedAge ? "the age" : ""].filter(Boolean))} ${expressNote.inventedName && expressNote.inventedAge ? "are" : "is"} ours)`
-                  : ""}
-                : the Edit links below change anything.
+                <strong>{sheet.name ? tr("Check {name}, tick the box, create.", { name: shortName(sheet.name) }) : tr("Check them, tick the box, create.")}</strong>{" "}
+                {expressNote.inventedName && expressNote.inventedAge
+                  ? tr("We drafted them from your words (the name and the age are ours): the Edit links below change anything.")
+                  : expressNote.inventedName
+                    ? tr("We drafted them from your words (the name is ours): the Edit links below change anything.")
+                    : expressNote.inventedAge
+                      ? tr("We drafted them from your words (the age is ours): the Edit links below change anything.")
+                      : tr("We drafted them from your words: the Edit links below change anything.")}
               </p>
             )}
             {imported?.ready && !edit && (
               <p className="notice wizard-sample-note" data-track="import-ready">
-                <strong>{sheet.name ? `Check ${shortName(sheet.name)}, tick the box, create.` : "Check them, tick the box, create."}</strong>{" "}
+                <strong>{sheet.name ? tr("Check {name}, tick the box, create.", { name: shortName(sheet.name) }) : tr("Check them, tick the box, create.")}</strong>{" "}
                 {imported.readBy === "model"
-                  ? "The show's model read your description, so look over each line below; the Edit links change anything."
-                  : "Everything a first date needs came in; the Edit links change anything."}
-                {firstCharacter ? " Their dating profile is written from their sheet." : ""}
+                  ? tr("The show's model read your description, so look over each line below; the Edit links change anything.")
+                  : tr("Everything a first date needs came in; the Edit links change anything.")}
+                {firstCharacter ? ` ${tr("Their dating profile is written from their sheet.")}` : ""}
                 {imported.us ? ` The ${imported.us === 1 ? "line" : `${imported.us} lines`} about the two of you ${imported.us === 1 ? "goes" : "go"} into their memory of you once they exist.` : ""}
               </p>
             )}
@@ -1869,9 +1871,9 @@ export default function CreateWizard({
                   "Identity",
                   // The card above already shows the name, age, pronouns and traits.
                   [
-                    ["Bio", sheet.bio],
-                    ["Wants", sheet.want],
-                    ["Dealbreaker", sheet.dealbreaker],
+                    [tr("Bio"), sheet.bio],
+                    [tr("Wants"), sheet.want],
+                    [tr("Dealbreaker"), sheet.dealbreaker],
                   ],
                 ],
                 [S.voice, "Voice", [...(voice.trim() ? [["Voice", voice] as [string, ReactNode]] : []), ...more.voice]],
@@ -1886,15 +1888,15 @@ export default function CreateWizard({
                 .map(([at, title, rows]) => (
                   <details key={title} className="wizard-review-group ux-fold">
                     <summary className="wizard-review-head">
-                      {title} <span className="muted small">· {rows.length === 1 ? "1 detail" : `${rows.length} details`}</span>
+                      {tr(title)} <span className="muted small">· {rows.length === 1 ? tr("1 detail") : tr("{n} details", { n: rows.length })}</span>
                     </summary>
                     {rows.map(([label, value], n) => (
                       <ReviewRow key={`${label}-${n}`} label={label}>
                         {value}
                       </ReviewRow>
                     ))}
-                    <button type="button" className="link-button" onClick={() => jump(at)} aria-label={`Edit ${title}`}>
-                      Edit {title.toLowerCase()}
+                    <button type="button" className="link-button" onClick={() => jump(at)} aria-label={tr("Edit {name}", { name: tr(title) })}>
+                      {tr("Edit {name}", { name: siteLocale === "en" ? title.toLowerCase() : tr(title) })}
                     </button>
                   </details>
                 ));
@@ -1915,19 +1917,20 @@ export default function CreateWizard({
             <label className="check wizard-open">
               <input type="checkbox" checked={openToDates} onChange={(e) => setOpenToDates(e.target.checked)} />
               <span>
-                <span aria-hidden>💘 </span>In the swipe deck: people and AI agents can swipe on {sheet.name || "them"} (and ask them out by name).
-                {!edit && " Change it any time on their card."}
+                <span aria-hidden>💘 </span>
+                {sheet.name
+                  ? tr("In the swipe deck: people and AI agents can swipe on {name} (and ask them out by name).", { name: sheet.name })
+                  : tr("In the swipe deck: people and AI agents can swipe on them (and ask them out by name).")}
+                {!edit && ` ${tr("Change it any time on their card.")}`}
               </span>
             </label>
             {edit ? (
               <p className="muted small">
-                The same rules apply to every edit: an original fictional adult, no real people, nothing sexual. Their
-                learned memory and past dates are unchanged.
+                {tr("The same rules apply to every edit: an original fictional adult, no real people, nothing sexual. Their learned memory and past dates are unchanged.")}
               </p>
             ) : (
               <p className="muted small">
-                Your sheet (and any soul) is sent to an AI model to write episodes, and other creators&apos; blind dates may be
-                matched with your character. Episodes appear in the public feed; you stay anonymous.
+                {tr("Your sheet (and any soul) is sent to an AI model to write episodes, and other creators' blind dates may be matched with your character. Episodes appear in the public feed; you stay anonymous.")}
               </p>
             )}
           </fieldset>
@@ -2306,6 +2309,7 @@ const FACE_EVERY_MS = 4000;
 const FACE_TRIES = 12;
 
 export function SendPhase({ character, partners, openCharacters, swipeGate, tokens, offer, autonomy: startAutonomy, busy, setBusy, error, setError, outOfTokens, setOutOfTokens, onSend, returnTo, buildNext, signedIn, afterDarkOpen = false, firstCharacter = false, meet = null, firstFormat = DEFAULT_FIRST_DATE_FORMAT, justMade = false }: SendProps) {
+  const tr = useT();
   const [format, setFormat] = useState<FormatId>(DEFAULT_FORMAT);
   // Dates air by default (David's call); one tick keeps this one private (app/AirChoice.tsx), on the card and in the sheet.
   const [keepPrivate, setKeepPrivate] = useState(false);
@@ -2342,7 +2346,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   };
   /** `opts.format` overrides the sheet's format pick: the instant first date plays in the configured first-date format. */
   async function sendOnDate(partnerId: string | null, house = false, opts: { format?: FormatId } = {}) {
-    if (house && roleplay && !choiceReady(roleplay)) return setError("Finish your roleplay first (a title and a premise of a sentence or more), or take it off.");
+    if (house && roleplay && !choiceReady(roleplay)) return setError(tr("Finish your roleplay first (a title and a premise of a sentence or more), or take it off."));
     setBusy("episode");
     setError(null);
     setWall(null);
@@ -2388,7 +2392,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       setWatchLink(watchLinkOf(data)?.href ?? null);
       setError(message);
     } catch {
-      setError("Network error. Try again.");
+      setError(tr("Network error. Try again."));
     }
     setBusy(null);
   }
@@ -2436,12 +2440,12 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
   // How many lines that first date has: the format's own length (a speed date is 6), else the classic 12.
   const firstLines = showFormat(firstFormat).turns ?? CONVERSATION_TURNS;
   const closed = (id: string) => Boolean(taken) && id !== taken?.id;
-  const closedWhy = `${first} only dates ${partnerFirst} for now`;
+  const closedWhy = tr("{name} only dates {partner} for now", { name: first, partner: partnerFirst });
   /** On a row: their partner's tag, or nothing. */
   const partnerTag = (id: string) =>
     taken && id === taken.id ? (
-      <span className="badge taken-tag" title={`${first} is dating ${partnerFirst}`}>
-        💞 {first}&apos;s partner
+      <span className="badge taken-tag" title={tr("{name} is dating {partner}", { name: first, partner: partnerFirst })}>
+        💞 {tr("{name}'s partner", { name: first })}
       </span>
     ) : null;
 
@@ -2455,7 +2459,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         <span className="send-row-sub">
           {p.age}
           {p.archetype && ` · ${p.archetype}`}
-          {p.premium && " · Premium · yours"}
+          {p.premium && ` · ${tr("Premium · yours")}`}
         </span>
         {partnerTag(p.id)}
         <p className="send-row-bio" title={p.bio}>
@@ -2466,12 +2470,12 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       <button
         type="button"
         className="secondary small send-row-cta"
-        aria-label={`Send on a date with ${p.premium ? p.name : shortName(p.name)}`}
+        aria-label={tr("Send on a date with {name}", { name: p.premium ? p.name : shortName(p.name) })}
         disabled={busy !== null || closed(p.id)}
         title={closed(p.id) ? closedWhy : undefined}
         onClick={() => ask(p.id, p.premium ? p.name : shortName(p.name), true)}
       >
-        Date
+        {tr("Date")}
       </button>
     </li>
   );
@@ -2481,7 +2485,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       <div className="send-row-meta">
         <CharacterName character={{ id: o.id, name: o.name, hue: o.hue, portrait: o.portrait }} avatar={false} strong />
         <span className="send-row-sub">
-          {o.age} · {o.agent ? "🤖 Made by an AI agent" : "💌 Open"}
+          {o.age} · {o.agent ? tr("🤖 Made by an AI agent") : tr("💌 Open")}
           {o.traits.length > 0 && ` · ${o.traits.join(", ")}`}
         </span>
         {partnerTag(o.id)}
@@ -2490,7 +2494,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         </p>
       </div>
       <button type="button" className="secondary small send-row-cta" disabled={busy !== null || closed(o.id)} title={closed(o.id) ? closedWhy : undefined} onClick={() => ask(o.id, shortName(o.name))}>
-        Ask {shortName(o.name)} out
+        {tr("Ask {name} out", { name: shortName(o.name) })}
       </button>
     </li>
   );
@@ -2503,8 +2507,8 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
         </ul>
         {items.length > SHOWN && (
           <details className="send-more">
-            <summary>Show all {items.length}</summary>
-            <ul className="send-list" aria-label={`${label}, the rest`}>
+            <summary>{tr("Show all {n}", { n: items.length })}</summary>
+            <ul className="send-list" aria-label={tr("{list}, the rest", { list: label })}>
               {items.slice(SHOWN).map(row)}
             </ul>
           </details>
@@ -2519,55 +2523,47 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
     <>
       {/* The one primary action on this screen (unless they're with someone: then it's the date with them, above, or a first date: then it's that). */}
       <div className={taken ? "card send-blind is-closed" : "card send-blind"}>
-        <strong>A blind date</strong>
+        <strong>{tr("A blind date")}</strong>
         <p>
-          {swipeGate ? (
-            <>
-              The show picks one of {shortName(character.name)}&apos;s matches where both said yes to a date, or one of this
-              season&apos;s house cast.
-            </>
-          ) : (
-            <>The show picks another creator&apos;s character (or a house character if nobody&apos;s around).</>
-          )}{" "}
-          You stay anonymous to each other unless you both agree to reveal yourselves.
+          {swipeGate
+            ? tr("The show picks one of {name}'s matches where both said yes to a date, or one of this season's house cast.", { name: shortName(character.name) })
+            : tr("The show picks another creator's character (or a house character if nobody's around).")}{" "}
+          {tr("You stay anonymous to each other unless you both agree to reveal yourselves.")}
         </p>
-        {taken && <p className="muted small">Not while {closedWhy}.</p>}
+        {taken && <p className="muted small">{tr("Not while {why}.", { why: closedWhy })}</p>}
         <button type="button" className={instant ? "secondary" : undefined} disabled={busy !== null || Boolean(taken)} title={taken ? closedWhy : undefined} onClick={() => ask(null, null)}>
-          Send {character.name} on a blind date
+          {tr("Send {name} on a blind date", { name: character.name })}
         </button>
       </div>
 
       {swipeGate && (
         <div className="card">
-          <strong>💘 Swipe to meet someone new</strong>
+          <strong>{tr("💘 Swipe to meet someone new")}</strong>
           <p>
-            A first date with another creator&apos;s character (a person&apos;s or an AI agent&apos;s) starts with a match.
-            Swipe for {shortName(character.name)}: a like both ways is a match, the two of them text, and each decides
-            whether they want a date. If both do, you book it.
+            {tr("A first date with another creator's character (a person's or an AI agent's) starts with a match. Swipe for {name}: a like both ways is a match, the two of them text, and each decides whether they want a date. If both do, you book it.", { name: shortName(character.name) })}
           </p>
           <Link className="button-ghost" href={`/swipe?character=${character.id}`}>
-            Swipe for {shortName(character.name)}
+            {tr("Swipe for {name}", { name: shortName(character.name) })}
           </Link>
         </div>
       )}
 
       {!swipeGate && openCharacters.length > 0 && (
         <>
-          <h2>Open to dates</h2>
+          <h2>{tr("Open to dates")}</h2>
           <p className="muted">
-            Characters whose creators — people and AI agents — said yes to being asked out. Their creators stay anonymous,
-            like on a blind date.
+            {tr("Characters whose creators — people and AI agents — said yes to being asked out. Their creators stay anonymous, like on a blind date.")}
           </p>
-          {compactList(openCharacters, openRow, "Open to dates")}
+          {compactList(openCharacters, openRow, tr("Open to dates"))}
         </>
       )}
 
       <p className="muted">
         {swipeGate
-          ? "Or date one of this season's house cast now, no match needed: a handful the show fields each month. Either way, you can't steer the date."
-          : "Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date."}
+          ? tr("Or date one of this season's house cast now, no match needed: a handful the show fields each month. Either way, you can't steer the date.")
+          : tr("Or one of this season's house cast — a handful the show fields each month. Either way, you can't steer the date.")}
       </p>
-      {compactList(partners, houseRow, "This season's house cast")}
+      {compactList(partners, houseRow, tr("This season's house cast"))}
 
     </>
   );
@@ -2586,15 +2582,15 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
           showed another of theirs while this one was sent on its date). */}
       <RememberCharacter id={character.id} />
       {/* "Is ready" only for the one just made here; an older one sent on a date from its page is simply that. */}
-      <p className="kicker">{justMade ? `${character.name} is ready` : "Send on a date"}</p>
+      <p className="kicker">{justMade ? tr("{name} is ready", { name: character.name }) : tr("Send on a date")}</p>
       {/* With the first date on offer, nothing is left to choose (2026-11-21: a first creator read "Who should … meet?" as
           a question, opened the fold and left without a date), so the heading names the date instead. */}
       {date ? (
-        <h1 className="send-title heading-face">{`${first}'s first date`}</h1>
+        <h1 className="send-title heading-face">{tr("{name}'s first date", { name: first })}</h1>
       ) : (
         <h1 className="send-title heading-face">
           <Avatar seed={character.id} name={character.name} hue={character.hue ?? null} portraitSrc={face} size={40} decorative round />
-          <span>Who should {character.name} meet?</span>
+          <span>{tr("Who should {name} meet?", { name: character.name })}</span>
         </h1>
       )}
       {returnTo && (
@@ -2623,7 +2619,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       {!date && (
         <p className="muted">
           {/* In the nav's words (app/Nav.tsx: "1 date left"). */}
-          {tokens.left} {tokens.left === 1 ? "date" : "dates"} left · free dates come back {datesBack}.{" "}
+          {tokens.left === 1 ? tr("1 date left") : tr("{n} dates left", { n: tokens.left })} · {tr("free dates come back {when}.", { when: datesBack })}{" "}
           {tokens.left <= 1 && offer && <Link href="/shop">{offer}</Link>}
         </p>
       )}
@@ -2631,13 +2627,13 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       {taken && (
         // With someone and wanting only them: why the others are closed, the one date that's open, and where to change it.
         <div className="card taken-note" role="note">
-          <span className="badge taken-tag">💍 With {partnerFirst}</span>
+          <span className="badge taken-tag">{tr("💍 With {name}", { name: partnerFirst })}</span>
           <p>{takenNote(first, taken.name)}</p>
           <div className="send-taken-actions">
             <button type="button" className="primary" disabled={busy !== null} onClick={() => ask(taken.id, partnerFirst)}>
-              {`Send ${first} on a date with ${partnerFirst}`}
+              {tr("Send {name} on a date with {partner}", { name: first, partner: partnerFirst })}
             </button>
-            <Link href={`/characters/${character.id}#partners-${character.id}`}>Change it on {first}&apos;s page</Link>
+            <Link href={`/characters/${character.id}#partners-${character.id}`}>{tr("Change it on {name}'s page", { name: first })}</Link>
           </div>
         </div>
       )}
@@ -2660,15 +2656,17 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
           </div>
           <h2 id="send-first-who" className="send-first-who heading-face">
             {first} <span aria-hidden="true">×</span>
-            <span className="sr-only"> and </span> {dateFirst}
+            <span className="sr-only"> {tr("and")} </span> {dateFirst}
           </h2>
           <p className="send-first-what">
             {casting
-              ? `${dateFirst} is ${casting.billing}, and ${first} walks on for a date with ${dateFirst}`
-              : `${first} meets ${dateFirst}${instant.archetype ? `, ${instant.archetype.toLowerCase()} from this season's cast` : ", from this season's cast"}`}
+              ? tr("{date} is {billing}, and {name} walks on for a date with {date}", { date: dateFirst, billing: casting.billing, name: first })
+              : instant.archetype
+                ? tr("{name} meets {date}, {archetype} from this season's cast", { name: first, date: dateFirst, archetype: instant.archetype.toLowerCase() })
+                : tr("{name} meets {date}, from this season's cast", { name: first, date: dateFirst })}
             {firstFormat === "speed_date"
-              ? `, for a speed date: ${firstLines} lines, ${WRITE_TIME_SPEED}. It plays as you watch.`
-              : `, for a ${showFormat(firstFormat).label.toLowerCase()}: ${firstLines} lines. It plays as you watch.`}
+              ? tr(", for a speed date: {n} lines, {time}. It plays as you watch.", { n: firstLines, time: tr(WRITE_TIME_SPEED) })
+              : tr(", for a {format}: {n} lines. It plays as you watch.", { format: showFormat(firstFormat).label.toLowerCase(), n: firstLines })}
           </p>
           {/* Said before the date is spent: it airs, unless they keep it private (2026-11-22 audit). */}
           <AirChoice keepPrivate={keepPrivate} onChange={setKeepPrivate} disabled={busy !== null} />
@@ -2679,23 +2677,25 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             disabled={busy !== null}
             onClick={() => void (casting ? sendOnDate(null, false, { format: firstFormat }) : sendOnDate(instant.id, true, { format: firstFormat }))}
           >
-            {busy === "episode" ? "Starting the date…" : "▶ Start the date now"}
+            {busy === "episode" ? tr("Starting the date…") : tr("▶ Start the date now")}
           </button>
           {busy === "episode" && (
             <p className="muted small" role="status">
-              The engine is deciding the outcome and the showrunner is writing it…
+              {tr("The engine is deciding the outcome and the showrunner is writing it…")}
             </p>
           )}
           {error && !pending && wall && <OutOfDates data={wall} first={first} />}
           {error && !pending && !wall && (
             <p className="error small" role="alert">
               {error} {outOfTokens && offer && <Link href="/shop">{offer}</Link>}
-              {watchLink && <Link href={watchLink}>Watch it</Link>}
+              {watchLink && <Link href={watchLink}>{tr("Watch it")}</Link>}
             </p>
           )}
           <p className="muted small send-first-fine">
-            Nobody can steer how it ends, not even you. Uses 1 of your {tokens.left} free {tokens.left === 1 ? "date" : "dates"}.
-            {casting ? ` On ${rosesAt} ${dateFirst} hands out roses, and you hear whether ${first} got one.` : ""}
+            {tokens.left === 1
+              ? tr("Nobody can steer how it ends, not even you. Uses your 1 free date.")
+              : tr("Nobody can steer how it ends, not even you. Uses 1 of your {n} free dates.", { n: tokens.left })}
+            {casting ? ` ${tr("On {when} {date} hands out roses, and you hear whether {name} got one.", { when: rosesAt, date: dateFirst, name: first })}` : ""}
           </p>
         </section>
       )}
@@ -2704,7 +2704,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
           "one button"), the rest a tap away. Everyone else sees them open, as before. */}
       {instant ? (
         <details className="ux-fold send-more-ways" data-more-ways>
-          <summary>More ways to date</summary>
+          <summary>{tr("More ways to date")}</summary>
           {otherWays}
         </details>
       ) : (
@@ -2718,32 +2718,28 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
           setPending(null);
           setError(null);
         }}
-        title={pending?.name ? `Send ${first} on a date with ${pending.name}?` : `Send ${first} on a blind date?`}
+        title={pending?.name ? tr("Send {name} on a date with {partner}?", { name: first, partner: pending.name }) : tr("Send {name} on a blind date?", { name: first })}
         lede={
-          pending?.name ? (
-            <>
-              <strong>{first}</strong> meets <strong>{pending.name}</strong>. The show films it and decides how it ends: you can&apos;t steer it.
-            </>
-          ) : (
-            <>The show picks who {first} meets. The show films it and decides how it ends: you can&apos;t steer it.</>
-          )
+          pending?.name
+            ? tr("{name} meets {partner}. The show films it and decides how it ends: you can't steer it.", { name: first, partner: pending.name })
+            : tr("The show picks who {name} meets. The show films it and decides how it ends: you can't steer it.", { name: first })
         }
-        sendLabel={pending?.name ? `Send ${first} on the date` : "Send them on a blind date"}
-        busyLabel="Sending…"
+        sendLabel={pending?.name ? tr("Send {name} on the date", { name: first }) : tr("Send them on a blind date")}
+        busyLabel={tr("Sending…")}
         busy={busy === "episode"}
         disabled={Boolean(pending?.house && roleplay && !choiceReady(roleplay))}
-        error={error ? { text: error, shop: outOfTokens, link: watchLink ? { href: watchLink, label: "Watch it" } : undefined, wall, first } : null}
+        error={error ? { text: error, shop: outOfTokens, link: watchLink ? { href: watchLink, label: tr("Watch it") } : undefined, wall, first } : null}
         onSend={() => pending && void sendOnDate(pending.partnerId, pending.house)}
       >
         <AirChoice keepPrivate={keepPrivate} onChange={setKeepPrivate} disabled={busy === "episode"} />
         <details className="ux-fold send-settings-fold">
           <summary>
-            Date settings <span className="muted small">optional</span>
+            {tr("Date settings")} <span className="muted small">{tr("optional")}</span>
           </summary>
         <div className="send-settings">
           <div className="send-settings-wide">
-            <span className="send-settings-label">How much of a mind of its own?</span>
-            <div className="voice-picks" role="group" aria-label="Autonomy">
+            <span className="send-settings-label">{tr("How much of a mind of its own?")}</span>
+            <div className="voice-picks" role="group" aria-label={tr("Autonomy")}>
               {AUTONOMY_LEVELS.map((a) => (
                 <button key={a} type="button" className={`look-chip${autonomy === a ? " chosen" : ""}`} aria-pressed={autonomy === a} onClick={() => setAutonomy(a)}>
                   {AUTONOMY_LABELS[a]}
@@ -2753,7 +2749,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             <span className="muted small field-help">{AUTONOMY_BLURBS[autonomy]}</span>
           </div>
           <label>
-            Show format
+            {tr("Show format")}
             <select value={format} onChange={(e) => setFormat(e.target.value as FormatId)}>
               {FORMATS.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -2764,7 +2760,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             <span className="muted small field-help">{FORMATS.find((f) => f.id === format)?.blurb}</span>
           </label>
           <label>
-            Strategy
+            {tr("Strategy")}
             <select value={strategy} onChange={(e) => setStrategy(e.target.value as Strategy)}>
               {STRATEGIES.map((s) => (
                 <option key={s} value={s}>
@@ -2774,7 +2770,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             </select>
           </label>
           <label>
-            Date budget <span className="muted">(fictional; can&apos;t be bought)</span>
+            {tr("Date budget")} <span className="muted">{tr("(fictional; can't be bought)")}</span>
             <select value={budget} onChange={(e) => setBudget(Number(e.target.value) as GameBudget)}>
               {GAME_BUDGETS.map((b) => (
                 <option key={b} value={b}>
@@ -2784,9 +2780,9 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             </select>
           </label>
           <label>
-            Secret agenda
+            {tr("Secret agenda")}
             <select value={agenda} onChange={(e) => setAgenda(e.target.value)}>
-              <option value="">Let the show decide</option>
+              <option value="">{tr("Let the show decide")}</option>
               {AGENDAS.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.label}
@@ -2795,37 +2791,37 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
             </select>
           </label>
           <label>
-            Your guess: how will your own AI&apos;s date end?
+            {tr("Your guess: how will your own AI's date end?")}
             <select value={selfPick} onChange={(e) => setSelfPick(e.target.value)}>
-              <option value="">Skip</option>
+              <option value="">{tr("Skip")}</option>
               {ENDINGS.map((end) => (
                 <option key={end} value={end}>
-                  {ENDING_LABELS[end]}
+                  {tr(ENDING_LABELS[end])}
                 </option>
               ))}
             </select>
           </label>
           <label className="send-settings-wide">
-            A note in the pocket <span className="muted">(one sentence; your AI may or may not take it)</span>
+            {tr("A note in the pocket")} <span className="muted">{tr("(one sentence; your AI may or may not take it)")}</span>
             <input type="text" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
           {pending?.house && (
           <details className="send-settings-wide send-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
             <summary>
-              🎭 A roleplay{roleplay ? " (chosen)" : ""} <span className="muted small">(it plays on this date)</span>
+              {tr("🎭 A roleplay")}{roleplay ? tr(" (chosen)") : ""} <span className="muted small">{tr("(it plays on this date)")}</span>
             </summary>
             {roleplayOpen && <RoleplayPicker me={character.name} them={null} value={roleplay} onChange={setRoleplay} signedIn={signedIn} opening={opens} onOpening={setOpens} />}
           </details>
           )}
         </div>
         </details>
-        {busy === "episode" && <p className="muted small">The engine is deciding the outcome and the showrunner is writing it…</p>}
+        {busy === "episode" && <p className="muted small">{tr("The engine is deciding the outcome and the showrunner is writing it…")}</p>}
       </DateConfirm>
       {crisis && <CrisisNotice resources={crisis} onClose={() => setCrisis(null)} />}
       {datePath && (
         <p>
           <a className="button-ghost" href={datePath}>
-            Go to the date
+            {tr("Go to the date")}
           </a>
         </p>
       )}
@@ -2833,7 +2829,7 @@ export function SendPhase({ character, partners, openCharacters, swipeGate, toke
       {/* Their picture in a line, last (2026-10-31 UX audit: a "✨ Pro Portrait" card here contradicted the free portrait
           being drawn). The portrait on your own key stays on their edit page. */}
       {!face && (
-        <p className="muted send-portrait">📸 {first}&apos;s portrait is being drawn, free. It shows on their card when it&apos;s ready.</p>
+        <p className="muted send-portrait">📸 {tr("{name}'s portrait is being drawn, free. It shows on their card when it's ready.", { name: first })}</p>
       )}
     </article>
   );

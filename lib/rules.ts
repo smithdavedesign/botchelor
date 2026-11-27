@@ -2,7 +2,7 @@
  * The show's rules and labels. Pure constants and functions with no server imports, so client
  * components can use them without pulling database code into the browser bundle.
  */
-import { msg } from "./i18n/translate";
+import { clientMsg, msg } from "./i18n/translate";
 
 export const ENDINGS = ["second_date", "friends", "disaster"] as const;
 export type Ending = (typeof ENDINGS)[number];
@@ -12,9 +12,9 @@ export const DATE_VISIBILITIES = ["public", "unlisted", "private"] as const;
 export type DateVisibility = (typeof DATE_VISIBILITIES)[number];
 
 export const ENDING_LABELS: Record<Ending, string> = {
-  second_date: msg("A second date"),
-  friends: msg("Just friends"),
-  disaster: msg("A disaster"),
+  second_date: clientMsg("A second date"),
+  friends: clientMsg("Just friends"),
+  disaster: clientMsg("A disaster"),
 };
 
 /**
@@ -569,7 +569,7 @@ export const WRITE_TIME = "about 2 minutes, rarely more than 3";
  * minute" only once production's own p90 is under 60 s (the query is in docs/date-quality.md, "Round: the fast first
  * date").
  */
-export const WRITE_TIME_SPEED = "about two minutes";
+export const WRITE_TIME_SPEED = clientMsg("about two minutes");
 export const WRITE_USUAL_MAX_SECONDS = 180;
 export const WRITE_OVERDUE_SECONDS = 300;
 
