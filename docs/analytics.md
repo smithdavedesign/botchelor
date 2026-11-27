@@ -258,6 +258,27 @@ Every page in the browser sends, in batches of up to 25 every few seconds and wh
 - **"Turned on texts"** (`push_opted`): visitors with a `push_subscribed` event, after "Heard from their character".
 - Kept 400 days (`lib/retention.ts`); deleting an account deletes its rows and its browsers' rows.
 
+## The morning numbers (2026-11-27)
+
+David, after the 2026-11-27 product audit: the numbers should reach him without the Mac or this page. Once a UTC day, the
+daily job's upkeep part (`app/api/jobs/daily`, step `metrics_digest`, about 16:20 UTC) sends the last whole UTC day's
+numbers (`lib/metrics-digest.ts`):
+
+- visitors, against the day before, and how many of the day's new visitors have come back on a later day so far;
+- the funnel steps that matter: made a character, started a date, watched one end, made an account, clicked Buy;
+- money in: paid orders by kind and new plans, from `orders` and `plan_entitlements`;
+- the top three sources and pages.
+
+They come from `loadEngagement` (the Engagement tab's own numbers, show host only), so the two always agree, and our own
+browsers and accounts are left out of both the visits and the money. Counts only: no visitor id or email.
+
+**Where it goes.** A Slack incoming webhook when `METRICS_DIGEST_SLACK_WEBHOOK` is set (a secret in the DigitalOcean
+dashboard; Slack → Apps → Incoming Webhooks → pick the channel), else an email to the report recipients
+(`CONTACT_EMAIL` and admins with a confirmed address). `METRICS_DIGEST=0` turns it off.
+
+**Once a day.** The day is claimed in `metrics_digests` before anything is sent, and let go when nothing went out (Slack
+refused, no recipient), so the resume pass at 17:20 tries again.
+
 ## Not tracked here
 
 - **Page views and visits before 2026-10-31**: the Engagement tab starts then. GA4 (`G-VHL1LZTPHL`) and RepoHQ's

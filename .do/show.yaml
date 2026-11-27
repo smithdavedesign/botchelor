@@ -534,6 +534,16 @@ services:
       # - key: CREATOR_JOURNEY
       #   value: "0"
       #   scope: RUN_AND_BUILD_TIME
+      # The morning numbers (lib/metrics-digest.ts): yesterday's visitors, funnel, money and sources, once a UTC day from
+      # the daily job's upkeep part. To a Slack incoming webhook when METRICS_DIGEST_SLACK_WEBHOOK is set (a secret: the
+      # URL is the credential), else by email to the report recipients. METRICS_DIGEST "0": off.
+      # - key: METRICS_DIGEST_SLACK_WEBHOOK
+      #   value: "https://hooks.slack.com/services/..."
+      #   scope: RUN_TIME
+      #   type: SECRET
+      # - key: METRICS_DIGEST
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Copied from the old Vercel project's values (not secret, but deployment-specific).
       - key: CONTACT_EMAIL
         value: "CHANGE_ME"
