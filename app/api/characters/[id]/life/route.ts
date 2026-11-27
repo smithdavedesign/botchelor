@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { handle, json, session } from "@/lib/http";
+import { handle, json, readJsonOr, session } from "@/lib/http";
 import { addEntry, loadFields, loadLife, proposalsOf, removeEntry } from "@/lib/life-record";
 import { ownsCharacter } from "@/lib/souls";
 
@@ -24,7 +24,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   const sess = session(req);
   const db = await getDb();
   if (!(await ownsCharacter(db, id, sess.userId))) return json({ error: "character_not_found" }, 404, sess);
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const body = ((await readJsonOr(req, 4096, {})) ?? {}) as Record<string, unknown>;
   const r = await addEntry(db, {
     characterId: id,
     field: typeof body.field === "string" ? body.field : "",
