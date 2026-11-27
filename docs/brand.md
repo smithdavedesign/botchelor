@@ -215,7 +215,8 @@ All in `globals.css`; reuse the class, don't restyle.
 ## Header
 
 Five kinds of thing and no more (the design system, 2026-11-11): the wordmark, the After Dark door, the meter, one
-call to action, the links (the bell is a link). The tagline belongs in the hero; the theme setting in Account. The
+call to action, the links (the bell is a link). The language menu (David, 2026-11-26, docs/i18n.md) sits at the links' end: a globe
+and the code in the bar, a row in the phone's menu. The tagline belongs in the hero; the theme setting in Account. The
 call to action's place is a newcomer's; someone with a character has their character's face there instead (below).
 
 - **The door** (`.nav-ad-link`) is a link to After Dark's own host, never a toggle, night-coloured in every theme so

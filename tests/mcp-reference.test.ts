@@ -286,7 +286,7 @@ describe("finding them", () => {
     const layout = readFileSync(join(ROOT, "app/layout.tsx"), "utf8");
     // The footer's Tools group, as the design system names it (2026-11-16): one link for agent builders.
     const groups = layout.slice(layout.indexOf('<nav className="footer-groups"'), layout.indexOf("</nav>", layout.indexOf('<nav className="footer-groups"')));
-    expect(groups).toContain('{!adHost && <li><Link prefetch={false} href="/agents">For AI agents</Link></li>}');
+    expect(groups).toContain('{!adHost && <li><Link prefetch={false} href="/agents">{t("For AI agents")}</Link></li>}');
     expect((groups.match(/href="\/agents"/g) ?? []).length).toBe(1);
     const text = llmsText("https://b.test");
     expect(text).toContain("https://b.test/agents/tools");

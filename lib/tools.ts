@@ -9,6 +9,7 @@
  * hands each one the site's links instead of two of them. Since 2026-11-23 the chemistry test is named for what people
  * search ("ship compatibility test", "love calculator"), at the same address.
  */
+import { msg } from "./i18n/translate";
 import { OC_NAMES_PATH } from "./oc-names";
 import { PLACE_NAMES_PATH } from "./place-names";
 import { OC_QUESTIONS, OC_QUESTIONS_PATH } from "./oc-questions";
@@ -39,49 +40,49 @@ export type FreeTool = {
 export const FREE_TOOLS: readonly FreeTool[] = [
   {
     path: RANDOM_OC_TOOL_PATH,
-    name: "Random OC generator",
+    name: msg("Random OC generator"),
     inline: "random OC generator",
     blurb: "A whole original character in one click: a name, an age, who they are, three traits, what they want in love, a dealbreaker and a secret.",
   },
   {
     path: OC_NAMES_PATH,
-    name: "OC name generator",
+    name: msg("OC name generator"),
     inline: "OC name generator",
     blurb: "Names for your original character, twelve at a time: fantasy, modern, sci-fi, gothic or cozy, feminine, masculine or neutral.",
   },
   {
     path: PLACE_NAMES_PATH,
-    name: "Place name generator",
+    name: msg("Place name generator"),
     inline: "place name generator",
     blurb: "Names for the places in your story, twelve at a time: towns, wilds, realms and taverns, in the same five styles as the names.",
   },
   {
     path: OC_QUESTIONS_PATH,
-    name: "Questions to ask your OC",
+    name: msg("Questions to ask your OC"),
     inline: "questions to ask your OC",
     blurb: `${OC_QUESTIONS.length} questions by theme, from what they drink in the morning to what they think love is, or one at a time at random.`,
   },
   {
     path: SHIP_TOOL_PATH,
-    name: "Ship name generator",
+    name: msg("Ship name generator"),
     inline: "ship name generator",
     blurb: "Two names in, their ship names out: the start of one blended into the end of the other, both ways round, best first.",
   },
   {
     path: RANDOM_SHIP_TOOL_PATH,
-    name: "Random ship generator",
+    name: msg("Random ship generator"),
     inline: "random ship generator",
     blurb: "One click pairs two characters, from the show's cast or the random OC generator, with their ship name and how well they'd get on.",
   },
   {
     path: TROPES_PATH,
-    name: "Relationship trope generator",
+    name: msg("Relationship trope generator"),
     inline: "relationship trope generator",
     blurb: `${TROPES.length} romance tropes for your ship, six at a time: sweet, slow burn, angsty, funny or flirty, each with a first scene your two characters can star in.`,
   },
   {
     path: CHEMISTRY_TOOL_PATH,
-    name: "Ship compatibility test",
+    name: msg("Ship compatibility test"),
     inline: "ship compatibility test",
     blurb: "A love calculator for ships: two names for a quick score, or three traits, a want and a dealbreaker each for their chemistry out of 100 and why.",
   },

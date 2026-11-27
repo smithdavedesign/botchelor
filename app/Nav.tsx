@@ -14,6 +14,9 @@ import { AD_SHOWCASE } from "@/lib/showcase-paths";
 import type { PickerCharacter } from "@/lib/my-characters";
 import { openFeedback } from "@/lib/user-feedback-shared";
 import { okJson } from "@/lib/ok-json";
+import { msg } from "@/lib/i18n/translate";
+import { useT } from "@/app/I18nProvider";
+import LanguagePicker from "@/app/LanguagePicker";
 
 /**
  * The primary nav links (the token meter and the logo sit outside these lists). Three doors and the account, the same
@@ -27,13 +30,13 @@ export type NavLink = { href: string; label: string; also?: readonly string[] };
 /** The show's own tabs (app/ShowTabs.tsx: Watch · House · Season · Shows) and a season's page: all the Watch door. */
 export const SHOW_PAGES: readonly string[] = ["/house", "/reunion", "/shows", "/seasons"];
 const LINKS: readonly NavLink[] = [
-  { href: "/watch", label: "Watch", also: SHOW_PAGES },
-  { href: "/chat", label: "Chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
+  { href: "/watch", label: msg("Watch"), also: SHOW_PAGES },
+  { href: "/chat", label: msg("Chat"), also: ["/matches", "/swipe", "/messages", "/companion"] },
   // The Constellation is Characters as a map (2026-11-21, app/characters/ViewSwitch.tsx), so it's this door's.
-  { href: "/characters", label: "Characters", also: ["/graph"] },
+  { href: "/characters", label: msg("Characters"), also: ["/graph"] },
   // The fifth door (2026-11-16): the Gallery (/showcase, what everyone made) and My studio (/studio), one place to show and make.
-  { href: "/studio", label: "Studio", also: ["/showcase", "/reels"] },
-  { href: "/account", label: "Account" },
+  { href: "/studio", label: msg("Studio"), also: ["/showcase", "/reels"] },
+  { href: "/account", label: msg("Account") },
 ];
 
 /**
@@ -41,15 +44,15 @@ const LINKS: readonly NavLink[] = [
  * without Dating for a newcomer, and the companions' directory a sub-link under Characters in the phone menu.
  */
 const OWNER_LINKS: readonly NavLink[] = [
-  { href: "/watch", label: "Watch", also: SHOW_PAGES },
-  { href: "/matches", label: "Dating", also: ["/swipe", "/messages"] },
-  { href: "/characters", label: "Characters", also: ["/companion"] },
-  { href: "/account", label: "Account" },
+  { href: "/watch", label: msg("Watch"), also: SHOW_PAGES },
+  { href: "/matches", label: msg("Dating"), also: ["/swipe", "/messages"] },
+  { href: "/characters", label: msg("Characters"), also: ["/companion"] },
+  { href: "/account", label: msg("Account") },
 ];
 const NEWCOMER_LINKS: readonly NavLink[] = [
-  { href: "/watch", label: "Watch", also: SHOW_PAGES },
-  { href: "/characters", label: "Characters", also: ["/companion"] },
-  { href: "/account", label: "Account" },
+  { href: "/watch", label: msg("Watch"), also: SHOW_PAGES },
+  { href: "/characters", label: msg("Characters"), also: ["/companion"] },
+  { href: "/account", label: msg("Account") },
 ];
 
 /**
@@ -74,13 +77,13 @@ const NEWCOMER_LINKS: readonly NavLink[] = [
 export function adLinks(doors: AdDoors = NO_AD_DOORS): NavLink[] {
   return [
     { href: "/after-dark", label: "Scenes" },
-    { href: "/after-dark/characters", label: "Characters" },
+    { href: "/after-dark/characters", label: msg("Characters") },
     { href: "/after-dark/studio", label: studioDoorLabel(doors) },
     { href: "/after-dark/gallery", label: "Gallery", also: [AD_SHOWCASE] },
   ];
 }
 /** After Dark's account (privacy, the writer, the subscription and tokens): the icon after the doors. */
-export const AD_ACCOUNT: NavLink = { href: "/after-dark/account", label: "Account", also: ["/after-dark/tokens", "/after-dark/subscribe"] };
+export const AD_ACCOUNT: NavLink = { href: "/after-dark/account", label: msg("Account"), also: ["/after-dark/tokens", "/after-dark/subscribe"] };
 /** After Dark's pages that aren't Scenes' (a night, or the episodes): every other door's, and the account's. */
 const AD_PAGES = ["/after-dark/studio", "/after-dark/characters", "/after-dark/gallery", AD_SHOWCASE, AD_ACCOUNT.href, ...(AD_ACCOUNT.also ?? [])];
 
@@ -165,6 +168,7 @@ export default function Nav({
   /** The one this browser remembers (lib/current-character.ts), for the first paint. */
   character?: string | null;
 }) {
+  const t = useT();
   const pf = prefetchShow ? undefined : false;
   // The show's doors prefetch on intent (a hovered or keyboard-focused link); After Dark's own, on its own host, as before.
   const Door = adHost ? Link : IntentLink;
@@ -250,16 +254,16 @@ export default function Nav({
             <span className="token-word">{tokens === 1 ? "token" : "tokens"}</span>
           </Link>
         ) : personal ? (
-          <IntentLink prefetch={pf} href="/shop" className={`token-pill token-pill--dates${tone}`} title="Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.">
+          <IntentLink prefetch={pf} href="/shop" className={`token-pill token-pill--dates${tone}`} title={t("Dates left: your free dates this week plus any tokens you've topped up. One sends a character on one date.")}>
             <Icon name="clapper" className="token-pip" />
             <span className="token-count">{tokens}</span>
-            <span className="token-word">{tokens === 1 ? "date left" : "dates left"}</span>
+            <span className="token-word">{tokens === 1 ? t("date left") : t("dates left")}</span>
           </IntentLink>
         ) : (
-          <IntentLink prefetch={pf} href="/shop" className="token-pill token-pill--dates" title={`Everyone gets ${tokens} free dates a week; yours count down here once you start. One sends a character on one date.`}>
+          <IntentLink prefetch={pf} href="/shop" className="token-pill token-pill--dates" title={t("Everyone gets {n} free dates a week; yours count down here once you start. One sends a character on one date.", { n: tokens })}>
             <Icon name="clapper" className="token-pip" />
             <span className="token-count">{tokens}</span>
-            <span className="token-word">{tokens === 1 ? "free date" : "free dates"}</span>
+            <span className="token-word">{tokens === 1 ? t("free date") : t("free dates")}</span>
           </IntentLink>
         )}
         {/* The one call to action, in the bar above 900px: words, or an icon-only plus between 900 and 1180px. On a
@@ -267,9 +271,9 @@ export default function Nav({
         {!hasCharacter && !adHost && (
           <>
             <IntentLink prefetch={pf} href="/create" className="button nav-cta nav-cta-full" aria-current={pathname === "/create" ? "page" : undefined}>
-              Make your character
+              {t("Make your character")}
             </IntentLink>
-            <IntentLink prefetch={pf} href="/create" className="button nav-cta nav-cta-compact" aria-label="Make your character" aria-current={pathname === "/create" ? "page" : undefined}>
+            <IntentLink prefetch={pf} href="/create" className="button nav-cta nav-cta-compact" aria-label={t("Make your character")} aria-current={pathname === "/create" ? "page" : undefined}>
               <Icon name="plus" />
             </IntentLink>
           </>
@@ -280,29 +284,29 @@ export default function Nav({
         className="nav-toggle"
         aria-expanded={open}
         aria-controls="nav-menu"
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? t("Close menu") : t("Open menu")}
         onClick={() => setOpen((v) => !v)}
       >
         <span className="nav-toggle-bars" aria-hidden="true" data-open={open} />
-        {unread + texts > 0 && !open && !adHost && <span className="nav-dot" aria-label={`${unread + texts} unread`} />}
+        {unread + texts > 0 && !open && !adHost && <span className="nav-dot" aria-label={t("{n} unread", { n: unread + texts })} />}
       </button>
       {/* A tap anywhere outside the open menu closes it. In <body>, not here: the header's backdrop-filter would
           clip a fixed layer to the header itself. */}
       {open &&
-        createPortal(<button type="button" className="nav-backdrop" aria-label="Close menu" tabIndex={-1} onClick={() => setOpen(false)} />, document.body)}
+        createPortal(<button type="button" className="nav-backdrop" aria-label={t("Close menu")} tabIndex={-1} onClick={() => setOpen(false)} />, document.body)}
       <div id="nav-menu" className="nav-links" data-open={open}>
         {!hasCharacter && !adHost && (
           <IntentLink prefetch={pf} href="/create" className="button nav-create" aria-current={pathname === "/create" ? "page" : undefined}>
-            Make your character
+            {t("Make your character")}
           </IntentLink>
         )}
         {navLinks(hasCharacter, adHost, chat, adDoors).map((l) => (
           <Fragment key={l.href}>
             {/* After Dark's own links are on its own host, so they prefetch; the show's there only hop back. */}
             <Door prefetch={adHost ? undefined : pf} href={l.href} aria-current={atLink(l, pathname) ? "page" : undefined}>
-              {l.label}
+              {t(l.label)}
               {l.href === (chat ? "/chat" : "/matches") && texts > 0 && (
-                <span className="nav-count" aria-label={`${texts} unread texts`}>
+                <span className="nav-count" aria-label={t("{n} unread texts", { n: texts })}>
                   {texts > 99 ? "99+" : texts}
                 </span>
               )}
@@ -316,7 +320,7 @@ export default function Nav({
             {/* NAV_CHAT=0, phone menu only: the companions' directory under Characters (in the desktop bar it's a tab). */}
             {l.href === "/characters" && companions && !chat && !adHost && (
               <IntentLink prefetch={pf} href="/companion" className="nav-sub">
-                Companions
+                {t("Companions")}
               </IntentLink>
             )}
           </Fragment>
@@ -325,7 +329,7 @@ export default function Nav({
         {adHost && personal && afterDark && (
           <Link href={AD_ACCOUNT.href} aria-current={atLink(AD_ACCOUNT, pathname) ? "page" : undefined} className="nav-bell nav-ad-account" title="Account: privacy, the subscription and tokens">
             <Icon name="user" className="nav-bell-icon" />
-            <span className="nav-bell-label">Account</span>
+            <span className="nav-bell-label">{t("Account")}</span>
           </Link>
         )}
         {/* A first visit has nothing to be told yet (the audit, 2026-11-11, 2.6): the bell waits for a viewer of their own. */}
@@ -333,9 +337,9 @@ export default function Nav({
         {(personal || unread > 0) && !adHost && (
           <IntentLink prefetch={pf} href="/notifications" aria-current={pathname === "/notifications" ? "page" : undefined} className="nav-bell">
             <Icon name="bell" className="nav-bell-icon" />
-            <span className="nav-bell-label">Notifications</span>
+            <span className="nav-bell-label">{t("Notifications")}</span>
             {unread > 0 && (
-              <span className="nav-count" aria-label={`${unread} unread`}>
+              <span className="nav-count" aria-label={t("{n} unread", { n: unread })}>
                 {unread > 99 ? "99+" : unread}
               </span>
           )}
@@ -350,8 +354,10 @@ export default function Nav({
             openFeedback();
           }}
         >
-          <Icon name="chat" /> Give us feedback
+          <Icon name="chat" /> {t("Give us feedback")}
         </button>
+        {/* The site's languages (docs/i18n.md). After Dark stays in English, so not on its own host. */}
+        {!adHost && <LanguagePicker />}
       </div>
       {/* Who they're working with: last in the bar on a wide screen, before the menu button on a phone (the newcomer's
           call to action holds this place for someone without a character, docs/brand.md Header). */}

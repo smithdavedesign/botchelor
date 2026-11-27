@@ -31,32 +31,32 @@ afterEach(() => {
 describe("the footer", () => {
   const layout = source("app/layout.tsx");
   const groups = layout.slice(layout.indexOf('<nav className="footer-groups"'), layout.indexOf("</nav>", layout.indexOf('<nav className="footer-groups"')));
-  const group = (title: string) => groups.slice(groups.indexOf(`<FooterGroup title="${title}"`), groups.indexOf("</FooterGroup>", groups.indexOf(`<FooterGroup title="${title}"`)));
+  const group = (title: string) => groups.slice(groups.indexOf(`<FooterGroup title={t("${title}")}`), groups.indexOf("</FooterGroup>", groups.indexOf(`<FooterGroup title={t("${title}")}`)));
 
   // The design system's SiteFooter (David 2026-11-16, "our footer should match the designs"), back from the 2026-11-14
   // audit's one row: four groups, columns on a wide screen and rows that fold on a phone (app/FooterGroup.tsx).
   it("is the design system's four groups, in its order, with its links", () => {
-    expect([...groups.matchAll(/<FooterGroup title="([^"]+)"[^>]*>/g)].map((m) => m[1])).toEqual(["The show", "Tools", "Company", "Help and legal"]);
+    expect([...groups.matchAll(/<FooterGroup title=\{t\("([^"]+)"\)\}[^>]*>/g)].map((m) => m[1])).toEqual(["The show", "Tools", "Company", "Help and legal"]);
     const hrefs = (g: string) => [...group(g).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
     expect(hrefs("The show")).toEqual(["/watch", "/graph", "/shop", "/pricing", "/everything"]);
     // Every free tool from lib/tools.ts (all five since the 2026-11-22 SEO audit), the way in from another app, and the
     // free tools' hub (SEO, 2026-11-19): a link from every page (tests/seo-crawl.test.ts).
-    expect(group("Tools")).toContain("{FREE_TOOLS.map((t) => (");
+    expect(group("Tools")).toContain("{FREE_TOOLS.map((tool) => (");
     expect(hrefs("Tools")).toEqual(["/import", "/tools", "/agents", "/llms.txt"]);
-    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={false} href="/import">Bring a character from another app</Link></li>}');
+    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={false} href="/import">{t("Bring a character from another app")}</Link></li>}');
     expect(hrefs("Company")).toEqual(["/about", "/costs", "/faq", "/press", "/contact", "/security", "/accessibility"]);
     // Terms and privacy once each: the page with both (/legal) is on /everything (the 2026-11-22 audit: three entries for two documents).
     expect(hrefs("Help and legal")).toEqual(["/report", "/content-policy", "/safety", "/terms", "/privacy", "/2257", "/cancel"]);
-    expect(group("Help and legal")).toContain("<FeedbackLink />");
+    expect(group("Help and legal")).toContain('<FeedbackLink label={t("Give us feedback")} />');
     // The prompts library stays on /everything (design review 2026-11-16, D-15), not in every page's footer.
     expect(groups).not.toContain('href="/prompts"');
     // After Dark's host: no Pricing or agents' door, and never the show's shop (Stripe's checkout; the 2026-11-22 audit).
-    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={false} href="/shop">More dates</Link></li>}');
-    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={false} href="/pricing">Pricing</Link></li>}');
+    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={false} href="/shop">{t("More dates")}</Link></li>}');
+    expect(group("The show")).toContain('{!adHost && <li><Link prefetch={false} href="/pricing">{t("Pricing")}</Link></li>}');
     expect(group("The show")).not.toContain("Tokens");
     // …and its Help and legal never folds there: Report and the 2257 statement stay in the open on a phone.
-    expect(groups).toContain('<FooterGroup title="Help and legal" keepOpen={adHost}>');
-    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={false} href="/agents">For AI agents</Link></li>}');
+    expect(groups).toContain('<FooterGroup title={t("Help and legal")} keepOpen={adHost}>');
+    expect(group("Tools")).toContain('{!adHost && <li><Link prefetch={false} href="/agents">{t("For AI agents")}</Link></li>}');
     expect(layout).not.toContain("footer-row");
   });
 
@@ -111,17 +111,17 @@ describe("the footer", () => {
 
   it("keeps the letter beside the accounts, then the safety lines and the fine print at the very bottom", () => {
     expect(layout).toContain("Every character is a fictional adult (18+), and every episode is written by an AI model.");
-    expect(layout).toContain("<CrisisResources />");
+    expect(layout).toContain("<CrisisResources t={t} />");
     expect(layout).toMatch(/<div className="footer-main">[\s\S]*\{!adHost && \(\s*<div className="footer-side">\s*<NewsletterSignup \/>\s*<SocialLinks links=\{socials\} labels area="footer" \/>/);
     // On After Dark's host the show's line about points gives way to one about what's there (2026-11-22 audit).
     // The support address last, never whole in the markup (app/SupportEmail.tsx: Cloudflare's email obfuscation).
-    expect(layout).toMatch(/className="footer-legal"[\s\S]*Adults \(18\+\) only · No real people · \{adHost \? "Every character is AI-generated fiction" : "Points are free and can't be bought"\} · ©[\s\S]*<SupportEmail address=\{support\} \/>/);
+    expect(layout).toMatch(/className="footer-legal"[\s\S]*\{t\("Adults \(18\+\) only"\)\} · \{t\("No real people"\)\} · \{adHost \? "Every character is AI-generated fiction" : t\("Points are free and can't be bought"\)\} · ©[\s\S]*<SupportEmail address=\{support\} \/>/);
     // David 2026-11-17: the legal lines after the links. The groups, then the adults line, the help lines, the © line.
     const at = (s: string) => layout.indexOf(s);
     expect(at('<nav className="footer-groups"')).toBeGreaterThan(at('<div className="footer-side">'));
     expect(at('<p className="footer-adults">')).toBeGreaterThan(at("</nav>"));
-    expect(at("<CrisisResources />")).toBeGreaterThan(at('<p className="footer-adults">'));
-    expect(at('<p className="footer-legal">')).toBeGreaterThan(at("<CrisisResources />"));
+    expect(at("<CrisisResources t={t} />")).toBeGreaterThan(at('<p className="footer-adults">'));
+    expect(at('<p className="footer-legal">')).toBeGreaterThan(at("<CrisisResources t={t} />"));
   });
 });
 

@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import Icon, { type IconName } from "@/app/Icon";
 import IntentLink from "@/app/IntentLink";
 import { atLink, SHOW_PAGES, type NavLink } from "@/app/Nav";
+import { useT } from "@/app/I18nProvider";
+import { msg } from "@/lib/i18n/translate";
 
 type Tab = NavLink & { icon: IconName };
 
@@ -18,22 +20,22 @@ type Tab = NavLink & { icon: IconName };
  */
 export function tabBarTabs(companions: boolean, chat = true, hasCharacter = true): readonly Tab[] {
   // The show's own tabs (app/ShowTabs.tsx: Watch · House · Season · Shows) and a season's page are all the Watch door.
-  const watch: Tab = { href: "/watch", label: "Watch", icon: "tv", also: SHOW_PAGES };
-  const you: Tab = { href: "/account", label: "You", icon: "user" };
+  const watch: Tab = { href: "/watch", label: msg("Watch"), icon: "tv", also: SHOW_PAGES };
+  const you: Tab = { href: "/account", label: msg("You"), icon: "user" };
   if (chat) {
     return [
       watch,
-      { href: "/chat", label: "Chat", icon: "chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
+      { href: "/chat", label: msg("Chat"), icon: "chat", also: ["/matches", "/swipe", "/messages", "/companion"] },
       // The Constellation (/graph) is Characters as a map (app/characters/ViewSwitch.tsx).
-      { href: "/characters", label: "Characters", icon: "users", also: ["/graph"] },
+      { href: "/characters", label: msg("Characters"), icon: "users", also: ["/graph"] },
       // The fifth (2026-11-16): the Gallery and My studio (app/studio/StudioTabs.tsx).
       // An owner's own Studio; for anyone else the Gallery (app/Nav.tsx navLinks: the same rule).
-      hasCharacter ? { href: "/studio", label: "Studio", icon: "sparkles", also: ["/showcase", "/reels"] } : { href: "/showcase", label: "Studio", icon: "sparkles", also: ["/studio", "/reels"] },
+      hasCharacter ? { href: "/studio", label: msg("Studio"), icon: "sparkles", also: ["/showcase", "/reels"] } : { href: "/showcase", label: msg("Studio"), icon: "sparkles", also: ["/studio", "/reels"] },
       you,
     ];
   }
-  const characters: Tab = { href: "/characters", label: "Characters", icon: "users", also: companions ? [] : ["/companion"] };
-  const companion: Tab = { href: "/companion", label: "Companions", icon: "chat" };
+  const characters: Tab = { href: "/characters", label: msg("Characters"), icon: "users", also: companions ? [] : ["/companion"] };
+  const companion: Tab = { href: "/companion", label: msg("Companions"), icon: "chat" };
   return companions ? [watch, characters, companion, you] : [watch, characters, you];
 }
 
@@ -68,19 +70,20 @@ export function tabBarShowsOn(path: string): boolean {
  */
 export default function PhoneTabBar({ companions = false, chat = true, unread = 0, hasCharacter = true }: { companions?: boolean; chat?: boolean; /** Unread texts of both kinds: a dot on Chat. */ unread?: number; /** The viewer has a character: Studio opens on their own. */ hasCharacter?: boolean }) {
   const pathname = usePathname() ?? "/";
+  const tr = useT();
   if (!tabBarShowsOn(pathname)) return null;
   return (
     <div className="tabbar">
-      <nav className="tabbar-nav" aria-label="Sections">
+      <nav className="tabbar-nav" aria-label={tr("Sections")}>
         {tabBarTabs(companions, chat, hasCharacter).map((t) => {
           const here = atLink(t, pathname);
           return (
             <IntentLink key={t.href} href={t.href} className="tabbar-tab" aria-current={here ? "page" : undefined}>
               <span className="tabbar-icon-wrap">
                 <Icon name={t.icon} className="tabbar-icon" />
-                {t.href === "/chat" && unread > 0 && <span className="tabbar-dot" aria-label={`${unread} unread`} />}
+                {t.href === "/chat" && unread > 0 && <span className="tabbar-dot" aria-label={tr("{n} unread", { n: unread })} />}
               </span>
-              <span className="tabbar-label">{t.label}</span>
+              <span className="tabbar-label">{tr(t.label)}</span>
             </IntentLink>
           );
         })}

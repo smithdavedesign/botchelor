@@ -102,7 +102,7 @@ describe("AI disclosure and crisis link on every episode", () => {
     // The page's own copy leaves the crisis links to the site footer right below it (no doubling); the footer has them.
     expect(page).toMatch(/<EpisodeNotices( crisis=\{false\})? \/>/);
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-    expect(layout).toContain("<CrisisResources />");
+    expect(layout).toContain("<CrisisResources t={t} />");
   });
 });
 

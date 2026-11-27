@@ -857,3 +857,66 @@ a.chat-who-chip:hover {
 .chat-who-clear {
   font-weight: 600;
 }
+
+/* ---- The language menu (app/LanguagePicker.tsx; docs/i18n.md, 2026-11-26) ----
+   A globe and the language's code in the bar; the native select lies over it, invisible, so a tap opens the device's
+   own list (the right size on a phone, read out by a screen reader). In the phone's menu it's a row that says Language. */
+.nav-lang {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.nav-lang:hover,
+.nav-lang:focus-within {
+  color: var(--ink);
+  background: var(--soft);
+}
+.nav-lang:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.nav-lang[data-pending] {
+  opacity: 0.6;
+}
+.nav-lang-label {
+  display: none;
+}
+.nav-lang-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: var(--text-base); /* iOS zooms into a select under 16px */
+}
+@media (max-width: 900px) {
+  .nav-lang {
+    justify-content: flex-start;
+    padding: 0.7rem 0.9rem;
+    border-radius: 0;
+    border-top: 1px solid var(--line);
+    color: var(--ink);
+    font-size: var(--text-base);
+    font-weight: 400;
+  }
+  .nav-lang-label {
+    display: inline;
+    flex: 1 1 auto;
+  }
+  .nav-lang-code {
+    order: 3;
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+}

@@ -2,6 +2,7 @@
  * The show's rules and labels. Pure constants and functions with no server imports, so client
  * components can use them without pulling database code into the browser bundle.
  */
+import { msg } from "./i18n/translate";
 
 export const ENDINGS = ["second_date", "friends", "disaster"] as const;
 export type Ending = (typeof ENDINGS)[number];
@@ -134,8 +135,8 @@ export const DELETED_OWNER = "deleted";
 export const HIDDEN_EPISODE_MESSAGE = "This episode was hidden after several viewers reported it.";
 
 export const CRISIS_LINKS = [
-  { label: "988 Suicide & Crisis Lifeline (call or text 988, US)", href: "https://988lifeline.org" },
-  { label: "Find a free helpline in your country", href: "https://findahelpline.com" },
+  { label: msg("988 Suicide & Crisis Lifeline (call or text 988, US)"), href: "https://988lifeline.org" },
+  { label: msg("Find a free helpline in your country"), href: "https://findahelpline.com" },
 ] as const;
 
 /* ------------------------------------------------------------------ *

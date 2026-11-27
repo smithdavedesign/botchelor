@@ -54,6 +54,9 @@ import { navChatOn } from "@/lib/nav-chat";
 import { CrisisResources } from "./Notices";
 import Icon from "@/app/Icon";
 import { THEME_COOKIE, themeAttribute, themeFromCookie } from "@/lib/theme";
+import I18nProvider from "./I18nProvider";
+import { clientMessages, getLocale, tFor } from "@/lib/i18n/server";
+import { HTML_LANG } from "@/lib/i18n/locales";
 import "./globals.css";
 // The UX audit's per-area styles (2026-10-23), after the globals so they win ties.
 import "./ux/after-dark.css";
@@ -204,9 +207,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const consent = analyticsConsent(cookieStore.get(CONSENT_COOKIE)?.value, placeFromEdge(requestHeaders)?.country);
   // This load's nonce (proxy.ts, lib/security-headers.ts): Next puts it on its own scripts, these get it by hand.
   const nonce = requestHeaders.get(NONCE_HEADER) ?? undefined;
+  // The page's language (docs/i18n.md): the nav's pick, else the browser's, else English; always English on After Dark's host.
+  const locale = await getLocale();
+  const t = tFor(locale);
 
   return (
-    <html lang="en" data-theme={themeAttribute(theme)}>
+    <html lang={HTML_LANG[locale]} data-theme={themeAttribute(theme)}>
       <head>
         {google && (
           <>
@@ -222,6 +228,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       {TRACKING.gaId && <GoogleAnalytics gaId={TRACKING.gaId} nonce={nonce} />}
       {/* After Dark's own host is night from edge to edge (the design kit's After Dark frame): app/ux/after-dark.css body.ad-host. */}
       <body className={adHost ? "ad-host" : undefined}>
+        <I18nProvider locale={locale} messages={clientMessages(locale)}>
         {/* Search params need a Suspense boundary, or a static page would render on the client only. */}
         <Suspense fallback={null}>
           <NavProgress />
@@ -231,7 +238,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* Coming back from After Dark's host: "Back to the show", once a session (app/Threshold.tsx). */}
         {!adHost && door.threshold && <Threshold side="show" from={afterDarkOrigin()} />}
         <a href="#main" className="skip-link">
-          Skip to content
+          {t("Skip to content")}
         </a>
         <header className="site-header">
           {/* Not prefetched on After Dark's host either: "/" there hops to the show and back, so the prefetch never settled. */}
@@ -276,58 +283,58 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               </div>
             )}
             <nav className="footer-groups" aria-label="More of the site">
-              <FooterGroup title="The show">
-                <li><Link prefetch={false} href="/watch">Watch</Link></li>
-                <li><Link prefetch={false} href="/graph">The Constellation</Link></li>
+              <FooterGroup title={t("The show")}>
+                <li><Link prefetch={false} href="/watch">{t("Watch")}</Link></li>
+                <li><Link prefetch={false} href="/graph">{t("The Constellation")}</Link></li>
                 {/* The show's shop sells dates through Stripe, whose rules bar paying for adult content: never linked from After
                     Dark's host (the 2026-11-22 audit), whose tokens page is its account's. */}
-                {!adHost && <li><Link prefetch={false} href="/shop">More dates</Link></li>}
-                {!adHost && <li><Link prefetch={false} href="/pricing">Pricing</Link></li>}
-                <li><Link prefetch={false} href="/everything" className="footer-all">Everything on Botchelor →</Link></li>
+                {!adHost && <li><Link prefetch={false} href="/shop">{t("More dates")}</Link></li>}
+                {!adHost && <li><Link prefetch={false} href="/pricing">{t("Pricing")}</Link></li>}
+                <li><Link prefetch={false} href="/everything" className="footer-all">{t("Everything on Botchelor")} →</Link></li>
               </FooterGroup>
-              <FooterGroup title="Tools">
+              <FooterGroup title={t("Tools")}>
                 {/* Every free tool (lib/tools.ts) and the hub from every page (SEO, 2026-11-19; all five since the 2026-11-22
                     audit, which found two linked from the tools' own pages only), and the way in from another app. */}
-                {FREE_TOOLS.map((t) => (
-                  <li key={t.path}><Link prefetch={false} href={t.path}>{t.name}</Link></li>
+                {FREE_TOOLS.map((tool) => (
+                  <li key={tool.path}><Link prefetch={false} href={tool.path}>{t(tool.name)}</Link></li>
                 ))}
-                {!adHost && <li><Link prefetch={false} href="/import">Bring a character from another app</Link></li>}
-                <li><Link prefetch={false} href="/tools" className="footer-all">All free tools →</Link></li>
+                {!adHost && <li><Link prefetch={false} href="/import">{t("Bring a character from another app")}</Link></li>}
+                <li><Link prefetch={false} href="/tools" className="footer-all">{t("All free tools")} →</Link></li>
                 {/* For people building agents: the MCP server's front door (/agents: tools and changelog are a tap further). */}
-                {!adHost && <li><Link prefetch={false} href="/agents">For AI agents</Link></li>}
+                {!adHost && <li><Link prefetch={false} href="/agents">{t("For AI agents")}</Link></li>}
                 <li><a href="/llms.txt">llms.txt</a></li>
               </FooterGroup>
-              <FooterGroup title="Company">
-                <li><Link prefetch={false} href="/about">How it&apos;s built</Link></li>
-                <li><Link prefetch={false} href="/costs">What it costs</Link></li>
-                <li><Link prefetch={false} href="/faq">FAQ</Link></li>
-                <li><Link prefetch={false} href="/press">Press kit</Link></li>
-                <li><Link prefetch={false} href="/contact">Contact</Link></li>
-                <li><Link prefetch={false} href="/security">Security</Link></li>
-                <li><Link prefetch={false} href="/accessibility">Accessibility</Link></li>
+              <FooterGroup title={t("Company")}>
+                <li><Link prefetch={false} href="/about">{t("How it's built")}</Link></li>
+                <li><Link prefetch={false} href="/costs">{t("What it costs")}</Link></li>
+                <li><Link prefetch={false} href="/faq">{t("FAQ")}</Link></li>
+                <li><Link prefetch={false} href="/press">{t("Press kit")}</Link></li>
+                <li><Link prefetch={false} href="/contact">{t("Contact")}</Link></li>
+                <li><Link prefetch={false} href="/security">{t("Security")}</Link></li>
+                <li><Link prefetch={false} href="/accessibility">{t("Accessibility")}</Link></li>
               </FooterGroup>
               {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). On After Dark's host the
                   group stays open on a phone too: reporting and the 2257 statement are never a tap away there. Terms and
                   privacy are one entry each; the page with both (/legal) is on /everything (2026-11-22 audit: three
                   entries for two documents). */}
-              <FooterGroup title="Help and legal" keepOpen={adHost}>
-                <li><Link prefetch={false} href="/report">Report a problem</Link></li>
+              <FooterGroup title={t("Help and legal")} keepOpen={adHost}>
+                <li><Link prefetch={false} href="/report">{t("Report a problem")}</Link></li>
                 <li>
-                  <FeedbackLink />
+                  <FeedbackLink label={t("Give us feedback")} />
                 </li>
-                <li><Link prefetch={false} href="/content-policy">Content policy</Link></li>
-                <li><Link prefetch={false} href="/safety">Safety</Link></li>
-                <li><Link prefetch={false} href="/terms">Terms and refunds</Link></li>
-                <li><Link prefetch={false} href="/privacy">Privacy</Link></li>
-                <li><Link prefetch={false} href="/2257">2257 statement</Link></li>
-                <li><Link prefetch={false} href="/cancel">Cancel a subscription</Link></li>
+                <li><Link prefetch={false} href="/content-policy">{t("Content policy")}</Link></li>
+                <li><Link prefetch={false} href="/safety">{t("Safety")}</Link></li>
+                <li><Link prefetch={false} href="/terms">{t("Terms and refunds")}</Link></li>
+                <li><Link prefetch={false} href="/privacy">{t("Privacy")}</Link></li>
+                <li><Link prefetch={false} href="/2257">{t("2257 statement")}</Link></li>
+                <li><Link prefetch={false} href="/cancel">{t("Cancel a subscription")}</Link></li>
               </FooterGroup>
             </nav>
           </div>
-          <p className="footer-adults">Every character is a fictional adult (18+), and every episode is written by an AI model.</p>
-          <CrisisResources />
+          <p className="footer-adults">{t("Every character is a fictional adult (18+), and every episode is written by an AI model.")}</p>
+          <CrisisResources t={t} />
           <p className="footer-legal">
-            Adults (18+) only · No real people · {adHost ? "Every character is AI-generated fiction" : "Points are free and can't be bought"} · © {new Date().getUTCFullYear()} {OPERATOR}
+            {t("Adults (18+) only")} · {t("No real people")} · {adHost ? "Every character is AI-generated fiction" : t("Points are free and can't be bought")} · © {new Date().getUTCFullYear()} {OPERATOR}
             {/* Never the address whole in the markup, where Cloudflare's email obfuscation would rewrite it (app/SupportEmail.tsx). */}
             {support && (
               <>
@@ -346,6 +353,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {google && consent.ask && <ConsentBanner />}
         <FunnelBeacon production={TRACKING.production} consentDefault={consent.granted} />
         <EngagementBeacon afterDarkHost={adHost} />
+        </I18nProvider>
       </body>
     </html>
   );
