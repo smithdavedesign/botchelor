@@ -25,7 +25,7 @@ import { loadCharacterMemory, MEMORY_SIGNAL_CAP, type CharacterMemory } from "./
 import { getCharacterHistory, type CharacterRecord } from "./game";
 import { extrasForPrompt, extrasVisible, hasExtras, publicExtras, voiceExamples, type CharacterExtras } from "./extras";
 import { thisWeek, type StoredThisWeek } from "./life";
-import { lifeRecordForPrompt } from "./life-record";
+import { lifeRecordForPrompt, type LifePrompt } from "./life-record";
 import { baseSignals, sheetSignals } from "./temperament";
 import type { PromptTexts } from "./text-chain";
 import { detectLanguage, languageName, type LanguageCode } from "./language";
@@ -66,7 +66,7 @@ export type Character = {
    * Their life record (lib/life-record.ts): `self` is all of it, for their own prompts; `public` leaves private entries
    * out, for anyone else's. Empty when they have none. Dialogue flavour only.
    */
-  life?: { self: Record<string, string[]>; public: Record<string, string[]> };
+  life?: LifePrompt;
   /**
    * Set only on a date's characters (lib/simulation.ts): this side's view of its relationship with the person it's
    * meeting (lib/relationships.ts pairContext): where they stand, what the other has told it, their inside jokes,
@@ -253,7 +253,7 @@ export async function loadCharacter(db: Db, id: string): Promise<Character | nul
     thisWeek: thisWeek(r.id, r.this_week),
     physical: r.look,
   });
-  if (Object.keys(life.self).length) c.life = life;
+  if (Object.keys(life.self).length || life.goals?.length || life.growth?.length) c.life = life;
   return c;
 }
 
@@ -338,6 +338,10 @@ export function characterSelfView(c: Character, privateExtra: Record<string, unk
     ...(c.thisWeek ? { whats_new_this_week: c.thisWeek } : {}),
     // Their life so far (lib/life-record.ts): theirs to draw on, a little at a time, never recited as a list.
     ...(c.life && Object.keys(c.life.self).length ? { your_life_so_far: c.life.self } : {}),
+    // What they're working towards (lib/life-days.ts): it can come up, as it would for anyone.
+    ...(c.life?.goals?.length ? { what_youre_working_towards: c.life.goals } : {}),
+    // How they've been changing (trait growth v2): small and slow, each with its reason. Never the engine's.
+    ...(c.life?.growth?.length ? { how_youve_been_changing: c.life.growth } : {}),
     // Opinions they really hold (living dates, lib/hot-takes.ts): theirs to argue for.
     ...(c.hotTakes?.length ? { hot_takes: c.hotTakes } : {}),
     ...languageNote(c),

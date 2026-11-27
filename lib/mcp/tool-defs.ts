@@ -43,7 +43,7 @@ import { PLACE_KINDS, PLACE_NAMES_MAX_BATCH, PLACE_STYLES } from "../place-names
 import { TROPE_MOODS, TROPE_NAME_MAX, TROPES_MAX_BATCH } from "../relationship-tropes";
 import { RANDOM_OC_GENRES, RANDOM_OC_MAX_BATCH } from "../random-oc";
 import { OC_QUESTION_THEMES } from "../oc-questions";
-import { AGENT_MEMORY_MAX, FIELD_LABEL_MAX, FIELD_OPTION_MAX, FIELD_OPTIONS_MAX, FIELD_REASON_MAX, LIFE_ACTIONS, LIFE_PERIOD_MAX, LIFE_TOOL_DESCRIPTION, LIFE_VALUE_MAX } from "../life-record-shared";
+import { AGENT_MEMORY_MAX, GOAL_STATUSES, FIELD_LABEL_MAX, FIELD_OPTION_MAX, FIELD_OPTIONS_MAX, FIELD_REASON_MAX, LIFE_ACTIONS, LIFE_PERIOD_MAX, LIFE_TOOL_DESCRIPTION, LIFE_VALUE_MAX } from "../life-record-shared";
 import { COMPANION_ACTIONS, COMPANION_MESSAGE_MAX, COMPANION_REPORT_REASONS, COMPANION_TOOL_DESCRIPTION, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
 
 /**
@@ -1711,7 +1711,12 @@ const RAW_TOOL_DEFS = [
         dated: { type: "boolean", description: "propose_field: entries can say when." },
         options: { type: "array", maxItems: FIELD_OPTIONS_MAX, items: str(FIELD_OPTION_MAX), description: "propose_field: the only values it takes, when it's a choice." },
         reason: str(FIELD_REASON_MAX, "propose_field: why characters need it."),
-        text: str(AGENT_MEMORY_MAX, "remember / reflect / log_event: one sentence."),
+        text: str(AGENT_MEMORY_MAX, "remember / reflect / log_event: one sentence. set_goal: the goal."),
+        goal_id: str(64, "update_goal: the goal (an id from read)."),
+        progress: { type: "integer", minimum: 0, maximum: 100, description: "update_goal: how far along, 0-100 (100 is done)." },
+        status: { type: "string", enum: [...GOAL_STATUSES], description: "update_goal: active, done or dropped." },
+        shift_id: str(64, "veto_growth: the shift (an id from read's growth)."),
+        undo: { type: "boolean", description: "veto_growth: take the veto back." },
         milestone: { type: "boolean", description: "log_event: also add it to milestones." },
         query: str(300, "recall: what to remember about; best match first."),
         limit: { type: "integer", minimum: 1, maximum: 20, description: "recall: how many (default 8)." },

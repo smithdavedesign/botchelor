@@ -7,8 +7,9 @@
 import { randomUUID } from "node:crypto";
 import { embedEpisodes, recallSfw, rememberSfw, type EpisodeSource } from "./character-memories";
 import type { Db } from "./db";
-import { addEntry, loadFields, loadLife, proposalsOf, proposeField, removeEntry } from "./life-record";
-import { AGENT_MEMORIES_PER_DAY, AGENT_MEMORY_MAX, LIFE_ACTIONS, tidyLife, type LifeAction } from "./life-record-shared";
+import { setGoal, updateGoal, vetoShift } from "./life-days";
+import { addEntry, loadLifeAll, proposalsOf, proposeField, removeEntry } from "./life-record";
+import { AGENT_MEMORIES_PER_DAY, AGENT_MEMORY_MAX, LIFE_ACTIONS, tidyLife, traitTotals, type GoalStatus, type LifeAction } from "./life-record-shared";
 import { getModel, type Model } from "./model";
 import { inBackground } from "./sets";
 
@@ -30,21 +31,37 @@ export async function runLifeTool(db: Db, ownerId: string, args: Record<string, 
   if (rows[0].owner_id !== ownerId) return { error: "That character isn't yours: the life tool works on characters you made.", code: "not_yours" };
 
   if (action === "read") {
-    const [entries, fields, asks, memories] = await Promise.all([
-      loadLife(db, characterId),
-      loadFields(db),
-      proposalsOf(db, characterId, 10),
-      recallSfw(db, characterId, { may: "maker", skip: ["companion_talk"], limit: 10 }),
-    ]);
+    const [all, asks, memories] = await Promise.all([loadLifeAll(db, characterId), proposalsOf(db, characterId, 10), recallSfw(db, characterId, { may: "maker", skip: ["companion_talk"], limit: 10 })]);
     return {
       data: {
         character_id: characterId,
-        entries,
-        fields: fields.map((f) => ({ key: f.key, label: f.label, many: f.many, dated: f.dated, ...(f.options?.length ? { options: f.options } : {}), origin: f.origin })),
+        entries: all.entries,
+        fields: all.fields.map((f) => ({ key: f.key, label: f.label, many: f.many, dated: f.dated, ...(f.options?.length ? { options: f.options } : {}), origin: f.origin })),
         field_asks: asks,
+        goals: all.goals,
+        days: all.days,
+        growth: { shifts: all.shifts, totals: traitTotals(all.shifts) },
         memories,
       },
     };
+  }
+
+  if (action === "set_goal") {
+    const r = await setGoal(db, characterId, str(args.text), "agent");
+    return r.ok ? { data: { goal: r.goal } } : { error: r.message, code: r.error };
+  }
+
+  if (action === "update_goal") {
+    const status = ["active", "done", "dropped"].includes(str(args.status)) ? (str(args.status) as GoalStatus) : undefined;
+    const progress = args.progress === undefined ? undefined : Number(args.progress);
+    if (status === undefined && (progress === undefined || !Number.isFinite(progress))) return { error: "update_goal: progress (0-100) or status (active, done, dropped).", code: "invalid" };
+    const g = await updateGoal(db, characterId, str(args.goal_id), { progress, status });
+    return g ? { data: { goal: g } } : { error: "No such goal on this character (read lists them).", code: "not_found" };
+  }
+
+  if (action === "veto_growth") {
+    const ok = await vetoShift(db, characterId, str(args.shift_id), args.undo === true);
+    return ok ? { data: { shift_id: str(args.shift_id), vetoed: args.undo !== true } } : { error: "No such shift on this character (read lists them under growth).", code: "not_found" };
   }
 
   if (action === "add") {

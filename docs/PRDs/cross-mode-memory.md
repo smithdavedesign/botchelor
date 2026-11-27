@@ -35,7 +35,7 @@ to `lib/persona-ext/`.
 | P1 | Shared memory with the room wall, writers, recall in the maker's companion thread, nightly chapters, owner-thread talks feeding lessons | **Shipped** (see below) |
 | P1b | Dates, texts, After Dark nights and Step in read the shared memory; Step in knows the viewer's show facts | **Shipped** (see below) |
 | P2 | Life record, field registry, persona fields with no code, MCP memory and life tools | **Shipped** (see below) |
-| P3 | Goals, the first life room ("a day in their life"), trait growth v2 | Planned |
+| P3 | Goals, the first life room ("a day in their life"), trait growth v2 | **Shipped** (see below) |
 | P4 | `request_feature`, the governance agent, `lib/persona-ext/`, the factory hookup | Planned |
 
 ## P0 as shipped (2026-11-26)
@@ -109,3 +109,38 @@ adult room, the SFW→After Dark opt-in.
 - **Deletes and export:** entries and asks go with the character and the account, and both are in the account export.
 
 Not yet: the character proposing entries in its own words (from dates or chats, P3 with goals), adult-room fields.
+
+## P3 as shipped (2026-11-27)
+
+All in `lib/life-days.ts`. `loadLifeAll` reads it with the life record in one round trip.
+
+- **Goals** (`character_goals`): a character works towards up to 3 at once, each with progress from 0 to 100.
+  - Its owner sets them on the character page, its agent with `character_life set_goal`, or the character itself: one
+    with no goal may come up with one in a day of its life.
+  - A goal at 100 is done, and it becomes a milestone in its life record ("Reached a goal: …", source `character`).
+  - Goals reach its own prompts (`what_youre_working_towards`).
+- **A day in their life** (`character_days`), the first life room:
+  - Every 3 days, the daily job's `life_days` step writes 3 to 5 sentences in the character's own voice about an
+    ordinary day. It runs on the show's free model, at most `LIFE_DAYS_PER_DAY` (40) a day across the show.
+  - Who gets one: owned characters with a date in the last 30 days or an active goal.
+  - What the writer reads: the character's **public** view only, its public memories, its goals and its last day. So
+    nothing private (the soul, private entries, its maker's talks) can reach a day, which is public.
+  - The day can move one goal by up to 25 either way. Its text is checked by the show's text check, and it's kept as a
+    public `life_event` memory every SFW mode recalls.
+  - It shows on the character page. An owner who hears from the character gets it as a text, at most once in 6 days
+    unless a goal was reached.
+  - `LIFE_DAYS=0` turns it off.
+- **Trait growth v2** (`trait_shifts`):
+  - At most weekly, the same call may shift up to two of confidence, warmth, openness, patience and playfulness, by at
+    most 0.05 each and with the reason. A trait's sum is held to ±0.3.
+  - Its owner sees every shift ("How they've been changing", owner only) and can undo it, or take the undo back. MCP
+    has `veto_growth` for the same.
+  - Shifts reach the character's own prompts as a line each (`how_youve_been_changing`). **The engine never reads
+    them**, so no date's ending moves with them. The older learned signal drift is unchanged.
+  - `TRAIT_GROWTH=0` turns it off.
+- **MCP** 2.57.0 (`character_life`): `set_goal`, `update_goal` and `veto_growth`. `read` now also returns goals, days and
+  growth.
+- **Deletes and export:** goals, days and shifts go with the character and the account, and all three are in the
+  account export.
+
+Not yet: more life rooms (they wait until people come back for this one), goals that steer the weekly life dates.

@@ -4144,6 +4144,48 @@ create table if not exists life_field_proposals (
 );
 create index if not exists life_field_proposals_owner_idx on life_field_proposals (owner_id, created_at desc);
 create index if not exists life_field_proposals_pending_idx on life_field_proposals (created_at) where status = 'pending';
+-- Phase 3 (lib/life-days.ts): the character itself can write an entry too (a goal it reached becomes a milestone).
+alter table life_entries drop constraint if exists life_entries_source_check;
+alter table life_entries add constraint life_entries_source_check check (source in ('owner', 'agent', 'character'));
+-- Goals (lib/life-days.ts): what a character is working towards, up to three active, public. progress 0 to 100; a goal
+-- at 100 is done. source: its owner on the site, its agent over MCP, or the character itself (the day writer's idea).
+create table if not exists character_goals (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  text text not null,
+  progress smallint not null default 0 check (progress between 0 and 100),
+  status text not null default 'active' check (status in ('active', 'done', 'dropped')),
+  source text not null default 'owner' check (source in ('owner', 'agent', 'character')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  done_at timestamptz
+);
+create index if not exists character_goals_character_idx on character_goals (character_id, status, created_at desc);
+-- A day in their life (lib/life-days.ts): a few sentences in the character's own words, written by the daily job every few
+-- days on the show's free model, public. goal_id: the goal it moved (moved: by how much). grew: this run also asked
+-- for growth (at most weekly).
+create table if not exists character_days (
+  character_id text not null references characters (id) on delete cascade,
+  day text not null,
+  text text not null,
+  goal_id text,
+  moved smallint not null default 0,
+  grew boolean not null default false,
+  created_at timestamptz not null default now(),
+  primary key (character_id, day)
+);
+-- Trait growth v2 (lib/life-days.ts): one row a shift, at most 0.05 either way, a trait's sum held to ±0.3, with why.
+-- Prompt-only: the engine never reads it. vetoed_at: its owner undid it.
+create table if not exists trait_shifts (
+  id text primary key,
+  character_id text not null references characters (id) on delete cascade,
+  trait text not null,
+  delta numeric(4, 2) not null check (delta between -0.05 and 0.05),
+  reason text not null,
+  created_at timestamptz not null default now(),
+  vetoed_at timestamptz
+);
+create index if not exists trait_shifts_character_idx on trait_shifts (character_id, created_at desc);
 -- Learning, weekly (lib/character-lessons.ts; David 2026-11-15, the drama wave's part 6): what a character has learned
 -- about itself, in its own words. One row a character a week (week: that week's Monday, UTC), claimed as 'pending'
 -- before the writer is called so two passes can't both write it. lines: up to three first-person sentences of at most

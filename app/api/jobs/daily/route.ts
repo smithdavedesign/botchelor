@@ -10,6 +10,7 @@ import { sendCharacterWeeks, weeklyLifeDates } from "@/lib/character-life";
 import { runCharacterLessons } from "@/lib/character-lessons-job";
 import { consolidateMemories } from "@/lib/character-memories";
 import { governPending } from "@/lib/life-record";
+import { lifeDays } from "@/lib/life-days";
 import { sendCharacterQuestions } from "@/lib/character-questions";
 import { sendDailyTexts } from "@/lib/between-dates";
 import { sendDigests } from "@/lib/email";
@@ -261,6 +262,11 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
   const lifeFields = await step("life_fields", () =>
     governPending(db, getModel(undefined, false), { deadline: t0 + 225_000 }).catch(() => ({ reviewed: 0, approved: 0 })),
   );
+  // A day in their life (lib/life-days.ts): owned characters due one get a few sentences of their day, which can move a
+  // goal and, at most weekly, grow a trait. On the show's free model, LIFE_DAYS_PER_DAY a day at most. LIFE_DAYS=0: off.
+  const days = await step("life_days", () =>
+    lifeDays(db, getModel(undefined, false), new Date(), { deadline: t0 + 235_000 }).catch(() => ({ candidates: 0, written: 0, reached: 0, shifts: 0, texted: 0 })),
+  );
   // Monthly seasons (lib/season-gen.ts): from the 20th, next month's candidates. The cast's After Dark baselines are made
   // on After Dark's own host, where its media is (app/api/jobs/after-dark-daily, #1009).
   const candidates = await step("season_candidates", () =>
@@ -299,7 +305,7 @@ async function growth({ db, step, t0 }: Ctx): Promise<PartResult> {
     });
   }
   return {
-    body: { indexnow, embeddings, character_lessons: lessons, memory_chapters: memories, life_fields: lifeFields, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
+    body: { indexnow, embeddings, character_lessons: lessons, memory_chapters: memories, life_fields: lifeFields, life_days: days, social_dynamics: dynamics, social_metrics: social, social_suggestions: suggestions },
     counts: {
       social_dynamics_ties: dynamics.ties,
       social_dynamics_contacts: dynamics.contacts,

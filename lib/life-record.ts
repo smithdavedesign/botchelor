@@ -35,7 +35,11 @@ import {
   LIFE_VALUE_MAX,
   lifeForPrompt,
   tidyLife,
+  growthLines,
   type FieldProposal,
+  type LifeDay,
+  type LifeGoal,
+  type TraitShift,
   type LifeEntry,
   type LifeFieldDef,
   type LifeSource,
@@ -82,29 +86,58 @@ const fieldsOf = (rows: readonly FieldRow[] | null | undefined): LifeFieldDef[] 
  * A character's entries, the registry and (for its owner) its field asks, in one round trip: what the character page
  * and a prompt read. Proposed fields come only when it has entries.
  */
-export async function loadLifeAll(db: Db, characterId: string, opts: { asks?: boolean } = {}): Promise<{ entries: LifeEntry[]; fields: LifeFieldDef[]; asks: FieldProposal[] }> {
-  const { rows } = await db.query<{ entries: EntryRow[] | null; fields: FieldRow[] | null; asks: ProposalRow[] | null }>(
+export type LifeAll = { entries: LifeEntry[]; fields: LifeFieldDef[]; asks: FieldProposal[]; goals: LifeGoal[]; days: LifeDay[]; shifts: TraitShift[] };
+
+type GoalJson = Omit<LifeGoal, "progress"> & { progress: number | string };
+type ShiftJson = Omit<TraitShift, "delta"> & { delta: number | string };
+
+export async function loadLifeAll(db: Db, characterId: string, opts: { asks?: boolean } = {}): Promise<LifeAll> {
+  const { rows } = await db.query<{ entries: EntryRow[] | null; fields: FieldRow[] | null; asks: ProposalRow[] | null; goals: GoalJson[] | null; days: LifeDay[] | null; shifts: ShiftJson[] | null }>(
     `select
        (select json_agg(e order by e.created_at desc) from (select id, field, value, period, visibility, source, created_at from life_entries
           where character_id = $1 order by created_at desc limit $2) e) as entries,
        (select json_agg(f order by f.created_at) from (select key, label, many, dated, options, created_at from life_fields
           where retired_at is null order by created_at asc limit $3) f) as fields,
        case when $4::boolean then (select json_agg(p order by p.created_at desc) from (select id, key, label, status, verdict, field, created_at
-          from life_field_proposals where character_id = $1 order by created_at desc limit 20) p) end as asks`,
+          from life_field_proposals where character_id = $1 order by created_at desc limit 20) p) end as asks,
+       (select json_agg(g order by g.active desc, g.created_at desc) from (select id, text, progress, status, source, created_at, done_at, status = 'active' as active
+          from character_goals where character_id = $1 order by (status = 'active') desc, created_at desc limit 8) g) as goals,
+       (select json_agg(d order by d.created_at desc) from (select day, text, goal_id as goal, created_at from character_days
+          where character_id = $1 and text <> '' order by created_at desc limit 3) d) as days,
+       (select json_agg(t order by t.created_at desc) from (select id, trait, delta, reason, created_at, vetoed_at is not null as vetoed from trait_shifts
+          where character_id = $1 order by created_at desc limit 40) t) as shifts`,
     [characterId, LIFE_ENTRIES_MAX, REGISTRY_MAX, opts.asks === true],
   );
   const r = rows?.[0];
-  return { entries: (r?.entries ?? []).map(entryOf), fields: fieldsOf(r?.fields), asks: (r?.asks ?? []).map(proposalOf) };
+  return {
+    entries: (r?.entries ?? []).map(entryOf),
+    fields: fieldsOf(r?.fields),
+    asks: (r?.asks ?? []).map(proposalOf),
+    goals: (r?.goals ?? []).map(({ id, text, progress, status, source, created_at, done_at }) => ({ id, text, progress: Number(progress), status, source, created_at, done_at })),
+    days: r?.days ?? [],
+    shifts: (r?.shifts ?? []).map((t) => ({ ...t, delta: Number(t.delta) })),
+  };
 }
 
-/** What a character knows of its own life, for prompts: `{ self, public }`, or empty when off or on any failure. */
-export async function lifeRecordForPrompt(db: Db, characterId: string, env: Env = process.env): Promise<{ self: Record<string, string[]>; public: Record<string, string[]> }> {
+export type LifePrompt = { self: Record<string, string[]>; public: Record<string, string[]>; goals?: string[]; growth?: string[] };
+
+/**
+ * What a character knows of its own life, for prompts: its record (`self`, `public`), its active goals and how it has
+ * been growing (its own prompts only). Empty when off or on any failure.
+ */
+export async function lifeRecordForPrompt(db: Db, characterId: string, env: Env = process.env): Promise<LifePrompt> {
   const none = { self: {}, public: {} };
   if (!lifeRecordOn(env)) return none;
   try {
-    const { entries, fields } = await loadLifeAll(db, characterId);
-    if (!entries.length) return none;
-    return { self: lifeForPrompt(entries, fields, "self"), public: lifeForPrompt(entries, fields, "public") };
+    const { entries, fields, goals, shifts } = await loadLifeAll(db, characterId);
+    const active = goals.filter((g) => g.status === "active").map((g) => (g.progress > 0 ? `${g.text} (${g.progress}% of the way)` : g.text));
+    const growth = env.TRAIT_GROWTH?.trim() === "0" ? [] : growthLines(shifts);
+    return {
+      self: entries.length ? lifeForPrompt(entries, fields, "self") : {},
+      public: entries.length ? lifeForPrompt(entries, fields, "public") : {},
+      ...(active.length ? { goals: active } : {}),
+      ...(growth.length ? { growth } : {}),
+    };
   } catch {
     return none;
   }
