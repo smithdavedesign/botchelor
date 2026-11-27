@@ -1,6 +1,7 @@
 import IntentLink from "@/app/IntentLink";
 import { tabHref, type Tab } from "@/lib/origin";
 import type { SkyGroup } from "@/lib/origin-group";
+import { english, type T } from "@/lib/i18n/translate";
 
 /** Where on Characters someone is: a tab, their own (Yours), or nowhere in particular (a search, everyone). */
 export type CharactersSpot = Tab | "yours" | null;
@@ -28,17 +29,17 @@ export const cardsHref = (group: SkyGroup | null): string => spotHref(group ? TA
  * on the group the cards were showing, so the switch keeps your place both ways. Plain links: crawlable, no script.
  * Prefetched on intent only (app/IntentLink.tsx), as the tabs beside it are.
  */
-export default function ViewSwitch({ current, spot = null, group = null }: { current: "cards" | "map"; /** On Characters: the tab showing. */ spot?: CharactersSpot; /** On the map: the group it opened on. */ group?: SkyGroup | null }) {
+export default function ViewSwitch({ current, spot = null, group = null, t = english }: { current: "cards" | "map"; /** On Characters: the tab showing. */ spot?: CharactersSpot; /** On the map: the group it opened on. */ group?: SkyGroup | null; t?: T }) {
   // Each link keeps the place: on the cards, Cards is this tab and Map its group; on the map, the reverse.
   const cards = current === "cards" ? spotHref(spot) : cardsHref(group);
   const map = current === "map" ? (group ? `/graph?origin=${group}` : "/graph") : mapHref(spot);
   return (
-    <nav className="segmented view-switch" aria-label="Show characters as">
+    <nav className="segmented view-switch" aria-label={t("Show characters as")}>
       <IntentLink href={cards} className="segmented-tab" aria-current={current === "cards" ? "page" : undefined} data-track="characters-view-cards">
-        Cards
+        {t("Cards")}
       </IntentLink>
       <IntentLink href={map} className="segmented-tab" aria-current={current === "map" ? "page" : undefined} data-track="characters-view-map">
-        Map
+        {t("Map")}
       </IntentLink>
     </nav>
   );

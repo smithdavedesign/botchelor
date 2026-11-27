@@ -14,6 +14,7 @@
  */
 import type { Db } from "./db";
 import { houseBotSql, originalSql } from "./house-bots";
+import { msg } from "./i18n/translate";
 
 export type Origin = "cast" | "original" | "person" | "agent" | "house_bot";
 
@@ -66,7 +67,7 @@ export async function withOrigins<T extends { id: string; made_by: "house" | "ag
 export const TABS = ["people", "cast", "originals", "agents"] as const;
 export type Tab = (typeof TABS)[number];
 
-export const TAB_LABEL: Record<Tab, string> = { cast: "The cast", people: "People's characters", originals: "Botchelor originals", agents: "Made by AI agents" };
+export const TAB_LABEL: Record<Tab, string> = { cast: msg("The cast"), people: msg("People's characters"), originals: msg("Botchelor originals"), agents: msg("Made by AI agents") };
 
 /** ?tab= as a tab: anything else is the cast, the default. */
 export const parseTab = (v: unknown): Tab => (typeof v === "string" && (TABS as readonly string[]).includes(v) ? (v as Tab) : "cast");

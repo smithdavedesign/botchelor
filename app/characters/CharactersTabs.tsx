@@ -1,9 +1,10 @@
 import IntentLink from "@/app/IntentLink";
 import { navChatOn } from "@/lib/nav-chat";
 import { tabHref, TABS, type Tab } from "@/lib/origin";
+import { english, msg, type T } from "@/lib/i18n/translate";
 
 /** The strip's own short words (a tab's page keeps its full name, lib/origin.ts TAB_LABEL): four fit one line on a phone. */
-const STRIP_LABEL: Record<Tab, string> = { people: "People's", cast: "The cast", originals: "Originals", agents: "AI agents" };
+const STRIP_LABEL: Record<Tab, string> = { people: msg("People's"), cast: msg("The cast"), originals: msg("Originals"), agents: msg("AI agents") };
 
 /** Where an owner's own characters are listed (app/characters/(list)/page.tsx, ?tab=yours). */
 export const YOURS_HREF = "/characters?tab=yours";
@@ -22,25 +23,25 @@ export const YOURS_HREF = "/characters?tab=yours";
  * Studio door (app/studio/StudioTabs.tsx). With NAV_CHAT=0 there is no Chat door, so the companions' directory is the
  * last tab again, and it wears the strip.
  */
-export default function CharactersTabs({ current, companions, yours = false }: { current: Tab | "yours" | "companions" | null; companions: boolean; /** The viewer has a character of their own. */ yours?: boolean }) {
+export default function CharactersTabs({ current, companions, yours = false, t = english }: { current: Tab | "yours" | "companions" | null; companions: boolean; /** The viewer has a character of their own. */ yours?: boolean; t?: T }) {
   const chat = navChatOn();
   // The directory of who can be texted is Chat's now: no strip on it.
   if (chat && current === "companions") return null;
   return (
-    <nav className="segmented" aria-label="Characters">
+    <nav className="segmented" aria-label={t("Characters")}>
       {yours && (
         <IntentLink href={YOURS_HREF} className="segmented-tab" aria-current={current === "yours" ? "page" : undefined}>
-          Yours
+          {t("Yours")}
         </IntentLink>
       )}
-      {TABS.map((t) => (
-        <IntentLink key={t} href={tabHref(t)} className="segmented-tab" aria-current={t === current ? "page" : undefined}>
-          {STRIP_LABEL[t]}
+      {TABS.map((tab) => (
+        <IntentLink key={tab} href={tabHref(tab)} className="segmented-tab" aria-current={tab === current ? "page" : undefined}>
+          {t(STRIP_LABEL[tab])}
         </IntentLink>
       ))}
       {!chat && companions && (
         <IntentLink href="/companion" className="segmented-tab" aria-current={current === "companions" ? "page" : undefined}>
-          Companions
+          {t("Companions")}
         </IntentLink>
       )}
     </nav>
