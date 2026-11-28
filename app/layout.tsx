@@ -89,8 +89,8 @@ import { fontVariables } from "./fonts";
 import RoseSeal from "./RoseSeal";
 // The show's stage past the front door (the visual pop audit, 2026-11-20): SetHero, FaceRibbon, LoopClip.
 import "./ux/stage.css";
-import "./ux/chrome.css";
 import "./ux/design-pass.css";
+import "./ux/chrome.css";
 import "./ux/catalog.css";
 
 const TRACKING = trackingConfig();
