@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useT } from "@/app/I18nProvider";
 import Avatar from "@/app/Avatar";
 import { clipLength, playLength, type ColdOpen } from "@/lib/cold-open";
 import type { CharacterRef } from "@/lib/game";
@@ -38,6 +39,7 @@ export default function ColdOpenCard({
   onStart: () => void;
   onCut: () => void;
 }) {
+  const t = useT();
   const [a, b] = characters;
   const byId = (id: string) => characters.find((c) => c.id === id) ?? null;
   // Start has the focus, so Enter begins the date, but the card isn't scrolled to it: on a short screen autoFocus put the
@@ -62,17 +64,17 @@ export default function ColdOpenCard({
       </h2>
       {coldOpen.previously && (
         <p className="cold-open-prev">
-          <span className="cold-open-label">Previously on</span> {coldOpen.previously}
+          <span className="cold-open-label">{t("Previously on")}</span> {coldOpen.previously}
         </p>
       )}
       {coldOpen.setting && <p className="cold-open-setting">{coldOpen.setting}</p>}
       {coldOpen.roleplay && (
         <p className="cold-open-roleplay">
-          <span className="cold-open-label">Tonight&apos;s roleplay</span> {coldOpen.roleplay}
+          <span className="cold-open-label">{t("Tonight's roleplay")}</span> {coldOpen.roleplay}
         </p>
       )}
       {coldOpen.wants.length > 0 && (
-        <ul className="cold-open-wants" aria-label="What they want">
+        <ul className="cold-open-wants" aria-label={t("What they want")}>
           {coldOpen.wants.map((w) => {
             const c = byId(w.character_id);
             return (
@@ -91,7 +93,7 @@ export default function ColdOpenCard({
       <p className="cold-open-stakes">{coldOpen.stakes}</p>
       <div className="cold-open-actions">
         <button ref={start} type="button" className="primary" onClick={onStart} data-track={again ? "cold-open-back" : "cold-open-start"}>
-          ▶ {again ? "Back to the date" : "Start the date"}
+          ▶ {again ? t("Back to the date") : t("Start the date")}
         </button>
         {cut && (
           <button type="button" className="secondary" onClick={onCut} data-track="cold-open-cut">
@@ -101,7 +103,7 @@ export default function ColdOpenCard({
       </div>
       {!again && (
         <p className="cold-open-meta">
-          {lines} lines · {playLength(playMs)}
+          {t("{n} lines", { n: lines })} · {playLength(playMs)}
         </p>
       )}
     </section>

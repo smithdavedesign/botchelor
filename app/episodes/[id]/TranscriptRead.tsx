@@ -1,12 +1,13 @@
 import ChatThread from "@/app/ChatThread";
+import { english, msg, type T } from "@/lib/i18n/translate";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
 
 /** How many of the date's lines show before "Read the whole date": its first exchange. app/globals.css hides the rest
  *  with `.chat-item:nth-child(n + 5)`, so the two change together. */
 export const TRANSCRIPT_PREVIEW_LINES = 4;
-export const READ_WHOLE_DATE = "Read the whole date";
-export const SHOW_JUST_THE_START = "Show just the start";
+export const READ_WHOLE_DATE = msg("Read the whole date");
+export const SHOW_JUST_THE_START = msg("Show just the start");
 
 /**
  * Whether the read needs its "Read the whole date" fold: more lines than the first exchange, or a walk-out among them
@@ -31,28 +32,30 @@ export default function TranscriptRead({
   characters,
   turns,
   thoughts,
+  t = english,
 }: {
   episodeId: string;
   characters: [CharacterRef, CharacterRef];
   turns: Turn[];
   thoughts?: readonly (string | null)[] | null;
+  t?: T;
 }) {
   const more = readNeedsMore(turns);
   const rest = Math.max(0, turns.length - TRANSCRIPT_PREVIEW_LINES);
   return (
     <section className={`card transcript episode-read${more ? " has-more" : ""}`} id="the-date" aria-labelledby="the-date-title">
-      <h2 id="the-date-title">Read it line by line</h2>
-      <p className="muted episode-read-lede">The two characters played this out turn by turn: nobody scripted the lines in advance.</p>
-      {thoughts?.some(Boolean) && <p className="muted small chat-thought-hint">💭 Tap a thought bubble to see what they were thinking.</p>}
+      <h2 id="the-date-title">{t("Read it line by line")}</h2>
+      <p className="muted episode-read-lede">{t("The two characters played this out turn by turn: nobody scripted the lines in advance.")}</p>
+      {thoughts?.some(Boolean) && <p className="muted small chat-thought-hint">💭 {t("Tap a thought bubble to see what they were thinking.")}</p>}
       <ChatThread characters={characters} turns={turns} feedback={{ kind: "episode", refId: episodeId }} thoughts={thoughts} />
       {more && (
         <details className="episode-read-more">
           <summary>
             <span className="episode-read-more-show">
-              {READ_WHOLE_DATE}
-              {rest > 0 && ` (${rest} more ${rest === 1 ? "line" : "lines"})`}
+              {t(READ_WHOLE_DATE)}
+              {rest > 0 && ` (${rest === 1 ? t("1 more line") : t("{n} more lines", { n: rest })})`}
             </span>
-            <span className="episode-read-more-hide">{SHOW_JUST_THE_START}</span>
+            <span className="episode-read-more-hide">{t(SHOW_JUST_THE_START)}</span>
           </summary>
         </details>
       )}

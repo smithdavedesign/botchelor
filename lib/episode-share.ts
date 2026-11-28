@@ -8,13 +8,14 @@
  * has aired, may say so (ownerSharedPath, wentWellText): the news is theirs to tell, and the aired page prints the
  * ending anyway.
  */
+import { clientMsg } from "./i18n/translate";
 import { endingLabel, ENDINGS } from "./rules";
 
 /** The tag on every shared episode link, so RepoHQ's beacon tells these visits apart from "direct" (app/funnel.ts). */
 export const SHARE_REF = "share";
 
 /** The question the card and the poll ask. */
-export const SHARE_QUESTION = "How does it end?";
+export const SHARE_QUESTION = clientMsg("How does it end?");
 
 /** The card's address: /api/og/episode/<id> (app/api/og/episode/[id]/route.tsx). */
 export const episodeCardPath = (id: string) => `/api/og/episode/${encodeURIComponent(id)}`;

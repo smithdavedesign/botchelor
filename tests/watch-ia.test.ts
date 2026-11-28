@@ -148,7 +148,7 @@ describe("the episode page's written recap sits behind a toggle when the theater
     const close = page.indexOf("</RecapToggle>");
     expect(open).toBeGreaterThan(0);
     expect(close).toBeGreaterThan(open);
-    for (const reveal of ["<h2>The date</h2>", "<h2>The twist</h2>", "<h2>The finale</h2>", "Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}", "dramaAnswerLabel(episode.drama_question, episode.drama_answer", "<BoxScore", "why={episode.why}", "your AI landed on"]) {
+    for (const reveal of ['<h2>{t("The date")}</h2>', '<h2>{t("The twist")}</h2>', '<h2>{t("The finale")}</h2>', '{t("Ending:")} {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}', "dramaAnswerLabel(episode.drama_question, episode.drama_answer", "<BoxScore", "why={episode.why}", "your AI landed on"]) {
       const at = page.indexOf(reveal);
       expect(at, reveal).toBeGreaterThan(open);
       expect(at, reveal).toBeLessThan(close);
@@ -194,9 +194,10 @@ describe("the watch room's pre-show countdown", () => {
 
   it("the room shows the countdown and who's on stage instead of an empty thread during the pre-show", () => {
     const room = readFileSync(new URL("../app/watch/[id]/WatchRoom.tsx", import.meta.url), "utf8");
-    expect(room).toContain('empty={preshow ? null : "The conversation appears here, line by line."}');
+    expect(room).toContain('empty={preshow ? null : t("The conversation appears here, line by line.")}');
     expect(room).toContain("{preshow && <Preshow state={state} left={preshowLeft} tone=\"dark\" onStart={onStart} />}");
-    expect(room).toContain("On stage: <CharacterName character={a} avatar={false} strong /> and <CharacterName character={b} avatar={false} strong />");
+    expect(room).toContain('t("On stage: {a} and {b}.")');
+    expect(room).toContain("a: <CharacterName character={a} avatar={false} strong />,\n          b: <CharacterName character={b} avatar={false} strong />,");
     expect(room).toContain("useCountdown(state.clock.started && !state.clock.ended ? state.clock.preshow_left : null)");
   });
 });

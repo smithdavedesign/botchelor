@@ -73,7 +73,7 @@ describe("the ShareEnding card", () => {
   });
 
   it("sits on the theater's end screen (viewer) and under a mutual yes (owner)", () => {
-    expect(src("app/episodes/[id]/EpisodeTheater.tsx")).toMatch(/theater-verdict[\s\S]{0,600}<ShareEnding episodeId=\{episodeId\} names=\{\[a\.name, b\.name\]\} kind="viewer" \/>/);
+    expect(src("app/episodes/[id]/EpisodeTheater.tsx")).toMatch(/theater-verdict[\s\S]{0,600}<ShareEnding episodeId=\{episodeId\} names=\{\[a\.name, b\.name\]\} kind="viewer" t=\{t\} \/>/);
     const ag = src("app/episodes/[id]/Afterglow.tsx");
     expect(ag).toContain('shareable && afterglow.verdict && afterglowVerdictKind(afterglow.verdict.a_wants, afterglow.verdict.b_wants) === "mutual_yes" && (');
     expect(src("app/episodes/[id]/page.tsx")).toContain('shareable={episode.visibility !== "private"}'); // a private date is nobody's to share

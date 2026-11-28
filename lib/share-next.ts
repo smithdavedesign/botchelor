@@ -14,6 +14,7 @@
  * and only when both characters are public (the privacy rule: nothing private, unlisted or unaired is shown to a
  * stranger, and a shared link is for strangers). SHARE_NEXT=0 hides it everywhere. Pure, so the page and tests agree.
  */
+import { clientMsg } from "./i18n/translate";
 import { reportCardPath } from "./report-card";
 
 /** The share tag on the card's link (app/funnel.ts BEACON_REFS → source next_share). */
@@ -22,9 +23,9 @@ export const SHARE_NEXT_REF = "next";
 /** The event prop that tells this share apart from the report card page's own (data-track-where). */
 export const SHARE_NEXT_WHERE = "next_prompt";
 
-export const SHARE_NEXT_TITLE = "Whose character should go next?";
-export const SHARE_NEXT_LINE = "Send this date to a friend. They make a character in a minute, and it could date yours.";
-export const SHARE_NEXT_BUTTON = "Send it to a friend";
+export const SHARE_NEXT_TITLE = clientMsg("Whose character should go next?");
+export const SHARE_NEXT_LINE = clientMsg("Send this date to a friend. They make a character in a minute, and it could date yours.");
+export const SHARE_NEXT_BUTTON = clientMsg("Send it to a friend");
 
 /** SHARE_NEXT=0 (or off) hides the card; unset, or anything else, leaves it on. */
 export function shareNextOn(env: Record<string, string | undefined> = process.env): boolean {

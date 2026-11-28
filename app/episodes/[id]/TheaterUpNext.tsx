@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useT } from "@/app/I18nProvider";
 import Avatar from "@/app/Avatar";
 import { queueEvent } from "@/app/engagement";
 import type { CharacterRef } from "@/lib/game";
@@ -39,6 +40,7 @@ if (typeof window !== "undefined") {
  * carries on a viewer who's sitting back. And only one episode at a time: see openedOnItsOwn.
  */
 export default function TheaterUpNext({ next }: { next: TheaterNext }) {
+  const t = useT();
   const router = useRouter();
   const [shown, setShown] = useState(false);
   const [left, setLeft] = useState(AUTOPLAY_SECONDS);
@@ -63,12 +65,12 @@ export default function TheaterUpNext({ next }: { next: TheaterNext }) {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       // Opened by the last countdown and not touched since: the button, without a countdown.
       if (openedOnItsOwn) setStopped(true);
       setShown(true);
     }, UP_NEXT_AFTER_MS);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, []);
 
   const counting = shown && !stopped;
@@ -82,10 +84,10 @@ export default function TheaterUpNext({ next }: { next: TheaterNext }) {
   }, [counting]);
   useEffect(() => {
     if (!counting) return;
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       if (document.visibilityState === "visible") setLeft((n) => Math.max(0, n - 1));
     }, 1_000);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [counting]);
 
   const went = useRef(false);
@@ -106,21 +108,21 @@ export default function TheaterUpNext({ next }: { next: TheaterNext }) {
         <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={36} decorative />
       </span>
       <p className="theater-next-what">
-        <span className="theater-next-kicker">Up next</span>{" "}
+        <span className="theater-next-kicker">{t("Up next")}</span>{" "}
         <strong>
           <span className="nowrap">{a.name} ×</span> <span className="nowrap">{b.name}</span>
         </strong>
       </p>
       <p className="theater-next-actions">
         <Link className="button" href={next.href} prefetch={false} data-up-next-go data-track="up-next" data-track-where="theater">
-          ▶ Next episode
+          ▶ {t("Next episode")}
         </Link>
         {counting && (
           <span className="muted small">
-            <span aria-hidden="true">Plays in {left} s</span>
-            <span className="sr-only">The next episode plays in {AUTOPLAY_SECONDS} seconds unless you cancel.</span>{" "}
+            <span aria-hidden="true">{t("Plays in {n} s", { n: left })}</span>
+            <span className="sr-only">{t("The next episode plays in {n} seconds unless you cancel.", { n: AUTOPLAY_SECONDS })}</span>{" "}
             <button type="button" className="linklike" onClick={() => setStopped(true)}>
-              Cancel
+              {t("Cancel")}
             </button>
           </span>
         )}

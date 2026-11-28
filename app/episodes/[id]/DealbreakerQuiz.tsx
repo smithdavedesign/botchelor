@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { fillNodes } from "@/app/fillNodes";
+import { useT } from "@/app/I18nProvider";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { POINTS_PER_DEALBREAKER_PICK } from "@/lib/rules";
@@ -18,6 +20,7 @@ type Props = {
 
 /** Guess the dealbreaker (PRD): pick which of four is the character's real dealbreaker, before the reveal. */
 export default function DealbreakerQuiz({ episodeId, characterName, options, myPick, revealed, answer, correct }: Props) {
+  const t = useT();
   const { busy, error, run } = useAction();
   const [picked, setPicked] = useState<string | null>(myPick);
 
@@ -31,7 +34,7 @@ export default function DealbreakerQuiz({ episodeId, characterName, options, myP
       return (
         <section className="card quiz quiz-answer">
           <p>
-            {characterName}&apos;s real dealbreaker: <strong>{answer}</strong>
+            {fillNodes(t("{name}'s real dealbreaker: {answer}"), { name: characterName, answer: <strong>{answer}</strong> })}
             {stop}
           </p>
         </section>
@@ -39,11 +42,12 @@ export default function DealbreakerQuiz({ episodeId, characterName, options, myP
     }
     return (
       <section className="card quiz">
-        <h2>Guess the dealbreaker</h2>
+        <h2>{t("Guess the dealbreaker")}</h2>
         <p className={correct ? "notice" : undefined}>
-          {characterName}&apos;s real dealbreaker was <strong>{midSentence(answer ?? "")}</strong>
-          {stop} You picked {picked === answer ? "it" : `“${picked}”`}:{" "}
-          {correct ? `+${POINTS_PER_DEALBREAKER_PICK} points.` : "0 points."}
+          {fillNodes(t("{name}'s real dealbreaker was {answer}"), { name: characterName, answer: <strong>{midSentence(answer ?? "")}</strong> })}
+          {stop}{" "}
+          {picked === answer ? t("You picked it:") : t("You picked “{pick}”:", { pick: picked ?? "" })}{" "}
+          {correct ? t("+{n} points.", { n: POINTS_PER_DEALBREAKER_PICK }) : t("0 points.")}
         </p>
       </section>
     );
@@ -56,8 +60,10 @@ export default function DealbreakerQuiz({ episodeId, characterName, options, myP
 
   return (
     <section className="card quiz">
-      <h2>Guess the dealbreaker</h2>
-      <p className="muted">Which one is {characterName}&apos;s real dealbreaker? Worth {POINTS_PER_DEALBREAKER_PICK} points if you&apos;re right.</p>
+      <h2>{t("Guess the dealbreaker")}</h2>
+      <p className="muted">
+        {t("Which one is {name}'s real dealbreaker? Worth {n} points if you're right.", { name: characterName, n: POINTS_PER_DEALBREAKER_PICK })}
+      </p>
       <div className="choices">
         {options.map((option) => (
           <button
@@ -71,7 +77,7 @@ export default function DealbreakerQuiz({ episodeId, characterName, options, myP
           </button>
         ))}
       </div>
-      {picked && <p className="notice">Locked in: “{picked}”. You can change it until the finale airs.</p>}
+      {picked && <p className="notice">{t("Locked in: “{pick}”. You can change it until the finale airs.", { pick: picked })}</p>}
       {error && <p className="error">{error}</p>}
     </section>
   );

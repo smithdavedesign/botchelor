@@ -19,6 +19,8 @@ import type { TheaterVerdict } from "./EpisodeTheater";
 import VerdictCard from "./VerdictCard";
 import PushToggle from "@/app/notifications/PushToggle";
 import Icon from "@/app/Icon";
+import { useT } from "@/app/I18nProvider";
+import { english, type T } from "@/lib/i18n/translate";
 
 /** No new line for this long while it's filmed: say it's slower than usual (lines land seconds apart). */
 export const SLOW_LINE_MS = 60_000;
@@ -26,9 +28,9 @@ export const SLOW_LINE_MS = 60_000;
 export const OFFER_NOTIFY_MS = 120_000;
 
 /** "4 of about 12 lines filmed", or just the count once a date runs past its usual length (a move adds lines). */
-export function filmedLabel(filmed: number, total: number | null | undefined): string {
-  if (!total || filmed > total) return `${filmed} ${filmed === 1 ? "line" : "lines"} filmed`;
-  return `${filmed} of about ${total} lines filmed`;
+export function filmedLabel(filmed: number, total: number | null | undefined, t: T = english): string {
+  if (!total || filmed > total) return filmed === 1 ? t("1 line filmed") : t("{n} lines filmed", { n: filmed });
+  return t("{n} of about {total} lines filmed", { n: filmed, total });
 }
 
 /**
@@ -37,6 +39,7 @@ export function filmedLabel(filmed: number, total: number | null | undefined): s
  * lib/jobs.ts). Two minutes in and still filming: offer to tell them when it's ready.
  */
 function SlowNote({ episodeId, slow, offerNotify, pushKey, creator, bare = false }: { episodeId: string; slow: boolean; offerNotify: boolean; pushKey?: string | null; creator: boolean; bare?: boolean }) {
+  const t = useT();
   const [asked, setAsked] = useState<"no" | "busy" | "yes" | "failed">("no");
   if (!slow && !offerNotify) return null;
   async function ask() {
@@ -48,25 +51,25 @@ function SlowNote({ episodeId, slow, offerNotify, pushKey, creator, bare = false
     <div className={bare ? "filming-slow" : "card filming-slow"} role="status" aria-live="polite">
       <p className="muted small">
         {slow
-          ? "This one's taking longer than usual. If the writer stalled, the show restarts it by itself."
-          : `Still filming. A date takes ${WRITE_TIME}.`}
+          ? t("This one's taking longer than usual. If the writer stalled, the show restarts it by itself.")
+          : t("Still filming. A date takes {time}.", { time: t(WRITE_TIME) })}
       </p>
       {offerNotify && creator && (
         <>
           {asked === "yes" ? (
             <p className="small">
-              <Icon name="bell" /> Done: you&apos;ll get a notification the moment it&apos;s filmed, so you can leave this page.
+              <Icon name="bell" /> {t("Done: you'll get a notification the moment it's filmed, so you can leave this page.")}
             </p>
           ) : (
             <p>
               <button type="button" className="secondary small" data-track="notify_when_filmed" disabled={asked === "busy"} onClick={() => void ask()}>
-                <Icon name="bell" /> Tell me when it&apos;s ready
+                <Icon name="bell" /> {t("Tell me when it's ready")}
               </button>
-              {asked === "failed" && <span className="error small"> That didn&apos;t go through. Try again.</span>}
+              {asked === "failed" && <span className="error small"> {t("That didn't go through. Try again.")}</span>}
             </p>
           )}
           {asked === "yes" && pushKey && (
-            <PushToggle publicKey={pushKey} prompt emailFallback place="filming" title="Get it as a push" body="So it reaches you with the site closed. Otherwise it waits under the bell." />
+            <PushToggle publicKey={pushKey} prompt emailFallback place="filming" title={t("Get it as a push")} body={t("So it reaches you with the site closed. Otherwise it waits under the bell.")} />
           )}
         </>
       )}
@@ -97,6 +100,7 @@ type Stage = {
  * other one decides; the token comes back if they don't go.
  */
 function SetSceneBar({ episodeId }: { episodeId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState("");
   const [busy, setBusy] = useState(false);
@@ -112,8 +116,8 @@ function SetSceneBar({ episodeId }: { episodeId: string }) {
     }).catch(() => null);
     const data = (await res?.json().catch(() => null)) as { message?: string; suggestion?: { label: string } } | null;
     setBusy(false);
-    if (!res?.ok) return setNote({ text: data?.message ?? "That didn't go through. Try again.", error: true });
-    setNote({ text: `Sent. The next line suggests ${data?.suggestion?.label ?? "it"}. They can still say no, and your token comes back if they don't go.` });
+    if (!res?.ok) return setNote({ text: data?.message ?? t("That didn't go through. Try again."), error: true });
+    setNote({ text: data?.suggestion?.label ? t("Sent. The next line suggests {place}. They can still say no, and your token comes back if they don't go.", { place: data.suggestion.label }) : t("Sent. The next line suggests it. They can still say no, and your token comes back if they don't go.") });
     setPlace("");
     setOpen(false);
   }
@@ -121,17 +125,17 @@ function SetSceneBar({ episodeId }: { episodeId: string }) {
     <div className="ad-theater-bar set-scene-bar">
       {open ? (
         <form onSubmit={go} className="set-scene-form">
-          <input aria-label="Take them anywhere" value={place} maxLength={60} onChange={(e) => setPlace(e.target.value)} placeholder="Take them anywhere: a rooftop pool at midnight…" disabled={busy} autoFocus />
+          <input aria-label={t("Take them anywhere")} value={place} maxLength={60} onChange={(e) => setPlace(e.target.value)} placeholder={t("Take them anywhere: a rooftop pool at midnight…")} disabled={busy} autoFocus />
           <button type="submit" className="primary" disabled={busy || !place.trim()}>
-            {busy ? "Sending…" : "Suggest it · 1 token"}
+            {busy ? t("Sending…") : t("Suggest it · 1 token")}
           </button>
           <button type="button" className="button-ghost" onClick={() => setOpen(false)} disabled={busy}>
-            Cancel
+            {t("Cancel")}
           </button>
         </form>
       ) : (
-        <button type="button" className="button-ghost" onClick={() => setOpen(true)} title="Take them anywhere (1 token)">
-          📍 Set the scene
+        <button type="button" className="button-ghost" onClick={() => setOpen(true)} title={t("Take them anywhere (1 token)")}>
+          📍 {t("Set the scene")}
         </button>
       )}
       {note && (
@@ -181,6 +185,7 @@ export default function GeneratingPoller({
   pushKey?: string | null;
 }) {
   const router = useRouter();
+  const t = useT();
   const [failed, setFailed] = useState(false);
   const [lines, setLines] = useState<Turn[]>([]);
   // The ending as it will stand (the early verdict), once the poll has carried it; null while the date is still open.
@@ -199,8 +204,8 @@ export default function GeneratingPoller({
   // A writer that died was restarted from the top (lib/jobs.ts rescueStuckJob): its first lines replace the old ones.
   const [restarted, setRestarted] = useState(false);
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 5000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
   }, []);
   // The poll reads how far playback got when the date finishes, without re-arming on every line.
   const reached = useRef(0);
@@ -287,13 +292,10 @@ export default function GeneratingPoller({
   if (failed) {
     return (
       <section className="card">
-        <h2>That date didn&apos;t work out</h2>
-        <p className="muted">
-          The filming didn&apos;t come together this time, and your date has been given back. Send them
-          out again.
-        </p>
+        <h2>{t("That date didn't work out")}</h2>
+        <p className="muted">{t("The filming didn't come together this time, and your date has been given back. Send them out again.")}</p>
         <p>
-          <Link href="/">Make another date</Link>
+          <Link href="/">{t("Make another date")}</Link>
         </p>
       </section>
     );
@@ -302,11 +304,8 @@ export default function GeneratingPoller({
   if (stage && exited) {
     return (
       <section className="card watch-preshow" aria-live="polite">
-        <h2>🎬 Filming the date…</h2>
-        <p className="muted">
-          The two characters are on their date right now. It opens in the theater the moment it&apos;s ready, from the line
-          you&apos;d reached.
-        </p>
+        <h2>🎬 {t("Filming the date…")}</h2>
+        <p className="muted">{t("The two characters are on their date right now. It opens in the theater the moment it's ready, from the line you'd reached.")}</p>
         <p>
           <button
             type="button"
@@ -316,7 +315,7 @@ export default function GeneratingPoller({
               setExited(false);
             }}
           >
-            Back to the stage
+            {t("Back to the stage")}
           </button>
         </p>
       </section>
@@ -328,8 +327,8 @@ export default function GeneratingPoller({
     // Caught up with the writing: whoever speaks next is "typing" (sides alternate; Act 1 opens on a); nobody once it's decided.
     const last = shown[shown.length - 1];
     const typing = caughtUp ? (lines.length && !decided ? (last?.side === "a" ? "b" : "a") : null) : replay.typing;
-    const actLabel = last ? DATE_ACTS[last.act] ?? null : null;
-    const usual = final ? endingLabel(final, stage.dateNumber) : "";
+    const actLabel = last && DATE_ACTS[last.act] ? t(DATE_ACTS[last.act]) : null;
+    const usual = final ? t(endingLabel(final, stage.dateNumber)) : "";
     const label = final && stage.overnight ? overnightEndingLabel(final, usual) : usual;
     const skipToEnding = () => {
       skipped.current = true;
@@ -353,7 +352,7 @@ export default function GeneratingPoller({
               lineA={lastLine(shown, "a")}
               lineB={lastLine(shown, "b")}
               actLabel={actLabel}
-              placeholder="They're arriving…"
+              placeholder={t("They're arriving…")}
               staged={{ speaking: speakerOf(shown), act: shown.length ? shown[shown.length - 1].act : 0, push: bigLine(shown) }}
             />
           </div>
@@ -371,30 +370,30 @@ export default function GeneratingPoller({
               <strong>
                 <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
               </strong>
-              <span className="chip">{ready ? "Just filmed" : verdictShowing ? "Wrapping up" : `🔴 Filming live · ${filmedLabel(lines.length, totalLines)}`}</span>
+              <span className="chip">{ready ? t("Just filmed") : verdictShowing ? t("Wrapping up") : `🔴 ${t("Filming live")} · ${filmedLabel(lines.length, totalLines, t)}`}</span>
             </div>
             <div className="theater-tools">
               {decided && !caughtUp && (
                 <button type="button" className="secondary small" onClick={skipToEnding} data-track="skip-to-ending">
-                  Skip to the ending
+                  {t("Skip to the ending")}
                 </button>
               )}
               <button type="button" className="secondary small" onClick={exit}>
-                Exit
+                {t("Exit")}
               </button>
             </div>
           </header>
           {stage.canSetScene && !decided && <SetSceneBar episodeId={episodeId} />}
           {!ready && !verdictShowing && (
             <div className="ad-theater-bar">
-              {restarted && <p className="ad-theater-note">The filming hit a snag and restarted from the top. Same date, same ending.</p>}
+              {restarted && <p className="ad-theater-note">{t("The filming hit a snag and restarted from the top. Same date, same ending.")}</p>}
               <SlowNote episodeId={episodeId} slow={slow} offerNotify={offerNotify} pushKey={stage.verdict?.pushKey ?? pushKey} creator bare />
             </div>
           )}
           {!shown.length && !verdictShowing && (
             <div className="theater-verdict" role="status" aria-live="polite">
-              <p className="ending">Filming the date…</p>
-              <p className="muted">The first lines appear here as they&apos;re filmed, usually within a minute; the whole date takes {WRITE_TIME}.</p>
+              <p className="ending">{t("Filming the date…")}</p>
+              <p className="muted">{t("The first lines appear here as they're filmed, usually within a minute; the whole date takes {time}.", { time: t(WRITE_TIME) })}</p>
             </div>
           )}
           {verdictShowing &&
@@ -416,9 +415,9 @@ export default function GeneratingPoller({
               <div className="theater-verdict">
                 <p className="ending">{label}</p>
                 <p className="muted">
-                  That&apos;s how it ended.{" "}
+                  {t("That's how it ended.")}{" "}
                   <button type="button" className="linklike" onClick={replay.restart}>
-                    Watch again
+                    {t("Watch again")}
                   </button>
                 </p>
               </div>
@@ -431,20 +430,17 @@ export default function GeneratingPoller({
   // The plain page (no ?play=1): what's filmed so far, for its creator, and the way onto the stage.
   return (
     <section className="card watch-preshow" aria-live="polite">
-      <h2>🎬 Filming the date…</h2>
-      <p className="muted">
-        The two characters are on their date right now. It takes {WRITE_TIME}, and this page updates itself
-        the moment it&apos;s ready.
-      </p>
+      <h2>🎬 {t("Filming the date…")}</h2>
+      <p className="muted">{t("The two characters are on their date right now. It takes {time}, and this page updates itself the moment it's ready.", { time: t(WRITE_TIME) })}</p>
       {creator && (
         <p>
-          {lines.length > 0 && <strong>{filmedLabel(lines.length, totalLines)}. </strong>}
+          {lines.length > 0 && <strong>{filmedLabel(lines.length, totalLines, t)}. </strong>}
           <Link className="button secondary small" href={`/episodes/${episodeId}?play=1`} data-track="watch_filming">
-            ▶ Watch it being filmed
+            ▶ {t("Watch it being filmed")}
           </Link>
         </p>
       )}
-      {restarted && <p className="muted small">The filming hit a snag and restarted from the top. Same date, same ending.</p>}
+      {restarted && <p className="muted small">{t("The filming hit a snag and restarted from the top. Same date, same ending.")}</p>}
       {creator && characters && lines.length > 0 && <ChatThread characters={characters} turns={lines} />}
       <SlowNote episodeId={episodeId} slow={slow && lines.length > 0} offerNotify={offerNotify} pushKey={pushKey} creator={creator} />
     </section>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/app/I18nProvider";
 import { localWeeklyWords, utcWeeklyWords } from "@/app/weekly-time";
 import { okJson } from "@/lib/ok-json";
 
@@ -12,6 +13,7 @@ type Note = { first: string; lead: string; hour: number; minute?: number };
  * (GET /api/casting/walk-on?episode=), so the card itself carries no casting props; it renders nothing for any other date.
  */
 export default function CastingVerdictLine({ episodeId }: { episodeId: string }) {
+  const t = useT();
   const [note, setNote] = useState<Note | null>(null);
   useEffect(() => {
     let live = true;
@@ -35,7 +37,7 @@ export default function CastingVerdictLine({ episodeId }: { episodeId: string })
   }
   return (
     <p className="muted small" data-casting-line>
-      Roses are handed out {when}. {note.first} will text you.
+      {t("Roses are handed out {when}. {name} will text you.", { when, name: note.first })}
     </p>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Icon from "@/app/Icon";
+import { useT } from "@/app/I18nProvider";
 import { useOverlay } from "@/app/useOverlay";
 import { flush, queueEvent } from "@/app/engagement";
 import Scene from "@/app/Scene";
@@ -112,11 +113,12 @@ export default function EpisodeTheater(props: Props) {
   const [cutFrom, setCutFrom] = useState<CutPlace | null>(null);
   const router = useRouter();
   const pathname = usePathname();
+  const t = useT();
   if (!open) {
     return (
       <>
         <button type="button" className="primary" onClick={() => setOpen(true)}>
-          <Icon name="clapper" /> Watch in theater
+          <Icon name="clapper" /> {t("Watch in theater")}
         </button>
         {props.cut && (
           // The quick way in (2026-11-19): the same date as the show's short, with its voices.
@@ -182,6 +184,7 @@ function Playback({
   const [entering, setEntering] = useState(false);
   const [cutaway, setCutaway] = useState<{ character_id: string; line: string } | null>(null);
   // The date waits behind the card: it starts when they press Start.
+  const t = useT();
   const replay = useReplay(transcript, !intro, { startAt, hold: entering || cutaway !== null });
   // Playing when "Who's who" paused it, so going back carries on; paused, it stays paused.
   const resume = useRef(true);
@@ -353,7 +356,7 @@ function Playback({
   });
   const shown = replay.shown;
   const [a, b] = characters;
-  const actLabel = shown.length ? DATE_ACTS[shown[shown.length - 1].act] ?? null : null;
+  const actLabel = shown.length && DATE_ACTS[shown[shown.length - 1].act] ? t(DATE_ACTS[shown[shown.length - 1].act]) : null;
 
   return (
     <div className="theater theater-clean theater-replay" ref={stage}>
@@ -367,7 +370,7 @@ function Playback({
             moodA={latestFace(characters[0].shots, shown, "a")}
             moodB={latestFace(characters[1].shots, shown, "b")}
             actLabel={actLabel}
-            placeholder="The date begins…"
+            placeholder={t("The date begins…")}
             staged={{
               speaking: speakerOf(shown),
               act: shown.length ? shown[shown.length - 1].act : 0,
@@ -410,15 +413,15 @@ function Playback({
               onExit();
             }}
           >
-            <span aria-hidden="true">←</span> Exit
+            <span aria-hidden="true">←</span> {t("Exit")}
           </button>
           <div className="theater-id">
             <strong>
               <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
-            {justFilmed && <span className="chip">Just filmed</span>}
+            {justFilmed && <span className="chip">{t("Just filmed")}</span>}
             {roleplay && (
-              <span className="chip" title="A roleplay both sides agreed to: the lines are their roles'">
+              <span className="chip" title={t("A roleplay both sides agreed to: the lines are their roles'")}>
                 {roleplay.icon} {roleplay.title}
               </span>
             )}
@@ -446,17 +449,17 @@ function Playback({
             <div className="theater-verdict">
               <p className="ending">{endingLabel}</p>
               <p className="muted">
-                That&apos;s how it ended.{" "}
+                {t("That's how it ended.")}{" "}
                 <button type="button" className="linklike" onClick={replay.restart}>
-                  Watch again
+                  {t("Watch again")}
                 </button>
               </p>
               {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
-              {shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />}
+              {shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" t={t} />}
               {reportCard && (
                 <p className="theater-report">
                   <Link className="button-ghost" href={reportCard} data-track="report-card-open">
-                    📝 See its report card
+                    📝 {t("See its report card")}
                   </Link>
                 </p>
               )}
@@ -465,20 +468,20 @@ function Playback({
           ))}
       </div>
       {/* Play, Replay, Skip and Who's who at the foot, labelled: a phone's thumb reaches them there (mobile audit A3). */}
-      <nav className="theater-transport" aria-label="Playback">
+      <nav className="theater-transport" aria-label={t("Playback")}>
         {coldOpen && (
           <button
             type="button"
             className={`theater-icon theater-transport-button${card ? " on" : ""}`}
             onClick={card ? startFromCard : reopenCard}
             aria-pressed={Boolean(card)}
-            aria-label="Who's who"
-            title="Who's who"
+            aria-label={t("Who's who")}
+            title={t("Who's who")}
             data-track="theater-whos-who"
           >
             <span aria-hidden="true">👥</span>
             <span className="theater-transport-word" aria-hidden="true">
-              Who&apos;s who
+              {t("Who's who")}
             </span>
           </button>
         )}
@@ -489,12 +492,12 @@ function Playback({
             closeCard();
             replay.restart();
           }}
-          aria-label="Replay"
-          title="Replay from the start"
+          aria-label={t("Replay")}
+          title={t("Replay from the start")}
         >
           <span aria-hidden="true">↻</span>
           <span className="theater-transport-word" aria-hidden="true">
-            Replay
+            {t("Replay")}
           </span>
         </button>
         <button
@@ -504,18 +507,18 @@ function Playback({
             closeCard();
             replay.toggle();
           }}
-          aria-label={replay.playing ? "Pause" : "Play"}
-          title={replay.playing ? "Pause" : "Play"}
+          aria-label={replay.playing ? t("Pause") : t("Play")}
+          title={replay.playing ? t("Pause") : t("Play")}
         >
           <span aria-hidden="true">{replay.playing ? "⏸" : "▶"}</span>
           <span className="theater-transport-word" aria-hidden="true">
-            {replay.playing ? "Pause" : "Play"}
+            {replay.playing ? t("Pause") : t("Play")}
           </span>
         </button>
-        <button type="button" className="theater-icon theater-transport-button" onClick={skip} aria-label="Skip to the end" title="Skip to the end">
+        <button type="button" className="theater-icon theater-transport-button" onClick={skip} aria-label={t("Skip to the end")} title={t("Skip to the end")}>
           <span aria-hidden="true">⏭</span>
           <span className="theater-transport-word" aria-hidden="true">
-            Skip
+            {t("Skip")}
           </span>
         </button>
         <button
@@ -523,8 +526,8 @@ function Playback({
           className={`theater-icon theater-crowd-toggle${crowdOn ? " on" : ""}`}
           onClick={toggleCrowd}
           aria-pressed={crowdOn}
-          aria-label="The crowd"
-          title="The crowd: viewers' reactions and the show's bots"
+          aria-label={t("The crowd")}
+          title={t("The crowd: viewers' reactions and the show's bots")}
           data-track="theater-crowd"
         >
           🍿
@@ -535,8 +538,8 @@ function Playback({
           className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
           onClick={() => setConvo((v) => !v)}
           aria-pressed={convo}
-          aria-label="The conversation"
-          title="The conversation"
+          aria-label={t("The conversation")}
+          title={t("The conversation")}
         >
           📜
         </button>
@@ -550,10 +553,11 @@ function Playback({
  * the camera, then back to the date. Tapping it goes straight back.
  */
 function Cutaway({ take, characters, onDone }: { take: { character_id: string; line: string }; characters: [CharacterRef, CharacterRef]; onDone: () => void }) {
+  const t = useT();
   const who = characters.find((c) => c.id === take.character_id) ?? characters[0];
   const shot = who.shots?.confessional ?? who.portrait ?? characterPortrait(who.id);
   return (
-    <button type="button" className="theater-cutaway" onClick={onDone} aria-label={`The confessional: ${who.name}. Back to the date`}>
+    <button type="button" className="theater-cutaway" onClick={onDone} aria-label={t("The confessional: {name}. Back to the date", { name: who.name })}>
       <span className="booth-frame theater-cutaway-frame">
         {/* eslint-disable-next-line @next/next/no-img-element -- their own small shot, or the booth's set */}
         <img className="booth-shot" src={shot ?? showSetPath("confessional")} alt="" aria-hidden="true" />
@@ -564,7 +568,7 @@ function Cutaway({ take, characters, onDone }: { take: { character_id: string; l
           <span />
         </span>
         <span className="booth-rec" aria-hidden="true">
-          <span className="booth-rec-dot" /> REC
+          <span className="booth-rec-dot" /> {/* i18n-ok: the camera's own light */}REC
         </span>
         <span className="booth-caption">
           <span className="booth-line">
@@ -572,7 +576,7 @@ function Cutaway({ take, characters, onDone }: { take: { character_id: string; l
           </span>
         </span>
       </span>
-      <span className="theater-cutaway-kicker">The confessional · tap to go back to the date</span>
+      <span className="theater-cutaway-kicker">{t("The confessional · tap to go back to the date")}</span>
     </button>
   );
 }

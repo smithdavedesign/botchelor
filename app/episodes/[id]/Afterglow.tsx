@@ -12,6 +12,24 @@ import { requestJson } from "@/app/request";
 import type { CharacterRef, EpisodeView } from "@/lib/game";
 import { afterglowVerdictKind, dateLabel } from "@/lib/rules";
 import type { SecondDateState } from "@/lib/second-date";
+import { useT } from "@/app/I18nProvider";
+import { fillNodes } from "@/app/fillNodes";
+import { clientMsg, type T } from "@/lib/i18n/translate";
+
+/** A couple's nth date in running text ("their third date"), each language its own words; figures after the tenth. */
+const DATE_WORDS = [
+  clientMsg("first date"),
+  clientMsg("second date"),
+  clientMsg("third date"),
+  clientMsg("fourth date"),
+  clientMsg("fifth date"),
+  clientMsg("sixth date"),
+  clientMsg("seventh date"),
+  clientMsg("eighth date"),
+  clientMsg("ninth date"),
+  clientMsg("tenth date"),
+];
+const dateWords = (n: number, t: T) => (n >= 1 && n <= DATE_WORDS.length ? t(DATE_WORDS[n - 1]) : dateLabel(n).toLowerCase());
 
 type Props = {
   episodeId: string;
@@ -26,16 +44,16 @@ type Props = {
 };
 
 /** The one-line mutual verdict, built client-side from each side's wants_another (never a model call). */
-function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [string, string], dateNumber?: number | null): string {
+function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [string, string], dateNumber: number | null | undefined, t: T): string {
   switch (afterglowVerdictKind(verdict.a_wants, verdict.b_wants)) {
     case "mutual_yes":
-      return "It was mutual — you both want to see each other again. 💘";
+      return `${t("It was mutual: you both want to see each other again.")} 💘`;
     case "mutual_no":
-      return `No ${dateLabel(Math.max(1, dateNumber ?? 1) + 1).toLowerCase()}: neither of them is feeling it.`;
+      return t("No {next}: neither of them is feeling it.", { next: dateWords(Math.max(1, dateNumber ?? 1) + 1, t) });
     case "one_sided": {
       const keen = verdict.a_wants ? names[0] : names[1];
       const cool = verdict.a_wants ? names[1] : names[0];
-      return `It was one-sided — ${keen} wants another date, ${cool} doesn't.`;
+      return t("It was one-sided: {keen} wants another date, {cool} doesn't.", { keen, cool });
     }
   }
 }
@@ -45,6 +63,7 @@ function verdictLine(verdict: { a_wants: boolean; b_wants: boolean }, names: [st
  * mutual, shown as soon as they exist. No owner has to open it or agree first.
  */
 export default function Afterglow({ episodeId, characters, afterglow, secondDate, dateNumber, shareable = false }: Props) {
+  const t = useT();
   const [a, b] = characters;
   const names: [string, string] = [a.name, b.name];
   // These texts open the couple's text chain, which carries on between dates (lib/text-chain.ts).
@@ -52,12 +71,12 @@ export default function Afterglow({ episodeId, characters, afterglow, secondDate
 
   return (
     <section className="card afterglow">
-      <h2>The afterglow</h2>
-      <p className="muted">The morning after, your characters kept texting. Only the characters&apos; owners see this.</p>
-      {afterglow.verdict && <p className="ending">{verdictLine(afterglow.verdict, names, dateNumber)}</p>}
+      <h2>{t("The afterglow")}</h2>
+      <p className="muted">{t("The morning after, your characters kept texting. Only the characters' owners see this.")}</p>
+      {afterglow.verdict && <p className="ending">{verdictLine(afterglow.verdict, names, dateNumber, t)}</p>}
       {/* The share where the feeling is (2026-11-11 growth plan): the owner may tell the good news (lib/episode-share.ts). */}
       {shareable && afterglow.verdict && afterglowVerdictKind(afterglow.verdict.a_wants, afterglow.verdict.b_wants) === "mutual_yes" && (
-        <ShareEnding episodeId={episodeId} names={names} dateNumber={dateNumber} kind="owner_well" />
+        <ShareEnding episodeId={episodeId} names={names} dateNumber={dateNumber} kind="owner_well" t={t} />
       )}
       {afterglow.thread.map((line, i) => {
         const who = line.side === "a" ? a : b;
@@ -73,7 +92,7 @@ export default function Afterglow({ episodeId, characters, afterglow, secondDate
         );
       })}
       <p className="small">
-        <Link href={thread}>💬 Read all their texts, on their phone</Link>
+        <Link href={thread}>💬 {t("Read all their texts, on their phone")}</Link>
       </p>
       {secondDate?.mutual && <SecondDate episodeId={episodeId} state={secondDate} />}
     </section>
@@ -86,6 +105,7 @@ export default function Afterglow({ episodeId, characters, afterglow, secondDate
  */
 export function SecondDate({ episodeId, state }: { episodeId: string; state: SecondDateState }) {
   const router = useRouter();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean; shop?: boolean } | null>(null);
   const first = shortName(state.partner_name);
@@ -97,7 +117,7 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
     setMessage(null);
     const res = await requestJson(`/api/episodes/${episodeId}/second-date`, {}).catch(() => null);
     setBusy(false);
-    if (!res) return setMessage({ text: "Network error. Try again.", error: true });
+    if (!res) return setMessage({ text: t("Network error. Try again."), error: true });
     if (res.status === 200 && typeof res.data.id === "string") return router.push(`/episodes/${res.data.id}?play=1`);
     if (res.status === 202) {
       setMessage({ text: res.message });
@@ -106,11 +126,11 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
     setMessage({ text: res.message, error: true, shop: res.status === 429 || res.status === 402 });
   }
 
-  const next = dateLabel(state.next_date_number).toLowerCase();
+  const next = dateWords(state.next_date_number, t);
   if (state.planned_episode_id) {
     return (
       <p className="notice">
-        💞 Their {next} is booked. <Link href={`/episodes/${state.planned_episode_id}`}>Watch it</Link>
+        💞 {t("Their {next} is booked.", { next })} <Link href={`/episodes/${state.planned_episode_id}`}>{t("Watch it")}</Link>
       </p>
     );
   }
@@ -119,8 +139,8 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
     const mine = shortName(state.my_character_name);
     return (
       <p className="taken-note" role="note">
-        <span className="badge taken-tag">💍 {state.taken_with ? `With ${shortName(state.taken_with)}` : "Taken"}</span> They both want a {next}, but{" "}
-        {takenNote(mine, state.taken_with ?? null)} <Link href={`/characters/${state.my_character_id}#partners-${state.my_character_id}`}>Change it on {mine}&apos;s page</Link>
+        <span className="badge taken-tag">💍 {state.taken_with ? t("With {name}", { name: shortName(state.taken_with) }) : t("Taken")}</span> {t("They both want a {next}, but", { next })}{" "}
+        {takenNote(mine, state.taken_with ?? null)} <Link href={`/characters/${state.my_character_id}#partners-${state.my_character_id}`}>{t("Change it on {name}'s page", { name: mine })}</Link>
       </p>
     );
   }
@@ -130,28 +150,30 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
   const spends = books && !state.free;
   return (
     <div className="second-date">
-      <h3>They both want a {next}</h3>
+      <h3>{t("They both want a {next}", { next })}</h3>
       {state.plan.length > 0 && (
         <p className="muted">
-          Their plan: {state.plan.map((p) => `“${p}”`).join(" ")}
+          {t("Their plan:")} {state.plan.map((p) => `“${p}”`).join(" ")}
         </p>
       )}
       {waiting ? (
-        <p className="muted">You said yes. Waiting for {first}&apos;s creator to say yes too.</p>
+        <p className="muted">{t("You said yes. Waiting for {name}'s creator to say yes too.", { name: first })}</p>
       ) : (
         <>
-          {state.they_asked && <p className="muted">{first}&apos;s creator already said yes.</p>}
+          {state.they_asked && <p className="muted">{t("{name}'s creator already said yes.", { name: first })}</p>}
           {/* The button on its own line and the cost under it (it wrapped raggedly beside it). */}
           <p className="action-hint">
           <button type="button" className="primary" onClick={spends ? () => (setMessage(null), setAsking(true)) : plan} disabled={busy}>
-            {busy && !spends ? "Booking…" : books ? `Plan the ${next}` : `Say yes to a ${next} with ${first}`}
+            {busy && !spends ? t("Booking…") : books ? t("Plan the {next}", { next }) : t("Say yes to a {next} with {name}", { next, name: first })}
           </button>{" "}
           <span className="muted small">
             {state.needs_their_yes && !state.they_asked
-              ? `Free to say yes; whoever completes it books it${state.free ? " (free for you: your second date this week is on the show)" : " with 1 date"}.`
+              ? state.free
+                ? t("Free to say yes; whoever completes it books it (free for you: your second date this week is on the show).")
+                : t("Free to say yes; whoever completes it books it with 1 date.")
               : state.free
-                ? "Free: your second date this week is on the show. It happens where they planned it."
-                : "1 date, like any other. It happens where they planned it."}
+                ? t("Free: your second date this week is on the show. It happens where they planned it.")
+                : t("1 date, like any other. It happens where they planned it.")}
           </span>
           </p>
         </>
@@ -162,7 +184,7 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
           {message.shop && (
             <>
               {" "}
-              <Link href="/shop">Get more dates</Link>
+              <Link href="/shop">{t("Get more dates")}</Link>
             </>
           )}
         </p>
@@ -172,14 +194,15 @@ export function SecondDate({ episodeId, state }: { episodeId: string; state: Sec
         onClose={() => {
           if (!busy) setAsking(false);
         }}
-        title={`Plan their ${next}?`}
+        title={t("Plan their {next}?", { next })}
         lede={
-          <>
-            <strong>{shortName(state.my_character_name)}</strong> and <strong>{first}</strong> both want it. It happens where they planned it, and the show decides how it ends.
-          </>
+          fillNodes(t("{name} and {partner} both want it. It happens where they planned it, and the show decides how it ends."), {
+            name: <strong>{shortName(state.my_character_name)}</strong>,
+            partner: <strong>{first}</strong>,
+          })
         }
-        sendLabel={`Plan the ${next}`}
-        busyLabel="Booking…"
+        sendLabel={t("Plan the {next}", { next })}
+        busyLabel={t("Booking…")}
         busy={busy}
         error={message?.error ? { text: message.text, shop: message.shop } : null}
         onSend={() => void plan()}

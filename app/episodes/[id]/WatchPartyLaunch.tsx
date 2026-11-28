@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
+import { useT } from "@/app/I18nProvider";
 import ShareLink from "@/app/ShareLink";
 import { requestJson } from "@/app/request";
 
@@ -13,6 +14,7 @@ type Props = { episodeId: string; isHost: boolean; partyId: string | null };
  * host can start one — a synchronized premiere where the audience reacts, chats and calls the ending.
  */
 export default function WatchPartyLaunch({ episodeId, isHost, partyId }: Props) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,13 +22,13 @@ export default function WatchPartyLaunch({ episodeId, isHost, partyId }: Props) 
   if (partyId) {
     return (
       <section className="card watch-launch">
-        <h2>Watch party</h2>
-        <p className="muted">A live room is open for this date: react, chat and predict as it plays out.</p>
+        <h2>{t("Watch party")}</h2>
+        <p className="muted">{t("A live room is open for this date: react, chat and predict as it plays out.")}</p>
         {/* Not prefetched: the room is a live page for those who join it, not for every reader of the episode. */}
         <Link href={`/watch/${partyId}`} className="button" prefetch={false}>
-          ▶ Open the watch party
+          ▶ {t("Open the watch party")}
         </Link>
-        <ShareLink path={`/watch/${partyId}`} label="Room link" />
+        <ShareLink path={`/watch/${partyId}`} label={t("Room link")} />
       </section>
     );
   }
@@ -44,13 +46,12 @@ export default function WatchPartyLaunch({ episodeId, isHost, partyId }: Props) 
 
   return (
     <section className="card watch-launch">
-      <h2>Host a watch party</h2>
+      <h2>{t("Host a watch party")}</h2>
       <p className="muted">
-        Turn this date into a live event: friends drop in, react with the room, argue in chat and call the ending
-        before your characters decide. The finale airs automatically when the room reaches the decision.
+        {t("Turn this date into a live event: friends drop in, react with the room, argue in chat and call the ending before your characters decide. The finale airs automatically when the room reaches the decision.")}
       </p>
       <button type="button" disabled={busy} onClick={start}>
-        Start the premiere
+        {t("Start the premiere")}
       </button>
       {error && <p className="error">{error}</p>}
     </section>

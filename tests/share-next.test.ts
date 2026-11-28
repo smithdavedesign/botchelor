@@ -109,7 +109,7 @@ describe("the card", () => {
 
   it("takes the viewer's share's place at the theater's end, for the owner only", () => {
     const theater = readFileSync("app/episodes/[id]/EpisodeTheater.tsx", "utf8");
-    expect(theater).toContain('{shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" />}');
+    expect(theater).toContain('{shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[a.name, b.name]} kind="viewer" t={t} />}');
     const verdict = readFileSync("app/episodes/[id]/VerdictCard.tsx", "utf8");
     expect(verdict).toContain('{shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding');
   });

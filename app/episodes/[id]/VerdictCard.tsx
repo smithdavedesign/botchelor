@@ -10,6 +10,8 @@ import { requestJson } from "@/app/request";
 import type { CharacterRef } from "@/lib/game";
 import type { ShareNextCard } from "@/lib/share-next";
 import AfterDarkBridge from "./AfterDarkBridge";
+import { useT } from "@/app/I18nProvider";
+import { fillNodes } from "@/app/fillNodes";
 import CastingVerdictLine from "./CastingVerdictLine";
 import ShareEnding from "./ShareEnding";
 import ShareNext from "./ShareNext";
@@ -52,6 +54,7 @@ const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
 export default function VerdictCard({ episodeId, endingLabel, you, partner, preview, pushKey, onRestart, pending = false, afterDark = null, reportCard = null, shareNext = null }: VerdictCardProps) {
   const router = useRouter();
   const first = firstNameOf(you.name);
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
@@ -85,31 +88,31 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
         <Avatar seed={partner.id} name={partner.name} hue={partner.hue} house={partner.house} portraitSrc={partner.portrait} size={44} round />
       </div>
       <p className="verdict-names">
-        <strong>{you.name}</strong> and <strong>{partner.name}</strong>
+        {fillNodes(t("{you} and {partner}"), { you: <strong>{you.name}</strong>, partner: <strong>{partner.name}</strong> })}
       </p>
       {preview ? (
         <blockquote className="verdict-preview">
-          <span className="verdict-preview-who">{first}, afterwards:</span> “{preview}”
+          <span className="verdict-preview-who">{t("{name}, afterwards:", { name: first })}</span> “{preview}”
         </blockquote>
       ) : (
-        <p className="verdict-will-text">{first} will text you about it.</p>
+        <p className="verdict-will-text">{t("{name} will text you about it.", { name: first })}</p>
       )}
       <p className="verdict-actions">
         <button type="button" className="primary" onClick={() => void hear()} disabled={busy || pending} data-track="hear-from" aria-describedby={pending ? "verdict-pending" : undefined}>
-          {busy ? "Opening…" : `Hear from ${first}`}
+          {busy ? t("Opening…") : t("Hear from {name}", { name: first })}
         </button>
       </p>
       {reportCard && (
         <p className="verdict-report">
           <Link className="button-ghost" href={reportCard} data-track="report-card-open">
-            📝 See its report card
+            📝 {t("See its report card")}
           </Link>
         </p>
       )}
       <CastingVerdictLine episodeId={episodeId} />
       {pending && (
         <p className="muted small verdict-pending" id="verdict-pending" role="status">
-          Wrapping up the date; {first} can text you in a moment.
+          {t("Wrapping up the date; {name} can text you in a moment.", { name: first })}
         </p>
       )}
       {error && (
@@ -119,7 +122,7 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
             <>
               {" "}
               <Link href={`/account?next=${encodeURIComponent(`/episodes/${episodeId}?play=1`)}`} data-track="hear-from-signup">
-                Make a free account →
+                {t("Make a free account")} →
               </Link>
             </>
           )}
@@ -130,18 +133,18 @@ export default function VerdictCard({ episodeId, endingLabel, you, partner, prev
           publicKey={pushKey}
           prompt
           emailFallback
-          title={`Tell me when ${first} texts`}
-          body="One notification when your character texts you, even with the site closed."
+          title={t("Tell me when {name} texts", { name: first })}
+          body={t("One notification when your character texts you, even with the site closed.")}
         />
       )}
       <p className="muted verdict-again">
-        That&apos;s how it ended.{" "}
+        {t("That's how it ended.")}{" "}
         <button type="button" className="linklike" onClick={onRestart}>
-          Watch again
+          {t("Watch again")}
         </button>
       </p>
       {/* The share where the feeling is (2026-11-11 growth plan): spoiler-free, like every viewer's share. */}
-      {shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[you.name, partner.name]} kind="viewer" />}
+      {shareNext ? <ShareNext card={shareNext} place="theater" /> : <ShareEnding episodeId={episodeId} names={[you.name, partner.name]} kind="viewer" t={t} />}
       {afterDark && <AfterDarkBridge href={afterDark.href} />}
     </div>
   );

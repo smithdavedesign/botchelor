@@ -264,7 +264,7 @@ describe("where it's linked", () => {
   it("from the box score and both end screens, only when the page decides there is one", () => {
     const page = source("app/episodes/[id]/page.tsx");
     expect(page).toContain('const reportCard = episode.revealed && episode.box_score && episode.visibility !== "private" && !episode.hidden ? reportCardPath(episode.id) : null;');
-    expect(page).toContain("reportCard={reportCard} />");
+    expect(page).toContain("reportCard={reportCard} t={t} />");
     expect(page).toContain("reportCard={reportCard}\n");
     expect(source("app/episodes/[id]/BoxScore.tsx")).toContain("{reportCard && (");
     const theater = source("app/episodes/[id]/EpisodeTheater.tsx");

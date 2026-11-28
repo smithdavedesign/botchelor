@@ -1,3 +1,4 @@
+import { english, type T } from "@/lib/i18n/translate";
 import ShareButton from "@/app/ShareButton";
 import { blueskyShareUrl, ownerBlueskyShareUrl, ownerRedditShareUrl, ownerSharedPath, redditShareUrl, sharedEpisodePath, wentWellTitle } from "@/lib/episode-share";
 import { siteUrl } from "@/lib/site";
@@ -11,7 +12,7 @@ import { siteUrl } from "@/lib/site";
  *  - `viewer`: anyone's, on the theater's end screen. Spoiler-free as every viewer share is (ref=share).
  * Pure render around ShareButton; the names and date number are what the page already has.
  */
-export default function ShareEnding({ episodeId, names, dateNumber, kind }: { episodeId: string; names: [string, string]; dateNumber?: number | null; kind: "owner_well" | "viewer" }) {
+export default function ShareEnding({ episodeId, names, dateNumber, kind, t = english }: { episodeId: string; names: [string, string]; dateNumber?: number | null; kind: "owner_well" | "viewer"; t?: T }) {
   const page = `/episodes/${encodeURIComponent(episodeId)}`;
   const path = kind === "owner_well" ? ownerSharedPath(page) : sharedEpisodePath(page);
   const url = `${siteUrl()}${path}`;
@@ -29,12 +30,12 @@ export default function ShareEnding({ episodeId, names, dateNumber, kind }: { ep
     <p className="share-ending notice" data-share-ending={kind}>
       {kind === "owner_well" ? (
         <>
-          <strong>{wentWellTitle(names, dateNumber)}</strong> Tell someone: the link opens on their date, with the good news on its card.{" "}
+          <strong>{wentWellTitle(names, dateNumber)}</strong> {t("Tell someone: the link opens on their date, with the good news on its card.")}{" "}
         </>
       ) : (
-        <span className="share-ending-line">Know someone who&apos;d call it differently? </span>
+        <span className="share-ending-line">{t("Know someone who'd call it differently?")} </span>
       )}
-      <ShareButton path={path} title={kind === "owner_well" ? wentWellTitle(names, dateNumber) : `${names[0]} × ${names[1]} on Botchelor`} targets={targets} track="share-ending" label={kind === "owner_well" ? "💘 Share the good news" : "🔗 Share this date"} />
+      <ShareButton path={path} title={kind === "owner_well" ? wentWellTitle(names, dateNumber) : t("{a} × {b} on Botchelor", { a: names[0], b: names[1] })} targets={targets} track="share-ending" label={kind === "owner_well" ? `💘 ${t("Share the good news")}` : `🔗 ${t("Share this date")}`} />
     </p>
   );
 }

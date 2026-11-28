@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useT } from "@/app/I18nProvider";
 import ShareButton from "@/app/ShareButton";
 import { okJson } from "@/lib/ok-json";
 import { REACTIONS, REACTION_KINDS, lineTag, type LineTallies, type ReactionKind } from "@/lib/line-reactions";
@@ -37,6 +38,7 @@ function keepSent(episodeId: string, sent: Set<string>) {
  * `on` false hides the bots and the floats (the 🍿 switch); the buttons stay.
  */
 export default function Crowd({ episodeId, transcript, shown, names, on, moments }: { episodeId: string; transcript: Turn[]; shown: number; names: [string, string]; on: boolean; moments: boolean }) {
+  const t = useT();
   const [tallies, setTallies] = useState<LineTallies>({});
   const [floats, setFloats] = useState<Float[]>([]);
   const [sent, setSent] = useState<Set<string>>(() => new Set());
@@ -72,10 +74,10 @@ export default function Crowd({ episodeId, transcript, shown, names, on, moments
   useEffect(() => {
     if (!on || line < 0 || line === replayed.current) return;
     replayed.current = line;
-    const t = tallies[line];
-    if (!t) return;
+    const tally = tallies[line];
+    if (!tally) return;
     for (const k of REACTION_KINDS) {
-      const n = Math.min(4, t[k] ?? 0);
+      const n = Math.min(4, tally[k] ?? 0);
       if (n > 0) float(REACTIONS[k].emoji, false, n);
     }
   }, [line, on, tallies]);
@@ -115,7 +117,7 @@ export default function Crowd({ episodeId, transcript, shown, names, on, moments
         </p>
       )}
       {on && visible.length > 0 && (
-        <ol className="crowd-gallery" aria-label="The peanut gallery: the show's bots, joking along" aria-live="polite">
+        <ol className="crowd-gallery" aria-label={t("The peanut gallery: the show's bots, joking along")} aria-live="polite">
           {visible.map((h) => {
             const bot = botOf(h.bot);
             return (
@@ -125,7 +127,7 @@ export default function Crowd({ episodeId, transcript, shown, names, on, moments
                 </span>
                 <span className="crowd-heckle-body">
                   <span className="crowd-heckle-who">
-                    {bot.name} <span className="crowd-bot-tag" title="One of the show's bots: its remarks are written by the show, not by a viewer">Bot</span>
+                    {bot.name} <span className="crowd-bot-tag" title={t("One of the show's bots: its remarks are written by the show, not by a viewer")}>{t("Bot")}</span>
                   </span>
                   <span className="crowd-heckle-text">{h.text}</span>
                 </span>
@@ -134,7 +136,7 @@ export default function Crowd({ episodeId, transcript, shown, names, on, moments
           })}
         </ol>
       )}
-      <div className="crowd-buttons" role="group" aria-label="React to this line">
+      <div className="crowd-buttons" role="group" aria-label={t("React to this line")}>
         {REACTION_KINDS.map((k) => (
           <button key={k} type="button" className="crowd-button" onClick={() => react(k)} disabled={line < 0} aria-label={REACTIONS[k].label} title={REACTIONS[k].label} data-track={`crowd-${k}`}>
             <span aria-hidden="true">{REACTIONS[k].emoji}</span>
@@ -142,7 +144,7 @@ export default function Crowd({ episodeId, transcript, shown, names, on, moments
         ))}
         {moments && line >= 0 && (
           <span className="crowd-moment">
-            <ShareButton path={`/episodes/${encodeURIComponent(episodeId)}?moment=${line}`} title={`${names[0]} × ${names[1]} on Botchelor`} label="📸" track="moment-card" />
+            <ShareButton path={`/episodes/${encodeURIComponent(episodeId)}?moment=${line}`} title={t("{a} × {b} on Botchelor", { a: names[0], b: names[1] })} label="📸" track="moment-card" />
           </span>
         )}
       </div>

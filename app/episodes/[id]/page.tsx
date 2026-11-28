@@ -1,3 +1,6 @@
+import { fillNodes } from "@/app/fillNodes";
+import { getT } from "@/lib/i18n/server";
+import { english, type T } from "@/lib/i18n/translate";
 import type { Metadata } from "next";
 import StoryButton from "@/app/StoryButton";
 import { canMakeStory, storyFor } from "@/lib/stories";
@@ -174,15 +177,15 @@ function nameCardLine(goals: { character_id: string; goal: string }[], id: strin
 }
 
 /** The way in for anyone who isn't one of this date's creators, most often someone who followed a shared link. */
-function MakeYourOwn() {
+function MakeYourOwn({ t }: { t: T }) {
   return (
     <section className="make-your-own card">
       <div>
-        <h2>Send your own character on a date</h2>
-        <p className="muted">Make an original character in a few minutes and the show writes their blind date. Free to start, no sign-up.</p>
+        <h2>{t("Send your own character on a date")}</h2>
+        <p className="muted">{t("Make an original character in a few minutes and the show writes their blind date. Free to start, no sign-up.")}</p>
       </div>
       <Link className="button" href="/create">
-        Make your character
+        {t("Make your character")}
       </Link>
     </section>
   );
@@ -205,11 +208,14 @@ function EpisodeHero({
   set = null,
   figures = null,
   children,
+  t = english,
 }: {
   characters: [HeroCharacter, HeroCharacter];
   venue: string | null;
   setting: string | null;
   chips: (string | null | false | undefined)[];
+  /** The page's language (docs/i18n.md). */
+  t?: T;
   /** "S1 · Night 18" once it has aired (lib/episode-title.ts episodeCode). */
   code?: string | null;
   /** The episode's own title, quoted on the card ("The Fountain Incident"). */
@@ -250,7 +256,7 @@ function EpisodeHero({
       )}
       <div className="episode-hero-inner">
         <p className="episode-hero-kicker">
-          <span>Botchelor</span>
+          <span>{/* i18n-ok: the show's name */}Botchelor</span>
           {code && <span>{code}</span>}
           {/* The venue names the card only until there's a title: with one, the title and the setting carry the place. */}
           {venue && !title && <span>{venueName(venue)}</span>}
@@ -278,7 +284,7 @@ function EpisodeHero({
           ) : null,
         )}
         {children}
-        <ul className="episode-hero-chips" aria-label="About this episode">
+        <ul className="episode-hero-chips" aria-label={t("About this episode")}>
           {chips.filter(Boolean).map((c) => (
             <li key={String(c)}>{c}</li>
           ))}
@@ -303,6 +309,8 @@ export default async function EpisodePage({
   const play = query.play === "1";
   const from = Math.max(0, Math.floor(Number(query.from) || 0));
   const viewerId = userIdFromCookieStore(await cookies());
+  // In the viewer's language (docs/i18n.md); the date's own lines stay as the show wrote them.
+  const t = await getT();
   const db = await getDb();
   // Dates air by default once their prediction window closes (lib/air.ts): opening one that's due airs it.
   await airIfDue(db, id).catch(() => null);
@@ -491,11 +499,11 @@ export default async function EpisodePage({
     return (
       <article className="episode-page">
         {remember}
-        <EpisodeHero characters={episode.characters} venue={episode.venue ?? null} setting={null} set="booth" chips={["🎬 Being filmed", "AI-generated"]}>
+        <EpisodeHero t={t} characters={episode.characters} venue={episode.venue ?? null} setting={null} set="booth" chips={[`🎬 ${t("Being filmed")}`, t("AI-generated")]}>
           {!episode.is_creator && (
             <div className="episode-hero-cta">
               <Link className="episode-hero-link" href="/create">
-                Make your own character
+                {t("Make your own character")}
               </Link>
             </div>
           )}
@@ -505,18 +513,18 @@ export default async function EpisodePage({
             <p className="muted">
               {episode.is_creator ? (
                 <>
-                  🎬 You&apos;re on this date. <Link href={`/step-in/${episode.id}`}>Back to it</Link>
+                  🎬 {t("You're on this date.")} <Link href={`/step-in/${episode.id}`}>{t("Back to it")}</Link>
                 </>
               ) : (
-                "🎬 A viewer stepped into this date and is playing it live. The ending is already decided."
+                `🎬 ${t("A viewer stepped into this date and is playing it live. The ending is already decided.")}`
               )}
             </p>
           )}
           {selfPerformed && (
             <p className="muted">
               {twoAgent
-                ? "🎭 Each character's own agent is performing this date on its own AI, taking turns. The ending is already decided."
-                : "🎭 Its creator's own AI is performing this date, one line at a time. The ending is already decided."}
+                ? `🎭 ${t("Each character's own agent is performing this date on its own AI, taking turns. The ending is already decided.")}`
+                : `🎭 ${t("Its creator's own AI is performing this date, one line at a time. The ending is already decided.")}`}
             </p>
           )}
           <GeneratingPoller
@@ -541,10 +549,10 @@ export default async function EpisodePage({
                 : undefined
             }
           />
-          {!episode.is_creator && <MakeYourOwn />}
+          {!episode.is_creator && <MakeYourOwn t={t} />}
           <footer className="episode-foot">
             <p>
-              <Link href="/watch">More episodes</Link>
+              <Link href="/watch">{t("More episodes")}</Link>
             </p>
             {/* The site footer, straight below, carries the crisis links. */}
             <EpisodeNotices crisis={false} />
@@ -650,6 +658,7 @@ export default async function EpisodePage({
         />
       )}
       <EpisodeHero
+        t={t}
         characters={episode.characters}
         venue={episode.venue ?? null}
         figures={figures}
@@ -657,17 +666,17 @@ export default async function EpisodePage({
         code={code}
         title={displayTitle}
         chips={[
-          "AI-generated",
+          t("AI-generated"),
           episode.followup_of ? dateBadge(episode.date_number ?? 2) : null,
           overnight ? OVERNIGHT_COPY.chip : null,
           episode.format ? formatLabel(episode.format) : null,
-          episode.roleplay ? `${episode.roleplay.icon} Roleplay: ${episode.roleplay.title}` : null,
-          a.house && b.house ? "Two house characters" : a.house || b.house ? "With a house character" : null,
-          a.agent || b.agent ? "🤖 Made by an AI agent" : null,
-          sibling ? "💞💞 A double date" : null,
-          mixer ? `🍸 Speed-dating mixer · date ${mixer.round} of ${mixer.rounds}` : null,
-          selfPerformed ? (twoAgent ? "🎭 Performed by both characters' agents" : "🎭 Performed by its creator's AI") : null,
-          steppedIn ? "🎬 A viewer stepped in" : null,
+          episode.roleplay ? `${episode.roleplay.icon} ${t("Roleplay: {title}", { title: episode.roleplay.title })}` : null,
+          a.house && b.house ? t("Two house characters") : a.house || b.house ? t("With a house character") : null,
+          a.agent || b.agent ? `🤖 ${t("Made by an AI agent")}` : null,
+          sibling ? `💞💞 ${t("A double date")}` : null,
+          mixer ? `🍸 ${t("Speed-dating mixer · date {n} of {total}", { n: mixer.round, total: mixer.rounds })}` : null,
+          selfPerformed ? (twoAgent ? `🎭 ${t("Performed by both characters' agents")}` : `🎭 ${t("Performed by its creator's AI")}`) : null,
+          steppedIn ? `🎬 ${t("A viewer stepped in")}` : null,
         ]}
       >
         <div className="episode-hero-cta">
@@ -700,18 +709,18 @@ export default async function EpisodePage({
             episode.transcript &&
             episode.transcript.length > 0 && (
               <a className="button" href="#the-date">
-                Read the date
+                {t("Read the date")}
               </a>
             )
           )}
           {!episode.revealed && !episode.is_creator && (
             <a className="button-ghost" href="#predict">
-              Call the ending
+              {t("Call the ending")}
             </a>
           )}
           {!episode.is_creator && (
             <Link className="episode-hero-link" href="/create">
-              Make your own character
+              {t("Make your own character")}
             </Link>
           )}
         </div>
@@ -726,20 +735,22 @@ export default async function EpisodePage({
         {episode.roleplay && (
           // A roleplay both sides agreed to (lib/date-roleplays.ts): billing, like the format, shown from the start.
           <p className="notice episode-roleplay">
-            {episode.roleplay.icon} <strong>Tonight&apos;s roleplay: {episode.roleplay.title}.</strong> {episode.roleplay.premise}
+            {episode.roleplay.icon} <strong>{t("Tonight's roleplay: {title}.", { title: episode.roleplay.title })}</strong> {episode.roleplay.premise}
             {episode.roleplay.roles && <span className="muted small"> {episode.roleplay.roles}.</span>}
           </p>
         )}
         {sibling && (
           <p className="muted">
-            💞💞 A double date: {sibling.names.join(" and ")} shared the table —{" "}
-            <Link href={`/episodes/${sibling.episode_id}`}>their date</Link> is its own episode.
+            💞💞{" "}
+            {fillNodes(t("A double date: {names} shared the table. {link} is its own episode.", { names: sibling.names.join(` ${t("and")} `) }), {
+              link: <Link href={`/episodes/${sibling.episode_id}`}>{t("Their date")}</Link>,
+            })}
           </p>
         )}
         {mixer && (
           <p className="muted">
-            🍸 Round {mixer.round} of {mixer.rounds} at the mixer at {venuePhrase(mixer.venue)}: everyone was in one room.{" "}
-            <Link href={`/mixers/${mixer.night_id}`}>Watch the whole night</Link>, every table in order.
+            🍸 {t("Round {n} of {total} at the mixer at {place}: everyone was in one room.", { n: mixer.round, total: mixer.rounds, place: venuePhrase(mixer.venue) })}{" "}
+            {fillNodes(t("{link}, every table in order."), { link: <Link href={`/mixers/${mixer.night_id}`}>{t("Watch the whole night")}</Link> })}
           </p>
         )}
         {textedAbout.length > 0 && (
@@ -748,19 +759,19 @@ export default async function EpisodePage({
             💬{" "}
             {textedAbout.length === 1 ? (
               <Link href={companionThreadHref(textedAbout[0].thread_id)} data-track="episode-texted-about" data-track-character={textedAbout[0].character_id}>
-                {firstName(textedAbout[0].name)} texted you about this
+                {t("{name} texted you about this", { name: firstName(textedAbout[0].name) })}
               </Link>
             ) : (
               <>
                 {textedAbout.map((x, i) => (
                   <span key={x.thread_id}>
-                    {i > 0 && (i === textedAbout.length - 1 ? " and " : ", ")}
+                    {i > 0 && (i === textedAbout.length - 1 ? ` ${t("and")} ` : ", ")}
                     <Link href={companionThreadHref(x.thread_id)} data-track="episode-texted-about" data-track-character={x.character_id}>
                       {firstName(x.name)}
                     </Link>
                   </span>
                 ))}{" "}
-                texted you about this
+                {t("texted you about this")}
               </>
             )}
           </p>
@@ -768,19 +779,19 @@ export default async function EpisodePage({
         {shareNext && <ShareNext card={shareNext} place="page" />}
         {episode.creators && (
           <p className="creators">
-            Made by{" "}
+            {t("Made by")}{" "}
             {episode.creators.map((c, i) => (
               <span key={c.character_id}>
-                {i > 0 && " and "}
-                <strong>{c.name}</strong> ({nameOf(c.character_id)}&apos;s creator)
+                {i > 0 && ` ${t("and")} `}
+                <strong>{c.name}</strong> ({t("{name}'s creator", { name: nameOf(c.character_id) ?? "" })})
               </span>
             ))}
           </p>
         )}
-        {episode.hidden && <p className="error">{HIDDEN_EPISODE_MESSAGE} Only its creators can still open it.</p>}
+        {episode.hidden && <p className="error">{HIDDEN_EPISODE_MESSAGE} {t("Only its creators can still open it.")}</p>}
         {afterDarkLink && (
           <p className="after-dark-marker">
-            <Link href={afterDarkLink}>🌙 They spent the night together before this date. See their night</Link>
+            <Link href={afterDarkLink}>🌙 {t("They spent the night together before this date. See their night")}</Link>
           </p>
         )}
         {continueNight && (
@@ -793,7 +804,7 @@ export default async function EpisodePage({
         )}
 
         <section className="episode-wants" aria-labelledby="wants-title">
-          <h2 id="wants-title">What they want</h2>
+          <h2 id="wants-title">{t("What they want")}</h2>
           <ul>
             {episode.goals.map((g) => {
               const c = episode.characters.find((x) => x.id === g.character_id);
@@ -813,7 +824,7 @@ export default async function EpisodePage({
         </section>
 
         {/* The date as scenes: both of them in the place, at moments from before its last act (never how it ended). */}
-        {film && film.scenes.length > 0 && <DateScenes scenes={film.scenes} names={[a.name, b.name]} />}
+        {film && film.scenes.length > 0 && <DateScenes scenes={film.scenes} names={[a.name, b.name]} t={t} />}
 
         {/* Predicting comes before the read: once the lines are read, there's nothing left to call. */}
         <div id="predict" className="episode-predict">
@@ -838,7 +849,7 @@ export default async function EpisodePage({
         {episode.transcript && episode.transcript.length > 0 && (
           // The date itself, on the page (design audit 2026-11-14): its first exchange shows, the rest one tap away
           // ("Read the whole date"). Only the lines this viewer already gets (none before the finale airs, for a spectator).
-          <TranscriptRead episodeId={episode.id} characters={episode.characters} turns={episode.transcript} thoughts={episode.inner?.thoughts} />
+          <TranscriptRead episodeId={episode.id} characters={episode.characters} turns={episode.transcript} thoughts={episode.inner?.thoughts} t={t} />
         )}
         {storyOpen && episode.status === "ready" && episode.transcript && episode.transcript.length > 0 && (
           // Read it as a story (lib/stories.ts): made once by one of the date's own people or a plan member, then kept for everyone.
@@ -850,24 +861,24 @@ export default async function EpisodePage({
       <RecapToggle hasTheater={hasTheater}>
         {episode.ending ? (
           <section className="card">
-            <h2>The date</h2>
+            <h2>{t("The date")}</h2>
             {episode.scenes?.map((scene, i) => (
               <div key={i}>
-                <h3 className="act">{DATE_ACTS[i] ?? `Act ${i + 1}`}</h3>
+                <h3 className="act">{DATE_ACTS[i] ? t(DATE_ACTS[i]) : t("Act {n}", { n: i + 1 })}</h3>
                 <p>{withoutActLabel(scene, DATE_ACTS[i])}</p>
               </div>
             ))}
-            <h2>The twist</h2>
+            <h2>{t("The twist")}</h2>
             <p>{episode.twist}</p>
             {/* The last act ("The decision") is sometimes the finale word for word: then it isn't said twice. */}
             {!finaleRepeats && (
               <>
-                <h2>The finale</h2>
+                <h2>{t("The finale")}</h2>
                 <p>{episode.finale}</p>
               </>
             )}
             <div className="ending-beat">
-              <p className="ending">Ending: {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
+              <p className="ending">{t("Ending:")} {endingWithDetail(episode.ending, dateNo, episode.ending_detail)}</p>
               {/* An overnight date closes on its card (lib/overnight-shared.ts): the fade to black, or the night called. */}
               {overnight && (
                 <p className="overnight-close" data-overnight-close={episode.ending === "second_date" ? "left" : "night"}>
@@ -883,26 +894,26 @@ export default async function EpisodePage({
                 <strong>{dramaAnswerLabel(episode.drama_question, episode.drama_answer, names)}</strong>
               </p>
             )}
-            {!episode.revealed && <p className="muted">Only the creators can see this until the finale airs.</p>}
+            {!episode.revealed && <p className="muted">{t("Only the creators can see this until the finale airs.")}</p>}
           </section>
         ) : (
           <section className="card">
-            <p className="muted">The date, the twist and the ending stay hidden until the finale airs.</p>
+            <p className="muted">{t("The date, the twist and the ending stay hidden until the finale airs.")}</p>
           </section>
         )}
 
-        {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} reportCard={reportCard} />}
+        {episode.box_score && <BoxScore boxScore={episode.box_score} bestLine={episode.best_line} why={episode.why} note={episode.box_score_note} reportCard={reportCard} t={t} />}
 
         {/* Behind the scenes: the agendas and the confessionals, one card instead of two in a row (UX audit 2026-10-23). */}
         {(episode.agendas || episode.confessionals) && (
           <section className="card behind-scenes">
-            <h2>Behind the scenes</h2>
+            <h2>{t("Behind the scenes")}</h2>
             {episode.agendas && (
               <>
-                <h3>Secret agendas &amp; the producer</h3>
+                <h3>{t("Secret agendas & the producer")}</h3>
                 {episode.producer && (
                   <p className="muted">
-                    The producer&apos;s act-2 situation: <strong>{episode.producer}</strong>.
+                    {fillNodes(t("The producer's act-2 situation: {situation}."), { situation: <strong>{episode.producer}</strong> })}
                   </p>
                 )}
                 <ul>
@@ -920,7 +931,7 @@ export default async function EpisodePage({
             )}
             {episode.confessionals && (
               <>
-                <h3>The confessionals</h3>
+                <h3>{t("The confessionals")}</h3>
                 {/* Said to the camera in the confessional (lib/show-sets.ts). */}
                 <div className="confessional-set on-set" style={{ backgroundImage: showSetBackground("confessional", 0.55) }}>
                   {episode.confessionals.map((c) => {
@@ -948,36 +959,39 @@ export default async function EpisodePage({
 
         {dare && (
           <section className="card dare-reveal">
-            <h2>The producers dared {nameOf(dare.character_id) ?? dare.name}</h2>
+            <h2>{t("The producers dared {name}", { name: nameOf(dare.character_id) ?? dare.name })}</h2>
             <p>
               {/* In the dared one's own pronouns (the 2026-11-22 audit: "they" for Sable). */}
-              The audience voted, and {who(dare.character_id) ?? <strong>{dare.name}</strong>} walked in with it in the pocket: <em>“{dare.text}”</em>{" "}
-              {{ He: "His", She: "Her", They: "Their" }[dareSubject(dare.pronouns)]} date never knew.
+              {fillNodes(t("The audience voted, and {name} walked in with it in the pocket: {dare}"), {
+                name: who(dare.character_id) ?? <strong>{dare.name}</strong>,
+                dare: <em>“{dare.text}”</em>,
+              })}{" "}
+              {{ He: t("His date never knew."), She: t("Her date never knew."), They: t("Their date never knew.") }[dareSubject(dare.pronouns)]}
             </p>
             <p>
-              Did {dareSubject(dare.pronouns).toLowerCase()} go through with it?{" "}
-              <strong>{dare.verdict ? verdictSentence(dare.verdict, dare.pronouns) : "Watch the date and decide."}</strong>
+              {{ He: t("Did he go through with it?"), She: t("Did she go through with it?"), They: t("Did they go through with it?") }[dareSubject(dare.pronouns)]}{" "}
+              <strong>{dare.verdict ? t(verdictSentence(dare.verdict, dare.pronouns)) : t("Watch the date and decide.")}</strong>
             </p>
           </section>
         )}
 
         {episode.debrief && (
           <section className="card debrief">
-            <h2>Your private debrief</h2>
-            <p className="muted">A report on your own AI&apos;s date. Only you can see this.</p>
+            <h2>{t("Your private debrief")}</h2>
+            <p className="muted">{t("A report on your own AI's date. Only you can see this.")}</p>
             <ul>
-              <li>Wants another date: <strong>{episode.debrief.wants_another ? "yes" : "no"}</strong></li>
-              <li>What it liked: {episode.debrief.liked ? <>something about “{episode.debrief.liked}”</> : "nothing in particular"}</li>
-              <li>What made it uncomfortable: {episode.debrief.uncomfortable ? <>“{episode.debrief.uncomfortable}”</> : "nothing major"}</li>
-              <li>Its secret agenda ({episode.debrief.agenda}): <strong>{episode.debrief.agenda_met ? "met" : "not met"}</strong></li>
+              <li>{t("Wants another date:")} <strong>{episode.debrief.wants_another ? t("yes") : t("no")}</strong></li>
+              <li>{t("What it liked:")} {episode.debrief.liked ? t("something about “{thing}”", { thing: episode.debrief.liked }) : t("nothing in particular")}</li>
+              <li>{t("What made it uncomfortable:")} {episode.debrief.uncomfortable ? <>“{episode.debrief.uncomfortable}”</> : t("nothing major")}</li>
+              <li>{t("Its secret agenda ({agenda}):", { agenda: episode.debrief.agenda })} <strong>{episode.debrief.agenda_met ? t("met") : t("not met")}</strong></li>
               {episode.debrief.note_followed !== null && (
-                <li>Your note in the pocket: <strong>{episode.debrief.note_followed ? "it took your advice" : "it ignored your advice"}</strong></li>
+                <li>{t("Your note in the pocket:")} <strong>{episode.debrief.note_followed ? t("it took your advice") : t("it ignored your advice")}</strong></li>
               )}
             </ul>
             {surprise && (
               <p className={surprise.surprised ? "notice" : undefined}>
-                You guessed {endingLabel(surprise.self_pick, dateNo)}; your AI landed on {endingLabel(surprise.actual, dateNo)}.{" "}
-                {surprise.surprised ? "It surprised you." : "Exactly as you expected."}
+                {t("You guessed {pick}; your AI landed on {actual}.", { pick: t(endingLabel(surprise.self_pick, dateNo)), actual: t(endingLabel(surprise.actual, dateNo)) })}{" "}
+                {surprise.surprised ? t("It surprised you.") : t("Exactly as you expected.")}
               </p>
             )}
           </section>
@@ -992,11 +1006,12 @@ export default async function EpisodePage({
           choices={episode.inner?.choices ?? []}
           thoughts={episode.characters.map((c, i) => ({
             character_id: c.id,
-            thoughts: (episode.transcript ?? []).flatMap((t, n) => (t.side === (i === 0 ? "a" : "b") && episode.inner?.thoughts[n] ? [episode.inner.thoughts[n]!] : [])),
+            thoughts: (episode.transcript ?? []).flatMap((line, n) => (line.side === (i === 0 ? "a" : "b") && episode.inner?.thoughts[n] ? [episode.inner.thoughts[n]!] : [])),
           }))}
           characters={episode.characters}
           folded={hasTheater}
           clips={film?.confessionals ?? []}
+          t={t}
         />
       )}
 
@@ -1008,7 +1023,7 @@ export default async function EpisodePage({
       {datePhotos && <DatePhotos episodeId={episode.id} state={datePhotos} styles={DATE_PHOTO_STYLES.map((s) => ({ id: s.id, label: s.label }))} />}
       {!episode.afterglow && secondDate?.mutual && (
         <section className="card">
-          {episode.visibility !== "private" && <ShareEnding episodeId={episode.id} names={[episode.characters[0].name, episode.characters[1].name]} dateNumber={dateNo} kind="owner_well" />}
+          {episode.visibility !== "private" && <ShareEnding episodeId={episode.id} names={[episode.characters[0].name, episode.characters[1].name]} dateNumber={dateNo} kind="owner_well" t={t} />}
           <SecondDate episodeId={episode.id} state={secondDate} />
         </section>
       )}
@@ -1033,11 +1048,11 @@ export default async function EpisodePage({
         <ShowSpoilerFold fold={showFold}>
         <section className="card">
           <p className={episode.my_points ? "notice" : undefined}>
-            You picked {endingLabel(episode.my_pick, dateNo)}
+            {t("You picked {pick}", { pick: t(endingLabel(episode.my_pick, dateNo)) })}
             {episode.drama_question &&
               episode.my_drama_pick &&
-              ` and ${dramaAnswerLabel(episode.drama_question, episode.my_drama_pick, names)}`}
-            : {episode.my_points ? `+${episode.my_points}` : "0"} points.
+              ` ${t("and")} ${dramaAnswerLabel(episode.drama_question, episode.my_drama_pick, names)}`}
+            : {t("{n} points.", { n: episode.my_points ? `+${episode.my_points}` : "0" })}
             {myShare && (
               <>
                 {" "}
@@ -1061,14 +1076,14 @@ export default async function EpisodePage({
         />
       )}
 
-      <UpNext episodes={next} />
+      <UpNext episodes={next} t={t} />
         </div>
-        <aside className="episode-rail" aria-label="Around this date">
+        <aside className="episode-rail" aria-label={t("Around this date")}>
           {prev && (
-            <aside className="episode-prev" aria-label="Previously on Botchelor">
-              <span className="episode-prev-label">Previously on</span>
+            <aside className="episode-prev" aria-label={t("Previously on Botchelor")}>
+              <span className="episode-prev-label">{t("Previously on")}</span>
               <p>
-                {prev.line} <Link href={`/episodes/${prev.episode_id}`}>Watch that one</Link>
+                {prev.line} <Link href={`/episodes/${prev.episode_id}`}>{t("Watch that one")}</Link>
               </p>
             </aside>
           )}
@@ -1081,28 +1096,28 @@ export default async function EpisodePage({
               prompt
               emailFallback
               place="episode"
-              title={episode.revealed ? "Tell me when they text" : "Tell me when it airs"}
+              title={episode.revealed ? t("Tell me when they text") : t("Tell me when it airs")}
               body={
                 episode.revealed
-                  ? "They text each other after a date. Hear it as it happens, even with the site closed."
-                  : "One notification when their date is on the air, and when they text after it, even with the site closed."
+                  ? t("They text each other after a date. Hear it as it happens, even with the site closed.")
+                  : t("One notification when their date is on the air, and when they text after it, even with the site closed.")
               }
             />
           )}
           {/* After the date and how it ended (2026-11-07 audit, item 4: it asked "how did it go?" above the date itself). */}
           {talk.length > 0 && (
             <section className="card episode-talk" aria-labelledby="episode-talk-head">
-              <p className="kicker">After the date</p>
-              <h2 id="episode-talk-head">Ask {talk.length === 1 ? talk[0].name.split(/\s+/)[0] : "them"} how it went</h2>
-              <p className="muted small">Off the show, one to one. They&apos;ll tell you their side. Every companion is an AI character.</p>
+              <p className="kicker">{t("After the date")}</p>
+              <h2 id="episode-talk-head">{talk.length === 1 ? t("Ask {name} how it went", { name: talk[0].name.split(/\s+/)[0] }) : t("Ask them how it went")}</h2>
+              <p className="muted small">{t("Off the show, one to one. They'll tell you their side. Every companion is an AI character.")}</p>
               <p className="episode-talk-actions">
                 {talk.map((c) =>
                   c.signIn ? (
                     <Link key={c.id} className="button secondary small" href={`/account?next=${encodeURIComponent(`/characters/${c.id}`)}`}>
-                      Sign in to talk to {c.name.split(/\s+/)[0]}
+                      {t("Sign in to talk to {name}", { name: c.name.split(/\s+/)[0] })}
                     </Link>
                   ) : (
-                    <TalkButton key={c.id} characterId={c.id} name={c.name.split(/\s+/)[0]} label={`Talk to ${c.name.split(/\s+/)[0]}`} className="button secondary small" />
+                    <TalkButton key={c.id} characterId={c.id} name={c.name.split(/\s+/)[0]} label={t("Talk to {name}", { name: c.name.split(/\s+/)[0] })} className="button secondary small" />
                   ),
                 )}
               </p>
@@ -1110,21 +1125,21 @@ export default async function EpisodePage({
           )}
           <WatchPartyLaunch episodeId={episode.id} isHost={episode.is_host} partyId={partyId} />
 
-          {!episode.is_creator && <MakeYourOwn />}
+          {!episode.is_creator && <MakeYourOwn t={t} />}
 
           <footer className="episode-foot">
             <p className="muted">
-              Your points: {points}. <Link href="/watch">More episodes</Link>
+              {t("Your points: {n}.", { n: points })} <Link href="/watch">{t("More episodes")}</Link>
               {episode.characters[0] && (
                 <>
                   {" · "}
-                  <Link href={`/graph?focus=${encodeURIComponent(episode.characters[0].id)}`}>✨ Where they sit in the Constellation</Link>
+                  <Link href={`/graph?focus=${encodeURIComponent(episode.characters[0].id)}`}>✨ {t("Where they sit in the Constellation")}</Link>
                 </>
               )}
             </p>
             {/* Report and block: one tap away on every episode, folded so it doesn't sit in the way. */}
             <details className="episode-safety">
-              <summary>Something wrong? Report or block</summary>
+              <summary>{t("Something wrong? Report or block")}</summary>
               <SafetyActions episodeId={episode.id} canBlock={canBlock} blocked={episode.blocked} />
             </details>
             {/* The site footer, straight below, carries the crisis links. */}
