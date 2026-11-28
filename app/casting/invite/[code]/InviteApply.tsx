@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { trackConversion } from "@/app/conversion";
 import { queueEvent } from "@/app/engagement";
+import Icon from "@/app/Icon";
 import { requestJson } from "@/app/request";
 
 type Credit = { handle: string; display_name: string };
@@ -101,7 +102,13 @@ export default function InviteApply({
           </fieldset>
         ))}
       <button type="submit" className="primary" disabled={busy || !pick || half} data-track={retry ? "casting-invite-retry" : "casting-invite-apply"}>
-        {busy ? (retry ? "Booking…" : "Applying…") : retry ? `🌹 Book ${first}'s date${lead ? ` with ${lead}` : ""}` : `🌹 Apply with ${first}`}
+        {busy ? (
+          retry ? "Booking…" : "Applying…"
+        ) : (
+          <>
+            <Icon name="rose" /> {retry ? `Book ${first}'s date${lead ? ` with ${lead}` : ""}` : `Apply with ${first}`}
+          </>
+        )}
       </button>
       {!retry && <p className="muted small">Applying means you agree to the terms below.</p>}
       {half && <p className="muted small">Fill in both the name and the handle, or neither.</p>}

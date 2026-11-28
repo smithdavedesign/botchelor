@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { OG_BODY, OG_DISPLAY, OG_NIGHT, OgLetterbox, ogFontOptions } from "@/lib/og-type";
 import { markedImageResponse, SHARE_CARD_CACHE } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
@@ -9,10 +10,10 @@ export const alt = "A Botchelor contestant card";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const INK = "#241022";
-const MUTED = "#7a6a7e";
-const PAPER = "#fdf6f4";
-const ACCENT = "#e5356b";
+const INK = OG_NIGHT.ink;
+const MUTED = OG_NIGHT.soft;
+const PAPER = OG_NIGHT.bg;
+const ACCENT = OG_NIGHT.accent;
 
 /** The shareable contestant card (the Talkie-style card hook, our way): a character's public persona. */
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
@@ -33,7 +34,8 @@ export default async function Image({ params }: { params: Promise<{ id: string }
 
   const card = new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", padding: 70, background: PAPER, color: INK, borderTop: `24px solid ${ACCENT}`, fontFamily: "sans-serif", alignItems: "center", gap: 56 }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", padding: 70, background: PAPER, color: INK, position: "relative", fontFamily: OG_BODY, alignItems: "center", gap: 56 }}>
+        <OgLetterbox />
         {portrait ? (
           // eslint-disable-next-line @next/next/no-img-element -- Satori renders a plain <img>, not next/image
           <img src={portrait} alt="" width={300} height={300} style={{ borderRadius: 64, objectFit: "cover", flex: "0 0 auto" }} />
@@ -44,7 +46,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         )}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 30, color: ACCENT, fontWeight: 700 }}>Botchelor · contestant</div>
-          <div style={{ fontSize: 72, fontWeight: 800, marginTop: 6 }}>{name}</div>
+          <div style={{ fontFamily: OG_DISPLAY, fontSize: 72, fontWeight: 800, marginTop: 6 }}>{name}</div>
           {c && (
             <div style={{ fontSize: 30, color: MUTED, marginTop: 8 }}>
               {`Age ${c.age}${c.house ? " · house character" : ""}`}
@@ -53,7 +55,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           {c && (
             <div style={{ display: "flex", gap: 14, marginTop: 24, flexWrap: "wrap" }}>
               {c.traits.slice(0, 3).map((t) => (
-                <div key={t} style={{ display: "flex", padding: "8px 20px", borderRadius: 999, background: "#fde4ec", color: ACCENT, fontSize: 28, fontWeight: 600 }}>
+                <div key={t} style={{ display: "flex", padding: "8px 20px", borderRadius: 999, background: "rgba(255,94,140,0.16)", color: ACCENT, fontSize: 28, fontWeight: 600 }}>
                   {t}
                 </div>
               ))}
@@ -63,7 +65,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         </div>
       </div>
     ),
-    { ...size, headers: SHARE_CARD_CACHE },
+    { ...size, headers: SHARE_CARD_CACHE, ...(await ogFontOptions()) },
   );
   // A card with a generated portrait in it is marked AI-generated, in its PNG's XMP and its headers (lib/ai-mark.ts).
   return portrait ? markedImageResponse(card) : card;

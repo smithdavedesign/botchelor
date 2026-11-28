@@ -62,7 +62,7 @@ describe("opengraph images render to PNG (next/og / Satori)", () => {
   it("the site card every page names is a .png address, drawn at build time and kept by the CDN (2026-11-22 audit)", async () => {
     const card = await import("@/app/share-card.png/route");
     expect(card.dynamic).toBe("force-static");
-    const res = card.GET();
+    const res = await card.GET();
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(res.headers.get("cache-control")).toBe("public, max-age=86400, s-maxage=604800");
     await renderPng(res);

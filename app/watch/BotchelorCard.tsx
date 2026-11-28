@@ -86,7 +86,7 @@ export default function BotchelorCard({
                 <Avatar seed={s.id} name={s.name} hue={s.hue} house={s.house} portraitSrc={s.portrait} size={40} />
                 <span className="botchelor-suitor-name">{s.name}</span>
                 <span className="muted small">
-                  {s.state === "in" ? "🌹 " : s.state === "final_rose" ? "🌹 " : "🥀 "}
+                  {s.state === "out" ? "🥀 " : <><Icon name="rose" className="suitor-rose" />{" "}</>}
                   {STATE_WORD[s.state]}
                   {s.state === "out" && s.week ? ` · week ${s.week}` : ""}
                 </span>
@@ -125,8 +125,26 @@ export default function BotchelorCard({
       {/* The bombshell (lib/bombshell.ts): mid-season the audience votes one audition into the house. */}
       {board.bombshell?.state === "open" && (
         <div className="bombshell-vote" data-bombshell="open">
+          {/* The news band: a red "Breaking" plate and the auditions' names running past, as a channel breaks a story. */}
+          <div className="breaking-band" aria-hidden="true">
+            <span className="breaking-plate">
+              <span className="breaking-dot" />
+              Breaking
+            </span>
+            <span className="breaking-ticker">
+              <span className="breaking-run">
+                {[0, 1].map((k) => (
+                  <span key={k}>
+                    {(board.bombshell?.choices ?? []).map((c) => (
+                      <span key={c.id}>A bombshell is coming · Will it be {c.name}? · </span>
+                    ))}
+                  </span>
+                ))}
+              </span>
+            </span>
+          </div>
           <p className="small">
-            <strong>💣 The bombshell.</strong> One of these auditions walks into the house {countdown(board.bombshell.closes_at, now)}, and is safe at their first
+            <strong>The bombshell.</strong> One of these auditions walks into the house {countdown(board.bombshell.closes_at, now)}, and is safe at their first
             ceremony. Who should it be? {board.bombshell.my_pick ? tallyLine(board.bombshell.total, { insider }) : ""}
           </p>
           <p className="botchelor-ballot">

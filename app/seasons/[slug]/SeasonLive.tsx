@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import Avatar from "@/app/Avatar";
 import FaceLoop from "@/app/FaceLoop";
 import Icon from "@/app/Icon";
@@ -125,11 +126,14 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
       {/* "Previously on" (lib/season-story.ts): the night opens on what already aired. */}
       {previously && previously.length > 0 && (
         <section className="card previously-on" aria-labelledby="season-previously-head" data-previously>
+          <span className="previously-rewind" aria-hidden="true" />
           <p className="kicker" id="season-previously-head">
             Previously on {def.title}
           </p>
           {previously.map((l, i) => (
-            <p key={i}>{l}</p>
+            <p key={i} className="previously-line" style={{ "--i": i } as CSSProperties}>
+              {l}
+            </p>
           ))}
         </section>
       )}
@@ -241,18 +245,19 @@ export default function SeasonLive({ data }: { data: SeasonLiveData }) {
       {/* The tea (lib/season-story.ts): the last week's storylines, each linked to the date it happened on. */}
       {tea.length > 0 && (
         <section id="tea" className="card tea-board" aria-labelledby="season-tea-head" data-track-area="tea">
-          <p className="kicker">The tea</p>
+          <p className="kicker tea-stamp">The tea</p>
           <h2 id="season-tea-head">Who&apos;s feuding, who&apos;s flirting, who said what</h2>
           <ul className="tea-list">
             {tea.map((t) => (
               <li key={`${t.day}-${t.faces.map((f) => f.id).join("-")}`} className="tea-item">
+                <span className="tea-tape" aria-hidden="true" />
                 <span className="tea-faces" aria-hidden="true">
                   {t.faces.map((f) => (
                     <Avatar key={f.id} seed={f.id} name={f.name} hue={f.hue} house={f.house} portraitSrc={f.portrait} size={32} decorative />
                   ))}
                 </span>
                 <span className="tea-text">
-                  <span>{t.logline}</span>
+                  <span className="tea-logline">{t.logline}</span>
                   <span className="muted small">
                     {t.faces.map((f, i) => (
                       <span key={f.id}>

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import Avatar from "@/app/Avatar";
+import Icon from "@/app/Icon";
+import Petals from "@/app/motion/Petals";
 import { revealSteps, type NightFace, type RevealInput, type RevealStep } from "@/lib/ceremony-night";
 
 /** How long each step holds before the next, while it plays. */
@@ -33,9 +35,16 @@ function Step({ s }: { s: RevealStep }) {
     case "rose":
       return (
         <div className="ceremony-step is-rose">
-          <span className="ceremony-rose" aria-hidden="true">🌹</span>
+          <span className="ceremony-rose" aria-hidden="true">
+            <Icon name="rose" />
+          </span>
           <Face f={s.face} />
-          <span className="muted small">
+          <span className="ceremony-count muted small">
+            <span className="ceremony-pips" aria-hidden="true">
+              {Array.from({ length: s.of }, (_, i) => (
+                <span key={i} className={i < s.n ? "is-given" : undefined} />
+              ))}
+            </span>
             rose {s.n} of {s.of}
           </span>
         </div>
@@ -43,22 +52,31 @@ function Step({ s }: { s: RevealStep }) {
     case "last_rose":
       return (
         <div className="ceremony-step is-last">
-          <p className="small">
+          <p className="small ceremony-hush">
             <strong>{s.line}</strong>
           </p>
           <div className="ceremony-faces">
-            {s.faces.map((f) => (
-              <Face key={f.id} f={f} size={56} />
+            {s.faces.map((f, i) => (
+              <span key={f.id} className="ceremony-faceoff">
+                {i > 0 && (
+                  <span className="ceremony-one-rose" aria-hidden="true">
+                    <Icon name="rose" />
+                  </span>
+                )}
+                <Face f={f} size={56} />
+              </span>
             ))}
           </div>
         </div>
       );
     case "goes_to":
       return (
-        <div className="ceremony-step is-rose">
-          <span className="ceremony-rose" aria-hidden="true">🌹</span>
+        <div className="ceremony-step is-rose is-final">
+          <span className="ceremony-rose" aria-hidden="true">
+            <Icon name="rose" />
+          </span>
           <Face f={s.face} size={56} />
-          <p className="small">{s.line ?? `The last rose goes to ${s.face.name}.`}</p>
+          <p className="small ceremony-verdict">{s.line ?? `The last rose goes to ${s.face.name}.`}</p>
         </div>
       );
     case "home":
@@ -71,9 +89,10 @@ function Step({ s }: { s: RevealStep }) {
     case "limo":
       return (
         <figure className="ceremony-step ceremony-limo">
+          <span className="ceremony-limo-lights" aria-hidden="true" />
           <figcaption className="kicker">In the limo · {s.face.name}</figcaption>
           {s.lines.map((l, i) => (
-            <blockquote key={i} className="small">
+            <blockquote key={i} className="small" style={{ "--i": i } as CSSProperties}>
               “{l}”
             </blockquote>
           ))}
@@ -92,6 +111,8 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
   // Staged: the result waits behind the play button from the first paint, so it never flashes before hydration.
   const [shown, setShown] = useState<number>(staged ? 0 : steps.length);
   const [playing, setPlaying] = useState(false);
+  // Pressed play this visit: the newest step makes its entrance (app/ux/show-nights.css), even after the last one lands.
+  const [played, setPlayed] = useState(false);
   useEffect(() => {
     let seen = false;
     try {
@@ -121,6 +142,7 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
   const play = () => {
     markSeen();
     setShown(0);
+    setPlayed(true);
     setPlaying(true);
   };
   const all = () => {
@@ -130,11 +152,11 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
   };
   const n = shown;
   return (
-    <div className="ceremony-reveal" data-reveal={n >= steps.length ? "done" : playing ? "playing" : "waiting"}>
+    <div className="ceremony-reveal" data-reveal={n >= steps.length ? "done" : playing ? "playing" : "waiting"} data-played={played || undefined}>
       {n === 0 && !playing ? (
         <p className="cta-row">
           <button type="button" className="primary small" onClick={play} data-track="ceremony-reveal-play">
-            🌹 Watch the roses go out
+            <Icon name="rose" /> Watch the roses go out
           </button>{" "}
           <button type="button" className="button-ghost small" onClick={all} data-track="ceremony-reveal-skip">
             Just tell me
@@ -143,12 +165,14 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
       ) : (
         <ol className="ceremony-steps" aria-live="polite">
           {steps.slice(0, n).map((s, i) => (
-            <li key={i} className="ceremony-steps-item">
+            <li key={i} className="ceremony-steps-item" data-step={s.kind} data-fresh={i === n - 1 || undefined}>
               <Step s={s} />
             </li>
           ))}
         </ol>
       )}
+      {/* The last rose lands: petals over the whole card, once, for a viewer who watched it go out. */}
+      {played && steps.slice(0, n).some((s) => s.kind === "goes_to") && <Petals delay={0.5} />}
       {playing && n < steps.length && (
         <p>
           <button type="button" className="button-ghost small" onClick={all} data-track="ceremony-reveal-skip">

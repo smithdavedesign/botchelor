@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { OG_BODY, OG_DISPLAY, OG_NIGHT, OgLetterbox, ogFontOptions } from "@/lib/og-type";
 import { markedImageResponse } from "@/lib/ai-mark";
 import { avatarGradientCss, avatarPalette, initials } from "@/lib/avatar";
 import { approvedPortraitDataUrl } from "@/lib/assets";
@@ -11,10 +12,10 @@ import { siteUrl } from "@/lib/site";
 import { venueName } from "@/lib/venues";
 
 const SIZE = { width: 1200, height: 630 };
-const INK = "#2a1a2e";
-const MUTED = "#6b5a6e";
-const PAPER = "#fff8f3";
-const ACCENT = "#d6336c";
+const INK = OG_NIGHT.ink;
+const MUTED = OG_NIGHT.soft;
+const PAPER = OG_NIGHT.bg;
+const ACCENT = OG_NIGHT.accent;
 
 /**
  * One shared link is unfurled many times (every Discord channel and Reddit view of it), and the card reads the episode
@@ -45,7 +46,7 @@ export const GET = handle(async (req: Request, ctx: { params: Promise<{ id: stri
   const wentWell = new URL(req.url).searchParams.get("card") === ENDING_CARD && endingCardAllowed(episode);
   // An OC's approved portrait when it has one, else the gradient tile (a failed read just means the tile).
   const portraits = await Promise.all(episode.characters.map((c) => approvedPortraitDataUrl(db, c.id).catch(() => null)));
-  const card = new ImageResponse(<EpisodeCard episode={episode} portraits={portraits} wentWell={wentWell} />, { ...SIZE, headers: { "cache-control": CACHE } });
+  const card = new ImageResponse(<EpisodeCard episode={episode} portraits={portraits} wentWell={wentWell} />, { ...SIZE, headers: { "cache-control": CACHE }, ...(await ogFontOptions()) });
   // A card with a generated portrait in it is marked AI-generated, in its PNG's XMP and its headers (lib/ai-mark.ts).
   return portraits.some(Boolean) ? markedImageResponse(card) : card;
 });
@@ -99,10 +100,11 @@ function EpisodeCard({ episode, portraits, wentWell = false }: { episode: Episod
         padding: "48px 72px 52px",
         background: PAPER,
         color: INK,
-        borderTop: `20px solid ${ACCENT}`,
-        fontFamily: "sans-serif",
+        position: "relative",
+        fontFamily: OG_BODY,
       }}
     >
+      <OgLetterbox />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", fontSize: 30, fontWeight: 700, color: ACCENT }}>Botchelor · an AI blind date</div>
         <div style={{ display: "flex", fontSize: 26, color: MUTED }}>{new URL(siteUrl()).host}</div>
@@ -112,11 +114,11 @@ function EpisodeCard({ episode, portraits, wentWell = false }: { episode: Episod
         <div style={{ display: "flex", fontSize: 38, color: MUTED, margin: "0 16px" }}>×</div>
         <Tile character={b} portrait={portraits[1]} />
         <div style={{ display: "flex", flexDirection: "column", marginLeft: 28, width: 680 }}>
-          <div style={{ display: "flex", fontSize: namesSize, fontWeight: 800, lineHeight: 1.1 }}>{names}</div>
+          <div style={{ display: "flex", fontFamily: OG_DISPLAY, fontSize: namesSize, fontWeight: 800, lineHeight: 1.1 }}>{names}</div>
           {episode.venue && <div style={{ display: "flex", fontSize: 28, color: MUTED, marginTop: 8 }}>{venueName(episode.venue)}</div>}
         </div>
       </div>
-      <div style={{ display: "flex", fontSize: headlineSize, fontWeight: 800, marginTop: 36, letterSpacing: -1, lineHeight: 1.1 }}>{headline}</div>
+      <div style={{ display: "flex", fontFamily: OG_DISPLAY, fontSize: headlineSize, fontWeight: 800, marginTop: 36, letterSpacing: -1, lineHeight: 1.1 }}>{headline}</div>
       <div style={{ display: "flex", marginTop: 22 }}>
         {(wentWell ? [] : ENDINGS).map((ending) => (
           <div
@@ -128,7 +130,7 @@ function EpisodeCard({ episode, portraits, wentWell = false }: { episode: Episod
               padding: "14px 30px 14px 22px",
               border: `4px solid ${ACCENT}`,
               borderRadius: 999,
-              background: "#ffffff",
+              background: "rgba(255,255,255,0.06)",
             }}
           >
             <div style={{ display: "flex", width: 28, height: 28, borderRadius: 14, border: `4px solid ${ACCENT}`, marginRight: 14 }} />

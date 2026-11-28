@@ -100,6 +100,16 @@ in the theme's colours, balanced headings and orphan-free paragraphs, tabular fi
 The **rose seal** (`app/RoseSeal.tsx`) is the show's one repeated mark: the 404s, the paid pack, a ship's top pick,
 the footer. A card that is a ticket to something (an episode row, the paid pack) gets `.ticket`'s stub notches.
 
+**Show nights** (`app/ux/show-nights.css`, 2026-11-27) dress the season's live surfaces as television: the rose
+ceremony plays on a letterboxed, spot-lit stage (each rose a wax medallion, the last rose a face-off, petals when it
+lands, the limo's tail lights), the tea is clippings taped to a cork board, "Previously on" is the recap with scan
+lines, the bombshell is a "Breaking" band with a ticker, and a fantasy pick is sealed with the rose. Each keeps its
+look under reduced motion; only nothing moves.
+
+**Share cards** are the show at night (`lib/og-type.tsx`): the night gradient, letterbox bars, the seal, Fraunces
+headlines and Inter text, loaded as TTF from `assets/fonts` because next/og can't read WOFF2. A new card uses
+`OG_NIGHT`, `OgLetterbox`, `OgKicker` and `ogFontOptions()`, and never a literal font name.
+
 Every type size is a fluid token: `clamp(min, preferred, max)` grows from the phone size to the desktop size,
 so small text never drops below 12px on a phone, and a control's label shrinks a little in a narrow card rather
 than wrapping badly. Use a token, never a fixed rem or px, for text. A size that's off the scale takes the nearest
