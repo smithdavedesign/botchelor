@@ -19,27 +19,39 @@ import type { Db } from "@/lib/db";
 import CompanionBrowser, { type CompanionFilters } from "@/app/companion/CompanionBrowser";
 import CompanionPhone from "@/app/companion/CompanionPhone";
 import TalkButton from "@/app/companion/TalkButton";
+import { fillNodes } from "@/app/fillNodes";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { HTML_LANG } from "@/lib/i18n/locales";
+import { english, type T } from "@/lib/i18n/translate";
+
+/** "$9.99 a month" with its "a month" in the reader's language. */
+const priceIn = (price: string, t: T) => price.replace(/ a month$/, ` ${t("a month")}`);
 
 export const metadata: Metadata = { title: "Companions · Botchelor", robots: { index: false, follow: false } };
 
 /** What talking costs, said before anyone starts (docs/companions.md: the price shown up front, the count in view). */
-function PlanLine({ a }: { a: CompanionAllowance }) {
-  if (a.admin) return <p className="companion-plan-line muted small">Admin: no limit.</p>;
+function PlanLine({ a, t = english, lang = "en-US" }: { a: CompanionAllowance; t?: T; lang?: string }) {
+  if (a.admin) return <p className="companion-plan-line muted small">{t("Admin: no limit.")}</p>;
   if (a.unlimited) {
     return (
       <p className="companion-plan-line small">
-        💬 <strong>Companion Plan</strong>: no daily limit{a.plan === "cancelled" && a.plan_ends ? `, until ${new Date(a.plan_ends).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })}` : ""}.{" "}
-        <Link href="/companion/plan">Your plan</Link>
+        💬 <strong>{/* i18n-ok: the plan's name */}Companion Plan</strong>:{" "}
+        {a.plan === "cancelled" && a.plan_ends
+          ? t("no daily limit, until {date}.", { date: new Date(a.plan_ends).toLocaleDateString(lang, { month: "long", day: "numeric", timeZone: "UTC" }) })
+          : t("no daily limit.")}{" "}
+        <Link href="/companion/plan">{t("Your plan")}</Link>
       </p>
     );
   }
   return (
     <p className="companion-plan-line small">
-      Free: {a.per_day} replies a day across every companion ({a.left} left today).
+      {t("Free: {n} replies a day across every companion ({left} left today).", { n: a.per_day, left: a.left ?? 0 })}
       {a.on_sale && (
         <>
           {" "}
-          <Link href="/companion/plan">The Companion Plan</Link> has no daily limit, {a.price}.
+          {fillNodes(t("{plan} has no daily limit, {price}.", { price: priceIn(a.price, t) }), {
+            plan: <Link href="/companion/plan">{t("The Companion Plan")}</Link>,
+          })}
         </>
       )}
     </p>
@@ -69,6 +81,7 @@ function Hero({ preview, children }: { preview: CompanionPreview | null; childre
  */
 export default async function CompanionsPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
   const sp = (await searchParams) ?? {};
+  const [t, locale] = await Promise.all([getT(), getLocale()]);
   const pick = (k: string) => (Array.isArray(sp[k]) ? sp[k]?.[0] : (sp[k] as string | undefined));
   const initial: CompanionFilters = { q: pick("q")?.slice(0, 80), who: pick("who"), pronouns: pick("pronouns"), style: pick("style"), type: pick("type"), love: pick("love"), sort: pick("sort") };
   const store = await cookies();
@@ -88,29 +101,39 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
     // first of the cast, and the same button in thumb reach once it's scrolled away (2026-11-22: the first Talk was two
     // screens down on a phone). Once there's a conversation, it heads the list instead.
     const first = threads.length === 0 && left > 0 ? (preview ?? cast[0] ?? null) : null;
-    const talkFirst = first ? `Talk to ${first.name.split(/\s+/)[0]}` : "";
+    const talkFirst = first ? t("Talk to {name}", { name: first.name.split(/\s+/)[0] }) : "";
     return (
       <article className="companion-page page-wide">
         <CharactersTabs current="companions" companions />
         <Hero preview={threads.length === 0 ? preview : null}>
           <header>
-            <p className="kicker">Companions</p>
-            <h1>Talk with a character, one to one</h1>
+            <p className="kicker">{t("Companions")}</p>
+            <h1>{t("Talk with a character, one to one")}</h1>
             <p className="muted">
-              Off the show, just the two of you. They remember what you tell them (you can see and change all of it), and they have their own week on the show
-              to tell you about. Every companion is an AI character, not a real person.
+              {t("Off the show, just the two of you. They remember what you tell them (you can see and change all of it), and they have their own week on the show to tell you about. Every companion is an AI character, not a real person.")}
             </p>
             <p className="companion-plan-line small">
               {left > 0 ? (
-                <>
-                  Try it now, no account needed: <strong>{left} free {left === 1 ? "reply" : "replies"}</strong>
-                  {left < cap ? " left" : ""}.
-                </>
+                fillNodes(t("Try it now, no account needed: {count}."), {
+                  count: (
+                    <strong>
+                      {left < cap
+                        ? left === 1
+                          ? t("1 free reply left")
+                          : t("{n} free replies left", { n: left })
+                        : left === 1
+                          ? t("1 free reply")
+                          : t("{n} free replies", { n: left })}
+                    </strong>
+                  ),
+                })
               ) : (
-                <>That&apos;s the free replies without an account.</>
+                t("That's the free replies without an account.")
               )}{" "}
-              <Link href="/account?next=%2Fcompanion">A free account</Link> keeps it going: {companionFreePerDay()} replies a day across every companion.
-              {planLink("companion") && ` The Companion Plan has no daily limit, ${planPrice("companion")}.`}
+              {fillNodes(t("{account} keeps it going: {n} replies a day across every companion.", { n: companionFreePerDay() }), {
+                account: <Link href="/account?next=%2Fcompanion">{t("A free account")}</Link>,
+              })}
+              {planLink("companion") && ` ${t("The Companion Plan has no daily limit, {price}.", { price: priceIn(planPrice("companion"), t) })}`}
             </p>
             {first && (
               <div id="companion-cta">
@@ -128,7 +151,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
         )}
         <CompanionBrowser threads={threads} others={[...yours, ...cast]} signIn={left <= 0 || threads.length >= COMPANION_GUEST_THREADS} initial={initial} />
         <p className="muted small">
-          PG, like the show. If you&apos;re having a hard time, <Link href="/safety">help is here</Link>.
+          {fillNodes(t("PG, like the show. If you're having a hard time, {help}."), { help: <Link href="/safety">{t("help is here")}</Link> })}
         </p>
       </article>
     );
@@ -141,19 +164,18 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
         <CharactersTabs current="companions" companions />
         <Hero preview={preview}>
           <header>
-            <p className="kicker">Companions</p>
-            <h1>Talk with a character, one to one</h1>
+            <p className="kicker">{t("Companions")}</p>
+            <h1>{t("Talk with a character, one to one")}</h1>
             <p className="muted">
-              Off the show, just the two of you. They remember what you tell them (you can see and change all of it), and they have their own week on the show
-              to tell you about. Every companion is an AI character, not a real person.
+              {t("Off the show, just the two of you. They remember what you tell them (you can see and change all of it), and they have their own week on the show to tell you about. Every companion is an AI character, not a real person.")}
             </p>
             <p className="companion-plan-line small">
-              Free: {companionFreePerDay()} replies a day across every companion.
-              {planLink("companion") && ` The Companion Plan has no daily limit, ${planPrice("companion")}.`}
+              {t("Free: {n} replies a day across every companion.", { n: companionFreePerDay() })}
+              {planLink("companion") && ` ${t("The Companion Plan has no daily limit, {price}.", { price: priceIn(planPrice("companion"), t) })}`}
             </p>
             <p className="cta-row" id="companion-cta">
               <Link className="button" href="/account?next=%2Fcompanion">
-                Sign in to start
+                {t("Sign in to start")}
               </Link>
             </p>
           </header>
@@ -161,7 +183,7 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
         <FaceRibbon />
         <PhoneActionBar watch="companion-cta">
           <Link className="button" href="/account?next=%2Fcompanion">
-            Sign in to start talking
+            {t("Sign in to start talking")}
           </Link>
         </PhoneActionBar>
         <CompanionBrowser threads={[]} others={cast} signIn initial={initial} />
@@ -173,28 +195,30 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
     if (!companionOpen())
       return (
         <NotOpenYet
-          title="Companions"
+          title={t("Companions")}
           action={
             <Link className="button" href="/step-in" data-track="companion-closed-step-in">
-              Step into a date instead
+              {t("Step into a date instead")}
             </Link>
           }
-          extra={<FaceRibbon title="Who you'll be able to text" />}
+          extra={<FaceRibbon title={t("Who you'll be able to text")} />}
         >
-          One-to-one chats with the characters, off the show. They aren&apos;t open yet: the characters are on <Link href="/watch">Watch</Link> in the meantime, and
-          you can step into a date with one of them, live, line by line.
+          {fillNodes(
+            t("One-to-one chats with the characters, off the show. They aren't open yet: the characters are on {watch} in the meantime, and you can step into a date with one of them, live, line by line."),
+            { watch: <Link href="/watch">{t("Watch")}</Link> },
+          )}
         </NotOpenYet>
       );
     return (
       <NotOpenYet
-        title="Companions"
+        title={t("Companions")}
         action={
           <Link className="button" href="/account?next=%2Fcompanion">
-            Sign in to start
+            {t("Sign in to start")}
           </Link>
         }
       >
-        One-to-one chats with the characters, off the show. They take a free account.
+        {t("One-to-one chats with the characters, off the show. They take a free account.")}
       </NotOpenYet>
     );
   }
@@ -204,18 +228,17 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
       <CharactersTabs current="companions" companions />
       <Hero preview={threads.length === 0 ? preview : null}>
         <header>
-          <p className="kicker">Companions</p>
-          <h1>Talk with a character, one to one</h1>
+          <p className="kicker">{t("Companions")}</p>
+          <h1>{t("Talk with a character, one to one")}</h1>
           <p className="muted">
-            Off the show, just the two of you. They remember what you tell them (you can see and change all of it), they have their own week on the show to
-            tell you about, and only you see the conversation. Every companion is an AI character, not a real person.
+            {t("Off the show, just the two of you. They remember what you tell them (you can see and change all of it), they have their own week on the show to tell you about, and only you see the conversation. Every companion is an AI character, not a real person.")}
           </p>
-          <PlanLine a={allowance} />
+          <PlanLine a={allowance} t={t} lang={HTML_LANG[locale]} />
         </header>
       </Hero>
       <CompanionBrowser threads={threads} others={[...yours, ...cast]} initial={initial} />
       <p className="muted small">
-        PG, like the show. If you&apos;re having a hard time, <Link href="/safety">help is here</Link>.
+        {fillNodes(t("PG, like the show. If you're having a hard time, {help}."), { help: <Link href="/safety">{t("help is here")}</Link> })}
       </p>
     </article>
   );

@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useT } from "@/app/I18nProvider";
 import { requestJson } from "@/app/request";
 
 /**
@@ -26,6 +27,7 @@ export default function TalkButton({
   /** Drawn inside the button above its label, so a whole face is the one tap that starts the thread (/chat's cast). */
   face?: ReactNode;
 }) {
+  const t = useT();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export default function TalkButton({
       setError(message);
       setSignIn(data.error === "sign_in" || data.error === "guest_used_up");
     } catch {
-      setError("Network error. Try again.");
+      setError(t("Network error. Try again."));
     }
     setBusy(false);
   }
@@ -51,7 +53,7 @@ export default function TalkButton({
     <>
       <button type="button" className={className} onClick={() => void talk()} disabled={busy} data-track={track}>
         {face}
-        {face ? <span className="talk-label">{busy ? "Opening…" : (label ?? `Talk with ${name}`)}</span> : busy ? `Opening…` : (label ?? `Talk with ${name}`)}
+        {face ? <span className="talk-label">{busy ? t("Opening…") : (label ?? t("Talk with {name}", { name }))}</span> : busy ? t("Opening…") : (label ?? t("Talk with {name}", { name }))}
       </button>
       {error && (
         <p className="error small">
@@ -60,7 +62,7 @@ export default function TalkButton({
             <>
               {" "}
               <Link href={`/account?next=${encodeURIComponent(`/characters/${characterId}`)}`} data-track="companion-guest-signup">
-                Make a free account →
+                {t("Make a free account →")}
               </Link>
             </>
           )}

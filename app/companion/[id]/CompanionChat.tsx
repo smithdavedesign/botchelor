@@ -4,6 +4,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Avatar, { sized } from "@/app/Avatar";
+import { fillNodes } from "@/app/fillNodes";
+import { useT } from "@/app/I18nProvider";
+import { english, type T } from "@/lib/i18n/translate";
 import { characterPortrait } from "@/lib/portraits";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import { queueEvent } from "@/app/engagement";
@@ -55,9 +58,9 @@ export type CompanionAbout = { job: string | null; hook: string | null; week: st
 type Reply = { view?: CompanionThreadView; message?: string; allowance?: CompanionAllowance; extras?: Extras; voice?: { message_id: string; url: string } };
 
 /** "in 5 hours", "in 40 minutes": until the free count starts again. */
-function untilReset(iso: string, now = Date.now()): string {
+function untilReset(iso: string, now = Date.now(), t: T = english): string {
   const mins = Math.max(1, Math.round((new Date(iso).getTime() - now) / 60000));
-  return mins >= 90 ? `in ${Math.round(mins / 60)} hours` : `in ${mins} minutes`;
+  return mins >= 90 ? t("in {n} hours", { n: Math.round(mins / 60) }) : t("in {n} minutes", { n: mins });
 }
 
 /** You, on the stage across from them. */
@@ -146,6 +149,7 @@ export default function CompanionChat({
   /** Ideas for what to say under the newest reply (lib/companion-ideas.ts companionIdeasOn): the row and its Settings switch. */
   ideas?: boolean;
 }) {
+  const t = useT();
   const router = useRouter();
   const [view, setView] = useState(initial);
   const [allowance, setAllowance] = useState(initialAllowance);
@@ -270,8 +274,8 @@ export default function CompanionChat({
 
   useEffect(() => {
     if (!note) return;
-    const t = setTimeout(() => setNote(null), 8000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setNote(null), 8000);
+    return () => clearTimeout(timer);
   }, [note]);
 
   // A new line of theirs in a scene is read aloud when the voice is on (never the ones already there on arrival).
@@ -621,9 +625,9 @@ export default function CompanionChat({
     if (!ideasFor || drawn?.for === ideasFor) return;
     const stop = new AbortController();
     // A moment after the reply lands: reading it comes first.
-    const t = setTimeout(() => void loadIdeas(false, stop.signal).finally(() => setIdeasAsked(ideasFor)), IDEAS_AFTER_MS);
+    const timer = setTimeout(() => void loadIdeas(false, stop.signal).finally(() => setIdeasAsked(ideasFor)), IDEAS_AFTER_MS);
     return () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       stop.abort();
     };
     // Asked once per reply, not again when the ideas themselves arrive.
@@ -647,77 +651,77 @@ export default function CompanionChat({
       data-companion-chat
     >
       {/* The page's heading, for screen readers (the name on screen is in the header bar and the panel beside it). */}
-      <h1 className="sr-only">{view.scene ? `In a scene with ${c.name}` : `Texting ${c.name}`}</h1>
+      <h1 className="sr-only">{view.scene ? t("In a scene with {name}", { name: c.name }) : t("Texting {name}", { name: c.name })}</h1>
       {/* Who you're talking with, beside the thread on a wide screen (2026-11-13 design lift: the chat was a bare box in a
           page of white). The same links the Settings menu has, so nothing is only here. */}
-      <aside className="companion-side" aria-label={`About ${first}`}>
+      <aside className="companion-side" aria-label={t("About {name}", { name: first })}>
         {portrait ? (
           // eslint-disable-next-line @next/next/no-img-element -- their own portrait, already sized by the asset route
-          <img className="companion-side-portrait" src={portrait} alt={`${c.name} portrait`} width={320} height={320} />
+          <img className="companion-side-portrait" src={portrait} alt={t("{name} portrait", { name: c.name })} width={320} height={320} />
         ) : (
           <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={120} />
         )}
         <h2 className="companion-side-name">{c.name}</h2>
         <p className="companion-side-meta">
-          <span className="chip companion-ai">🤖 AI character</span>
+          <span className="chip companion-ai">🤖 {t("AI character")}</span>
           {c.pronouns && <span className="muted small">{c.pronouns}</span>}
         </p>
         {about?.job && <p className="companion-side-job">{about.job}</p>}
         {about?.hook && <p className="companion-side-hook">{about.hook}</p>}
         {about?.week && (
           <p className="companion-side-week">
-            <strong>This week on the show</strong>
+            <strong>{t("This week on the show")}</strong>
             <span>{about.week}</span>
           </p>
         )}
         <p className="companion-side-links small">
-          <Link href={`/companion/${view.id}/memory`}>What {first} knows about you ({view.facts})</Link>
+          <Link href={`/companion/${view.id}/memory`}>{t("What {name} knows about you ({n})", { name: first, n: view.facts })}</Link>
           {!c.yours && (
             <>
               {" · "}
-              <Link href={`/characters/${c.id}`}>Profile</Link>
+              <Link href={`/characters/${c.id}`}>{t("Profile")}</Link>
             </>
           )}
         </p>
       </aside>
       <div className="companion-main">
       <header className="companion-head">
-        <Link href="/companion" className="button-ghost small" aria-label="All companions">
+        <Link href="/companion" className="button-ghost small" aria-label={t("All companions")}>
           ←
         </Link>
         <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={40} />
         <div className="companion-head-name">
           <strong>{c.name}</strong>
-          <span className="chip companion-ai" title={`${first} is an AI character, not a real person.`}>
-            🤖<span className="companion-ai-words"> AI character</span>
+          <span className="chip companion-ai" title={t("{name} is an AI character, not a real person.", { name: first })}>
+            🤖<span className="companion-ai-words"> {t("AI character")}</span>
           </span>
         </div>
         {!paused && !view.scene && canCall && !outOfReplies && (
           <button type="button" className="button-ghost small" onClick={() => setCalling(true)} disabled={busy || calling} data-track="companion-call">
-            📞<span className="companion-head-label"> Call</span>
+            📞<span className="companion-head-label"> {t("Call")}</span>
           </button>
         )}
         {!paused &&
           (view.scene ? (
             <button type="button" className="button-ghost small" onClick={() => void playScene(null)} disabled={busy} data-track="companion-scene-end">
-              📱<span className="companion-head-label"> Text</span>
+              📱<span className="companion-head-label"> {t("Text")}</span>
             </button>
           ) : (
             <button type="button" className="button-ghost small" onClick={() => (picking ? closePicker() : setPicking(true))} disabled={busy} aria-expanded={picking} data-track="companion-scene-pick">
-              🎭<span className="companion-head-label"> Scene</span>
+              🎭<span className="companion-head-label"> {t("Scene")}</span>
             </button>
           ))}
         <details className="companion-menu" ref={menuRef} open={menuOpen} onToggle={(e) => setMenuOpen(e.currentTarget.open)}>
           <summary className="button-ghost small">
-            ⚙️<span className="companion-head-label"> Settings</span>
+            ⚙️<span className="companion-head-label"> {t("Settings")}</span>
           </summary>
           <div className="companion-menu-body">
             <p className="companion-menu-top">
-              <strong>Settings</strong>
-              <OverlayClose onClose={closeMenu} label="Close settings" />
+              <strong>{t("Settings")}</strong>
+              <OverlayClose onClose={closeMenu} label={t("Close settings")} />
             </p>
             <fieldset>
-              <legend>How much {first} says</legend>
+              <legend>{t("How much {name} says", { name: first })}</legend>
               {REPLY_LENGTHS.map((l: ReplyLength) => (
                 <label key={l} className="check">
                   <input
@@ -731,7 +735,7 @@ export default function CompanionChat({
                     }}
                     disabled={busy}
                   />
-                  <span>{REPLY_LENGTH_LABELS[l]}</span>
+                  <span>{t(REPLY_LENGTH_LABELS[l])}</span>
                 </label>
               ))}
             </fieldset>
@@ -749,28 +753,32 @@ export default function CompanionChat({
                 }}
                 disabled={busy}
               />
-              <span>Let {first} text you first</span>
+              <span>{t("Let {name} text you first", { name: first })}</span>
             </label>
             <p className="muted small">
-              Only when something happens to them: a date airs, or the house talks about them. Never just to check in.
+              {t("Only when something happens to them: a date airs, or the house talks about them. Never just to check in.")}
             </p>
             {ideas && (
               // Ideas for what to say (lib/companion-ideas.ts): this device's choice, remembered for every thread. No note
               // under it: the menu has to fit the chat on a 360 px phone, and the row it switches explains itself.
               <label className="check">
                 <input type="checkbox" checked={ideasOn} onChange={(e) => switchIdeas(e.target.checked)} data-track="companion-ideas-switch" data-companion-ideas-switch />
-                <span>💡 Ideas for what to say</span>
+                <span>💡 {t("Ideas for what to say")}</span>
               </label>
             )}
             {extras && (
               <p className="muted small">
-                🔊 Voice notes:{" "}
+                🔊 {t("Voice notes:")}{" "}
                 {extras.voice.free
-                  ? "free for admins"
+                  ? t("free for admins")
                   : [
-                      extras.voice.included_left !== null ? `${extras.voice.included_left} of ${COMPANION_EXTRAS.voice.included} left this month with the plan` : null,
-                      extras.voice.credits ? `${extras.voice.credits} bought` : null,
-                      `${extras.voice.tokens} bought date${extras.voice.tokens === 1 ? "" : "s"} buys ${extras.voice.bundle}`,
+                      extras.voice.included_left !== null
+                        ? t("{left} of {n} left this month with the plan", { left: extras.voice.included_left, n: COMPANION_EXTRAS.voice.included })
+                        : null,
+                      extras.voice.credits ? t("{n} bought", { n: extras.voice.credits }) : null,
+                      extras.voice.tokens === 1
+                        ? t("1 bought date buys {bundle}", { bundle: extras.voice.bundle })
+                        : t("{n} bought dates buys {bundle}", { n: extras.voice.tokens, bundle: extras.voice.bundle }),
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -781,15 +789,15 @@ export default function CompanionChat({
               {!paused && !outOfReplies && !view.scene && lastIsCharacter && (
                 // Continue while texting lives here (in a scene it's beside the composer): one more thought from them.
                 <button type="button" className="companion-menu-row" onClick={() => (closeMenu(), void keepGoing())} disabled={busy} data-track="companion-continue">
-                  Let {first} carry on
+                  {t("Let {name} carry on", { name: first })}
                 </button>
               )}
               <Link className="companion-menu-row" href={`/companion/${view.id}/memory`}>
-                What {first} knows about you ({view.facts})
+                {t("What {name} knows about you ({n})", { name: first, n: view.facts })}
               </Link>
               {!c.yours && (
                 <Link className="companion-menu-row" href={`/characters/${c.id}`}>
-                  {first}&apos;s profile
+                  {t("{name}'s profile", { name: first })}
                 </Link>
               )}
             </div>
@@ -797,11 +805,11 @@ export default function CompanionChat({
               {/* One message at a time, on a page of its own (./messages): never a control on the bubbles (the owner's call: too noisy). */}
               {messageDelete && (
                 <Link className="companion-menu-row" href={`/companion/${view.id}/messages`} data-track="companion-delete-messages">
-                  Delete messages…
+                  {t("Delete messages…")}
                 </Link>
               )}
               <button type="button" className="companion-menu-row" onClick={() => (closeMenu(), void remove())}>
-                Delete this conversation
+                {t("Delete this conversation")}
               </button>
             </div>
           </div>
@@ -810,29 +818,28 @@ export default function CompanionChat({
 
       {about?.week && !view.scene && (
         <p className="companion-week" title={about.week}>
-          🗓️ <strong>This week:</strong> {about.week}
+          🗓️ <strong>{t("This week:")}</strong> {about.week}
         </p>
       )}
 
       {picking && !view.scene && !placed && (
-        <PlacePicker places={SCENE_PLACES} current={view.scene} onPick={setPlaced} onClose={closePicker} busy={busy} title={`Where are you and ${first}?`} />
+        <PlacePicker places={SCENE_PLACES} current={view.scene} onPick={setPlaced} onClose={closePicker} busy={busy} title={t("Where are you and {name}?", { name: first })} />
       )}
 
       {picking && !view.scene && placed && (
-        <section className="place-picker companion-roleplay-step" aria-label="A roleplay, or just the two of you">
+        <section className="place-picker companion-roleplay-step" aria-label={t("A roleplay, or just the two of you")}>
           <header className="place-picker-head">
             <h2>
-              {venueName(placed)}: play a roleplay?
+              {t("{place}: play a roleplay?", { place: venueName(placed) })}
             </h2>
             <button type="button" className="button-ghost small place-picker-cancel" onClick={() => setPlaced(null)}>
-              ← Places
+              ← {t("Places")}
             </button>
           </header>
           <p className="muted small">
-            Pick who you and {first} are to each other tonight, or leave it and it&apos;s just the two of you. It&apos;s make-believe: nothing you say in a
-            roleplay goes into what {first} remembers about you.
+            {t("Pick who you and {name} are to each other tonight, or leave it and it's just the two of you. It's make-believe: nothing you say in a roleplay goes into what {name} remembers about you.", { name: first })}
           </p>
-          <RoleplayPicker me="You" them={c.name} value={roleplay} onChange={setRoleplay} signedIn={signedIn} asYou opening={opens} onOpening={setOpens} />
+          <RoleplayPicker me={t("You")} them={c.name} value={roleplay} onChange={setRoleplay} signedIn={signedIn} asYou opening={opens} onOpening={setOpens} />
           <p className="companion-roleplay-go">
             <button
               type="button"
@@ -841,7 +848,7 @@ export default function CompanionChat({
               disabled={busy || (roleplay !== null && !choiceReady(roleplay))}
               data-track={roleplay ? "companion-roleplay-start" : "companion-scene-start"}
             >
-              {roleplay ? "🎭 Start the roleplay" : "Start the scene"}
+              {roleplay ? `🎭 ${t("Start the roleplay")}` : t("Start the scene")}
             </button>
           </p>
         </section>
@@ -867,12 +874,12 @@ export default function CompanionChat({
             }
             lineB={pending ?? onStage.you?.text ?? null}
             actLabel={view.roleplay ? `${view.roleplay.icon} ${view.roleplay.title} · ${venueName(view.scene)}` : `🎭 ${venueName(view.scene)}`}
-            placeholder={opening ? `${first} is on the way…` : null}
+            placeholder={opening ? t("{name} is on the way…", { name: first }) : null}
             faceSize={96}
           />
           {speech.supported && (
-            <button type="button" className="button-ghost small companion-voice" onClick={toggleVoice} aria-pressed={speech.on} title="Read their lines aloud in your device's own voice">
-              {speech.on ? "🔊 Voice on" : "🔈 Voice off"}
+            <button type="button" className="button-ghost small companion-voice" onClick={toggleVoice} aria-pressed={speech.on} title={t("Read their lines aloud in your device's own voice")}>
+              {speech.on ? `🔊 ${t("Voice on")}` : `🔈 ${t("Voice off")}`}
             </button>
           )}
         </div>
@@ -881,7 +888,7 @@ export default function CompanionChat({
       {view.scene && view.roleplay && (
         <p className="companion-roleplay-line" title={view.roleplay.premise}>
           {view.roleplay.icon} <strong>{view.roleplay.title}</strong>
-          {view.roleplay.you_play ? ` · You're ${view.roleplay.you_play}, ${first} is ${view.roleplay.they_play}` : ""}
+          {view.roleplay.you_play ? ` · ${t("You're {you}, {name} is {them}", { you: view.roleplay.you_play, name: first, them: view.roleplay.they_play ?? "" })}` : ""}
         </p>
       )}
 
@@ -906,7 +913,7 @@ export default function CompanionChat({
                   <div className="chat-col">
                     {/* Who's talking, at the top of each run (as the show's own threads do, app/ChatThread.tsx): a thread
                         opened from Chat otherwise only says so in its header. */}
-                    {shown[i - 1]?.role !== m.role && <span className="chat-name">{m.role === "user" ? "You" : c.name}</span>}
+                    {shown[i - 1]?.role !== m.role && <span className="chat-name">{m.role === "user" ? t("You") : c.name}</span>}
                     {/* A reply narrated before story mode (lib/narration.ts): prose before and after the words, the action folded into it. */}
                     {m.beat?.before && <p className="chat-beat">{m.beat.before}</p>}
                     {m.action && !m.beat && <span className="companion-action">{m.action}</span>}
@@ -926,11 +933,11 @@ export default function CompanionChat({
                       </div>
                     ) : m.photo ? (
                       // A photo from one of their dates (./DatePhoto.tsx): the message's text is its alt text.
-                      <DatePhoto src={m.photo.src} alt={m.text} href={m.photo.href} />
+                      <DatePhoto src={m.photo.src} alt={m.text} href={m.photo.href} t={t} />
                     ) : (
                       <p className="chat-bubble">
                         {m.call && (
-                          <span className="companion-call-tag" title="Said on a call" aria-label="Said on a call: ">
+                          <span className="companion-call-tag" title={t("Said on a call")} aria-label={`${t("Said on a call")}: `}>
                             📞{" "}
                           </span>
                         )}
@@ -962,7 +969,7 @@ export default function CompanionChat({
                     )}
                     {m.role === "character" && m.offers && !paused && (
                       // The question as chips (lib/companion-offers.ts): the newest open menu only, gone once one is tapped.
-                      <div className="companion-offers" role="group" aria-label={`What ${first} could do next`}>
+                      <div className="companion-offers" role="group" aria-label={t("What {name} could do next", { name: first })}>
                         {m.offers.kinds.map((k) => (
                           <button
                             key={k}
@@ -972,7 +979,7 @@ export default function CompanionChat({
                             disabled={busy || offering !== null}
                             data-track={`companion-offer-${k}`}
                           >
-                            {offering === k ? (k === "advice" ? "One sec…" : "Booking…") : offerLabel(k, { partner: m.offers!.partner, character: c.name })}
+                            {offering === k ? (k === "advice" ? t("One sec…") : t("Booking…")) : offerLabel(k, { partner: m.offers!.partner, character: c.name })}
                           </button>
                         ))}
                       </div>
@@ -984,7 +991,7 @@ export default function CompanionChat({
                     {m.role === "character" && watch && newest?.id === m.id && (
                       <p className="companion-offers">
                         <Link className="button small" href={watch} data-track="companion-offer-watch">
-                          ▶ Watch it
+                          ▶ {t("Watch it")}
                         </Link>
                       </p>
                     )}
@@ -1003,15 +1010,15 @@ export default function CompanionChat({
                               } else setActionsFor(m.id);
                             }}
                             aria-expanded={footOpen(m)}
-                            aria-label={`More for ${first}'s message`}
-                            title="More"
+                            aria-label={t("More for {name}'s message", { name: first })}
+                            title={t("More")}
                           >
                             ⋯
                           </button>
                         )}
                         {m.voice ? (
                           <button type="button" className="button-ghost small companion-voice-note" onClick={() => play(m.id, m.voice!)} aria-pressed={playing === m.id} data-track="companion-voice-play">
-                            {playing === m.id ? "⏸ Playing" : "▶ Voice note"}
+                            {playing === m.id ? `⏸ ${t("Playing")}` : `▶ ${t("Voice note")}`}
                           </button>
                         ) : !footOpen(m) ? null : extras ? (
                           !paused && (
@@ -1020,36 +1027,36 @@ export default function CompanionChat({
                               className="button-ghost small companion-voice-note"
                               onClick={() => void voice(m)}
                               disabled={voicing !== null}
-                              title={voicePrice ? `Voice notes: ${voicePrice}. Taken only if it's made.` : `Hear ${first} say it`}
+                              title={voicePrice ? t("Voice notes: {price}. Taken only if it's made.", { price: voicePrice }) : t("Hear {name} say it", { name: first })}
                               data-track="companion-voice"
                             >
-                              {voicing === m.id ? "🔊 Recording…" : voicePrice ? `🔊 Voice note · ${voicePrice}` : "🔊 Voice note"}
+                              {voicing === m.id ? `🔊 ${t("Recording…")}` : voicePrice ? `🔊 ${t("Voice note")} · ${voicePrice}` : `🔊 ${t("Voice note")}`}
                             </button>
                           )
                         ) : (
                           // A guest: asked once, on the newest reply, to sign in for them.
                           newestSaid?.id === m.id && (
-                            <Link className="button-ghost small companion-voice-note" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} title="Voice notes come with a free account" data-track="companion-voice-signin">
-                              🔊 Voice notes with a free account
+                            <Link className="button-ghost small companion-voice-note" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} title={t("Voice notes come with a free account")} data-track="companion-voice-signin">
+                              🔊 {t("Voice notes with a free account")}
                             </Link>
                           )
                         )}
                         {m.reported ? (
-                          <span className="muted small">Reported</span>
+                          <span className="muted small">{t("Reported")}</span>
                         ) : !footOpen(m) ? null : reporting === m.id ? (
                           <span className="companion-report">
                             {COMPANION_REPORT_REASONS.map((r) => (
                               <button key={r} type="button" className="button-ghost small" onClick={() => void report(m, r)} disabled={busy}>
-                                {COMPANION_REPORT_LABELS[r]}
+                                {t(COMPANION_REPORT_LABELS[r])}
                               </button>
                             ))}
                             <button type="button" className="button-ghost small" onClick={() => setReporting(null)}>
-                              Cancel
+                              {t("Cancel")}
                             </button>
                           </span>
                         ) : (
-                          <button type="button" className="linklike small muted" onClick={() => setReporting(m.id)} aria-label={`Report ${first}'s message`}>
-                            Report
+                          <button type="button" className="linklike small muted" onClick={() => setReporting(m.id)} aria-label={t("Report {name}'s message", { name: first })}>
+                            {t("Report")}
                           </button>
                         )}
                       </div>
@@ -1063,14 +1070,14 @@ export default function CompanionChat({
             <li className="chat-item">
               <div className="chat-row chat-row-b">
                 <div className="chat-col">
-                  {shown[shown.length - 1]?.role !== "user" && <span className="chat-name">You</span>}
+                  {shown[shown.length - 1]?.role !== "user" && <span className="chat-name">{t("You")}</span>}
                   <p className="chat-bubble">{pending}</p>
                 </div>
               </div>
             </li>
           )}
           {typing && (
-            <li className="chat-item" aria-label={`${first} is typing`}>
+            <li className="chat-item" aria-label={t("{name} is typing", { name: first })}>
               <div className="chat-row chat-row-a">
                 <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={36} />
                 <div className="chat-col">
@@ -1091,13 +1098,13 @@ export default function CompanionChat({
         <div className="companion-ideas-slot" ref={ideasSlot}>
           {ideasWaiting && (
             <p className="companion-ideas-label companion-ideas-wait" aria-hidden="true" data-companion-ideas-wait>
-              💡 Ideas for what to say…
+              💡 {t("Ideas for what to say…")}
             </p>
           )}
           {ideasShown && (
-            <div className="companion-ideas" role="group" aria-label="Ideas for what to say" data-companion-ideas={ideasShown.for}>
+            <div className="companion-ideas" role="group" aria-label={t("Ideas for what to say")} data-companion-ideas={ideasShown.for}>
               <p className="companion-ideas-label" aria-hidden="true">
-                💡 You could say
+                💡 {t("You could say")}
               </p>
               {ideasShown.items.map((idea) => (
                 <button
@@ -1110,7 +1117,7 @@ export default function CompanionChat({
                   data-track="companion-idea"
                   data-track-tone={idea.tone}
                 >
-                  <span className="companion-idea-tone">{IDEA_TONE_LABELS[idea.tone]}</span>
+                  <span className="companion-idea-tone">{t(IDEA_TONE_LABELS[idea.tone])}</span>
                   <span className="sr-only">: </span>
                   {idea.text}
                 </button>
@@ -1124,7 +1131,7 @@ export default function CompanionChat({
                   data-track="companion-ideas-again"
                   data-companion-ideas-again
                 >
-                  {ideasBusy ? "Thinking…" : "↻ Other ideas"}
+                  {ideasBusy ? t("Thinking…") : `↻ ${t("Other ideas")}`}
                 </button>
               )}
             </div>
@@ -1142,11 +1149,11 @@ export default function CompanionChat({
         <CrisisPause
           className="companion-pause"
           resources={crisis}
-          paused={`The conversation is paused. ${first} won't say anything more until you choose to carry on.`}
-          carryOn={{ label: "Carry on talking", onClick: () => void carryOn() }}
+          paused={t("The conversation is paused. {name} won't say anything more until you choose to carry on.", { name: first })}
+          carryOn={{ label: t("Carry on talking"), onClick: () => void carryOn() }}
           leave={
             <Link className="button-ghost" href="/companion">
-              Leave for now
+              {t("Leave for now")}
             </Link>
           }
           busy={busy}
@@ -1158,12 +1165,12 @@ export default function CompanionChat({
         // the conversation and what they remember carry straight on.
         <div className="companion-out" role="status">
           <p>
-            <strong>That&apos;s your {allowance.per_day} free replies without an account.</strong> Make a free account to keep talking:
-            this conversation is kept, and {first} remembers all of it.
+            <strong>{t("That's your {n} free replies without an account.", { n: allowance.per_day })}</strong>{" "}
+            {t("Make a free account to keep talking: this conversation is kept, and {name} remembers all of it.", { name: first })}
           </p>
           <p className="cta-row">
             <Link className="button" href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`} data-track="companion-guest-signup">
-              Keep talking with {first}
+              {t("Keep talking with {name}", { name: first })}
             </Link>
           </p>
         </div>
@@ -1172,13 +1179,13 @@ export default function CompanionChat({
       {!paused && outOfReplies && !allowance.guest && (
         <div className="companion-out" role="status">
           <p>
-            <strong>That&apos;s today&apos;s {allowance.per_day} free replies.</strong> They come back {untilReset(allowance.resets_at)}. Your
-            conversation is kept, and {first} will remember it.
+            <strong>{t("That's today's {n} free replies.", { n: allowance.per_day })}</strong>{" "}
+            {t("They come back {when}. Your conversation is kept, and {name} will remember it.", { when: untilReset(allowance.resets_at, Date.now(), t), name: first })}
           </p>
           {allowance.on_sale && (
             <p className="cta-row">
               <Link className="button" href="/companion/plan" data-track="companion-plan-upsell">
-                Talk without a limit: {allowance.price}
+                {t("Talk without a limit: {price}", { price: allowance.price })}
               </Link>
             </p>
           )}
@@ -1191,31 +1198,31 @@ export default function CompanionChat({
           <div className="companion-actions">
             {(lastIsCharacter || waitingOnThem || sceneWaiting) && (
               <button type="button" className="button-ghost small" onClick={() => void post({ action: "regenerate" })} disabled={busy} data-track="companion-regenerate">
-                {sceneWaiting ? `Ask ${first} to start` : waitingOnThem ? `Ask ${first} again` : view.scene ? "↻ Something else" : "↻ Another reply"}
+                {sceneWaiting ? t("Ask {name} to start", { name: first }) : waitingOnThem ? t("Ask {name} again", { name: first }) : view.scene ? `↻ ${t("Something else")}` : `↻ ${t("Another reply")}`}
               </button>
             )}
             {view.draws && lastIsCharacter && (
               // The newest reply's draws (lib/companion.ts swipeReply): flip to the one before or after. Free.
-              <span className="companion-draws" role="group" aria-label={`${first}'s replies to choose from`}>
+              <span className="companion-draws" role="group" aria-label={t("{name}'s replies to choose from", { name: first })}>
                 <button
                   type="button"
                   className="button-ghost small"
                   onClick={() => void post({ action: "swipe", to: "prev" })}
                   disabled={busy || view.draws.showing <= 1}
-                  aria-label="Show the reply before this one"
+                  aria-label={t("Show the reply before this one")}
                   data-track="companion-swipe-prev"
                 >
                   ‹
                 </button>
                 <span className="muted small" aria-live="polite">
-                  {view.draws.showing} of {view.draws.count}
+                  {t("{n} of {total}", { n: view.draws.showing, total: view.draws.count })}
                 </span>
                 <button
                   type="button"
                   className="button-ghost small"
                   onClick={() => void post({ action: "swipe", to: "next" })}
                   disabled={busy || view.draws.showing >= view.draws.count}
-                  aria-label="Show the reply after this one"
+                  aria-label={t("Show the reply after this one")}
                   data-track="companion-swipe-next"
                 >
                   ›
@@ -1224,12 +1231,12 @@ export default function CompanionChat({
             )}
             {view.scene && lastIsCharacter && (
               <button type="button" className="button-ghost small" onClick={() => void keepGoing()} disabled={busy} data-track="companion-continue">
-                ▸ Continue
+                ▸ {t("Continue")}
               </button>
             )}
             {lastUser && !editing && (
               <button type="button" className="button-ghost small" onClick={startEdit} disabled={busy}>
-                ✎ Edit your last message
+                ✎ {t("Edit your last message")}
               </button>
             )}
             {editing && (
@@ -1241,27 +1248,27 @@ export default function CompanionChat({
                   setDraft("");
                 }}
               >
-                Cancel the edit
+                {t("Cancel the edit")}
               </button>
             )}
             {nextTime && !view.scene && (
               // Your own character with a date behind it: the box can be a note for next time instead of a message.
               <label className="check companion-next-time">
                 <input type="checkbox" checked={forNextTime} onChange={(e) => (e.target.checked ? startNote() : setForNextTime(false))} disabled={busy} data-track="companion-next-time" />
-                <span>📌 For next time with {partnerFirst}</span>
+                <span>📌 {t("For next time with {name}", { name: partnerFirst ?? "" })}</span>
               </label>
             )}
           </div>
           {nextTime?.note && !view.scene && (
             <p className="companion-standing-note small" role="status">
-              📌 Next time with {partnerFirst}: “{nextTime.note}”{" "}
+              📌 {t("Next time with {name}: “{note}”", { name: partnerFirst ?? "", note: nextTime.note })}{" "}
               <button type="button" className="linklike small" onClick={() => void clearNote()} disabled={busy}>
-                Remove
+                {t("Remove")}
               </button>
             </p>
           )}
           <label className="sr-only" htmlFor="companion-line">
-            {forNextTime ? `A note for ${first}'s next date with ${partnerFirst}` : "Your message"}
+            {forNextTime ? t("A note for {name}'s next date with {partner}", { name: first, partner: partnerFirst ?? "" }) : t("Your message")}
           </label>
           <textarea
             id="companion-line"
@@ -1279,12 +1286,12 @@ export default function CompanionChat({
             rows={2}
             placeholder={
               forNextTime
-                ? `What should ${first} do differently with ${partnerFirst}? Private; it goes into that date, not this chat.`
+                ? t("What should {name} do differently with {partner}? Private; it goes into that date, not this chat.", { name: first, partner: partnerFirst ?? "" })
                 : editing
-                  ? "Rewrite your last message…"
+                  ? t("Rewrite your last message…")
                   : view.scene
-                    ? `Say something to ${first}…`
-                    : `Message ${first}…`
+                    ? t("Say something to {name}…", { name: first })
+                    : t("Message {name}…", { name: first })
             }
             disabled={busy}
           />
@@ -1292,31 +1299,31 @@ export default function CompanionChat({
             <span className="muted small">
               <span id="companion-count" className={overBy > 0 ? "companion-over" : undefined}>
                 {draft.trim().length}/{lineMax}
-                {overBy > 0 && ` · ${overBy} over the limit: shorten it to send`}
+                {overBy > 0 && ` · ${t("{n} over the limit: shorten it to send", { n: overBy })}`}
               </span>
-              {forNextTime && " · a nudge, not a message: it costs no reply"}
+              {forNextTime && ` · ${t("a nudge, not a message: it costs no reply")}`}
               {!forNextTime && allowance.guest && allowance.left !== null && (
                 <>
                   {" · "}
-                  {allowance.left} free {allowance.left === 1 ? "reply" : "replies"} left ·{" "}
-                  <Link href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`}>Free account: keep going</Link>
+                  {allowance.left === 1 ? t("1 free reply left") : t("{n} free replies left", { n: allowance.left })} ·{" "}
+                  <Link href={`/account?next=${encodeURIComponent(`/companion/${view.id}`)}`}>{t("Free account: keep going")}</Link>
                 </>
               )}
               {!forNextTime && !allowance.guest && !allowance.unlimited && allowance.left !== null && (
                 <>
                   {" · "}
-                  {allowance.left} free {allowance.left === 1 ? "reply" : "replies"} left today
+                  {allowance.left === 1 ? t("1 free reply left today") : t("{n} free replies left today", { n: allowance.left })}
                   {allowance.on_sale && (
                     <>
                       {" · "}
-                      <Link href="/companion/plan">No limit with the plan</Link>
+                      <Link href="/companion/plan">{t("No limit with the plan")}</Link>
                     </>
                   )}
                 </>
               )}
             </span>
             <button type="submit" className="button" disabled={busy || !draft.trim() || overBy > 0} data-track={forNextTime ? "companion-next-time-send" : "companion-send"}>
-              {forNextTime ? "Leave the note" : editing ? "Send again" : view.scene ? "Say it" : "Send"}
+              {forNextTime ? t("Leave the note") : editing ? t("Send again") : view.scene ? t("Say it") : t("Send")}
             </button>
           </div>
         </form>

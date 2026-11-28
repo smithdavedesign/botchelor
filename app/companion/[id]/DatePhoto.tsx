@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { english, type T } from "@/lib/i18n/translate";
 import { DATE_PHOTO_ASPECT } from "@/lib/companion-shared";
 
 /**
@@ -7,19 +8,19 @@ import { DATE_PHOTO_ASPECT } from "@/lib/companion-shared";
  * says so. The box keeps the picture's shape before it loads (width and height on the image, app/ux/phone.css), so the
  * thread never jumps under a thumb.
  */
-export default function DatePhoto({ src, alt, href, track = "companion-date-photo" }: { src: string; alt: string; href: string; /** The click's name where it isn't a companion thread (the couple's phone). */ track?: string }) {
+export default function DatePhoto({ src, alt, href, track = "companion-date-photo", t = english }: { src: string; alt: string; href: string; /** The click's name where it isn't a companion thread (the couple's phone). */ track?: string; t?: T }) {
   return (
     <figure className="date-photo">
       <Link className="date-photo-link" href={href} data-track={track}>
         {/* What shows while the photo is composed (a second or two on our own route): a light placeholder that says so,
             under the picture, which covers it once it arrives (2026-11-22 audit: a dark box read as broken). */}
         <span className="sk date-photo-wait" aria-hidden="true">
-          📸 Developing…
+          📸 {t("Developing…")}
         </span>
         {/* eslint-disable-next-line @next/next/no-img-element -- composed on request by our own route; next/image would proxy and re-encode it */}
         <img src={src} alt={alt} width={DATE_PHOTO_ASPECT.width * 80} height={DATE_PHOTO_ASPECT.height * 80} loading="lazy" decoding="async" />
         <figcaption>
-          <span aria-hidden="true">▶</span> Watch the date
+          <span aria-hidden="true">▶</span> {t("Watch the date")}
         </figcaption>
       </Link>
     </figure>

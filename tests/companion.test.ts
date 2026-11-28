@@ -530,7 +530,7 @@ describe("the message box (2026-11-21: a 1,170-character paste was cut to 1,000 
     expect(box.length).toBeGreaterThan(0);
     expect(box).not.toMatch(/maxLength/);
     expect(box).toContain('aria-describedby="companion-count"');
-    expect(chat).toContain("{overBy > 0 && ` · ${overBy} over the limit: shorten it to send`}");
+    expect(chat).toContain('{overBy > 0 && ` · ${t("{n} over the limit: shorten it to send", { n: overBy })}`}');
     expect(chat).toContain("if (!text || busy || text.length > lineMax) return;");
     expect(chat).toContain("disabled={busy || !draft.trim() || overBy > 0}");
   });
