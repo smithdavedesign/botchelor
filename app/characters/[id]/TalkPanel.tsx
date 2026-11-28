@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import type { CharacterTalk } from "@/lib/character-talk";
+import { fillNodes } from "@/app/fillNodes";
+import { english, type T } from "@/lib/i18n/translate";
 
 /** "2026-11-14" as "Nov 14": the day a line was said or a scene played. */
 const dayWords = (day: string) => new Date(`${day.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -14,6 +16,8 @@ type Props = {
   verb?: { label: string; href: string; track: string } | null;
   /** The reviews fold, under the talk. */
   children?: ReactNode;
+  /** The page's language (docs/i18n.md). */
+  t?: T;
 };
 
 /**
@@ -21,14 +25,14 @@ type Props = {
  * each row linking to the scene, the couple or the line behind it. Only what /house, the producer's daily line and the
  * public graph already show a stranger; it renders in one pass from what the page read (no reads of its own).
  */
-export default function TalkPanel({ name, talk, verb, children }: Props) {
+export default function TalkPanel({ name, talk, verb, children, t = english }: Props) {
   return (
     <>
       <section className="card character-talk" id="talk" aria-labelledby="talk-title" data-track-area="character-talk">
-        <h2 id="talk-title">Talk of the house</h2>
+        <h2 id="talk-title">{t("Talk of the house")}</h2>
         {talk.empty ? (
           <div className="talk-empty">
-            <p className="muted">Nobody in the house is talking about {name} yet; that starts when one of their dates airs.</p>
+            <p className="muted">{t("Nobody in the house is talking about {name} yet; that starts when one of their dates airs.", { name })}</p>
             {verb && (
               <p>
                 <Link className="button secondary" href={verb.href} data-track={verb.track} data-track-from="character-talk">
@@ -41,7 +45,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
           <>
             {talk.said.length > 0 && (
               <div className="talk-part">
-                <h3>Said about {name}</h3>
+                <h3>{t("Said about {name}", { name })}</h3>
                 <ol className="cast-chat-thread talk-said">
                   {talk.said.map((l) => (
                     <li key={l.key} className="cast-chat-line">
@@ -54,7 +58,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
                         <span className="muted small talk-where">
                           {l.where.charAt(0).toUpperCase() + l.where.slice(1)} · {dayWords(l.day)} ·{" "}
                           <Link href={l.href} data-track="character-talk" data-track-where="scene">
-                            See the scene
+                            {t("See the scene")}
                           </Link>
                         </span>
                       </div>
@@ -65,7 +69,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
             )}
             {talk.friction.length > 0 && (
               <div className="talk-part">
-                <h3>Friction</h3>
+                <h3>{t("Friction")}</h3>
                 <ul className="list talk-list">
                   {talk.friction.map((f) => (
                     <li key={f.key} className="row-2line">
@@ -79,7 +83,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
                       <span className="muted row-2line-meta">
                         {f.day && <>{dayWords(f.day)} · </>}
                         <Link href={f.href} data-track="character-talk" data-track-where={f.kind}>
-                          {f.kind === "bad_blood" || f.kind === "breakup" ? "See them together" : f.kind === "story" ? "In the house" : "See the scene"}
+                          {f.kind === "bad_blood" || f.kind === "breakup" ? t("See them together") : f.kind === "story" ? t("In the house") : t("See the scene")}
                         </Link>
                       </span>
                     </li>
@@ -89,7 +93,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
             )}
             {talk.after.length > 0 && (
               <div className="talk-part">
-                <h3>Who&apos;s after whom</h3>
+                <h3>{t("Who's after whom")}</h3>
                 <ul className="list talk-list">
                   {talk.after.map((a) => (
                     <li key={a.key} className="row-2line">
@@ -97,22 +101,22 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
                         <span aria-hidden="true">{a.direction === "both" ? "💞" : "👀"}</span>
                         {a.direction === "them" ? (
                           <span>
-                            <Link href={`/characters/${a.other.id}`}>{a.other.name}</Link> is after {name}
+                            {fillNodes(t("{other} is after {name}", { name }), { other: <Link href={`/characters/${a.other.id}`}>{a.other.name}</Link> })}
                           </span>
                         ) : a.direction === "theirs" ? (
                           <span>
-                            {name} is after <Link href={`/characters/${a.other.id}`}>{a.other.name}</Link>
+                            {fillNodes(t("{name} is after {other}", { name }), { other: <Link href={`/characters/${a.other.id}`}>{a.other.name}</Link> })}
                           </span>
                         ) : (
                           <span>
-                            With <Link href={`/characters/${a.other.id}`}>{a.other.name}</Link>
+                            {fillNodes(t("With {other}"), { other: <Link href={`/characters/${a.other.id}`}>{a.other.name}</Link> })}
                           </span>
                         )}
                       </span>
                       <span className="muted row-2line-meta">
                         {a.text} {a.day && <>{dayWords(a.day)} · </>}
                         <Link href={a.href} data-track="character-talk" data-track-where={a.direction === "both" ? "couple" : "line"}>
-                          {a.direction === "both" ? "See them together" : "In the house"}
+                          {a.direction === "both" ? t("See them together") : t("In the house")}
                         </Link>
                       </span>
                     </li>
@@ -123,7 +127,7 @@ export default function TalkPanel({ name, talk, verb, children }: Props) {
           </>
         )}
         <p className="muted small talk-foot">
-          From the house&apos;s public scenes, the show&apos;s daily line and aired dates. <Link href="/house">The house →</Link>
+          {t("From the house's public scenes, the show's daily line and aired dates.")} <Link href="/house">{t("The house")} →</Link>
         </p>
       </section>
       {children}

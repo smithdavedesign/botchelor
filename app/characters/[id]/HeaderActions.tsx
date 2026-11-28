@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import ThreadMenu from "@/app/couples/[a]/[b]/ThreadMenu";
 import { requestJson } from "@/app/request";
 import Icon from "@/app/Icon";
+import { useT } from "@/app/I18nProvider";
 
 type Note = { kind: "ok" | "error"; text: string };
 
@@ -17,12 +18,13 @@ export function FollowToggle({ characterId, name, following: initial, texts }: {
   const [following, setFollowing] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
+  const t = useT();
   async function toggle() {
     setBusy(true);
     setNote(null);
     const res = await requestJson(`/api/characters/${encodeURIComponent(characterId)}/follow`, {}, following ? "DELETE" : "POST").catch(() => null);
     setBusy(false);
-    if (!res) return setNote({ kind: "error", text: "Network error. Try again." });
+    if (!res) return setNote({ kind: "error", text: t("Network error. Try again.") });
     if (!res.ok) return setNote({ kind: "error", text: res.message });
     const now = res.data.following === true;
     setFollowing(now);
@@ -30,11 +32,11 @@ export function FollowToggle({ characterId, name, following: initial, texts }: {
       kind: "ok",
       text: now
         ? res.data.texts === true
-          ? `You'll hear when something happens to ${name}, and ${name} can text you first now. Unfollow stops both.`
-          : `You'll hear when something happens to ${name}.`
+          ? t("You'll hear when something happens to {name}, and {name} can text you first now. Unfollow stops both.", { name })
+          : t("You'll hear when something happens to {name}.", { name })
         : res.data.texts_off === true
-          ? `Unfollowed: no more news, and ${name} won't text you first. Your conversation stays in Chat.`
-          : `Unfollowed: no more news about ${name}.`,
+          ? t("Unfollowed: no more news, and {name} won't text you first. Your conversation stays in Chat.", { name })
+          : t("Unfollowed: no more news about {name}.", { name }),
     });
   }
   return (
@@ -45,17 +47,17 @@ export function FollowToggle({ characterId, name, following: initial, texts }: {
         onClick={() => void toggle()}
         disabled={busy}
         aria-pressed={following}
-        title={following ? `Stop following ${name}` : texts ? `Hear when something happens to ${name}, and let ${name} text you` : `Hear when something happens to ${name}`}
+        title={following ? t("Stop following {name}", { name }) : texts ? t("Hear when something happens to {name}, and let {name} text you", { name }) : t("Hear when something happens to {name}", { name })}
         data-track="character-follow"
         data-track-to={following ? "off" : "on"}
       >
         {following ? (
           <>
-            <Icon name="check" /> Following
+            <Icon name="check" /> {t("Following")}
           </>
         ) : (
           <>
-            <Icon name="bell" /> Follow
+            <Icon name="bell" /> {t("Follow")}
           </>
         )}
       </button>
@@ -75,6 +77,7 @@ export function FollowToggle({ characterId, name, following: initial, texts }: {
  */
 export function HeaderMore({ path, title, name, followers }: { path: string; title: string; name: string; followers: number }) {
   const [done, setDone] = useState(false);
+  const t = useT();
   const [canShare, setCanShare] = useState(false);
   useEffect(() => setCanShare(typeof navigator.share === "function"), []);
   async function share() {
@@ -86,14 +89,14 @@ export function HeaderMore({ path, title, name, followers }: { path: string; tit
     setDone(await navigator.clipboard.writeText(url).then(() => true).catch(() => false));
   }
   return (
-    <ThreadMenu label={`More for ${name}`}>
+    <ThreadMenu label={t("More for {name}", { name })}>
       <button type="button" role="menuitem" className="thread-menu-item" onClick={() => void share()} data-track="character-share">
         <span aria-hidden="true">🔗</span>
-        {done ? "Link copied ✓" : canShare ? "Share" : "Copy link"}
+        {done ? `${t("Link copied")} ✓` : canShare ? t("Share") : t("Copy link")}
       </button>
       {followers > 0 && (
         <p className="muted small thread-menu-note">
-          {followers === 1 ? "1 person follows" : `${followers} people follow`} {name}.
+          {followers === 1 ? t("1 person follows {name}.", { name }) : t("{n} people follow {name}.", { n: followers, name })}
         </p>
       )}
     </ThreadMenu>

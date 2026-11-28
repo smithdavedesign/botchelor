@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
+import { useT } from "@/app/I18nProvider";
 
 const AMOUNTS = [
   { sku: "tip_2", label: "$2" },
@@ -32,16 +33,17 @@ export default function TipCreator({
   const [sku, setSku] = useState<string>("tip_3");
   const [note, setNote] = useState("");
   const [adult, setAdult] = useState(false);
+  const t = useT();
   if (!open) {
     return (
       <p className="tip-line">
         <button type="button" className="button secondary" onClick={() => setOpen(true)}>
-          💝 Tip {name}&apos;s creator
+          💝 {t("Tip {name}'s creator", { name })}
         </button>
         {tips > 0 && (
           <span className="muted small">
             {" "}
-            {tips} {tips === 1 ? "tip" : "tips"} so far
+            {tips === 1 ? t("1 tip so far") : t("{n} tips so far", { n: tips })}
           </span>
         )}
       </p>
@@ -52,14 +54,14 @@ export default function TipCreator({
     // The UX pass (2026-11-27): a visitor filled the form, ticked 18+, pressed Tip and only then read "Sign in first".
     return (
       <div className="tip-form card">
-        <p className="kicker">Tip the creator</p>
-        <p className="small">Tips go through a free account (a handle and a password, no email), so we know whose tip it is if a payment goes wrong.</p>
+        <p className="kicker">{t("Tip the creator")}</p>
+        <p className="small">{t("Tips go through a free account (a handle and a password, no email), so we know whose tip it is if a payment goes wrong.")}</p>
         <div className="letter-row">
           <Link className="button" href={signIn}>
-            Sign in to tip
+            {t("Sign in to tip")}
           </Link>
           <button type="button" className="button secondary" onClick={() => setOpen(false)}>
-            Not now
+            {t("Not now")}
           </button>
         </div>
       </div>
@@ -84,8 +86,8 @@ export default function TipCreator({
         });
       }}
     >
-      <p className="kicker">Tip the creator</p>
-      <div className="tip-amounts" role="radiogroup" aria-label="Amount">
+      <p className="kicker">{t("Tip the creator")}</p>
+      <div className="tip-amounts" role="radiogroup" aria-label={t("Amount")}>
         {AMOUNTS.map((a) => (
           <label key={a.sku} className={sku === a.sku ? "chip chip-on" : "chip"}>
             <input type="radio" name="tip" value={a.sku} checked={sku === a.sku} onChange={() => setSku(a.sku)} />
@@ -94,13 +96,13 @@ export default function TipCreator({
         ))}
       </div>
       <label>
-        A note for the creator (optional)
-        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} placeholder="Loved the pier date." />
+        {t("A note for the creator (optional)")}
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={140} placeholder={t("Loved the pier date.")} />
       </label>
       <label className="check">
-        <input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} /> I am 18 or older
+        <input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} /> {t("I am 18 or older")}
       </label>
-      <p className="muted small">The creator sees your note, never your name. Creators are paid out by hand each month.</p>
+      <p className="muted small">{t("The creator sees your note, never your name. Creators are paid out by hand each month.")}</p>
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -108,10 +110,10 @@ export default function TipCreator({
       )}
       <div className="letter-row">
         <button type="submit" className="button" disabled={busy || !adult}>
-          Tip on Stripe
+          {t("Tip on Stripe")}
         </button>
         <button type="button" className="button secondary" onClick={() => setOpen(false)}>
-          Not now
+          {t("Not now")}
         </button>
       </div>
     </form>

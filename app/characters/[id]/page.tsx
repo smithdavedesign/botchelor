@@ -891,7 +891,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </div>
       </div>
       {/* What is going on with them this minute, before anything else on the page; nothing at all when nothing is. */}
-      {now && <RightNow name={shortName(c.name)} now={now} />}
+      {now && <RightNow t={t} name={shortName(c.name)} now={now} />}
       <AiFiction />
       {/* One primary action (lib/character-verb.ts): send theirs on a date, or step into one themselves, or make a
           character. #date is where a card's "Send … on a date" lands, its confirm sheet open (?send=). */}
@@ -1048,7 +1048,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         )}
       </section>
 
-      {hasExtras(shownExtras) && <ProfileDetails extras={shownExtras} owner={ratings.is_owner} name={c.name} pronouns={c.pronouns} />}
+      {hasExtras(shownExtras) && <ProfileDetails t={t} extras={shownExtras} owner={ratings.is_owner} name={c.name} pronouns={c.pronouns} />}
 
       {life && (life.entries.length > 0 || life.goals.length > 0 || life.days.length > 0 || (isOwner && !c.house)) && (
         <LifePanel characterId={c.id} name={shortName(c.name)} owner={isOwner} entries={life.entries} fields={life.fields} asks={life.asks} goals={life.goals} days={life.days} shifts={life.shifts} extensions={life.extensions} features={life.features} />
@@ -1104,7 +1104,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
       {secrets && (
         <div data-panel="secrets" id="panel-secrets" role="tabpanel" aria-labelledby="tab-secrets" hidden>
-          <Secrets name={shortName(c.name)} secrets={secrets} />
+          <Secrets t={t} name={shortName(c.name)} secrets={secrets} />
         </div>
       )}
 
@@ -1112,7 +1112,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <div data-panel="talk" id="panel-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
           {/* The people around them and the tie to each, above the talk: the same ties /house draws for the lead. */}
           {circle && <Circle circle={circle} title={t("{name}'s circle this week", { name: shortName(c.name) })} id="circle" />}
-          <TalkPanel name={shortName(c.name)} talk={talkOfHouse} verb={verb ?? (ratings.is_owner && !c.house ? { label: t("Send {name} on a date", { name: shortName(c.name) }), href: `/create?character=${c.id}`, track: "verb-own" } : null)}>
+          <TalkPanel t={t} name={shortName(c.name)} talk={talkOfHouse} verb={verb ?? (ratings.is_owner && !c.house ? { label: t("Send {name} on a date", { name: shortName(c.name) }), href: `/create?character=${c.id}`, track: "verb-own" } : null)}>
             {/* The written reviews keep their home (agents write them over MCP), folded under the talk. #audience, the
                 old tab's anchor, is this fold: PageTabs opens Talk, opens the fold and scrolls to it. */}
             <details className="card ux-fold character-audience talk-audience" id="audience">
@@ -1208,7 +1208,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       <div data-panel="dates" id="panel-dates" role="tabpanel" aria-labelledby="tab-dates" hidden>
       {/* One card for their dates (2026-10-31 UX audit, A6: "Relationships" and "Date record" told the same dates
           twice): the totals, one row per person, and every date folded under them. */}
-      <Credits credits={credits} first={shortName(c.name)} />
+      <Credits t={t} credits={credits} first={shortName(c.name)} />
       <section className="card" id="date-record">
         <div className="section-head">
           <h2>{t("Dates")}</h2>

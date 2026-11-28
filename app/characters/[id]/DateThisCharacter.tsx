@@ -12,6 +12,8 @@ import { openingField, type OpeningChoice } from "@/lib/opening-choice";
 import type { DateCta } from "@/lib/date-cta";
 import { shortName } from "@/lib/names";
 import { takenNote } from "@/lib/partners-shared";
+import { useT } from "@/app/I18nProvider";
+import { fillNodes } from "@/app/fillNodes";
 
 /**
  * "Date this character", right under the contestant header (lib/date-cta.ts says which version shows). Sending one of
@@ -58,6 +60,7 @@ export default function DateThisCharacter({
   // The picker mounts once it's opened, not in every character page's HTML.
   const [roleplayOpen, setRoleplayOpen] = useState(false);
   const [asking, setAsking] = useState(false);
+  const t = useT();
   // Sent here by a card with the sender named: the sheet opens once the page is in the browser (it's drawn into
   // <body>, so never on the server), and only for one that can book.
   const openOnArrival = Boolean(asked && asked.mode === "book" && !asked.taken);
@@ -69,7 +72,7 @@ export default function DateThisCharacter({
   if (cta.kind === "closed") {
     return (
       <p className="date-cta date-cta-closed muted" role="note">
-        💤 {cta.reason} <Link href="/characters">See everyone on the show →</Link>
+        💤 {cta.reason} <Link href="/characters">{t("See everyone on the show")} →</Link>
       </p>
     );
   }
@@ -89,7 +92,7 @@ export default function DateThisCharacter({
     setMessage(null);
     const res = await requestJson("/api/episodes", { character_id: chosen.id, partner_id: targetId, ...(place.trim() ? { place: place.trim() } : {}), ...roleplayFields(roleplay), ...(roleplay ? openingField(opens) : {}) }).catch(() => null);
     setBusy(false);
-    if (!res) return setMessage({ text: "Network error. Try again." });
+    if (!res) return setMessage({ text: t("Network error. Try again.") });
     if (res.ok && typeof res.data.id === "string") {
       // A date started from here counts like one from /create, RepoHQ's activation included (app/conversion.ts).
       trackConversion("date_started", { mode: "partner" });
@@ -103,12 +106,12 @@ export default function DateThisCharacter({
     <div className="date-cta">
       {mine.length > 1 && (
         <label className="date-cta-pick">
-          <span className="muted small">Who goes</span>
+          <span className="muted small">{t("Who goes")}</span>
           <select value={chosen.id} onChange={(e) => setPick(e.target.value)}>
             {mine.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
-                {m.taken ? ` · 💍 with ${shortName(m.taken)}` : ""}
+                {m.taken ? ` · 💍 ${t("with {name}", { name: shortName(m.taken) })}` : ""}
               </option>
             ))}
           </select>
@@ -117,8 +120,8 @@ export default function DateThisCharacter({
       {chosen.taken && (
         // With someone else and wanting only them: the tag, why, and where to change it, instead of a booking that fails.
         <p className="taken-note small" role="note">
-          <span className="badge taken-tag">💍 With {shortName(chosen.taken)}</span> {takenNote(shortName(chosen.name), chosen.taken)}{" "}
-          <Link href={`/characters/${chosen.id}#partners-${chosen.id}`}>Change it on {shortName(chosen.name)}&apos;s page</Link>
+          <span className="badge taken-tag">💍 {t("With {name}", { name: shortName(chosen.taken) })}</span> {takenNote(shortName(chosen.name), chosen.taken)}{" "}
+          <Link href={`/characters/${chosen.id}#partners-${chosen.id}`}>{t("Change it on {name}'s page", { name: shortName(chosen.name) })}</Link>
         </p>
       )}
       {chosen.taken ? null : chosen.mode === "book" ? (
@@ -133,44 +136,45 @@ export default function DateThisCharacter({
           }}
         >
           {/* It names who goes (the picker above switches them), as the cards do. */}
-          💌 Send {shortName(chosen.name)} on a date with {first}
+          💌 {t("Send {name} on a date with {partner}", { name: shortName(chosen.name), partner: first })}
         </button>
       ) : (
         <Link href={`/swipe?character=${encodeURIComponent(chosen.id)}`} className="button" data-track="verb-match" data-track-from="character">
-          💘 Match {shortName(chosen.name)} with {first}
+          💘 {t("Match {name} with {partner}", { name: shortName(chosen.name), partner: first })}
         </Link>
       )}
       <p className="muted small date-cta-note" hidden={Boolean(chosen.taken)}>
         {chosen.mode === "book"
-          ? `${shortName(chosen.name)} goes.`
-          : `A first date with someone else's character starts with a match: swipe for ${first} as ${shortName(chosen.name)}.`}
+          ? t("{name} goes.", { name: shortName(chosen.name) })
+          : t("A first date with someone else's character starts with a match: swipe for {partner} as {name}.", { name: shortName(chosen.name), partner: first })}
       </p>
       <DateConfirm
         open={asking}
         onClose={() => {
           if (!busy) setAsking(false);
         }}
-        title={`Send ${shortName(chosen.name)} on a date with ${first}?`}
+        title={t("Send {name} on a date with {partner}?", { name: shortName(chosen.name), partner: first })}
         lede={
-          <>
-            <strong>{shortName(chosen.name)}</strong> meets <strong>{first}</strong>. The show films it and decides how it ends: you can&apos;t steer it.
-          </>
+          fillNodes(t("{name} meets {partner}. The show films it and decides how it ends: you can't steer it."), {
+            name: <strong>{shortName(chosen.name)}</strong>,
+            partner: <strong>{first}</strong>,
+          })
         }
-        sendLabel={`Send ${shortName(chosen.name)} on the date`}
-        busyLabel="Booking…"
+        sendLabel={t("Send {name} on the date", { name: shortName(chosen.name) })}
+        busyLabel={t("Booking…")}
         busy={busy}
         disabled={roleplay !== null && !choiceReady(roleplay)}
         error={message}
         onSend={() => void book()}
       >
         <label className="date-cta-pick">
-          <span className="muted small">Where? (optional)</span>
-          <input type="text" name="place" maxLength={80} value={place} placeholder="the night market, my place…" onChange={(e) => setPlace(e.target.value)} />
+          <span className="muted small">{t("Where? (optional)")}</span>
+          <input type="text" name="place" maxLength={80} value={place} placeholder={t("the night market, my place…")} onChange={(e) => setPlace(e.target.value)} />
         </label>
         {roleplays && (
           <details className="ux-fold date-cta-roleplay" onToggle={(e) => setRoleplayOpen(e.currentTarget.open)}>
             <summary>
-              🎭 Add a roleplay <span className="muted small">(optional)</span>
+              🎭 {t("Add a roleplay")} <span className="muted small">{t("(optional)")}</span>
             </summary>
             {roleplayOpen && <RoleplayPicker me={chosen.name} them={first} value={roleplay} onChange={setRoleplay} signedIn={signedIn} opening={opens} onOpening={setOpens} />}
           </details>
