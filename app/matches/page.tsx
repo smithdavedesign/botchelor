@@ -1,3 +1,4 @@
+import { companionOpen } from "@/lib/companion-shared";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Fragment } from "react";
@@ -231,7 +232,7 @@ export default async function MatchesPage({ searchParams }: Props) {
                 emoji="💌"
                 title={inbox.fresh.length ? "No texts yet" : filed.length ? "Nothing open right now" : `No matches yet for ${first}`}
                 action={{ href: `/swipe?character=${encodeURIComponent(me.id)}`, label: `Swipe for ${first}` }}
-                secondary={filed.length ? { href: listHref(true), label: `See the ${filed.length} that didn't work out` } : { href: "/companion", label: "Talk to a companion" }}
+                secondary={filed.length ? { href: listHref(true), label: `See the ${filed.length} that didn't work out` } : companionOpen() ? { href: "/companion", label: "Talk to a companion" } : undefined}
               >
                 {inbox.fresh.length
                   ? `${first}'s matches text each other soon after they match.`

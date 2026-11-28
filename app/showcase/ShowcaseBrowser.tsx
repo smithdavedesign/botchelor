@@ -1,4 +1,5 @@
 import Link from "next/link";
+import FaceRibbon from "@/app/FaceRibbon";
 import type { Db } from "@/lib/db";
 import { listShowcase, MEDIUM_LABEL, seenFilters, showcaseFacets, sideOf, type Filters, type ShowcaseViewer } from "@/lib/showcase";
 import { madeInFilter } from "@/lib/made-in";
@@ -139,6 +140,7 @@ export default async function ShowcaseBrowser({
     select("shape", "Any shape", facets.shape.map(([k, n]) => [k, shapeLabel(k), n])),
   ].filter(Boolean);
   const pov = facets.pov > 0 || f.pov;
+  const filtered = Object.keys(filters).some((k) => k !== "page" && filters[k as Key] !== undefined);
   return (
     <div className="showcase">
       <nav className="showcase-filters" aria-label="Filter the showcase">
@@ -197,7 +199,13 @@ export default async function ShowcaseBrowser({
         // The reels' query: every filter, the page's own too; After Dark's reels are that side by their address.
         <ShowcaseGrid posts={posts} admin={viewer.admin} reels={query({}, place === "after_dark" ? { ...f, side: undefined } : f, false)} credits={credits} place={place} />
       ) : (
-        <p className="muted showcase-empty">Nothing here yet{Object.keys(filters).some((k) => k !== "page" && filters[k as Key] !== undefined) ? " with those filters" : ""}. Creators publish from their Studio: 📣 on any picture or clip.</p>
+        <>
+          <p className="muted showcase-empty">Nothing here yet{filtered ? " with those filters" : ""}. Creators publish from their Studio: 📣 on any picture or clip.</p>
+          {/* An empty gallery isn't an empty room (2026-11-28 design review): the show's own cast, while creators' work
+              comes in. Not under a filter: that's an empty search, and naming the cast there could name a picked
+              character this viewer isn't told about. */}
+          {place !== "after_dark" && !filtered && <FaceRibbon title="While it fills up: the house cast" />}
+        </>
       )}
       {more && (
         <p className="showcase-more">
