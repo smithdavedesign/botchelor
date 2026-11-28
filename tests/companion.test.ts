@@ -845,6 +845,10 @@ describe("someone who says they're under 18 (2026-11-28 rerun)", () => {
     expect(await sendMessage(t.db, me.id, o.thread_id, "jk I am 22")).toMatchObject({ ok: false, error: "adults_only", message: UNDER_18_MESSAGE });
     expect(await regenerate(t.db, me.id, o.thread_id)).toMatchObject({ ok: false, error: "adults_only" });
     expect(await getThread(t.db, me.id, o.thread_id)).toMatchObject({ ok: true, view: { paused: true, adults_only: UNDER_18_MESSAGE } });
+    // Over the web the 18+ answer is taken back, so the gate asks again.
+    const web = await actRoute(req(`/api/companion/${o.thread_id}`, { action: "send", text: "hello?" }, me.cookie), ctx(o.thread_id));
+    expect(web.status).toBe(403);
+    expect(web.headers.get("set-cookie")).toMatch(/bz_adult=; Path=\/; Max-Age=0/);
     const res = await createCharacter(
       new Request(`${BASE_URL}/api/characters`, {
         method: "POST",
