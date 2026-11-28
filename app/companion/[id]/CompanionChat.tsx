@@ -1135,9 +1135,6 @@ export default function CompanionChat({
       {view.adults_only && (
         <div className="companion-pause" role="status">
           <p>{view.adults_only}</p>
-          <Link className="button-ghost" href="/safety">
-            Help lines
-          </Link>
         </div>
       )}
 
