@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkAdultText, checkFields, checkSheetText, checkShowText, sheetPgIssue, sheetPgIssues } from "@/lib/safety";
+import { characterCopy } from "@/lib/franchises";
+import { checkAdultText, checkFamilyTalk, checkFields, checkSheetText, checkShowText, saysUnder18, sheetPgIssue, sheetPgIssues } from "@/lib/safety";
 
 // 2026-11-28 (David): hate and every -ism, telling anyone to hurt themselves, real threats and personal info are refused
 // on every surface; insults and trash talk stay allowed, since villains and show drama need them.
@@ -148,5 +149,54 @@ describe("every surface", () => {
     expect(checkAdultText({ dealbreaker: "immigrants" })).toMatchObject({ ok: false, reason: "hate", field: "dealbreaker" });
     expect(checkAdultText({ text: "kys" })).toMatchObject({ ok: false, reason: "threat" });
     expect(checkAdultText({ text: "text me 555-123-4567" })).toMatchObject({ ok: false, reason: "personal_info" });
+  });
+});
+
+describe("minors (2026-11-28)", () => {
+  it.each(["She looks about twelve.", "looks like a child", "Could pass for 14", "a child's body", "looks underage", "I'm fifteen", "im 15 years old", "I'm in 9th grade"])("refuses %j everywhere", (text) => {
+    expect(checkFields({ text })).toMatchObject({ ok: false, reason: "minor" });
+    expect(checkAdultText({ text })).toMatchObject({ ok: false, reason: "minor" });
+  });
+
+  it("never keeps a person's own age under 18 in a companion chat, but their kid's passes", () => {
+    expect(saysUnder18("I am 15")).toBe(true);
+    expect(saysUnder18("i'm a minor lol")).toBe(true);
+    expect(saysUnder18("I'm not 18 yet")).toBe(true);
+    expect(checkFamilyTalk("I am 15").ok).toBe(false);
+    expect(checkFamilyTalk("My son is 15 and obsessed with dinosaurs.").ok).toBe(true);
+    expect(saysUnder18("I'm 15 minutes away")).toBe(false);
+    expect(saysUnder18("I'm 34 and a nurse")).toBe(false);
+  });
+
+  it.each(["Like a kid in a candy store at the market.", "He looks about six feet tall.", "I'm ten minutes late, sorry!"])("allows %j", (text) => {
+    expect(checkFields({ text }).ok).toBe(true);
+  });
+});
+
+describe("franchise characters and described real people, on sheets and After Dark (2026-11-28)", () => {
+  it.each([
+    ["name", "Hermione Granger"],
+    ["bio", "A witch who studied at Hogwarts."],
+    ["name", "Pikachu"],
+  ])("refuses a save of %s %j (lib/franchises.ts)", (field, text) => {
+    expect(characterCopy({ [field]: text })).toMatchObject({ field });
+  });
+
+  it.each([
+    ["bio", "Basically the Tesla CEO but nicer."],
+    ["bio", "She's the current US president."],
+    ["bio", "Based on a real celebrity, you'd know her."],
+    ["bio", "The lead singer of Coldplay."],
+  ])("refuses %s %j", (field, text) => {
+    expect(checkSheetText({ [field]: text })).toMatchObject({ ok: false, reason: "real_person" });
+    expect(checkAdultText({ [field]: text })).toMatchObject({ ok: false, reason: "real_person" });
+  });
+
+  it("leaves texts and chat alone, and ordinary sheets pass", () => {
+    expect(checkFields({ text: "I'm rereading Hermione's best bits in Harry Potter." }).ok).toBe(true);
+    expect(checkSheetText({ bio: "Huge Star Wars fan who bakes sourdough." }).ok).toBe(true);
+    expect(characterCopy({ name: "Mara Quill", bio: "Huge Star Wars fan who bakes sourdough." })).toBeNull();
+    expect(checkSheetText({ bio: "An actor who plays villains in a soap." }).ok).toBe(true);
+    expect(checkSheetText({ bio: "A total Hufflepuff about her friends." }).ok).toBe(true);
   });
 });

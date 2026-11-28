@@ -1111,6 +1111,9 @@ create table if not exists companion_threads (
   muted_proactive boolean not null default true,
   unique (user_id, character_id)
 );
+-- 2026-11-28: when the person behind an MCP agent confirmed they're 18 or over (adult: true on the companion tool), the
+-- MCP counterpart of the web's 18+ gate (app/api/companion/access.ts). Once for an agent, on any of its threads.
+alter table companion_threads add column if not exists adult_attested_at timestamptz;
 create index if not exists companion_threads_user_idx on companion_threads (user_id, last_at desc);
 create table if not exists companion_messages (
   id text primary key,

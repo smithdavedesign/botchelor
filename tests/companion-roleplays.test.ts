@@ -223,7 +223,7 @@ describe("a roleplay in a companion's scene", () => {
 
 describe("over MCP", () => {
   const rpc = async (method: string, params: Any, c: McpContext): Promise<Any> => handleMcpMessage({ jsonrpc: "2.0", id: 1, method, params }, c);
-  const call = async (args: Any, c: McpContext): Promise<Any> => (await rpc("tools/call", { name: "companion", arguments: args }, c)).result;
+  const call = async (args: Any, c: McpContext): Promise<Any> => (await rpc("tools/call", { name: "companion", arguments: { adult: true, ...args } }, c)).result;
   const data = (r: Any): Any => JSON.parse(r.content[0].text);
 
   it("plays a roleplay in a scene by the show's id and a role's words, and refuses an unknown one", async () => {

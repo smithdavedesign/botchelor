@@ -307,7 +307,7 @@ describe("reported replies", () => {
 
 describe("over MCP", () => {
   const rpc = async (method: string, params: Any, c: McpContext): Promise<Any> => handleMcpMessage({ jsonrpc: "2.0", id: 1, method, params }, c);
-  const call = async (args: Any, c: McpContext): Promise<Any> => (await rpc("tools/call", { name: "companion", arguments: args }, c)).result;
+  const call = async (args: Any, c: McpContext): Promise<Any> => (await rpc("tools/call", { name: "companion", arguments: { adult: true, ...args } }, c)).result;
   const data = (r: Any): Any => JSON.parse(r.content[0].text);
   async function connect(): Promise<McpContext> {
     const c: McpContext = { adminKey: ADMIN_KEY };

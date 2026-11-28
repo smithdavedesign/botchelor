@@ -197,3 +197,24 @@ export function dealbreakerGroupOnly(plain: string): string | null {
   const rest = plain.replace(DEALBREAKER_FILLER, " ");
   return DEALBREAKER_GROUP.test(rest) ? rest.trim() : null;
 }
+
+// A real person described rather than named (2026-11-28, the simulation): "the Tesla CEO", "the current US president".
+// Sheets and After Dark only: in a text or a chat, "I'd never vote for the current president" is ordinary talk.
+const REAL_PERSON_DESCRIBED = [
+  / (?:the )?(?:current |former |ex |sitting )?(?:us|u s|american|french|british|uk|russian|chinese|canadian|german|indian|ukrainian|israeli|italian|brazilian|mexican|japanese|korean|north korean) (?:president|prime minister|pm|chancellor|first lady|vice president|dictator|supreme leader) /,
+  / (?:the )?(?:king|queen|prince|princess|crown prince|crown princess) of (?:england|the uk|britain|great britain|the united kingdom|spain|sweden|denmark|norway|the netherlands|belgium|monaco|jordan|saudi arabia|thailand|japan) /,
+  / the (?:current )?pope /,
+  / (?:ceo|founder|co founder|owner|boss|chairman) of (?:tesla|spacex|amazon|meta|facebook|apple|microsoft|google|alphabet|openai|anthropic|twitter|x corp|nvidia|netflix|tiktok|bytedance|oracle|berkshire hathaway) /,
+  / (?:the )?(?:tesla|spacex|amazon|meta|facebook|apple|microsoft|google|openai|twitter|nvidia|netflix|tiktok) (?:ceo|founder|co founder|billionaire|owner|boss|chairman) /,
+  / (?:based on|inspired by|modeled on|modelled on|a copy of|a version of|is actually|is secretly|played by) (?:a |an )?(?:real|real life|irl|actual) (?:person|celebrity|celeb|influencer|streamer|youtuber|athlete|politician|actor|actress|singer|rapper|popstar|pop star|someone|human) /,
+  / (?:a |the )?(?:member|lead singer|frontman|frontwoman|singer|rapper|dancer|maknae) (?:of|from|in) (?:bts|blackpink|one direction|twice|stray kids|newjeans|seventeen|exo|coldplay|maroon 5|the beatles|the rolling stones|metallica|arctic monkeys|the 1975|fifth harmony|little mix|spice girls|backstreet boys|nsync|jonas brothers) /,
+  / (?:singer|rapper|popstar|pop star|artist) (?:who|that) (?:sang|sings|wrote|released|performed) (?:shake it off|anti hero|blank space|cruel summer|bad guy|thank u next|levitating|hotline bling|god s plan|gods plan|single ladies|halo|umbrella|bad romance|poker face|despacito|shape of you|uptown funk|espresso|good 4 u|drivers license|flowers|as it was|blinding lights|watermelon sugar|wrecking ball|firework|hello) /,
+];
+
+/**
+ * A real person described rather than named, on the spaced plain text; or null. (Franchise characters are
+ * lib/franchises.ts's, refused on every save: app/api/characters.)
+ */
+export function notOriginalMatch(plain: string): string | null {
+  return first(REAL_PERSON_DESCRIBED, [plain]);
+}

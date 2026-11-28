@@ -1,4 +1,5 @@
 import { AUDIENCES } from "@/lib/audience";
+import { characterCopy } from "@/lib/franchises";
 import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, NAME_MAX_WORDS, nameWords, TRAIT_MAX, WANT_MAX } from "@/lib/field-limits";
 import { nameCheck } from "@/lib/name-check";
 import { z } from "zod";
@@ -105,7 +106,7 @@ const CharacterPatch = z
 const REJECTION_MESSAGES: Record<RejectReason, string> = {
   minor: "Characters must be adults, with nothing suggesting they are under 18.",
   sexual: "Keep the character sheet free of sexual content.",
-  real_person: "Characters must be original: no real people.",
+  real_person: "Characters must be original: no real people (named or described) and no characters from other books, films, shows or games.",
   innuendo: "Keep the character sheet PG: no innuendo or bedroom talk (the show is PG; After Dark has its own settings).",
   unread: "We couldn't check a sheet in that language just now. Try again in a minute.",
   language: "After Dark is English-only for now.",
@@ -181,6 +182,15 @@ export const PATCH = handle(async (req: Request, ctx: Ctx) => {
     hiding: input.hiding as string[] | undefined,
     ...(input.extras ? extrasFields(normaliseExtras(input.extras as ExtrasInputType)) : {}),
   };
+  // Originals only (lib/franchises.ts, 2026-11-28): a character from someone else's book, film, show or game is refused.
+  const copy = characterCopy(sheetFields);
+  if (copy) {
+    return json(
+      { error: "content_rejected", reason: "real_person", field: copy.field, message: copy.message, issues: [{ reason: "real_person", phrase: copy.phrase, field: copy.field, index: 0 }] },
+      422,
+      sess,
+    );
+  }
   const verdict = await checkFieldsAnyLanguage(sheetFields, { check: checkSheetText });
   if (!verdict.ok) {
     // Every refused text, not just the first (lib/safety.ts sheetPgIssues): the editor marks them all at once.

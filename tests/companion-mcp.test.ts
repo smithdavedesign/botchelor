@@ -14,7 +14,8 @@ const CAST = HOUSE_CHARACTERS[0];
 const ADMIN_KEY = ["companion", "mcp", "admin", "key"].join("-");
 
 const rpc = async (method: string, params: Any = {}, ctx: McpContext = {}): Promise<Any> => handleMcpMessage({ jsonrpc: "2.0", id: 1, method, params }, ctx);
-const call = async (args: Any, ctx: McpContext = {}): Promise<Any> => (await rpc("tools/call", { name: "companion", arguments: args }, ctx)).result;
+// Every call says its person is 18+ (adult: true), unless a test leaves it out on purpose (adult: undefined).
+const call = async (args: Any, ctx: McpContext = {}): Promise<Any> => (await rpc("tools/call", { name: "companion", arguments: { adult: true, ...args } }, ctx)).result;
 const text = (r: Any): string => r.content?.[0]?.text ?? "";
 async function connect(opts: { admin?: boolean } = {}): Promise<McpContext> {
   const ctx: McpContext = opts.admin ? { adminKey: ADMIN_KEY } : {};
@@ -93,6 +94,20 @@ describe("the companion tool", () => {
     expect(read.thread_id).toBe(opened.thread_id);
     // The agent's words reach the model only as the person's turn.
     expect(calls.filter((c) => c.kind === "reply").at(-1)!.messages.at(-1)).toEqual({ role: "user", content: "I baked bread today" });
+  });
+
+  it("asks once that the person behind the agent is 18+, and closes the chat on someone who says they're under 18 (2026-11-28)", async () => {
+    const ctx = await connect({ admin: true });
+    const gated = await call({ action: "open", character_id: CAST.id, adult: undefined }, ctx);
+    expect(gated.isError).toBe(true);
+    expect(JSON.stringify(gated.content)).toContain("adult: true");
+    const opened = (await call({ action: "open", character_id: CAST.id }, ctx)).structuredContent;
+    expect((await call({ action: "read", thread_id: opened.thread_id, adult: undefined }, ctx)).isError).toBeUndefined();
+    const minor = await call({ action: "send", thread_id: opened.thread_id, text: "honestly I'm 15 lol", adult: undefined }, ctx);
+    expect(minor.isError).toBe(true);
+    expect(JSON.stringify(minor.content)).toContain("18+");
+    const read = (await call({ action: "read", thread_id: opened.thread_id }, ctx)).structuredContent;
+    expect(read.messages.some((m: Any) => /15/.test(m.text))).toBe(false);
   });
 
   it("send with a character_id opens the thread itself; another agent can't touch it", async () => {

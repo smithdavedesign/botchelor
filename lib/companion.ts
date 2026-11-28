@@ -59,7 +59,11 @@ import { loadOurIds } from "./our-traffic";
 import { recordServerError } from "./errors";
 import { dateRoleplayById, premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
 import { DELETED_OWNER } from "./rules";
-import { checkFamilyTalk } from "./safety";
+import { checkFamilyTalk, saysUnder18 } from "./safety";
+
+/** What someone who says they're under 18 is told when their companion chat closes. */
+export const UNDER_18_MESSAGE =
+  "Botchelor is for adults (18+), so this chat is closed and nothing you said here was kept. If you need someone to talk to, the help lines on /safety are free and open to anyone.";
 import { showPersona } from "./persona";
 import { GENERIC_OPENINGS, openedTerms } from "./scene-cards";
 import { openingHasSides, resolveOpening } from "./scene-opening";
@@ -1090,6 +1094,11 @@ export type CompanionSend = { ok: true; view: CompanionThreadView; replied?: fal
 async function screen(db: Db, t: ThreadRow, text: string, now: Date, surface: CompanionSurface): Promise<CompanionFail | null> {
   const { crisis } = await lineInCrisis(text, surface, await modelFor(db));
   if (crisis) return pauseForCrisis(db, t.id, surface, now);
+  // Someone who says they're under 18 (2026-11-28): the chat closes, and nothing they said is kept.
+  if (saysUnder18(text)) {
+    await db.query(`update companion_threads set paused_at = $2 where id = $1`, [t.id, now.toISOString()]);
+    return fail(403, "adults_only", UNDER_18_MESSAGE);
+  }
   const safe = checkFamilyTalk(text);
   if (!safe.ok) return fail(422, "refused", PG_REDIRECT[safe.reason]);
   return null;

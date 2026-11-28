@@ -42,7 +42,7 @@ export function isPastPg(reason: unknown): reason is Extract<RejectReason, "sexu
 export const CHARACTER_REJECTION_MESSAGES: Record<RejectReason, string> = {
   minor: "Characters must be adults, with nothing suggesting they are under 18.",
   sexual: "Keep the character sheet free of sexual content.",
-  real_person: "Characters must be original: no real people.",
+  real_person: "Characters must be original: no real people (named or described) and no characters from other books, films, shows or games.",
   innuendo: "Keep the character sheet PG: no innuendo or bedroom talk (the show is PG; After Dark has its own settings).",
   unread: "We couldn't check a sheet in that language just now. Try again in a minute.",
   language: "After Dark is English-only for now.",

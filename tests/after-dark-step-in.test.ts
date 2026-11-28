@@ -735,8 +735,10 @@ describe("Step in's own net over the lines that never move", () => {
   it("refuses family, anyone young, school, a babysitter, someone who can't say no and anyone paid, however it's said; and leaves ordinary lines alone", () => {
     for (const [text, why] of CROSSES) expect(stepInNever(text), text).toMatchObject({ why });
     for (const text of FINE_LINES) expect(stepInNever(text), text).toBeNull();
-    // What it's for: lines After Dark's own check passes.
-    for (const text of ["You're my daughter.", "I'm your father.", "I'm a kid.", "I'm a minor.", "You're my student.", "I'm the babysitter.", "You're drunk.", "I paid for you."]) {
+    // What it's for: lines After Dark's own check passes. ("I'm a minor." no longer does: 2026-11-28, a person saying
+    // they're under 18 is refused everywhere.)
+    expect(checkAdultText({ line: "I'm a minor." }).ok).toBe(false);
+    for (const text of ["You're my daughter.", "I'm your father.", "I'm a kid.", "You're my student.", "I'm the babysitter.", "You're drunk.", "I paid for you."]) {
       expect(checkAdultText({ line: text }).ok, text).toBe(true);
     }
     expect(stepInNever("You're my daughter.")).toEqual({ why: "family", word: "daughter" });
