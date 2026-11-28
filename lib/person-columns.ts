@@ -57,7 +57,7 @@ export const PERSON_ID_NAMES: readonly string[] = [
   "user_id", "owner_id", "agent_id", "reporter_id", "creator_id", "proposed_by", "voter_id", "visitor", "viewer_id", "used_by",
   "reviewer_id", "recipient_id", "rater_id", "proposer_id", "host_id", "holder", "follower_id", "by_user", "booker", "blocker_id",
   "blocked_id", "answerer_user", "from_user", "to_user", "proposer_user", "actor", "created_by", "taken_by", "granted_by",
-  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer", "banned_by", "joined_by", "seller_user",
+  "reviewed_by", "decided_by", "updated_by", "consented_by", "invite_to", "alias_id", "answered_by", "viewer", "banned_by", "joined_by", "seller_user", "paid_by",
   "buyer_user",
 ];
 
@@ -254,6 +254,11 @@ export const PERSON_COLUMNS: readonly PersonColumn[] = [
   { table: "market_listings", column: "seller_user", export: at("money.listings"), delete: ROWS, move: MONEY },
   { table: "market_purchases", column: "buyer_user", export: at("money.purchases"), delete: ROWS, move: MONEY },
   { table: "market_purchases", column: "seller_user", export: at("money.sales"), delete: ROWS, move: MONEY },
+  // Creators' earnings (lib/money/earnings.ts): where they want paying is theirs and goes with the account; a payout
+  // made is the books' record of money sent, so it stays (as a sale's order does) under the id it was paid to.
+  { table: "creator_payout_methods", column: "user_id", export: at("money.payout_method"), delete: ROWS, move: SETTING },
+  { table: "creator_payouts", column: "user_id", export: at("money.payouts"), delete: kept("a record of money paid out by hand: the books keep it"), move: MONEY },
+  { table: "creator_payouts", column: "paid_by", export: ADMINS_ID, delete: kept("the admin who recorded a payout: the row is about a creator"), move: ADMIN_ACT },
   { table: "sponsorships", column: "created_by", export: ADMINS_ID, delete: kept("the admin who recorded a brand's deal: the row is about a house character"), move: ADMIN_ACT },
   { table: "confessionals", column: "owner_id", export: at("confessionals"), delete: ROWS, move: REASSIGN },
   { table: "confessional_votes", column: "voter_id", export: at("confessional_votes"), delete: ROWS, move: ONE_VOTE },

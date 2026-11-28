@@ -48,7 +48,8 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   const told = new Set<string>();
   if (steppedUp) {
     const body = STAGE_NEWS[after!] ?? "They've become a fixture.";
-    const notice = show
+    // A date's news only: a season finale's engagement is the finale's own headline, told as it always was.
+    const notice = show && opts.episodeId
       ? { kind: "stage_up" as const, title: `${couple} have news`, body: SHOW_DATE_TEASE, link: opts.episodeId ? `/episodes/${opts.episodeId}` : `/couples/${lo}/${hi}` }
       : { kind: "stage_up" as const, title: `${couple}: ${STAGE_LABELS[after!]}`, body, link: `/couples/${lo}/${hi}` };
     // #1033: the step up is the public record's (aired, public dates), but an owner's get_relationships counts every date

@@ -46,6 +46,7 @@ const walkSeed = (who: "a" | "b", sides: [SideOutcome, SideOutcome]) => {
   throw new Error("no seed");
 };
 
+
 describe("the kinds and their family", () => {
   it("each kind belongs to a family, and one on the wrong ending reads as none", () => {
     for (const k of ENDING_DETAILS) expect(ENDING_DETAIL_FAMILY[k].length).toBeGreaterThan(0);
@@ -214,7 +215,16 @@ describe("on the page, the feed and the notices", () => {
     const before = await (await api.getEpisode(episode.id)).json();
     expect(before.ending).toBeUndefined();
     expect(before.ending_detail).toBeUndefined();
-    expect((await api.reveal(episode.id, creator)).status).toBe(200);
+    // Aired as a date between people's characters (the house side given an owner for the airing, then put back): only
+    // those notices say how it ended (lib/show-spoilers.ts).
+    const sides = `select character_a from episodes where id = $1 union select character_b from episodes where id = $1`;
+    const house = (await t.db.query<{ id: string }>(`select id from characters where is_house and id in (${sides})`, [episode.id])).rows.map((r) => r.id);
+    await t.db.query(`update characters set is_house = false, owner_id = 'peoples-owner' where id = any($1)`, [house]);
+    try {
+      expect((await api.reveal(episode.id, creator)).status).toBe(200);
+    } finally {
+      await t.db.query(`update characters set is_house = true, owner_id = null where id = any($1)`, [house]);
+    }
     const after = await (await api.getEpisode(episode.id)).json();
     expect(after).toMatchObject({ ending: "friends", ending_detail: "slow_burn", ending_detail_label: "A slow burn" });
     const notes = await listNotifications(t.db, userIdOf(viewer));
