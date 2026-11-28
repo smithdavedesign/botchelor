@@ -224,7 +224,7 @@ export default function Nav({
   const tone = tokens <= 0 ? " empty" : tokens <= 1 ? " low" : "";
 
   return (
-    <nav className="nav" aria-label="Primary">
+    <nav className="nav" aria-label={t("Primary")}>
       {/* The tools (docs/brand.md, Header): the After Dark door (a link to its host, never a toggle; "Back to the show"
           on that host), the meter, and the newcomer's one call to action. The links follow. */}
       <div className="nav-tools">

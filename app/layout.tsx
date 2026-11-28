@@ -299,7 +299,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <SocialLinks links={socials} labels area="footer" />
               </div>
             )}
-            <nav className="footer-groups" aria-label="More of the site">
+            <nav className="footer-groups" aria-label={t("More of the site")}>
               <FooterGroup title={t("The show")}>
                 <li><Link prefetch={false} href="/watch">{t("Watch")}</Link></li>
                 <li><Link prefetch={false} href="/graph">{t("The Constellation")}</Link></li>

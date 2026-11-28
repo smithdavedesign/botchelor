@@ -28,6 +28,13 @@ import config from "@/next.config";
 import { SECURITY_HEADERS } from "@/lib/security-headers";
 import { BASE_URL, startTestDb } from "./helpers";
 
+// /pricing reads the viewer's language: an English visitor with no cookie, unless a test picks one.
+const lang = vi.hoisted(() => ({ cookie: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (name === "bz_lang" && lang.cookie ? { name, value: lang.cookie } : undefined), has: () => false, getAll: () => [] }),
+  headers: async () => new Headers(),
+}));
+
 const INVITE = "https://discord.gg/8VDdRF9YU";
 const SUPPORT = "support@botchelor.com";
 const BROWSER = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
@@ -43,6 +50,8 @@ const words = (html: string) =>
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 const render = (page: () => ReactElement) => renderToStaticMarkup(createElement(page));
+/** /pricing reads the viewer's language (next/headers, mocked below: English), so it's awaited. */
+const pricing = async () => renderToStaticMarkup(await PricingPage());
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -157,14 +166,15 @@ describe("the company pages", () => {
     expect(ld.mainEntity.map((q) => q.name)).toEqual(list.map((f) => f.q));
   });
 
-  it("shows the support address only as an element's whole text, never inside a sentence", () => {
+  it("shows the support address only as an element's whole text, never inside a sentence", async () => {
     // Cloudflare's email obfuscation (botchelor.com's zone and DigitalOcean's edge both run it) rewrites every address in
     // the HTML, and its script puts each one back: whole when it was all of an element's text, as a text node of its own
     // when it sat inside a sentence. That split broke React's hydration on /faq (#418, 2026-11-10).
     vi.stubEnv("CONTACT_EMAIL", SUPPORT);
-    const pages = { ContactPage, FaqPage, PricingPage, PressPage, SecurityPage, AccessibilityPage };
-    for (const [name, page] of Object.entries(pages)) {
-      const text = render(page)
+    const pages = { ContactPage, FaqPage, PressPage, SecurityPage, AccessibilityPage };
+    const htmls: [string, string][] = [...Object.entries(pages).map(([name, page]): [string, string] => [name, render(page)]), ["PricingPage", await pricing()]];
+    for (const [name, html] of htmls) {
+      const text = html
         .replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "")
         .replace(/<[^>]+>/g, (tag) => tag.replace(/"[^"]*"/g, '""'));
       expect(text.split(SUPPORT).length, name).toBe(text.split(`>${SUPPORT}<`).length);
@@ -213,35 +223,49 @@ describe("the company pages", () => {
 
   // "00:00 UTC" read as a programmer's clock (2026-11-22 audit): /pricing sends it, then the browser shows the viewer's own
   // day and time (app/WeeklyTime.tsx); /faq's answer, plain text for search too, says it in words.
-  it("says when free dates come back in the viewer's clock on /pricing, and in words on /faq", () => {
-    expect(words(render(PricingPage))).toContain("3 dates a week for your characters, back every Monday at 00:00 UTC");
-    expect(readFileSync("app/pricing/page.tsx", "utf8")).toContain("back every <WeeklyTime weekday={1} />");
+  it("says when free dates come back in the viewer's clock on /pricing, and in words on /faq", async () => {
+    expect(words(await pricing())).toContain("3 dates a week for your characters, back every Monday at 00:00 UTC");
+    expect(readFileSync("app/pricing/page.tsx", "utf8")).toContain("back every {time}\", { n: FREE_EPISODES_PER_SEASON }), { time: <WeeklyTime weekday={1} /> }");
     const free = answerText(faqs({}).find((f) => f.id === "free")!.a);
     expect(free).toContain("back every Monday at midnight UTC (Sunday afternoon or evening in the Americas)");
     expect(free).not.toContain("00:00");
   });
 
-  it("/pricing shows the free dates, and the pack's button only while purchases are open", () => {
+  it("/pricing is in the viewer's language, with its prices still in dollars", async () => {
+    vi.stubEnv("STRIPE_PAYMENT_LINK", "https://buy.stripe.com/test_botchelorSamplePack");
+    lang.cookie = "es";
+    try {
+      const text = words(await pricing());
+      expect(text).toContain("Planes y packs");
+      expect(text).toContain("3 citas a la semana para tus personajes");
+      expect(text).toContain("desde $4");
+      expect(text).not.toContain("The small print");
+    } finally {
+      lang.cookie = undefined;
+    }
+  });
+
+  it("/pricing shows the free dates, and the pack's button only while purchases are open", async () => {
     vi.stubEnv("STRIPE_PAYMENT_LINK", "");
-    let text = words(render(PricingPage));
+    let text = words(await pricing());
     expect(text).toMatch(/3 dates a week/);
     expect(text).toMatch(/Not on sale yet/);
     expect(text).not.toMatch(/Companion Plan/);
     vi.stubEnv("STRIPE_PAYMENT_LINK", "https://buy.stripe.com/test_botchelorSamplePack");
     vi.stubEnv("COMPANION_OPEN", "1");
-    const html = render(PricingPage);
+    const html = await pricing();
     text = words(html);
     expect(html).toContain('href="/shop"');
     expect(text).toMatch(/Companion Plan/);
     expect(text).toMatch(/Never for sale/);
   });
 
-  it("/pricing leads with the Companion Plan while companions are open, beside Free and More dates; one loud button", () => {
+  it("/pricing leads with the Companion Plan while companions are open, beside Free and More dates; one loud button", async () => {
     vi.stubEnv("STRIPE_PAYMENT_LINK", "https://buy.stripe.com/test_botchelorSamplePack");
     vi.stubEnv("STRIPE_LINK_PACK_15", "https://buy.stripe.com/test_botchelorBiggerPack");
     vi.stubEnv("COMPANION_OPEN", "1");
     vi.stubEnv("COMPANION_PLAN_LINK", "https://buy.stripe.com/test_botchelorPlan");
-    let html = render(PricingPage);
+    let html = await pricing();
     const grid = () => html.slice(html.indexOf('class="pricing-grid"'), html.indexOf('aria-labelledby="also"'));
     // 2026-11-28 (David: Companion is the main paid product; the simulation: no Companion card on /pricing): three cards,
     // the plan featured, the packs as lines in More dates. One loud button on the whole page.
@@ -267,7 +291,7 @@ describe("the company pages", () => {
 
     // With companions closed, the packs are the upgrade and there's no Companion card.
     vi.stubEnv("COMPANION_OPEN", "");
-    html = render(PricingPage);
+    html = await pricing();
     expect([...grid().matchAll(/<li class="(pricing-card[^"]*)" id="([a-z-]+)"/g)].map((m) => `${m[2]}: ${m[1]}`)).toEqual([
       "free: pricing-card rise-in",
       "pack: pricing-card pricing-card--featured rise-in ticket",
@@ -429,10 +453,10 @@ describe("tips and the market on the FAQ and pricing (2026-11-27)", () => {
     expect(neither).toContain("date packs, and the Companion Plan. Points, badges and rank are never for sale.");
   });
 
-  it("pricing drops the creators line when both switches are off", () => {
+  it("pricing drops the creators line when both switches are off", async () => {
     vi.stubEnv("MONEY_TIPS", "0");
     vi.stubEnv("MONEY_MARKETPLACE", "0");
-    const html = renderToStaticMarkup(createElement(PricingPage));
+    const html = await pricing();
     expect(html).not.toContain('id="creators"');
   });
 });

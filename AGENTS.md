@@ -32,6 +32,14 @@ The block above is Next.js's own and `next dev` rewrites it; everything below is
 - **Money:** agents spend nothing and hold no card; a spend is proposed to David with what it buys.
 - **What the servers did** is in `ops_log` (`lib/ops-log.ts`, /admin → Servers), not only in the container's output,
   which each deploy throws away.
+- **Translate as part of the work** (David, 2026-11-27: "make sure we translate if a page is updated or new"). The
+  site is in eight languages ([docs/i18n.md](docs/i18n.md)). Any words a visitor sees that you add or change go
+  through `t()` (`getT()` on the server, `useT()` in a client component; a library function takes a `t`), and the same
+  pull request adds them to all seven catalogs: `npx tsx scripts/i18n-missing.ts` lists what's missing as a JSON to
+  fill in, you write the translations (by hand, $0), and `--apply` puts them in the right half.
+  `tests/i18n-coverage.test.ts` fails when a page gains untranslated text, and a new page must have none; when you
+  translate some of an old page, lower its count with `npx tsx scripts/i18n-untranslated.ts --baseline`. After
+  Dark, admin and the legal pages stay English (`ENGLISH_ONLY` in that script).
 - **Tests that catch new work** (met while shipping the 2026-11-26/27 memory and MCP work):
   - a new table with a person's id column is registered in `lib/person-columns.ts` and in the export and delete in
     `lib/account.ts` (`tests/person-columns.test.ts`);

@@ -8,12 +8,13 @@ import type { RevealBoard } from "@/lib/weekly-reveal";
 import type { LobbyEntry } from "@/lib/watch";
 import type { NextPremiere } from "@/lib/premiere-clock";
 import { houseLine, type HouseSceneView } from "@/lib/house-scenes";
+import { english, type T } from "@/lib/i18n/translate";
 
 /** "in 2h 10m", "in 4 min": server-rendered relative time (the page is dynamic; no ticking JS). */
-function inWords(iso: string | null, now: number): string {
-  if (!iso) return "soon";
+function inWords(iso: string | null, now: number, t: T): string {
+  if (!iso) return t("soon");
   const mins = Math.max(1, Math.round((new Date(iso).getTime() - now) / 60_000));
-  return mins >= 60 ? `in ${Math.floor(mins / 60)}h ${mins % 60}m` : `in ${mins} min`;
+  return mins >= 60 ? t("in {h}h {m}m", { h: Math.floor(mins / 60), m: mins % 60 }) : t("in {m} min", { m: mins });
 }
 
 type Slot = {
@@ -44,6 +45,7 @@ export default function TonightBand({
   insider = false,
   story = null,
   premiere = null,
+  t = english,
 }: {
   rooms: LobbyEntry[];
   airing: AiringSoon[];
@@ -65,6 +67,8 @@ export default function TonightBand({
    * before; from then the room is an upcoming one in `rooms` and takes the premiere slot below.
    */
   premiere?: NextPremiere | null;
+  /** The page's translator (docs/i18n.md); English when none is passed. */
+  t?: T;
 }) {
   const live = rooms.find((r) => r.status === "live") ?? null;
   const upcoming = rooms.find((r) => r.status === "upcoming") ?? null;
@@ -73,61 +77,61 @@ export default function TonightBand({
   if (live) {
     slots.push({
       key: "live",
-      label: "Live now",
+      label: t("Live now"),
       live: true,
       faces: live.characters,
       names: `${live.characters[0].name} × ${live.characters[1].name}`,
-      line: showCrowd(live.watching, { insider }) ? `${live.watching} watching — tap in` : "On the air — tap in",
+      line: showCrowd(live.watching, { insider }) ? t("{n} watching — tap in", { n: live.watching ?? 0 }) : t("On the air — tap in"),
       href: live.room_path,
     });
   }
   if (soon) {
     slots.push({
       key: "airing",
-      label: "Airing soon",
+      label: t("Airing soon"),
       faces: soon.characters,
       names: `${soon.characters[0].name} × ${soon.characters[1].name}`,
-      line: soon.my_pick ? `Airs ${inWords(soon.airs_at, now)} — your call is in` : `Airs ${inWords(soon.airs_at, now)} — call the ending first`,
+      line: soon.my_pick ? t("Airs {when} — your call is in", { when: inWords(soon.airs_at, now, t) }) : t("Airs {when} — call the ending first", { when: inWords(soon.airs_at, now, t) }),
       href: soon.share_path,
     });
   }
   if (!live && upcoming) {
     slots.push({
       key: "premiere",
-      label: "Tonight's premiere",
+      label: t("Tonight's premiere"),
       faces: upcoming.characters,
       names: `${upcoming.characters[0].name} × ${upcoming.characters[1].name}`,
-      line: `Starts ${inWords(upcoming.starts_at, now)}`,
+      line: t("Starts {when}", { when: inWords(upcoming.starts_at, now, t) }),
       href: upcoming.room_path,
     });
   } else if (!live && premiere?.state === "scheduled" && premiere.sunday === new Date(now).toISOString().slice(0, 10)) {
     const pilot = premiere.kind === "pilot";
     slots.push({
       key: "premiere",
-      label: pilot ? "Tonight's pilot" : "Tonight's premiere",
+      label: pilot ? t("Tonight's pilot") : t("Tonight's premiere"),
       faces: [premiere.lead],
-      names: pilot ? `Meet ${premiere.lead.name}` : `${premiere.lead.name}'s ${premiere.finale ? "last date before the final rose" : "last-chance date"}`,
-      line: `Starts ${inWords(premiere.at, now)} · ${premiere.time_words}`,
+      names: pilot ? t("Meet {name}", { name: premiere.lead.name }) : premiere.finale ? t("{name}'s last date before the final rose", { name: premiere.lead.name }) : t("{name}'s last-chance date", { name: premiere.lead.name }),
+      line: `${t("Starts {when}", { when: inWords(premiere.at, now, t) })} · ${premiere.time_words}`,
       href: pilot ? "/watch#on-now" : "/watch#rose-ceremony",
     });
   }
   if (reveal && reveal.state === "open" && reveal.choices.length >= 2) {
     slots.push({
       key: "reveal",
-      label: "Sunday's reveal",
+      label: t("Sunday's reveal"),
       faces: reveal.choices.map((c) => ({ id: c.id, name: c.name, hue: c.hue, house: true, portrait: c.portrait })),
-      names: "Whose secret comes out?",
-      line: reveal.my_pick ? `Your vote is in — closes ${inWords(reveal.closes_at, now)}` : `Vote — closes ${inWords(reveal.closes_at, now)}`,
+      names: t("Whose secret comes out?"),
+      line: reveal.my_pick ? t("Your vote is in — closes {when}", { when: inWords(reveal.closes_at, now, t) }) : t("Vote — closes {when}", { when: inWords(reveal.closes_at, now, t) }),
       href: "/watch#sunday-reveal",
     });
   }
   if (ceremony?.vote && ceremony.vote.choices.length >= 2) {
     slots.push({
       key: "ceremony",
-      label: "The rose ceremony",
+      label: t("The rose ceremony"),
       faces: [ceremony.lead, ...ceremony.vote.choices.map((c) => ceremony.suitors.find((s) => s.id === c.id) ?? { id: c.id, name: c.name })].slice(0, 2),
-      names: "Who goes home on Sunday?",
-      line: ceremony.vote.my_pick ? `Your vote is in — the ceremony ${inWords(ceremony.vote.closes_at, now)}` : `Vote — the ceremony ${inWords(ceremony.vote.closes_at, now)}`,
+      names: t("Who goes home on Sunday?"),
+      line: ceremony.vote.my_pick ? t("Your vote is in — the ceremony {when}", { when: inWords(ceremony.vote.closes_at, now, t) }) : t("Vote — the ceremony {when}", { when: inWords(ceremony.vote.closes_at, now, t) }),
       href: "/watch#rose-ceremony",
     });
   }
@@ -136,18 +140,18 @@ export default function TonightBand({
     const closes = mins >= 60 ? `${Math.floor(mins / 60)}h` : `${mins}m`;
     slots.push({
       key: "vote",
-      label: "Tonight's vote",
+      label: t("Tonight's vote"),
       faces: situation.cast,
       // A producer's beat (lib/producer.ts): the twists name their own people, so the slot says what the vote decides.
       names: situation.headline ?? `${situation.cast[0].name} × ${situation.cast[1].name}`,
-      line: situation.my_pick ? `Your pick is in — closes in ${closes}` : situation.headline ? `Vote — closes in ${closes}` : `You pick their date — closes in ${closes}`,
+      line: situation.my_pick ? t("Your pick is in — closes in {time}", { time: closes }) : situation.headline ? t("Vote — closes in {time}", { time: closes }) : t("You pick their date — closes in {time}", { time: closes }),
       href: "#situation",
     });
   }
   if (latest) {
     slots.push({
       key: "aired",
-      label: "Just aired",
+      label: t("Just aired"),
       faces: latest.characters,
       names: `${latest.characters[0].name} × ${latest.characters[1].name}`,
       line: latest.title ? `“${latest.title}”` : latest.setting,
@@ -163,23 +167,23 @@ export default function TonightBand({
   const watching = filming.reduce((n, r) => n + (r.watching ?? 0), 0);
   const facts: { key: string; text: string; live?: boolean; href?: string }[] = [];
   if (filming.length) {
-    facts.push({ key: "filming", live: true, text: `${filming.length} ${filming.length === 1 ? "date" : "dates"} filming${showCrowd(watching, { insider }) ? ` · ${watching} watching` : ""}` });
+    facts.push({ key: "filming", live: true, text: `${filming.length === 1 ? t("1 date filming") : t("{n} dates filming", { n: filming.length })}${showCrowd(watching, { insider }) ? ` · ${t("{n} watching", { n: watching })}` : ""}` });
   }
-  if (airing.length > 1) facts.push({ key: "airing", text: `${airing.length} dates airing soon` });
-  if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: `Sunday's secret comes out ${inWords(reveal.airs_at, now)}` });
+  if (airing.length > 1) facts.push({ key: "airing", text: t("{n} dates airing soon", { n: airing.length }) });
+  if (reveal && reveal.state === "closed") facts.push({ key: "secret", live: true, text: t("Sunday's secret comes out {when}", { when: inWords(reveal.airs_at, now, t) }) });
   // The producer's line for the day (lib/producer.ts): what tonight is about. A fact like the others, never a new section.
   // When the vote's slot above already says the same sentence (its headline is the "Tonight:" line without the label),
   // the fact is what led to it instead: the band said "You pick who gets the date with Juniper." twice, one over the other.
-  const said = (t: string) => t.replace(/^Tonight: /, "").trim().toLowerCase();
+  const said = (line: string) => line.replace(/^Tonight: /, "").trim().toLowerCase();
   const repeats = Boolean(story?.tonight && situation?.headline && said(story.tonight) === said(situation.headline));
   const storyLine = repeats ? story?.previously : story?.tonight;
   if (storyLine) facts.push({ key: "story", text: storyLine });
   // The house line (lib/house-scenes.ts): who is talking in the house, and about whose date. A link, never a slot.
-  if (house) facts.push({ key: "house", text: `In the house: ${houseLine(house)}`, href: `/house#scene-${house.id}` });
+  if (house) facts.push({ key: "house", text: t("In the house: {line}", { line: houseLine(house) }), href: `/house#scene-${house.id}` });
   return (
-    <section className="tonight-band" aria-label="Tonight on Botchelor">
+    <section className="tonight-band" aria-label={t("Tonight on Botchelor")}>
       <p className="tonight-band-eyebrow">
-        <span className="tonight-dot" aria-hidden="true" /> Tonight on Botchelor
+        <span className="tonight-dot" aria-hidden="true" /> {t("Tonight on Botchelor")}
       </p>
       <ul className="tonight-slots">
         {slots.slice(0, 3).map((s) => (
@@ -201,7 +205,7 @@ export default function TonightBand({
         ))}
       </ul>
       {facts.length > 0 && (
-        <ul className="tonight-live" aria-label="Live now">
+        <ul className="tonight-live" aria-label={t("Live now")}>
           {facts.map((f) => (
             <li key={f.key}>
               {f.live && <span className="tonight-live-dot" aria-hidden="true" />}

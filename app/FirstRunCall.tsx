@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Icon from "@/app/Icon";
 import { queueEvent } from "@/app/engagement";
+import { useT } from "@/app/I18nProvider";
 import { ENDINGS, endingLabel, type Ending } from "@/lib/rules";
 
 /**
@@ -13,6 +14,7 @@ import { ENDINGS, endingLabel, type Ending } from "@/lib/rules";
  * show's handshake, not a prediction. The watch link stays for whoever would rather see the whole thing.
  */
 export default function FirstRunCall({ ending, dateNumber, watchHref }: { ending: Ending; dateNumber: number | null; watchHref: string }) {
+  const t = useT();
   const [pick, setPick] = useState<Ending | null>(null);
   function call(e: Ending) {
     setPick(e);
@@ -21,16 +23,16 @@ export default function FirstRunCall({ ending, dateNumber, watchHref }: { ending
   if (!pick) {
     return (
       <div className="first-run">
-        <p className="first-run-q">How does it end? Call it.</p>
-        <div className="first-run-options" role="group" aria-label="How does it end?">
+        <p className="first-run-q">{t("How does it end? Call it.")}</p>
+        <div className="first-run-options" role="group" aria-label={t("How does it end?")}>
           {ENDINGS.map((e) => (
             <button key={e} type="button" className="first-run-option" onClick={() => call(e)} data-track="first-run-call" data-track-pick={e}>
-              {endingLabel(e, dateNumber)}
+              {t(endingLabel(e, dateNumber))}
             </button>
           ))}
         </div>
         <Link className="first-run-skip" href={watchHref} data-track="excerpt-watch">
-          <Icon name="play" /> Or just watch how it ends
+          <Icon name="play" /> {t("Or just watch how it ends")}
         </Link>
       </div>
     );
@@ -39,15 +41,15 @@ export default function FirstRunCall({ ending, dateNumber, watchHref }: { ending
   return (
     <div className="first-run is-called" role="status">
       <p className="first-run-result">
-        <strong>{right ? "You called it." : "Not this time."}</strong> It ended in {endingLabel(ending, dateNumber).toLowerCase()}.
-        {right ? " Calls like that score points once you have a character." : " Nobody can steer a date, not even its creator."}
+        <strong>{right ? t("You called it.") : t("Not this time.")}</strong> {t("It ended: {ending}.", { ending: t(endingLabel(ending, dateNumber)) })}{" "}
+        {right ? t("Calls like that score points once you have a character.") : t("Nobody can steer a date, not even its creator.")}
       </p>
       <p className="first-run-next">
         <Link className="button" href="/create" data-track="first-run-create">
-          Now send yours
+          {t("Now send yours")}
         </Link>
         <Link className="first-run-skip" href={watchHref} data-track="excerpt-watch">
-          <Icon name="play" /> Watch the whole date
+          <Icon name="play" /> {t("Watch the whole date")}
         </Link>
       </p>
     </div>

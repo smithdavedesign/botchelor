@@ -66,6 +66,7 @@ import HomeExpressBox from "./HomeExpressBox";
 import HomeOpen from "./HomeOpen";
 import { getLocale, getT } from "@/lib/i18n/server";
 import { msg } from "@/lib/i18n/translate";
+import { fillNodes } from "@/app/fillNodes";
 import { homeOpenOn, homePhoneClipOn, openKicker, openLine, openTonight, type OpenTonight } from "@/lib/home-open";
 
 export const dynamic = "force-dynamic";
@@ -116,7 +117,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     redirect(`/reviews?${q}`);
   }
   const cookieStore = await cookies();
-  // The page in the visitor's language (docs/i18n.md): a first visit's page is translated; an owner's, not yet.
+  // The page in the visitor's language (docs/i18n.md): a first visit's and an owner's.
   const [t, locale] = await Promise.all([getT(), getLocale()]);
   const viewerId = userIdFromCookieStore(cookieStore);
   const db = viewerId ? await getDb() : null;
@@ -131,14 +132,14 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
   // A returning visitor sees what happened first (J4); a first visit is unchanged.
   const sinceP: Promise<[Awaited<ReturnType<typeof sinceYouWereHere>>, number]> = myCharactersP.then((mine) =>
     db && viewerId && mine.length
-      ? Promise.all([sinceYouWereHere(db, viewerId, mine).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
+      ? Promise.all([sinceYouWereHere(db, viewerId, mine, undefined, t).catch(() => []), countNotifications(db, viewerId, { unread: true }).catch(() => 0)])
       : [[], 0],
   );
   // Their character's phone (lib/character-phone.ts): one read next to "Since you were here", no round trip of its own.
   // It leads with the character the header shows (lib/current-character.ts); with none remembered, its own pick becomes
   // the remembered one (RememberCharacter below), so the header and every page that follows it agree.
   const picked = rememberedCharacter(cookieStore);
-  const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine, undefined, undefined, picked).catch(() => null) : null));
+  const phoneP = myCharactersP.then((mine) => (db && viewerId && mine.length ? characterPhone(db, viewerId, mine, undefined, undefined, picked, t).catch(() => null) : null));
   // A stranger's first screen (lib/home-open.ts): tonight's story (who steps forward on the stage), read only for someone
   // with no character while HOME_OPEN is on; the same few seconds' shared copy for everyone.
   const openP: Promise<{ story: OpenTonight | null } | null> = myCharactersP.then((mine) =>
@@ -237,7 +238,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       stage: homePhoneClipOn(),
     };
   })();
-  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} premiere={premiere} />;
+  const tonight = <TonightBand rooms={rooms} airing={airing} situation={situation} reveal={reveal} ceremony={ceremony} latest={airedEpisodes[0] ?? null} house={house} now={Date.now()} insider={creator} story={story} premiere={premiere} t={t} />;
 
   return (
     <div className="home page-wide">
@@ -245,18 +246,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           pitch first and the band right under it. */}
       {/* An owner lands on their character (2026-11-15): its phone first, then the show (HOME_PHONE=0: the show first, as before). */}
       {/* An owner's home has no hero any more (B10), so its one h1 is for screen readers. */}
-      {creator && <h1 className="sr-only">Your characters and the show</h1>}
-      {phone && <CharacterPhone phone={phone} />}
+      {creator && <h1 className="sr-only">{t("Your characters and the show")}</h1>}
+      {phone && <CharacterPhone phone={phone} t={t} />}
       {phone && <RememberCharacter id={phone.character.id} />}
       {creator && tonight}
       {/* The first week of a month: last season's finale (lib/season-ref.ts). */}
       {creator && (
         <section id="start" className="card start-card since-card" aria-labelledby="since-title">
           <div className="section-head">
-            <h2 id="since-title">Since you were here</h2>
+            <h2 id="since-title">{t("Since you were here")}</h2>
             {unread > 0 && (
               <Link href="/notifications">
-                {unread} new {unread === 1 ? "notification" : "notifications"} →
+                {unread === 1 ? t("{n} new notification", { n: unread }) : t("{n} new notifications", { n: unread })} →
               </Link>
             )}
           </div>
@@ -284,8 +285,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </ul>
           {showNews && <ShowSince card={showNews} inside />}
           <p className="muted small since-foot">
-            {tokens.left} {tokens.left === 1 ? "date" : "dates"} left this week; free ones come back Monday. Want more? &ldquo;{PACK_5.name}&rdquo;
-            is in the <Link href="/shop">shop</Link>. <Link href="/create">Build a new character</Link>.
+            {fillNodes(tokens.left === 1 ? t("{n} date left this week; free ones come back Monday. Want more? “{pack}” is in the {shop}.", { n: tokens.left, pack: PACK_5.name }) : t("{n} dates left this week; free ones come back Monday. Want more? “{pack}” is in the {shop}.", { n: tokens.left, pack: PACK_5.name }), { shop: <Link href="/shop">{t("shop")}</Link> })}{" "}
+            <Link href="/create">{t("Build a new character")}</Link>.
           </p>
         </section>
       )}
@@ -324,44 +325,47 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       <section className={clip ? "hero has-clip" : "hero"}>
         <div className="hero-copy">
           {/* The promise (docs/ideas.md "The core, 2026-11-14"): your character has a love life, and you're in their corner. */}
-          <p className="kicker">Your character&apos;s love life</p>
-          <h1 className="hero-title">Give your character a love life.</h1>
+          <p className="kicker">{t("Your character's love life")}</p>
+          <h1 className="hero-title">{t("Give your character a love life.")}</h1>
           <p className="lede">
             {casting
               ? `${castingHeroLine(casting)} `
-              : "They go on blind dates nobody steers, text you how it went, and take your advice into the next one. "}
-            Make one in a minute — free, no sign-up.
+              : `${t("They go on blind dates nobody steers, text you how it went, and take your advice into the next one.")} `}
+            {t("Make one in a minute — free, no sign-up.")}
           </p>
           {expressBox && <HomeExpressBox />}
           {/* One "Make your character" door above the fold and one at the end (the 2026-11-20 mobile audit, A2). */}
           <p className="cta-row" id="hero-cta">
             {/* With the box above, the box's own button is the main one and this is the long way in. */}
             <Link className={expressBox ? "button-ghost" : "button"} href="/create">
-              Make your character
+              {t("Make your character")}
             </Link>
             {/* One loud way in and one quiet one (design review 2026-11-16, D-18): with the clip beside the copy, its own
                 "Watch the whole date" is the way to watch, so the hero doesn't ask twice. */}
             {!clip && (
               <Link className="button-ghost" href="/watch">
-                Watch episodes
+                {t("Watch episodes")}
               </Link>
             )}
           </p>
           {/* The sample and the Character.AI rescue door (2026-11-14) share one quiet line, for a visitor with no character yet. */}
           {myCharacters.length === 0 && (
             <p className="small hero-doors">
-              In a hurry?{" "}
-              <Link className="tap-link" href="/create?sample=1">
-                Start from a sample character
-              </Link>
-              . Leaving Character.AI?{" "}
-              <Link className="tap-link" href={IMPORT_CAI_PATH} data-track="hero-import">
-                Bring your character
-              </Link>
-              .
+              {fillNodes(t("In a hurry? {sample}. Leaving Character.AI? {bring}."), {
+                sample: (
+                  <Link className="tap-link" href="/create?sample=1">
+                    {t("Start from a sample character")}
+                  </Link>
+                ),
+                bring: (
+                  <Link className="tap-link" href={IMPORT_CAI_PATH} data-track="hero-import">
+                    {t("Bring your character")}
+                  </Link>
+                ),
+              })}
             </p>
           )}
-          <p className="trust-micro">Fictional characters only, no real people. Every date is written by AI.</p>
+          <p className="trust-micro">{t("Fictional characters only, no real people. Every date is written by AI.")}</p>
         </div>
         {/* The show itself where a made-up box score used to be (2026-11-07 audit, item 2): a few lines of a real aired
             date (its best moment, 2026-11-11), typing in, and the way to watch how it ends. The old matchup only when
@@ -374,7 +378,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         ) : featured ? (
           <div className="hero-art has-date">
             {/* A first visit calls the ending on the card (app/FirstRunCall.tsx); a creator's hero just plays it. */}
-            <DateExcerpt date={featured} call={!creator} />
+            <DateExcerpt date={featured} call={!creator} t={t} />
           </div>
         ) : creator ? (
           // An owner's hero is as it was: no clip, so the matchup of two house faces.
@@ -386,7 +390,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                 <span className="vs">×</span>
                 <Avatar seed={heroB.id} name={heroB.name} house portraitSrc={heroB.portrait} size={64} />
               </div>
-              <p className="muted mini-cap">An engine decides how every date ends; friends guess it first.</p>
+              <p className="muted mini-cap">{t("An engine decides how every date ends; friends guess it first.")}</p>
             </div>
           )
         ) : (
@@ -399,9 +403,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               width={PROMO.homeLoop.width}
               height={PROMO.homeLoop.height}
               watchHref="/watch"
-              caption="Juniper Vale × Nell Abiodun · How does it end?"
-              kicker="From the show"
-              watchLabel="Watch episodes"
+              caption={`Juniper Vale × Nell Abiodun · ${t("How does it end?")}`}
+              kicker={t("From the show")}
+              watchLabel={t("Watch episodes")}
             />
           </div>
         )}
@@ -410,18 +414,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {/* With the clip up top, the real date a first visit calls the ending of (app/FirstRunCall.tsx) follows it. */}
       {(open ? featured : clip && featured) && featured && (
         <section className="home-date" aria-label={t("A date from the show")}>
-          <DateExcerpt date={featured} call={!creator} wide />
+          <DateExcerpt date={featured} call={!creator} wide t={t} />
         </section>
       )}
       {/* Two doors in thumb reach, so both labels are short: measured one line each at 360px and up (2026-11-14). Only on
           the old page: the one screen keeps its field in the first screen, and nothing floats over it. */}
       {myCharacters.length === 0 && !open && (
         <PhoneActionBar watch="hero-cta">
-          <Link className="button" href="/create" aria-label="Make your character">
-            Make yours
+          <Link className="button" href="/create" aria-label={t("Make your character")}>
+            {t("Make yours")}
           </Link>
-          <Link className="button-ghost" href={IMPORT_CAI_PATH} data-track="hero-import" aria-label="Leaving Character.AI? Bring your character">
-            Bring yours
+          <Link className="button-ghost" href={IMPORT_CAI_PATH} data-track="hero-import" aria-label={t("Leaving Character.AI? Bring your character")}>
+            {t("Bring yours")}
           </Link>
         </PhoneActionBar>
       )}
@@ -431,8 +435,8 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
 
       {/* Tonight's two votes are one card for an owner (app/TonightVotes.tsx). A visitor sees the situation only on the
           old page; on the one screen the board isn't read. */}
-      {creator ? <TonightVotes situation={situation} dares={dares} now={Date.now()} insider /> : situation && <SituationVote board={situation} now={Date.now()} />}
-      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} sharer={sharer} where="home" />}
+      {creator ? <TonightVotes situation={situation} dares={dares} now={Date.now()} insider t={t} /> : situation && <SituationVote board={situation} now={Date.now()} />}
+      {record && (record.called > 0 || airing.length > 0) && <CallsLine record={record} airing={airing.length} href="/watch#airing-soon" nameless={viewerId !== null && profileName === null} sharer={sharer} where="home" t={t} />}
 
       {aired && aired.items.length > 0 && (
         <section className="home-aired">
@@ -442,16 +446,16 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </div>
           {/* A shelf of small title cards, not rows (docs/show-style.md: faces first). Three: the hero already plays the
               latest and /watch has the rest (the audit, 2026-11-11, 2.1: six cards, two of them the same mixer). */}
-          <EpisodeShelf items={aired.items.slice(0, 3)} />
+          <EpisodeShelf items={aired.items.slice(0, 3)} t={t} />
         </section>
       )}
 
       {/* The shows that could come next (lib/show-ideas.ts): one quiet line, the demand test's way in from the front door. */}
       {showIdeasOn() && (creator || !open) && (
         <p className="house-link home-shows-link">
-          <span aria-hidden="true">📺</span> One show is on air. More could come next: a mystery, a shared house, a quest.{" "}
+          <span aria-hidden="true">📺</span> {t("One show is on air. More could come next: a mystery, a shared house, a quest.")}{" "}
           <Link href="/shows" data-track="shows" data-track-where="home">
-            Say which you&apos;d want →
+            {t("Say which you'd want")} →
           </Link>
         </p>
       )}
@@ -484,7 +488,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           </span>
           <span>
             <strong>
-              PopcornBot <span className="home-night-bot-tag" title="One of the show's bots: its remarks are written by the show">Bot</span>
+              PopcornBot{/* i18n-ok: a name */}{" "}
+              <span className="home-night-bot-tag" title={t("One of the show's bots: its remarks are written by the show")}>
+                {t("Bot")}
+              </span>
             </strong>{" "}
             {t("I called “disaster” on the last one. I'm calling it again. I'm always calling it.")}
           </span>
@@ -495,9 +502,9 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       {/* The cast, the map and the tools are an owner's (and the old page's): a first visit's page ends on its questions. */}
       {(creator || !open) && (
       <section>
-        <h2>This season&apos;s cast</h2>
+        <h2>{t("This season's cast")}</h2>
         <p className="muted">
-          A handful a month. Date one now, or <Link href="/swipe">swipe</Link> to match with another creator&apos;s character.
+          {fillNodes(t("A handful a month. Date one now, or {swipe} to match with another creator's character."), { swipe: <Link href="/swipe">{t("swipe")}</Link> })}
         </p>
         <ul className="home-cast-faces grid-balanced" style={{ "--cols": balancedColumns(Math.min(cast.length, HOME_CAST_SHOWN), 4) } as CSSProperties}>
           {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
@@ -506,37 +513,37 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               <Link className="stretch home-cast-name" href={`/characters/${p.id}`}>
                 <strong>{p.name}</strong>
               </Link>
-              {p.premium && <span className="badge">Premium</span>}
-              {p.fan && <span className="badge">Fan pick</span>}
+              {p.premium && <span className="badge">{t("Premium")}</span>}
+              {p.fan && <span className="badge">{t("Fan pick")}</span>}
               <span className="home-cast-traits">{p.traits.slice(0, 2).join(" · ")}</span>
             </li>
           ))}
         </ul>
         <p className="muted home-cast-more">
           <Link href="/characters">
-            <strong>See every character →</strong>
+            <strong>{t("See every character")} →</strong>
           </Link>{" "}
-          · <Link href="/casting">🎬 Audition yours for next month</Link>
+          · <Link href="/casting">🎬 {t("Audition yours for next month")}</Link>
           {candidatesOut && (
             <>
               {" "}
-              · <Link href="/characters#next-season">Meet next month&apos;s candidates</Link>
+              · <Link href="/characters#next-season">{t("Meet next month's candidates")}</Link>
             </>
           )}
         </p>
         {/* The Constellation's own card is gone (A2): its numbers ride on the link. */}
         <p className="muted small home-sky-line">
-          <Link href="/graph">✨ The Constellation: a map of who&apos;s dated whom</Link>
-          {sky && sky.couples > 0 && ` · ${sky.characters} characters, ${sky.couples} couples`}
+          <Link href="/graph">✨ {t("The Constellation: a map of who's dated whom")}</Link>
+          {sky && sky.couples > 0 && ` · ${t("{characters} characters, {couples} couples", { characters: sky.characters, couples: sky.couples })}`}
         </p>
         <p className="muted small home-sky-line">
-          Free tools: <Link href="/tools/random-oc-generator">a random OC generator</Link> ·{" "}
-          <Link href="/tools/oc-chemistry-test">a ship compatibility test</Link> ·{" "}
-          <Link href="/tools/ship-name-generator">a ship name generator</Link> ·{" "}
-          <Link href="/tools/oc-name-generator">an OC name generator</Link> ·{" "}
-          <Link href="/tools/place-name-generator">a place name generator</Link> ·{" "}
-          <Link href="/tools/relationship-trope-generator">a relationship trope generator</Link> ·{" "}
-          <Link href="/tools/oc-questions">questions to ask your OC</Link>
+          {t("Free tools:")}{" "}
+          {FREE_TOOLS.map((tool, i) => (
+            <Fragment key={tool.path}>
+              {i > 0 && " · "}
+              <Link href={tool.path}>{t(tool.name)}</Link>
+            </Fragment>
+          ))}
         </p>
       </section>
       )}
@@ -609,11 +616,11 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
           only a visit that scrolls down to them asks for them, and the privacy notice says so (Analytics; the 2026-11-22
           audit). Toolradar's is its wide dark badge, drawn at LaunchNest's height. A badge that fails to load hides (HomeBadge). */}
       <p className="home-badges">
-        <HomeBadge href="https://launchnest.io/p/botchelor" src="https://launchnest.io/badge/botchelor.svg?variant=featured" alt="Botchelor on LaunchNest" width={220} height={56} />
+        <HomeBadge href="https://launchnest.io/p/botchelor" src="https://launchnest.io/badge/botchelor.svg?variant=featured" alt={t("Botchelor on {site}", { site: "LaunchNest" })} width={220} height={56} />
         <HomeBadge
           href="https://toolradar.com/tools/botchelor"
           src="https://toolradar.com/api/badge/botchelor?type=category-rank&category=media-entertainment&style=dark&shape=wide&v=5"
-          alt="Botchelor on Toolradar"
+          alt={t("Botchelor on {site}", { site: "Toolradar" })}
           width={196}
           height={56}
         />

@@ -3,40 +3,15 @@
  * file that uses lib/i18n) is in every language's catalog, in the right half: a client component's strings in `client`
  * (the half the browser gets). No catalog keeps a string nothing uses, and every translation keeps its `{placeholders}`.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CATALOGS } from "@/lib/i18n/catalogs";
 import { localeFromAcceptLanguage, newCharacterLanguage, pickLocale } from "@/lib/i18n/locales";
 import { translator } from "@/lib/i18n/translate";
+import { usedStrings } from "../scripts/i18n-keys";
 
 const ROOT = join(__dirname, "..");
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    if (name === "node_modules" || name.startsWith(".")) continue;
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (/\.(ts|tsx)$/.test(name) && !p.includes(`${join("lib", "i18n")}`)) out.push(p);
-  }
-  return out;
-}
-
-/** Strings marked for translation, by file, and whether the file is a client component. */
-function usedStrings(): { file: string; client: boolean; keys: string[] }[] {
-  const files = [...walk(join(ROOT, "app")), ...walk(join(ROOT, "lib"))];
-  const found: { file: string; client: boolean; keys: string[] }[] = [];
-  for (const f of files) {
-    const src = readFileSync(f, "utf8");
-    if (!/from "(@\/lib\/i18n\/[\w-]+|\.\/i18n\/[\w-]+|@\/app\/I18nProvider)"/.test(src)) continue;
-    const keys = [...src.matchAll(/\b(?:t|tr|msg)\(\s*("(?:[^"\\]|\\.)*")/g)].map((m) => JSON.parse(m[1]) as string);
-    const shown = [...src.matchAll(/\bclientMsg\(\s*("(?:[^"\\]|\\.)*")/g)].map((m) => JSON.parse(m[1]) as string);
-    const client = /^\s*["']use client["']/.test(src);
-    found.push({ file: relative(ROOT, f), client, keys });
-    if (shown.length) found.push({ file: relative(ROOT, f), client: true, keys: shown });
-  }
-  return found;
-}
 
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 

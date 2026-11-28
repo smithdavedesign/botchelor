@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { english, type T } from "@/lib/i18n/translate";
 import BoardName from "./BoardName";
+import { fillNodes } from "./fillNodes";
 import { showCrowd } from "@/lib/crowd-threshold";
 import ShareRecord from "./ShareRecord";
 import { tonightOf, type RecordShare } from "@/lib/share-record";
@@ -18,6 +20,7 @@ export function CallsLine({
   nameless = false,
   sharer = null,
   where = "calls-line",
+  t = english,
 }: {
   record: CallRecord;
   airing: number;
@@ -27,17 +30,19 @@ export function CallsLine({
   sharer?: Sharer | null;
   /** data-track-where on the Share button. */
   where?: string;
+  /** The page's translator (docs/i18n.md); English when none is passed. */
+  t?: T;
 }) {
   const share = shareOf(record, new Date(), sharer);
-  const open = airing > 0 ? `${airing} ${airing === 1 ? "date" : "dates"} airing soon` : null;
+  const open = airing > 0 ? (airing === 1 ? t("1 date airing soon") : t("{n} dates airing soon", { n: airing })) : null;
   const lead =
     record.called > 0 ? (
       <>
-        <strong>Your calls:</strong> {recordLine(record)}
+        <strong>{t("Your calls:")}</strong> {recordLine(record, t)}
         {record.streak >= 2 ? " 🔥" : ""}
       </>
     ) : (
-      <strong>Call the ending before a date airs</strong>
+      <strong>{t("Call the ending before a date airs")}</strong>
     );
   return (
     <div className="calls-line">
@@ -45,7 +50,7 @@ export function CallsLine({
       {open && (
         <>
           {" · "}
-          {href ? <Link href={href}>{record.streak >= 2 ? `keep it going: ${open} →` : `${open} →`}</Link> : open}
+          {href ? <Link href={href}>{record.streak >= 2 ? `${t("keep it going: {open}", { open })} →` : `${open} →`}</Link> : open}
         </>
       )}
       {nameless && record.right > 0 && (
@@ -93,7 +98,7 @@ export function shareOf(record: CallRecord, now: Date = new Date(), sharer: Shar
  * empty-room rule (lib/crowd-threshold.ts): a board of two names tells a stranger they're alone, so below the threshold
  * they get the invitation to call an ending instead; someone with a character sees the board from one caller.
  */
-export function CallersBoardPanel({ board, nameless = false, insider = false }: { board: CallersBoard; nameless?: boolean; insider?: boolean }) {
+export function CallersBoardPanel({ board, nameless = false, insider = false, t = english }: { board: CallersBoard; nameless?: boolean; insider?: boolean; t?: T }) {
   if (!board.top.length) return null;
   const listed = board.top.some((e) => e.mine);
   // A board of mostly "A viewer" rows says nobody's here, to an insider too (the 2026-11-22 audit): the list waits for
@@ -101,37 +106,38 @@ export function CallersBoardPanel({ board, nameless = false, insider = false }: 
   if (!showCrowd(board.callers, { insider }) || board.named < BOARD_NAMED_MIN) {
     return (
       <section className="watch-section" aria-labelledby="best-callers">
-        <h2 id="best-callers">Best callers this week</h2>
+        <h2 id="best-callers">{t("Best callers this week")}</h2>
         <p className="calls-line">
-          <span aria-hidden="true">🔮</span> <strong>Call the ending before a date airs</strong> and your name goes up here.{" "}
-          <Link href="/calls#open-calls">Tonight&apos;s open calls →</Link>
+          <span aria-hidden="true">🔮</span> {fillNodes(t("{call} and your name goes up here."), { call: <strong>{t("Call the ending before a date airs")}</strong> })}{" "}
+          <Link href="/calls#open-calls">{t("Tonight's open calls")} →</Link>
         </p>
-        {board.my_rank && <p className="muted small">{`You're number ${board.my_rank} this week. The list shows once ${BOARD_NAMED_MIN} callers have put a name up.`}</p>}
+        {board.my_rank && <p className="muted small">{t("You're number {rank} this week. The list shows once {n} callers have put a name up.", { rank: board.my_rank, n: BOARD_NAMED_MIN })}</p>}
         {nameless && board.my_rank && <BoardName folded />}
       </section>
     );
   }
   return (
     <section className="watch-section" aria-labelledby="best-callers">
-      <h2 id="best-callers">Best callers this week</h2>
+      <h2 id="best-callers">{t("Best callers this week")}</h2>
       <ol className="callers-board">
         {board.top.map((e, i) => (
           <li key={`${i}-${e.name}`} className={e.mine ? "mine" : undefined}>
             <span className="callers-rank">{i + 1}</span>
             <span className="callers-name">
-              {e.name ?? <span className="muted">A viewer</span>}
-              {e.mine && <span className="chip">You</span>}
+              {e.name ?? <span className="muted">{t("A viewer")}</span>}
+              {e.mine && <span className="chip">{t("You")}</span>}
             </span>
             <span className="callers-score">
-              {e.right} of {e.called}
+              {t("{right} of {called}", { right: e.right, called: e.called })}
             </span>
           </li>
         ))}
       </ol>
       <p className="muted small">
-        Right endings on public dates that aired in the last {BOARD_DAYS} days ({board.callers} {board.callers === 1 ? "caller" : "callers"}). Names show
-        only for people who put one up.
-        {board.my_rank && !listed ? ` You're number ${board.my_rank} this week.` : ""}
+        {board.callers === 1
+          ? t("Right endings on public dates that aired in the last {days} days (1 caller). Names show only for people who put one up.", { days: BOARD_DAYS })
+          : t("Right endings on public dates that aired in the last {days} days ({n} callers). Names show only for people who put one up.", { days: BOARD_DAYS, n: board.callers })}
+        {board.my_rank && !listed ? ` ${t("You're number {rank} this week.", { rank: board.my_rank })}` : ""}
       </p>
       {/* On the board as "A viewer": the form, open. Not on it yet: a link to it. */}
       {nameless && <BoardName folded={!board.my_rank} />}
