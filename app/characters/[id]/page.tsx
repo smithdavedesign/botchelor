@@ -109,6 +109,8 @@ import { studioAccess } from "@/lib/adult/studio";
 import { pgAccess } from "@/lib/studio/pg";
 import { profilePhotos } from "@/lib/studio/profile-photos";
 import { shotsFor } from "@/lib/show-shots-sql";
+import { boothLines } from "@/lib/booth";
+import { Booth } from "./Booth";
 import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
@@ -161,6 +163,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // How many follow them and whether this viewer does (lib/character-follows.ts): one read, started beside the page's
   // first one for the same reason as the circle's, so it never joins the wide wave below. Null with CHARACTER_FOLLOW=0.
   const followP = characterFollowOn() ? characterFollowState(db, id, viewerId).catch(() => null) : Promise.resolve(null);
+  // The confessional booth (lib/booth.ts): what they've said to camera, only lines already public. Beside the first read too.
+  const boothP = boothLines(db, id).catch(() => []);
   const c = await getPublicCharacter(db, id);
   if (!c) notFound();
   // The roleplay picker's ✨ Yours is the Create library, accounts only.
@@ -399,6 +403,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     talk,
     photos,
     shots,
+    booth,
     adPhotos,
     plays,
     forgotten,
@@ -433,6 +438,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     talkP,
     photosP,
     shotsP,
+    boothP,
     adPhotosP,
     playsP,
     forgottenP,
@@ -1029,6 +1035,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <AiTag />
         </section>
       )}
+      {booth.length > 0 && <Booth name={shortName(c.name)} shot={shots?.confessional ?? null} lines={booth} />}
       {/* Their show kit (lib/show-shots.ts): the premiere reveal, the rose, the confessional and the faces a date shows. */}
       {shots && (
         <section className="card profile-photos show-kit" aria-labelledby="show-kit-title">

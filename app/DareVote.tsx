@@ -4,6 +4,7 @@ import Link from "next/link";
 import Avatar from "./Avatar";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
+import VoteCast from "@/app/motion/VoteCast";
 import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { DareBoard } from "@/lib/dares";
 import { dareSubject, verdictSentence } from "@/lib/dare-words";
@@ -68,6 +69,7 @@ export default function DareVote({ board, insider = false, part = false }: { boa
           );
         })}
       </ul>
+      <VoteCast pick={board.my_pick} label="Your dare is in" />
       {error && <p className="error small">{error}</p>}
       {board.last && (
         <p className="situation-last small">

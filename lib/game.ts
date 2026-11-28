@@ -70,6 +70,8 @@ export type CharacterRef = {
   photo?: string | null;
   /** The show kit's faces (lib/show-shots.ts): the expressions and moments drawn of them so far, or none. */
   shots?: ShotUrls | null;
+  /** The cut-out figure they stand as on the date theater's stage (lib/cutout.ts stageFigure), when the page loaded one. */
+  figure?: string | null;
   /** Made by an AI agent over MCP rather than by a person on the website (characters.created_via). */
   agent?: boolean;
   /** Private to someone other than the viewer (characters.visibility): its name is shown, never linked (app/CharacterName.tsx). */

@@ -1,0 +1,475 @@
+/* ================================================================================================================
+   On the air (2026-11-28, Dave: "Yes do 1-5 and 8")
+   The site's in-between moments, dressed as a broadcast: a test card when a page breaks, a "Stay tuned" slate on an
+   empty list, a "Coming up" plate while a page loads; a ballot that drops into a box when you vote; the Sunday "on air"
+   bar under the header; the sound switch; the ceremony's share; the confessional booth on a character's page.
+   Everything that moves is inside a no-preference block at the end: with reduced motion each piece keeps its look and
+   nothing travels. Colours are tokens, set once per block.
+   ================================================================================================================ */
+
+:root {
+  /* The SMPTE-ish bars of the test card, a touch softer than broadcast so they sit with the brand. */
+  --bars-1: #d9d4c7;
+  --bars-2: #e9cf4a;
+  --bars-3: #4fc7c9;
+  --bars-4: #57b65a;
+  --bars-5: #c64fb8;
+  --bars-6: #d8414f;
+  --bars-7: #3a47c4;
+  --bars-deep: #12091a;
+  --bars-plate: rgba(10, 5, 16, 0.82);
+  --bars-plate-ink: #fff7f2;
+  /* On air: the red of a live light, the dark of the bar, its ink. */
+  --on-air-red: #ff2d4f;
+  --on-air-glow: rgba(255, 45, 79, 0.45);
+  --on-air-bg: #14081c;
+  --on-air-ink: #fff7f2;
+  --on-air-soft: rgba(255, 247, 242, 0.72);
+  /* The ballot box. */
+  --ballot-paper: #fffaf3;
+  --ballot-box: #2a1430;
+  --ballot-slot: #0b0510;
+  /* The booth's viewfinder. */
+  --booth-mark: rgba(255, 255, 255, 0.85);
+  --booth-scrim: rgba(8, 4, 12, 0.78);
+  --booth-ink: #fff;
+}
+
+/* ---------------- Technical difficulties (app/PageError.tsx, app/TestCard.tsx) ---------------- */
+
+.test-card {
+  position: relative;
+  width: min(100%, 26rem);
+  aspect-ratio: 16 / 10;
+  margin: 0 auto var(--space-4);
+  display: grid;
+  grid-template-rows: 1fr 0.22fr;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 6px solid var(--bars-deep);
+  background: var(--bars-deep);
+  box-shadow: var(--shadow-lg, 0 18px 40px var(--on-air-glow));
+}
+.test-card-bars,
+.test-card-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.test-card-bars > span:nth-child(1) { background: var(--bars-1); }
+.test-card-bars > span:nth-child(2) { background: var(--bars-2); }
+.test-card-bars > span:nth-child(3) { background: var(--bars-3); }
+.test-card-bars > span:nth-child(4) { background: var(--bars-4); }
+.test-card-bars > span:nth-child(5) { background: var(--bars-5); }
+.test-card-bars > span:nth-child(6) { background: var(--bars-6); }
+.test-card-bars > span:nth-child(7) { background: var(--bars-7); }
+/* The strip under the bars runs them backwards, darker: the castellations of a real card. */
+.test-card-strip > span:nth-child(1) { background: var(--bars-7); }
+.test-card-strip > span:nth-child(2) { background: var(--bars-deep); }
+.test-card-strip > span:nth-child(3) { background: var(--bars-5); }
+.test-card-strip > span:nth-child(4) { background: var(--bars-deep); }
+.test-card-strip > span:nth-child(5) { background: var(--bars-3); }
+.test-card-strip > span:nth-child(6) { background: var(--bars-deep); }
+.test-card-strip > span:nth-child(7) { background: var(--bars-1); }
+.test-card::after {
+  /* A faint scan line over the whole card. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, transparent 0 3px, var(--bars-plate) 3px 4px);
+  opacity: 0.12;
+  pointer-events: none;
+}
+.test-card-plate {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  translate: -50% -50%;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--bars-plate);
+  color: var(--bars-plate-ink);
+  font-family: var(--font-display, inherit);
+  font-size: var(--text-lg);
+  font-style: italic;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.page-error .kicker {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---------------- Stay tuned (app/EmptyState.tsx) and Coming up (app/PageLoading.tsx) ---------------- */
+
+.empty-state-slate {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--on-air-bg);
+  color: var(--on-air-ink);
+  font-size: var(--text-eyebrow);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+/* The emoji sits on a little screen, like the slate cut away from it. */
+.empty-state-emoji {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-md);
+  border: 3px solid var(--on-air-bg);
+  background: radial-gradient(ellipse at 50% 40%, var(--paper), var(--line));
+}
+.page-skeleton-status::before {
+  content: "Coming up";
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--on-air-bg);
+  color: var(--on-air-ink);
+  font-size: var(--text-eyebrow);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---------------- Your vote is in (app/motion/VoteCast.tsx) ---------------- */
+
+.vote-cast {
+  display: block;
+  min-height: 0;
+}
+.vote-cast-show {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.vote-box {
+  position: relative;
+  width: 2.6rem;
+  height: 2.2rem;
+  border-radius: var(--radius-xs);
+  background: var(--ballot-box);
+  overflow: hidden;
+}
+.vote-box::before {
+  /* The slot. */
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  top: 0.35rem;
+  height: 0.22rem;
+  border-radius: var(--radius-pill);
+  background: var(--ballot-slot);
+  z-index: 2;
+}
+.vote-ballot {
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  top: -1.4rem;
+  height: 1.5rem;
+  border-radius: var(--radius-xs);
+  background: var(--ballot-paper);
+  opacity: 0;
+}
+.vote-cast-plate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--on-air-bg);
+  color: var(--on-air-ink);
+  font-weight: 700;
+  font-size: var(--text-sm);
+}
+
+/* ---------------- Sound (app/motion/SoundToggle.tsx) ---------------- */
+
+.sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+.sound-toggle.is-on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---------------- On air (app/motion/OnAirBar.tsx): hangs under the sticky header, never moves the page ---------------- */
+
+.site-header:has(> .on-air-bar) {
+  position: sticky;
+}
+.on-air-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  background: var(--on-air-bg);
+  color: var(--on-air-ink);
+  font-size: var(--text-sm);
+  pointer-events: auto;
+}
+.on-air-bar.is-live {
+  background: linear-gradient(90deg, var(--on-air-red), var(--on-air-bg) 70%);
+}
+.on-air-bar.is-week {
+  /* The rest of the week it's a chip at the right, on wide screens only. */
+  left: auto;
+  right: var(--space-4);
+  padding: 0;
+  margin-top: var(--space-1);
+  background: transparent;
+}
+.on-air-bar > strong {
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: var(--text-eyebrow);
+}
+.on-air-what {
+  color: var(--on-air-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.on-air-left {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.on-air-go {
+  color: var(--on-air-ink);
+  font-weight: 800;
+}
+.on-air-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--on-air-red);
+  box-shadow: 0 0 0 3px var(--on-air-glow);
+}
+.on-air-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--on-air-bg);
+  color: var(--on-air-ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 6px 18px var(--on-air-glow);
+}
+.on-air-close {
+  margin-left: var(--space-2);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--on-air-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.on-air-bar.is-week .on-air-close {
+  margin-left: 0;
+}
+@media (max-width: 760px) {
+  .on-air-bar.is-week {
+    display: none;
+  }
+  .on-air-bar .on-air-what {
+    max-width: 50vw;
+  }
+}
+
+/* ---------------- The ceremony's share (app/watch/CeremonyReveal.tsx) ---------------- */
+
+.ceremony-share {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-3) 0 0;
+}
+
+/* ---------------- The confessional booth (app/characters/[id]/Booth.tsx) ---------------- */
+
+.booth-frame {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bars-deep);
+}
+.booth-shot {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.booth-marks > span {
+  position: absolute;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 0 solid var(--booth-mark);
+}
+.booth-marks > span:nth-child(1) { top: var(--space-3); left: var(--space-3); border-top-width: 2px; border-left-width: 2px; }
+.booth-marks > span:nth-child(2) { top: var(--space-3); right: var(--space-3); border-top-width: 2px; border-right-width: 2px; }
+.booth-marks > span:nth-child(3) { bottom: var(--space-3); left: var(--space-3); border-bottom-width: 2px; border-left-width: 2px; }
+.booth-marks > span:nth-child(4) { bottom: var(--space-3); right: var(--space-3); border-bottom-width: 2px; border-right-width: 2px; }
+.booth-rec,
+.booth-tc {
+  position: absolute;
+  top: calc(var(--space-3) + var(--space-2));
+  color: var(--booth-ink);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px var(--booth-scrim);
+}
+.booth-rec {
+  left: calc(var(--space-4) + var(--space-3));
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.booth-tc {
+  right: calc(var(--space-4) + var(--space-3));
+}
+.booth-rec-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: var(--radius-pill);
+  background: var(--on-air-red);
+}
+.booth-caption {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: calc(var(--space-4) + var(--space-3));
+  text-align: center;
+}
+.booth-line {
+  display: inline;
+  padding: 0.15em 0.45em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  background: var(--booth-scrim);
+  color: var(--booth-ink);
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+.booth-speaker {
+  font-weight: 800;
+}
+.booth-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+.booth-next {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------------- What moves ---------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The test card's plate flickers like a weak signal. */
+  .test-card-plate {
+    animation: signal-flicker 3.2s steps(1) infinite;
+  }
+  /* The ballot drops through the slot, the seal stamps, the plate slides in, and it all goes after three seconds. */
+  .vote-ballot {
+    animation: ballot-drop 0.8s var(--ease-out, ease-out) forwards;
+  }
+  .vote-seal {
+    animation: seal-stamp 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 0.55s backwards;
+  }
+  .vote-cast-plate {
+    animation: plate-in 0.5s var(--ease-out, ease-out) 0.45s backwards;
+  }
+  .vote-cast-show {
+    animation: cast-out 0.5s ease-in 2.7s forwards;
+  }
+  /* The live light pulses; the bar slides down out of the header. */
+  .on-air-dot {
+    animation: on-air-pulse 1.6s ease-in-out infinite;
+  }
+  .on-air-bar {
+    animation: on-air-in 0.5s var(--ease-out, ease-out) backwards;
+  }
+  /* The booth's REC light blinks; a new caption fades up. */
+  .booth-rec-dot {
+    animation: rec-blink 1.2s steps(1) infinite;
+  }
+  .booth-line {
+    animation: caption-in 0.45s var(--ease-out, ease-out) backwards;
+  }
+  .sound-toggle {
+    transition:
+      color 0.2s,
+      border-color 0.2s;
+  }
+}
+
+@keyframes signal-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.35; }
+  95% { opacity: 0.9; }
+  96% { opacity: 0.5; }
+}
+@keyframes ballot-drop {
+  0% { opacity: 1; translate: 0 0; }
+  60% { opacity: 1; translate: 0 1.6rem; }
+  100% { opacity: 0; translate: 0 2.4rem; }
+}
+@keyframes seal-stamp {
+  from { scale: 2.2; opacity: 0; rotate: -24deg; }
+}
+@keyframes plate-in {
+  from { opacity: 0; translate: -0.6rem 0; }
+}
+@keyframes cast-out {
+  to { opacity: 0; }
+}
+@keyframes on-air-pulse {
+  50% { box-shadow: 0 0 0 7px transparent; }
+}
+@keyframes on-air-in {
+  from { opacity: 0; translate: 0 -0.5rem; }
+}
+@keyframes rec-blink {
+  50% { opacity: 0; }
+}
+@keyframes caption-in {
+  from { opacity: 0; translate: 0 0.4rem; }
+}

@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Icon from "@/app/Icon";
 import Petals from "@/app/motion/Petals";
+import { cue } from "@/app/motion/cues";
 
 /**
  * The show's one signature motion (the design system, 2026-11-11): a sealed envelope that unseals to lift a result
@@ -61,6 +62,7 @@ export default function Reveal({
     }
     setState("opening");
     setPetals(true);
+    cue("tear");
     const t = setTimeout(() => setState("open"), 2700);
     return () => clearTimeout(t);
   }, [sealed, key]);

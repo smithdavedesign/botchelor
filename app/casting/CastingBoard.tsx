@@ -4,6 +4,7 @@ import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
+import VoteCast from "@/app/motion/VoteCast";
 import type { CastingBoard as Board } from "@/lib/auditions";
 import { showCrowd } from "@/lib/crowd-threshold";
 
@@ -63,6 +64,7 @@ export default function CastingBoard({ board, viewer, insider = false }: { board
           );
         })}
       </ul>
+      <VoteCast pick={board.my_vote} />
     </section>
   );
 }

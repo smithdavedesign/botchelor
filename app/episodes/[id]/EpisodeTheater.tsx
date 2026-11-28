@@ -20,6 +20,7 @@ import ShareEnding from "./ShareEnding";
 import ShareNext from "./ShareNext";
 import VerdictCard from "./VerdictCard";
 import { latestFace } from "@/lib/show-shots-shared";
+import { bigLine, speakerOf } from "@/lib/theater-beats";
 import type { ColdOpen } from "@/lib/cold-open";
 import ColdOpenCard, { cutButtonLabel, type CutLink } from "./ColdOpenCard";
 import CutPlayer, { type CutPlace } from "./CutPlayer";
@@ -227,6 +228,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
             moodB={latestFace(characters[1].shots, shown, "b")}
             actLabel={actLabel}
             placeholder="The date begins…"
+            staged={{ speaking: speakerOf(shown), act: shown.length ? shown[shown.length - 1].act : 0, push: bigLine(shown) }}
           />
         </div>
         <div className="theater-convo">

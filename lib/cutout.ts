@@ -115,3 +115,13 @@ export async function cutoutsReady(env: Record<string, string | undefined> = pro
   });
   return asking;
 }
+
+/**
+ * The figure a character stands as on the date theater's stage (2026-11-28, Dave: "both characters on both sides"):
+ * the house stage picture when there is one, else the zone's cutout of their portrait when the zone makes them, else
+ * null (the stage stands their portrait itself, softened at its edges, app/stage/CharacterFigure.tsx).
+ */
+export async function stageFigure(db: Db, portrait: string | null | undefined): Promise<string | null> {
+  if (!portrait) return null;
+  return (await stageCutout(db, portrait)) ?? ((await cutoutsReady()) ? cutoutUrl(portrait) : null);
+}

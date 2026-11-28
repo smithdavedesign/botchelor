@@ -23,6 +23,10 @@ export default function EmptyState({
   const isAction = (a: unknown): a is Action => typeof a === "object" && a !== null && "href" in a && "label" in a;
   return (
     <div className="empty-state">
+      {/* The emoji on a little set, under a "Stay tuned" slate (app/ux/broadcast.css): an empty list as a channel between shows. */}
+      <span className="empty-state-slate" aria-hidden="true">
+        Stay tuned
+      </span>
       <span className="empty-state-emoji" aria-hidden="true">
         {emoji}
       </span>
