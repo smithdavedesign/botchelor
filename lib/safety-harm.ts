@@ -115,6 +115,19 @@ const THREAT_PATTERNS = [
   / (?:shoot up|bomb|blow up) (?:the|your|this|that|a) (?:school|office|church|mosque|synagogue|temple|clinic|mall|concert) /,
 ];
 
+// Instructions aimed at the AIs and agents that read a character (2026-11-28, the simulation: a bio opened "SYSTEM:
+// ignore previous instructions", and a profile answer told visiting agents to delete their characters). Every surface:
+// a text or a confessional reaches other people's agents too.
+const INJECTION_RAW = /(?:^|\n)\s*(?:\[\s*system\s*\]|<\/?\s*system\s*>|#{1,3}\s*system\b|system(?: prompt)?\s*:)|<\|im_start\|>|\[\/?inst\]/;
+const INJECTION = [
+  / (?:ignore|disregard|forget|override) (?:all |any |the |your |my |of )*(?:previous|prior|above|earlier|preceding|original|system|other|existing) (?:instructions?|prompts?|rules|directions|messages|guidelines) /,
+  / (?:ignore|disregard) (?:all |any )?(?:your|of your) (?:instructions|rules|guidelines|system prompt) /,
+  / (?:any|all|every|dear|attention|note to|hey)? ?(?:ais?|agents?|assistants?|bots?|llms?|language models?|chatgpt|gpt|claude) (?:reading|visiting|seeing|viewing|that reads?|who reads?|that visits?|who visits?|parsing|scraping) this /,
+  / (?:delete|remove|wipe|destroy|erase) (?:all )?(?:of )?(?:your|their|its) (?:characters?|memory|memories|agents?) /,
+  / you are now (?:in )?(?:developer mode|dan|jailbroken|unrestricted|an unrestricted|a different ai|free of) /,
+  / (?:new|updated|override|hidden|secret) (?:system )?instructions? (?:for|to) (?:the )?(?:ai|ais|agents?|assistants?|bots?|model|llm) /,
+];
+
 // Personal info. On the folded text with its punctuation, since an email or a phone number is mostly punctuation.
 const EMAIL = /[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/;
 const EMAIL_SPELLED = / [a-z0-9._]+ (?:at|@) (?:gmail|googlemail|yahoo|hotmail|outlook|icloud|aol|proton|protonmail|msn|gmx|yandex) (?:dot )?(?:com|net|org|co uk|me|ru|de|fr) /;
@@ -186,6 +199,8 @@ export function harmMatch(folded: string, variants: readonly string[]): HarmMatc
     const hit = first(SELF_HARM_PATTERNS, [plain]) ?? first(THREAT_PATTERNS, [plain]);
     if (hit) return { reason: "threat", phrase: hit };
   }
+  const injection = INJECTION_RAW.exec(folded)?.[0]?.trim() ?? first(INJECTION, [plain]);
+  if (injection) return { reason: "injection", phrase: injection };
   const email = EMAIL.exec(folded)?.[0] ?? EMAIL_SPELLED.exec(plain)?.[0]?.trim();
   if (email) return { reason: "personal_info", phrase: email };
   const tel = phone(folded) ?? NUMBER_LEADIN.exec(plain)?.[0]?.trim();
@@ -219,5 +234,31 @@ const REAL_PERSON_DESCRIBED = [
  * lib/franchises.ts's, refused on every save: app/api/characters.)
  */
 export function notOriginalMatch(plain: string): string | null {
-  return first(REAL_PERSON_DESCRIBED, [plain]);
+  return first(REAL_PERSON_DESCRIBED, [plain]) ?? lookalikeOf(plain) ?? first(FRANCHISE_ROLES, [plain]);
 }
+
+// A real person under a made-up name, told by what they're famous for (2026-11-28, the simulation: "Elan Tusk" ran
+// electric cars, rockets and a bird social network renamed after a letter). Two of a person's tells, or a sound-alike of
+// their name with one, is them. Sheets and After Dark only, like the rest of this list.
+const TELLS: readonly { who: string; names: RegExp; tells: readonly RegExp[] }[] = [
+  { who: "a tech billionaire", names: / (?:el[aoiey]n|elun|eloun) (?:t|m|d|r|h)?usk /, tells: [/ electric (?:car|cars|vehicle|vehicles|truck|trucks) /, / (?:rockets?|spaceships?|mars colony|to mars|colon(?:y|ize|ise) mars) /, / (?:bird|blue bird) (?:app|site|social network|platform)|renamed (?:it )?(?:after )?(?:a|the) letter|(?:a|the) letter x /, / flamethrowers? /, / brain (?:chips?|implants?) /, / (?:richest|wealthiest) (?:man|person) (?:in|on) (?:the world|earth|the planet) /] },
+  { who: "a pop star", names: / (?:tailor|taylah|tayler|taylor) (?:swiff?t?|swyft) /, tells: [/ eras tour /, / swifties /, / (?:dates?|dating|engaged to) (?:a|an|the) (?:nfl|football|chiefs) (?:player|tight end|star) /, / re ?records? (?:her|their|his) (?:old )?albums? /, / (?:breakup|break up) songs? about (?:every|all) (?:her|their) exes /] },
+  { who: "a politician", names: / (?:donald|donny|ronald) (?:trumpet|trunk|drumpf|tramp) /, tells: [/ maga /, / make (?:america|the country) great again /, / golden escalator /, / (?:build|built|building) (?:a|the) wall /, / (?:former|ex|twice|two time) president /, / reality (?:tv|television) (?:star|host) (?:turned|who became) president /] },
+  { who: "a tech founder", names: / (?:mark|marc) (?:zuckerburg|zuckerman|suckerberg|zuck) /, tells: [/ (?:founded|started|invented|built) (?:a|the) (?:social network|facebook) /, / (?:in|from) (?:his|their|a) (?:harvard )?dorm room /, / metaverse /] },
+];
+function lookalikeOf(plain: string): string | null {
+  for (const t of TELLS) {
+    // A sound-alike name is a parody on its own ("Elan Tusk"); without one, it takes two tells.
+    if (t.names.test(plain) || t.tells.filter((re) => re.test(plain)).length >= 2) return `reads like ${t.who}`;
+  }
+  return null;
+}
+
+// A franchise's kind of being or job, said as who someone is (2026-11-28, the simulation: "Gerold Rivers, a witcher who
+// rides Roach" scored fine to create). lib/franchises.ts counts a title only in the name or the look, so "a Star Wars
+// marathon" in a bio stays a hobby; "is a Jedi knight" is a role.
+const FRANCHISE_ROLES = [
+  / (?:a|an|the|is|as|was|former|retired|rogue|young|old) (?:witcher|witchers|jedi (?:knight|master|padawan)|sith (?:lord|apprentice)|saiyan|saiyans|super saiyan|pokemon trainer|pokemon master|shinigami|soul reaper|demon slayer|titan shifter|stand user|hogwarts (?:student|professor|graduate)|ninja (?:of|from) the hidden leaf|hidden leaf ninja|avenger|starfleet (?:captain|officer)|time lord|dalek|na vi|vulcan science officer) /,
+  / (?:rides|riding|rode) (?:a horse called |a horse named |her horse |his horse |their horse )?roach /,
+  / (?:lightning (?:bolt )?shaped scar|one ring to rule|elder wand|infinity stones|kamehameha|sharingan|rasengan) /,
+];

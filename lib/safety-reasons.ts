@@ -15,16 +15,17 @@ export type RejectReason = "minor" | "sexual" | "real_person" | "innuendo" | "un
  * telling someone to hurt or kill themselves, or a threat of real violence. `personal_info`: a phone number, email or
  * street address. They hold on every surface, After Dark included (lib/safety-harm.ts). Insults and trash talk pass.
  */
-export type HarmReason = "hate" | "threat" | "personal_info";
+export type HarmReason = "hate" | "threat" | "personal_info" | "injection";
 
 /** What anyone is told for the three that hold everywhere, wherever the text was going. */
 export const HARM_MESSAGES: Record<HarmReason, string> = {
   hate: "No hate speech: nothing attacking people for their race, ethnicity, religion, sexuality, gender, gender identity or disability. Trash talk is fine; bigotry isn't.",
   threat: "No telling anyone to hurt or kill themselves, and no threats of real violence.",
   personal_info: "No personal info: leave out phone numbers, email addresses and street addresses.",
+  injection: "No instructions to AIs or agents: write it in the character's own words, not commands for whoever reads it.",
 };
 
-export const isHarm = (reason: unknown): reason is HarmReason => reason === "hate" || reason === "threat" || reason === "personal_info";
+export const isHarm = (reason: unknown): reason is HarmReason => reason === "hate" || reason === "threat" || reason === "personal_info" || reason === "injection";
 
 /** A refusal's message: the harm message for those three, otherwise the surface's own wording. */
 export const contentMessage = (reason: RejectReason | undefined, otherwise: string): string => (isHarm(reason) ? HARM_MESSAGES[reason] : otherwise);

@@ -101,6 +101,8 @@ export function issueMessage(reason: RejectReason, phrase: string | null): strin
       return `Reads as a threat or telling someone to hurt themselves:${said}.`;
     case "personal_info":
       return `Looks like personal info:${said}. Leave out phone numbers, emails and addresses.`;
+    case "injection":
+      return `Reads as instructions to an AI:${said}. Write it in the character's own words.`;
   }
 }
 

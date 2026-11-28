@@ -51,7 +51,7 @@ import { isStepIn, loadOwnDate, nextTurnMeta, ownDateInProgress, ownDateShape, r
 import { transcriptQuality } from "./quality";
 import { refreshEpisodePair } from "./relationships";
 import { CONVERSATION_TURNS, DATE_ACTS, DEFAULT_AUTONOMY, DEFAULT_GAME_BUDGET, DEFAULT_STRATEGY, ENDING_DETAIL_LABELS, endingDetailOf, endingLabel, TURN_DIALOGUE_MAX } from "./rules";
-import { checkSheetText, checkStepInText, type RejectReason } from "./safety";
+import { checkSheetText, checkStepInText, saysUnder18, type RejectReason } from "./safety";
 import { logSceneRequests, trackMoves } from "./scenes";
 import { seasonCastIds } from "./season-cast";
 import { weekAt } from "./seasons";
@@ -233,6 +233,7 @@ export const PG_REDIRECT: Record<RejectReason, string> = {
   hate: "No hate on the show: trash talk is fine, attacking who people are isn't. Try another line.",
   threat: "No threats or telling anyone to hurt themselves. Try another line.",
   personal_info: "Keep personal info off the show: no phone numbers, emails or addresses. Try another line.",
+  injection: "Say it as yourself, not as instructions for an AI. Try another line.",
 };
 
 /* ------------------------------------------------ the persona ------------------------------------------------ */
@@ -823,6 +824,10 @@ async function advance(db: Db, userId: string, episodeId: string, counted: boole
 
 /* ------------------------------------------------ their line ------------------------------------------------ */
 
+/** What someone who says they're under 18 is told as their Step in date ends. */
+export const STEP_IN_UNDER_18 =
+  "Botchelor is for adults (18+), so this date has ended and nothing you said was kept. If you need someone to talk to, the help lines on /safety are free and open to anyone.";
+
 export type StepInSay = { dialogue: string; action?: string; see_again?: boolean };
 
 /**
@@ -872,6 +877,11 @@ async function sayLine(db: Db, userId: string, episodeId: string, input: StepInS
   const crisis = await lineInCrisis(dialogue);
   await addCost(db, episodeId, crisis.usage).catch(() => {});
   if (crisis.crisis) return pause();
+  // Someone who says they're under 18 (2026-11-28): the date ends there, nothing airs and nothing they said is kept.
+  if (saysUnder18(dialogue)) {
+    await leaveStepIn(db, userId, episodeId);
+    return fail(403, "adults_only", STEP_IN_UNDER_18);
+  }
   const action = input.action?.trim().slice(0, 40) ?? "";
   const verdict = checkStepInText({ dialogue, action });
   if (!verdict.ok) return { ok: true, view: await view(), refused: PG_REDIRECT[verdict.reason] };
