@@ -143,6 +143,7 @@ is a product decision, not a refactor.
 | A private soul never reaches a spectator, and its owner can delete it | `lib/souls.ts`, owner-gated route |
 | A local-only soul never reaches any model, even a paid one | `simulation.buildDate` |
 | Adults only, fictional only: no minors, no sexual content, no real people, on the show's sheets, souls, names, notes, chat and model output (After Dark's adult pictures and clips have their own check, fail closed) | `lib/safety.ts`, `lib/adult/check.ts` |
+| Everywhere, After Dark included: no hate or -isms, no telling anyone to hurt themselves, no threats of real violence, no phone numbers, emails or street addresses; insults and trash talk pass (2026-11-28). A dealbreaker can't be just a group of people, and the dealbreaker quiz draws decoys only from house and public characters that pass | `lib/safety-harm.ts`, `lib/mechanics.ts` |
 | Every episode is labeled AI-generated and carries a report button and crisis links | `toEpisodeJson`, `app/Notices.tsx` |
 | A creator's identity appears only when every creator of that episode consents | `game.toEpisodeJson`, `/api/reveal` |
 | Blocks are per episode, so nothing links a creator's other characters | `lib/db.ts` blocks, `/api/blocks` |

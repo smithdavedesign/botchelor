@@ -95,6 +95,12 @@ export function issueMessage(reason: RejectReason, phrase: string | null): strin
       return "After Dark is English-only for now.";
     case "unread":
       return "We couldn't check this language just now. Try again in a minute.";
+    case "hate":
+      return `Reads as hate speech:${said}. Trash talk is fine; attacking people for who they are isn't.`;
+    case "threat":
+      return `Reads as a threat or telling someone to hurt themselves:${said}.`;
+    case "personal_info":
+      return `Looks like personal info:${said}. Leave out phone numbers, emails and addresses.`;
   }
 }
 
@@ -102,7 +108,7 @@ export function issueMessage(reason: RejectReason, phrase: string | null): strin
 export function sheetIssues(d: SheetDraft): FormIssue[] {
   const out: FormIssue[] = [];
   for (const p of placedTexts(d)) {
-    const hit = sheetPgMatch(p.text);
+    const hit = sheetPgMatch(p.text, p.field);
     if (hit) out.push({ key: p.key, field: p.field, step: p.step, label: p.label, reason: hit.reason, phrase: hit.phrase, message: issueMessage(hit.reason, hit.phrase) });
   }
   return out;

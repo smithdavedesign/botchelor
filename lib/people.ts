@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Db } from "./db";
 import { ApiError } from "./http";
-import { checkFields, type RejectReason } from "./safety";
+import { HARM_MESSAGES, checkFields, type RejectReason } from "./safety";
 
 export const PROFILE_NAME_MAX = 30;
 
@@ -13,6 +13,7 @@ export const REJECTION_MESSAGES: Record<RejectReason, string> = {
   innuendo: "Keep it free of innuendo.",
   unread: "We couldn't check that language just now. Try again in a minute.",
   language: "That has to be in English for now.",
+  ...HARM_MESSAGES,
 };
 
 export const nameText = (max: number) =>

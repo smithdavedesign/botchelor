@@ -2,7 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, readJson, session } from "@/lib/http";
 import { WATCH_MESSAGE_MAX } from "@/lib/rules";
-import { checkFields } from "@/lib/safety";
+import { checkFields, contentMessage } from "@/lib/safety";
 import { postMessage } from "@/lib/watch";
 
 const Input = z.object({ body: z.string().trim().min(1).max(WATCH_MESSAGE_MAX) });
@@ -19,7 +19,7 @@ export const POST = handle(async (req: Request, ctx: { params: Promise<{ id: str
   const verdict = checkFields({ message: input.body });
   if (!verdict.ok) {
     return json(
-      { error: "content_rejected", reason: verdict.reason, field: "message", message: "Keep chat clean: no real people, minors or sexual content." },
+      { error: "content_rejected", reason: verdict.reason, field: "message", message: contentMessage(verdict.reason, "Keep chat clean: no real people, minors or sexual content.") },
       422,
       sess,
     );
