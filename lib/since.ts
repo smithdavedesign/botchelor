@@ -10,6 +10,7 @@
  */
 import type { Db } from "./db";
 import type { CharacterRef } from "./game";
+import { english, type T } from "./i18n/translate";
 import { newsByCharacter } from "./inbox";
 import { endingLabel, type Ending } from "./rules";
 
@@ -95,9 +96,8 @@ async function companionNews(db: Db, userId: string, ids: readonly string[], now
 }
 
 const firstNameOf = (name: string) => name.trim().split(/\s+/)[0] || name;
-const plural = (n: number, one: string) => `${n} new ${one}${n === 1 ? "" : one.endsWith("h") ? "es" : "s"}`;
 
-export async function sinceYouWereHere(db: Db, userId: string, mine: readonly CharacterRef[], now = new Date()): Promise<SinceRow[]> {
+export async function sinceYouWereHere(db: Db, userId: string, mine: readonly CharacterRef[], now = new Date(), t: T = english): Promise<SinceRow[]> {
   if (!mine.length) return [];
   const ids = mine.map((c) => c.id);
   const [news, latest, own] = await Promise.all([newsByCharacter(db, userId, ids), latestDates(db, ids), companionNews(db, userId, ids, now).catch(() => ({ texted: new Map<string, CompanionNews>(), waiting: new Map<string, CompanionNews>() }))]);
@@ -108,24 +108,24 @@ export async function sinceYouWereHere(db: Db, userId: string, mine: readonly Ch
     const first = firstNameOf(character.name);
     // The character's own text to them comes first: it is the one thing on the site that is theirs alone.
     const texted = own.texted.get(character.id);
-    if (texted) return { character, news: `${first} texted you`, action: "Read", href: `/companion/${encodeURIComponent(texted.thread_id)}`, at: new Date(texted.at).toISOString() };
-    if (n?.texts) return { character, news: plural(n.texts, "text"), action: "Read", href: matches, at: n.latest };
-    if (n?.matches) return { character, news: plural(n.matches, "match"), action: "See who", href: matches, at: n.latest };
+    if (texted) return { character, news: t("{name} texted you", { name: first }), action: t("Read"), href: `/companion/${encodeURIComponent(texted.thread_id)}`, at: new Date(texted.at).toISOString() };
+    if (n?.texts) return { character, news: n.texts === 1 ? t("1 new text") : t("{n} new texts", { n: n.texts }), action: t("Read"), href: matches, at: n.latest };
+    if (n?.matches) return { character, news: n.matches === 1 ? t("1 new match") : t("{n} new matches", { n: n.matches }), action: t("See who"), href: matches, at: n.latest };
     const waiting = own.waiting.get(character.id);
     if (waiting) {
       // What the house said about them is news of its own, not a question about a date.
-      const news = /^house_/.test(waiting.action ?? "") ? `${first} told you what the house is saying` : `${first} is waiting on your advice`;
-      return { character, news, action: "Reply", href: `/companion/${encodeURIComponent(waiting.thread_id)}`, at: new Date(waiting.at).toISOString() };
+      const news = /^house_/.test(waiting.action ?? "") ? t("{name} told you what the house is saying", { name: first }) : t("{name} is waiting on your advice", { name: first });
+      return { character, news, action: t("Reply"), href: `/companion/${encodeURIComponent(waiting.thread_id)}`, at: new Date(waiting.at).toISOString() };
     }
     const d = latest.get(character.id);
-    if (!d) return { character, news: "No dates yet", action: "Send on a date", href: another, at: null };
+    if (!d) return { character, news: t("No dates yet"), action: t("Send on a date"), href: another, at: null };
     const at = new Date(d.created_at).toISOString();
     const episode = `/episodes/${encodeURIComponent(d.episode_id)}`;
     // A date the house booked while they were away (lib/character-life.ts), aired: the one thing that happened without them.
-    if (d.life && d.aired && d.ending) return { character, news: `${first} went on a date with ${d.partner} while you were away`, action: "See how it went", href: episode, at };
-    if (d.status === "generating") return { character, news: `On a date with ${d.partner} right now`, action: "Watch", href: `${episode}?play=1`, at };
-    if (!d.aired || !d.ending) return { character, news: `Their date with ${d.partner} is ready`, action: "Watch it", href: episode, at };
-    return { character, news: `Last date, with ${d.partner}: ${endingLabel(d.ending, d.date_number)}`, action: "Another date", href: another, at };
+    if (d.life && d.aired && d.ending) return { character, news: t("{name} went on a date with {partner} while you were away", { name: first, partner: d.partner }), action: t("See how it went"), href: episode, at };
+    if (d.status === "generating") return { character, news: t("On a date with {partner} right now", { partner: d.partner }), action: t("Watch"), href: `${episode}?play=1`, at };
+    if (!d.aired || !d.ending) return { character, news: t("Their date with {partner} is ready", { partner: d.partner }), action: t("Watch it"), href: episode, at };
+    return { character, news: t("Last date, with {partner}: {ending}", { partner: d.partner, ending: t(endingLabel(d.ending, d.date_number)) }), action: t("Another date"), href: another, at };
   });
   // Newest news first; characters with nothing yet keep their order, last.
   return rows.map((r, i) => ({ r, i })).sort((x, y) => (y.r.at ?? "").localeCompare(x.r.at ?? "") || x.i - y.i).map(({ r }) => r);

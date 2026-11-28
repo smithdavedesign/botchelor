@@ -11,6 +11,7 @@
  *    already show); everyone else is on it as "A viewer", so a person's name never appears on it by surprise. (#1237: on
  *    2026-11-01 none of the week's 8 right callers had a name, so a names-only board never showed.)
  */
+import { english, type T } from "./i18n/translate";
 import type { Db } from "./db";
 import { SHARE_SQUARES } from "./share-record";
 
@@ -117,10 +118,10 @@ export async function callersBoard(db: Db, viewerId: string | null, now: Date = 
 }
 
 /** The record in a few words: "7 of 10 right · 3 in a row". */
-export function recordLine(r: CallRecord): string {
-  const parts = [`${r.right} of ${r.called} right`];
-  if (r.streak >= 2) parts.push(`${r.streak} in a row`);
-  if (r.best >= 2 && r.best > r.streak) parts.push(`best run ${r.best}`);
+export function recordLine(r: CallRecord, t: T = english): string {
+  const parts = [t("{right} of {called} right", { right: r.right, called: r.called })];
+  if (r.streak >= 2) parts.push(t("{n} in a row", { n: r.streak }));
+  if (r.best >= 2 && r.best > r.streak) parts.push(t("best run {n}", { n: r.best }));
   return parts.join(" · ");
 }
 

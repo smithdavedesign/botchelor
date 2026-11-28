@@ -1,3 +1,4 @@
+import { english, type T } from "@/lib/i18n/translate";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
@@ -20,10 +21,11 @@ export type ShelfItem = { kind: "episode"; episode: ShelfEpisode } | Extract<Fee
  * on an aired date lands in the theater, playing (`?play=1`, 2026-11-07 audit item 4). Also an episode's "Up next"
  * (app/episodes/[id]/UpNext.tsx), from a slim read of the few fields a card shows (lib/up-next.ts), not prefetched.
  */
-export default function EpisodeShelf({ items, label = "Latest episodes", prefetch }: { items: ShelfItem[]; label?: string; prefetch?: false }) {
+/** `t`: the page's translator (docs/i18n.md); English when none is passed. */
+export default function EpisodeShelf({ items, label, prefetch, t = english }: { items: ShelfItem[]; label?: string; prefetch?: false; t?: T }) {
   if (!items.length) return null;
   return (
-    <ul className="episode-shelf" aria-label={label}>
+    <ul className="episode-shelf" aria-label={label ?? t("Latest episodes")}>
       {items.map((item) => {
         if (item.kind === "mixer") {
           const faces = nightFaces(item.episodes);
@@ -36,13 +38,13 @@ export default function EpisodeShelf({ items, label = "Latest episodes", prefetc
                 ))}
               </span>
               <Link className="stretch episode-shelf-names" href={`/mixers/${item.night_id}`} prefetch={prefetch}>
-                Speed-dating mixer
+                {t("Speed-dating mixer")}
               </Link>
               <span className="episode-shelf-title">
-                {`${item.episodes.length} ${item.episodes.length === 1 ? "date" : "dates"}${item.venue ? ` at ${venuePhrase(item.venue)}` : ""}`}
+                {`${item.episodes.length === 1 ? t("1 date") : t("{n} dates", { n: item.episodes.length })}${item.venue ? ` ${t("at {place}", { place: venuePhrase(item.venue) })}` : ""}`}
               </span>
               <span className="episode-shelf-chip">
-                <Icon name="glass" /> Mixer
+                <Icon name="glass" /> {t("Mixer")}
               </span>
             </li>
           );

@@ -1,3 +1,4 @@
+import { english, type T } from "@/lib/i18n/translate";
 import DareVote from "./DareVote";
 import SituationVote from "./SituationVote";
 import type { DareBoard } from "@/lib/dares";
@@ -16,11 +17,14 @@ export default function TonightVotes({
   dares,
   now,
   insider = false,
+  t = english,
 }: {
   situation: SituationBoard | null;
   dares: DareBoard | null;
   now: number;
   insider?: boolean;
+  /** The page's translator (docs/i18n.md); English when none is passed. */
+  t?: T;
 }) {
   if (!situation && !dares) return null;
   if (!situation) return <DareVote board={dares!} insider={insider} />;
@@ -28,8 +32,8 @@ export default function TonightVotes({
   return (
     <section id="tonight-votes" className="card situation tonight-votes" aria-labelledby="tonight-votes-head">
       <div className="tonight-votes-head">
-        <p className="kicker">Tonight · you pick</p>
-        <h2 id="tonight-votes-head">Tonight&apos;s two votes</h2>
+        <p className="kicker">{t("Tonight · you pick")}</p>
+        <h2 id="tonight-votes-head">{t("Tonight's two votes")}</h2>
       </div>
       <div className="tonight-votes-parts scroll-row">
         <SituationVote board={situation} now={now} insider={insider} part />

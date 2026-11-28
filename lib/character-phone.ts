@@ -10,6 +10,7 @@
  * "Since you were here", so the page waits on no extra round trip). No model, no writes.
  * HOME_PHONE=0 turns the block off.
  */
+import { english, msg, type T } from "./i18n/translate";
 import { CASTING_MET_VIA, nextRosesAt, openCasting } from "./casting";
 import { isStoredQuestion, type StoredQuestion } from "./character-question-fields";
 import type { StoredOffers } from "./companion-offers";
@@ -162,6 +163,7 @@ export async function characterPhone(
   now = new Date(),
   env: Record<string, string | undefined> = process.env,
   picked: string | null = null,
+  t: T = english,
 ): Promise<CharacterPhoneView | null> {
   if (!mine.length || !homePhoneOn(env) || !companionOpen(env)) return null;
   const ids = mine.map((c) => c.id);
@@ -170,31 +172,41 @@ export async function characterPhone(
   const threadOf = new Map<string, ThreadRow>(rows.filter((r) => r.thread_id).map((r) => [r.character_id, r as ThreadRow]));
 
   const activity = (id: string): string => {
-    const t = threadOf.get(id);
-    const texted = t?.texts?.length ? iso(t.texts[t.texts.length - 1].created_at) : null;
+    const th = threadOf.get(id);
+    const texted = th?.texts?.length ? iso(th.texts[th.texts.length - 1].created_at) : null;
     return [texted, iso(dateOf.get(id)?.created_at)].filter(Boolean).sort().pop() ?? "";
   };
   const ranked = mine
     .map((character, i) => ({ character, i, unread: threadOf.get(character.id)?.unread === true, at: activity(character.id) }))
     .sort((x, y) => Number(y.character.id === picked) - Number(x.character.id === picked) || Number(y.unread) - Number(x.unread) || y.at.localeCompare(x.at) || x.i - y.i);
   const lead = ranked[0].character;
-  const view = phoneOf(lead, threadOf.get(lead.id) ?? null, dateOf.get(lead.id) ?? null, now, env);
+  const view = phoneOf(lead, threadOf.get(lead.id) ?? null, dateOf.get(lead.id) ?? null, now, env, t);
   return {
     ...view,
     others: ranked.slice(1, 1 + PHONE_OTHERS).map(({ character, unread }) => {
-      const t = threadOf.get(character.id);
-      return { character, href: t ? companionThreadHref(t.thread_id) : `/characters/${encodeURIComponent(character.id)}`, unread };
+      const th = threadOf.get(character.id);
+      return { character, href: th ? companionThreadHref(th.thread_id) : `/characters/${encodeURIComponent(character.id)}`, unread };
     }),
   };
 }
 
+/** The days of the week, Sunday first (Date.getUTCDay), in the page's language where they're shown. */
+const WEEKDAYS = [msg("Sunday"), msg("Monday"), msg("Tuesday"), msg("Wednesday"), msg("Thursday"), msg("Friday"), msg("Saturday")];
+
 /** One character's phone from its thread and its newest date (pure). */
-export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow | null, now: Date, env: Record<string, string | undefined> = process.env): Omit<CharacterPhoneView, "others"> {
+export function phoneOf(
+  character: CharacterRef,
+  th: ThreadRow | null,
+  d: DateRow | null,
+  now: Date,
+  env: Record<string, string | undefined> = process.env,
+  t: T = english,
+): Omit<CharacterPhoneView, "others"> {
   const first = firstNameOf(character.name);
-  const threadHref = t ? companionThreadHref(t.thread_id) : null;
-  const optedIn = t ? !t.muted_proactive : false;
-  const all = t?.texts ?? [];
-  const texts: PhoneText[] = all.slice(-PHONE_TEXTS).map((m) => ({ id: m.id, text: m.via === "photo" ? "A photo from the date" : m.text, at: iso(m.created_at)!, photo: m.via === "photo" }));
+  const threadHref = th ? companionThreadHref(th.thread_id) : null;
+  const optedIn = th ? !th.muted_proactive : false;
+  const all = th?.texts ?? [];
+  const texts: PhoneText[] = all.slice(-PHONE_TEXTS).map((m) => ({ id: m.id, text: m.via === "photo" ? t("A photo from the date") : m.text, at: iso(m.created_at)!, photo: m.via === "photo" }));
   const date = d?.episode_id ? d : null;
   const partner = date?.partner ? firstNameOf(date.partner) : null;
   const episode = date ? `/episodes/${encodeURIComponent(date.episode_id!)}` : null;
@@ -210,9 +222,9 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
     const asked = [...all].reverse().map((m) => m.offers).find(isStoredQuestion);
     const lastText = [...all].reverse().find((m) => m.via !== "photo");
     if (menu && (!date || date.episode_id === menu.episode_id)) {
-      for (const k of menu.kinds) if ((COMPANION_OFFER_KINDS as readonly string[]).includes(k)) chips.push({ label: offerLabel(k, { partner: menu.partner, character: character.name }), href: threadHref });
-    } else if ((asked && !asked.taken) || (lastText && /\?\s*$/.test(lastText.text) && (!t?.answered_at || new Date(t.answered_at) < new Date(lastText.created_at)))) {
-      chips.push({ label: `Answer ${first}`, href: threadHref });
+      for (const k of menu.kinds) if ((COMPANION_OFFER_KINDS as readonly string[]).includes(k)) chips.push({ label: offerLabel(k, { partner: menu.partner, character: character.name }, t), href: threadHref });
+    } else if ((asked && !asked.taken) || (lastText && /\?\s*$/.test(lastText.text) && (!th?.answered_at || new Date(th.answered_at) < new Date(lastText.created_at)))) {
+      chips.push({ label: t("Answer {name}", { name: first }), href: threadHref });
     }
   }
 
@@ -221,14 +233,14 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
   // one big button while "The date with Sable is ready to watch" sat in small print under it): watching it is the main
   // button, and hearing from them, or their texts, the second. It is no longer a line here as well.
   const unwatched = Boolean(date && date.status === "ready" && !date.aired);
-  if (date && filming && !stands) next.push({ key: "on_date", text: `On a date with ${partner} right now`, href: `${episode}?play=1`, at: null });
-  if (d?.scheduled_at) next.push({ key: "scheduled", text: "A date is booked for", href: `/characters/${encodeURIComponent(character.id)}`, at: iso(d.scheduled_at) });
-  if (!date) next.push({ key: "first_date", text: "A first date is a speed date: about a minute, and free", href: `/create?character=${encodeURIComponent(character.id)}`, at: null });
+  if (date && filming && !stands) next.push({ key: "on_date", text: t("On a date with {partner} right now", { partner: partner ?? "" }), href: `${episode}?play=1`, at: null });
+  if (d?.scheduled_at) next.push({ key: "scheduled", text: t("A date is booked for"), href: `/characters/${encodeURIComponent(character.id)}`, at: iso(d.scheduled_at) });
+  if (!date) next.push({ key: "first_date", text: t("A first date is a speed date: about a minute, and free"), href: `/create?character=${encodeURIComponent(character.id)}`, at: null });
   // Open casting (lib/casting.ts): a walk-on's finished date with the season's lead is judged at the next Sunday pass.
   if (date && date.status === "ready" && date.awaiting_rose && openCasting(env)) {
     const at = nextRosesAt(now, env);
     const today = at.getTime() - now.getTime() < DAY_MS && at.getUTCDay() === now.getUTCDay();
-    next.push({ key: "roses", text: `${today ? "Today's" : "Sunday's"} roses: ${partner} decides whether ${first} gets one`, href: episode, at: null });
+    next.push({ key: "roses", text: today ? t("Today's roses: {partner} decides whether {name} gets one", { partner: partner ?? "", name: first }) : t("Sunday's roses: {partner} decides whether {name} gets one", { partner: partner ?? "", name: first }), href: episode, at: null });
   }
   // The house's weekly date (lib/character-life.ts candidates): a character with a date behind it and a portrait, public
   // or at least open to dates. Said only when it can happen, and never with a day it may not keep.
@@ -236,41 +248,41 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
     const due = d.last_life_at ? new Date(new Date(d.last_life_at).getTime() + PHONE_WEEKLY_GAP_DAYS * DAY_MS) : null;
     const text =
       due && due > now
-        ? `The house takes ${first} out again from ${due.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" })}`
-        : `The house takes ${first} out on a date this week`;
+        ? t("The house takes {name} out again from {day}", { name: first, day: t(WEEKDAYS[due.getUTCDay()]) })
+        : t("The house takes {name} out on a date this week", { name: first });
     next.push({ key: "weekly", text, href: null, at: null });
   }
   // Sunday's recap (lib/character-life.ts sendCharacterWeeks) goes to characters something happened to this week.
   const weekAgo = now.getTime() - PHONE_WEEK_DAYS * DAY_MS;
   const busy = (date?.created_at && new Date(date.created_at).getTime() > weekAgo) || all.some((m) => new Date(m.created_at).getTime() > weekAgo);
-  if (busy) next.push({ key: "recap", text: now.getUTCDay() === 0 ? `${first}'s week on the show comes today` : `Sunday: ${first}'s week on the show`, href: now.getUTCDay() === 0 ? "/notifications" : null, at: null });
+  if (busy) next.push({ key: "recap", text: now.getUTCDay() === 0 ? t("{name}'s week on the show comes today", { name: first }) : t("Sunday: {name}'s week on the show", { name: first }), href: now.getUTCDay() === 0 ? "/notifications" : null, at: null });
 
-  const thread: PhoneAction | null = threadHref ? { kind: "open", label: `Open ${first}'s texts`, href: threadHref } : null;
-  const hear: PhoneAction | null = date && stands && !(threadHref && optedIn) ? { kind: "hear", label: `Hear from ${first}`, episodeId: date.episode_id! } : null;
-  const watch: PhoneAction | null = unwatched ? { kind: "watch", label: partner ? `Watch ${first} × ${partner}` : `Watch ${first}'s date`, href: `${episode}?play=1` } : null;
+  const thread: PhoneAction | null = threadHref ? { kind: "open", label: t("Open {name}'s texts", { name: first }), href: threadHref } : null;
+  const hear: PhoneAction | null = date && stands && !(threadHref && optedIn) ? { kind: "hear", label: t("Hear from {name}", { name: first }), episodeId: date.episode_id! } : null;
+  const watch: PhoneAction | null = unwatched ? { kind: "watch", label: partner ? t("Watch {name} × {partner}", { name: first, partner }) : t("Watch {name}'s date", { name: first }), href: `${episode}?play=1` } : null;
   const action: PhoneAction =
     watch ??
     (threadHref && optedIn
       ? thread!
       : (hear ??
         (date
-          ? { kind: "link", label: `Watch ${first}'s date`, href: `${episode}?play=1` }
-          : { kind: "link", label: `Send ${first} on a first date`, href: `/create?character=${encodeURIComponent(character.id)}` })));
+          ? { kind: "link", label: t("Watch {name}'s date", { name: first }), href: `${episode}?play=1` }
+          : { kind: "link", label: t("Send {name} on a first date", { name: first }), href: `/create?character=${encodeURIComponent(character.id)}` })));
   const secondary: PhoneAction | null = watch ? (hear ?? thread) : action.kind !== "open" ? thread : null;
 
   const empty = texts.length
     ? null
     : watch
       ? hear
-        ? `${first}'s date with ${partner} is ready. Watch it, or hear ${first}'s side first.`
-        : `${first}'s date with ${partner} is ready to watch.`
+        ? t("{name}'s date with {partner} is ready. Watch it, or hear {name}'s side first.", { name: first, partner: partner ?? "" })
+        : t("{name}'s date with {partner} is ready to watch.", { name: first, partner: partner ?? "" })
       : action.kind === "hear"
-        ? `${first} hasn't texted you yet. Tap "Hear from ${first}" and they'll tell you how the date with ${partner} went.`
+        ? t("{name} hasn't texted you yet. Tap \"Hear from {name}\" and they'll tell you how the date with {partner} went.", { name: first, partner: partner ?? "" })
         : action.kind === "open"
-          ? `Nothing new from ${first}.`
+          ? t("Nothing new from {name}.", { name: first })
           : date
-            ? `${first} is on a date with ${partner}. They can text you once it's over.`
-            : `${first} hasn't been on a date yet. Send them on one and they'll text you how it went.`;
+            ? t("{name} is on a date with {partner}. They can text you once it's over.", { name: first, partner: partner ?? "" })
+            : t("{name} hasn't been on a date yet. Send them on one and they'll text you how it went.", { name: first });
 
   return {
     character,
@@ -278,7 +290,7 @@ export function phoneOf(character: CharacterRef, t: ThreadRow | null, d: DateRow
     threadHref,
     optedIn,
     texts,
-    unread: t?.unread === true,
+    unread: th?.unread === true,
     empty,
     chips,
     next: next.slice(0, PHONE_NEXT),

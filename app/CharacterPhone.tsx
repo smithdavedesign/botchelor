@@ -3,6 +3,7 @@ import Avatar from "@/app/Avatar";
 import When from "@/app/When";
 import type { CharacterPhoneView } from "@/lib/character-phone";
 import CharacterPhoneHear from "./CharacterPhoneHear";
+import { english, type T } from "@/lib/i18n/translate";
 
 /**
  * The top of the home page for someone with a character (lib/character-phone.ts): their character's phone. Its last
@@ -12,14 +13,15 @@ import CharacterPhoneHear from "./CharacterPhoneHear";
  * A server component: the only script is the "Hear from" button (./CharacterPhoneHear.tsx). Nothing here books or
  * sends anything but that button, and that button is the one the verdict card already has.
  */
-export default function CharacterPhone({ phone }: { phone: CharacterPhoneView }) {
+/** `t`: the page's translator (docs/i18n.md); English when none is passed. */
+export default function CharacterPhone({ phone, t = english }: { phone: CharacterPhoneView; t?: T }) {
   const { character: c, first } = phone;
   const texts = (
     <ol className="char-phone-texts">
-      {phone.texts.map((t) => (
-        <li key={t.id} className={`chat-bubble${t.photo ? " char-phone-photo" : ""}`}>
-          {t.photo && <span aria-hidden="true">📷 </span>}
-          {t.text}
+      {phone.texts.map((m) => (
+        <li key={m.id} className={`chat-bubble${m.photo ? " char-phone-photo" : ""}`}>
+          {m.photo && <span aria-hidden="true">📷 </span>}
+          {m.text}
         </li>
       ))}
     </ol>
@@ -29,13 +31,13 @@ export default function CharacterPhone({ phone }: { phone: CharacterPhoneView })
       <header className="char-phone-head">
         <Avatar seed={c.id} name={c.name} hue={c.hue} portraitSrc={c.portrait} size={56} round eager />
         <div className="char-phone-who">
-          <p className="kicker">Your character</p>
+          <p className="kicker">{t("Your character")}</p>
           <h2 id="char-phone-title">{c.name}</h2>
         </div>
         {phone.unread && (
           <span className="char-phone-new">
             <span className="char-phone-dot" aria-hidden="true" />
-            New text
+            {t("New text")}
           </span>
         )}
       </header>
@@ -43,7 +45,7 @@ export default function CharacterPhone({ phone }: { phone: CharacterPhoneView })
       <div className="char-phone-screen">
         {phone.texts.length > 0 ? (
           phone.threadHref ? (
-            <Link className="char-phone-thread" href={phone.threadHref} aria-label={`Open ${first}'s texts`} data-track="home-phone-thread">
+            <Link className="char-phone-thread" href={phone.threadHref} aria-label={t("Open {name}'s texts", { name: first })} data-track="home-phone-thread">
               {texts}
               <span className="char-phone-when muted">
                 <When iso={phone.texts[phone.texts.length - 1].at} />
@@ -57,7 +59,7 @@ export default function CharacterPhone({ phone }: { phone: CharacterPhoneView })
         )}
         {phone.chips.length > 0 && (
           // The question as chips (lib/companion-offers.ts): each leads into the thread, where the tap does the thing.
-          <div className="char-phone-chips" role="group" aria-label={`What ${first} is asking`}>
+          <div className="char-phone-chips" role="group" aria-label={t("What {name} is asking", { name: first })}>
             {phone.chips.map((chip) => (
               <Link key={chip.label} className="chip char-phone-chip" href={chip.href} data-track="home-phone-chip">
                 {chip.label}
@@ -68,11 +70,11 @@ export default function CharacterPhone({ phone }: { phone: CharacterPhoneView })
       </div>
 
       {phone.next.length > 0 && (
-        <ul className="list char-phone-next" aria-label={`What's next for ${first}`}>
+        <ul className="list char-phone-next" aria-label={t("What's next for {name}", { name: first })}>
           {phone.next.map((n) => (
             <li key={n.key}>
               <span className="char-phone-next-label" aria-hidden="true">
-                Next
+                {t("Next")}
               </span>
               <span>
                 {n.href ? (
@@ -114,15 +116,15 @@ export default function CharacterPhone({ phone }: { phone: CharacterPhoneView })
       </p>
 
       {phone.others.length > 0 && (
-        <nav className="char-phone-others" aria-label="Your other characters">
-          <span className="muted small">Your other characters</span>
+        <nav className="char-phone-others" aria-label={t("Your other characters")}>
+          <span className="muted small">{t("Your other characters")}</span>
           <ul className="list">
             {phone.others.map((o) => (
               <li key={o.character.id}>
                 <Link href={o.href} data-track="home-phone-other">
                   <Avatar seed={o.character.id} name={o.character.name} hue={o.character.hue} portraitSrc={o.character.portrait} size={32} round decorative />
                   <span>{o.character.name.trim().split(/\s+/)[0]}</span>
-                  {o.unread && <span className="char-phone-dot" role="img" aria-label="New text" />}
+                  {o.unread && <span className="char-phone-dot" role="img" aria-label={t("New text")} />}
                 </Link>
               </li>
             ))}
