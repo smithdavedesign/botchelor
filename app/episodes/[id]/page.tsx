@@ -123,12 +123,18 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   // An owner's share of a date that went well (lib/episode-share.ts ownerSharedPath, David 2026-11-11): the card and the
   // headline name the second date, only once aired and only for that ending; any other date keeps the question.
   const wentWell = (await searchParams)?.card === ENDING_CARD && endingCardAllowed(episode);
+  const query = await searchParams;
+  // A moment card (the theater's 📸, app/api/og/moment): one aired public line as the card, the line as its headline.
+  const momentAt = typeof query?.moment === "string" && /^\d{1,4}$/.test(query.moment) ? Number(query.moment) : -1;
+  const momentTurn = episode.revealed && episode.visibility === "public" ? episode.transcript?.[momentAt] : undefined;
   const dateNo = wentWell ? dateNumberOf(episode) : null;
   const description = wentWell ? `${wentWellTitle(names, dateNo)} Watch how it happened, then send a character of your own.` : shareDescription(names, episode.setting, episode.revealed);
-  const card = wentWell
+  const card = momentTurn
+    ? { url: `/api/og/moment/${encodeURIComponent(id)}/${momentAt}`, width: 1200, height: 630, alt: `${momentTurn.side === "a" ? a.name : b.name} on their date with ${momentTurn.side === "a" ? b.name : a.name}: “${momentTurn.dialogue}”` }
+    : wentWell
     ? { url: `${episodeCardPath(id)}?card=${ENDING_CARD}`, width: 1200, height: 630, alt: wentWellTitle(names, dateNo) }
     : { url: episodeCardPath(id), width: 1200, height: 630, alt: `${a.name} × ${b.name}: ${SHARE_QUESTION} A poll with three answers.` };
-  const headline = wentWell ? wentWellTitle(names, dateNo) : shareTitle(names);
+  const headline = momentTurn ? `${a.name} × ${b.name}: the moment` : wentWell ? wentWellTitle(names, dateNo) : shareTitle(names);
   // The place in words ("the night market"), never its id (2026-10-23: titles read "at night_market").
   const venue = typeof episode.venue === "string" ? venuePhrase(episode.venue) : null;
   return {
@@ -154,6 +160,15 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
     },
     twitter: { card: "summary_large_image", title: headline, description, images: [{ url: card.url, alt: card.alt }] },
   };
+}
+
+/** A name card's line on their entrance (EpisodeTheater): what they came for, cut to a card's length. */
+function nameCardLine(goals: { character_id: string; goal: string }[], id: string): string | null {
+  const goal = goals.find((g) => g.character_id === id)?.goal?.trim();
+  if (!goal) return null;
+  if (goal.length <= 84) return goal;
+  const cut = goal.slice(0, 84);
+  return `${cut.slice(0, Math.max(40, cut.lastIndexOf(" ")))}…`;
 }
 
 /** The way in for anyone who isn't one of this date's creators, most often someone who followed a shared link. */
@@ -672,6 +687,10 @@ export default async function EpisodePage({
               reportCard={reportCard}
               shareNext={shareNext}
               upNext={next[0] ? { href: `${next[0].share_path}?play=1`, characters: next[0].characters } : null}
+              ending={episode.ending ?? null}
+              cutaways={episode.confessionals ?? episode.diary ?? []}
+              cards={[nameCardLine(episode.goals, episode.characters[0].id), nameCardLine(episode.goals, episode.characters[1].id)]}
+              moments={episode.revealed && episode.visibility === "public" && !episode.hidden}
             />
           ) : (
             episode.transcript &&

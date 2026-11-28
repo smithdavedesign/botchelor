@@ -398,6 +398,12 @@ async function main() {
     // init script runs before the document has an element to observe.
     await page.exposeFunction("__bzMark", (n, t) => marks.push({ n, t }));
     await page.addInitScript(() => {
+      // The posted clip is the date itself: the theater's crowd (its bots and floating reactions) stays off in it.
+      try {
+        localStorage.setItem("bz-crowd", "off");
+      } catch {
+        /* storage blocked: the crowd shows, tagged as ever */
+      }
       let seen = 0;
       setInterval(() => {
         const n = document.querySelectorAll(".theater .chat-row:not(.chat-typing-row)").length;

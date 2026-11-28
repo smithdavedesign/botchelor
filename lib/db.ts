@@ -2400,6 +2400,18 @@ create table if not exists line_feedback (
 );
 create index if not exists line_feedback_ref_idx on line_feedback (kind, ref_id);
 create index if not exists line_feedback_updated_idx on line_feedback (updated_at desc);
+
+-- The theater's crowd (2026-11-28, lib/line-reactions.ts): viewers' 😍 😬 💀 taps on a date's lines, as counts only. No
+-- person on a row: a tap is anonymous by design, so there is nothing to export, delete or move. Rate limited per
+-- connection and per session (the limits table); the client sends one of each kind per line.
+create table if not exists line_reactions (
+  episode_id text not null,
+  line_index integer not null check (line_index >= 0),
+  kind text not null check (kind in ('swoon', 'cringe', 'dead')),
+  count integer not null default 0 check (count >= 0),
+  updated_at timestamptz not null default now(),
+  primary key (episode_id, line_index, kind)
+);
 -- After Dark's scene writer (lib/adult/settings.ts, David 2026-10-21): its temperature and penalties, null keeping the
 -- default (0.8, 0.3, 0.3, no repetition penalty), and which scene prompt runs (v2 unless set; v1 is the one before it).
 alter table adult_settings add column if not exists text_temperature double precision;

@@ -22,7 +22,7 @@ export default function SoundToggle({ className }: { className?: string }) {
   }, []);
   return (
     <button type="button" className={`sound-toggle${on ? " is-on" : ""}${className ? ` ${className}` : ""}`} aria-pressed={on} onClick={() => setSound(!on)} data-track="sound-toggle">
-      <Icon name="volume" /> {on ? "Sound on" : "Sound off"}
+      <Icon name="volume" /> <span className="sound-toggle-word">{on ? "Sound on" : "Sound off"}</span>
     </button>
   );
 }

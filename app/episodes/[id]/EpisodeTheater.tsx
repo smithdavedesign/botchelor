@@ -8,7 +8,10 @@ import { useOverlay } from "@/app/useOverlay";
 import { flush, queueEvent } from "@/app/engagement";
 import Scene from "@/app/Scene";
 import ChatThread from "@/app/ChatThread";
-import { delayBefore, useReplay } from "@/app/useReplay";
+import { delayBefore, readingMs, useReplay } from "@/app/useReplay";
+import SoundToggle from "@/app/motion/SoundToggle";
+import { SOUND_EVENT, soundOn } from "@/app/motion/cues";
+import { bedFor, startBed } from "@/app/motion/beds";
 import { DATE_ACTS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { CharacterRef } from "@/lib/game";
@@ -20,7 +23,11 @@ import ShareEnding from "./ShareEnding";
 import ShareNext from "./ShareNext";
 import VerdictCard from "./VerdictCard";
 import { latestFace } from "@/lib/show-shots-shared";
-import { bigLine, speakerOf } from "@/lib/theater-beats";
+import { bigLine, chemistryOf, leaverOf, speakerOf } from "@/lib/theater-beats";
+import type { Ending } from "@/lib/rules";
+import Crowd from "./Crowd";
+import { characterPortrait } from "@/lib/portraits";
+import { showSetPath } from "@/lib/show-sets";
 import type { ColdOpen } from "@/lib/cold-open";
 import ColdOpenCard, { cutButtonLabel, type CutLink } from "./ColdOpenCard";
 import CutPlayer, { type CutPlace } from "./CutPlayer";
@@ -70,7 +77,25 @@ type Props = {
   upNext?: TheaterNext | null;
   /** The owner's "who should go next?" card (lib/share-next.ts), once it aired publicly: in place of the viewer's share. */
   shareNext?: ShareNextCard | null;
+  /** How it ended, so the stage acts it out after the last line (petals, a wave, a walk-off). */
+  ending?: Ending | null;
+  /**
+   * Confessional cutaways (2026-11-28): the lines the viewer may already read on the page (the confessionals or the
+   * diary cam), cut to between acts in the booth's frame, a's after the first act and b's after the second.
+   */
+  cutaways?: { character_id: string; line: string }[];
+  /** Each one's name-card line on their entrance (what they want from it), in the order they sit. */
+  cards?: [string | null, string | null] | null;
+  /** The date is public and has aired: 📸 shares a line as a moment card (app/api/og/moment). */
+  moments?: boolean;
 };
+
+/** How long a confessional cutaway holds between acts, and the entrance before the first line. */
+const CUTAWAY_MS = 5200;
+const ENTRANCE_MS = 2600;
+/** The ending acts out for this long before the end card comes up (only when it played through, not skipped to). */
+const CURTAIN_MS = 2800;
+const CROWD_KEY = "bz-crowd";
 
 function lastOf(turns: Turn[], side: "a" | "b"): string | null {
   for (let i = turns.length - 1; i >= 0; i--) if (turns[i].side === side) return turns[i].dialogue;
@@ -127,13 +152,37 @@ function playMsOf(transcript: Turn[]): number {
   return ms;
 }
 
-function Playback({ episodeId, characters, venue, transcript, endingLabel, justFilmed, startAt, roleplay, verdict, autoOpen, coldOpen, cut, reportCard, upNext, shareNext, onExit }: Props & { onExit: () => void }) {
+function Playback({
+  episodeId,
+  characters,
+  venue,
+  transcript,
+  endingLabel,
+  justFilmed,
+  startAt,
+  roleplay,
+  verdict,
+  autoOpen,
+  coldOpen,
+  cut,
+  reportCard,
+  upNext,
+  shareNext,
+  ending = null,
+  cutaways = [],
+  cards = null,
+  moments = false,
+  onExit,
+}: Props & { onExit: () => void }) {
   // The cold open comes first for anyone starting from the top (never the creator just filmed, nor picking up live).
   const intro = Boolean(coldOpen) && !justFilmed && !(startAt && startAt > 0);
   const [card, setCard] = useState<"first" | "again" | null>(intro ? "first" : null);
   const [cutOpen, setCutOpen] = useState(false);
+  // The entrance and the confessional cutaways hold the next line while they play (useReplay's hold).
+  const [entering, setEntering] = useState(false);
+  const [cutaway, setCutaway] = useState<{ character_id: string; line: string } | null>(null);
   // The date waits behind the card: it starts when they press Start.
-  const replay = useReplay(transcript, !intro, { startAt });
+  const replay = useReplay(transcript, !intro, { startAt, hold: entering || cutaway !== null });
   // Playing when "Who's who" paused it, so going back carries on; paused, it stays paused.
   const resume = useRef(true);
   const shownCard = useRef(false);
@@ -199,6 +248,97 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
     closeCard();
     replay.skip();
   };
+  // The entrance: before the first line they walk in from their sides with their name cards, and the date waits for it.
+  // From the top again (Replay), they walk in again and the cutaways play again.
+  const entered = useRef(false);
+  const cutAt = useRef(new Set<number>());
+  const count = replay.shown.length;
+  useEffect(() => {
+    if (count > 0) entered.current = true;
+    else {
+      cutAt.current.clear();
+      entered.current = false;
+    }
+  }, [count]);
+  useEffect(() => {
+    if (count > 0 || !replay.playing || card || entered.current) return;
+    entered.current = true;
+    setEntering(true);
+    const t = window.setTimeout(() => setEntering(false), ENTRANCE_MS);
+    return () => {
+      window.clearTimeout(t);
+      setEntering(false);
+    };
+  }, [count, replay.playing, card]);
+  // A confessional cutaway at the end of each act: once its last line has been read, cut to the booth, then back.
+  useEffect(() => {
+    if (!replay.playing || card || count === 0 || count >= transcript.length) return;
+    const last = transcript[count - 1];
+    const next = transcript[count];
+    if (!(next.act > last.act)) return;
+    const slot = last.act;
+    const take = cutaways.find((c) => c.character_id === characters[slot === 0 ? 0 : 1]?.id && c.line.trim());
+    if (!take || cutAt.current.has(slot)) return;
+    const t = window.setTimeout(() => {
+      cutAt.current.add(slot);
+      setCutaway(take);
+      // Just before the replay would move on (it waits the same reading time), so the cut lands first.
+    }, Math.max(1200, readingMs(last) - 300));
+    return () => window.clearTimeout(t);
+  }, [count, replay.playing, card, transcript, cutaways, characters]);
+  useEffect(() => {
+    if (!cutaway) return;
+    const t = window.setTimeout(() => setCutaway(null), CUTAWAY_MS);
+    return () => window.clearTimeout(t);
+  }, [cutaway]);
+  // The ending acts out before the end card: a few seconds of it when it played through, none when they skipped to it.
+  const [curtain, setCurtain] = useState(false);
+  useEffect(() => {
+    if (!replay.done) {
+      setCurtain(false);
+      return;
+    }
+    if (skipped.current) {
+      setCurtain(true);
+      return;
+    }
+    const t = window.setTimeout(() => setCurtain(true), ending ? CURTAIN_MS : 0);
+    return () => window.clearTimeout(t);
+  }, [replay.done, ending]);
+  // The crowd (🍿): on unless this browser turned it off.
+  const [crowdOn, setCrowdOn] = useState(true);
+  useEffect(() => {
+    try {
+      setCrowdOn(window.localStorage.getItem(CROWD_KEY) !== "off");
+    } catch {
+      /* on */
+    }
+  }, []);
+  const toggleCrowd = () =>
+    setCrowdOn((v) => {
+      try {
+        if (v) window.localStorage.setItem(CROWD_KEY, "off");
+        else window.localStorage.removeItem(CROWD_KEY);
+      } catch {
+        /* this visit only */
+      }
+      return !v;
+    });
+  // The room's sound bed (app/motion/beds.ts) while sound is on, by the place they're at now.
+  const place = placeAt(replay.shown, venue);
+  const [sound, setSoundState] = useState(false);
+  useEffect(() => {
+    setSoundState(soundOn());
+    const sync = () => setSoundState(soundOn());
+    window.addEventListener(SOUND_EVENT, sync);
+    return () => window.removeEventListener(SOUND_EVENT, sync);
+  }, []);
+  const bed = bedFor(place);
+  useEffect(() => {
+    if (!sound) return;
+    return startBed(bed);
+  }, [sound, bed]);
+
   // Full screen over the page: the page behind is inert and still, and Escape closes "Who's who", else leaves the theater
   // (app/useOverlay.ts; 2026-11-20 mobile audit).
   const stage = useRef<HTMLDivElement>(null);
@@ -228,8 +368,18 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
             moodB={latestFace(characters[1].shots, shown, "b")}
             actLabel={actLabel}
             placeholder="The date begins…"
-            staged={{ speaking: speakerOf(shown), act: shown.length ? shown[shown.length - 1].act : 0, push: bigLine(shown) }}
+            staged={{
+              speaking: speakerOf(shown),
+              act: shown.length ? shown[shown.length - 1].act : 0,
+              push: bigLine(shown),
+              ...chemistryOf(shown),
+              cards: entering ? (cards ?? [null, null]) : null,
+              ending: replay.done && !replay.playing && shown.length > 0 ? ending : null,
+              leaver: leaverOf(shown),
+            }}
           />
+          <Crowd episodeId={episodeId} transcript={transcript} shown={shown.length} names={[a.name, b.name]} on={crowdOn && !card} moments={moments} />
+          {cutaway && <Cutaway take={cutaway} characters={characters} onDone={() => setCutaway(null)} />}
         </div>
         <div className="theater-convo">
           <ChatThread characters={characters} turns={shown} typing={replay.typing} tone="dark" follow empty="The conversation appears here, line by line." feedback={{ kind: "episode", refId: episodeId }} />
@@ -277,6 +427,7 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
 
         {!card &&
           replay.done &&
+          curtain &&
           (justFilmed && verdict ? (
             // The creator's own date, just filmed: the ending with a next step (their character texts them).
             <VerdictCard
@@ -369,6 +520,18 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
         </button>
         <button
           type="button"
+          className={`theater-icon theater-crowd-toggle${crowdOn ? " on" : ""}`}
+          onClick={toggleCrowd}
+          aria-pressed={crowdOn}
+          aria-label="The crowd"
+          title="The crowd: viewers' reactions and the show's bots"
+          data-track="theater-crowd"
+        >
+          🍿
+        </button>
+        <SoundToggle className="theater-sound" />
+        <button
+          type="button"
           className={`theater-icon theater-icon-wide${convo ? " on" : ""}`}
           onClick={() => setConvo((v) => !v)}
           aria-pressed={convo}
@@ -379,5 +542,37 @@ function Playback({ episodeId, characters, venue, transcript, endingLabel, justF
         </button>
       </nav>
     </div>
+  );
+}
+
+/**
+ * A confessional cutaway (2026-11-28): between acts the picture cuts to the booth, where one of them says their piece to
+ * the camera, then back to the date. Tapping it goes straight back.
+ */
+function Cutaway({ take, characters, onDone }: { take: { character_id: string; line: string }; characters: [CharacterRef, CharacterRef]; onDone: () => void }) {
+  const who = characters.find((c) => c.id === take.character_id) ?? characters[0];
+  const shot = who.shots?.confessional ?? who.portrait ?? characterPortrait(who.id);
+  return (
+    <button type="button" className="theater-cutaway" onClick={onDone} aria-label={`The confessional: ${who.name}. Back to the date`}>
+      <span className="booth-frame theater-cutaway-frame">
+        {/* eslint-disable-next-line @next/next/no-img-element -- their own small shot, or the booth's set */}
+        <img className="booth-shot" src={shot ?? showSetPath("confessional")} alt="" aria-hidden="true" />
+        <span className="booth-marks" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className="booth-rec" aria-hidden="true">
+          <span className="booth-rec-dot" /> REC
+        </span>
+        <span className="booth-caption">
+          <span className="booth-line">
+            <span className="booth-speaker">{who.name}:</span> {take.line}
+          </span>
+        </span>
+      </span>
+      <span className="theater-cutaway-kicker">The confessional · tap to go back to the date</span>
+    </button>
   );
 }
