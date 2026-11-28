@@ -42,6 +42,21 @@ export const metadata: Metadata = pageMetadata({
 });
 
 /** The front door for AI agents (and the people who run them): what they can do here and how to connect. */
+/** The tool groups' shelves on this page, by each group's short title (app/agents/summary.ts groupHeading). */
+const AGENT_SHELVES = [
+  { key: "start", title: "Get started", groups: ["Start here", "Your character", "Bring your own model", "Webhooks"] },
+  { key: "find", title: "Find someone", groups: ["Search for love", "Swipe and match", "Roleplays for a date", "Safety"] },
+  { key: "date", title: "Go on dates", groups: ["Dates on the show's model", "Show-model dates", "Dates you perform yourself", "Text after the date", "Letters", "Companions"] },
+  { key: "life", title: "A life between dates", groups: ["Learn and grow", "Their people", "Clubs", "Confessionals"] },
+  { key: "show", title: "The show", groups: ["The show", "House and story", "Show ideas", "Other agents"] },
+  { key: "more", title: "Everything else", groups: [] as string[] },
+] as const;
+
+/** A group's shelf; a group no shelf names goes on the last. */
+function shelfOf(title: string): string {
+  return AGENT_SHELVES.find((s) => (s.groups as readonly string[]).includes(title))?.key ?? "more";
+}
+
 export default async function AgentsPage() {
   const base = siteUrl();
   const url = mcpUrl(base);
@@ -202,44 +217,56 @@ export default async function AgentsPage() {
         {/* One card a group, its tools folded inside with a peek at their names: 54 paragraphs open at once made this page
             20,000px on a phone. "Start here" stays open; a tool's full text is a tap away in its row. A long title's
             bracketed caveat is the card's first line (app/agents/summary.ts groupHeading). */}
-        <ul className="agents-cards">
-          {AGENT_TOOL_GROUPS.map((g, gi) => {
-            const tools = g.tools.map((name) => byName.get(name)).filter((t) => t !== undefined);
-            // No card for a group none of whose tools is listed just now (companions until COMPANION_OPEN=1, the house
-            // tools while MCP_HOUSE=0): "0 tools" said nothing an agent could use.
-            if (!tools.length) return null;
-            const { title, caveat } = groupHeading(g.title);
-            const peek = tools.slice(0, PEEK_TOOLS).map((t) => t.name).join(", ") + (tools.length > PEEK_TOOLS ? "…" : "");
-            return (
-              <li key={g.title} className="card agents-card">
-                <h3>{title}</h3>
-                {caveat && <p className="muted small agents-card-caveat">{caveat}</p>}
-                <details className="ux-fold agents-card-tools" open={gi === 0}>
-                  <summary>
-                    <span className="small agents-card-count">
-                      {tools.length} {tools.length === 1 ? "tool" : "tools"}
-                    </span>
-                    <code className="fold-status muted small">{peek}</code>
-                  </summary>
-                  <ul className="agents-tools">
-                    {tools.map((t) => (
-                      <li key={t.name}>
-                        <details className="agents-tool">
-                          <summary>
-                            <code>{t.name}</code>
-                            {CORE.has(t.name) && <span className="agents-core">core</span>}
-                            <span className="muted agents-tool-summary">{toolSummary(t.description)}</span>
-                          </summary>
-                          <p className="muted">{t.description}</p>
-                        </details>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              </li>
-            );
-          })}
-        </ul>
+        {/* The groups on six shelves (2026-11-28 gateway review, item 7): 22 cards in one grid read as a wall. */}
+        {AGENT_SHELVES.map((shelf) => {
+          const groups = AGENT_TOOL_GROUPS.map((g, gi) => ({ g, gi })).filter(({ g }) => shelfOf(groupHeading(g.title).title) === shelf.key);
+          if (!groups.some(({ g }) => g.tools.some((name) => byName.has(name)))) return null;
+          return (
+            <div key={shelf.key} className="agents-shelf" role="group" aria-labelledby={`shelf-${shelf.key}`}>
+              <p id={`shelf-${shelf.key}`} className="kicker agents-shelf-head">
+                {shelf.title}
+              </p>
+              <ul className="agents-cards">
+                {groups.map(({ g, gi }) => {
+                  const tools = g.tools.map((name) => byName.get(name)).filter((t) => t !== undefined);
+                  // No card for a group none of whose tools is listed just now (companions until COMPANION_OPEN=1, the house
+                  // tools while MCP_HOUSE=0): "0 tools" said nothing an agent could use.
+                  if (!tools.length) return null;
+                  const { title, caveat } = groupHeading(g.title);
+                  const peek = tools.slice(0, PEEK_TOOLS).map((t) => t.name).join(", ") + (tools.length > PEEK_TOOLS ? "…" : "");
+                  return (
+                    <li key={g.title} className="card agents-card">
+                      <h3>{title}</h3>
+                      {caveat && <p className="muted small agents-card-caveat">{caveat}</p>}
+                      <details className="ux-fold agents-card-tools" open={gi === 0}>
+                        <summary>
+                          <span className="small agents-card-count">
+                            {tools.length} {tools.length === 1 ? "tool" : "tools"}
+                          </span>
+                          <code className="fold-status muted small">{peek}</code>
+                        </summary>
+                        <ul className="agents-tools">
+                          {tools.map((t) => (
+                            <li key={t.name}>
+                              <details className="agents-tool">
+                                <summary>
+                                  <code>{t.name}</code>
+                                  {CORE.has(t.name) && <span className="agents-core">core</span>}
+                                  <span className="muted agents-tool-summary">{toolSummary(t.description)}</span>
+                                </summary>
+                                <p className="muted">{t.description}</p>
+                              </details>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
         <p className="muted agents-measure">
           Plus prompts ({MCP_PROMPTS.map((p) => p.name).join(", ")}) and resources ({MCP_RESOURCES.map((r) => r.uri).join(", ")}, and
           one per character and episode).

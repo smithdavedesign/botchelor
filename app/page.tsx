@@ -496,6 +496,26 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
             {t("I called “disaster” on the last one. I'm calling it again. I'm always calling it.")}
           </span>
         </p>
+        {/* The questions and the way in again, on the same stage (2026-11-28 gateway review, item 4): the page ends in the
+            show's night, not on plain white. */}
+        <section className="faq">
+          <h2>{t("Questions")}</h2>
+          {/* The three a first visit asks; the rest are on /faq (the audit, 2026-11-11, 2.1: eight rows repeated that page). */}
+          {homeFaq(t).map((item) => (
+            <details className="card ux-fold" key={item.q}>
+              <summary>{item.q}</summary>
+              <p className="muted">{item.a}</p>
+            </details>
+          ))}
+          <p className="faq-more">
+            <Link href="/faq">{t("More questions")} →</Link>
+          </p>
+        </section>
+        <p className="cta-row cta-final">
+          <Link className="button" href="/create">
+            {t("Make your character")}
+          </Link>
+        </p>
       </section>
       )}
 
@@ -506,10 +526,13 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <p className="muted">
           {fillNodes(t("A handful a month. Date one now, or {swipe} to match with another creator's character."), { swipe: <Link href="/swipe">{t("swipe")}</Link> })}
         </p>
-        <ul className="home-cast-faces grid-balanced" style={{ "--cols": balancedColumns(Math.min(cast.length, HOME_CAST_SHOWN), 4) } as CSSProperties}>
+        <ul className="home-cast-faces grid-balanced" style={{ "--cols": balancedColumns(Math.min(cast.length, HOME_CAST_SHOWN), 6) } as CSSProperties}>
           {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
             <li key={p.id} className="card tap-card home-cast-tile">
-              <Avatar seed={p.id} name={p.name} house={!p.fan} portraitSrc={p.portrait ?? null} size={72} />
+              {/* Portrait first, edge to edge, as on Characters (2026-11-28 gateway review, item 2). */}
+              <div className="home-cast-portrait">
+                <Avatar seed={p.id} name={p.name} house={!p.fan} portraitSrc={p.portrait ?? null} size={240} fill decorative />
+              </div>
               <Link className="stretch home-cast-name" href={`/characters/${p.id}`}>
                 <strong>{p.name}</strong>
               </Link>
@@ -548,29 +571,6 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
       </section>
       )}
 
-      {!creator && (
-      <section className="faq">
-        <h2>{t("Questions")}</h2>
-        {/* The three a first visit asks; the rest are on /faq (the audit, 2026-11-11, 2.1: eight rows repeated that page). */}
-        {homeFaq(t).map((item) => (
-          <details className="card ux-fold" key={item.q}>
-            <summary>{item.q}</summary>
-            <p className="muted">{item.a}</p>
-          </details>
-        ))}
-        <p className="faq-more">
-          <Link href="/faq">{t("More questions")} →</Link>
-        </p>
-      </section>
-      )}
-
-      {!creator && (
-        <p className="cta-row cta-final">
-          <Link className="button" href="/create">
-            {t("Make your character")}
-          </Link>
-        </p>
-      )}
 
       {/* Below the fold of a first visit's one screen (which keeps its one job): the free tools, the way in from another
           app, the seasons, Step in and the bots' reviews, the landings search hadn't fetched (2026-11-22 audit: the home
