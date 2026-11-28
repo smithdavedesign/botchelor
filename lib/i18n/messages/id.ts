@@ -1103,6 +1103,7 @@ const catalog: Catalog = {
     "Broke character or made no sense": "Keluar dari karakter atau tidak masuk akal"
   },
   "server": {
+    "{name} is on the market: buy a copy to make your own version. Their creator gets 70%.": "{name} ada di pasar: beli salinannya untuk membuat versimu sendiri. Pembuatnya mendapat 70%.",
     "Points come from dates that air this season: {ending} for the right ending, {bonus} for the bonus question and {dealbreaker} for the right dealbreaker. Points and badges are free and carry no prizes.": "Poin datang dari kencan yang tayang musim ini: {ending} untuk akhir yang benar, {bonus} untuk pertanyaan bonus, dan {dealbreaker} untuk dealbreaker yang benar. Poin dan lencana gratis dan tidak berhadiah.",
     "Aired": "Sudah tayang",
     "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark, sisi privat khusus dewasa (18+), belum dibuka dan akan punya harga sendiri saat dibuka. Ditagih lewat pemroses pembayarannya sendiri, bukan halaman ini:",

@@ -15,7 +15,7 @@ function FormError({ error }: { error: string | null }) {
 }
 
 /** Buy a template: confirm you're an adult, then pay on Stripe. */
-export function BuyTemplate({ listingId, price }: { listingId: string; price: string }) {
+export function BuyTemplate({ listingId, price, back = "/market" }: { listingId: string; price: string; back?: string }) {
   const { busy, error, run } = useAction();
   const [adult, setAdult] = useState(false);
   return (
@@ -31,7 +31,7 @@ export function BuyTemplate({ listingId, price }: { listingId: string; price: st
           }
           // Straight to sign-in and back here (2026-11-27 UX pass): the bare "Sign in first" line had no link to it.
           if (r.data.error === "account_required") {
-            window.location.href = `/account?next=${encodeURIComponent("/market")}`;
+            window.location.href = `/account?next=${encodeURIComponent(back)}`;
             return null;
           }
           return r;

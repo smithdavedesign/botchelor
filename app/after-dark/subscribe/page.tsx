@@ -4,7 +4,7 @@ import Icon from "@/app/Icon";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import WaitlistForm from "@/app/WaitlistForm";
-import { configuredProcessors, priceLabel, PROCESSOR_INFO, subscriptionPrice } from "@/lib/adult/billing";
+import { accountEmail, configuredProcessors, priceLabel, PROCESSOR_INFO, subscriptionPrice } from "@/lib/adult/billing";
 import { adTokensOn, tokenPacks } from "@/lib/adult/tokens";
 import { canAfterDark } from "@/lib/adult/entitlement";
 import { endedPass, type EndedPass } from "@/lib/adult/lapsed";
@@ -286,5 +286,18 @@ async function InviteStep({ db, userId, source }: { db: Awaited<ReturnType<typeo
   }
   // Approved with no pass open: the month ran out, and the page above says so (EndedNotice); never the form again.
   if (invite?.status === "approved") return null;
+  // The invite is answered by email, so an account without a confirmed one is asked for it here, not after ticking the
+  // boxes (2026-11-28 run: sign-up says "no email needed", then the invite came back needs_email with no way on).
+  if (!(await accountEmail(db, userId))) {
+    return (
+      <div className="card" data-invite-needs-email>
+        <h2>Ask for an invite</h2>
+        <p>
+          Invites are answered by email, and your account doesn&apos;t have one yet. <Link href="/account#email-notifications">Add an email in your account</Link>,
+          confirm it, then come back here to ask.
+        </p>
+      </div>
+    );
+  }
   return <InviteForm days={BETA_DAYS} source={source} />;
 }
