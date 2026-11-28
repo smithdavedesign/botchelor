@@ -72,11 +72,12 @@ describe("the staged theater", () => {
     expect(plain).not.toContain("character-figure");
   });
 
-  it("keeps the avatar for someone with no picture at all, even on the staged stage", () => {
+  it("stands someone with no picture yet as their silhouette, initials on the pin", () => {
     const html = renderToStaticMarkup(
       createElement(Scene, { characters: [char("a", "Mara"), char("b", "Dex")], venue: null, lineA: null, lineB: null, staged: { speaking: null, act: 0, push: false } }),
     );
-    expect(html).not.toContain("data-standing");
-    expect(html).toContain("avatar");
+    expect(html.match(/data-figure="silhouette"/g)?.length).toBe(2);
+    expect(html).toContain(">M</text>");
+    expect(html).not.toContain("avatar");
   });
 });

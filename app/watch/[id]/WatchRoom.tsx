@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import Scene, { sceneBackground } from "@/app/Scene";
+import { bigLine, speakerOf } from "@/lib/theater-beats";
 import { latestFace } from "@/lib/show-shots-shared";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
@@ -433,6 +434,7 @@ function Theater({
             placeholder={
               isReplay ? "The replay begins…" : preshow ? preshowCountdownLabel(state.clock.started ? preshowLeft : null) : "The date is about to begin…"
             }
+            staged={{ speaking: speakerOf(turns), act: turns.length ? turns[turns.length - 1].act : 0, push: bigLine(turns) }}
           />
         </div>
 

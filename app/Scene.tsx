@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import Avatar from "./Avatar";
 import CharacterFigure from "./stage/CharacterFigure";
-import { characterPortrait, venueBackdrop } from "@/lib/portraits";
+import Silhouette from "./stage/Silhouette";
+import { characterPortrait, stagePicture, venueBackdrop } from "@/lib/portraits";
 import { isPlaceholder, placeLabel, setPath, venueBackdropCss, venueName, type PlaceId } from "@/lib/venues";
 import type { CharacterRef } from "@/lib/game";
 
@@ -63,10 +64,15 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
   const [a, b] = characters;
   // A house character's portrait is its reviewed file (lib/portraits.ts), which the row doesn't carry.
   const portraitOf = (c: CharacterRef) => c.portrait ?? characterPortrait(c.id);
-  const standing = (c: CharacterRef) => Boolean(staged && (c.figure || portraitOf(c)));
+  // On the staged stage everyone stands: a figure when they have a picture, their silhouette when they don't yet.
+  const standing = Boolean(staged);
   const figureOf = (c: CharacterRef, mood: string | null) => (
     <>
-      <CharacterFigure portrait={portraitOf(c)} cutout={c.figure ?? null} className="scene-figure" />
+      {portraitOf(c) || c.figure ? (
+        <CharacterFigure portrait={portraitOf(c)} cutout={c.figure ?? stagePicture(portraitOf(c))} className="scene-figure" />
+      ) : (
+        <Silhouette id={c.id} name={c.name} hue={c.hue} className="scene-figure" />
+      )}
       {/* Their face for this line, as the close-up a two-shot cuts to (decorative: the line says it in words). */}
       {mood && (
         // eslint-disable-next-line @next/next/no-img-element -- a PG shot from its own route, already small
@@ -96,14 +102,14 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
       {venue && (!venueBackdrop(venue) || placeLabel(venue)) && <p className="scene-venue">📍 {venueName(venue)}</p>}
       {placeholder && !lineA && !lineB && <p className="scene-placeholder">{placeholder}</p>}
       <div className="scene-cast">
-        <figure className="scene-char scene-char-a" data-standing={standing(a) || undefined}>
+        <figure className="scene-char scene-char-a" data-standing={standing || undefined}>
           {lineA && <p className="scene-bubble">{lineA}</p>}
-          {faceA ?? (standing(a) ? figureOf(a, moodA) : null) ?? <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} photoSrc={moodA ?? a.photo} size={faceSize} />}
+          {faceA ?? (standing ? figureOf(a, moodA) : null) ?? <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} photoSrc={moodA ?? a.photo} size={faceSize} />}
           <figcaption className="scene-name">{a.name}</figcaption>
         </figure>
-        <figure className="scene-char scene-char-b" data-standing={standing(b) || undefined}>
+        <figure className="scene-char scene-char-b" data-standing={standing || undefined}>
           {lineB && <p className="scene-bubble">{lineB}</p>}
-          {faceB ?? (standing(b) ? figureOf(b, moodB) : null) ?? <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} photoSrc={moodB ?? b.photo} size={faceSize} />}
+          {faceB ?? (standing ? figureOf(b, moodB) : null) ?? <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} photoSrc={moodB ?? b.photo} size={faceSize} />}
           <figcaption className="scene-name">{b.name}</figcaption>
         </figure>
       </div>

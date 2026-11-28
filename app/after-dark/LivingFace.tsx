@@ -10,7 +10,24 @@ const FADE_S = 0.45;
  * expression of the line they're saying when there's one, else their living portrait playing over their face, else the
  * face itself (`fallback`, the stage's Avatar). Muted and inline; with reduced motion or on a phone, the still face only.
  */
-export default function LivingFace({ face, expression, loop, name, size, fallback }: { face: string | null; expression: string | null; loop: string | null; name: string; size: number; fallback: ReactNode }) {
+export default function LivingFace({
+  face,
+  expression,
+  loop,
+  name,
+  size,
+  fallback,
+  figure = false,
+}: {
+  face: string | null;
+  expression: string | null;
+  loop: string | null;
+  name: string;
+  size: number;
+  fallback: ReactNode;
+  /** Standing on the staged stage (app/Scene.tsx `staged`): the picture fills their side, soft at its edges, not a tile. */
+  figure?: boolean;
+}) {
   const video = useRef<HTMLVideoElement>(null);
   const [fading, setFading] = useState(false);
   // Still until it's known it can move: the server's markup has no video, so a phone never starts loading one.
@@ -45,7 +62,12 @@ export default function LivingFace({ face, expression, loop, name, size, fallbac
   const playing = Boolean(loop && !expression && !still);
   return (
     // The Avatar's shape (app/Avatar.tsx), so a face coming to life doesn't change shape.
-    <span className="ad-living-face" style={{ width: size, height: size, borderRadius: size * 0.28 }} aria-label={name} role="img">
+    <span
+      className={`ad-living-face${figure ? " is-figure scene-figure" : ""}`}
+      style={figure ? undefined : { width: size, height: size, borderRadius: size * 0.28 }}
+      aria-label={name}
+      role="img"
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- private, presigned media */}
       <img src={shown} alt="" className="ad-living-still" draggable={false} onError={() => setBroken((b) => new Set([...b, shown]))} />
       {playing && (

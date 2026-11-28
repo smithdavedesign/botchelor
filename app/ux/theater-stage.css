@@ -163,6 +163,14 @@
   text-transform: uppercase;
 }
 
+/* Someone with no picture yet stands as their silhouette (app/stage/Silhouette.tsx), backlit. */
+.stage-silhouette-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 18px var(--stage-golden));
+}
 /* Someone with no picture at all keeps their avatar, at the foot of the stage, under the same light. */
 .scene[data-staged] .scene-char:not([data-standing]) {
   flex: 0 1 46%;
@@ -246,6 +254,107 @@
   }
   .scene[data-staged] .scene-venue {
     z-index: 5;
+  }
+}
+
+/* ---------------- The date page opens on the scene (app/episodes/[id]/page.tsx EpisodeHero) ---------------- */
+
+.episode-hero-stage {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  /* Over the venue's picture and under the scrim and the words; never a z-index on the words' box, which holds the
+     theater when it opens (a stacking context there would put the site header over it). */
+  z-index: -1;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  width: min(44%, 34rem);
+  height: 94%;
+  padding-right: var(--space-4);
+  pointer-events: none;
+}
+.episode-hero-stage > .episode-hero-figure {
+  position: relative;
+  flex: 1 1 50%;
+  height: 100%;
+}
+.episode-hero-stage .character-figure-img {
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+}
+.episode-hero-stage .stage-silhouette-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* A silhouette in the card is a presence, not a shape over the title. */
+.episode-hero-stage .stage-silhouette {
+  opacity: 0.6;
+}
+@media (min-width: 761px) {
+  /* The figures say who's on; the small faces over the names would say it twice. */
+  .episode-hero:has(.episode-hero-stage) .episode-hero-cast {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  /* A phone: they stand behind the words, the scrim keeping the words readable. */
+  .episode-hero-stage {
+    width: 100%;
+    height: 72%;
+    top: 0;
+    bottom: auto;
+    padding: var(--space-6, 2rem) var(--space-2) 0;
+    opacity: 0.42;
+    -webkit-mask-image: linear-gradient(180deg, black 45%, transparent 92%);
+    mask-image: linear-gradient(180deg, black 45%, transparent 92%);
+  }
+  .episode-hero-stage .character-figure-img {
+    object-position: center top;
+  }
+}
+
+/* ---------------- After Dark's date mode (app/after-dark/[a]/[b]/AfterDarkTheater.tsx) ---------------- */
+
+/* Their living face (app/after-dark/LivingFace.tsx `figure`) stands as a tall picture, soft at its edges like the
+   companion's portrait figure: After Dark's portraits are never sent for a cutout (lib/cutout.ts takes PG ones only). */
+.ad-living-face.is-figure {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+/* The picture (a head-and-shoulders portrait) sits at the foot of their side, its edges faded into the room. */
+.ad-living-face.is-figure :is(.ad-living-still, .ad-living-loop) {
+  inset: auto 0 0;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 4 / 5;
+  margin: 0 auto;
+  object-fit: cover;
+  object-position: center 15%;
+  -webkit-mask-image: radial-gradient(farthest-side at 50% 42%, black 58%, transparent 100%);
+  mask-image: radial-gradient(farthest-side at 50% 42%, black 58%, transparent 100%);
+}
+/* The figures stand to the floor; their words and names stay above the steer bar (--ad-action-bottom, after-dark.css). */
+.theater-after-dark .scene[data-staged] .scene-cast,
+.theater-after-dark .theater-stage .scene[data-staged] .scene-cast {
+  bottom: var(--stage-bars);
+}
+.theater-after-dark .scene[data-staged] .scene-char {
+  padding-bottom: calc(var(--ad-action-bottom) + 3.5rem - var(--stage-bars));
+}
+@media (max-width: 760px) {
+  .theater-after-dark .scene[data-staged] .scene-char {
+    padding-bottom: 0;
+  }
+  .ad-living-face.is-figure :is(.ad-living-still, .ad-living-loop) {
+    inset: 0 0 auto;
   }
 }
 
