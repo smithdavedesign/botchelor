@@ -13,6 +13,7 @@ import { LAYER_WORDS, NEW_PLACE_FOR, personChoices, ROLE_WORDS, tieChoices, type
 import { LAYERS } from "@/lib/social/types";
 import MightKnow, { type Suggestion } from "./MightKnow";
 import { okJson } from "@/lib/ok-json";
+import { useT } from "@/app/I18nProvider";
 
 /** A character the tie form can pick: one of yours, or someone else's public one. */
 type Candidate = { id: string; name: string; portrait: string | null; hue: number | null; mine: boolean };
@@ -36,38 +37,38 @@ const str = (f: FormData, k: string): string => String(f.get(k) ?? "").trim();
  */
 export default function TheirPeople({ view, menu, suggest }: { view: View; menu: WorldMenu | null; suggest: boolean }) {
   const [open, setOpen] = useState<Open>(null);
+  const t = useT();
   const first = shortName(view.character.name) || view.character.name;
   const edit = view.character.editable;
   const url = `/api/characters/${encodeURIComponent(view.character.id)}/circle`;
   const close = () => setOpen(null);
 
-  const waiting = view.ties.filter((t) => t.waiting === "on_you");
-  const shown = view.ties.filter((t) => t.waiting !== "on_you" && t.layer !== "communication");
-  const met = shown.filter((t) => t.layer === "acquaintance");
+  const waiting = view.ties.filter((tie) => tie.waiting === "on_you");
+  const shown = view.ties.filter((tie) => tie.waiting !== "on_you" && tie.layer !== "communication");
+  const met = shown.filter((tie) => tie.layer === "acquaintance");
   const layers = LAYERS.filter((l) => l !== "acquaintance" && l !== "communication").flatMap((layer) => {
-    const ties = shown.filter((t) => t.layer === layer);
+    const ties = shown.filter((tie) => tie.layer === layer);
     return ties.length ? [{ layer, ties }] : [];
   });
   const empty = !view.people.length && !shown.length && !view.places.length && !waiting.length;
 
   return (
     <section className="card their-people" id="people" aria-labelledby="people-title" data-track-area="their-people">
-      <h2 id="people-title">{first}&apos;s people</h2>
+      <h2 id="people-title">{t("{name}'s people", { name: first })}</h2>
       {edit ? (
         <p className="muted small">
-          Who&apos;s in {first}&apos;s life off the show: family, friends, work and where they live. What&apos;s public shows here for everyone; &quot;Only you&quot;
-          items show only to you.
+          {t("Who's in {name}'s life off the show: family, friends, work and where they live. What's public shows here for everyone; \"Only you\" items show only to you.", { name: first })}
         </p>
       ) : (
-        empty && <p className="muted small">Nobody here yet.</p>
+        empty && <p className="muted small">{t("Nobody here yet.")}</p>
       )}
 
       {waiting.length > 0 && (
         <div className="people-group people-waiting" aria-labelledby="people-waiting-title">
-          <h3 id="people-waiting-title">Waiting on you</h3>
+          <h3 id="people-waiting-title">{t("Waiting on you")}</h3>
           <ul className="people-list">
-            {waiting.map((t) => (
-              <WaitingRow key={t.id} url={url} tie={t} first={first} />
+            {waiting.map((tie) => (
+              <WaitingRow key={tie.id} url={url} tie={tie} first={first} />
             ))}
           </ul>
         </div>
@@ -75,7 +76,7 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
 
       {view.people.length > 0 && (
         <div className="people-group">
-          <h3>Off the show</h3>
+          <h3>{t("Off the show")}</h3>
           <ul className="people-list">
             {view.people.map((p) => (
               <li key={p.id} className="people-row">
@@ -86,20 +87,20 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
                   <span className="people-text">
                     <strong>
                       {p.name}
-                      {p.deceased && <span className="muted"> (late)</span>}
+                      {p.deceased && <span className="muted"> {t("(late)")}</span>}
                     </strong>
                     <span className="muted small">
-                      {p.line ?? "someone they know"}
+                      {p.line ?? t("someone they know")}
                       {p.pronouns ? ` · ${p.pronouns}` : ""}
-                      {p.since ? ` · since ${p.since}` : ""}
+                      {p.since ? ` · ${t("since {when}", { when: p.since })}` : ""}
                     </span>
                     {p.note && <span className="small">{p.note}</span>}
                   </span>
                 </span>
                 <Tags only={p.visibility !== "public"} />
                 {edit && p.declared && (
-                  <button type="button" className="link-button people-edit" aria-label={`Change ${p.name}`} onClick={() => setOpen({ what: "person", person: p })}>
-                    Edit
+                  <button type="button" className="link-button people-edit" aria-label={t("Change {name}", { name: p.name })} onClick={() => setOpen({ what: "person", person: p })}>
+                    {t("Edit")}
                   </button>
                 )}
               </li>
@@ -112,23 +113,23 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
         <div className="people-group" key={layer}>
           <h3>{LAYER_WORDS[layer]}</h3>
           <ul className="people-list">
-            {ties.map((t) => (
-              <li key={t.id} className="people-row">
-                <Link className="people-who" href={`/characters/${t.other.id}`}>
-                  <Avatar seed={t.other.id} name={t.other.name} hue={t.other.hue} portraitSrc={t.other.portrait} size={40} round decorative />
+            {ties.map((tie) => (
+              <li key={tie.id} className="people-row">
+                <Link className="people-who" href={`/characters/${tie.other.id}`}>
+                  <Avatar seed={tie.other.id} name={tie.other.name} hue={tie.other.hue} portraitSrc={tie.other.portrait} size={40} round decorative />
                   <span className="people-text">
-                    <strong>{t.other.name}</strong>
+                    <strong>{tie.other.name}</strong>
                     <span className="muted small">
-                      {t.emoji} {t.line}
-                      {t.since ? ` · since ${t.since}` : ""}
+                      {tie.emoji} {tie.line}
+                      {tie.since ? ` · ${t("since {when}", { when: tie.since })}` : ""}
                     </span>
-                    {t.story && <span className="small">{t.story}</span>}
+                    {tie.story && <span className="small">{tie.story}</span>}
                   </span>
                 </Link>
-                <Tags only={t.visibility !== "public"} ended={t.status === "ended"} asked={t.waiting === "on_them"} />
-                {edit && t.declared && (
-                  <button type="button" className="link-button people-edit" aria-label={`Change ${t.other.name}`} onClick={() => setOpen({ what: "tie", tie: t, pick: null })}>
-                    Edit
+                <Tags only={tie.visibility !== "public"} ended={tie.status === "ended"} asked={tie.waiting === "on_them"} />
+                {edit && tie.declared && (
+                  <button type="button" className="link-button people-edit" aria-label={t("Change {name}", { name: tie.other.name })} onClick={() => setOpen({ what: "tie", tie, pick: null })}>
+                    {t("Edit")}
                   </button>
                 )}
               </li>
@@ -141,20 +142,20 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
         <div className="people-group">
           <h3>{LAYER_WORDS.acquaintance}</h3>
           <p className="people-met small">
-            {met.slice(0, 12).map((t, i) => (
-              <span key={t.id}>
+            {met.slice(0, 12).map((tie, i) => (
+              <span key={tie.id}>
                 {i > 0 && ", "}
-                <Link href={`/characters/${t.other.id}`}>{t.other.name}</Link> <span className="muted">({t.line})</span>
+                <Link href={`/characters/${tie.other.id}`}>{tie.other.name}</Link> <span className="muted">({tie.line})</span>
               </span>
             ))}
-            {met.length > 12 && <span className="muted"> and {met.length - 12} more</span>}
+            {met.length > 12 && <span className="muted"> {t("and {n} more", { n: met.length - 12 })}</span>}
           </p>
         </div>
       )}
 
       {view.places.length > 0 && (
         <div className="people-group">
-          <h3>Places</h3>
+          <h3>{t("Places")}</h3>
           <ul className="people-list">
             {view.places.map((p) => (
               <li key={`${p.place_id}|${p.role}`} className="people-row">
@@ -166,18 +167,18 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
                     <strong>{p.words}</strong>
                     {(p.since || p.others.length > 0) && (
                       <span className="muted small">
-                        {p.since ? `Since ${p.since}` : ""}
+                        {p.since ? t("Since {when}", { when: p.since }) : ""}
                         {p.since && p.others.length ? " · " : ""}
                         {p.others.length > 0 && (
                           <>
-                            {p.role === "works" || p.role === "studied" ? "with " : "like "}
+                            {p.role === "works" || p.role === "studied" ? `${t("with")} ` : `${t("like")} `}
                             {p.others.slice(0, 4).map((o, i) => (
                               <span key={o.id}>
                                 {i > 0 && ", "}
                                 <Link href={`/characters/${o.id}`}>{shortName(o.name) || o.name}</Link>
                               </span>
                             ))}
-                            {p.others.length > 4 && ` and ${p.others.length - 4} more`}
+                            {p.others.length > 4 && ` ${t("and {n} more", { n: p.others.length - 4 })}`}
                           </>
                         )}
                       </span>
@@ -186,8 +187,8 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
                 </span>
                 <Tags only={p.visibility !== "public"} />
                 {edit && p.declared && (
-                  <button type="button" className="link-button people-edit" aria-label={`Change ${p.words}`} onClick={() => setOpen({ what: "place", place: p })}>
-                    Edit
+                  <button type="button" className="link-button people-edit" aria-label={t("Change {name}", { name: p.words })} onClick={() => setOpen({ what: "place", place: p })}>
+                    {t("Edit")}
                   </button>
                 )}
               </li>
@@ -198,16 +199,16 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
 
       {edit && (
         <>
-          {empty && <p className="muted">Nobody yet. Start with family or a best friend; a job and a neighbourhood make them neighbours and coworkers of others.</p>}
+          {empty && <p className="muted">{t("Nobody yet. Start with family or a best friend; a job and a neighbourhood make them neighbours and coworkers of others.")}</p>}
           <div className="people-add">
             <button type="button" className="secondary small" aria-haspopup="dialog" onClick={() => setOpen({ what: "person", person: null })}>
-              + Someone off the show
+              + {t("Someone off the show")}
             </button>
             <button type="button" className="secondary small" aria-haspopup="dialog" onClick={() => setOpen({ what: "tie", tie: null, pick: null })}>
-              + Someone on the show
+              + {t("Someone on the show")}
             </button>
             <button type="button" className="secondary small" aria-haspopup="dialog" onClick={() => setOpen({ what: "place", place: null })}>
-              + A place
+              + {t("A place")}
             </button>
           </div>
         </>
@@ -231,12 +232,13 @@ export default function TheirPeople({ view, menu, suggest }: { view: View; menu:
 
 /** The small labels after an item: who sees it, and where it stands. */
 function Tags({ only, ended = false, asked = false }: { only: boolean; ended?: boolean; asked?: boolean }) {
+  const t = useT();
   if (!only && !ended && !asked) return null;
   return (
     <span className="people-tags">
-      {asked && <span className="people-tag">Asked</span>}
-      {ended && <span className="people-tag">Past</span>}
-      {only && <span className="people-tag">Only you</span>}
+      {asked && <span className="people-tag">{t("Asked")}</span>}
+      {ended && <span className="people-tag">{t("Past")}</span>}
+      {only && <span className="people-tag">{t("Only you")}</span>}
     </span>
   );
 }
@@ -244,6 +246,7 @@ function Tags({ only, ended = false, asked = false }: { only: boolean; ended?: b
 /** A proposal to this character: "Bo's owner says Bo is Ada's sister", Yes or No. */
 function WaitingRow({ url, tie, first }: { url: string; tie: PeopleTie; first: string }) {
   const { busy, error, run } = useAction();
+  const t = useT();
   const them = shortName(tie.other.name) || tie.other.name;
   const answer = (yes: boolean) => run(() => requestJson(url, { action: "answer_tie", tie_id: tie.id, answer: yes ? "yes" : "no" }));
   return (
@@ -253,17 +256,17 @@ function WaitingRow({ url, tie, first }: { url: string; tie: PeopleTie; first: s
         <span className="people-text">
           <strong>{tie.other.name}</strong>
           <span className="muted small">
-            {them}&apos;s owner says {them} is {first}&apos;s {tie.label}.
+            {t("{them}'s owner says {them} is {name}'s {relation}.", { them, name: first, relation: tie.label })}
           </span>
           {tie.story && <span className="small">{tie.story}</span>}
         </span>
       </Link>
       <span className="people-answer">
         <button type="button" className="small" disabled={busy} onClick={() => void answer(true)}>
-          Yes
+          {t("Yes")}
         </button>
         <button type="button" className="secondary small" disabled={busy} onClick={() => void answer(false)}>
-          No
+          {t("No")}
         </button>
       </span>
       {error && (
@@ -278,6 +281,7 @@ function WaitingRow({ url, tie, first }: { url: string; tie: PeopleTie; first: s
 /** The person form: add someone off the show, or change one (and take them off). */
 function PersonSheet({ url, first, person, onClose }: { url: string; first: string; person: PeopleOne | null; onClose: () => void }) {
   const { busy, error, run } = useAction();
+  const t = useT();
   const choices = personChoices("owner");
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -303,37 +307,37 @@ function PersonSheet({ url, first, person, onClose }: { url: string; first: stri
       return r;
     });
   return (
-    <Sheet open onClose={() => !busy && onClose()} title={person ? `Change ${person.name}` : `Someone in ${first}'s life`}>
+    <Sheet open onClose={() => !busy && onClose()} title={person ? t("Change {name}", { name: person.name }) : t("Someone in {name}'s life", { name: first })}>
       <form className="people-form" onSubmit={submit}>
         <label>
-          Name
+          {t("Name")}
           <input name="name" required maxLength={40} defaultValue={person?.name ?? ""} autoComplete="off" />
         </label>
         <label>
-          Who they are to {first}
+          {t("Who they are to {name}", { name: first })}
           <RelationSelect name="relation" choices={choices} defaultValue={person?.kind ?? ""} />
         </label>
         <label>
-          Pronouns <span className="muted small">(optional)</span>
-          <input name="pronouns" maxLength={20} defaultValue={person?.pronouns ?? ""} placeholder="she/her" autoComplete="off" />
+          {t("Pronouns")} <span className="muted small">{t("(optional)")}</span>
+          <input name="pronouns" maxLength={20} defaultValue={person?.pronouns ?? ""} placeholder={t("she/her")} autoComplete="off" />
         </label>
         <label>
-          A line about them <span className="muted small">(optional)</span>
-          <textarea name="note" maxLength={160} rows={2} defaultValue={person?.note ?? ""} placeholder="Runs the bakery and judges everyone's bread." />
+          {t("A line about them")} <span className="muted small">{t("(optional)")}</span>
+          <textarea name="note" maxLength={160} rows={2} defaultValue={person?.note ?? ""} placeholder={t("Runs the bakery and judges everyone's bread.")} />
         </label>
         <label className="check">
           <input type="checkbox" name="deceased" defaultChecked={person?.deceased ?? false} />
-          They&apos;ve died (they&apos;re remembered)
+          {t("They've died (they're remembered)")}
         </label>
         <Visibility value={person?.visibility === "public" || !person ? "public" : "owner"} />
         <div className="sheet-actions">
           {person && (
             <button type="button" className="link-button danger" disabled={busy} onClick={() => void remove()}>
-              Take them off
+              {t("Take them off")}
             </button>
           )}
           <button type="submit" disabled={busy}>
-            {busy ? "Saving…" : person ? "Save" : "Add"}
+            {busy ? t("Saving…") : person ? t("Save") : t("Add")}
           </button>
         </div>
         {error && (
@@ -348,10 +352,11 @@ function PersonSheet({ url, first, person, onClose }: { url: string; first: stri
 
 /** A relation picker: the kinds by layer, each as it reads ("Sibling", "Mentee", "Has a crush on them"). */
 function RelationSelect({ name, choices, defaultValue }: { name: string; choices: TieChoice[]; defaultValue: string }) {
+  const t = useT();
   return (
     <select name={name} required defaultValue={defaultValue}>
       <option value="" disabled>
-        Pick one
+        {t("Pick one")}
       </option>
       {LAYERS.flatMap((layer) => {
         const here = choices.filter((c) => c.layer === layer);
@@ -373,16 +378,17 @@ function RelationSelect({ name, choices, defaultValue }: { name: string; choices
 
 /** Who sees an item: everyone, or only the owner. */
 function Visibility({ value }: { value: "public" | "owner" }) {
+  const t = useT();
   return (
     <fieldset className="people-visibility">
-      <legend>Who sees this</legend>
+      <legend>{t("Who sees this")}</legend>
       <label className="check">
         <input type="radio" name="visibility" value="public" defaultChecked={value === "public"} />
-        Everyone
+        {t("Everyone")}
       </label>
       <label className="check">
         <input type="radio" name="visibility" value="owner" defaultChecked={value === "owner"} />
-        Only you
+        {t("Only you")}
       </label>
     </fieldset>
   );
@@ -394,6 +400,7 @@ function Visibility({ value }: { value: "public" | "owner" }) {
  */
 function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: string; tie: PeopleTie | null; pick: Candidate | null; onClose: () => void }) {
   const { busy, error, run } = useAction();
+  const t = useT();
   const [who, setWho] = useState<Candidate | null>(pick);
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Candidate[] | null>(null);
@@ -440,7 +447,7 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
         if (r.ok) onClose();
         return r;
       }
-      if (!who) return "Pick who first.";
+      if (!who) return t("Pick who first.");
       const r = await requestJson(url, { action: "declare_tie", with: who.id, relation: str(f, "relation"), story, since, visibility });
       if (r.ok) onClose();
       return r;
@@ -454,14 +461,17 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
     });
 
   const them = who ? shortName(who.name) || who.name : tie ? shortName(tie.other.name) || tie.other.name : "";
-  const endWords = !tie ? "" : tie.waiting === "on_them" ? "Withdraw the ask" : tie.layer === "kin" ? "Take it off" : tie.status === "ended" ? "" : "End it";
+  const endWords = !tie ? "" : tie.waiting === "on_them" ? t("Withdraw the ask") : tie.layer === "kin" ? t("Take it off") : tie.status === "ended" ? "" : t("End it");
   return (
-    <Sheet open onClose={() => !busy && onClose()} title={tie ? `${first} and ${them}` : `Someone ${first} knows on the show`}>
+    <Sheet open onClose={() => !busy && onClose()} title={tie ? t("{name} and {them}", { name: first, them }) : t("Someone {name} knows on the show", { name: first })}>
       <form className="people-form" onSubmit={submit}>
         {tie ? (
           <p>
-            {them} is {first}&apos;s {tie.label}
-            {tie.waiting === "on_them" ? `, if ${them}'s owner says yes.` : tie.status === "ended" ? ", in the past." : "."}
+            {tie.waiting === "on_them"
+              ? t("{them} is {name}'s {relation}, if {them}'s owner says yes.", { them, name: first, relation: tie.label })
+              : tie.status === "ended"
+                ? t("{them} is {name}'s {relation}, in the past.", { them, name: first, relation: tie.label })
+                : t("{them} is {name}'s {relation}.", { them, name: first, relation: tie.label })}
           </p>
         ) : who ? (
           <div className="people-picked">
@@ -469,30 +479,30 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
             <strong>{who.name}</strong>
             {!pick && (
               <button type="button" className="link-button" onClick={() => setWho(null)}>
-                Change
+                {t("Change")}
               </button>
             )}
           </div>
         ) : (
           <>
             <label>
-              Who
-              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a character by name" autoComplete="off" autoFocus />
+              {t("Who")}
+              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Find a character by name")} autoComplete="off" autoFocus />
             </label>
             {found && (
-              <ul className="people-found" aria-label="Characters">
+              <ul className="people-found" aria-label={t("Characters")}>
                 {found.length ? (
                   found.map((c) => (
                     <li key={c.id}>
                       <button type="button" className="people-found-pick" onClick={() => setWho(c)}>
                         <Avatar seed={c.id} name={c.name} hue={c.hue} portraitSrc={c.portrait} size={32} round decorative />
                         <span>{c.name}</span>
-                        {c.mine && <span className="people-tag">Yours</span>}
+                        {c.mine && <span className="people-tag">{t("Yours")}</span>}
                       </button>
                     </li>
                   ))
                 ) : (
-                  <li className="muted small">No one by that name. The show&apos;s own characters take their ties from the show.</li>
+                  <li className="muted small">{t("No one by that name. The show's own characters take their ties from the show.")}</li>
                 )}
               </ul>
             )}
@@ -501,13 +511,12 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
         {!tie && who && (
           <>
             <label>
-              {them} is {first}&apos;s
+              {t("{them} is {name}'s", { them, name: first })}
               <RelationSelect name="relation" choices={tieChoices("owner", { own: who.mine })} defaultValue="" />
             </label>
             {!who.mine && (
               <p className="muted small">
-                {them} is someone else&apos;s character: their owner says yes or no, and it shows once they do. Only warm ties go to someone else&apos;s character; rivalries
-                come from what airs.
+                {t("{them} is someone else's character: their owner says yes or no, and it shows once they do. Only warm ties go to someone else's character; rivalries come from what airs.", { them })}
               </p>
             )}
           </>
@@ -515,12 +524,12 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
         {(tie || who) && (
           <>
             <label>
-              How it goes <span className="muted small">(optional)</span>
-              <textarea name="story" maxLength={240} rows={2} defaultValue={tie?.story ?? ""} placeholder="They shared a flat through university and still split a newspaper." />
+              {t("How it goes")} <span className="muted small">{t("(optional)")}</span>
+              <textarea name="story" maxLength={240} rows={2} defaultValue={tie?.story ?? ""} placeholder={t("They shared a flat through university and still split a newspaper.")} />
             </label>
             <label>
-              Since <span className="muted small">(optional)</span>
-              <input name="since" maxLength={40} defaultValue={tie?.since ?? ""} placeholder="school, 2019, forever" autoComplete="off" />
+              {t("Since")} <span className="muted small">{t("(optional)")}</span>
+              <input name="since" maxLength={40} defaultValue={tie?.since ?? ""} placeholder={t("school, 2019, forever")} autoComplete="off" />
             </label>
             <Visibility value={tie && tie.visibility !== "public" ? "owner" : "public"} />
           </>
@@ -533,7 +542,7 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
           )}
           {(tie || who) && (
             <button type="submit" disabled={busy}>
-              {busy ? "Saving…" : tie ? "Save" : who?.mine ? "Add" : "Ask their owner"}
+              {busy ? t("Saving…") : tie ? t("Save") : who?.mine ? t("Add") : t("Ask their owner")}
             </button>
           )}
         </div>
@@ -550,6 +559,7 @@ function TieSheet({ url, first, tie, pick, onClose }: { url: string; first: stri
 /** The place form: where they live, work, are a regular or studied; a new workplace or school can be named. */
 function PlaceSheet({ url, first, menu, place, onClose }: { url: string; first: string; menu: WorldMenu; place: PeoplePlace | null; onClose: () => void }) {
   const { busy, error, run } = useAction();
+  const t = useT();
   const [role, setRole] = useState<DeclaredRole>("lives");
   const [pickKey, setPickKey] = useState("");
   const options = placeOptions(menu, role);
@@ -579,11 +589,11 @@ function PlaceSheet({ url, first, menu, place, onClose }: { url: string; first: 
       <Sheet open onClose={() => !busy && onClose()} title={place.words} fit>
         <p>
           {first}: {place.words.charAt(0).toLowerCase() + place.words.slice(1)}
-          {place.since ? `, since ${place.since}` : ""}.
+          {place.since ? `, ${t("since {when}", { when: place.since })}` : ""}.
         </p>
         <div className="sheet-actions">
           <button type="button" className="link-button danger" disabled={busy} onClick={() => void leave()}>
-            Take them out of here
+            {t("Take them out of here")}
           </button>
         </div>
         {error && (
@@ -595,7 +605,7 @@ function PlaceSheet({ url, first, menu, place, onClose }: { url: string; first: 
     );
   }
   return (
-    <Sheet open onClose={() => !busy && onClose()} title={`A place in ${first}'s life`}>
+    <Sheet open onClose={() => !busy && onClose()} title={t("A place in {name}'s life", { name: first })}>
       <form className="people-form" onSubmit={submit}>
         <label>
           {first}…
@@ -615,29 +625,29 @@ function PlaceSheet({ url, first, menu, place, onClose }: { url: string; first: 
           </select>
         </label>
         <label>
-          Where
+          {t("Where")}
           <select name="place" required value={pickKey} onChange={(e) => setPickKey(e.target.value)}>
             <option value="" disabled>
-              Pick one
+              {t("Pick one")}
             </option>
             {options.map((o) => (
               <option key={o.key} value={o.key}>
                 {o.label}
               </option>
             ))}
-            {NEW_PLACE_FOR[role] && <option value={NEW_PLACE}>Somewhere new…</option>}
+            {NEW_PLACE_FOR[role] && <option value={NEW_PLACE}>{t("Somewhere new…")}</option>}
           </select>
         </label>
         {naming && (
           <>
             <label>
-              Its name
+              {t("Its name")}
               <input name="name" required maxLength={60} placeholder={role === "studied" ? "Heartsease Sixth Form" : "The Salt Lantern"} autoComplete="off" />
             </label>
             <label>
-              In
+              {t("In")}
               <select name="neighbourhood" defaultValue="">
-                <option value="">Somewhere in {menu.city.name}</option>
+                <option value="">{t("Somewhere in {place}", { place: menu.city.name })}</option>
                 {menu.neighbourhoods.map((n) => (
                   <option key={n.key} value={n.key}>
                     {n.name}
@@ -648,13 +658,13 @@ function PlaceSheet({ url, first, menu, place, onClose }: { url: string; first: 
           </>
         )}
         <label>
-          Since <span className="muted small">(optional)</span>
-          <input name="since" maxLength={40} placeholder="two winters, 2021" autoComplete="off" />
+          {t("Since")} <span className="muted small">{t("(optional)")}</span>
+          <input name="since" maxLength={40} placeholder={t("two winters, 2021")} autoComplete="off" />
         </label>
         <Visibility value="public" />
         <div className="sheet-actions">
           <button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Add"}
+            {busy ? t("Saving…") : t("Add")}
           </button>
         </div>
         {error && (
