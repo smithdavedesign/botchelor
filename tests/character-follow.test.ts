@@ -47,6 +47,7 @@ import { seasonIdOf } from "@/lib/season-window";
 import { clearSharedCache } from "@/lib/shared-cache";
 import type { CircleData, StoryPerson, StoryTie, TieKind } from "@/lib/story-map";
 import { api, BASE_URL, episodeJson, HOUSE_PARTNER_ID, newUserCookie, scriptedModel, scriptOutcome, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
+import { SHOW_DATE_TEASE } from "@/lib/show-spoilers";
 
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -310,14 +311,15 @@ describe("a follower hears when a date airs", () => {
 
     const d1 = await airedDate(creator, character.id, "friends", [false, false]);
     for (const fan of ["fan-cast", "fan-theirs", "fan-both"]) {
-      expect(await inbox(fan), fan).toEqual([{ kind: "couple_date", title: `${couple} went on a date`, body: "How it ended: just friends.", link: `/episodes/${d1.id}`, read: false }]);
+      // A date with the show's own cast never says how it went (lib/show-spoilers.ts, 2026-11-28).
+      expect(await inbox(fan), fan).toEqual([{ kind: "couple_date", title: `${couple} went on a date`, body: SHOW_DATE_TEASE, link: `/episodes/${d1.id}`, read: false }]);
     }
     // A second date agreed: the step up, once, not "another date" as well.
     await airedDate(creator, character.id, "second_date", [true, true]);
     for (const fan of ["fan-cast", "fan-both"]) {
       const got = await inbox(fan);
       expect(got, fan).toHaveLength(2);
-      expect(got[0]).toMatchObject({ kind: "stage_up", link: expect.stringMatching(/^\/couples\//) });
+      expect(got[0]).toMatchObject({ kind: "stage_up", title: `${couple} have news`, body: SHOW_DATE_TEASE, link: expect.stringMatching(/^\/episodes\//) });
     }
     // Someone who also follows the couple still hears each date once.
     await followCouple(t.db, "fan-both", character.id, HOUSE_PARTNER_ID);

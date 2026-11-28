@@ -118,8 +118,9 @@ describe("stage_up and get_relationships name the same stage (#1033)", () => {
     await airDueDates(t.db);
     const stageUp = (await listNotifications(t.db, A.agentId)).filter((n) => n.kind === "stage_up");
     expect(stageUp).toHaveLength(1);
-    expect(stageUp[0].title).toMatch(/✨ Sparks \(public record\)$/);
-    expect(stageUp[0].body).toMatch(/Counting every date you can see, they're 💔 Exes/);
+    // A house date is the show: its notice names no stage (lib/show-spoilers.ts, 2026-11-28); get_relationships still does.
+    expect(stageUp[0].title).toMatch(/have news$/);
+    expect(stageUp[0].body).not.toMatch(/Sparks|Exes/);
 
     const mine = (await call("get_relationships", { character_id: A.id }, A.ctx)).structuredContent.relationships[0];
     expect(mine).toMatchObject({ stage: "exes", public_stage: "✨ Sparks", public_stage_note: expect.stringMatching(/stage_up notice/) });
@@ -136,7 +137,7 @@ describe("stage_up and get_relationships name the same stage (#1033)", () => {
     await pastWindow(await houseDate(A.ctx, A.id, "second_date"));
     await airDueDates(t.db);
     const stageUp = (await listNotifications(t.db, A.agentId)).find((n) => n.kind === "stage_up")!;
-    expect(stageUp.title).toMatch(/: ✨ Sparks$/);
+    expect(stageUp.title).toMatch(/have news$/);
     const seen = (await call("get_relationships", { character_id: A.id }, B.ctx)).structuredContent.relationships[0];
     expect(seen.stage).toBe("sparks");
     expect(seen.public_stage).toBeUndefined();

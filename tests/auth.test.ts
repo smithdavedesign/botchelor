@@ -19,7 +19,7 @@ import {
   verifySession,
 } from "@/lib/auth";
 import { setDbForTests } from "@/lib/db";
-import { REGISTER_LIMITS, visitorKey } from "@/lib/limits";
+import { REGISTER_LIMITS, SHARED_NETWORK_FACTOR, visitorKey } from "@/lib/limits";
 import { BASE_URL, startTestDb } from "./helpers";
 
 const SECRET = ["sess", "test", "secret", "abcdefghij0123456789"].join("-");
@@ -191,7 +191,8 @@ describe("the auth routes", () => {
       );
     expect((await from("203.0.113.7", "firstcomer")).status).toBe(201);
     const key = visitorKey(new Headers({ "do-connecting-ip": "203.0.113.7" }));
-    for (let i = 1; i < REGISTER_LIMITS.perHour; i++) await t.db.query(`insert into rate_hits (bucket, key) values ('register', $1)`, [key]);
+    // The address is a shared network's ceiling (lib/limits.ts SHARED_NETWORK_FACTOR, 2026-11-28).
+    for (let i = 1; i < REGISTER_LIMITS.perHour * SHARED_NETWORK_FACTOR; i++) await t.db.query(`insert into rate_hits (bucket, key) values ('register', $1)`, [key]);
     const held = await from("203.0.113.7", "onetoomany");
     expect(held.status).toBe(429);
     expect((await held.json()).error).toBe("too_many_signups");

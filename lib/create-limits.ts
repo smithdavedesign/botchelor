@@ -13,7 +13,7 @@
 import type { Db } from "./db";
 import { isSignedInAdmin } from "./admins";
 import { isInternalRequest } from "./http";
-import { overLimit, visitorKey } from "./limits";
+import { overLimit, overPersonLimit, visitorKey } from "./limits";
 
 /** Characters saved per visitor: an address (lib/limits.ts visitorKey) on the web, the agent over MCP. */
 export const CREATE_LIMITS = { perHour: 20, perDay: 50 };
@@ -33,6 +33,10 @@ const MINE = {
 const CHECKS = {
   error: "too_many_checks",
   message: "That's a lot of checks in a short time. Give it a little while, then try again.",
+};
+const NETWORK = {
+  error: "too_many_characters",
+  message: "Lots of people on your network are making characters right now. Your draft is still in this tab: try again in a few minutes.",
 };
 const EVERYONE = {
   error: "creates_paused",
@@ -61,10 +65,16 @@ export async function createRefusal(
 ): Promise<CreateRefusal | null> {
   const agent = isInternalRequest(req);
   if (await showsOwn(db, { userId: sess.userId, authenticated: sess.authenticated, agent })) return null;
-  const key = agent ? `agent:${sess.userId}` : visitorKey(req.headers);
-  if (key) {
+  if (agent) {
+    const key = `agent:${sess.userId}`;
     if (await overLimit(db, "character_check", key, CREATE_CHECK_LIMITS, now)) return { status: 429, body: CHECKS };
     if (!checkOnly && (await overLimit(db, "character_create", key, CREATE_LIMITS, now))) return { status: 429, body: MINE };
+  } else if (visitorKey(req.headers)) {
+    // A browser: per person, with the address as a looser ceiling for shared networks (lib/limits.ts overPersonLimit).
+    const check = await overPersonLimit(db, "character_check", sess.userId, req.headers, CREATE_CHECK_LIMITS, now);
+    if (check) return { status: 429, body: check === "self" ? CHECKS : { ...NETWORK, error: CHECKS.error } };
+    const save = checkOnly ? null : await overPersonLimit(db, "character_create", sess.userId, req.headers, CREATE_LIMITS, now);
+    if (save) return { status: 429, body: save === "self" ? MINE : NETWORK };
   }
   if (await overLimit(db, "character_check_all", "all", CREATE_CHECK_ALL_LIMITS, now)) return { status: 429, body: EVERYONE };
   if (!checkOnly && (await overLimit(db, "character_create_all", "all", CREATE_ALL_LIMITS, now))) return { status: 429, body: EVERYONE };

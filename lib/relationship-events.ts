@@ -14,6 +14,7 @@ import { justSplit, STAGE_NEWS, steppedUp as movedUp } from "./relationship-stag
 import { pairKey, refreshRelationship, STAGE_LABELS, storedStages, viewRelationship } from "./relationships";
 import { endingLabel } from "./rules";
 import { midSentence } from "./sentence-case";
+import { SHOW_DATE_TEASE, isShowDate } from "./show-spoilers";
 import { socialHook } from "./social/hook";
 
 /**
@@ -35,10 +36,11 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   const before = (await storedStages(db, lo, hi)).public_shown;
   const rel = await refreshRelationship(db, lo, hi);
   const after = rel?.public.shown ?? null;
-  const names = new Map(
-    (await db.query<{ id: string; name: string }>(`select id, name from characters where id = any($1)`, [[lo, hi]])).rows.map((r) => [r.id, shortName(r.name)]),
-  );
+  const cast = (await db.query<{ id: string; name: string; is_house: boolean }>(`select id, name, is_house from characters where id = any($1)`, [[lo, hi]])).rows;
+  const names = new Map(cast.map((r) => [r.id, shortName(r.name)]));
   const couple = `${names.get(lo)} & ${names.get(hi)}`;
+  // A date with the show's own cast is the show (lib/show-spoilers.ts): its notices never say how it went.
+  const show = isShowDate(cast[0]?.is_house, cast[1]?.is_house);
   const [owners, coupleFollowers, fans] = await Promise.all([ownersOf(db, [lo, hi]), followerIds(db, lo, hi), pairCharacterFollowers(db, lo, hi).catch(() => [] as string[])]);
   // The couple's followers and either character's: each person hears once (notifyAll sends to each id once).
   const followers = [...new Set([...coupleFollowers, ...fans])];
@@ -46,7 +48,10 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
   const told = new Set<string>();
   if (steppedUp) {
     const body = STAGE_NEWS[after!] ?? "They've become a fixture.";
-    const notice = { kind: "stage_up" as const, title: `${couple}: ${STAGE_LABELS[after!]}`, body, link: `/couples/${lo}/${hi}` };
+    // A date's news only: a season finale's engagement is the finale's own headline, told as it always was.
+    const notice = show && opts.episodeId
+      ? { kind: "stage_up" as const, title: `${couple} have news`, body: SHOW_DATE_TEASE, link: opts.episodeId ? `/episodes/${opts.episodeId}` : `/couples/${lo}/${hi}` }
+      : { kind: "stage_up" as const, title: `${couple}: ${STAGE_LABELS[after!]}`, body, link: `/couples/${lo}/${hi}` };
     // #1033: the step up is the public record's (aired, public dates), but an owner's get_relationships counts every date
     // they can see (unaired, unlisted, their private ones), so it could say Friends beside a Sparks notice. An owner
     // whose view names another stage hears both: the title says it's the public stage, the body names theirs.
@@ -57,7 +62,7 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
       await notifyAll(
         db,
         [owner],
-        theirs && theirs !== after
+        theirs && theirs !== after && !show
           ? {
               ...notice,
               title: `${couple}: ${STAGE_LABELS[after!]} (public record)`,
@@ -81,7 +86,7 @@ export async function refreshAndAnnounce(db: Db, x: string, y: string, opts: { e
         title: firstDate ? `${couple} went on a date` : `${couple} went on another date`,
         // Its own date number (a follow-up's), so a happy third date reads "a fourth date", as on its page; in a sentence's
         // case, as home's clip says it (2026-11-22 audit: "It ended: A fifth date" read as two headings).
-        body: `How it ended: ${midSentence(endingLabel(aired.ending, aired.date_number))}.`,
+        body: show ? SHOW_DATE_TEASE : `How it ended: ${midSentence(endingLabel(aired.ending, aired.date_number))}.`,
         link: `/episodes/${opts.episodeId}`,
       });
     }

@@ -308,7 +308,7 @@ describe("POST /api/characters/draft", () => {
     expect(calls).toHaveLength(0);
     // The numbers the PR states.
     expect(EXPRESS_DRAFT_LIMITS).toEqual({ perHour: 5, perDay: 10 });
-    expect(EXPRESS_DRAFT_IP_LIMITS).toEqual({ perHour: 10, perDay: 30 });
+    expect(EXPRESS_DRAFT_IP_LIMITS).toEqual({ perHour: 40, perDay: 120 });
     expect(EXPRESS_DRAFT_ALL_LIMITS).toEqual({ perHour: 60, perDay: 300 });
   });
 

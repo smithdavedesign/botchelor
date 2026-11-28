@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { SHOW_DATE_TEASE } from "@/lib/show-spoilers";
 import { deleteAccount, exportAccount } from "@/lib/account";
 import { arcQuestion, arcTarget, predictArc, resolveExpiredArcs } from "@/lib/arcs";
 import type { SideOutcome } from "@/lib/engine";
@@ -56,7 +57,8 @@ describe("following a couple", () => {
     const inbox = await listNotifications(t.db, fan);
     expect(inbox[0].kind).toBe("stage_up"); // a move up reaches followers too
     await date(creator, character.id, "friends", [true, false]);
-    expect((await listNotifications(t.db, fan))[0]).toMatchObject({ kind: "couple_date", body: "How it ended: just friends." });
+    // Their partner is the house's: a show date's notice never says how it went (lib/show-spoilers.ts).
+    expect((await listNotifications(t.db, fan))[0]).toMatchObject({ kind: "couple_date", body: SHOW_DATE_TEASE });
 
     await unfollowCouple(t.db, fan, character.id, HOUSE_PARTNER_ID);
     expect((await followState(t.db, fan, character.id, HOUSE_PARTNER_ID)).following).toBe(false);

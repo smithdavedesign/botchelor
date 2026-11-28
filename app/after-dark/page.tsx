@@ -5,11 +5,9 @@ import Link from "next/link";
 import { studioDoorLabel } from "@/lib/adult/door-links";
 import { afterDarkDoors } from "@/lib/adult/doors";
 import { notFound, redirect } from "next/navigation";
-import { knowsAfterDark } from "@/lib/adult/lapsed";
 import { listSwitchable } from "@/lib/adult/characters";
 import { afterDarkTitle } from "@/lib/adult/discreet";
 import { canAfterDark } from "@/lib/adult/entitlement";
-import { publicDoorOpen } from "@/lib/adult/door";
 import { adultAvailable } from "@/lib/adult/mode";
 import { LATEST_LOOK, latestMade, NEW_FOR_MS } from "@/lib/adult/latest";
 import { ownMedia } from "@/lib/adult/media";
@@ -60,8 +58,9 @@ export default async function AfterDarkPage({ searchParams }: { searchParams?: P
   // Someone who has been in before or asked to be (an ended beta month, a lapsed subscription, an invite request:
   // lib/adult/lapsed.ts) lands there too: a bare not-found lost the warmest leads there are.
   if (!entitled.ok) {
-    if (entitled.why === "signed_out" || (await publicDoorOpen()) || (await knowsAfterDark(db, auth!.userId))) redirect("/after-dark/subscribe");
-    notFound();
+    // 2026-11-28 (the 40-visitor rerun: the footer's waitlist link led signed-in visitors to a not-found): everyone it isn't
+    // open to lands on the landing, whose waitlist and invite request are the only way in until the public door opens.
+    redirect("/after-dark/subscribe");
   }
   // A device that hasn't entered this account's PIN gets nothing from here: the layout shows the PIN prompt instead.
   if (await lockedForCookies(db, auth!.userId, store)) notFound();

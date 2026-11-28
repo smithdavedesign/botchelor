@@ -3,7 +3,7 @@
  * out, both states of RELATIONSHIP_STAGES_V2), the bad-blood rule against the shapes production holds, what a refresh
  * stores and logs, the silent backfill, the notices, and the readers that tell a stage.
  */
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { shapeNow } from "@/lib/character-now";
 import { shapeTalk } from "@/lib/character-talk";
 import { publicTimeline } from "@/lib/graph";
@@ -549,7 +549,14 @@ describe("followers hear a step up in the new stages, and a couple splitting", (
     return async () => (await listNotifications(t.db, fan)).filter((x) => x.kind === "stage_up").map((x) => `${x.title} | ${x.body}`);
   }
 
+  // These two read as an ordinary couple's (no house character): a couple with the show's cast hears no stage, only
+  // that there's news (lib/show-spoilers.ts, 2026-11-28; tests/character-follow.test.ts has that side).
+  const ordinary = async () => t.db.query(`update characters set is_house = false, owner_id = 'rs-owner' where id = any($1)`, [[A, B]]);
+  const asCast = async (): Promise<void> => void (await t.db.query(`update characters set is_house = true, owner_id = null where id = any($1)`, [[A, B]]));
+
   it("official at six in a row; broke up when a steady couple's date ends badly; back together after", async () => {
+    await ordinary();
+    onTestFinished(asCast);
     const heard = await follower();
     for (let d = 1; d <= 5; d++) await aired(A, B, "second_date", d);
     await refreshRelationship(t.db, A, B);
@@ -575,6 +582,8 @@ describe("followers hear a step up in the new stages, and a couple splitting", (
   });
 
   it("keeping it casual: they left an overnight date together", async () => {
+    await ordinary();
+    onTestFinished(asCast);
     const heard = await follower();
     for (let d = 1; d <= 2; d++) await aired(A, B, "second_date", d);
     await refreshRelationship(t.db, A, B);

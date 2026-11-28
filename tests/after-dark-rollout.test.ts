@@ -108,9 +108,10 @@ describe("the public door", () => {
     expect((await afterDarkDoor(null, null, new Headers())).door).toBe(false);
   });
 
-  it("After Dark's home: not found for someone not in, until the door opens; then the subscribe page", async () => {
+  it("After Dark's home sends someone not in to the subscribe page (its waitlist), door shut or open", async () => {
     signIn(randomUUID());
-    expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/404/);
+    // 2026-11-28: the footer links the waitlist, so a shut door lands there too, never on a bare not-found.
+    expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);
     await open("public_door");
     expect(await digest(AfterDarkHome({ searchParams: Promise.resolve({}) }))).toMatch(/^NEXT_REDIRECT;[a-z]+;\/after-dark\/subscribe;/);
   });

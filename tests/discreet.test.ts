@@ -511,10 +511,10 @@ describe("the After Dark pages", () => {
     expect(html).toContain("THE PAGE ITSELF");
   });
 
-  it("a stranger still gets not-found, and no PIN prompt", async () => {
+  it("a stranger is sent to the waitlist landing, with no PIN prompt", async () => {
     viewAs(signedInCookie(randomUUID()));
     expect(await render(AfterDarkLayout)).not.toContain("Enter your PIN");
-    await expect(AfterDarkHome()).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/);
+    await expect(AfterDarkHome()).rejects.toThrow(/NEXT_REDIRECT/);
   });
 });
 
