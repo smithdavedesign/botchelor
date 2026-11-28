@@ -86,6 +86,24 @@ export type Listing = {
   yours?: boolean;
 };
 
+/**
+ * Whether the market has anything on sale (the 2026-11-27 UX pass, before Product Hunt): an empty market is linked from
+ * /everything and indexed only once it has a listing, so a visitor doesn't land on "Nothing listed yet". The page itself
+ * stays up for creators who want to list. False when it's off or the database can't say.
+ */
+export async function marketHasListings(db: Db, env: Env = process.env): Promise<boolean> {
+  if (!moneyOn("marketplace", env)) return false;
+  try {
+    const { rows } = await db.query<{ n: number }>(
+      `select count(*)::int as n from market_listings l join characters c on c.id = l.character_id
+        where l.delisted_at is null and c.visibility = 'public' and ${listedCharacterSql("c")}`,
+    );
+    return (rows[0]?.n ?? 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** Live listings of public, listed characters, best sellers first. Off, there are none. */
 export async function marketListings(db: Db, viewerId: string | null, env: Env = process.env, limit = 60): Promise<Listing[]> {
   if (!moneyOn("marketplace", env)) return [];
