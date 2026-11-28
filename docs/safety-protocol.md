@@ -37,6 +37,7 @@ call your local emergency number.
 | A message to a companion (`POST /api/companion/:id`, `send` / `edit`, a text or a line in a scene) | `companion` | The thread **pauses** (nothing in character, the message not kept) until they carry on ([companions.md](companions.md)) |
 | A fact the person adds or edits on a companion's memory page (`POST /api/companion/:id/memory`) | `companion` | The same pause; nothing kept |
 | MCP `companion` `send` / `edit` / `remember` | `mcp_companion` | The same pause; `crisis_resources` in the error's `details`, and on every read until `carry_on` |
+| A public confessional (MCP `post_confessional`) | `confessional` | Not posted (the booth is public); the help lines in the error, `crisis_resources` in its `details` |
 | A line in an After Dark Step in scene, or the opening written for one (`POST /api/admin/after-dark/step-in`, `…/step-in/:id` `send`; closed, admins only) | `after_dark_step_in` | The scene **pauses** (nothing in character, the line not kept) until they carry on; a written opening starts no scene ([after-dark.md](after-dark.md), "Step in") |
 
 - The route wrapper `crisisAware` reads the request body from a copy and adds `crisis_resources` to whatever the route

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { characterCopy } from "@/lib/franchises";
 import { adultCookie, hasAdultCookie } from "@/lib/age";
 import { AUDIENCES } from "@/lib/audience";
 import { getDb } from "@/lib/db";
@@ -130,6 +131,15 @@ export const POST = handle(async (req) => {
     hiding: input.hiding,
     ...extrasFields(extras),
   };
+  // Originals only (lib/franchises.ts, 2026-11-28): a character from someone else's book, film, show or game is refused.
+  const copy = characterCopy(sheetFields);
+  if (copy) {
+    return json(
+      { error: "content_rejected", reason: "real_person", field: copy.field, message: copy.message, issues: [{ reason: "real_person", phrase: copy.phrase, field: copy.field, index: 0 }] },
+      422,
+      sess,
+    );
+  }
   const verdict = await checkFieldsAnyLanguage(sheetFields, { check: checkSheetText });
   if (!verdict.ok) {
     // `issues`: every refused text with the words that did it (lib/safety.ts sheetPgIssues), so a form or an agent

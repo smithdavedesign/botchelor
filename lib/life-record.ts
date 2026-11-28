@@ -18,7 +18,7 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
 import type { Model } from "./model";
-import { checkShowText } from "./safety";
+import { checkSheetText, checkShowText } from "./safety";
 import { editDistance } from "./mcp/edit-distance";
 import { FEATURE_COLS, requestOf, type FeatureRow } from "./feature-requests";
 import { extForPrompt, liveExtensions, type ExtRow } from "./persona-ext-host";
@@ -170,7 +170,10 @@ export async function addEntry(db: Db, e: NewLifeEntry): Promise<{ ok: true; ent
   if (value.length < 2) return { ok: false, error: "invalid", message: "Say what it is, in a few words." };
   if (def.options?.length && !def.options.some((o) => o.toLowerCase() === value.toLowerCase()))
     return { ok: false, error: "invalid", message: `${def.label} is one of: ${def.options.join(", ")}.` };
-  const check = checkShowText({ value, ...(period ? { period } : {}) });
+  // A public entry on the PG side: the show's line check, plus what a public sheet can't say (2026-11-28: "Very good in
+  // bed" went on a life record).
+  const lineCheck = checkShowText({ value, ...(period ? { period } : {}) });
+  const check = lineCheck.ok ? checkSheetText({ value, ...(period ? { period } : {}) }) : lineCheck;
   if (!check.ok) return { ok: false, error: "unsafe", message: `That can't go on a life record (${check.reason}): keep it PG, about the character, and with no real people.` };
   const { rows: counts } = await db.query<{ all: number; here: number }>(
     `select count(*)::int as all, count(*) filter (where field = $2)::int as here from life_entries where character_id = $1`,

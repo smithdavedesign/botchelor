@@ -1791,6 +1791,7 @@ const RAW_TOOL_DEFS = [
         message_id: str(64, "report / voice: the reply (an id from reply or messages)."),
         reason: { type: "string", enum: [...COMPANION_REPORT_REASONS], description: "report: why." },
         fact_id: str(64, "forget: the fact (an id from memory)."),
+        adult: { type: "boolean", description: "true: the person you act for is 18+ (asked once)." },
         limit: { type: "integer", minimum: 1, maximum: 50, description: "read: how many of the newest messages (default 20)." },
         agent_id: AGENT_ID,
       },

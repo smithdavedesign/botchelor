@@ -11,8 +11,9 @@
  * - **A fan isn't a copy:** a title ("Genshin", "Pokémon cards", "a Star Wars marathon") counts only where a character
  *   says who they are and how they look (IDENTITY_FIELDS: the name, appearance, look, role and costume), never in a bio
  *   or a hobby. A character's name ("Tifa Lockhart") or a place ("Hogwarts") counts anywhere.
- * - **What it's for:** people's characters get a warning (the originality panel and the MCP's create reply). Botchelor's
- *   own (the house, season-gen, recasts, the agent casts) and After Dark's are refused.
+ * - **What it's for:** every save refuses a copy (2026-11-28, the simulation: a Hermione Granger went live with a tip
+ *   button): people's characters on the web and over MCP (app/api/characters, characterCopy), Botchelor's own (the
+ *   house, season-gen, recasts, the agent casts) and After Dark's. The originality panel still warns as someone types.
  */
 
 import { escapeRegExp } from "./text";
@@ -354,4 +355,11 @@ export function franchiseRefusal(hits: readonly FranchiseHit[], where = "Botchel
 /** The first franchise a sheet's words name, as the refusal for one of ours; null for an original. */
 export function sheetRefusal(sheet: Parameters<typeof sheetFields>[0], where = "Botchelor"): string | null {
   return franchiseRefusal(franchiseHits(sheetFields(sheet)), where);
+}
+
+/** The first franchise a saved sheet's words name, as the save's refusal (app/api/characters); null for an original. */
+export function characterCopy(fields: Record<string, unknown>): { message: string; field: string; phrase: string } | null {
+  const hits = franchiseHits(fields);
+  const message = franchiseRefusal(hits);
+  return message ? { message, field: hits[0].field, phrase: hits[0].matched } : null;
 }

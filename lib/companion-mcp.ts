@@ -106,6 +106,13 @@ function compact(view: CompanionThreadView, since?: Set<string>, limit = RECENT)
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 /** The thread an action is about: thread_id, or this agent's thread with character_id (opened when `open`). */
+/** What an agent is told before its person has confirmed they're 18 or over. */
+export const COMPANION_AGE_GATE =
+  "Companions are 18+. Call again with adult: true to confirm the person you're acting for is 18 or over (asked once). If they're under 18, stop: Botchelor isn't for them.";
+
+const agentAttestedAdult = async (db: Db, agentId: string): Promise<boolean> =>
+  (await db.query(`select 1 from companion_threads where user_id = $1 and adult_attested_at is not null limit 1`, [agentId])).rows.length > 0;
+
 async function threadFor(db: Db, agentId: string, args: Record<string, unknown>, open: boolean): Promise<{ id: string; opened?: boolean } | ToolError> {
   const given = str(args.thread_id);
   if (given) return { id: given };
@@ -148,8 +155,12 @@ export async function runCompanionTool(db: Db, agentId: string, args: Record<str
     const limited = await talkLimited(db, agentId);
     if (limited) return limited;
   }
+  // The 18+ gate (2026-11-28): the web asks at its age gate; an agent confirms for its person once, with adult: true.
+  const attests = args.adult === true;
+  if ((talks || action === "open") && !attests && !(await agentAttestedAdult(db, agentId))) return { error: COMPANION_AGE_GATE, code: "age_gate" };
   const thread = await threadFor(db, agentId, args, action === "open" || action === "send");
   if ("error" in thread) return thread;
+  if (attests) await db.query(`update companion_threads set adult_attested_at = coalesce(adult_attested_at, now()) where id = $1 and user_id = $2`, [thread.id, agentId]);
   const before = await getThread(db, agentId, thread.id);
   if (!before.ok) return failed(before);
   // A thread this call opened: its notice and first messages are news too.
