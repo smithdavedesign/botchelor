@@ -9,6 +9,11 @@ import { ENDINGS, type Ending } from "./rules";
 
 export const LATELY_OF = 100;
 export const LATELY_TTL_MS = 5 * 60_000;
+/**
+ * The episode page shows the mix from this many aired dates on (2026-11-28 visitor run: "100% disaster (the last 1 aired
+ * public dates)" told a fan how the show's one aired date ended). Below it, the share is one date's ending.
+ */
+export const LATELY_SHOWN_FROM = 20;
 
 export type EndingsLately = Record<Ending, number> & {
   of: number;

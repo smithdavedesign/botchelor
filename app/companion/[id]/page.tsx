@@ -82,7 +82,7 @@ export default async function CompanionThreadPage({ params, searchParams }: { pa
     <CompanionChat
       initial={r.view}
       about={await aboutCharacter(db, r.view.character.id)}
-      initialCrisis={r.view.paused ? CRISIS_RESOURCES : null}
+      initialCrisis={r.view.paused && !r.view.adults_only ? CRISIS_RESOURCES : null}
       initialAllowance={allowance}
       initialExtras={extras}
       signedIn={!access.guest}

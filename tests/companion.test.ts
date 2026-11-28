@@ -4,6 +4,7 @@ import { GET as listRoute, POST as openRoute } from "@/app/api/companion/route";
 import { DELETE as deleteRoute, GET as viewRoute, POST as actRoute } from "@/app/api/companion/[id]/route";
 import { GET as memoryGet, POST as memoryPost } from "@/app/api/companion/[id]/memory/route";
 import { deleteAccount } from "@/lib/account";
+import { POST as createCharacter } from "@/app/api/characters/route";
 import {
   COMPANION_LIMITS,
   companionEligible,
@@ -14,7 +15,9 @@ import {
   noticeDue,
   openOurAgentCast,
   openThread,
+  getThread,
   regenerate,
+  UNDER_18_MESSAGE,
   REGENERATE_TEMPERATURE,
   sendMessage,
   setCompanionModelForTests,
@@ -24,7 +27,7 @@ import { replyBubbles } from "@/lib/companion-prompt";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { setSeasonCastForTests } from "@/lib/season-cast";
 import type { ChatMessage } from "@/lib/model";
-import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET } from "./helpers";
+import { BASE_URL, signedInCookie, startTestDb, TEST_SESSION_SECRET, validCharacter } from "./helpers";
 import { signSession } from "@/lib/auth";
 import { COMPANION_GUEST_IP_LIMITS, COMPANION_GUEST_OPEN_IP_LIMITS } from "@/lib/companion";
 import { COMPANION_GUEST_REPLIES, COMPANION_GUEST_THREADS } from "@/lib/companion-shared";
@@ -830,5 +833,29 @@ describe("the memory follow-up", () => {
     expect(r.status).toBeLessThan(300);
     const after = (await t.db.query<Any>(`select embedding from companion_facts where id = $1`, [row.id])).rows[0];
     expect(after.embedding).toBeNull();
+  });
+});
+
+describe("someone who says they're under 18 (2026-11-28 rerun)", () => {
+  it("closes the chat for good: it says so on every later move and on reload, and they make no characters", async () => {
+    const me = await person({ admin: true });
+    const o = await openThread(t.db, me.id, CAST.id, new Date());
+    if (!o.ok) throw new Error("no thread");
+    expect(await sendMessage(t.db, me.id, o.thread_id, "im 15 btw")).toMatchObject({ ok: false, status: 403, error: "adults_only" });
+    expect(await sendMessage(t.db, me.id, o.thread_id, "jk I am 22")).toMatchObject({ ok: false, error: "adults_only", message: UNDER_18_MESSAGE });
+    expect(await regenerate(t.db, me.id, o.thread_id)).toMatchObject({ ok: false, error: "adults_only" });
+    expect(await getThread(t.db, me.id, o.thread_id)).toMatchObject({ ok: true, view: { paused: true, adults_only: UNDER_18_MESSAGE } });
+    // Over the web the 18+ answer is taken back, so the gate asks again.
+    const web = await actRoute(req(`/api/companion/${o.thread_id}`, { action: "send", text: "hello?" }, me.cookie), ctx(o.thread_id));
+    expect(web.status).toBe(403);
+    expect(web.headers.get("set-cookie")).toMatch(/bz_adult=; Path=\/; Max-Age=0/);
+    const res = await createCharacter(
+      new Request(`${BASE_URL}/api/characters`, {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: me.cookie, origin: BASE_URL },
+        body: JSON.stringify(validCharacter()),
+      }),
+    );
+    expect([res.status, await res.json()]).toMatchObject([403, { error: "adults_only" }]);
   });
 });

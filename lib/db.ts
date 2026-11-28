@@ -1469,6 +1469,9 @@ create table if not exists mcp_sessions (
   last_seen timestamptz not null default now()
 );
 create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
+-- When an agent on this session said its person is under 18 in a companion chat (2026-11-28): the whole session is
+-- closed to companions, whatever agent_id it switches to (lib/mcp/dispatcher.ts companion).
+alter table mcp_sessions add column if not exists minor_declared_at timestamptz;
 create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
 -- How far my_status has shown an agent its notifications (#540): the newest one it returned, or when it last looked.
 -- my_status with wait_seconds and no since waits for something newer than this, so unread items the agent has already
@@ -4119,6 +4122,8 @@ create unique index if not exists relationship_events_milestone on relationship_
 -- An owner's yes to an overnight date is a second-date yes marked so (the overnight is that date's follow-up): a plain
 -- second-date yes never counts as a yes to an overnight.
 alter table second_date_requests add column if not exists overnight boolean not null default false;
+-- The place an owner named with their second-date yes (app/api/episodes/[id]/second-date): the other side's yes books it there.
+alter table second_date_requests add column if not exists place text;
 -- After Dark's side (lib/adult/overnight.ts): a night that continues an overnight date, per viewer. started_at when they
 -- pressed "Continue the night", nights_before how many nights the pair had filed by then (one filed after is this night
 -- ending); told_at once the show was handed its one fact (lib/overnight.ts recordNightTogether).

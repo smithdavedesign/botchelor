@@ -311,3 +311,16 @@ describe("import: hostile text finishes quickly", () => {
     for (const l of lines) expect(proseLine(l), JSON.stringify(l)).toBe(old(l));
   });
 });
+
+describe("simulation rerun gaps (2026-11-28)", () => {
+  it("reads an inline Age: line in the prose", () => {
+    const r = importCharacter(JSON.stringify({ name: "Lily", description: "A shy florist who loves rain. Age: 22", personality: "shy" }));
+    expect(r).toMatchObject({ ok: true, draft: { sheet: { age: "22" } } });
+  });
+
+  it("refuses another story's character up front, saying so", () => {
+    const r = importCharacter("Name: Hermione Granger\nDescription: Bookish witch who loves rules.");
+    expect(r).toMatchObject({ ok: false, reason: "real_person" });
+    expect((r as { message: string }).message).toMatch(/original characters/);
+  });
+});

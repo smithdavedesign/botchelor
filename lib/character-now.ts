@@ -67,6 +67,8 @@ export type NowDate = {
   /** When it aired (ISO). */
   aired_at?: string | null;
   partner: { id: string; name: string; private?: boolean };
+  /** A date with the show's own cast (lib/show-spoilers.ts): its ending is the episode's to tell, never this line's. */
+  show?: boolean;
 };
 
 export type NowInput = {
@@ -203,7 +205,7 @@ export function shapeNow(input: NowInput): CharacterNow | null {
       // A date with no time on it is the oldest thing here: it only leads when nothing else happened.
       day: lastDate.aired_at ? lastDate.aired_at.slice(0, 10) : "",
       with: lastDate.partner.id,
-      line: { key: `date:${lastDate.share_path}`, kind: "latest", icon: "📺", text: `Latest date, with ${shortName(lastDate.partner.name)}: ${endingLabel(lastDate.ending, lastDate.date_number)}`, href: lastDate.share_path, when: null, track: "date" },
+      line: { key: `date:${lastDate.share_path}`, kind: "latest", icon: "📺", text: lastDate.show ? `Latest date, with ${shortName(lastDate.partner.name)}: watch it to see how it went` : `Latest date, with ${shortName(lastDate.partner.name)}: ${endingLabel(lastDate.ending, lastDate.date_number)}`, href: lastDate.share_path, when: null, track: "date" },
     });
   }
   // Not what a tie line just said: the scene a tie links to (a confrontation is "Cleared the air with Dex" above), or

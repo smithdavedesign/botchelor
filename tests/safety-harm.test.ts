@@ -238,3 +238,27 @@ describe("follow-ups (2026-11-28 rerun)", () => {
     expect(checkSheetText({ bio }).ok).toBe(true);
   });
 });
+
+describe("simulation rerun gaps (2026-11-28)", () => {
+  it("refuses a childlike school stage on a sheet", () => {
+    expect(checkSheetText({ bio: "Shy girl who just started high school and still sleeps with a stuffed rabbit." })).toMatchObject({ ok: false, reason: "minor" });
+    expect(checkSheetText({ bio: "Teaches at the high school and coaches debate." }).ok).toBe(true);
+  });
+
+  it.each(["Gerald Rivers, a white-haired witcher from Kaer Morhen.", "Trained at Kaer Morhen."])("refuses %j", (bio) => {
+    expect(checkSheetText({ bio })).toMatchObject({ ok: false, reason: "real_person" });
+  });
+
+  it.each(["A big Witcher fan who reads the books twice a year.", "A huge Jedi knight cosplayer at heart."])("allows the fan %j", (bio) => {
+    expect(checkSheetText({ bio }).ok).toBe(true);
+  });
+});
+
+describe("minor ages in backstories (2026-11-28 rerun)", () => {
+  it.each(["Tells everyone she is sixteen.", "Had her first kiss at fifteen.", "Dated her boyfriend when she was 15.", "When she was 14 she lost her virginity."])("refuses %j", (bio) => {
+    expect(checkSheetText({ bio })).toMatchObject({ ok: false, reason: "minor" });
+  });
+  it.each(["She is ten minutes from the beach.", "Learned to ride a bike when she was six.", "Started painting at age nine.", "He is six feet tall.", "Had her first kiss at 21."])("allows %j", (bio) => {
+    expect(checkSheetText({ bio }).ok).toBe(true);
+  });
+});

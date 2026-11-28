@@ -1142,6 +1142,19 @@ export function predictionPointsSql(pickPoints: `$${number}`, dramaPoints: `$${n
          + case when p.drama_pick = e.drama_answer then ${dramaPoints}::int else 0 end)`;
 }
 
+/**
+ * The guess-the-dealbreaker points of dates aired in [from, to), as rows of (user_id, points): the calling game's third
+ * pick, so a league board and a season podium add it beside predictionPointsSql (the 2026-11-28 run: the episode page
+ * said 25 points and the league board 20). The placeholders are the caller's.
+ */
+export function dealbreakerPointsRowsSql(points: `$${number}`, from: `$${number}`, to: `$${number}`): string {
+  return `select g.user_id, ${points}::int as points
+            from dealbreaker_guesses g
+            join episodes e on e.id = g.episode_id
+            join characters a on a.id = e.character_a
+           where e.revealed_at >= ${from} and e.revealed_at < ${to} and e.visibility = 'public' and g.pick = a.dealbreaker`;
+}
+
 /** How many of the creator's characters the builder offers to send on another date. */
 export const MY_CHARACTERS_SHOWN = 20;
 

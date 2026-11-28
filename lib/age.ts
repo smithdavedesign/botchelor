@@ -21,6 +21,11 @@ export function adultCookie(secure: boolean): string {
   return `${ADULT_COOKIE}=1; Path=/; Max-Age=${ADULT_COOKIE_MAX_AGE}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
 }
 
+/** Takes the answer back (2026-11-28): someone told a companion they're under 18, so the gate asks again. */
+export function clearAdultCookie(): string {
+  return `${ADULT_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`;
+}
+
 /** Whether a request's Cookie header carries the answer (for routes without a NextRequest's parsed cookies). */
 export function hasAdultCookie(cookieHeader: string | null | undefined): boolean {
   return (cookieHeader ?? "").split(";").some((c) => c.trim() === `${ADULT_COOKIE}=1`);

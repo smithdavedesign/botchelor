@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { notFound } from "next/navigation";
 import { afterDarkMetadata } from "@/lib/adult/discreet";
 import AfterDarkFrame from "./Frame";
 import Link from "next/link";
@@ -34,13 +33,12 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function AfterDarkLayout({ children }: { children: ReactNode }) {
   const here = await currentHere();
-  // Someone it isn't open to gets the same not-found as anywhere else (nothing says After Dark exists); someone it is
-  // open to is told why it won't open here.
+  // Where it isn't offered, everyone is told why (2026-11-28: the footer's waitlist link says After Dark exists, so a bare
+  // not-found read as a broken link).
   // Where an age check would open it (lib/adult/age-check.ts, off until Didit is set up), the notice offers one, also to
   // a signed-in person who isn't in yet but could start a taste, ask for an invite or subscribe once it opens.
   const verify = here.mode === "open" ? null : await ageCheckOffer(await getDb(), here);
   if (here.mode === "blocked") {
-    if (!here.entitled.ok && !verify) notFound();
     return <Unavailable reason={here.reason} verify={verify} />;
   }
   // A free taste (lib/adult/taste.ts) says what's left of it on every page, and where to carry on.

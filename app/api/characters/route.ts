@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { declaredMinor, UNDER_18_MESSAGE } from "@/lib/companion";
 import { characterCopy } from "@/lib/franchises";
 import { adultCookie, hasAdultCookie } from "@/lib/age";
 import { AUDIENCES } from "@/lib/audience";
@@ -107,6 +108,8 @@ export const POST = handle(async (req) => {
   const soulKeys = unknownSoulKeys((raw as { soul?: unknown }).soul);
   if (soulKeys.refusal) return json({ error: "invalid_soul", field: "soul", message: soulKeys.refusal }, 422, sess);
   const db = await getDb();
+  // Someone who told a companion they're under 18 makes no characters either (2026-11-28 rerun; lib/companion.ts).
+  if (await declaredMinor(db, sess.userId)) return json({ error: "adults_only", message: UNDER_18_MESSAGE }, 403, sess);
   // Caps on making characters, before anything that can spend (lib/create-limits.ts): per address, per agent, everyone.
   const capped = await createRefusal(db, req, sess, checkOnly);
   if (capped) return json(capped.body, capped.status, sess);

@@ -44,6 +44,14 @@ type DateRow = {
    * the way every other booking is (lib/date-number.ts nextDateNumber: 1 + the pair's public dates).
    */
   next_number: number;
+  /**
+   * A later date of the pair, started after the first yes to this one's second date (the 2026-11-28 run: one agent said
+   * yes here and waited, the other performed their next date themselves with start_own_date, and the waiting yes still
+   * read can_plan: true and could book a further date): that date settled the yes. Null when there's no yes or no such date.
+   */
+  later_id: string | null;
+  later_number: number | null;
+  later_own: boolean | null;
 };
 
 async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
@@ -57,6 +65,7 @@ async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
                        where ((p.character_a = e.character_a and p.character_b = e.character_b)
                            or (p.character_a = e.character_b and p.character_b = e.character_a))
                          and ${publicDateSql("p")})) as next_number,
+            later.id as later_id, later.number as later_number, later.own as later_own,
             exists (select 1 from blocks bl
                      where a.owner_id is not null and b.owner_id is not null
                        and ((bl.blocker_id = a.owner_id and bl.blocked_id = b.owner_id)
@@ -64,6 +73,12 @@ async function loadDate(db: Db, episodeId: string): Promise<DateRow | null> {
        from episodes e
        join characters a on a.id = e.character_a
        join characters b on b.id = e.character_b
+       left join lateral (
+         select p.id, coalesce(${dateNumberSql("p")}, 1) as number, p.performed_by = 'agent' as own from episodes p
+          where ((p.character_a = e.character_a and p.character_b = e.character_b) or (p.character_a = e.character_b and p.character_b = e.character_a))
+            and p.id <> e.id and p.varies_episode_id is null and p.followup_of is distinct from e.id
+            and p.created_at > (select min(r.created_at) from second_date_requests r where r.episode_id = e.id)
+          order by p.created_at limit 1) later on true
       where e.id = $1`,
     [episodeId],
   );
@@ -83,9 +98,12 @@ export type SecondDateState = {
   can_plan: boolean;
   /**
    * Why not, when they can't: "not_mutual" | "planned" | "blocked" | "not_ready" | "partner_gone" | "taken" (the
-   * viewer's character is with someone else and wants only them: `taken_with`).
+   * viewer's character is with someone else and wants only them: `taken_with`) | "superseded" (the pair went on a later
+   * date after a yes here: `superseded_by`).
    */
   reason: string | null;
+  /** The pair's date that followed a yes to this second date and settled it (reason "superseded"). */
+  superseded_by?: { episode_id: string; date_number: number; own: boolean; note: string } | null;
   /** Who the viewer's character is with, when that's why ("taken"). */
   taken_with?: string | null;
   /** The second date, once it's booked. */
@@ -141,6 +159,7 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
     : d.blocked ? "blocked"
     : partnerOwner === DELETED_OWNER ? "partner_gone"
     : takenWithName ? "taken"
+    : d.later_id ? "superseded"
     : null;
   return {
     mutual,
@@ -148,6 +167,7 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
     can_plan: reason === null,
     reason,
     taken_with: takenWithName,
+    ...(reason === "superseded" ? { superseded_by: supersededBy(d) } : {}),
     planned_episode_id: d.planned,
     needs_their_yes: needsTheirYes,
     you_asked: asks.includes(userId),
@@ -162,6 +182,17 @@ export async function secondDateState(db: Db, episodeId: string, userId: string,
   };
 }
 
+/** The later date that settled a waiting yes, said by id and number (reason "superseded"). */
+function supersededBy(d: DateRow): NonNullable<SecondDateState["superseded_by"]> {
+  const how = d.later_own ? "performed by their agents (start_own_date)" : "booked on the show";
+  return {
+    episode_id: d.later_id!,
+    date_number: d.later_number ?? 2,
+    own: Boolean(d.later_own),
+    note: `Settled: after the yes to this second date, ${d.a_name} and ${d.b_name} went on date ${d.later_number ?? 2} (${d.later_id}), ${how}, so this yes has nothing left to book. Plan from that date instead.`,
+  };
+}
+
 /**
  * The other side has no one else to ask, so its yes comes with the booking: a house character (no owner), a house-run
  * bot's character, or your own. Everyone else's owner says yes themselves (#1343: open_to_dates is not a yes here).
@@ -171,12 +202,22 @@ async function agreesAtOnce(db: Db, partnerOwner: string | null, userId: string)
   return isHouseBotAgent(db, partnerOwner).catch(() => false);
 }
 
-/** Records this owner's yes. Idempotent. */
-export async function sayYesToSecondDate(db: Db, episodeId: string, userId: string): Promise<void> {
+/** Records this owner's yes, with the place they named (kept until they name another). Idempotent. */
+export async function sayYesToSecondDate(db: Db, episodeId: string, userId: string, place?: string | null): Promise<void> {
   await db.query(
-    `insert into second_date_requests (episode_id, user_id) values ($1, $2) on conflict (episode_id, user_id) do nothing`,
+    `insert into second_date_requests (episode_id, user_id, place) values ($1, $2, $3)
+     on conflict (episode_id, user_id) do update set place = coalesce(excluded.place, second_date_requests.place)`,
+    [episodeId, userId, place ?? null],
+  );
+}
+
+/** The place the other owner named with their yes to this second date (not `userId`'s own), if they named one. */
+export async function savedYesPlace(db: Db, episodeId: string, userId: string): Promise<string | null> {
+  const { rows } = await db.query<{ place: string | null }>(
+    `select place from second_date_requests where episode_id = $1 and user_id <> $2 and place is not null order by created_at desc limit 1`,
     [episodeId, userId],
   );
+  return rows[0]?.place ?? null;
 }
 
 /** One second-date yes that's waiting: on the other creator (yours) or on you (theirs). */
@@ -270,6 +311,7 @@ export async function checkSecondDate(
   if (d.planned) return no(409, "already_planned", "Their second date is already booked.");
   if (d.blocked) return no(409, "match_unavailable", "That match is no longer available.");
   if (partnerOwner === DELETED_OWNER) return no(409, "partner_gone", "That character's creator has left the show.");
+  if (d.later_id) return no(409, "superseded", supersededBy(d).note);
   if (!(await agreesAtOnce(db, partnerOwner, userId))) {
     const yes = (await db.query(`select 1 from second_date_requests where episode_id = $1 and user_id = $2`, [episodeId, partnerOwner])).rows.length > 0;
     if (!yes) return no(409, "needs_their_yes", `${d[`${theirs}_name`]}'s creator hasn't said yes to a second date yet.`);

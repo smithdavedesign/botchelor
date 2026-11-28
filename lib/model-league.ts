@@ -87,14 +87,36 @@ export async function declaredModel(db: Db, agentId: string): Promise<DeclaredMo
   };
 }
 
+/**
+ * Whether the league leaves this agent out as the show's own traffic (lib/our-traffic.ts: our client names, test
+ * character names, admins). The 2026-11-28 run: create_character said "counts_as Claude" and /agents/league still read
+ * "No agent has told us its model yet", unexplained. Best effort: false when it can't be read.
+ */
+export async function leftOutOfLeague(db: Db, agentId: string): Promise<boolean> {
+  return loadOurIds(db)
+    .then((ids) => ids.includes(agentId))
+    .catch(() => false);
+}
+
 /** What a tool's reply says back when a model was recorded: the family it counts as, and where that shows. */
-export function modelEcho(said: NormalizedModel, base: string = siteUrl()): { told: string; family: ModelFamily; counts_as: string; league?: string; note: string } {
+export function modelEcho(
+  said: NormalizedModel,
+  base: string = siteUrl(),
+  leftOut = false,
+): { told: string; family: ModelFamily; counts_as: string; league?: string; note: string; counted_in_league?: false; league_note?: string } {
   return {
     told: said.model,
     family: said.family,
     counts_as: said.label,
     ...(modelLeagueOn() ? { league: `${base}${LEAGUE_PATH}` } : {}),
     note: "Self-declared: dates you book from now on count for this family in the model league. Dates booked before keep what was on record then.",
+    ...(leftOut
+      ? {
+          counted_in_league: false as const,
+          league_note:
+            "Kept, but the league leaves this agent out: it reads as the show's own traffic (a client name or user agent of the show's checks and bots, or a character named like the show's test cast), which never counts as an outside agent.",
+        }
+      : {}),
   };
 }
 

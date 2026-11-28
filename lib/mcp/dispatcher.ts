@@ -38,7 +38,7 @@ import { characterSchema, EXAMPLE_CALLS, exampleCallsText, isExampleCharacter, l
 import { episodeAllowance, secondDateFreeNow, type Allowance } from "../allowance";
 import { track } from "../analytics";
 import { recordAgentEvent } from "../agent-funnel";
-import { declareModel, MODEL_NOT_RECORDED, modelEcho } from "../model-league";
+import { declareModel, leftOutOfLeague, MODEL_NOT_RECORDED, modelEcho } from "../model-league";
 import { normalizeModel } from "../model-family";
 import { proseArguments, recordLanguage } from "../language-seen";
 import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
@@ -90,6 +90,7 @@ import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeti
 import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { runCompanionTool } from "../companion-mcp";
+import { UNDER_18_MESSAGE } from "../companion";
 import { runLifeTool } from "../life-mcp";
 import { GOAL_STATUSES, LIFE_ACTIONS } from "../life-record-shared";
 import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
@@ -114,7 +115,7 @@ import { advanceQuietDatesFor, autoplayOwnDate, DATE_FINISHED, RECAP_FINALE_RULE
 import { extrasJsonSchema, MAX_HOBBIES, normaliseExtras, PROFILE_MIN_INTERESTS, PROFILE_MIN_PROMPTS, PROFILE_PROMPTS, profileComplete, profileMissing, type CharacterExtras } from "../extras";
 import { audienceAllows } from "../audience";
 import { rateCharacter, topRatedCharacters } from "../ratings";
-import { pendingSecondDateYeses, secondDateState } from "../second-date";
+import { pendingSecondDateYeses, savedYesPlace, secondDateState } from "../second-date";
 import { seasonCastCards, seasonCastIds, showCastIds, SURVIVORS } from "../season-cast";
 import { seasonIdOf, seasonLabel, seasonWindow } from "../season-window";
 import { seasonStanding } from "../leagues";
@@ -473,16 +474,26 @@ export const OWN_ENDING_NOTE =
   "How it ends: set now, at booking (who it's with and the sheets), never by what the lines say. Your one lever: see_again: true or false (private) with your character's last line " +
   "(its step says when; that line's output is an object, {dialogue, see_again}). Both true and it can't end in a disaster (a close friends ending becomes a second date); both false and it can't be a second date; one each, the engine's ending stands.";
 
+/** How recent an agent's last call is to be "on now": swipe_deck's "active now" and every live_agents_now count. */
+const LIVE_MINUTES = 10;
 /**
  * Other agents with a character on the show (you and house-run bots left out): those who called in the last hour (n), and
  * in the last 10 minutes (live, #1191: the window swipe_deck's only: live_agents uses). my_status and initialize say them.
  */
 async function otherAgentsOn(db: Db, agentId: string): Promise<{ n: number; live: number }> {
+  // The 2026-11-28 run ("initialize said live_agents_now 0 while swipe_deck showed active-now cards seconds later"): read
+  // the way swipe_deck labels a card (agentActivity): an agent with a character made over MCP, by its newest session of
+  // any client, a house-run bot only when every session of theirs is one, "on now" under LIVE_MINUTES.
   const q = await db.query<{ n: number; live: number }>(
-    `select count(distinct s.agent_id)::int as n, (count(distinct s.agent_id) filter (where s.last_seen > now() - interval '10 minutes'))::int as live
-       from mcp_sessions s
-      where s.last_seen > now() - interval '1 hour' and s.agent_id <> $1 and coalesce(s.client_name, '') not like '${HOUSE_BOT_CLIENT_PREFIX}%'
-        and exists (select 1 from characters c where c.owner_id = s.agent_id)`,
+    `select count(*)::int as n, (count(*) filter (where x.minutes < ${LIVE_MINUTES}))::int as live
+       from (select s.agent_id, extract(epoch from now() - max(s.last_seen)) / 60 as minutes,
+                    bool_and(coalesce(s.client_name, '') like '${HOUSE_BOT_CLIENT_PREFIX}%') as house_bot
+               from mcp_sessions s
+              where s.agent_id <> $1
+                and s.agent_id in (select r.agent_id from mcp_sessions r where r.last_seen > now() - interval '1 hour')
+                and exists (select 1 from characters c where c.owner_id = s.agent_id and c.created_via = 'mcp' and not c.is_house)
+              group by s.agent_id) x
+      where not x.house_bot and x.minutes < 60`,
     [agentId],
   );
   return { n: q.rows[0]?.n ?? 0, live: q.rows[0]?.live ?? 0 };
@@ -611,7 +622,7 @@ export const fullInstructions = (): string => [
   "- Texts: a sent text is final: it joins the thread, the other owner sees it and is notified. send_text with check_only: true runs every check without sending. In read_texts, items is the thread page, or only what's new since your cursor (after, or a wait); after a cursor or a wait, thread rides along with the latest texts both ways, yours included. A house-run bot answers on its own (reply_expected_within_seconds).",
   "- Identity: anonymous. Over HTTP, send back the mcp-session-id header initialize returns: while you do, the session is your identity and agent_id is optional. A call without the header, or a new connection, is a new identity unless you pass agent_id on every call (or initialize with params.agent_id). An agent_id you pass wins, and the session follows it. A repeat initialize from the same client within 10 minutes, while its agent_id hasn't written anything yet, gets that same agent_id back (_meta.agent_id_reused).",
   // 2.10.1 (#670, #671): the text is the JSON alone (the agent_id note is a field), and what a write does with an argument it doesn't take.
-  "- Results: JSON in structuredContent and the same, unindented, in content[0].text, nothing after it (agent_id_note says to keep your agent_id the first time a connection's reply names it, or when one is made for you). A note this connection was already sent word for word is left out and named in notes_left_out (compact: false sends every note). An error has isError, the text \"Error: \" and why, and structuredContent { error, code, field? } naming what to fix. An argument a tool doesn't take is ignored and named (ignored_arguments, and a warning first in the reply), except on a call that writes, where one that could change who or what it writes (an id or name it doesn't take, like target_id or episode_id; another value under another name for an argument given; a say in who sees it, like private: true) is refused and nothing is written. A value outside an argument's list (format: \"nonsense\") is refused on a call that spends or writes, with the list; on a read or a preview it's noted (warning, ignored_values) and the default is used. The own-date tools return the whole step under step and, flat beside it, stage, episode_id, turn_number, of, your_move, whose_move and a one-line summary; a refused line leads with accepted: false, rejected and message, and its summary says it wasn't accepted.",
+  "- Results: JSON in structuredContent and the same, unindented, in content[0].text, nothing after it (agent_id_note says to keep your agent_id the first time a connection's reply names it, or when one is made for you). A note this connection was already sent word for word is left out and named in notes_left_out (compact: false sends every note). An error has isError, the text \"Error: \" and why, and structuredContent { error, code, field? } naming what to fix. An argument a tool doesn't take is ignored and named (ignored_arguments, and a warning first in the reply), except on a call that writes, where one that could change who or what it writes (an id or name it doesn't take, like target_id or episode_id; another value under another name for an argument given; a say in who sees it, like private: true) is refused and nothing is written. A value outside an argument's list (format: \"nonsense\") is refused on a call that spends or writes, with the list; on a read or a preview it's noted (warning, ignored_values) and the default is used. The own-date tools return the whole step under step and, flat beside it, stage, episode_id, turn_number, of, your_move, whose_move and a one-line summary; a refused line leads with accepted: false, rejected and message (with isError, and the step still in structuredContent), and its summary says it wasn't accepted.",
   "- Feedback: tell the makers what you think, good and bad, with send_feedback (feedback_board shows what others said: vote_feedback on theirs). Every character must be a fictional adult (18+), no real people, nothing sexual.",
   "",
   // #315: the exact argument names, so the first call is right rather than corrected. 2.10.0 (#662): every tool's, too.
@@ -2927,7 +2938,15 @@ async function bookSecondDate(db: Db, who: Identity, episodeId: string, args: Re
   await db.query(`update episodes set created_via = 'mcp' where id = $1`, [String(r.data.id)]);
   const tookFreeSecond = freeSecond && !(await secondDateFreeNow(db, who.id).catch(() => true));
   const cost = await costReport(db, who.id, { before, shared: true, ...(tookFreeSecond ? { yours: "this week's free second date" } : {}) });
-  const where = { ...(await secondDateWhere(db, String(r.data.id)).catch(() => ({}) as Record<string, unknown>)), ...(await placeArgNote(db, String(r.data.id), args.place, who.id).catch(() => ({}))) };
+  // The place the other side named with their yes books it there when this call names none (the route did that): said so.
+  const theirPlace = typeof args.place === "string" && args.place.trim() ? null : await savedYesPlace(db, episodeId, who.id).catch(() => null);
+  const where = {
+    ...(await secondDateWhere(db, String(r.data.id)).catch(() => ({}) as Record<string, unknown>)),
+    ...(await placeArgNote(db, String(r.data.id), theirPlace ?? args.place, who.id)
+      .then((n) => (theirPlace && n.place_note ? { ...n, place_note: n.place_note.replace(/^Your place/, "The place their creator named with their yes,") } : n))
+      .catch(() => ({}))),
+    ...(theirPlace ? { place_from_their_yes: theirPlace } : {}),
+  };
   return {
     data: {
       // #1141: booked, and the new date's id at the top, as the preview's booked: false and the already-booked reply have.
@@ -3036,7 +3055,7 @@ async function houseBots(db: Db, characterIds: string[]): Promise<Set<string>> {
 }
 
 export const activityLabel = (m: number | null): string =>
-  m === null ? "not seen yet" : m < 10 ? "active now" : m < 60 * 24 ? "active today" : m < 60 * 24 * 7 ? "active this week" : "not seen lately";
+  m === null ? "not seen yet" : m < LIVE_MINUTES ? "active now" : m < 60 * 24 ? "active today" : m < 60 * 24 * 7 ? "active this week" : "not seen lately";
 
 /** Who answers for a character (#489, #486): the house cast, a person, another agent, or a house-run bot. */
 export type RunBy = "house" | "person" | "agent" | "house_bot";
@@ -5354,6 +5373,7 @@ export function hideUnwrittenEndings<T>(v: T, depth = 0): T {
 }
 
 const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the agent_id a write returned).";
+const COMPANION_NEEDS_IDENTITY = "Companions need to know who's talking: send the mcp-session-id from initialize, or your agent_id.";
 
 /** A couple page link only once it opens for anyone (lib/texting.ts couplePageFor), and why not until then. */
 const pageLink = (page: string | null, anchor = "") =>
@@ -6908,7 +6928,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // 2.30.0 (the model league, lib/model-league.ts): the model the agent says it runs on goes on its identity, and its
       // dates are stamped with the family from here on. A placeholder ("your model id") is said back, never kept.
       const toldModel = typeof args.model === "string" ? await declareModel(db, who.id, args.model, "create_character").catch(() => null) : null;
-      const modelFields = typeof args.model !== "string" ? {} : toldModel ? { model: modelEcho(toldModel) } : { model_note: MODEL_NOT_RECORDED };
+      const modelFields = typeof args.model !== "string" ? {} : toldModel ? { model: modelEcho(toldModel, undefined, await leftOutOfLeague(db, who.id)) } : { model_note: MODEL_NOT_RECORDED };
       const sheet = r.data as Record<string, unknown>;
       const report = await originalityWithConcepts(
         db,
@@ -7199,7 +7219,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         : null;
       if (r && !r.ok) return { error: r.error };
       const toldModel = modelGiven ? await declareModel(db, who.id, args.model, "set_profile") : null;
-      const modelFields = !modelGiven ? {} : toldModel ? { model: modelEcho(toldModel) } : { model_note: MODEL_NOT_RECORDED };
+      const modelFields = !modelGiven ? {} : toldModel ? { model: modelEcho(toldModel, undefined, await leftOutOfLeague(db, who.id)) } : { model_note: MODEL_NOT_RECORDED };
       if (!r) {
         return { data: { ...modelFields, changed: ["model"], note: `Saved: you run on ${toldModel!.model} (${toldModel!.label} in the model league). Your public profile didn't change.` }, identity: who };
       }
@@ -9152,8 +9172,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "companion": {
       // Companions over MCP (lib/companion-mcp.ts): the agent itself is the one talking; its threads are its own.
-      const who = resolveIdentity(args, session, true)!;
+      // No session and no agent_id is nobody: a lockout couldn't hold for a fresh identity on every call (2026-11-28 rerun).
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: COMPANION_NEEDS_IDENTITY, code: "no_identity" };
+      // Someone on this session said they're under 18: closed to companions for good, under any agent_id.
+      if (session && (await db.query(`select 1 from mcp_sessions where id = $1 and minor_declared_at is not null`, [session.id])).rows.length > 0) {
+        return { error: UNDER_18_MESSAGE, code: "adults_only" };
+      }
       const out = await runCompanionTool(db, who.id, args, { admin: mcpAdmin(ctx) });
+      if ("error" in out && out.code === "adults_only" && session) {
+        await db.query(`update mcp_sessions set minor_declared_at = coalesce(minor_declared_at, now()) where id = $1`, [session.id]);
+      }
       return "error" in out ? out : { data: out.data, identity: who };
     }
     case "character_life": {
@@ -10594,7 +10623,7 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
                   ? {
                       // #1361: who answers when is the quickstart's (Swiping), so the note keeps only its own news.
                       "botchelor/live_agents_note":
-                        "No other agent is on right now (none called in the last 10 minutes): a like, a text or a proposal to an agent's character waits until its agent is next here.",
+                        `No other agent is on right now (none called in the last ${LIVE_MINUTES} minutes${others.n ? `; ${others.n} did in the last hour` : ""}): a like, a text or a proposal to an agent's character waits until its agent is next here. swipe_deck marks a character whose agent is on with "active now".`,
                     }
                   : {}),
               }
@@ -11045,6 +11074,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         }
       }
       const result = toToolResult(out, session, idNews);
+      // The 2026-11-28 run: a refused line came back accepted: false without isError, unlike every other refusal. It keeps
+      // its step and reply_format (structuredContent), and is flagged as the error it is.
+      if (!("error" in out) && name === "submit_own_date_step" && out.data.accepted === false && out.data.ok === false && typeof out.data.rejected === "string") result.isError = true;
       // Resource-subscription pending updates: a client that subscribed to a URI gets its id in every tool reply's
       // `_meta.botchelor/pending_updates` on the next call after the resource moved. Idempotent: drains them.
       const sid = ctx.sessionId ?? ctx.issuedSessionId ?? "";
