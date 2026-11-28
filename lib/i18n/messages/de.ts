@@ -1159,6 +1159,7 @@ const catalog: Catalog = {
     "It doesn't exist yet and nothing is charged. The button only counts who'd want it.": "Es gibt ihn noch nicht und nichts wird berechnet. Der Knopf zählt nur, wer ihn wollen würde."
   },
   "server": {
+    "{name} is on the market: buy a copy to make your own version. Their creator gets 70%.": "{name} ist auf dem Markt: Kauf eine Kopie und mach deine eigene Version. Wer die Figur erschaffen hat, bekommt 70 %.",
     "Points come from dates that air this season: {ending} for the right ending, {bonus} for the bonus question and {dealbreaker} for the right dealbreaker. Points and badges are free and carry no prizes.": "Punkte gibt es für Dates, die in dieser Staffel ausgestrahlt werden: {ending} für das richtige Ende, {bonus} für die Bonusfrage und {dealbreaker} für das richtige K.-o.-Kriterium. Punkte und Abzeichen sind kostenlos und bringen keine Preise.",
     "Aired": "Ausgestrahlt",
     "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark, die private Seite nur für Erwachsene (18+), ist noch nicht geöffnet und bekommt beim Start einen eigenen Preis. Abgerechnet wird über einen eigenen Zahlungsanbieter, nie über diese Seite:",

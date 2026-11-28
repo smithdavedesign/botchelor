@@ -46,7 +46,8 @@ export default async function AfterDarkLayout({ children }: { children: ReactNod
   // The arrival screen, once a session (app/Threshold.tsx): admins while the public door is on admins only, then everyone.
   const threshold = rolloutOn(await adRollout(), "public_door", here.admin);
   // Where the header is the show's, After Dark's own doors ride under it (on its own host the header is them).
-  const subNav = afterDarkOnly() ? null : here.userId ? await afterDarkDoors(await getDb(), here.userId).catch(() => NO_AD_DOORS) : NO_AD_DOORS;
+  // Only for someone who's in: its doors lead to pages a visitor who isn't would get a not-found from (2026-11-28 run).
+  const subNav = afterDarkOnly() || !here.entitled.ok ? null : here.userId ? await afterDarkDoors(await getDb(), here.userId).catch(() => NO_AD_DOORS) : NO_AD_DOORS;
   return (
     <AfterDarkFrame view={await currentView()}>
       {threshold && <Threshold side="after-dark" />}

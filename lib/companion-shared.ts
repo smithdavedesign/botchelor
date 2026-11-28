@@ -205,7 +205,8 @@ export function extraPrice(kind: CompanionExtraKind, s: CompanionExtraState | nu
   const x = COMPANION_EXTRAS[kind];
   const tokens = s.tokens || x.tokens;
   // The 2026-11-28 simulation: "1 token" was never explained (the shop sells dates). One unit everywhere: a bought date.
-  return `${tokens} bought date${tokens === 1 ? "" : "s"} for ${s.bundle || x.bundle}${kind === "minute" ? " minutes" : ""}`;
+  // The 2026-11-28 fourth run: "Voice note · 1 bought date for 100" read as a price of 100. The bundle comes first, named.
+  return `${s.bundle || x.bundle} ${x.many} for ${tokens} bought date${tokens === 1 ? "" : "s"}`;
 }
 
 /**
