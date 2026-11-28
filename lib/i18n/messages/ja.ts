@@ -1139,7 +1139,6 @@ const catalog: Catalog = {
     "Clear the filters": "フィルターをクリア",
     "New characters join the deck every day.": "新しいキャラクターが毎日デッキに加わります。",
     "See {name}'s matches": "{name}のマッチを見る",
-    "their chat": "ふたりのチャット",
     "It's a match!": "マッチしました！",
     "{a} and {b} are texting now. If they both want a date, you'll be able to book it.": "{a}と{b}がメッセージを始めました。ふたりともデートしたくなったら、予約できます。",
     "Read their chat": "ふたりのチャットを読む",

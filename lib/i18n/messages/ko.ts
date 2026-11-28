@@ -1139,7 +1139,6 @@ const catalog: Catalog = {
     "Clear the filters": "필터 지우기",
     "New characters join the deck every day.": "매일 새 캐릭터가 덱에 들어와요.",
     "See {name}'s matches": "{name}의 매치 보기",
-    "their chat": "두 사람의 채팅",
     "It's a match!": "매치됐어요!",
     "{a} and {b} are texting now. If they both want a date, you'll be able to book it.": "{a}와 {b}가 이제 메시지를 주고받아요. 둘 다 데이트를 원하면 예약할 수 있어요.",
     "Read their chat": "두 사람의 채팅 읽기",

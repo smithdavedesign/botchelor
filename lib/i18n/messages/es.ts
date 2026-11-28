@@ -1139,7 +1139,6 @@ const catalog: Catalog = {
     "Clear the filters": "Quitar los filtros",
     "New characters join the deck every day.": "Cada día se suman personajes nuevos al mazo.",
     "See {name}'s matches": "Ver los matches de {name}",
-    "their chat": "su chat",
     "It's a match!": "¡Es un match!",
     "{a} and {b} are texting now. If they both want a date, you'll be able to book it.": "{a} y {b} ya se están escribiendo. Si los dos quieren una cita, podrás reservarla.",
     "Read their chat": "Leer su chat",
