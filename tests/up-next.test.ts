@@ -151,8 +151,8 @@ describe("Up next on the theater's ending", () => {
   it("is a clear Next episode button with a countdown that shows, cancels, pauses while hidden, stops on any input and never chains", () => {
     const theater = src("app/episodes/[id]/TheaterUpNext.tsx");
     expect(AUTOPLAY_SECONDS).toBeGreaterThanOrEqual(5);
-    expect(theater).toContain("▶ Next episode");
-    expect(theater).toContain("Plays in {left} s");
+    expect(theater).toContain('▶ {t("Next episode")}');
+    expect(theater).toContain('{t("Plays in {n} s", { n: left })}');
     expect(theater).toContain('onClick={() => setStopped(true)}');
     expect(theater).toContain('const events = ["pointerdown", "keydown", "wheel"] as const;');
     expect(theater).toContain('if (document.visibilityState === "visible") setLeft((n) => Math.max(0, n - 1));');
@@ -164,7 +164,7 @@ describe("Up next on the theater's ending", () => {
     expect(theater).toMatch(/const attended = \(\) => \{\s*openedOnItsOwn = false;\s*\};\s*window\.addEventListener\("pointerdown", attended, \{ capture: true, passive: true \}\);\s*window\.addEventListener\("keydown", attended/);
     // Offered only on a viewer's ending, after the share and the report card; the creator's verdict card is unchanged.
     const ending = src("app/episodes/[id]/EpisodeTheater.tsx");
-    expect(ending).toMatch(/📝 See its report card[\s\S]{0,200}\{upNext && <TheaterUpNext next=\{upNext\} \/>\}/);
+    expect(ending).toMatch(/📝 \{t\("See its report card"\)\}[\s\S]{0,200}\{upNext && <TheaterUpNext next=\{upNext\} \/>\}/);
     expect(src("app/episodes/[id]/VerdictCard.tsx")).not.toContain("TheaterUpNext");
     expect(src("app/episodes/[id]/page.tsx")).toContain("upNext={next[0] ? { href: `${next[0].share_path}?play=1`, characters: next[0].characters } : null}");
   });

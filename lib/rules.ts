@@ -116,12 +116,12 @@ export const REPORT_REASONS =["sexual", "minor", "real_person", "hateful", "self
 export type ReportReason = (typeof REPORT_REASONS)[number];
 
 export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
-  sexual: "Sexual content",
-  minor: "Involves a minor",
-  real_person: "About a real person",
-  hateful: "Hateful or harassing",
-  self_harm: "Self-harm or suicide",
-  other: "Something else",
+  sexual: clientMsg("Sexual content"),
+  minor: clientMsg("Involves a minor"),
+  real_person: clientMsg("About a real person"),
+  hateful: clientMsg("Hateful or harassing"),
+  self_harm: clientMsg("Self-harm or suicide"),
+  other: clientMsg("Something else"),
 };
 
 /** Distinct reporters it takes to pull an episode from the feed (and from everyone but its creators). */
@@ -192,10 +192,10 @@ export const formatGameBudget = (credits: number): string => `$${credits} in dat
 export const DATE_VARIABLES = ["chemistry", "attraction", "trust", "awkwardness"] as const;
 export type DateVariable = (typeof DATE_VARIABLES)[number];
 export const VARIABLE_LABELS: Record<DateVariable, string> = {
-  chemistry: "Chemistry",
-  attraction: "Attraction",
-  trust: "Trust",
-  awkwardness: "Awkwardness",
+  chemistry: clientMsg("Chemistry"),
+  attraction: clientMsg("Attraction"),
+  trust: clientMsg("Trust"),
+  awkwardness: clientMsg("Awkwardness"),
 };
 /** Awkwardness is the one variable where a rise is bad news; the box score colours deltas by this. */
 export const VARIABLE_GOOD_WHEN_HIGH: Record<DateVariable, boolean> = {
@@ -236,7 +236,7 @@ export const VOICE_MAX = 200;
  * The engine decides the outcome; the model narrates one scene per act, building to it. Act 2's
  * challenge comes from the AI producer below.
  */
-export const DATE_ACTS = ["First impressions", "The challenge", "The decision"] as const;
+export const DATE_ACTS = [clientMsg("First impressions"), clientMsg("The challenge"), clientMsg("The decision")] as const;
 /** A pair that has met before doesn't have "first impressions" (run 4): act one is picking up where they left off. */
 export const actName = (act: number, metBefore: boolean): string =>
   act === 0 && metBefore ? "Picking up where they left off" : (DATE_ACTS[act] ?? `Act ${act + 1}`);
@@ -405,10 +405,10 @@ export const POINTS_PER_DARE = { went_through: 5, sort_of: 2, chickened_out: 0 }
 
 /** Sliding doors (PRD): the bounded one-thing-changed replays an owner can run. Client-safe labels. */
 export const SLIDING_DOOR_CHANGES = [
-  { id: "bolder", label: "More unpredictable" },
-  { id: "safer", label: "More guided" },
-  { id: "bigger_budget", label: "Bigger date budget" },
-  { id: "long_game", label: "Play the long game" },
+  { id: "bolder", label: clientMsg("More unpredictable") },
+  { id: "safer", label: clientMsg("More guided") },
+  { id: "bigger_budget", label: clientMsg("Bigger date budget") },
+  { id: "long_game", label: clientMsg("Play the long game") },
 ] as const;
 export type SlidingDoorChange = (typeof SLIDING_DOOR_CHANGES)[number]["id"];
 export const SLIDING_DOOR_IDS = SLIDING_DOOR_CHANGES.map((c) => c.id) as [SlidingDoorChange, ...SlidingDoorChange[]];
@@ -559,7 +559,7 @@ export const OWN_DATE_NUDGE_MINUTES = 2;
  * median 109 s, 90th percentile 149 s. get_episode's countdown runs to WRITE_USUAL_MAX_SECONDS; past
  * WRITE_OVERDUE_SECONDS it's late and retried automatically. Airing (lib/air.ts airsWhen) is a separate, later time.
  */
-export const WRITE_TIME = "about 2 minutes, rarely more than 3";
+export const WRITE_TIME = clientMsg("about 2 minutes, rarely more than 3");
 /**
  * A speed date (lib/formats.ts, 6 lines in place of 12): half the turn calls, so about half the time. The plan, recap,
  * morning after and reflections stay, which is why it isn't a quarter. Said on the first-date card (lib/first-date.ts).

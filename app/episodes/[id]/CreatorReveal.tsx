@@ -1,6 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
+import { useT } from "@/app/I18nProvider";
 import { ProfileFields, saveProfileFrom } from "@/app/ProfileFields";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
@@ -26,6 +27,7 @@ export default function CreatorReveal({
   hasName,
   premiumPartner,
 }: Props) {
+  const t = useT();
   const { busy, error, run } = useAction();
   const pair = needed > 1;
 
@@ -44,33 +46,32 @@ export default function CreatorReveal({
   if (revealed) {
     return (
       <section className="card">
-        <p className="notice notice-ok">{pair ? "You both agreed: your names are on the episode." : "Your name is on the episode."}</p>
+        <p className="notice notice-ok">{pair ? t("You both agreed: your names are on the episode.") : t("Your name is on the episode.")}</p>
       </section>
     );
   }
 
   return (
     <section className="card">
-      <h2>Who made this?</h2>
+      <h2>{t("Who made this?")}</h2>
       {consented ? (
-        <p className="muted">You agreed to show your name. It appears only when the other creator agrees too.</p>
+        <p className="muted">{t("You agreed to show your name. It appears only when the other creator agrees too.")}</p>
       ) : (
         <form onSubmit={agree}>
           <p>
             {pair
-              ? "Creators stay anonymous. If you both agree, everyone sees your display names next to your characters."
-              : "You're anonymous. Agree to show your display name next to your character."}
-            {pair && consents > 0 && " The other creator has already agreed."}
+              ? t("Creators stay anonymous. If you both agree, everyone sees your display names next to your characters.")
+              : t("You're anonymous. Agree to show your display name next to your character.")}
+            {pair && consents > 0 && ` ${t("The other creator has already agreed.")}`}
           </p>
           <p className="muted">
-            Your name is shown as your character&apos;s creator, so anyone who sees that character in another episode
-            will know it&apos;s yours too.
+            {t("Your name is shown as your character's creator, so anyone who sees that character in another episode will know it's yours too.")}
             {premiumPartner &&
-              " This date is with a premium house character, and only buyers can pick them. While few people own one, revealing yourself here hints that their other dates may be yours too."}
+              ` ${t("This date is with a premium house character, and only buyers can pick them. While few people own one, revealing yourself here hints that their other dates may be yours too.")}`}
           </p>
           {!hasName && <ProfileFields />}
           <button type="submit" disabled={busy}>
-            {pair ? "I agree to reveal us" : "Show my name"}
+            {pair ? t("I agree to reveal us") : t("Show my name")}
           </button>
         </form>
       )}

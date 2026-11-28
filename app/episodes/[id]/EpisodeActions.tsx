@@ -4,6 +4,7 @@ import { useState } from "react";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
 import { trackConversion } from "@/app/conversion";
+import { useT } from "@/app/I18nProvider";
 import {
   DRAMA_ANSWERS,
   DRAMA_QUESTION_LABELS,
@@ -51,8 +52,9 @@ function setVisibility(episodeId: string, visibility: "public" | "private") {
 export default function EpisodeActions(props: Props) {
   const { episodeId, sharePath, shareBase, isCreator, isHost, revealed, names, dramaQuestion, myPick, myDramaPick, dateNumber, visibility, airsAt, lately } = props;
   const offline = visibility === "private";
+  const t = useT();
   const { busy, error, setError, run } = useAction();
-  const share = <EpisodeShare path={sharePath} base={shareBase} names={names} dateNumber={dateNumber} />;
+  const share = <EpisodeShare path={sharePath} base={shareBase} names={names} dateNumber={dateNumber} t={t} />;
 
   // One tap saves a pick (2026-10-31 UX audit, D2: small radios, then a second button to submit), like the dealbreaker
   // quiz below. A bonus tapped before an ending waits for it.
@@ -80,11 +82,11 @@ export default function EpisodeActions(props: Props) {
       <section className="card">
         {/* Not "the finale": that's the season's last night, and this is any aired date (visual audit 2026-11-20: a speed date
             said "The finale has aired"). */}
-        <p>{offline ? "This date has aired, and it's offline now: only its owners see it." : "This date has aired, so the guessing's over. Share it anyway:"}</p>
+        <p>{offline ? t("This date has aired, and it's offline now: only its owners see it.") : t("This date has aired, so the guessing's over. Share it anyway:")}</p>
         {!offline && share}
         {isHost && (
           <button type="button" className="secondary small" disabled={busy} onClick={() => run(() => setVisibility(episodeId, offline ? "public" : "private"))}>
-            {offline ? "Put it back on the air" : "Take it offline"}
+            {offline ? t("Put it back on the air") : t("Take it offline")}
           </button>
         )}
         {error && <p className="error">{error}</p>}
@@ -95,15 +97,14 @@ export default function EpisodeActions(props: Props) {
   if (isCreator) {
     return (
       <section className="card">
-        <h2>Your episode</h2>
+        <h2>{t("Your episode")}</h2>
         <p>
-          You can&apos;t steer or predict your own date. Share the link so friends can guess the ending before it airs.
+          {t("You can't steer or predict your own date. Share the link so friends can guess the ending before it airs.")}
         </p>
-        {isHost && offline && <p className="notice">This date is offline: it won&apos;t air, and only you see it. It still counts between the two of them.</p>}
+        {isHost && offline && <p className="notice">{t("This date is offline: it won't air, and only you see it. It still counts between the two of them.")}</p>}
         {isHost && !offline && airsAt && (
           <p className="notice">
-            It airs on its own at {new Date(airsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}, once predictions close. Then it
-            counts for both characters.
+            {t("It airs on its own at {time}, once predictions close. Then it counts for both characters.", { time: new Date(airsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) })}
           </p>
         )}
         {!offline && share}
@@ -111,15 +112,15 @@ export default function EpisodeActions(props: Props) {
           <div className="row">
             {!offline && (
               <button type="button" disabled={busy} onClick={() => run(() => requestJson(`/api/episodes/${episodeId}/reveal`))}>
-                Air it now
+                {t("Air it now")}
               </button>
             )}
             <button type="button" className="secondary" disabled={busy} onClick={() => run(() => setVisibility(episodeId, offline ? "public" : "private"))}>
-              {offline ? "Put it back on the air" : "Keep it offline"}
+              {offline ? t("Put it back on the air") : t("Keep it offline")}
             </button>
           </div>
         )}
-        {!isHost && <p className="muted">It airs on its own once predictions close.</p>}
+        {!isHost && <p className="muted">{t("It airs on its own once predictions close.")}</p>}
         {error && <p className="error">{error}</p>}
       </section>
     );
@@ -127,9 +128,9 @@ export default function EpisodeActions(props: Props) {
 
   return (
     <section className="card">
-      <h2>How does it end?</h2>
+      <h2>{t("How does it end?")}</h2>
       {lately && <p className="muted">{lately.charAt(0).toUpperCase() + lately.slice(1)}.</p>}
-      <div className="choices pick-choices" role="group" aria-label="How does it end?">
+      <div className="choices pick-choices" role="group" aria-label={t("How does it end?")}>
         {ENDINGS.map((ending) => (
           <button
             key={ending}
@@ -140,16 +141,16 @@ export default function EpisodeActions(props: Props) {
             disabled={busy}
             onClick={() => save(ending, dramaPick)}
           >
-            {endingLabel(ending, dateNumber)}
+            {t(endingLabel(ending, dateNumber))}
           </button>
         ))}
       </div>
       {dramaQuestion && (
         <div className="pick-bonus">
           <p className="pick-bonus-q">
-            Bonus: {DRAMA_QUESTION_LABELS[dramaQuestion]} <span className="muted">(optional)</span>
+            {t("Bonus:")} {DRAMA_QUESTION_LABELS[dramaQuestion]} <span className="muted">{t("(optional)")}</span>
           </p>
-          <div className="choices pick-choices" role="group" aria-label={`Bonus: ${DRAMA_QUESTION_LABELS[dramaQuestion]}`}>
+          <div className="choices pick-choices" role="group" aria-label={`${t("Bonus:")} ${DRAMA_QUESTION_LABELS[dramaQuestion]}`}>
             {DRAMA_ANSWERS.map((answer) => (
               <button
                 key={answer}
@@ -164,15 +165,16 @@ export default function EpisodeActions(props: Props) {
               </button>
             ))}
           </div>
-          {dramaPick && !pick && <p className="muted small">Pick an ending too, and both lock in.</p>}
+          {dramaPick && !pick && <p className="muted small">{t("Pick an ending too, and both lock in.")}</p>}
         </div>
       )}
       {saved && (
         <p className="notice" role="status">
-          Your pick: {endingLabel(saved.pick, dateNumber)}
-          {dramaQuestion && saved.drama && `, and ${dramaAnswerLabel(dramaQuestion, saved.drama, names)}`}. You can
-          change it until the finale airs. A right ending earns {POINTS_PER_CORRECT_PICK} points
-          {dramaQuestion && `, the bonus ${POINTS_PER_DRAMA_PICK}`}.
+          {t("Your pick: {pick}", { pick: t(endingLabel(saved.pick, dateNumber)) })}
+          {dramaQuestion && saved.drama && `, ${t("and")} ${dramaAnswerLabel(dramaQuestion, saved.drama, names)}`}.{" "}
+          {dramaQuestion
+            ? t("You can change it until the finale airs. A right ending earns {n} points, the bonus {bonus}.", { n: POINTS_PER_CORRECT_PICK, bonus: POINTS_PER_DRAMA_PICK })
+            : t("You can change it until the finale airs. A right ending earns {n} points.", { n: POINTS_PER_CORRECT_PICK })}
         </p>
       )}
       {error && <p className="error">{error}</p>}

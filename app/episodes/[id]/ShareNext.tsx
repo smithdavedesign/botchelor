@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/app/I18nProvider";
 import OverlayClose from "@/app/OverlayClose";
 import { SHARE_NEXT_BUTTON, SHARE_NEXT_LINE, SHARE_NEXT_TITLE, SHARE_NEXT_WHERE, shareNextDismissKey, shareNextText, type ShareNextCard } from "@/lib/share-next";
 
@@ -21,6 +22,7 @@ const dismissed = (key: string): boolean => {
  * localStorage. The click is the share event the link's kind already fires, with where=next_prompt.
  */
 export default function ShareNext({ card, place }: { card: ShareNextCard; place: "page" | "theater" }) {
+  const t = useT();
   const key = shareNextDismissKey(card.episodeId);
   const [hidden, setHidden] = useState(false);
   const [copied, setCopied] = useState<"copied" | "failed" | null>(null);
@@ -37,7 +39,7 @@ export default function ShareNext({ card, place }: { card: ShareNextCard; place:
   async function send() {
     setCopied(null);
     if (typeof navigator.share === "function" && window.matchMedia("(pointer: coarse)").matches) {
-      const shared = await navigator.share({ title: SHARE_NEXT_TITLE, text: shareNextText(card.names), url: url() }).then(
+      const shared = await navigator.share({ title: t(SHARE_NEXT_TITLE), text: shareNextText(card.names), url: url() }).then(
         () => true,
         (e: unknown) => (e instanceof DOMException && e.name === "AbortError" ? null : false),
       );
@@ -59,21 +61,21 @@ export default function ShareNext({ card, place }: { card: ShareNextCard; place:
   return (
     <section className={place === "page" ? "card share-next share-next-page" : "share-next share-next-theater"} aria-labelledby={`share-next-${place}`} data-share-next={place}>
       <div className="share-next-head">
-        <h2 id={`share-next-${place}`}>{SHARE_NEXT_TITLE}</h2>
-        <OverlayClose onClose={dismiss} label="Not now" className="share-next-x" />
+        <h2 id={`share-next-${place}`}>{t(SHARE_NEXT_TITLE)}</h2>
+        <OverlayClose onClose={dismiss} label={t("Not now")} className="share-next-x" />
       </div>
-      <p className="muted">{SHARE_NEXT_LINE}</p>
+      <p className="muted">{t(SHARE_NEXT_LINE)}</p>
       <p className="share-next-actions">
         <button type="button" className="secondary" onClick={() => void send()} data-track={card.event} data-track-where={SHARE_NEXT_WHERE}>
-          {copied === "copied" ? "Copied ✓" : `🔗 ${SHARE_NEXT_BUTTON}`}
+          {copied === "copied" ? t("Copied ✓") : `🔗 ${t(SHARE_NEXT_BUTTON)}`}
         </button>
         {copied === "failed" && (
-          <input type="text" readOnly value={url()} aria-label="Link to send" onFocus={(e) => e.currentTarget.select()} autoFocus />
+          <input type="text" readOnly value={url()} aria-label={t("Link to send")} onFocus={(e) => e.currentTarget.select()} autoFocus />
         )}
       </p>
       {copied === "copied" && (
         <p className="muted small" role="status">
-          Link copied. Paste it to a friend.
+          {t("Link copied. Paste it to a friend.")}
         </p>
       )}
     </section>

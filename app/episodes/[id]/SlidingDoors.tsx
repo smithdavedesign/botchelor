@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { fillNodes } from "@/app/fillNodes";
+import { useT } from "@/app/I18nProvider";
 import { requestJson } from "@/app/request";
 import { endingLabel, SLIDING_DOOR_CHANGES, type Ending } from "@/lib/rules";
 import type { BoxScore as BoxScoreData } from "@/lib/game";
@@ -18,6 +20,7 @@ type Result = {
  * which date this is for the couple (lib/rules dateNumberOf): both timelines' happy endings name the date after it.
  */
 export default function SlidingDoors({ episodeId, dateNumber }: { episodeId: string; dateNumber?: number | null }) {
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,19 +33,19 @@ export default function SlidingDoors({ episodeId, dateNumber }: { episodeId: str
       if (ok) setResult(data as unknown as Result);
       else setError(message);
     } catch {
-      setError("Network error. Try again.");
+      setError(t("Network error. Try again."));
     }
     setBusy(null);
   }
 
   return (
     <section className="card">
-      <h2>Sliding doors</h2>
-      <p className="muted">Replay this exact date with one thing changed. Same seed, so only your change moves the needle.</p>
+      <h2>{t("Sliding doors")}</h2>
+      <p className="muted">{t("Replay this exact date with one thing changed. Same seed, so only your change moves the needle.")}</p>
       <div className="choices">
         {SLIDING_DOOR_CHANGES.map((c) => (
           <button key={c.id} type="button" className="secondary small" disabled={busy !== null} onClick={() => replay(c.id)}>
-            {c.label}
+            {t(c.label)}
           </button>
         ))}
       </div>
@@ -50,11 +53,13 @@ export default function SlidingDoors({ episodeId, dateNumber }: { episodeId: str
       {result && (
         <>
           <p className="notice">
-            Canon ended in <strong>{endingLabel(result.base.ending, dateNumber)}</strong>; this timeline ends in{" "}
-            <strong>{endingLabel(result.alternate.ending, dateNumber)}</strong>.
+            {fillNodes(t("Canon ended in {canon}; this timeline ends in {alt}."), {
+              canon: <strong>{endingLabel(result.base.ending, dateNumber)}</strong>,
+              alt: <strong>{endingLabel(result.alternate.ending, dateNumber)}</strong>,
+            })}
             {result.what_changed && <> {result.what_changed}</>}
           </p>
-          <BoxScore boxScore={result.alternate.box_score} why={result.alternate.why} />
+          <BoxScore boxScore={result.alternate.box_score} why={result.alternate.why} t={t} />
         </>
       )}
     </section>

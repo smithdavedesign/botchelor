@@ -36,7 +36,7 @@ describe("email links say they came from email", () => {
 describe("the push prompt before a date airs", () => {
   it("asks about the airing on an unaired creator's date, and about texts once aired", () => {
     const page = readFileSync("app/episodes/[id]/page.tsx", "utf8");
-    expect(page).toContain('title={episode.revealed ? "Tell me when they text" : "Tell me when it airs"}');
+    expect(page).toContain('title={episode.revealed ? t("Tell me when they text") : t("Tell me when it airs")}');
   });
 });
 

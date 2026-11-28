@@ -40,7 +40,7 @@ describe("the clip recorder's selectors", () => {
 
   it("the visual audit's verdict walk still has its button and its ending", () => {
     expect(visual).toContain('name: "Skip to the end"');
-    expect(theater).toContain('aria-label="Skip to the end"');
+    expect(theater).toContain('aria-label={t("Skip to the end")}');
     expect(visual).toContain(".theater-verdict .ending");
   });
 });
@@ -53,7 +53,7 @@ describe("the filming stage (GeneratingPoller.tsx)", () => {
     expect(stage).toContain("Skip to the ending");
     // Only an ending the job marked final counts; the booked one can still move.
     expect(stage).toContain("data.ending_final && data.ending");
-    expect(stage).toContain("That date didn&apos;t work out");
+    expect(stage).toContain('{t("That date didn\'t work out")}');
     // The ending is counted once, with `live`, and the theater is told so.
     expect(stage).toMatch(/queueEvent\("date_watched", \{ via: "stage", live: 1/);
     expect(stage).toContain("markDateWatchedLive(episodeId)");

@@ -1,11 +1,12 @@
 import Avatar from "@/app/Avatar";
+import { english, msg, type T } from "@/lib/i18n/translate";
 import type { FilmConfessional } from "@/lib/date-film-shared";
 import type { CharacterRef } from "@/lib/game";
 import type { SeeAgain } from "@/lib/inner-life";
 import { showSetBackground } from "@/lib/show-sets";
 import ConfessionalClip from "./ConfessionalClip";
 
-const SEE_AGAIN_SAYS: Record<SeeAgain, string> = { yes: "Yes", maybe: "Maybe", no: "No" };
+const SEE_AGAIN_SAYS: Record<SeeAgain, string> = { yes: msg("Yes"), maybe: msg("Maybe"), no: msg("No") };
 
 /**
  * The diary cam (lib/game.ts EpisodeJson.diary): what each of them told the camera after the date, once it has aired.
@@ -20,6 +21,7 @@ export default function DiaryCam({
   choices = [],
   thoughts = [],
   clips = [],
+  t = english,
 }: {
   diary: { character_id: string; line: string }[];
   characters: CharacterRef[];
@@ -30,13 +32,14 @@ export default function DiaryCam({
   thoughts?: { character_id: string; thoughts: string[] }[];
   /** The lines that were filmed (lib/date-film.ts), each the words it says. */
   clips?: FilmConfessional[];
+  t?: T;
 }) {
   // One entry per character: what it told the camera, and what it answered when asked privately.
-  const ids = [...new Set([...diary.map((d) => d.character_id), ...choices.map((c) => c.character_id), ...thoughts.filter((t) => t.thoughts.length).map((t) => t.character_id)])];
+  const ids = [...new Set([...diary.map((d) => d.character_id), ...choices.map((c) => c.character_id), ...thoughts.filter((x) => x.thoughts.length).map((x) => x.character_id)])];
   return (
     <details className="card diary-cam" open={!folded}>
       <summary>
-        <span aria-hidden="true">📹</span> Diary cam: what they said after
+        <span aria-hidden="true">📹</span> {t("Diary cam: what they said after")}
       </summary>
       {/* On the confessional set, the camera rolling (pass 2 of the visual pop audit; lib/show-sets.ts). */}
       <ul className="diary-cam-list on-set diary-cam-set" style={{ backgroundImage: showSetBackground("confessional", 0.6) }}>
@@ -55,19 +58,19 @@ export default function DiaryCam({
                 {d && <p>“{d.line}”</p>}
                 {choice && (
                   <p className="diary-choice">
-                    <span className="diary-choice-q">See them again?</span> <strong>{SEE_AGAIN_SAYS[choice.see_again]}</strong>
+                    <span className="diary-choice-q">{t("See them again?")}</span> <strong>{t(SEE_AGAIN_SAYS[choice.see_again])}</strong>
                     {choice.reason ? <> · “{choice.reason}”</> : null}
                   </p>
                 )}
-                <footer className="muted small">{c.name}, to camera</footer>
+                <footer className="muted small">{t("{name}, to camera", { name: c.name })}</footer>
                 {thought.length > 0 && (
                   <details className="diary-thoughts">
                     <summary>
-                      <span aria-hidden="true">💭</span> What {c.name.split(/\s+/)[0]} was thinking ({thought.length})
+                      <span aria-hidden="true">💭</span> {t("What {name} was thinking ({n})", { name: c.name.split(/\s+/)[0], n: thought.length })}
                     </summary>
                     <ol>
-                      {thought.map((t, i) => (
-                        <li key={i}>{t}</li>
+                      {thought.map((line, i) => (
+                        <li key={i}>{line}</li>
                       ))}
                     </ol>
                   </details>
