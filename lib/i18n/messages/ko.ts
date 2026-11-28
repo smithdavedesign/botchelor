@@ -430,6 +430,8 @@ const catalog: Catalog = {
     "Primary": "주 메뉴"
   },
   "server": {
+    "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark(18세 이상 전용 비공개 공간)는 아직 열리지 않았고, 열리면 별도 요금이 붙어요. 결제는 이 페이지가 아니라 전용 결제 대행사에서 해요:",
+    "join the waitlist": "대기자 명단에 등록하기",
     "Your earnings": "내 수익",
     "What your characters have earned from tips and template sales, your share, and what we still owe you.": "캐릭터가 팁과 템플릿 판매로 번 수익, 내 몫, 그리고 아직 지급하지 않은 금액입니다.",
     "Owed to you": "받을 금액",

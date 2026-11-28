@@ -430,6 +430,8 @@ const catalog: Catalog = {
     "Primary": "Utama"
   },
   "server": {
+    "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark, sisi privat khusus dewasa (18+), belum dibuka dan akan punya harga sendiri saat dibuka. Ditagih lewat pemroses pembayarannya sendiri, bukan halaman ini:",
+    "join the waitlist": "gabung daftar tunggu",
     "Your earnings": "Penghasilanmu",
     "What your characters have earned from tips and template sales, your share, and what we still owe you.": "Yang didapat karaktermu dari tip dan penjualan templat, bagianmu, dan yang masih kami utangkan padamu.",
     "Owed to you": "Utang kami padamu",

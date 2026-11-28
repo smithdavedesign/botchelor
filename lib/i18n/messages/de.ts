@@ -430,6 +430,8 @@ const catalog: Catalog = {
     "Primary": "Hauptnavigation"
   },
   "server": {
+    "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark, die private Seite nur für Erwachsene (18+), ist noch nicht geöffnet und bekommt beim Start einen eigenen Preis. Abgerechnet wird über einen eigenen Zahlungsanbieter, nie über diese Seite:",
+    "join the waitlist": "trag dich in die Warteliste ein",
     "Your earnings": "Deine Einnahmen",
     "What your characters have earned from tips and template sales, your share, and what we still owe you.": "Was deine Figuren mit Trinkgeldern und Vorlagenverkäufen verdient haben, dein Anteil und was wir dir noch schulden.",
     "Owed to you": "Dir geschuldet",

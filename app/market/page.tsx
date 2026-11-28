@@ -132,9 +132,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
             {dollars(tips.total_cents)} in {tips.count} {tips.count === 1 ? "tip" : "tips"} · {dollars(sales.gross_cents)} in {sales.sales} template{" "}
             {sales.sales === 1 ? "sale" : "sales"}
           </p>
-          <p className="muted small">
-            Creators are paid out by hand each month. Stripe&apos;s fees come off first. <Link href="/earnings">Your earnings and where to send them</Link>.
-          </p>
+          <p className="muted small">Creators are paid out by hand each month. Stripe&apos;s fees come off first.</p>
           {tips.tips.length > 0 && (
             <ul className="market-tips">
               {tips.tips.map((t) => (

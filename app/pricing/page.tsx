@@ -222,8 +222,11 @@ export default async function PricingPage() {
             {fillNodes(t("What the show costs us to run is public: {link}."), { link: <Link href="/costs">{t("What it costs")}</Link> })}
           </li>
           <li>
-            After Dark, the private adults-only side (18+), isn&apos;t open yet and is priced separately when it opens. Its own payment
-            processor bills it, never this page: <a href={afterDarkHref("/after-dark/subscribe")} rel="nofollow">join the waitlist</a>.
+            {t("After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:")}{" "}
+            <a href={afterDarkHref("/after-dark/subscribe")} rel="nofollow">
+              {t("join the waitlist")}
+            </a>
+            .
           </li>
         </ul>
       </section>

@@ -1033,8 +1033,6 @@ export default async function EpisodePage({
         <ShowSpoilerFold fold={showFold}>
         <section className="card">
           <p className={episode.my_points ? "notice" : undefined}>
-            {/* The 40-visitor rerun: "+5 ⬛⬛🟩" didn't say what it ended in, so the line names it (behind the fold on a show date). */}
-            {episode.ending ? `It ended in ${endingLabel(episode.ending, dateNo).toLowerCase()}. ` : ""}
             You picked {endingLabel(episode.my_pick, dateNo)}
             {episode.drama_question &&
               episode.my_drama_pick &&
