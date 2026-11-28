@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import Avatar from "./Avatar";
 import CharacterFigure from "./stage/CharacterFigure";
 import Silhouette from "./stage/Silhouette";
+import Petals from "./motion/Petals";
+import { chemistryWord } from "@/lib/theater-beats";
 import { characterPortrait, stagePicture, venueBackdrop } from "@/lib/portraits";
 import { isPlaceholder, placeLabel, setPath, venueBackdropCss, venueName, type PlaceId } from "@/lib/venues";
 import type { CharacterRef } from "@/lib/game";
@@ -52,6 +54,18 @@ type SceneProps = {
     act: number;
     /** The camera pushes in on this line (lib/theater-beats.ts bigLine). */
     push: boolean;
+    /**
+     * The chemistry meter between them (lib/theater-beats.ts chemistryOf): 0..1, the heart fills with it, and `cracked`
+     * once someone walked out. Undefined: no meter (the filming stage, After Dark).
+     */
+    heat?: number;
+    cracked?: boolean;
+    /** Their entrance (before the first line): each walks in with a name card, and this line under the name. */
+    cards?: [string | null, string | null] | null;
+    /** The ending, acted out once the last line has played: petals, a shrug and a wave, or one of them walking off. */
+    ending?: "second_date" | "friends" | "disaster" | null;
+    /** Who walks off at a disaster (lib/theater-beats.ts leaverOf). */
+    leaver?: "a" | "b";
   } | null;
 };
 
@@ -66,6 +80,13 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
   const portraitOf = (c: CharacterRef) => c.portrait ?? characterPortrait(c.id);
   // On the staged stage everyone stands: a figure when they have a picture, their silhouette when they don't yet.
   const standing = Boolean(staged);
+  const cardOf = (c: CharacterRef, line: string | null | undefined) =>
+    staged?.cards ? (
+      <span className="scene-namecard" aria-hidden="true">
+        <strong>{c.name}</strong>
+        {line && <span>{line}</span>}
+      </span>
+    ) : null;
   const figureOf = (c: CharacterRef, mood: string | null) => (
     <>
       {portraitOf(c) || c.figure ? (
@@ -88,8 +109,13 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
       data-speaking={staged?.speaking ?? undefined}
       data-act={staged ? Math.max(0, Math.min(2, staged.act)) : undefined}
       data-push={staged?.push || undefined}
+      data-entering={staged?.cards ? "" : undefined}
+      data-ending={staged?.ending ?? undefined}
+      data-leaver={staged?.ending === "disaster" ? (staged.leaver ?? "b") : undefined}
     >
       {staged && <span className="scene-light" aria-hidden="true" />}
+      {staged && typeof staged.heat === "number" && <ChemistryMeter heat={staged.heat} cracked={Boolean(staged.cracked)} spike={staged.push} />}
+      {staged?.ending === "second_date" && <Petals className="scene-petals" delay={0.4} />}
       {/* Between acts the picture dips to black and the act's title card plays in letterbox (keyed, so it plays once each). */}
       {staged && actLabel && (
         <span key={actLabel} className="scene-title-card" aria-hidden="true">
@@ -104,15 +130,46 @@ export default function Scene({ characters, venue, lineA, lineB, actLabel, place
       <div className="scene-cast">
         <figure className="scene-char scene-char-a" data-standing={standing || undefined}>
           {lineA && <p className="scene-bubble">{lineA}</p>}
+          {cardOf(a, staged?.cards?.[0])}
+          {staged?.ending === "friends" && <span className="scene-wave" aria-hidden="true">👋</span>}
           {faceA ?? (standing ? figureOf(a, moodA) : null) ?? <Avatar seed={a.id} name={a.name} hue={a.hue} house={a.house} portraitSrc={a.portrait} photoSrc={moodA ?? a.photo} size={faceSize} />}
           <figcaption className="scene-name">{a.name}</figcaption>
         </figure>
         <figure className="scene-char scene-char-b" data-standing={standing || undefined}>
           {lineB && <p className="scene-bubble">{lineB}</p>}
+          {cardOf(b, staged?.cards?.[1])}
+          {staged?.ending === "friends" && <span className="scene-wave" aria-hidden="true">👋</span>}
           {faceB ?? (standing ? figureOf(b, moodB) : null) ?? <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} photoSrc={moodB ?? b.photo} size={faceSize} />}
           <figcaption className="scene-name">{b.name}</figcaption>
         </figure>
       </div>
     </div>
+  );
+}
+
+/**
+ * The chemistry meter (2026-11-28): a heart between the two that fills as the table warms and drains as it cools, beats
+ * on a big line, and cracks for good when someone walks out. Its reading in words for a screen reader and on hover.
+ */
+function ChemistryMeter({ heat, cracked, spike }: { heat: number; cracked: boolean; spike: boolean }) {
+  const word = chemistryWord(heat, cracked);
+  const level = Math.round(heat * 100) / 100;
+  return (
+    <span className="scene-meter" role="img" aria-label={`Chemistry: ${word}`} title={`Chemistry: ${word}`} data-cracked={cracked || undefined} data-spike={spike || undefined}>
+      <svg viewBox="0 0 32 30" width="44" height="42" aria-hidden="true">
+        <defs>
+          <clipPath id="scene-meter-heart">
+            <path d="M16 28.5 C5 20.5 1 14.5 1 9.2 C1 4.6 4.6 1.2 8.9 1.2 C12 1.2 14.6 3 16 5.6 C17.4 3 20 1.2 23.1 1.2 C27.4 1.2 31 4.6 31 9.2 C31 14.5 27 20.5 16 28.5 Z" />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#scene-meter-heart)">
+          <rect className="scene-meter-empty" x="0" y="0" width="32" height="30" />
+          <rect className="scene-meter-fill" x="0" y="0" width="32" height="30" style={{ transform: `scaleY(${cracked ? 0.08 : Math.max(0.06, level)})` }} />
+        </g>
+        <path className="scene-meter-edge" d="M16 28.5 C5 20.5 1 14.5 1 9.2 C1 4.6 4.6 1.2 8.9 1.2 C12 1.2 14.6 3 16 5.6 C17.4 3 20 1.2 23.1 1.2 C27.4 1.2 31 4.6 31 9.2 C31 14.5 27 20.5 16 28.5 Z" />
+        {cracked && <path className="scene-meter-crack" d="M16 5.6 L13.5 11 L18 14.5 L14 19.5 L16.5 23" />}
+      </svg>
+      <span className="scene-meter-word">{word}</span>
+    </span>
   );
 }

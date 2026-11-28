@@ -81,6 +81,7 @@ import "./ux/finish.css";
 import "./ux/show-nights.css";
 import "./ux/broadcast.css";
 import "./ux/theater-stage.css";
+import "./ux/theater-show.css";
 import Spotlight from "./motion/Spotlight";
 import NightBar from "./motion/NightBar";
 import OnAirBar from "./motion/OnAirBar";
