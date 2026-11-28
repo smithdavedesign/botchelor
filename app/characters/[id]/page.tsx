@@ -2,6 +2,8 @@ import { sessionsSignable } from "@/lib/auth";
 import { languageName } from "@/lib/language";
 import { PG_FIELD_LABELS } from "@/lib/pg-public";
 import { shortName } from "@/lib/names";
+import { fillNodes } from "@/app/fillNodes";
+import { getT } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -116,7 +118,7 @@ import { Booth } from "./Booth";
 import { SHOT_LABELS, SHOT_ORDER } from "@/lib/show-shots-shared";
 import { mediaAllowed } from "@/lib/jurisdiction";
 import { afterDarkHref } from "@/lib/after-dark-host";
-import { pronounForms, verb as pronounVerb } from "@/lib/pronoun-forms";
+import { pronounForms } from "@/lib/pronoun-forms";
 import { wholeSentences } from "@/lib/whole-sentences";
 import { APPEARANCE_MAX, BIO_MAX, WANT_MAX } from "@/lib/field-limits";
 import { soft } from "@/lib/soft";
@@ -161,6 +163,8 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // one its reads overlap the page's early ones, not the wide one below (tests/perf-pages.test.ts).
   const circleP = loadCircle(db, id).catch(() => null);
   const cookieStore = await cookies();
+  // In the viewer's language (docs/i18n.md); what their creator wrote stays as written.
+  const t = await getT();
   const viewerId = userIdFromCookieStore(cookieStore);
   // How many follow them and whether this viewer does (lib/character-follows.ts): one read, started beside the page's
   // first one for the same reason as the circle's, so it never joins the wide wave below. Null with CHARACTER_FOLLOW=0.
@@ -175,11 +179,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   if (c.private && c.owner_id !== viewerId) {
     return (
       <article className="character-private">
-        <p className="kicker">Contestant</p>
+        <p className="kicker">{t("Contestant")}</p>
         <h1>{c.name}</h1>
-        <p className="muted">🔒 Their creator keeps this character private.</p>
+        <p className="muted">🔒 {t("Their creator keeps this character private.")}</p>
         <p>
-          <Link href="/characters">← Characters</Link>
+          <Link href="/characters">← {t("Characters")}</Link>
         </p>
       </article>
     );
@@ -524,20 +528,22 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const stepInEntry = stepIn && (
     <section className="card stepin-entry" aria-labelledby="stepin-entry-title">
       <div>
-        <h2 id="stepin-entry-title"><Icon name="clapper" /> Step into the date</h2>
-        <p className="muted small">Go on a date with {shortName(c.name)} yourself, live, line by line. {shortName(c.name)} is an AI character on a show.</p>
+        <h2 id="stepin-entry-title"><Icon name="clapper" /> {t("Step into the date")}</h2>
+        <p className="muted small">{t("Go on a date with {name} yourself, live, line by line. {name} is an AI character on a show.", { name: shortName(c.name) })}</p>
       </div>
       <Link className={stepInLeads ? "button" : "button secondary"} href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character">
-        {stepInLeads ? `Step into a date with ${shortName(c.name)}` : `Step in with ${shortName(c.name)}`}
+        {stepInLeads ? t("Step into a date with {name}", { name: shortName(c.name) }) : t("Step in with {name}", { name: shortName(c.name) })}
       </Link>
       {stepInLeads && cta.kind === "make" && (
         // The other way to date them, said quietly: the page has one filled button.
         <p className="small stepin-entry-or">
-          Or{" "}
-          <Link href={cta.href} data-track="verb-make" data-track-from="character">
-            make a character to date {shortName(c.name)}
-          </Link>{" "}
-          and watch how it goes.
+          {fillNodes(t("Or {link} and watch how it goes.", { name: shortName(c.name) }), {
+            link: (
+              <Link href={cta.href} data-track="verb-make" data-track-from="character">
+                {t("make a character to date {name}", { name: shortName(c.name) })}
+              </Link>
+            ),
+          })}
         </p>
       )}
     </section>
@@ -596,7 +602,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const leading = await castingLeadP.then((l) => (l?.lead.id === c.id ? l : null));
   const sponsor = await sponsorP;
   const tipCount = await tipCountP;
-  const leadWords = leading ? (leading.phase === "season" ? "This season's lead" : `${leading.month}'s lead`) : null;
+  const leadWords = leading ? (leading.phase === "season" ? t("This season's lead") : t("{month}'s lead", { month: leading.month })) : null;
   const intro = await introOf(db, c.id);
   // The contestant card (the visual pop audit, 2026-11-20). Behind it, the place of their latest aired date (the record's
   // first page has it; a later page asks once), else the stage; the face, their portrait at the card's size.
@@ -619,13 +625,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // ordinary portrait keeps its framed face.
   const standing = intro ? null : stagePicture(characterPortrait(c.id));
   const faceless = !intro && !faceSrc;
-  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
   const stats: { key: string; n: string | number | null; label: string }[] = [
-    ...(record.dates > 0 ? [{ key: "dates", n: record.dates, label: plural(record.dates, "aired date", "aired dates") }] : []),
-    ...(record.second_dates > 0 ? [{ key: "second", n: record.second_dates, label: plural(record.second_dates, "second date", "second dates") }] : []),
-    ...(reviews.count > 0 && reviews.average !== null ? [{ key: "reviews", n: `${reviews.average.toFixed(1)} ★`, label: `from ${reviews.count} ${plural(reviews.count, "review", "reviews")}` }] : []),
+    ...(record.dates > 0 ? [{ key: "dates", n: record.dates, label: record.dates === 1 ? t("aired date") : t("aired dates") }] : []),
+    ...(record.second_dates > 0 ? [{ key: "second", n: record.second_dates, label: record.second_dates === 1 ? t("second date") : t("second dates") }] : []),
+    ...(reviews.count > 0 && reviews.average !== null ? [{ key: "reviews", n: `${reviews.average.toFixed(1)} ★`, label: reviews.count === 1 ? t("from 1 review") : t("from {n} reviews", { n: reviews.count }) }] : []),
   ];
-  if (!stats.length) stats.push({ key: "new", n: null, label: c.private ? "Off the show" : "First date still to come" });
+  if (!stats.length) stats.push({ key: "new", n: null, label: c.private ? t("Off the show") : t("First date still to come") });
   // The owner's tools, and the studios an admin opens on the house cast: under one Manage fold on an owner's page (B11).
   const ownerTools = (
     <>
@@ -636,35 +641,35 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <section className="card owner-next" aria-labelledby="owner-next-title">
           {profileComplete(c.extras) ? (
             <>
-              <h2 id="owner-next-title">💘 Find {shortName(c.name)} a date</h2>
+              <h2 id="owner-next-title">💘 {t("Find {name} a date", { name: shortName(c.name) })}</h2>
               <p className="cta-row">
                 <Link className="button secondary" href={`/create?character=${c.id}`}>
-                  📅 Send on a date now
+                  📅 {t("Send on a date now")}
                 </Link>
-                <Link href={`/matches?character=${c.id}`}>💬 {shortName(c.name)}&apos;s matches</Link>
+                <Link href={`/matches?character=${c.id}`}>💬 {t("{name}'s matches", { name: shortName(c.name) })}</Link>
               </p>
               <p className="muted small">
                 {dating?.open_to_dates
-                  ? `✓ ${shortName(c.name)} is in other people's decks too.`
-                  : `${shortName(c.name)} isn't in other people's decks: Open to dates, below, puts them there.`}
+                  ? `✓ ${t("{name} is in other people's decks too.", { name: shortName(c.name) })}`
+                  : t("{name} isn't in other people's decks: Open to dates, below, puts them there.", { name: shortName(c.name) })}
               </p>
             </>
           ) : (
             <>
-              <h2 id="owner-next-title">💘 Get {shortName(c.name)} dating</h2>
+              <h2 id="owner-next-title">💘 {t("Get {name} dating", { name: shortName(c.name) })}</h2>
               <p>
-                To swipe, their dating profile needs {profileMissing(c.extras).map((m) => m.replace(/ \(extras\.\w+\)$/, "")).join(" and ")}.
+                {t("To swipe, their dating profile needs {missing}.", { missing: profileMissing(c.extras).map((m) => m.replace(/ \(extras\.\w+\)$/, "")).join(` ${t("and")} `) })}
               </p>
             </>
           )}
           {/* The staged theater stands them as a silhouette until they have a picture (app/stage/Silhouette.tsx). */}
           {!c.portrait_asset_id && (
             <p className="owner-portrait-nudge">
-              🎬 On a date, {shortName(c.name)} stands on the stage as a silhouette until they have a portrait.{" "}
+              🎬 {t("On a date, {name} stands on the stage as a silhouette until they have a portrait.", { name: shortName(c.name) })}{" "}
               {pgStudio ? (
-                <Link href={`/studio?character=${encodeURIComponent(c.id)}`}>Give them one in the Photo Studio</Link>
+                <Link href={`/studio?character=${encodeURIComponent(c.id)}`}>{t("Give them one in the Photo Studio")}</Link>
               ) : (
-                <>Generate one under Manage, below.</>
+                t("Generate one under Manage, below.")
               )}
             </p>
           )}
@@ -674,28 +679,28 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {ratings.is_owner && !c.house && !c.private && !partnerStyle?.taken && <ShareDateLink characterId={c.id} first={shortName(c.name)} />}
       {pgStudio && (
         <section className="card character-studio">
-          <h2>📸 Photo Studio</h2>
+          <h2>📸 {t("Photo Studio")}</h2>
           <p>
-            Photo shoots of {shortName(c.name)} for the show: outfits, places, accessories and styles, their face kept, every picture checked safe.{" "}
+            {t("Photo shoots of {name} for the show: outfits, places, accessories and styles, their face kept, every picture checked safe.", { name: shortName(c.name) })}{" "}
             <Link className="button" href={`/studio?character=${encodeURIComponent(c.id)}`}>
-              Open the Studio
+              {t("Open the Studio")}
             </Link>
           </p>
         </section>
       )}
       {studio && (
         <section className="card character-studio character-studio-after-dark">
-          <h2>🎨 After Dark Studio</h2>
+          <h2>🎨 {t("After Dark Studio")}</h2>
           {studio.ready ? (
             <p>
-              Shoots of {shortName(c.name)}, their face and look, and their gallery, in After Dark.{" "}
+              {t("Shoots of {name}, their face and look, and their gallery, in After Dark.", { name: shortName(c.name) })}{" "}
               <Link className="button" href={studio.href}>
-                Open the Studio
+                {t("Open the Studio")}
               </Link>
             </p>
           ) : (
             <p className="muted">
-              Switch {shortName(c.name)} into After Dark first, then the Studio opens for them. <Link href={studio.href}>After Dark</Link>
+              {t("Switch {name} into After Dark first, then the Studio opens for them.", { name: shortName(c.name) })} <Link href={studio.href}>{t("After Dark")}</Link>
             </p>
           )}
         </section>
@@ -706,7 +711,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {inviteLine && (
         <p className="casting-invite-nudge">
           <Link href={inviteLine.href} data-track="casting-invite-nudge">
-            <Icon name="rose" /> Apply {shortName(c.name)} to {inviteLine.month}&apos;s Botchelor →
+            <Icon name="rose" /> {t("Apply {name} to {month}'s Botchelor", { name: shortName(c.name), month: inviteLine.month })} →
           </Link>
         </p>
       )}
@@ -714,15 +719,18 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {ratings.is_owner && !c.house && showIdeasOn() && (
         <p className="casting-invite-nudge">
           <Link href="/shows" data-track="shows" data-track-where="character">
-            📺 Which new shows would you enter {shortName(c.name)} in? →
+            📺 {t("Which new shows would you enter {name} in?", { name: shortName(c.name) })} →
           </Link>
         </p>
       )}
       {auditionNow && <AuditionPanel id={c.id} name={shortName(c.name)} audition={auditionNow} />}
       {plays && (
         <p className="muted small owner-temperament">
-          🔒 How {shortName(c.name)} plays on a date: <strong>{describeTemperament(plays)}</strong>. Only you see this; tune it on the{" "}
-          <Link href={`/characters/${c.id}/edit`}>Soul step</Link>.
+          🔒{" "}
+          {fillNodes(t("How {name} plays on a date: {how}. Only you see this; tune it on the {link}.", { name: shortName(c.name) }), {
+            how: <strong>{describeTemperament(plays)}</strong>,
+            link: <Link href={`/characters/${c.id}/edit`}>{t("Soul step")}</Link>,
+          })}
         </p>
       )}
     </>
@@ -766,7 +774,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </div>
         <div className="meta">
           <p className="kicker">
-            <Link href={listHref}>← Characters</Link> · {leading ? "The Botchelor · lead card" : "Contestant card"}
+            <Link href={listHref}>← {t("Characters")}</Link> · {leading ? t("The Botchelor · lead card") : t("Contestant card")}
           </p>
           {/* The heading is the name alone (2026-11-22 audit: it read "Vesper Lindqvist Made by a person 💌 Open to dates"
               to screen readers and in the page's outline); its badges sit beside it, in the same row. */}
@@ -780,17 +788,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             ) : (
               <OriginBadge origin={origin} />
             )}
-            {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">Off this season</span>}
+            {c.house && dating && !dating.can_ask_out && !PREMIUM_IDS.has(c.id) && <span className="badge">{t("Off this season")}</span>}
             {!c.house && isFanCast(c.id) && (
               <Link href="/casting" className="badge badge-open">
-                🎬 On {seasonMonth(seasonIdAt(new Date()))}&apos;s cast
+                🎬 {t("On {month}'s cast", { month: seasonMonth(seasonIdAt(new Date())) })}
               </Link>
             )}
             {leading && leadWords && (
               <Link
                 href={seasonPageLiveOn() ? seasonPath(leading.season_id) : "/casting"}
                 className="badge badge-open"
-                title="The Botchelor: one lead, suitors made by people, and a rose ceremony every Sunday"
+                title={t("The Botchelor: one lead, suitors made by people, and a rose ceremony every Sunday")}
                 data-track="lead-badge"
               >
                 <Icon name="rose" /> {leadWords}
@@ -801,36 +809,36 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                 <Icon name="rose" /> {b.label}
               </span>
             ))}
-            {!c.house && dating?.open_to_dates && <span className="badge badge-open"><Icon name="mail" /> Open to dates</span>}
+            {!c.house && dating?.open_to_dates && <span className="badge badge-open"><Icon name="mail" /> {t("Open to dates")}</span>}
             {partnerStyle?.taken && partnerStyle.partners[0] && <span className="badge">
-                💍 With <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
+                💍 {t("With")} <CharacterName character={partnerStyle.partners[0]} label={shortName(partnerStyle.partners[0].name)} size={18} />
               </span>}
             {/* Only while they're dating: beside "Not taking dates" it said two things at once. */}
             {partnerStyle && !partnerStyle.taken && (c.house ? dating?.can_ask_out : dating?.open_to_dates) && partnerStyle.effective === "open" && (partnerStyle.choice === "open" || partnerStyle.decided) && (
-              <span className="badge">🌈 Open to more than one</span>
+              <span className="badge">🌈 {t("Open to more than one")}</span>
             )}
           </div>
           <p className="muted">
-            Age {c.age}
+            {t("Age {n}", { n: c.age })}
             {c.pronouns && <> · {c.pronouns}</>} · <span className="stage">{stageFor(memory?.dates ?? 0)}</span>
             {credit && (
               <>
                 {" "}
-                · by <Link href={`/creators/${credit.handle}`} className="character-credit">{credit.name}</Link>
+                · {t("by")} <Link href={`/creators/${credit.handle}`} className="character-credit">{credit.name}</Link>
               </>
             )}
             {/* The portrait is a generated picture (the house cast's and an OC's alike): labelled as one. */}
             {(characterPortrait(c.id) || c.portrait_asset_id) && (
               <>
                 {" "}
-                <AiTag label="AI-generated portrait" />
+                <AiTag label={t("AI-generated portrait")} />
               </>
             )}
             {/* Their hello, playing as the card's face, is a generated video (lib/cast-intros.ts). */}
             {intro && (
               <>
                 {" "}
-                <AiTag label="AI-generated video" />
+                <AiTag label={t("AI-generated video")} />
               </>
             )}
           </p>
@@ -839,11 +847,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             <p className="contestant-job">
               {c.extras.occupation}
               {c.extras.occupation && c.extras.hometown && " · "}
-              {c.extras.hometown && <>from {c.extras.hometown}</>}
+              {c.extras.hometown && t("from {place}", { place: c.extras.hometown })}
             </p>
           )}
           {/* Their numbers as chips, from what the page already read (the date record's tally, the reviews, the follows). */}
-          <ul className="contestant-stats" aria-label={`${shortName(c.name)} in numbers`}>
+          <ul className="contestant-stats" aria-label={t("{name} in numbers", { name: shortName(c.name) })}>
             {stats.map((st) => (
               <li key={st.key}>
                 {st.n !== null && <strong>{st.n}</strong>} {st.label}
@@ -863,7 +871,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                   <TalkButton characterId={text.characterId} name={shortName(c.name)} label={text.label} className="button secondary small" track={text.track} />
                 ))}
               {canFollow && follow && <FollowToggle characterId={c.id} name={shortName(c.name)} following={follow.following} texts={companion === "talk" && auth?.authenticated === true} />}
-              {!c.private && <HeaderMore path={`/characters/${c.id}`} title={`${c.name} on Botchelor`} name={shortName(c.name)} followers={follow?.followers ?? 0} />}
+              {!c.private && <HeaderMore path={`/characters/${c.id}`} title={t("{name} on Botchelor", { name: c.name })} name={shortName(c.name)} followers={follow?.followers ?? 0} />}
             </div>
           )}
           {/* The crowd's read of them, in the header since Audience became Talk of the house (2026-11-15): the same
@@ -872,10 +880,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             <div className="hero-ratings" id="ratings">
               <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} compact />
               <details className="info-tip">
-                <summary aria-label="About audience ratings">ⓘ</summary>
+                <summary aria-label={t("About audience ratings")}>ⓘ</summary>
                 <span className="info-tip-body muted small">
-                  How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.
-                  {ratings.is_owner && <> Others rate your character: you can&apos;t rate your own.</>}
+                  {t("How the crowd reads them: just for fun, it never changes a date, the odds or anyone's points.")}
+                  {ratings.is_owner && <> {t("Others rate your character: you can't rate your own.")}</>}
                 </span>
               </details>
             </div>
@@ -901,14 +909,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {ratings.is_owner && c.pg_flags.length > 0 && (
         // A public field saved before the sheet's PG check (lib/pg-public.ts): everyone sees it hidden until it's edited.
         <section className="card pg-flags" role="status" aria-labelledby="pg-flags-title">
-          <h2 id="pg-flags-title">Some of {shortName(c.name)}&apos;s profile is hidden</h2>
+          <h2 id="pg-flags-title">{t("Some of {name}'s profile is hidden", { name: shortName(c.name) })}</h2>
           <p className="small">
-            Botchelor&apos;s show is PG, and {c.pg_flags.length === 1 ? "this part doesn't" : "these parts don't"} fit yet:{" "}
-            <strong>{c.pg_flags.map((f) => PG_FIELD_LABELS[f]).join(", ")}</strong>. Everyone sees{" "}
-            {c.pg_flags.length === 1 ? "it" : "them"} as hidden until you reword {c.pg_flags.length === 1 ? "it" : "them"}.
+            {fillNodes(
+              c.pg_flags.length === 1
+                ? t("Botchelor's show is PG, and this part doesn't fit yet: {fields}. Everyone sees it as hidden until you reword it.")
+                : t("Botchelor's show is PG, and these parts don't fit yet: {fields}. Everyone sees them as hidden until you reword them."),
+              { fields: <strong>{c.pg_flags.map((f) => PG_FIELD_LABELS[f]).join(", ")}</strong> },
+            )}
           </p>
           <p className="small">
-            <Link href={`/characters/${c.id}/edit`}>Edit {shortName(c.name)}</Link>
+            <Link href={`/characters/${c.id}/edit`}>{t("Edit {name}", { name: shortName(c.name) })}</Link>
           </p>
         </section>
       )}
@@ -919,24 +930,24 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {ratings.is_owner && !c.house ? (
         <section className="owner-manage" aria-labelledby="owner-manage-title">
           <h2 id="owner-manage-title" className="sr-only">
-            Manage {shortName(c.name)}
+            {t("Manage {name}", { name: shortName(c.name) })}
           </h2>
           <p className="cta-row owner-manage-row">
             {profileComplete(c.extras) ? (
               <Link className="button" href={`/swipe?character=${c.id}`}>
-                Swipe for {shortName(c.name)}
+                {t("Swipe for {name}", { name: shortName(c.name) })}
               </Link>
             ) : (
               <Link className="button" href={`/characters/${c.id}/edit`}>
-                Finish {shortName(c.name)}&apos;s profile
+                {t("Finish {name}'s profile", { name: shortName(c.name) })}
               </Link>
             )}
             <Link className="button secondary" href={`/characters/${c.id}/edit`}>
-              Edit
+              {t("Edit")}
             </Link>
           </p>
           <details className="owner-manage-more ux-fold" id="manage">
-            <summary>Manage {shortName(c.name)}</summary>
+            <summary>{t("Manage {name}", { name: shortName(c.name) })}</summary>
             {ownerTools}
           </details>
         </section>
@@ -948,12 +959,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           lead down ~5 phone screens of cards (2026-10-31 UX audit, C4). Old #links still open the right tab. */}
       <PageTabs
         tabs={[
-          { id: "profile", label: "Profile" },
-          ...(peopleTab ? [{ id: "people", label: "People" }] : []),
-          ...(secrets ? [{ id: "secrets", label: "Secrets" }] : []),
-          talkOfHouse ? { id: "talk", label: "Talk of the house", short: "Talk" } : { id: "audience", label: "Audience" },
-          ...(memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) ? [{ id: "story", label: "Story" }] : []),
-          { id: "dates", label: "Dates" },
+          { id: "profile", label: t("Profile") },
+          ...(peopleTab ? [{ id: "people", label: t("People") }] : []),
+          ...(secrets ? [{ id: "secrets", label: t("Secrets") }] : []),
+          talkOfHouse ? { id: "talk", label: t("Talk of the house"), short: t("Talk") } : { id: "audience", label: t("Audience") },
+          ...(memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) ? [{ id: "story", label: t("Story") }] : []),
+          { id: "dates", label: t("Dates") },
         ]}
       />
 
@@ -970,16 +981,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               // requests that each read the whole clip from the database came with every visit (2026-11-01 audit, R2).
               preload="none"
               poster={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}.webp?w=384` : undefined}
-              aria-label={`${c.name}'s intro clip`}
+              aria-label={t("{name}'s intro clip", { name: c.name })}
             >
               <source src={`/api/assets/${c.clip_asset_id}/video`} type="video/mp4" />
             </video>
           ) : (
             // A clip from the retired Sora era: its MP4 lived with OpenAI and is gone; the still was stored with us.
             // eslint-disable-next-line @next/next/no-img-element
-            <img className="character-clip" src={`/api/assets/${c.clip_asset_id}`} alt={`A still from ${c.name}'s intro clip`} />
+            <img className="character-clip" src={`/api/assets/${c.clip_asset_id}`} alt={t("A still from {name}'s intro clip", { name: c.name })} />
           )}
-          <AiTag label="AI-generated clip" />
+          <AiTag label={t("AI-generated clip")} />
         </section>
       )}
 
@@ -990,13 +1001,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           const e = c.extras;
           const rows = (
             [
-              ["🎯 Here for", e.here_for ? goalLabel(e.here_for) : undefined],
-              ["🎲 Dates", moodLabel(e.mood) ?? undefined],
-              ["🎭 Type", e.archetype ? archetypeLabel(e.archetype) : undefined],
-              ["✨ Sign", e.star_sign],
-              ["💬 Love language", e.love_language],
-              ["🗣️ Speaks", languageName(e.language) ?? undefined],
-              ["🎨 Into", e.hobbies?.length ? e.hobbies.join(", ") : undefined],
+              [`🎯 ${t("Here for")}`, e.here_for ? goalLabel(e.here_for) : undefined],
+              [`🎲 ${t("Dates")}`, moodLabel(e.mood) ?? undefined],
+              [`🎭 ${t("Type")}`, e.archetype ? archetypeLabel(e.archetype) : undefined],
+              [`✨ ${t("Sign")}`, e.star_sign],
+              [`💬 ${t("Love language")}`, e.love_language],
+              [`🗣️ ${t("Speaks")}`, languageName(e.language) ?? undefined],
+              [`🎨 ${t("Into")}`, e.hobbies?.length ? e.hobbies.join(", ") : undefined],
             ] as [string, string | undefined][]
           ).filter((r): r is [string, string] => Boolean(r[1]));
           return rows.length ? (
@@ -1012,27 +1023,27 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         })()}
         {week && (
           <p className="this-week">
-            🗓️ <strong>This week:</strong> {week}
+            🗓️ <strong>{t("This week:")}</strong> {week}
           </p>
         )}
         {c.appearance && (
           <p className="muted">
-            <strong>Looks:</strong> {wholeSentences(c.appearance, APPEARANCE_MAX)}
+            <strong>{t("Looks:")}</strong> {wholeSentences(c.appearance, APPEARANCE_MAX)}
           </p>
         )}
         <ul className="chips">
-          {c.traits.map((t) => (
-            <li className="chip" key={t}>
-              {t}
+          {c.traits.map((trait) => (
+            <li className="chip" key={trait}>
+              {trait}
             </li>
           ))}
         </ul>
         <p>
-          <strong>Wants:</strong> {wholeSentences(c.want, WANT_MAX)}
+          <strong>{t("Wants:")}</strong> {wholeSentences(c.want, WANT_MAX)}
         </p>
         {c.voice && (
           <p className="muted">
-            <strong>How {own.subj} {pronounVerb(own, "talks", "talk")}:</strong> {wholeSentences(c.voice, VOICE_MAX)}
+            <strong>{own.subj === "he" ? t("How he talks:") : own.subj === "she" ? t("How she talks:") : t("How they talk:")}</strong> {wholeSentences(c.voice, VOICE_MAX)}
           </p>
         )}
       </section>
@@ -1044,13 +1055,13 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
 
       {photos.length > 0 && (
-        <section className="card profile-photos" aria-label="Photos">
-          <h2>Photos</h2>
+        <section className="card profile-photos" aria-label={t("Photos")}>
+          <h2>{t("Photos")}</h2>
           <ul>
             {photos.map((p) => (
               <li key={p.asset_id}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- a pg asset from its own route */}
-                <img src={p.url} alt={`A photo of ${c.name}`} loading="lazy" />
+                <img src={p.url} alt={t("A photo of {name}", { name: c.name })} loading="lazy" />
               </li>
             ))}
           </ul>
@@ -1061,7 +1072,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {/* Their show kit (lib/show-shots.ts): the premiere reveal, the rose, the confessional and the faces a date shows. */}
       {shots && (
         <section className="card profile-photos show-kit" aria-labelledby="show-kit-title">
-          <h2 id="show-kit-title">On the show</h2>
+          <h2 id="show-kit-title">{t("On the show")}</h2>
           <ul>
             {SHOT_ORDER.flatMap((s) => {
               const src = shots[s];
@@ -1100,14 +1111,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {talkOfHouse ? (
         <div data-panel="talk" id="panel-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
           {/* The people around them and the tie to each, above the talk: the same ties /house draws for the lead. */}
-          {circle && <Circle circle={circle} title={`${shortName(c.name)}'s circle this week`} id="circle" />}
-          <TalkPanel name={shortName(c.name)} talk={talkOfHouse} verb={verb ?? (ratings.is_owner && !c.house ? { label: `Send ${shortName(c.name)} on a date`, href: `/create?character=${c.id}`, track: "verb-own" } : null)}>
+          {circle && <Circle circle={circle} title={t("{name}'s circle this week", { name: shortName(c.name) })} id="circle" />}
+          <TalkPanel name={shortName(c.name)} talk={talkOfHouse} verb={verb ?? (ratings.is_owner && !c.house ? { label: t("Send {name} on a date", { name: shortName(c.name) }), href: `/create?character=${c.id}`, track: "verb-own" } : null)}>
             {/* The written reviews keep their home (agents write them over MCP), folded under the talk. #audience, the
                 old tab's anchor, is this fold: PageTabs opens Talk, opens the fold and scrolls to it. */}
             <details className="card ux-fold character-audience talk-audience" id="audience">
               <summary>
-                <h3>From the audience</h3>
-                <span className="muted small fold-status">{reviews.count ? `${reviews.average?.toFixed(1)} ★ · ${reviews.count} review${reviews.count === 1 ? "" : "s"}` : "No reviews yet"}</span>
+                <h3>{t("From the audience")}</h3>
+                <span className="muted small fold-status">{reviews.count ? `${reviews.average?.toFixed(1)} ★ · ${reviews.count === 1 ? t("1 review") : t("{n} reviews", { n: reviews.count })}` : t("No reviews yet")}</span>
               </summary>
               <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={reviewsOpen} />
             </details>
@@ -1120,14 +1131,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         {/* The "never changes points" line behind an ⓘ (2026-10-31 UX audit, A10: one of seven copies of it on the way
             here; the shop's and the footer's stay in full). */}
         <div className="audience-head">
-          <h2 id="audience-title">Audience</h2>
+          <h2 id="audience-title">{t("Audience")}</h2>
           <details className="info-tip">
-            <summary aria-label="About audience ratings">ⓘ</summary>
-            <span className="info-tip-body muted small">How the crowd reads them: just for fun, it never changes a date, the odds or anyone&apos;s points.</span>
+            <summary aria-label={t("About audience ratings")}>ⓘ</summary>
+            <span className="info-tip-body muted small">{t("How the crowd reads them: just for fun, it never changes a date, the odds or anyone's points.")}</span>
           </details>
         </div>
         <RatingButtons characterId={c.id} counts={ratings.counts} mine={ratings.mine} isOwner={ratings.is_owner} />
-        <h3>Reviews</h3>
+        <h3>{t("Reviews")}</h3>
         <Reviews characterId={c.id} name={c.name} initial={reviews} isOwner={ratings.is_owner} house={c.house} open={reviewsOpen} />
       </section>
       </div>
@@ -1138,7 +1149,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       {memory && (memory.arc || (memory.milestones?.length ?? 0) > 0 || (memory.chapters?.length ?? 0) > 0) && (
         <div data-panel="story" id="panel-story" role="tabpanel" aria-labelledby="tab-story" hidden>
         <section className="card character-story" id="story">
-          <h2>Their story so far</h2>
+          <h2>{t("Their story so far")}</h2>
           {memory.arc && <p>{memory.arc}</p>}
           {(memory.milestones?.length ?? 0) > 0 && (
             <ul className="chips milestones">
@@ -1149,7 +1160,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                   {isOwner && !c.private && (
                     <>
                       {" "}
-                      <a href={`/characters/${c.id}/moment.png?m=${m.id}`} target="_blank" rel="noopener" className="small" aria-label={`Share card: ${m.label}`} title="A card of this moment to post">
+                      <a href={`/characters/${c.id}/moment.png?m=${m.id}`} target="_blank" rel="noopener" className="small" aria-label={t("Share card: {label}", { label: m.label })} title={t("A card of this moment to post")}>
                         📤
                       </a>
                     </>
@@ -1175,18 +1186,18 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               draft={{ name: c.name, bio: c.bio, traits: c.traits, want: c.want, voice: c.voice, extras: shownExtras }}
               characterId={c.id}
               quiet
-              title={`Make ${shortName(c.name)} stand out on their next date`}
+              title={t("Make {name} stand out on their next date", { name: shortName(c.name) })}
             />
           )}
           {learned && (learned.sections.some((x) => x.items.length) || learned.drift.length > 0 || learned.people.length > 0 || learned.forgotten.length > 0) && (
             <details className="ux-fold character-learned">
-              <summary>🔒 What {shortName(c.name)} has learned (only you see this)</summary>
+              <summary>🔒 {t("What {name} has learned (only you see this)", { name: shortName(c.name) })}</summary>
               <LearnedPanel characterId={c.id} name={c.name} {...learned} />
             </details>
           )}
           {storyState && (storyState.story.want || storyState.story.thinks.length > 0 || storyState.story.heard.length > 0 || storyState.story.forgotten.length > 0) && (
             <details className="ux-fold character-learned">
-              <summary>🔒 What {shortName(c.name)} thinks and has heard (only you see this)</summary>
+              <summary>🔒 {t("What {name} thinks and has heard (only you see this)", { name: shortName(c.name) })}</summary>
               <StoryPanel characterId={c.id} name={c.name} story={storyState.story} episodes={storyState.episodes} />
             </details>
           )}
@@ -1200,14 +1211,14 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       <Credits credits={credits} first={shortName(c.name)} />
       <section className="card" id="date-record">
         <div className="section-head">
-          <h2>Dates</h2>
-          {relationships.length > 0 && <Link href={`/characters/${c.id}/relationships`}>📱 See their board →</Link>}
+          <h2>{t("Dates")}</h2>
+          {relationships.length > 0 && <Link href={`/characters/${c.id}/relationships`}>📱 {t("See their board")} →</Link>}
         </div>
         {record.dates > 0 && (
           <p className="muted">
-            <strong>{record.dates}</strong> {record.dates === 1 ? "aired date" : "aired dates"} · {record.second_dates} second{" "}
-            {record.second_dates === 1 ? "date" : "dates"} · {record.friends} just friends · {record.disasters}{" "}
-            {record.disasters === 1 ? "disaster" : "disasters"}
+            <strong>{record.dates}</strong> {record.dates === 1 ? t("aired date") : t("aired dates")} ·{" "}
+            {record.second_dates === 1 ? t("1 second date") : t("{n} second dates", { n: record.second_dates })} · {t("{n} just friends", { n: record.friends })} ·{" "}
+            {record.disasters === 1 ? t("1 disaster") : t("{n} disasters", { n: record.disasters })}
           </p>
         )}
         {/* Their overnight dates that ended in leaving together (lib/overnight.ts); nothing when there are none. */}
@@ -1222,46 +1233,46 @@ export default async function CharacterPage({ params, searchParams }: Props) {
                     <CharacterName character={r.other} /> {r.view.stage_label && <span className="badge">{r.view.stage_label}</span>}
                   </span>
                   <span className="muted row-2line-meta">
-                    {r.view.dates === 1 ? "1 date" : `${r.view.dates} dates`} · <Link href={r.path}>see them together</Link>
+                    {r.view.dates === 1 ? t("1 date") : t("{n} dates", { n: r.view.dates })} · <Link href={r.path}>{t("see them together")}</Link>
                     {ratings.is_owner && (
                       <>
                         {" "}
-                        · <Link href={`${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(c.id)}`}>💬 their texts</Link>
+                        · <Link href={`${r.path.replace("/couples/", "/messages/")}?as=${encodeURIComponent(c.id)}`}>💬 {t("their texts")}</Link>
                       </>
                     )}
                   </span>
-                  <span className="meter-track tie" role="img" aria-label={`How close: ${Math.round(r.view.tie * 100)}%`}>
+                  <span className="meter-track tie" role="img" aria-label={t("How close: {n}%", { n: Math.round(r.view.tie * 100) })}>
                     <span className="meter-fill" style={{ width: `${Math.round(r.view.tie * 100)}%` }} />
                   </span>
                 </li>
               ))}
             </ul>
-            <Pager page={relPage.page} pages={relPage.pages} label="Relationships pages" href={here("rel", "relationships")} scroll={false} />
+            <Pager page={relPage.page} pages={relPage.pages} label={t("Relationships pages")} href={here("rel", "relationships")} scroll={false} />
           </div>
         )}
         {record.dates > 0 ? (
           <details className="ux-fold character-dates-all" open={datesPage > 1 || undefined}>
-            <summary>Every aired date ({record.dates})</summary>
+            <summary>{t("Every aired date ({n})", { n: record.dates })}</summary>
             <ul className="list">
               {episodes.map((e) => (
                 <li key={e.episode_id} className="row-split">
                   <span className="row-2line-head">
-                    vs <CharacterName character={e.partner} /> <span className="badge">{endingLabel(e.ending, e.date_number)}</span>
+                    {t("vs")} <CharacterName character={e.partner} /> <span className="badge">{t(endingLabel(e.ending, e.date_number))}</span>
                   </span>
-                  <Link href={e.share_path}>See the date</Link>
+                  <Link href={e.share_path}>{t("See the date")}</Link>
                 </li>
               ))}
             </ul>
-            <Pager page={datesPage} pages={datesPages} label="Date record pages" href={here("dates", "date-record")} prev="Newer" next="Older" scroll={false} />
+            <Pager page={datesPage} pages={datesPages} label={t("Date record pages")} href={here("dates", "date-record")} prev={t("Newer")} next={t("Older")} scroll={false} />
           </details>
         ) : (
-          relationships.length === 0 && <p className="muted">No aired dates yet.</p>
+          relationships.length === 0 && <p className="muted">{t("No aired dates yet.")}</p>
         )}
         {(relationships.length > 0 || worldLink) && (
           <p className="small">
-            {relationships.length > 0 && <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ See {shortName(c.name)} in the Constellation</Link>}
+            {relationships.length > 0 && <Link href={`/graph?focus=${encodeURIComponent(c.id)}`}>✨ {t("See {name} in the Constellation", { name: shortName(c.name) })}</Link>}
             {relationships.length > 0 && worldLink && " · "}
-            {worldLink && <Link href={`/graph/world/${encodeURIComponent(c.id)}`}>🪐 See {shortName(c.name)}&apos;s world</Link>}
+            {worldLink && <Link href={`/graph/world/${encodeURIComponent(c.id)}`}>🪐 {t("See {name}'s world", { name: shortName(c.name) })}</Link>}
           </p>
         )}
       </section>
@@ -1269,12 +1280,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
       {(cta.kind === "send" || cta.kind === "make") && (
         <section className="card">
-          <h2>Date {shortName(c.name)}</h2>
+          <h2>{t("Date {name}", { name: shortName(c.name) })}</h2>
           {stepInLeads && cta.kind === "make" ? (
             // The page's one filled button again after the profile: stepping in, as at the top. It was "Make a
             // character to date them" here, a second filled button for what the top says quietly (2026-11-22 audit).
             <Link className="button" href={`/step-in?with=${c.id}`} data-track="step-in" data-track-from="character-end">
-              Step into a date with {shortName(c.name)}
+              {t("Step into a date with {name}", { name: shortName(c.name) })}
             </Link>
           ) : (
             <DateThisCharacter cta={cta} targetId={c.id} first={shortName(c.name)} roleplays={c.house} signedIn={signedIn} />
@@ -1283,7 +1294,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
       )}
 
       <p className="muted character-more">
-        <Link href="/create">Make your own character</Link> · <Link href={listHref}>See every character</Link>
+        <Link href="/create">{t("Make your own character")}</Link> · <Link href={listHref}>{t("See every character")}</Link>
       </p>
     </article>
   );

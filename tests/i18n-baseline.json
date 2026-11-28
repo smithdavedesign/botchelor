@@ -121,7 +121,6 @@
   "app/characters/[id]/TipCreator.tsx": 17,
   "app/characters/[id]/loading.tsx": 1,
   "app/characters/[id]/moment.png/route.tsx": 3,
-  "app/characters/[id]/page.tsx": 140,
   "app/characters/[id]/relationships/MetTake.tsx": 7,
   "app/characters/[id]/relationships/loading.tsx": 1,
   "app/characters/[id]/relationships/page.tsx": 26,
