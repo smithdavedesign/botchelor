@@ -30,6 +30,7 @@ const SEXUAL_TERMS = [
   "vagina", "boobs", "slut", "sluts", "whore", "whores", "rape", "raped", "rapist", "incest",
   "bestiality", "pedo", "pedophile", "paedophile", "aroused", "arousal", "masturbate",
   "masturbating", "masturbation", "make love", "making love",
+  "virginity", "deflower", "deflowered", "deflowering",
 ];
 
 const MINOR_TERMS = [
@@ -41,6 +42,13 @@ const MINOR_TERMS = [
   "attends high school", "goes to high school", "middle school", "middle schooler",
   "elementary school", "grade school", "grade schooler", "junior high", "kindergarten",
   "kindergartner", "little girl", "little boy", "young girl", "young boy",
+  // 2026-11-28 (the simulation: an "18-year-old high school junior who wears her school uniform" saved): school years
+  // and the uniform, on every surface.
+  "high school junior", "high school senior", "high school sophomore", "high school freshman", "school uniform",
+  "school uniforms", "schoolgirl uniform", "sixth grade", "seventh grade", "eighth grade", "ninth grade", "tenth grade",
+  "eleventh grade", "twelfth grade", "sixth grader", "seventh grader", "eighth grader", "ninth grader", "tenth grader",
+  "eleventh grader", "twelfth grader", "6th grade", "7th grade", "8th grade", "9th grade", "10th grade", "11th grade",
+  "12th grade",
 ];
 
 // Well-known real people. Single-word entries are limited to names that are unambiguous on their own
@@ -90,7 +98,12 @@ const THINGS =
 const A_THINGS_AGE = `(?!(?:${THINGS})s? )`;
 const UNDER_18 = "(?:[1-9]|1[0-7])";
 const NOT_AN_AGE_AFTER = "(?!(?:\\d+|foot|feet|ft|cm|m|in|inch|inches|kg|lb|lbs|stone|of|out|percent|times)\\b)";
+const UNDER_18_WORDS = "(?:three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)";
 const MINOR_AGE_PATTERNS = [
+  // The same in words (2026-11-28: "a sixteen year old runaway", "the body of a twelve-year-old" passed a sheet).
+  new RegExp(` ${UNDER_18_WORDS} ?(?:years?|yrs?) old ${A_THINGS_AGE}`),
+  // Not "at age nine": a backstory may say when something happened in childhood.
+  new RegExp(` (?<!at )aged? ${UNDER_18_WORDS} (?!(?:when|and|after|before|in|on|at)\\b)`),
   new RegExp(` ${UNDER_18} ?(?:years?|yrs?) old ${A_THINGS_AGE}`),
   new RegExp(` ${UNDER_18} ?(?:yo|y o) `),
   new RegExp(` aged? ${UNDER_18} `),

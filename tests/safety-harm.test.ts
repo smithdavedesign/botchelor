@@ -170,6 +170,10 @@ describe("minors (2026-11-28)", () => {
     expect(saysUnder18("I'm 34 and a nurse")).toBe(false);
   });
 
+  it.each(["An 18-year-old high school junior who wears her school uniform.", "Body of a twelve-year-old.", "Still in eighth grade.", "A sixteen year old runaway.", "Lost her virginity in a hayloft."])("refuses %j on a sheet", (bio) => {
+    expect(checkSheetText({ bio }).ok).toBe(false);
+  });
+
   it.each(["Like a kid in a candy store at the market.", "He looks about six feet tall.", "I'm ten minutes late, sorry!"])("allows %j", (text) => {
     expect(checkFields({ text }).ok).toBe(true);
   });
