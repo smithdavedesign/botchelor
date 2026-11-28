@@ -45,7 +45,9 @@ const MINOR_TERMS = [
   // 2026-11-28 (the simulation: an "18-year-old high school junior who wears her school uniform" saved): school years
   // and the uniform, on every surface.
   "high school junior", "high school senior", "high school sophomore", "high school freshman", "school uniform",
-  "school uniforms", "schoolgirl uniform", "sixth grade", "seventh grade", "eighth grade", "ninth grade", "tenth grade",
+  "school uniforms", "schoolgirl uniform", "just started high school", "starting high school", "about to start high school",
+  "first year of high school", "freshman in high school", "sophomore in high school", "in her first year of high school",
+  "sixth grade", "seventh grade", "eighth grade", "ninth grade", "tenth grade",
   "eleventh grade", "twelfth grade", "sixth grader", "seventh grader", "eighth grader", "ninth grader", "tenth grader",
   "eleventh grader", "twelfth grader", "6th grade", "7th grade", "8th grade", "9th grade", "10th grade", "11th grade",
   "12th grade",
@@ -109,6 +111,11 @@ const MINOR_AGE_PATTERNS = [
   new RegExp(` aged? ${UNDER_18} `),
   new RegExp(` (?:i am|im|i m|she is|shes|she s|he is|hes|he s|they are|theyre|they re) ${UNDER_18} ${NOT_AN_AGE_AFTER}`),
   / (?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|\d+(?:st|nd|rd|th)) grader /,
+  // 2026-11-28 (the simulation rerun): "tells everyone she is sixteen" passed, and so did romance at a minor age in a
+  // backstory ("first kiss at fifteen", "dated him when she was 15"). A childhood memory without romance still passes.
+  new RegExp(` (?:i am|im|i m|she is|shes|she s|he is|hes|he s|they are|theyre|they re) (?:(?:only|just|still|barely) )?${UNDER_18_WORDS} (?!(?:minutes?|hours?|days?|weeks?|months?|times|feet|foot|inches|percent|dollars|pounds|miles|of|out|and a half|o clock)\\b)`),
+  new RegExp(` (?:first kiss|kissed|kissing|kiss|dated|dating|date|boyfriend|girlfriend|lover|lost (?:her|his|my|their) virginity|virginity|made out|hooked up|slept with|crush|sex|sexual|in love)(?: [a-z0-9]+){0,6} (?:at|when (?:she|he|i|they|we) (?:was|were)) (?:age |only |just )?(?:${UNDER_18}|${UNDER_18_WORDS}) ${NOT_AN_AGE_AFTER}`),
+  new RegExp(` (?:at|when (?:she|he|i|they|we) (?:was|were)) (?:age |only |just )?(?:${UNDER_18}|${UNDER_18_WORDS})(?: [a-z0-9]+){0,6} (?:first kiss|kissed|dated|boyfriend|girlfriend|lover|virginity|made out|hooked up|slept with|had sex|crush on|fell in love) `),
 ];
 
 const LEET: Record<string, string> = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s", "!": "i" };

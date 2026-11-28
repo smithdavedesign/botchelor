@@ -210,6 +210,7 @@ type ThreadRow = {
   last_at: string;
   notice_at: string | null;
   paused_at: string | null;
+  minor_declared_at?: string | null;
   reply_length: ReplyLength;
   /** True until the person turns this character's texts on ("Hear from" on a verdict card, or the thread's Settings). */
   muted_proactive: boolean;
@@ -230,7 +231,7 @@ const NOT_FOUND = fail(404, "not_found", "Not found.");
 
 async function ownThread(db: Db, userId: string, threadId: string): Promise<ThreadRow | null> {
   const { rows } = await db.query<ThreadRow>(
-    `select id, user_id, character_id, last_at, notice_at, paused_at, reply_length, muted_proactive, summary, scene, roleplay, opening from companion_threads where id = $1 and user_id = $2`,
+    `select id, user_id, character_id, last_at, notice_at, paused_at, minor_declared_at, reply_length, muted_proactive, summary, scene, roleplay, opening from companion_threads where id = $1 and user_id = $2`,
     [threadId, userId],
   );
   return rows[0] ?? null;
@@ -602,6 +603,7 @@ export async function getThread(db: Db, userId: string, threadId: string): Promi
       scene: isScenePlace(t.scene) ? t.scene : null,
       roleplay: t.scene && t.roleplay ? roleplayView(t.roleplay, ref.name) : null,
       paused: Boolean(t.paused_at),
+      ...(t.minor_declared_at ? { adults_only: UNDER_18_MESSAGE } : {}),
       ...(draws ? { draws } : {}),
       facts: facts[0]?.n ?? 0,
       ...(ref.yours ? { next_time: nextTime } : {}),
@@ -1142,6 +1144,8 @@ export async function screenFact(db: Db, userId: string, threadId: string, text:
 async function loaded(db: Db, userId: string, threadId: string): Promise<{ t: ThreadRow; character: Character } | CompanionFail> {
   const t = await ownThread(db, userId, threadId);
   if (!t) return NOT_FOUND;
+  // Closed for someone who said they're under 18: say that, never "carry on when you're ready" (2026-11-28 rerun).
+  if (t.minor_declared_at || (await declaredMinor(db, userId))) return fail(403, "adults_only", UNDER_18_MESSAGE);
   if (!(await companionEligible(db, userId, t.character_id))) return NOT_FOUND;
   const character = await loadCharacter(db, t.character_id);
   if (!character) return NOT_FOUND;

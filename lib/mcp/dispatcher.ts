@@ -90,6 +90,7 @@ import { connections, describeDrift, loadCharacterMemory, loadForgets, noteMeeti
 import { type Character, loadCharacter, pronounWarnings } from "../character";
 import { ADULT_TOOL_NAMES, ADULT_TOOLS, runAdultTool } from "../adult/mcp";
 import { runCompanionTool } from "../companion-mcp";
+import { UNDER_18_MESSAGE } from "../companion";
 import { runLifeTool } from "../life-mcp";
 import { GOAL_STATUSES, LIFE_ACTIONS } from "../life-record-shared";
 import { COMPANION_ACTIONS, COMPANION_REPORT_REASONS, companionOpen, REPLY_LENGTHS, SCENE_PLACES, SCENE_TEXTING } from "../companion-shared";
@@ -5354,6 +5355,7 @@ export function hideUnwrittenEndings<T>(v: T, depth = 0): T {
 }
 
 const NEEDS_IDENTITY = "No identity yet: create a character first (or pass the agent_id a write returned).";
+const COMPANION_NEEDS_IDENTITY = "Companions need to know who's talking: send the mcp-session-id from initialize, or your agent_id.";
 
 /** A couple page link only once it opens for anyone (lib/texting.ts couplePageFor), and why not until then. */
 const pageLink = (page: string | null, anchor = "") =>
@@ -9152,8 +9154,17 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
     }
     case "companion": {
       // Companions over MCP (lib/companion-mcp.ts): the agent itself is the one talking; its threads are its own.
-      const who = resolveIdentity(args, session, true)!;
+      // No session and no agent_id is nobody: a lockout couldn't hold for a fresh identity on every call (2026-11-28 rerun).
+      const who = resolveIdentity(args, session, false);
+      if (!who) return { error: COMPANION_NEEDS_IDENTITY, code: "no_identity" };
+      // Someone on this session said they're under 18: closed to companions for good, under any agent_id.
+      if (session && (await db.query(`select 1 from mcp_sessions where id = $1 and minor_declared_at is not null`, [session.id])).rows.length > 0) {
+        return { error: UNDER_18_MESSAGE, code: "adults_only" };
+      }
       const out = await runCompanionTool(db, who.id, args, { admin: mcpAdmin(ctx) });
+      if ("error" in out && out.code === "adults_only" && session) {
+        await db.query(`update mcp_sessions set minor_declared_at = coalesce(minor_declared_at, now()) where id = $1`, [session.id]);
+      }
       return "error" in out ? out : { data: out.data, identity: who };
     }
     case "character_life": {

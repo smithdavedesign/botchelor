@@ -258,7 +258,7 @@ function lookalikeOf(plain: string): string | null {
 // rides Roach" scored fine to create). lib/franchises.ts counts a title only in the name or the look, so "a Star Wars
 // marathon" in a bio stays a hobby; "is a Jedi knight" is a role.
 const FRANCHISE_ROLES = [
-  / (?:a|an|the|is|as|was|former|retired|rogue|young|old) (?:witcher|witchers|jedi (?:knight|master|padawan)|sith (?:lord|apprentice)|saiyan|saiyans|super saiyan|pokemon trainer|pokemon master|shinigami|soul reaper|demon slayer|titan shifter|stand user|hogwarts (?:student|professor|graduate)|ninja (?:of|from) the hidden leaf|hidden leaf ninja|avenger|starfleet (?:captain|officer)|time lord|dalek|na vi|vulcan science officer) /,
+  / (?:a|an|the|is|as|was|former|retired|rogue|young|old)(?: [a-z]+){0,2} (?:witcher|witchers|jedi (?:knight|master|padawan)|sith (?:lord|apprentice)|saiyan|saiyans|super saiyan|pokemon trainer|pokemon master|shinigami|soul reaper|demon slayer|titan shifter|stand user|hogwarts (?:student|professor|graduate)|ninja (?:of|from) the hidden leaf|hidden leaf ninja|starfleet (?:captain|officer)|time lord|dalek|na vi|vulcan science officer)(?! (?:fan|fans|fandom|episode|episodes|game|games|book|books|novel|novels|series|show|shows|movie|movies|film|films|cosplay|cosplayer|marathon|poster|posters|merch|quote|quotes|trivia|reference|references|nerd|geek)) /,
   / (?:rides|riding|rode) (?:a horse called |a horse named |her horse |his horse |their horse )?roach /,
-  / (?:lightning (?:bolt )?shaped scar|one ring to rule|elder wand|infinity stones|kamehameha|sharingan|rasengan) /,
+  / (?:lightning (?:bolt )?shaped scar|kaer morhen|one ring to rule|elder wand|infinity stones|kamehameha|sharingan|rasengan) /,
 ];

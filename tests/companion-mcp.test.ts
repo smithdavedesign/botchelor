@@ -106,8 +106,14 @@ describe("the companion tool", () => {
     const minor = await call({ action: "send", thread_id: opened.thread_id, text: "honestly I'm 15 lol", adult: undefined }, ctx);
     expect(minor.isError).toBe(true);
     expect(JSON.stringify(minor.content)).toContain("18+");
-    const read = (await call({ action: "read", thread_id: opened.thread_id }, ctx)).structuredContent;
-    expect(read.messages.some((m: Any) => /15/.test(m.text))).toBe(false);
+    // Closed for good on this session (2026-11-28 rerun): no read, no "jk I'm 22" in a fresh chat, under any agent_id.
+    const read = await call({ action: "read", thread_id: opened.thread_id }, ctx);
+    expect(read.isError).toBe(true);
+    expect(JSON.stringify(read.content)).toContain("18+");
+    expect((await call({ action: "send", character_id: HOUSE_CHARACTERS[1].id, text: "jk I am 22" }, ctx)).isError).toBe(true);
+    expect((await call({ action: "open", character_id: HOUSE_CHARACTERS[1].id, agent_id: crypto.randomUUID() }, ctx)).isError).toBe(true);
+    const stored = await t.db.query(`select text from companion_messages where text like '%15%'`);
+    expect(stored.rows).toEqual([]);
   });
 
   it("send with a character_id opens the thread itself; another agent can't touch it", async () => {

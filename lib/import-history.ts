@@ -261,7 +261,7 @@ export function historyPrompt(name: string): string {
 
 const WHY: Record<RejectReason, string> = {
   minor: "Everyone here is a fictional adult, so this one can't come along.",
-  real_person: "It names a real person, so it can't come along.",
+  real_person: "It reads like a real person or a character from another story, so it can't come along.",
   sexual: "The show is PG, so this one can't come along.",
   innuendo: "The show is PG, so this one can't come along.",
   unread: "Write it in plain words so the show can read it.",

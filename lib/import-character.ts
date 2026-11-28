@@ -22,6 +22,7 @@
 import { MAX_HOBBIES, SAMPLE_LINE_MAX, TEXT_DETAILS, type CharacterExtras } from "./extras";
 import { APPEARANCE_MAX, BIO_MAX, DEALBREAKER_MAX, NAME_MAX, TRAIT_MAX, WANT_MAX } from "./field-limits";
 import { VOICE_MAX } from "./rules";
+import { characterCopy } from "./franchises";
 import { checkFields, sheetPgIssue, CHARACTER_REJECTION_MESSAGES } from "./safety";
 
 // Its addresses and the key the draft is left under are lib/import-paths.ts, so the builder loads them without this file's
@@ -446,7 +447,7 @@ function listItems(list: string | undefined, max: number, each: number): string[
 export function statedAge(attr: string | undefined, prose: string): number | null {
   const fromAttr = attr ? Number(/-?\d{1,4}/.exec(attr)?.[0] ?? NaN) : NaN;
   if (fromAttr > 0) return fromAttr;
-  const m = /\b(\d{1,4})[ -]?(?:years?[ -]old|yrs?[ -]old|y\/o|yo)\b/i.exec(prose) ?? /\b(?:aged?|age of)\s+(\d{1,4})\b/i.exec(prose);
+  const m = /\b(\d{1,4})[ -]?(?:years?[ -]old|yrs?[ -]old|y\/o|yo)\b/i.exec(prose) ?? /\b(?:aged?|age of)\s+(\d{1,4})\b/i.exec(prose) ?? /\bage\s*[:=]\s*(\d{1,4})\b/i.exec(prose);
   const fromProse = m ? Number(m[1]) : NaN;
   return fromProse > 0 ? fromProse : null;
 }
@@ -599,6 +600,10 @@ export function screenDraft(draft: ImportedDraft, sourceText: string): { ok: tru
   if (!whole.ok && whole.reason === "minor") return { ok: false, reason: "minor", message: CHARACTER_REJECTION_MESSAGES.minor };
   const named = checkFields({ name: draft.sheet.name });
   if (!named.ok && named.reason === "real_person") return { ok: false, reason: "real_person", message: CHARACTER_REJECTION_MESSAGES.real_person };
+  // A copy of another story's character is refused here, with its own reason, not after the whole builder is filled
+  // (2026-11-28, the simulation: Hermione Granger filled every field and was refused only at Create, as a real person).
+  const copy = characterCopy({ name: draft.sheet.name, bio: draft.sheet.bio, appearance: draft.appearance, traits: draft.traits, want: draft.sheet.want, dealbreaker: draft.sheet.dealbreaker });
+  if (copy) return { ok: false, reason: "real_person", message: copy.message };
 
   const out: ImportedDraft = structuredClone(draft);
   const dropped: { field: string; why: string }[] = [];
@@ -616,7 +621,7 @@ export function screenDraft(draft: ImportedDraft, sourceText: string): { ok: tru
     if (!issue) continue;
     if (issue === "minor") return { ok: false, reason: "minor", message: CHARACTER_REJECTION_MESSAGES.minor };
     clear(out);
-    dropped.push({ field, why: issue === "real_person" ? "it names a real person" : "the show is PG" });
+    dropped.push({ field, why: issue === "real_person" ? "it reads like a real person or another story's character" : "the show is PG" });
   }
   return { ok: true, draft: out, dropped };
 }

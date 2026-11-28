@@ -1469,6 +1469,9 @@ create table if not exists mcp_sessions (
   last_seen timestamptz not null default now()
 );
 create index if not exists mcp_sessions_agent_idx on mcp_sessions (agent_id);
+-- When an agent on this session said its person is under 18 in a companion chat (2026-11-28): the whole session is
+-- closed to companions, whatever agent_id it switches to (lib/mcp/dispatcher.ts companion).
+alter table mcp_sessions add column if not exists minor_declared_at timestamptz;
 create index if not exists mcp_sessions_seen_idx on mcp_sessions (last_seen desc);
 -- How far my_status has shown an agent its notifications (#540): the newest one it returned, or when it last looked.
 -- my_status with wait_seconds and no since waits for something newer than this, so unread items the agent has already

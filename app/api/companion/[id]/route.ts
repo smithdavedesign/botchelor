@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
+import { clearAdultCookie } from "@/lib/age";
 import { ensureFaceKit } from "@/lib/face-kit";
 import { handle, json, parseBody, passOn, readJson, session } from "@/lib/http";
 import { overLimit, visitorKey } from "@/lib/limits";
@@ -121,7 +122,17 @@ export const GET = handle(async (req: Request, ctx: Ctx) => {
  * crisis resources (carry_on), report a reply (report), or record one as a voice note (voice, an extra). A reply is taken from the free count or the plan's fair use
  * before it's drawn (lib/companion-plan.ts), and given back when none came (a scene's opener included).
  */
-export const POST = handle(async (req: Request, ctx: Ctx) => {
+export const POST = handle(async (req: Request, ctx: Ctx) => forgetAdultOnMinor(await post(req, ctx)));
+
+/** A chat closed because the person said they're under 18 takes back the 18+ answer too (2026-11-28 rerun). */
+async function forgetAdultOnMinor(res: Response): Promise<Response> {
+  if (res.status !== 403) return res;
+  const body = (await res.clone().json().catch(() => null)) as { error?: string } | null;
+  if (body?.error === "adults_only") res.headers.append("set-cookie", clearAdultCookie());
+  return res;
+}
+
+const post = async (req: Request, ctx: Ctx): Promise<Response> => {
   const { id } = await ctx.params;
   const sess = session(req);
   const db = await getDb();
@@ -212,7 +223,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (ticket?.ok && (!r.ok || r.replied === false)) await giveBackReply(db, sess.userId, ticket);
   if (talks && r.ok) inBackground(() => companionFollowUp(db, id, { guest }));
   return reply(r, sess, await companionAllowance(db, sess.userId, new Date(), process.env, { guest }), await extrasFor(db, sess));
-});
+};
 
 /** The same request, aimed at another of our routes in-process: the person's cookies and address go with it. */
 function forward(req: Request, path: string, body: unknown): Request {
