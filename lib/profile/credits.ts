@@ -19,6 +19,7 @@
  * Awards are normalised when a season's recap freezes (`saveSeasonAwards`), and filled for recaps frozen earlier by the
  * hourly job (`syncSeasonAwards`). CHARACTER_CREDITS=0 hides every surface; the rows are still written.
  */
+import { msg } from "../i18n/translate";
 import type { Db } from "../db";
 import { publicDateSql } from "../date-number";
 import { seasonFormat, type SeasonFormatSlug, SEASON_FORMAT_SLUGS } from "../season-format";
@@ -35,12 +36,12 @@ export const CREDIT_ROLES = ["lead", "suitor", "cast", "fan", "walk_on", "guest"
 export type CreditRole = (typeof CREDIT_ROLES)[number];
 
 export const ROLE_LABEL: Record<CreditRole, string> = {
-  lead: "The lead",
-  suitor: "Suitor",
-  cast: "On the cast",
-  fan: "Fan pick on the cast",
-  walk_on: "Walk-on",
-  guest: "Dated on the show",
+  lead: msg("The lead"),
+  suitor: msg("Suitor"),
+  cast: msg("On the cast"),
+  fan: msg("Fan pick on the cast"),
+  walk_on: msg("Walk-on"),
+  guest: msg("Dated on the show"),
 };
 
 export type AuditionStanding = "open" | "approved" | "rejected" | "withdrawn";

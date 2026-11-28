@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { showSetPath } from "@/lib/show-sets";
+import { useT } from "@/app/I18nProvider";
 
 type Line = { line: string; episode_id: string | null; at: string };
 
@@ -21,19 +22,20 @@ function timecode(seed: string): string {
  */
 export function Booth({ name, shot, lines }: { name: string; shot: string | null; lines: Line[] }) {
   const [i, setI] = useState(0);
+  const t = useT();
   // A shot that won't load leaves the booth's own set showing behind the line, never a black box (2026-11-28 review).
   const [broken, setBroken] = useState(false);
   const at = lines.length ? i % lines.length : 0;
   const now = lines[at];
   return (
     <section className="card booth" aria-labelledby="booth-title">
-      <h2 id="booth-title">In the confessional</h2>
+      <h2 id="booth-title">{t("In the confessional")}</h2>
       <figure className="booth-frame" style={{ backgroundImage: `url(${showSetPath("confessional")})` }}>
         {/* eslint-disable-next-line @next/next/no-img-element -- a PG shot or a set file, already small */}
         <img
           className="booth-shot"
           src={shot && !broken ? shot : showSetPath("confessional")}
-          alt={shot && !broken ? `${name} in the confessional` : ""}
+          alt={shot && !broken ? t("{name} in the confessional", { name }) : ""}
           loading="lazy"
           onError={() => setBroken(true)}
         />
@@ -44,7 +46,7 @@ export function Booth({ name, shot, lines }: { name: string; shot: string | null
           <span />
         </span>
         <span className="booth-rec" aria-hidden="true">
-          <span className="booth-rec-dot" /> REC
+          <span className="booth-rec-dot" /> {/* i18n-ok: the camera's own light */}REC
         </span>
         <span className="booth-tc" aria-hidden="true">
           {timecode(now ? now.at : name)}
@@ -55,7 +57,7 @@ export function Booth({ name, shot, lines }: { name: string; shot: string | null
               <span className="booth-speaker">{name}:</span> {now.line}
             </span>
           ) : (
-            <span className="booth-line is-quiet">{`${name} hasn't said anything to camera yet.`}</span>
+            <span className="booth-line is-quiet">{t("{name} hasn't said anything to camera yet.", { name })}</span>
           )}
         </figcaption>
       </figure>
@@ -63,13 +65,13 @@ export function Booth({ name, shot, lines }: { name: string; shot: string | null
         <p className="booth-foot muted small">
           {now?.episode_id && (
             <>
-              <Link href={`/episodes/${now.episode_id}`}>From this date</Link>
+              <Link href={`/episodes/${now.episode_id}`}>{t("From this date")}</Link>
               {" · "}
             </>
           )}
           {lines.length > 1 && (
             <button type="button" className="booth-next" onClick={() => setI((n) => n + 1)}>
-              Next line ({at + 1} of {lines.length})
+              {t("Next line ({n} of {total})", { n: at + 1, total: lines.length })}
             </button>
           )}
         </p>

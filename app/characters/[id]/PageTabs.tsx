@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "@/app/I18nProvider";
 
 /** `short`: the label on a phone, where the row has no room for the long one ("Talk of the house" / "Talk"). */
 export type PageTab = { id: string; label: string; short?: string };
@@ -14,16 +15,17 @@ export type PageTab = { id: string; label: string; short?: string };
  */
 export default function PageTabs({ tabs }: { tabs: PageTab[] }) {
   const [active, setActive] = useState(tabs[0]?.id ?? "");
+  const t = useT();
 
   const show = useCallback(
     (id: string) => {
-      if (!tabs.some((t) => t.id === id)) return;
+      if (!tabs.some((tab) => tab.id === id)) return;
       setActive(id);
-      for (const t of tabs) {
+      for (const tab of tabs) {
         const panel = document.querySelector<HTMLElement>(
-          `[data-panel="${t.id}"]`,
+          `[data-panel="${tab.id}"]`,
         );
-        if (panel) panel.hidden = t.id !== id;
+        if (panel) panel.hidden = tab.id !== id;
       }
     },
     [tabs],
@@ -36,7 +38,7 @@ export default function PageTabs({ tabs }: { tabs: PageTab[] }) {
     const el = document.getElementById(target);
     const panel =
       el?.closest<HTMLElement>("[data-panel]")?.dataset.panel ??
-      (tabs.some((t) => t.id === target) ? target : null);
+      (tabs.some((tab) => tab.id === target) ? target : null);
     if (panel) {
       show(panel);
       // A link to a fold, or to something inside one, opens it: a closed <details> has nothing to scroll to.
@@ -52,25 +54,25 @@ export default function PageTabs({ tabs }: { tabs: PageTab[] }) {
   }, [fromHash]);
 
   return (
-    <div className="page-tabs" role="tablist" aria-label="On this page">
-      {tabs.map((t) => (
+    <div className="page-tabs" role="tablist" aria-label={t("On this page")}>
+      {tabs.map((tab) => (
         <button
-          key={t.id}
+          key={tab.id}
           type="button"
           role="tab"
-          id={`tab-${t.id}`}
-          aria-selected={t.id === active}
-          aria-controls={`panel-${t.id}`}
-          className={t.id === active ? "is-active" : undefined}
-          onClick={() => show(t.id)}
+          id={`tab-${tab.id}`}
+          aria-selected={tab.id === active}
+          aria-controls={`panel-${tab.id}`}
+          className={tab.id === active ? "is-active" : undefined}
+          onClick={() => show(tab.id)}
         >
-          {t.short ? (
+          {tab.short ? (
             <>
-              <span className="tab-long">{t.label}</span>
-              <span className="tab-short">{t.short}</span>
+              <span className="tab-long">{tab.label}</span>
+              <span className="tab-short">{tab.short}</span>
             </>
           ) : (
-            t.label
+            tab.label
           )}
         </button>
       ))}
