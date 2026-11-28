@@ -17,6 +17,7 @@ import { providerError, runMedia, type Ran } from "./adult/fallback";
 import { runModel } from "./adult/replicate";
 import { logRequest } from "./adult/request-log";
 import { adultKeys, getAdultSettings, type VoiceModel } from "./adult/settings";
+import { pickVoice, voicePick } from "./voice-picks";
 
 const VENICE = "https://api.venice.ai/api/v1";
 
@@ -43,6 +44,19 @@ const VOICES = {
   he: ["am_onyx", "am_michael", "am_adam", "am_eric", "am_liam", "am_fenrir", "am_echo", "am_puck"],
   they: ["af_river", "am_echo", "af_sky", "am_liam"],
 } as const;
+
+/**
+ * Owners pick their character's voice (lib/voice-picks.ts): off unless VOICE_PICKER=1 while the feature freeze holds
+ * (to 2026-12-08). With it off, a pick already saved is kept but not used, so turning it off is the whole way back.
+ */
+export const voicePickerOn = (env: Record<string, string | undefined> = process.env): boolean => env.VOICE_PICKER?.trim() === "1";
+
+/** The voice an owner picked for this character, as "inworld:Name" (Venice only), or null for their default one. */
+export function pickedVoice(c: { extras?: { voice?: string } | null }, env: Record<string, string | undefined> = process.env): string | null {
+  if (!voicePickerOn(env)) return null;
+  const pick = voicePick(c.extras?.voice);
+  return pick ? pickVoice(pick) : null;
+}
 
 /** A character's voice: picked once from their pronouns and id, so it's the same in every reel, night and voice note. */
 export function voiceFor(c: Pick<Character, "id" | "pronouns">): string {
@@ -155,6 +169,12 @@ export async function sayLine(db: Db, line: { words: string; stock: string; chos
   );
   if (!said.value.mime.startsWith("audio/")) throw new Error("no audio came back");
   return said;
+}
+
+/** One line on Venice in exactly this voice, never the fallback's Kokoro (the picker's samples); null without Venice's key. */
+export async function sayOnVenice(db: Db, words: string, voice: string): Promise<Audio | null> {
+  const venice = (await adultKeys(db).catch(() => ({ venice: null }))).venice;
+  return venice ? veniceVoice(venice, words, voice) : null;
 }
 
 /** Whether voices can be made at all: the key of the provider After Dark's media is made on. */

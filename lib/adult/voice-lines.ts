@@ -17,7 +17,7 @@ import { loadCharacter } from "../character";
 import type { Db } from "../db";
 import { keepBytes } from "../object-store";
 import { checkAdultText } from "../safety";
-import { modelVoice, orpheusWords, replicateVoice, sayable, sayLine, voiceFor, voiceKey } from "../voice";
+import { modelVoice, orpheusWords, pickedVoice, replicateVoice, sayable, sayLine, voiceFor, voiceKey } from "../voice";
 import { reelNight } from "./reels";
 import { eligiblePair } from "./scenes";
 import { adultKeys, getAdultSettings, type VoiceModel } from "./settings";
@@ -59,7 +59,7 @@ export async function voiceLines(db: Db, ownerId: string, ask: VoiceAsk): Promis
   // the settings pick (a better voice than Kokoro's is "model:name", so a line kept in one isn't taken for another's).
   const stock = { a: voiceFor(ca), b: voiceFor(cb) };
   const model: VoiceModel = onReplicate ? "kokoro" : settings.voice_model;
-  const chosen = { a: modelVoice(model, ca), b: modelVoice(model, cb) };
+  const chosen = { a: pickedVoice(ca) ?? modelVoice(model, ca), b: pickedVoice(cb) ?? modelVoice(model, cb) };
   const voiceOf = (who: "a" | "b") => (onReplicate ? replicateVoice(stock[who]) : chosen[who]);
 
   // The month's cap: what's left is asked once a request, and each new voice takes one of it before it's made, so lines
@@ -105,7 +105,7 @@ export async function voiceLines(db: Db, ownerId: string, ask: VoiceAsk): Promis
     }
     try {
       // A voice line is one job: said on the other provider's Kokoro when the configured one is limited (lib/adult/fallback.ts).
-      const said = await sayLine(db, { words, stock: stock[line.who], chosen: chosen[line.who], spoken: model === "orpheus" ? orpheusWords(line.text, words) : undefined });
+      const said = await sayLine(db, { words, stock: stock[line.who], chosen: chosen[line.who], spoken: chosen[line.who].startsWith("orpheus:") ? orpheusWords(line.text, words) : undefined });
       const audio = said.value;
       const id = crypto.randomUUID();
       const bytes = await keepBytes("after-dark", id, audio.bytes, audio.mime);
