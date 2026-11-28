@@ -266,6 +266,9 @@ const WHY: Record<RejectReason, string> = {
   innuendo: "The show is PG, so this one can't come along.",
   unread: "Write it in plain words so the show can read it.",
   language: "Write it in plain words so the show can read it.",
+  hate: "It reads as hate speech, so it can't come along.",
+  threat: "It reads as a threat, so it can't come along.",
+  personal_info: "It has personal info (a phone number, email or address), so it can't come along.",
 };
 
 /**

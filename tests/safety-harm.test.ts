@@ -1,0 +1,152 @@
+import { describe, expect, it } from "vitest";
+import { checkAdultText, checkFields, checkSheetText, checkShowText, sheetPgIssue, sheetPgIssues } from "@/lib/safety";
+
+// 2026-11-28 (David): hate and every -ism, telling anyone to hurt themselves, real threats and personal info are refused
+// on every surface; insults and trash talk stay allowed, since villains and show drama need them.
+const reason = (text: string) => {
+  const r = checkFields({ text });
+  return r.ok ? null : r.reason;
+};
+
+describe("hate and -isms", () => {
+  it.each([
+    "Honestly immigrants are vermin.",
+    "All Muslims are terrorists",
+    "gay people are an abomination",
+    "women are inferior to men",
+    "I hate immigrants",
+    "I hate women.",
+    "deport the immigrants",
+    "gas the jews",
+    "kill all gays",
+    "No Asians, sorry",
+    "won't date Black women",
+    "Not into Muslims or Jews",
+    "a woman's place is in the kitchen",
+    "Being trans is a mental illness",
+    "filthy Mexicans everywhere",
+    "go back to your own country",
+    "heil hitler",
+    "white power forever",
+    "you f4ggot",
+    "what a n1gger",
+    "that's so retarded",
+    "she's a tranny",
+  ])("refuses %j", (text) => {
+    expect(reason(text.replace("f4ggot", "faggot"))).toBe("hate");
+  });
+
+  it.each([
+    "You're a snake and everyone knows it.",
+    "I can't stand you, you absolute clown.",
+    "She's a two-faced liar and I hope she goes home tonight.",
+    "I can't stand men who chew loudly.",
+    "I hate women who ghost.",
+    "No Chinese food after midnight, that's my rule.",
+    "We had a Mexican dinner on the beach.",
+    "No trans fats in my kitchen.",
+    "The girls are taking over the dance floor.",
+    "I moved here as an immigrant and love it.",
+    "She's Jewish and makes the best latkes.",
+    "My Maine coon judges everyone.",
+    "A chink in the armour.",
+    "Restaure des horloges anciennes et arrive en retard partout.",
+    "Pronouns: he/she, whatever.",
+    "A spick and span apartment.",
+    "I want to go back to China someday to see family.",
+    "Gay, proud and looking for love.",
+  ])("allows %j", (text) => {
+    expect(reason(text)).toBeNull();
+  });
+
+  it("refuses a dealbreaker that is only a group of people, and nowhere else", () => {
+    expect(checkSheetText({ dealbreaker: "immigrants" })).toMatchObject({ ok: false, reason: "hate", field: "dealbreaker" });
+    expect(checkSheetText({ dealbreaker: "Dating Black people" })).toMatchObject({ ok: false, reason: "hate" });
+    expect(checkSheetText({ dealbreaker: "people who are Muslims" })).toMatchObject({ ok: false, reason: "hate" });
+    expect(sheetPgIssue("immigrants", "dealbreaker")).toBe("hate");
+    expect(sheetPgIssues({ bio: "Loves jazz.", dealbreaker: "Asians" })).toEqual([{ reason: "hate", phrase: "asians", field: "dealbreaker", index: 0 }]);
+    // A dealbreaker about how someone behaves, even toward a group, is fine.
+    expect(checkSheetText({ dealbreaker: "Anyone who is rude to immigrants" }).ok).toBe(true);
+    expect(checkSheetText({ dealbreaker: "Smokers" }).ok).toBe(true);
+    expect(checkSheetText({ dealbreaker: "Men" }).ok).toBe(true);
+  });
+});
+
+describe("self-harm encouragement and threats", () => {
+  it.each([
+    "kill yourself",
+    "Just kys already",
+    "go die",
+    "I hope you die",
+    "You should kill yourself honestly",
+    "nobody would miss you",
+    "The world would be better without you.",
+    "go drink bleach",
+    "I'm going to kill you.",
+    "I will find you and kill you",
+    "I know where you live.",
+    "I'll stab you",
+  ])("refuses %j", (text) => {
+    expect(reason(text)).toBe("threat");
+  });
+
+  it.each([
+    "Don't kill yourself over it, it's just a quiz.",
+    "You'll kill yourself laughing at this.",
+    "Way to shoot yourself in the foot.",
+    "I could kill for a coffee right now.",
+    "You're killing me with these puns!",
+    "I'll murder you at karaoke.",
+    "I'll shoot you a text later.",
+    "I could just die of embarrassment.",
+    "Watch your back, darling, I'm coming for that rose.",
+    "You're dead meat in the next challenge.",
+    "I'd kill to see her face when she reads this.",
+  ])("allows %j", (text) => {
+    expect(reason(text)).toBeNull();
+  });
+});
+
+describe("personal info", () => {
+  it.each([
+    "email me at someone@example.com",
+    "Text me: (555) 123-4567",
+    "call 555-123-4567",
+    "+44 7700 900123 on WhatsApp",
+    "my number is 5551234567",
+    "I live at 42 Wallaby Road",
+    "come to 1600 Pennsylvania Avenue",
+    "my address is the blue house",
+    "find me at jane.doe at gmail dot com",
+  ])("refuses %j", (text) => {
+    expect(reason(text)).toBe("personal_info");
+  });
+
+  it.each([
+    "Born in 1992, and still undefeated at trivia.",
+    "Worked 9 to 5 for 12 years.",
+    "Meet you at 7:30 by the fountain?",
+    "We drove 3 hours down the road.",
+    "My 2 favourite Dr Who episodes",
+    "The 5 best road trips of my life",
+    "It costs $1,250,000 and it's worth it.",
+    "I ran 10 miles down the road this morning.",
+  ])("allows %j", (text) => {
+    expect(reason(text)).toBeNull();
+  });
+});
+
+describe("every surface", () => {
+  it("holds on the show's line checks", () => {
+    expect(checkShowText({ dialogue: "Go back to your country." })).toMatchObject({ ok: false, reason: "hate" });
+    expect(checkShowText({ dialogue: "kill yourself" })).toMatchObject({ ok: false, reason: "threat" });
+  });
+
+  it("holds on After Dark, which keeps its adult allowance", () => {
+    expect(checkAdultText({ bio: "A bold, filthy-minded lover who likes it rough." }).ok).toBe(true);
+    expect(checkAdultText({ bio: "Immigrants are vermin." })).toMatchObject({ ok: false, reason: "hate", field: "bio" });
+    expect(checkAdultText({ dealbreaker: "immigrants" })).toMatchObject({ ok: false, reason: "hate", field: "dealbreaker" });
+    expect(checkAdultText({ text: "kys" })).toMatchObject({ ok: false, reason: "threat" });
+    expect(checkAdultText({ text: "text me 555-123-4567" })).toMatchObject({ ok: false, reason: "personal_info" });
+  });
+});

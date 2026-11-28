@@ -27,7 +27,7 @@ import type { Turn } from "./conversation";
 import { baseOf, MORE_STAGES, shownStageOf, STAGE_LABELS, stagesV2On, stageWords, STANDING_LINES } from "./relationship-stages";
 import type { Stage } from "./relationships";
 import { contentWords, EVERYDAY_WORDS } from "./quality";
-import { checkFields } from "./safety";
+import { checkFields, contentMessage } from "./safety";
 import { weekIdOf as seasonIdAt } from "./season-window";
 import { venue, venuePhrase, type PlaceId } from "./venues";
 import { forgetEpisodes, rememberSfw } from "./character-memories";
@@ -844,7 +844,8 @@ export async function noteMeeting(
       error: "about: someone your character met at a group night without dating (its met memory; once both sides have aired). A date it went on takes the date's own reflect tool instead.",
     };
   }
-  if (!checkFields({ note: trimmed }).ok) return { ok: false, error: "Keep the take clean: no real people, minors or sexual content." };
+  const take = checkFields({ note: trimmed });
+  if (!take.ok) return { ok: false, error: contentMessage(take.reason, "Keep the take clean: no real people, minors or sexual content.") };
   await db.query(
     `insert into met_notes (character_id, about_id, note) values ($1, $2, $3)
      on conflict (character_id, about_id) do update set note = excluded.note, created_at = now()`,

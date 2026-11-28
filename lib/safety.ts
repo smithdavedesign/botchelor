@@ -7,12 +7,13 @@
  */
 
 import { isNotEnglish } from "./language";
-import { CHARACTER_REJECTION_MESSAGES, isPastPg, type RejectReason } from "./safety-reasons";
+import { CHARACTER_REJECTION_MESSAGES, HARM_MESSAGES, contentMessage, isHarm, isPastPg, type HarmReason, type RejectReason } from "./safety-reasons";
+import { dealbreakerGroupOnly, harmMatch } from "./safety-harm";
 import { escapeRegExp } from "./text";
 
 // The reasons, the past-PG test and what a refused sheet is told live apart from the lists (lib/safety-reasons.ts), so
 // browser code can use them without this file; everything here is the server's.
-export { CHARACTER_REJECTION_MESSAGES, isPastPg, type RejectReason };
+export { CHARACTER_REJECTION_MESSAGES, HARM_MESSAGES, contentMessage, isHarm, isPastPg, type HarmReason, type RejectReason };
 
 /** After Dark's themes that never happen (checkAdultText): family and step-family, teacher and student, school, age-play. */
 export type ExcludedTheme = "family" | "teacher_student" | "school" | "age_play" | "non_consent" | "bestiality" | "sexual_violence";
@@ -171,6 +172,9 @@ function classifyMatch(text: string): SheetMatch | null {
 
   const deleeted = spaced(folded.replace(/[013457@$!]/g, (c) => LEET[c]));
   const variants = [plain, deleeted, joinSpelledOut(plain), joinSpelledOut(deleeted)];
+  // Hate, threats and personal info (lib/safety-harm.ts, 2026-11-28): every surface, After Dark included.
+  const harm = harmMatch(folded, variants);
+  if (harm) return harm;
   const sexual = firstTerm(SEXUAL_TERMS, variants);
   if (sexual) return { reason: "sexual", phrase: sexual };
 
@@ -490,6 +494,9 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
       if (theme) return { ok: false, reason: theme === "school" || theme === "age_play" ? "minor" : "sexual", field, theme };
       const deleeted = spaced(folded.replace(/[013457@$!]/g, (c) => LEET[c]));
       const variants = [plain, deleeted, joinSpelledOut(plain), joinSpelledOut(deleeted)];
+      // After Dark keeps its adult allowance, but hate, threats and personal info hold here too (2026-11-28).
+      const harm = harmMatch(folded, variants) ?? (field === "dealbreaker" ? dealbreakerHate(plain) : null);
+      if (harm) return { ok: false, reason: harm.reason, field };
       if (REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return { ok: false, reason: "real_person", field };
       // These lists read English: until they're proven in other languages, After Dark is English-only (David, 2026-10-31).
       if (isNotEnglish(text)) return { ok: false, reason: "language", field };
@@ -558,25 +565,35 @@ export function checkSheetText(fields: Record<string, string | readonly string[]
   for (const [field, value] of Object.entries(fields)) {
     const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
     for (const text of texts) {
-      const reason = sheetPgIssue(text);
+      const reason = sheetPgMatch(text, field)?.reason;
       if (reason) return { ok: false, reason, field };
     }
   }
   return { ok: true };
 }
 
-/** Why one public sheet text doesn't fit the PG show, or null when it does. */
-export function sheetPgIssue(text: string | null | undefined): RejectReason | null {
-  return sheetPgMatch(text)?.reason ?? null;
+/** Why one public sheet text doesn't fit the PG show, or null when it does. `field: "dealbreaker"` adds its own rule. */
+export function sheetPgIssue(text: string | null | undefined, field?: string): RejectReason | null {
+  return sheetPgMatch(text, field)?.reason ?? null;
+}
+
+/**
+ * A dealbreaker that is only a group of people ("immigrants", "Black people", "no Muslims"): on a sheet's own words a
+ * bare group is fine elsewhere, but as the thing a character won't date it rules a whole people out (2026-11-27: a test
+ * sheet's dealbreaker was "immigrants", and the quiz offered it as a decoy on other people's dates).
+ */
+function dealbreakerHate(plain: string): SheetMatch | null {
+  const group = dealbreakerGroupOnly(plain);
+  return group ? { reason: "hate", phrase: group } : null;
 }
 
 /**
  * sheetPgIssue with the words that tripped it, so a form can say which ones ("“making you moan” reads as bedroom talk")
  * instead of only that something somewhere did. Pure and dependency-free: /create runs it as the person types.
  */
-export function sheetPgMatch(text: string | null | undefined): SheetMatch | null {
+export function sheetPgMatch(text: string | null | undefined, field?: string): SheetMatch | null {
   if (!text) return null;
-  const first = classifyMatch(text);
+  const first = classifyMatch(text) ?? (field === "dealbreaker" ? dealbreakerHate(spaced(fold(text))) : null);
   if (first) return first;
   const innuendo = firstMatch(INNUENDO_PATTERNS, [spaced(fold(text))]) ?? firstMatch(SHEET_SUGGESTIVE, [spaced(fold(text))]);
   return innuendo ? { reason: "innuendo", phrase: innuendo } : null;
@@ -594,7 +611,7 @@ export function sheetPgIssues(fields: Record<string, string | readonly string[] 
   for (const [field, value] of Object.entries(fields)) {
     const texts = value === undefined ? [] : typeof value === "string" ? [value] : value;
     texts.forEach((text, index) => {
-      const hit = sheetPgMatch(text);
+      const hit = sheetPgMatch(text, field);
       if (hit) out.push({ ...hit, field, index });
     });
   }

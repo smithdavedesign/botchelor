@@ -230,6 +230,9 @@ export const PG_REDIRECT: Record<RejectReason, string> = {
   real_person: "No real people on the show: leave famous names out of it and try again.",
   unread: "The show couldn't check a line in that language just now. Try again in a moment, or in English.",
   language: "Try that line in English.",
+  hate: "No hate on the show: trash talk is fine, attacking who people are isn't. Try another line.",
+  threat: "No threats or telling anyone to hurt themselves. Try another line.",
+  personal_info: "Keep personal info off the show: no phone numbers, emails or addresses. Try another line.",
 };
 
 /* ------------------------------------------------ the persona ------------------------------------------------ */

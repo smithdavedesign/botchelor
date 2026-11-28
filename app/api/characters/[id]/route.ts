@@ -12,7 +12,7 @@ import { getDb } from "@/lib/db";
 import { invalidateGraph } from "@/lib/graph-cache";
 import { handle, isMcpCall, json, parseBody, readJson, session } from "@/lib/http";
 import { PRONOUNS, VOICE_MAX } from "@/lib/rules";
-import { checkSheetText, sheetPgIssues, type RejectReason } from "@/lib/safety";
+import { HARM_MESSAGES, checkSheetText, sheetPgIssues, type RejectReason } from "@/lib/safety";
 import { checkFieldsAnyLanguage } from "@/lib/language-check";
 import { scheduleWelcome } from "@/lib/welcome";
 import type { ImageSignals } from "@/lib/avatar";
@@ -109,6 +109,7 @@ const REJECTION_MESSAGES: Record<RejectReason, string> = {
   innuendo: "Keep the character sheet PG: no innuendo or bedroom talk (the show is PG; After Dark has its own settings).",
   unread: "We couldn't check a sheet in that language just now. Try again in a minute.",
   language: "After Dark is English-only for now.",
+  ...HARM_MESSAGES,
 };
 
 /** The columns a PATCH may set, in the order they appear on the body. `null` clears an optional column. */
