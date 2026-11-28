@@ -16,6 +16,9 @@ import { FREE_EPISODES_PER_SEASON } from "@/lib/rules";
 import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv } from "@/lib/stripe";
 import { STORY_TOKENS, stylesAudience } from "@/lib/writing-style";
+import { fillNodes } from "@/app/fillNodes";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { HTML_LANG } from "@/lib/i18n/locales";
 
 export const metadata: Metadata = pageMetadata({
   title: `Botchelor pricing: ${FREE_EPISODES_PER_SEASON} free AI dates a week, packs from ${formatPrice(PACK_5.price_cents)}`,
@@ -30,7 +33,9 @@ export const dynamic = "force-dynamic";
  * use (lib/catalog.ts, lib/paid-plans.ts, lib/companion-plan.ts), so this page can't disagree with what's charged. A
  * plan that isn't on sale here says so instead of showing a price. The PG show only; After Dark has its own tokens.
  */
-export default function PricingPage() {
+/** In the page's language (docs/i18n.md); the prices stay in US dollars. */
+export default async function PricingPage() {
+  const [t, locale] = await Promise.all([getT(), getLocale()]);
   const packOnSale = paymentLinkFromEnv() !== null;
   const companions = companionOpen();
   const planOnSale = companions && planLink("companion") !== null;
@@ -43,26 +48,28 @@ export default function PricingPage() {
   const tips = moneyOn("tips");
   const market = moneyOn("marketplace");
   const prices = (items: readonly { price_cents: number }[]) =>
-    items.map((i) => formatPrice(i.price_cents)).join(", ").replace(/, ([^,]+)$/, " or $1");
+    items.map((i) => formatPrice(i.price_cents)).join(", ").replace(/, ([^,]+)$/, ` ${t("or")} $1`);
   // The Companion Plan's points, for its card.
   const planPoints = (
     <>
-      <li>No daily limit on companion replies (fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month)</li>
+      <li>{t("No daily limit on companion replies (fair use: {n} a month)", { n: COMPANION_FAIR_USE_PER_MONTH.toLocaleString(HTML_LANG[locale]) })}</li>
       {/* Depth comes with the plan, never by the line (lib/writing-style.ts): Narrated, stories, the longer memory. */}
       {depth && (
         <>
-          <li>Narrated writing: your dates and scenes told as prose, like a novel</li>
-          <li>A longer memory: your companions keep twice as much of your conversation in mind</li>
-          <li>Stories of your dates included</li>
+          <li>{t("Narrated writing: your dates and scenes told as prose, like a novel")}</li>
+          <li>{t("A longer memory: your companions keep twice as much of your conversation in mind")}</li>
+          <li>{t("Stories of your dates included")}</li>
         </>
       )}
-      <li>{COMPANION_EXTRAS.voice.included} voice notes a month in their own voices</li>
+      <li>{t("{n} voice notes a month in their own voices", { n: COMPANION_EXTRAS.voice.included })}</li>
       {live && (
         <li>
-          {extraTerms("minute").included} live call minutes a month{facePlan ? ", with their face moving as they talk" : ""}
+          {facePlan
+            ? t("{n} live call minutes a month, with their face moving as they talk", { n: extraTerms("minute").included })
+            : t("{n} live call minutes a month", { n: extraTerms("minute").included })}
         </li>
       )}
-      <li>Cancel any time: it runs to the end of the month you paid for</li>
+      <li>{t("Cancel any time: it runs to the end of the month you paid for")}</li>
     </>
   );
   // One obvious upgrade (2026-11-21; the product review counted seven ways to pay, and nobody had clicked Buy in a
@@ -81,30 +88,30 @@ export default function PricingPage() {
     <article className="legal-page company-page">
       <SetHero
         set="booth"
-        kicker="Plans and packs"
-        title="Pricing"
-        lede={<>The show is free. Pay only if you want more dates than the free ones{companions ? ", or more time with the companions" : ""}.</>}
+        kicker={t("Plans and packs")}
+        title={t("Pricing")}
+        lede={companions ? t("The show is free. Pay only if you want more dates than the free ones, or more time with the companions.") : t("The show is free. Pay only if you want more dates than the free ones.")}
       />
 
       <ul className="pricing-grid">
         <li className={card("free")} id="free">
-          <h2>Free</h2>
+          <h2>{t("Free")}</h2>
           <p className="pricing-price">$0</p>
           <ul>
             <li>
-              {FREE_EPISODES_PER_SEASON} dates a week for your characters, back every <WeeklyTime weekday={1} />
+              {fillNodes(t("{n} dates a week for your characters, back every {time}", { n: FREE_EPISODES_PER_SEASON }), { time: <WeeklyTime weekday={1} /> })}
             </li>
-            <li>Watch every date, predict how they end, vote and swipe, always free</li>
+            <li>{t("Watch every date, predict how they end, vote and swipe, always free")}</li>
             {companions && (
               <li>
-                {companionFreePerDay()} companion replies a day with a free account
-                {companionGuestsOpen() ? ` (${companionGuestReplies()} to try without one)` : ""}
+                {t("{n} companion replies a day with a free account", { n: companionFreePerDay() })}
+                {companionGuestsOpen() ? ` ${t("({n} to try without one)", { n: companionGuestReplies() })}` : ""}
               </li>
             )}
-            <li>No account needed to start</li>
+            <li>{t("No account needed to start")}</li>
           </ul>
           <Link className={cta("free")} href="/create" data-track="pricing-free">
-            Make a character
+            {t("Make a character")}
           </Link>
         </li>
 
@@ -116,10 +123,10 @@ export default function PricingPage() {
             <ul>{planPoints}</ul>
             {planOnSale ? (
               <Link className={cta("companion-plan")} href="/companion/plan" data-track="pricing-companion-plan">
-                See the Companion Plan
+                {t("See the Companion Plan")}
               </Link>
             ) : (
-              <p className="muted small">Not on sale yet.</p>
+              <p className="muted small">{t("Not on sale yet.")}</p>
             )}
           </li>
         )}
@@ -132,30 +139,30 @@ export default function PricingPage() {
             <RoseSeal className="pricing-seal" />
             {/* One place for each date the first pack buys (app/PackVenues.tsx). */}
             <PackVenues dates={PACK_5.episodes} />
-            <h2>More dates</h2>
+            <h2>{t("More dates")}</h2>
             <p className="pricing-price">
-              from {formatPrice(packs[0]?.price_cents ?? PACK_5.price_cents)} <span className="muted small">paid once</span>
+              {t("from {price}", { price: formatPrice(packs[0]?.price_cents ?? PACK_5.price_cents) })} <span className="muted small">{t("paid once")}</span>
             </p>
             <ul>
               {packs.map((pack) => (
                 <li key={pack.sku} id={pack.sku === PACK_5.sku ? undefined : pack.sku} data-pricing-pack={pack.sku}>
-                  {pack.episodes} more dates for {formatPrice(pack.price_cents)}
+                  {t("{n} more dates for {price}", { n: pack.episodes ?? "", price: formatPrice(pack.price_cents) })}
                 </li>
               ))}
-              <li>Used after the free ones, and they never expire</li>
+              <li>{t("Used after the free ones, and they never expire")}</li>
               {depth && (
                 <li>
-                  One also buys a date of yours told as a story ({STORY_TOKENS} bought date; included with the {PLANS.companion.name})
+                  {t("One also buys a date of yours told as a story ({n} bought date; included with the {plan})", { n: STORY_TOKENS, plan: PLANS.companion.name })}
                 </li>
               )}
-              <li>Not a subscription</li>
+              <li>{t("Not a subscription")}</li>
             </ul>
             {packOnSale ? (
               <Link className={cta("pack")} href="/shop" data-track="pricing-pack">
-                Get more dates
+                {t("Get more dates")}
               </Link>
             ) : (
-              <p className="muted small">Not on sale yet.</p>
+              <p className="muted small">{t("Not on sale yet.")}</p>
             )}
           </li>
         }
@@ -163,52 +170,55 @@ export default function PricingPage() {
 
       {/* Everything else with a price, said once each and quietly: none of it is the page's button. */}
       <section aria-labelledby="also">
-        <h2 id="also">Other options</h2>
+        <h2 id="also">{t("Other options")}</h2>
         <ul className="pricing-also">
           {(tips || market) && (
             <li id="creators">
-              <strong>Support a creator</strong>:{" "}
-              {tips && <>tip a character&apos;s creator {prices(TIP_ITEMS)} from their page</>}
-              {tips && market && ", or "}
-              {market && (
-                <>
-                  buy a copy of a character as a template for {prices(MARKET_ITEMS)} in <Link href="/market">the market</Link>, with 70% to its creator
-                </>
-              )}
-              . Paid once; creators are paid by hand each month.
+              <strong>{t("Support a creator")}</strong>:{" "}
+              {tips && t("tip a character's creator {prices} from their page", { prices: prices(TIP_ITEMS) })}
+              {tips && market && `, ${t("or")} `}
+              {market &&
+                fillNodes(t("buy a copy of a character as a template for {prices} in {market}, with 70% to its creator", { prices: prices(MARKET_ITEMS) }), {
+                  market: <Link href="/market">{t("the market")}</Link>,
+                })}
+              . {t("Paid once; creators are paid by hand each month.")}
             </li>
           )}
           <li id="own-key">
-            <strong>Bring your own key</strong>, $0 from us: your characters&apos; lines on dates and texts run on your own model account (Google Gemini,
-            OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter), and you pay the provider directly, with the limits you set there. A 4-second
-            intro clip of your character is the one extra that needs both: one bought date, plus about $0.20 to Google on your own key (Veo).{" "}
+            {fillNodes(
+              t(
+                "{key}, $0 from us: your characters' lines on dates and texts run on your own model account (Google Gemini, OpenAI, Anthropic Claude, DeepSeek, Groq or OpenRouter), and you pay the provider directly, with the limits you set there. A 4-second intro clip of your character is the one extra that needs both: one bought date, plus about $0.20 to Google on your own key (Veo).",
+              ),
+              { key: <strong>{t("Bring your own key")}</strong> },
+            )}{" "}
             <Link href="/account/keys" data-track="pricing-own-key">
-              Connect a key
+              {t("Connect a key")}
             </Link>
           </li>
         </ul>
       </section>
 
       <section aria-labelledby="never">
-        <h2 id="never">Never for sale</h2>
+        <h2 id="never">{t("Never for sale")}</h2>
         <p>
-          Points, badges and rank. They&apos;re earned by calling how dates end, and nothing you buy changes them.
+          {t("Points, badges and rank. They're earned by calling how dates end, and nothing you buy changes them.")}
         </p>
       </section>
 
       <section aria-labelledby="small-print">
-        <h2 id="small-print">The small print</h2>
+        <h2 id="small-print">{t("The small print")}</h2>
         <ul>
-          <li>Prices are in US dollars. You pay on Stripe&apos;s own page; we never see your card.</li>
+          <li>{t("Prices are in US dollars. You pay on Stripe's own page; we never see your card.")}</li>
           <li>
-            A pack that doesn&apos;t work, or that you change your mind about within 14 days, is refunded in full: see the{" "}
-            <Link href="/terms#refunds">terms</Link>.
+            {fillNodes(t("A pack that doesn't work, or that you change your mind about within 14 days, is refunded in full: see the {terms}."), {
+              terms: <Link href="/terms#refunds">{t("terms")}</Link>,
+            })}
           </li>
           <li>
-            Running an AI agent? Its dates are free too: <Link href="/agents/pricing">pricing for agents</Link>.
+            {fillNodes(t("Running an AI agent? Its dates are free too: {link}."), { link: <Link href="/agents/pricing">{t("pricing for agents")}</Link> })}
           </li>
           <li>
-            What the show costs us to run is public: <Link href="/costs">What it costs</Link>.
+            {fillNodes(t("What the show costs us to run is public: {link}."), { link: <Link href="/costs">{t("What it costs")}</Link> })}
           </li>
         </ul>
       </section>

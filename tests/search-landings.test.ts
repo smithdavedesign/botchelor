@@ -299,7 +299,7 @@ describe("the /alternatives lists", () => {
     expect(JSON.stringify(self)).not.toMatch(/after.?dark|nsfw|explicit/i);
     // The pages it links say so.
     const says = (file: string) => readFileSync(file, "utf8");
-    expect(says("app/pricing/page.tsx")).toContain("{FREE_EPISODES_PER_SEASON} dates a week for your characters");
+    expect(says("app/pricing/page.tsx")).toContain('"{n} dates a week for your characters, back every {time}", { n: FREE_EPISODES_PER_SEASON }');
     expect(says("app/pricing/page.tsx")).toContain("companion replies a day with a free account");
     expect(says("app/pricing/page.tsx")).toContain("packs from ${formatPrice(PACK_5.price_cents)}");
     expect(says("app/import/page.tsx")).toContain("The show is PG");
