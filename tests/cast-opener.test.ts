@@ -278,7 +278,7 @@ describe("opening a thread with a cast character that isn't yours", () => {
   it("an agent over MCP gets the opener with links it can open: the photo and the date", async () => {
     const { episode } = await airedDate("friends");
     const agent = `agent-${crypto.randomUUID()}`;
-    const opened = await runCompanionTool(t.db, agent, { action: "open", character_id: CAST.id });
+    const opened = await runCompanionTool(t.db, agent, { action: "open", character_id: CAST.id, adult: true });
     if (!("data" in opened)) throw new Error(opened.error);
     const reply = (opened.data.reply ?? []) as { text: string; photo?: string; watch?: string }[];
     expect(reply).toHaveLength(4);

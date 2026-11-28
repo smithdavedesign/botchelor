@@ -394,6 +394,8 @@ export type ToolArgs = {
     reason?: "sexual" | "minor" | "hateful" | "self_harm" | "out_of_character" | "other";
     /** forget: the fact (an id from memory). */
     fact_id?: string;
+    /** true: the person you act for is 18+ (asked once). */
+    adult?: boolean;
     /** read: how many of the newest messages (default 20). */
     limit?: number;
     /** Optional within a session. */

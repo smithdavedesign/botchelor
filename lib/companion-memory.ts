@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "./db";
 import type { Model } from "./model";
 import { COMPANION_GUEST_REPLIES, type CompanionFactView } from "./companion-shared";
-import { checkFamilyTalk } from "./safety";
+import { checkFamilyTalk, saysUnder18 } from "./safety";
 import { crisisIntent } from "./crisis";
 import { maybeCrisis } from "./step-in";
 import { jsonOf, RECENT_TURNS, type PromptFact } from "./companion-prompt";
@@ -336,6 +336,7 @@ export async function editFacts(db: Db, threadId: string, e: FactEdit, now: Date
     const text = e.text.replace(/\s+/g, " ").trim();
     if (text.length < 2) return "Say what they should remember.";
     if (text.length > FACT_MAX) return `Keep it under ${FACT_MAX} characters.`;
+    if (saysUnder18(text)) return "Botchelor is for adults (18+), so a companion never keeps an age under 18.";
     if (!checkFamilyTalk(text).ok) return "That can't go in a companion's memory: the show is PG.";
     // Like the facts it draws, never a note on someone's mental health (the crisis check ran first: screenFact).
     if (crisisIntent(text) || maybeCrisis(text)) return "That's one a companion doesn't keep notes on. You can still talk with them about it.";

@@ -246,7 +246,7 @@ describe("voice notes", () => {
     const c0: McpContext = { adminKey: ADMIN_KEY };
     await rpc("initialize", { protocolVersion: "2025-06-18", clientInfo: { name: "voice-test" } }, c0);
     const c: McpContext = { sessionId: c0.issuedSessionId, adminKey: ADMIN_KEY };
-    const call = async (args: Any) => (await rpc("tools/call", { name: "companion", arguments: args }, c)).result;
+    const call = async (args: Any) => (await rpc("tools/call", { name: "companion", arguments: { adult: true, ...args } }, c)).result;
     const opened = (await call({ action: "open", character_id: CAST.id })).structuredContent;
     const said = opened.reply.at(-1);
     const v = await call({ action: "voice", thread_id: opened.thread_id, message_id: said.id });

@@ -81,6 +81,15 @@ describe("the confessional tools", () => {
     expect((await err("post_confessional", { agent_id: A.agentId, character_id: A.id, text: "Hi." })).code).toBe("private");
   });
 
+  it("never posts a line of self-harm, and answers it with the help lines (2026-11-28)", async () => {
+    const A = await agent("Cy Booth");
+    const r = await err("post_confessional", { agent_id: A.agentId, character_id: A.id, text: "I want to cut myself tonight." });
+    expect(JSON.stringify(r)).toContain("988");
+    expect((await ok("read_confessionals", {})).confessionals).toHaveLength(0);
+    const hostile = await err("post_confessional", { agent_id: A.agentId, character_id: A.id, text: "Honestly she should kill herself." });
+    expect(JSON.stringify(hostile)).not.toContain("988");
+  });
+
   it("report takes a confessional_id and goes to the moderators' queue once", async () => {
     const A = await agent("Ada Booth");
     const B = await agent("Bo Camera");

@@ -102,7 +102,7 @@ async function check(base) {
   assert(!/data-score=/.test(markup), "a real person's name got a score");
   assert(/<meta name="robots" content="noindex/.test(markup), "a refused pair was indexable");
   assert(!/swift/i.test(markup), "a refused name was echoed in the page or its tags");
-  assert(markup.includes("Characters must be original: no real people."), "a refused name didn't get /create's message");
+  assert(markup.includes("Characters must be original: no real people"), "a refused name didn't get /create's message");
   console.log(`checks passed: 200 on ${TOOL} with its <title>, in sitemap.xml, the same result twice (${first}), 3 reasons, og:title and share card, /create prefilled, a real person refused`);
 }
 

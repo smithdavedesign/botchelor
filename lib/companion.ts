@@ -59,7 +59,11 @@ import { loadOurIds } from "./our-traffic";
 import { recordServerError } from "./errors";
 import { dateRoleplayById, premiseForYou, rolesOf, type RoleplayTerms } from "./roleplays";
 import { DELETED_OWNER } from "./rules";
-import { checkFamilyTalk } from "./safety";
+import { checkFamilyTalk, saysUnder18 } from "./safety";
+
+/** What someone who says they're under 18 is told when their companion chat closes. */
+export const UNDER_18_MESSAGE =
+  "Botchelor is for adults (18+), so this chat is closed and nothing you said here was kept. If you need someone to talk to, the help lines on /safety are free and open to anyone.";
 import { showPersona } from "./persona";
 import { GENERIC_OPENINGS, openedTerms } from "./scene-cards";
 import { openingHasSides, resolveOpening } from "./scene-opening";
@@ -400,6 +404,11 @@ const TEXTING_CUE = "(The scene's over and you're both back to texting. Pick the
  * first message (left out if the model is down: the person can say hi first). `opener: false` (postFromCharacter):
  * the notice only, since the character's first words are about to be written without the model.
  */
+/** Whether this person has said they're under 18 in any companion chat: every chat of theirs stays closed. */
+export async function declaredMinor(db: Db, userId: string): Promise<boolean> {
+  return (await db.query(`select 1 from companion_threads where user_id = $1 and minor_declared_at is not null limit 1`, [userId])).rows.length > 0;
+}
+
 export async function openThread(
   db: Db,
   userId: string,
@@ -408,6 +417,7 @@ export async function openThread(
   opts: { opener?: boolean } = {},
 ): Promise<{ ok: true; thread_id: string; resumed: boolean } | CompanionFail> {
   if (!(await companionEligible(db, userId, characterId))) return NOT_FOUND;
+  if (await declaredMinor(db, userId)) return fail(403, "adults_only", UNDER_18_MESSAGE);
   const existing = (await db.query<{ id: string }>(`select id from companion_threads where user_id = $1 and character_id = $2`, [userId, characterId])).rows[0];
   if (existing) return { ok: true, thread_id: existing.id, resumed: true };
   const character = await loadCharacter(db, characterId);
@@ -1099,6 +1109,13 @@ export type CompanionSend = { ok: true; view: CompanionThreadView; replied?: fal
 async function screen(db: Db, t: ThreadRow, text: string, now: Date, surface: CompanionSurface): Promise<CompanionFail | null> {
   const { crisis } = await lineInCrisis(text, surface, await modelFor(db));
   if (crisis) return pauseForCrisis(db, t.id, surface, now);
+  // Someone who says they're under 18 (2026-11-28): the chat closes, and nothing they said is kept.
+  if (saysUnder18(text)) {
+    await db.query(`update companion_threads set paused_at = $2, minor_declared_at = coalesce(minor_declared_at, $2) where id = $1`, [t.id, now.toISOString()]);
+    await db.query(`update companion_threads set paused_at = $2 where user_id = $1`, [t.user_id, now.toISOString()]);
+    return fail(403, "adults_only", UNDER_18_MESSAGE);
+  }
+  if (await declaredMinor(db, t.user_id)) return fail(403, "adults_only", UNDER_18_MESSAGE);
   const safe = checkFamilyTalk(text);
   if (!safe.ok) return fail(422, "refused", PG_REDIRECT[safe.reason]);
   return null;
@@ -1479,6 +1496,7 @@ export async function editLast(db: Db, userId: string, threadId: string, input: 
 export async function carryOn(db: Db, userId: string, threadId: string): Promise<CompanionSend> {
   const t = await ownThread(db, userId, threadId);
   if (!t) return NOT_FOUND;
+  if (await declaredMinor(db, userId)) return fail(403, "adults_only", UNDER_18_MESSAGE);
   await db.query(`update companion_threads set paused_at = null where id = $1`, [t.id]);
   return getThread(db, userId, threadId);
 }

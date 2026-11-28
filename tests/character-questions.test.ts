@@ -2,6 +2,7 @@
 // one-sentence create): after its first date a character asks its owner about its own sheet, one question a day, five in
 // all, never after two went unanswered. The answer box saves through the edit route's own checks. Templates only: a
 // model call here would be a bug.
+import { CHARACTER_REJECTION_MESSAGES } from "@/lib/safety-reasons";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as companionPost } from "@/app/api/companion/[id]/route";
 import { sendAfterDateText } from "@/lib/after-date-text";
@@ -378,7 +379,7 @@ describe("the answer (POST /api/companion/:id {action: offer, offer: answer})", 
     expect(minor.body.message).toBe("Characters must be adults, with nothing suggesting they are under 18.");
     const person = await answer(o.cookie, o.threadId, o.q.id, "Taylor Swift's stylist");
     expect(person.status).toBe(422);
-    expect(person.body.message).toBe("Characters must be original: no real people.");
+    expect(person.body.message).toBe(CHARACTER_REJECTION_MESSAGES.real_person);
     expect((await extrasOf(o.character.id)).occupation).toBeUndefined();
     expect((await boxes(o.me, o.threadId)).length).toBe(1);
     expect(await said(o.threadId, "answer:")).toEqual([]);

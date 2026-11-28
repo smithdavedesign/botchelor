@@ -6,8 +6,8 @@ import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import type { ChatMessage, Model } from "@/lib/model";
 import { api, BASE_URL, newUserCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
-// Originals only (lib/franchises.ts, PRD styles-and-storylines phase 5), where it's wired: a person's character is warned,
-// the show's own are refused (the house crowd over MCP, the recast, the After Dark agent cast), and After Dark takes no
+// Originals only (lib/franchises.ts, PRD styles-and-storylines phase 5), where it's wired: every save refuses a copy
+// (since 2026-11-28; a person's character was only warned before), the show's own are refused (the house crowd over MCP, the recast, the After Dark agent cast), and After Dark takes no
 // character that names a franchise, whoever's it is. Season-gen's refusal is tests/season-gen.test.ts; the house cast,
 // the report and the prompts are tests/franchises.test.ts.
 let t: Awaited<ReturnType<typeof startTestDb>>;
@@ -42,14 +42,11 @@ const count = async (name: string) => Number((await t.db.query<{ n: string }>(`s
 const COPY = { name: "Tifa Lockhart", bio: "Runs a bar in a city of eight reactors and punches above her weight." };
 
 describe("MCP create_character", () => {
-  it("warns an outside agent and saves it; refuses one of the house crowd's, saving nothing", async () => {
+  it("refuses a copy from anyone, saving nothing (2026-11-28: every save refuses one); an original goes through", async () => {
     const outside = await call("create_character", validCharacter(COPY), await connect("claude-code"));
-    expect(outside.isError).toBeFalsy();
-    const made = outside.structuredContent;
-    expect(made.saved).toBe(true);
-    expect(made.franchise_warning).toMatch(/^Its name says "Tifa Lockhart", which reads like Final Fantasy\./);
-    expect(made.originality).toMatchObject({ franchise: made.franchise_warning, verdict: "consider changing" });
-    expect(made.originality.tips[0]).toBe(made.franchise_warning);
+    expect(outside.isError).toBe(true);
+    expect(outside.content[0].text).toMatch(/Botchelor keeps to original characters: the name says "Tifa Lockhart", which reads like Final Fantasy/);
+    expect(await count("Tifa Lockhart")).toBe(0);
 
     const crowd = await call("create_character", validCharacter({ ...COPY, name: "Tifa Lockhart Two" }), await connect("botchelor-loop-crowd-tifa"));
     expect(crowd.isError).toBe(true);
@@ -64,8 +61,8 @@ describe("MCP create_character", () => {
 
   it("says it on check_only too, before anything is saved", async () => {
     const r = await call("create_character", { ...validCharacter(COPY), check_only: true }, await connect("claude-code"));
-    expect(r.isError).toBeFalsy();
-    expect(r.structuredContent).toMatchObject({ saved: false, franchise_warning: expect.stringMatching(/Final Fantasy/) });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/Final Fantasy/);
     expect(await count("Tifa Lockhart")).toBe(0);
   });
 });
@@ -91,7 +88,9 @@ describe("After Dark", () => {
   it("keeps a character that names a franchise out, whoever's it is, and lets an original in", async () => {
     const cookie = newUserCookie();
     const owner = userIdOf(cookie);
-    const copy = (await (await api.createCharacter(validCharacter(COPY), cookie)).json()).id as string;
+    // A copy saved before every save refused one (2026-11-28): made as an original, then renamed in the table.
+    const copy = (await (await api.createCharacter(validCharacter({ name: "Mara Quill" }), cookie)).json()).id as string;
+    await t.db.query(`update characters set name = $2, bio = $3 where id = $1`, [copy, COPY.name, COPY.bio]);
     const original = (await (await api.createCharacter(validCharacter({ name: "Ines Varga" }), cookie)).json()).id as string;
     expect(await franchiseOut(t.db, copy)).toMatch(/^After Dark keeps to original characters: the name says "Tifa Lockhart"/);
     expect(await franchiseOut(t.db, original)).toBeNull();

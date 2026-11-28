@@ -8,7 +8,7 @@
 
 import { isNotEnglish } from "./language";
 import { CHARACTER_REJECTION_MESSAGES, HARM_MESSAGES, contentMessage, isHarm, isPastPg, type HarmReason, type RejectReason } from "./safety-reasons";
-import { dealbreakerGroupOnly, harmMatch } from "./safety-harm";
+import { dealbreakerGroupOnly, harmMatch, notOriginalMatch } from "./safety-harm";
 import { escapeRegExp } from "./text";
 
 // The reasons, the past-PG test and what a refused sheet is told live apart from the lists (lib/safety-reasons.ts), so
@@ -30,6 +30,7 @@ const SEXUAL_TERMS = [
   "vagina", "boobs", "slut", "sluts", "whore", "whores", "rape", "raped", "rapist", "incest",
   "bestiality", "pedo", "pedophile", "paedophile", "aroused", "arousal", "masturbate",
   "masturbating", "masturbation", "make love", "making love",
+  "virginity", "deflower", "deflowered", "deflowering",
 ];
 
 const MINOR_TERMS = [
@@ -41,6 +42,13 @@ const MINOR_TERMS = [
   "attends high school", "goes to high school", "middle school", "middle schooler",
   "elementary school", "grade school", "grade schooler", "junior high", "kindergarten",
   "kindergartner", "little girl", "little boy", "young girl", "young boy",
+  // 2026-11-28 (the simulation: an "18-year-old high school junior who wears her school uniform" saved): school years
+  // and the uniform, on every surface.
+  "high school junior", "high school senior", "high school sophomore", "high school freshman", "school uniform",
+  "school uniforms", "schoolgirl uniform", "sixth grade", "seventh grade", "eighth grade", "ninth grade", "tenth grade",
+  "eleventh grade", "twelfth grade", "sixth grader", "seventh grader", "eighth grader", "ninth grader", "tenth grader",
+  "eleventh grader", "twelfth grader", "6th grade", "7th grade", "8th grade", "9th grade", "10th grade", "11th grade",
+  "12th grade",
 ];
 
 // Well-known real people. Single-word entries are limited to names that are unambiguous on their own
@@ -90,7 +98,12 @@ const THINGS =
 const A_THINGS_AGE = `(?!(?:${THINGS})s? )`;
 const UNDER_18 = "(?:[1-9]|1[0-7])";
 const NOT_AN_AGE_AFTER = "(?!(?:\\d+|foot|feet|ft|cm|m|in|inch|inches|kg|lb|lbs|stone|of|out|percent|times)\\b)";
+const UNDER_18_WORDS = "(?:three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)";
 const MINOR_AGE_PATTERNS = [
+  // The same in words (2026-11-28: "a sixteen year old runaway", "the body of a twelve-year-old" passed a sheet).
+  new RegExp(` ${UNDER_18_WORDS} ?(?:years?|yrs?) old ${A_THINGS_AGE}`),
+  // Not "at age nine": a backstory may say when something happened in childhood.
+  new RegExp(` (?<!at )aged? ${UNDER_18_WORDS} (?!(?:when|and|after|before|in|on|at)\\b)`),
   new RegExp(` ${UNDER_18} ?(?:years?|yrs?) old ${A_THINGS_AGE}`),
   new RegExp(` ${UNDER_18} ?(?:yo|y o) `),
   new RegExp(` aged? ${UNDER_18} `),
@@ -167,7 +180,7 @@ const firstTerm = (terms: readonly string[], texts: readonly string[]): string |
 function classifyMatch(text: string): SheetMatch | null {
   const folded = fold(text);
   const plain = spaced(folded);
-  const minor = firstTerm(MINOR_TERMS, [plain]) ?? firstMatch(MINOR_AGE_PATTERNS, [plain]);
+  const minor = firstTerm(MINOR_TERMS, [plain]) ?? firstMatch(MINOR_AGE_PATTERNS, [plain]) ?? firstMatch(MINOR_LOOK_PATTERNS, [plain]) ?? firstMatch(SELF_MINOR_PATTERNS, [plain]);
   if (minor) return { reason: "minor", phrase: minor };
 
   const deleeted = spaced(folded.replace(/[013457@$!]/g, (c) => LEET[c]));
@@ -350,6 +363,8 @@ export function checkFamilyTalk(text: string): SafetyResult {
   const first = checkShowText({ dialogue: text });
   if (first.ok || first.reason !== "minor") return first;
   let plain = spaced(fold(text));
+  // Their kid's age passes; their own never does (2026-11-28: a companion kept "I am 15").
+  if (SELF_MINOR_PATTERNS.some((re) => re.test(plain)) || MINOR_LOOK_PATTERNS.some((re) => re.test(plain))) return first;
   if (ROMANCE_OR_BODY.test(plain)) return first;
   for (const term of FAMILY_TERMS) plain = plain.split(` ${term} `).join(" kid ");
   for (const re of [...MINOR_AGE_PATTERNS, ...CHILDHOOD_AGE_PATTERNS, ...SHOW_AGE_PATTERNS, ...PERSON_OF_AGE_PATTERNS]) plain = plain.replace(new RegExp(re.source, "g"), " kid ");
@@ -372,6 +387,31 @@ const SAYS_AN_AGE = [
   " (?:make|makes|made|making|play|plays|playing|pretend|pretends|pretending|act|acts|acting|roleplay|role play) (?:as )?(?:her|him|them|me|you|she s|he s|they re|she is|he is|it)? ?(?:a |an )?",
   " as if (?:she|he|they|i|you) (?:were|was|is|are) ",
 ];
+// Looking like a child (2026-11-28, the simulation: a sheet whose appearance read "looks about twelve" saved over MCP).
+// Every surface, After Dark included. Not the idioms: "like a kid in a candy store", "looks about six feet tall".
+const LOOKS_AGE = "(?:[3-9]|1[0-7]|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen)";
+const MINOR_LOOK_PATTERNS = [
+  new RegExp(` (?:looks?|looking|appears?|appearing|seems?|passes for|pass for|could pass for|mistaken for) (?:(?:about|like|maybe|around|roughly|barely|only|no older than|no more than|younger than|she s|he s|they re|shes|hes|theyre|a|an|just) )*${LOOKS_AGE} ${NOT_AN_AMOUNT}`),
+  / (?:looks?|looking|appears?|appearing|seems?) (?:(?:like|just like|exactly like|a|an|almost|barely|about|no older than) )*(?:child|kid|little kid|minor|toddler|preteen|middle schooler|young teen|teen|teenager|little girl|little boy|schoolkid|school kid|grade schooler|high schooler)(?! (?:in a candy store|in a sweet shop|on christmas|at christmas|again|at heart))(?: |$)/,
+  / (?:looks?|looking|appears?|appearing|seems?) (?:underage|under age|under 18|under eighteen|prepubescent|pre pubescent|too young to date) /,
+  / (?:a )?(?:child s|childs|kid s|kids|prepubescent|pre pubescent|undeveloped|underdeveloped) (?:body|figure|frame) /,
+  / body of a (?:child|kid|little girl|little boy|preteen|teen|teenager) /,
+];
+
+// A person saying they're under 18 (2026-11-28: a companion kept "I am 15" as a memory). In a companion chat this
+// closes the chat and nothing is kept (lib/companion.ts); everywhere else it's refused as a minor.
+const SELF_MINOR_PATTERNS = [
+  new RegExp(` (?:i am|i m|im|ima|i ll be|ill be|i just turned|i turned|my age is|the person is|the user is|they are|they re) (?:(?:only|just|barely|almost|nearly|still|really|like|about) )*${LOOKS_AGE}(?: (?:years?|yrs?) old| yo| y o)? ${NOT_AN_AMOUNT}`),
+  / (?:i am|i m|im) (?:(?:only|just|still|actually|technically) )*(?:a minor|underage|under age|under 18|under eighteen|not 18|not eighteen|not an adult|a teen|a teenager|in (?:high school|middle school|junior high|secondary school|year (?:7|8|9|10|11|12|seven|eight|nine|ten|eleven|twelve)|(?:6|7|8|9|10|11|12)th grade|(?:sixth|seventh|eighth|ninth|tenth|eleventh|twelfth) grade)|a (?:freshman|sophomore|junior|senior) in high school|a high schooler|a middle schooler) /,
+  / (?:i m|im|i am) not (?:18|eighteen) yet /,
+];
+
+/** Whether a text has its writer (or, in a kept fact, the person) saying they're under 18. */
+export function saysUnder18(text: string): boolean {
+  const plain = spaced(fold(text));
+  return SELF_MINOR_PATTERNS.some((re) => re.test(plain));
+}
+
 const ADULT_AGE_PATTERNS = [
   ...SAYS_AN_AGE.map((says) => new RegExp(`${says}${OLDER_CHILD_AGE} ${NOT_AN_AMOUNT}`)),
   new RegExp(` ${CHILD_AGE} (?:year old|years old|yo|y o)\\b(?! (?:${THINGS})s? )`),
@@ -486,6 +526,8 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
         CHILDHOOD_AGE_PATTERNS.some((re) => re.test(plain)) ||
         ADULT_AGE_PATTERNS.some((re) => re.test(plain)) ||
         PERSON_OF_AGE_PATTERNS.some((re) => re.test(plain)) ||
+        MINOR_LOOK_PATTERNS.some((re) => re.test(plain)) ||
+        SELF_MINOR_PATTERNS.some((re) => re.test(plain)) ||
         clausesOf(folded).some((clause) => ONE_OR_TWO_AGE_PATTERNS.some((re) => re.test(clause)))
       ) {
         return { ok: false, reason: "minor", field };
@@ -497,7 +539,7 @@ export function checkAdultText(fields: Record<string, string | readonly string[]
       // After Dark keeps its adult allowance, but hate, threats and personal info hold here too (2026-11-28).
       const harm = harmMatch(folded, variants) ?? (field === "dealbreaker" ? dealbreakerHate(plain) : null);
       if (harm) return { ok: false, reason: harm.reason, field };
-      if (REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v)))) return { ok: false, reason: "real_person", field };
+      if (REAL_PEOPLE_PATTERNS.some((re) => variants.some((v) => re.test(v))) || notOriginalMatch(plain)) return { ok: false, reason: "real_person", field };
       // These lists read English: until they're proven in other languages, After Dark is English-only (David, 2026-10-31).
       if (isNotEnglish(text)) return { ok: false, reason: "language", field };
     }
@@ -582,6 +624,12 @@ export function sheetPgIssue(text: string | null | undefined, field?: string): R
  * bare group is fine elsewhere, but as the thing a character won't date it rules a whole people out (2026-11-27: a test
  * sheet's dealbreaker was "immigrants", and the quiz offered it as a decoy on other people's dates).
  */
+/** A sheet copying a franchise character, or a real person described rather than named (lib/safety-harm.ts). */
+function notOriginal(plain: string): SheetMatch | null {
+  const phrase = notOriginalMatch(plain);
+  return phrase ? { reason: "real_person", phrase } : null;
+}
+
 function dealbreakerHate(plain: string): SheetMatch | null {
   const group = dealbreakerGroupOnly(plain);
   return group ? { reason: "hate", phrase: group } : null;
@@ -593,7 +641,8 @@ function dealbreakerHate(plain: string): SheetMatch | null {
  */
 export function sheetPgMatch(text: string | null | undefined, field?: string): SheetMatch | null {
   if (!text) return null;
-  const first = classifyMatch(text) ?? (field === "dealbreaker" ? dealbreakerHate(spaced(fold(text))) : null);
+  const plain = spaced(fold(text));
+  const first = classifyMatch(text) ?? (field === "dealbreaker" ? dealbreakerHate(plain) : null) ?? notOriginal(plain);
   if (first) return first;
   const innuendo = firstMatch(INNUENDO_PATTERNS, [spaced(fold(text))]) ?? firstMatch(SHEET_SUGGESTIVE, [spaced(fold(text))]);
   return innuendo ? { reason: "innuendo", phrase: innuendo } : null;

@@ -90,7 +90,7 @@ export function issueMessage(reason: RejectReason, phrase: string | null): strin
     case "minor":
       return `Suggests someone under 18:${said}. Characters are adults, with nothing hinting otherwise.`;
     case "real_person":
-      return `Names or copies a real person:${said}. Characters must be original.`;
+      return `Names or copies a real person or an existing character:${said}. Characters must be original.`;
     case "language":
       return "After Dark is English-only for now.";
     case "unread":

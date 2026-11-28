@@ -91,6 +91,9 @@ const DEALBREAKER_GROUP = new RegExp(`^ ${DATING_GROUP}(?: (?:or|and) ${DATING_G
 const SELF_HARM_PATTERNS = [
   /(?<! (?:don t|dont|do not|not|never|didn t|didnt|won t|wont|ll|you ll|you will)) (?:kill|hang|shoot|off|end|unalive|neck|rope|delete) (?:your ?self|yourselves|urself|ur self|yaself) (?!(?:laughing|over|working|trying|in the foot|for (?:it|this|that|work|me|us)|with work|to)\b)/,
   / kys /,
+  // About someone else, too (2026-11-28, the simulation: a public confessional said "she should kill herself").
+  / (?:should|needs? to|ought to|deserves? to|better|can go|could go|just needs to|go) (?:just )?(?:kill|hang|shoot|off|end|unalive|neck) (?:herself|himself|themselves|themself|theirself) /,
+  / (?:she|he|they|her|him|them) (?:should|deserves? to|ought to|needs? to) (?:just )?(?:die|be dead|not exist) /,
   / (?:go|please|pls|plz) (?:and )?(?:die|drown|jump off a (?:bridge|cliff|building)) (?!(?:of|from|laughing|happy|trying)\b)/,
   / just (?:die|drown) already /,
   / (?:hope|wish) (?:you|u) (?:die|get cancer|get hit by a|drown|choke and die|rot) (?!(?:of|laughing|happy)\b)/,
@@ -196,4 +199,25 @@ export function harmMatch(folded: string, variants: readonly string[]): HarmMatc
 export function dealbreakerGroupOnly(plain: string): string | null {
   const rest = plain.replace(DEALBREAKER_FILLER, " ");
   return DEALBREAKER_GROUP.test(rest) ? rest.trim() : null;
+}
+
+// A real person described rather than named (2026-11-28, the simulation): "the Tesla CEO", "the current US president".
+// Sheets and After Dark only: in a text or a chat, "I'd never vote for the current president" is ordinary talk.
+const REAL_PERSON_DESCRIBED = [
+  / (?:the )?(?:current |former |ex |sitting )?(?:us|u s|american|french|british|uk|russian|chinese|canadian|german|indian|ukrainian|israeli|italian|brazilian|mexican|japanese|korean|north korean) (?:president|prime minister|pm|chancellor|first lady|vice president|dictator|supreme leader) /,
+  / (?:the )?(?:king|queen|prince|princess|crown prince|crown princess) of (?:england|the uk|britain|great britain|the united kingdom|spain|sweden|denmark|norway|the netherlands|belgium|monaco|jordan|saudi arabia|thailand|japan) /,
+  / the (?:current )?pope /,
+  / (?:ceo|founder|co founder|owner|boss|chairman) of (?:tesla|spacex|amazon|meta|facebook|apple|microsoft|google|alphabet|openai|anthropic|twitter|x corp|nvidia|netflix|tiktok|bytedance|oracle|berkshire hathaway) /,
+  / (?:the )?(?:tesla|spacex|amazon|meta|facebook|apple|microsoft|google|openai|twitter|nvidia|netflix|tiktok) (?:ceo|founder|co founder|billionaire|owner|boss|chairman) /,
+  / (?:based on|inspired by|modeled on|modelled on|a copy of|a version of|is actually|is secretly|played by) (?:a |an )?(?:real|real life|irl|actual) (?:person|celebrity|celeb|influencer|streamer|youtuber|athlete|politician|actor|actress|singer|rapper|popstar|pop star|someone|human) /,
+  / (?:a |the )?(?:member|lead singer|frontman|frontwoman|singer|rapper|dancer|maknae) (?:of|from|in) (?:bts|blackpink|one direction|twice|stray kids|newjeans|seventeen|exo|coldplay|maroon 5|the beatles|the rolling stones|metallica|arctic monkeys|the 1975|fifth harmony|little mix|spice girls|backstreet boys|nsync|jonas brothers) /,
+  / (?:singer|rapper|popstar|pop star|artist) (?:who|that) (?:sang|sings|wrote|released|performed) (?:shake it off|anti hero|blank space|cruel summer|bad guy|thank u next|levitating|hotline bling|god s plan|gods plan|single ladies|halo|umbrella|bad romance|poker face|despacito|shape of you|uptown funk|espresso|good 4 u|drivers license|flowers|as it was|blinding lights|watermelon sugar|wrecking ball|firework|hello) /,
+];
+
+/**
+ * A real person described rather than named, on the spaced plain text; or null. (Franchise characters are
+ * lib/franchises.ts's, refused on every save: app/api/characters.)
+ */
+export function notOriginalMatch(plain: string): string | null {
+  return first(REAL_PERSON_DESCRIBED, [plain]);
 }
