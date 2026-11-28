@@ -256,10 +256,12 @@ describe("the privacy notice", () => {
     expect(render(TermsPage)).toMatch(/Last updated 27 November 2026\./);
     // The home page's third-party badge, named where the other measuring is (2026-11-22 audit).
     expect(strip(render(PrivacyPage))).toMatch(/a picture loaded from LaunchNest's own site\s+\(launchnest\.io\) when you scroll down to it/);
-    expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<img src="https:\/\/launchnest\.io\/badge\/botchelor\.svg\?variant=featured"[^>]*loading="lazy" \/>/);
+    // Drawn by HomeBadge (2026-11-27): the same link around a lazy img, hidden if the directory's site fails to load it.
+    expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<HomeBadge href="https:\/\/launchnest\.io\/p\/botchelor" src="https:\/\/launchnest\.io\/badge\/botchelor\.svg\?variant=featured"/);
+    expect(readFileSync("app/HomeBadge.tsx", "utf8")).toMatch(/<a href=\{href\} target="_blank" rel="noopener">[\s\S]*<img src=\{src\}[^>]*loading="lazy"/);
     // Toolradar's badge (2026-11-24), loaded the same way and said in the same place.
     expect(strip(render(PrivacyPage))).toMatch(/and Toolradar's badge, loaded the same way from Toolradar's\s+own site \(toolradar\.com\)/);
-    expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<a href="https:\/\/toolradar\.com\/tools\/botchelor"[^>]*>\s*\{[^}]*\}\s*<img\s+src="https:\/\/toolradar\.com\/api\/badge\/botchelor\?[^"]*"[^>]*loading="lazy"/);
+    expect(readFileSync("app/page.tsx", "utf8")).toMatch(/<HomeBadge\s+href="https:\/\/toolradar\.com\/tools\/botchelor"\s+src="https:\/\/toolradar\.com\/api\/badge\/botchelor\?[^"]*"/);
     // Our own cast (2026-11-18): ownership, adults only, no bulk download or AI training.
     expect(strip(render(TermsPage))).toMatch(/<h2 id="our-cast">Our own characters<\/h2>/);
     expect(strip(render(TermsPage))).toMatch(/every one of our characters is a fictional adult/);

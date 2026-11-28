@@ -6,7 +6,7 @@ import Avatar from "@/app/Avatar";
 import SetHero from "@/app/SetHero";
 import { getDb } from "@/lib/db";
 import { userIdFromCookieStore } from "@/lib/http";
-import { marketListings, purchasesOf, salesOf, type Listing, type Purchase } from "@/lib/money/marketplace";
+import { marketHasListings, marketListings, purchasesOf, salesOf, type Listing, type Purchase } from "@/lib/money/marketplace";
 import { moneyOn } from "@/lib/money/switches";
 import { tipsReceived, type TipReceived } from "@/lib/money/tips";
 import { pageMetadata } from "@/lib/seo";
@@ -14,11 +14,17 @@ import { BuyTemplate, ClaimTemplate, Delist, ListTemplate } from "./MarketForms"
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = pageMetadata({
+const baseMetadata: Metadata = pageMetadata({
   title: "The character market: templates from Botchelor's creators",
   description: "Buy a copy of a creator's character sheet to make your own, list one of yours, and see the tips your characters have had.",
   path: "/market",
 });
+
+/** Noindex while nothing is on sale, so a search result doesn't land on an empty market (marketHasListings). */
+export async function generateMetadata(): Promise<Metadata> {
+  const listed = await getDb().then((db) => marketHasListings(db)).catch(() => false);
+  return listed ? baseMetadata : { ...baseMetadata, robots: { index: false, follow: true } };
+}
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
 

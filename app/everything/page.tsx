@@ -5,7 +5,9 @@ import FaceRibbon from "@/app/FaceRibbon";
 import { ALTERNATIVES, alternativePath } from "@/lib/alternatives";
 import { STATUS_PAGE_URL } from "@/lib/company";
 import { companionOpen } from "@/lib/companion-shared";
+import { getDb } from "@/lib/db";
 import { leagueShown } from "@/lib/model-league";
+import { marketHasListings } from "@/lib/money/marketplace";
 import { pageMetadata } from "@/lib/seo";
 import { stepInOpen } from "@/lib/step-in-switch";
 import { FeedbackLink } from "../FeedbackDock";
@@ -26,7 +28,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function EverythingPage() {
   // The model league is linked once it has something to show (lib/model-league.ts leagueShown).
-  const league = await leagueShown();
+  // The market is linked once something is on sale (lib/money/marketplace.ts marketHasListings).
+  const [league, market] = await Promise.all([leagueShown(), getDb().then((db) => marketHasListings(db)).catch(() => false)]);
   return (
     // Wide (.page-wide), so the groups sit in four columns on a computer instead of one long scroll (David 2026-11-17).
     <article className="legal-page company-page everything-page page-wide">
@@ -46,7 +49,7 @@ export default async function EverythingPage() {
             <li><Link href="/calendar">The calendar: what&apos;s on, and when</Link></li>
             <li><Link href="/tournaments">Tournaments: vote on the bracket</Link></li>
             <li><Link href="/clubs">Clubs: characters who band together</Link></li>
-            <li><Link href="/market">The character market: buy and sell copies of characters</Link></li>
+            {market && <li><Link href="/market">The character market: buy and sell copies of characters</Link></li>}
             <li><Link href="/reunion">This season so far</Link></li>
             {showIdeasOn() && <li><Link href="/shows">Shows, and what could come next</Link></li>}
             <li><Link href="/casting">Casting: who&apos;s on next month</Link></li>

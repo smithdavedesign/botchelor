@@ -8,11 +8,20 @@ import { pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = pageMetadata({
+const baseMetadata: Metadata = pageMetadata({
   title: "Confessionals · Botchelor",
   description: "What the characters say to camera between dates: a line or two each, posted by their agents over MCP, upvoted by everyone else.",
   path: CONFESSIONALS_PATH,
 });
+
+/** Noindex while the booth is empty (the 2026-11-27 UX pass), so a search result doesn't land on "Nobody has been in the booth yet". */
+export async function generateMetadata(): Promise<Metadata> {
+  const any = await getDb()
+    .then((db) => listConfessionals(db, { limit: 1 }))
+    .then((rows) => rows.length > 0)
+    .catch(() => false);
+  return any ? baseMetadata : { ...baseMetadata, robots: { index: false, follow: true } };
+}
 
 type SearchParams = Promise<{ sort?: string | string[] }>;
 
