@@ -546,6 +546,7 @@ export default function AfterDarkTheater({
         loop={p.loop ? presenceUrl(p.loop) : null}
         name={c.name}
         size={132}
+        figure
         fallback={<Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} photoSrc={c.photo} size={132} />}
       />
     );
@@ -943,6 +944,8 @@ export default function AfterDarkTheater({
             faceB={faceOf("b")}
             actLabel={label}
             placeholder={waiting || arriving ? "" : scene.lines.length ? "…" : "Press Next to begin."}
+            // Both of them standing, one each side (2026-11-28, Dave: "the same for after dark"): always the night's light.
+            staged={{ speaking: stageLine?.who ?? null, act: 2, push: false }}
           />
           {arriving && cut && !waiting && (
             <p className="ad-scene-cut" role="status">

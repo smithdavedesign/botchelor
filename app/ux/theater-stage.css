@@ -317,6 +317,47 @@
   }
 }
 
+/* ---------------- After Dark's date mode (app/after-dark/[a]/[b]/AfterDarkTheater.tsx) ---------------- */
+
+/* Their living face (app/after-dark/LivingFace.tsx `figure`) stands as a tall picture, soft at its edges like the
+   companion's portrait figure: After Dark's portraits are never sent for a cutout (lib/cutout.ts takes PG ones only). */
+.ad-living-face.is-figure {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+/* The picture (a head-and-shoulders portrait) sits at the foot of their side, its edges faded into the room. */
+.ad-living-face.is-figure :is(.ad-living-still, .ad-living-loop) {
+  inset: auto 0 0;
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 4 / 5;
+  margin: 0 auto;
+  object-fit: cover;
+  object-position: center 15%;
+  -webkit-mask-image: radial-gradient(farthest-side at 50% 42%, black 58%, transparent 100%);
+  mask-image: radial-gradient(farthest-side at 50% 42%, black 58%, transparent 100%);
+}
+/* The figures stand to the floor; their words and names stay above the steer bar (--ad-action-bottom, after-dark.css). */
+.theater-after-dark .scene[data-staged] .scene-cast,
+.theater-after-dark .theater-stage .scene[data-staged] .scene-cast {
+  bottom: var(--stage-bars);
+}
+.theater-after-dark .scene[data-staged] .scene-char {
+  padding-bottom: calc(var(--ad-action-bottom) + 3.5rem - var(--stage-bars));
+}
+@media (max-width: 760px) {
+  .theater-after-dark .scene[data-staged] .scene-char {
+    padding-bottom: 0;
+  }
+  .ad-living-face.is-figure :is(.ad-living-still, .ad-living-loop) {
+    inset: 0 0 auto;
+  }
+}
+
 /* ---------------- What moves ---------------- */
 
 @media (prefers-reduced-motion: no-preference) {
