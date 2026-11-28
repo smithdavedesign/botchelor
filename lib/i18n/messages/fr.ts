@@ -4,6 +4,15 @@ import type { Catalog } from "../translate";
 
 const catalog: Catalog = {
   "client": {
+    "Where to send it": "Où l'envoyer",
+    "PayPal": "PayPal",
+    "Wise": "Wise",
+    "Bank transfer": "Virement bancaire",
+    "Other": "Autre",
+    "Email for that account": "E-mail de ce compte",
+    "Details (no full bank numbers: we'll ask for those privately)": "Détails (pas de numéros bancaires complets : nous les demanderons en privé)",
+    "Save": "Enregistrer",
+    "Saved.": "Enregistré.",
     "Watch": "Regarder",
     "Chat": "Discuter",
     "Characters": "Personnages",
@@ -323,6 +332,22 @@ const catalog: Catalog = {
     "Manage connections": "Gérer les connexions"
   },
   "server": {
+    "Your earnings": "Tes gains",
+    "What your characters have earned from tips and template sales, your share, and what we still owe you.": "Ce que tes personnages ont gagné avec les pourboires et les ventes de modèles, ta part et ce que nous te devons encore.",
+    "Owed to you": "Ce qu'on te doit",
+    "Earned in all": "Gagné au total",
+    "Paid out": "Versé",
+    "Tips: {n} for {amount}.": "Pourboires : {n} pour {amount}.",
+    "Template sales: {n} for {amount}.": "Ventes de modèles : {n} pour {amount}.",
+    "Tips reach you after Stripe's fees, and a template sale pays you 70% of its price. We pay out by hand once a month, once you're owed {min} or more.": "Les pourboires te reviennent après les frais de Stripe, et une vente de modèle te rapporte 70 % de son prix. Nous payons à la main une fois par mois, dès que nous te devons {min} ou plus.",
+    "Make a free account to keep your earnings and say where to send them.": "Crée un compte gratuit pour garder tes gains et nous dire où les envoyer.",
+    "Recent": "Récent",
+    "Nothing yet. When someone tips one of your characters or buys one as a template, it shows here.": "Rien pour l'instant. Quand quelqu'un laisse un pourboire à l'un de tes personnages ou l'achète comme modèle, ça s'affiche ici.",
+    "The market": "Le marché",
+    "Tip": "Pourboire",
+    "Template sale": "Vente de modèle",
+    "Payouts": "Versements",
+    "After Dark (18+) waitlist": "Liste d'attente After Dark (18+)",
     "Skip to content": "Aller au contenu",
     "The show": "L'émission",
     "The Constellation": "La Constellation",

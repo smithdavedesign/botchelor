@@ -4,6 +4,15 @@ import type { Catalog } from "../translate";
 
 const catalog: Catalog = {
   "client": {
+    "Where to send it": "Wohin damit",
+    "PayPal": "PayPal",
+    "Wise": "Wise",
+    "Bank transfer": "Banküberweisung",
+    "Other": "Andere",
+    "Email for that account": "E-Mail dieses Kontos",
+    "Details (no full bank numbers: we'll ask for those privately)": "Details (keine vollständigen Bankdaten: die fragen wir privat ab)",
+    "Save": "Speichern",
+    "Saved.": "Gespeichert.",
     "Watch": "Ansehen",
     "Chat": "Chat",
     "Characters": "Figuren",
@@ -323,6 +332,22 @@ const catalog: Catalog = {
     "Manage connections": "Verbindungen verwalten"
   },
   "server": {
+    "Your earnings": "Deine Einnahmen",
+    "What your characters have earned from tips and template sales, your share, and what we still owe you.": "Was deine Figuren mit Trinkgeldern und Vorlagenverkäufen verdient haben, dein Anteil und was wir dir noch schulden.",
+    "Owed to you": "Dir geschuldet",
+    "Earned in all": "Insgesamt verdient",
+    "Paid out": "Ausgezahlt",
+    "Tips: {n} for {amount}.": "Trinkgelder: {n} für {amount}.",
+    "Template sales: {n} for {amount}.": "Vorlagenverkäufe: {n} für {amount}.",
+    "Tips reach you after Stripe's fees, and a template sale pays you 70% of its price. We pay out by hand once a month, once you're owed {min} or more.": "Trinkgelder bekommst du nach den Stripe-Gebühren, und ein Vorlagenverkauf bringt dir 70 % des Preises. Wir zahlen einmal im Monat von Hand aus, sobald wir dir {min} oder mehr schulden.",
+    "Make a free account to keep your earnings and say where to send them.": "Erstelle ein kostenloses Konto, um deine Einnahmen zu behalten und uns zu sagen, wohin wir sie schicken sollen.",
+    "Recent": "Neueste",
+    "Nothing yet. When someone tips one of your characters or buys one as a template, it shows here.": "Noch nichts. Wenn jemand einer deiner Figuren Trinkgeld gibt oder sie als Vorlage kauft, erscheint es hier.",
+    "The market": "Der Marktplatz",
+    "Tip": "Trinkgeld",
+    "Template sale": "Vorlagenverkauf",
+    "Payouts": "Auszahlungen",
+    "After Dark (18+) waitlist": "After Dark (18+) Warteliste",
     "Skip to content": "Zum Inhalt springen",
     "The show": "Die Show",
     "The Constellation": "Das Sternbild",

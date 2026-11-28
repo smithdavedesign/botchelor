@@ -4,6 +4,15 @@ import type { Catalog } from "../translate";
 
 const catalog: Catalog = {
   "client": {
+    "Where to send it": "Para onde enviar",
+    "PayPal": "PayPal",
+    "Wise": "Wise",
+    "Bank transfer": "Transferência bancária",
+    "Other": "Outro",
+    "Email for that account": "E-mail dessa conta",
+    "Details (no full bank numbers: we'll ask for those privately)": "Detalhes (sem números bancários completos: pediremos em particular)",
+    "Save": "Salvar",
+    "Saved.": "Salvo.",
     "Watch": "Assistir",
     "Chat": "Chat",
     "Characters": "Personagens",
@@ -323,6 +332,22 @@ const catalog: Catalog = {
     "Manage connections": "Gerenciar conexões"
   },
   "server": {
+    "Your earnings": "Seus ganhos",
+    "What your characters have earned from tips and template sales, your share, and what we still owe you.": "O que seus personagens ganharam com gorjetas e vendas de modelos, sua parte e o que ainda devemos a você.",
+    "Owed to you": "Devido a você",
+    "Earned in all": "Ganho no total",
+    "Paid out": "Pago",
+    "Tips: {n} for {amount}.": "Gorjetas: {n} por {amount}.",
+    "Template sales: {n} for {amount}.": "Vendas de modelos: {n} por {amount}.",
+    "Tips reach you after Stripe's fees, and a template sale pays you 70% of its price. We pay out by hand once a month, once you're owed {min} or more.": "As gorjetas chegam a você depois das taxas do Stripe, e uma venda de modelo paga 70% do preço. Pagamos manualmente uma vez por mês, quando devemos {min} ou mais.",
+    "Make a free account to keep your earnings and say where to send them.": "Crie uma conta grátis para guardar seus ganhos e dizer para onde enviá-los.",
+    "Recent": "Recentes",
+    "Nothing yet. When someone tips one of your characters or buys one as a template, it shows here.": "Nada ainda. Quando alguém der uma gorjeta a um dos seus personagens ou comprá-lo como modelo, aparece aqui.",
+    "The market": "O mercado",
+    "Tip": "Gorjeta",
+    "Template sale": "Venda de modelo",
+    "Payouts": "Pagamentos",
+    "After Dark (18+) waitlist": "Lista de espera do After Dark (18+)",
     "Skip to content": "Pular para o conteúdo",
     "The show": "O programa",
     "The Constellation": "A Constelação",

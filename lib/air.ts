@@ -27,6 +27,7 @@ import { pairNames } from "./names";
 import { notify, notifyAll } from "./notifications";
 import { settleDareForEpisode } from "./dare-points";
 import { ENDING_DETAIL_LABELS, endingDetailOf, ENDING_LABELS, predictionPoints, REPORT_HIDE_THRESHOLD, WATCH_DECISION_INDEX, WATCH_PHASES, WRITE_TIME } from "./rules";
+import { SHOW_DATE_TEASE, isShowDate } from "./show-spoilers";
 
 /**
  * How long after a watch party room starts its decision lands (lib/watch.ts syncRoom airs it then, for whoever is in the
@@ -121,8 +122,9 @@ export async function airEpisode(db: Db, id: string, hostId: string, opts: { air
  * wait. Only public dates score (as the leaderboard counts them), so an unlisted one says it scored nothing.
  */
 export async function notifyPredictors(db: Db, id: string): Promise<void> {
-  const { rows } = await db.query<{ user_id: string; pick: Ending; drama_pick: DramaAnswer | null; ending: Ending; ending_detail: string | null; drama_answer: DramaAnswer | null; is_public: boolean; a: string; b: string }>(
-    `select p.user_id, p.pick, p.drama_pick, e.ending, e.ending_detail, e.drama_answer, e.visibility = 'public' as is_public, ca.name as a, cb.name as b
+  const { rows } = await db.query<{ user_id: string; pick: Ending; drama_pick: DramaAnswer | null; ending: Ending; ending_detail: string | null; drama_answer: DramaAnswer | null; is_public: boolean; a: string; b: string; a_house: boolean; b_house: boolean }>(
+    `select p.user_id, p.pick, p.drama_pick, e.ending, e.ending_detail, e.drama_answer, e.visibility = 'public' as is_public, ca.name as a, cb.name as b,
+            ca.is_house as a_house, cb.is_house as b_house
        from predictions p join episodes e on e.id = p.episode_id
        join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
       where p.episode_id = $1 and e.revealed_at is not null and e.ending is not null`,
@@ -134,6 +136,16 @@ export async function notifyPredictors(db: Db, id: string): Promise<void> {
     const right = r.pick === r.ending;
     // A public call extends or ends the predictor's run (lib/streaks.ts); a private date doesn't count toward it.
     const run = r.is_public ? runNote(await callRecord(db, r.user_id).catch(() => NO_CALLS), right) : "";
+    // The show stays unspoiled (lib/show-spoilers.ts): a call on a date with the show's cast says it's scored, not how it went.
+    if (isShowDate(r.a_house, r.b_house)) {
+      await notify(db, r.user_id, {
+        kind: "prediction_scored",
+        title: `🔮 Your call on ${x} × ${y} is scored`,
+        body: `It's aired and your points are counted. ${SHOW_DATE_TEASE}`,
+        link: `/episodes/${id}`,
+      });
+      continue;
+    }
     await notify(db, r.user_id, {
       kind: "prediction_scored",
       title: points > 0 ? `🔮 Your pick on ${x} × ${y} scored: +${points} points` : `🔮 Your pick on ${x} × ${y}: not this time`,

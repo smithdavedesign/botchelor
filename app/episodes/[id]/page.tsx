@@ -36,6 +36,7 @@ import { episodeClip, episodeCut } from "@/lib/home-clip";
 import { coldOpenOf, coldOpenOn } from "@/lib/cold-open";
 import { partyIdForEpisode } from "@/lib/watch";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { isShowDate } from "@/lib/show-spoilers";
 import { authFromCookieStore, userIdFromCookieStore } from "@/lib/http";
 import { chatDateLinks, companionAllowed, companionEligible, companionOpen, companionThreadHref } from "@/lib/companion";
 import { textsAboutDate, type TextedAbout } from "@/lib/chat-date-links";
@@ -73,6 +74,7 @@ import EpisodeActions from "./EpisodeActions";
 import DatePhotos from "./DatePhotos";
 import { DATE_PHOTO_STYLES, datePhotoState } from "@/lib/studio/date-photos";
 import RecapToggle from "./RecapToggle";
+import ShowSpoilerFold from "./ShowSpoilerFold";
 import TranscriptRead from "./TranscriptRead";
 import { airIfDue, airWindowMinutes } from "@/lib/air";
 import { endingsLately } from "@/lib/endings-lately";
@@ -556,6 +558,8 @@ export default async function EpisodePage({
   const push = pushKeys();
   // The theater can play it (the ending is known and there are lines), so the written recap folds behind a toggle.
   const hasTheater = Boolean(episode.ending && episode.transcript && episode.transcript.length > 0);
+  // A date with the show's own cast is the show: what gives its ending away folds while there's a theater (lib/show-spoilers.ts).
+  const showFold = hasTheater && isShowDate(episode.characters[0]?.house, episode.characters[1]?.house);
   // The verdict card at the end of the creator's just-filmed date (VerdictCard.tsx): their character, its reflection, push.
   const verdict: TheaterVerdict | null =
     play && episode.is_creator && creatorSide && creatorSide.side !== null
@@ -997,7 +1001,9 @@ export default async function EpisodePage({
       )}
 
       {episode.afterglow && (
-        <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} shareable={episode.visibility !== "private"} />
+        <ShowSpoilerFold fold={showFold}>
+          <Afterglow episodeId={episode.id} characters={episode.characters} afterglow={episode.afterglow} secondDate={secondDate} dateNumber={dateNo} shareable={episode.visibility !== "private"} />
+        </ShowSpoilerFold>
       )}
       {datePhotos && <DatePhotos episodeId={episode.id} state={datePhotos} styles={DATE_PHOTO_STYLES.map((s) => ({ id: s.id, label: s.label }))} />}
       {!episode.afterglow && secondDate?.mutual && (
@@ -1024,8 +1030,11 @@ export default async function EpisodePage({
       {/* The ending's call, once it has aired: only for someone who made one (the 2026-11-22 audit: "You didn't predict this
           one." under "You didn't guess this one." was the page's last word to everyone who never played). */}
       {episode.revealed && !episode.is_creator && episode.my_pick && (
+        <ShowSpoilerFold fold={showFold}>
         <section className="card">
           <p className={episode.my_points ? "notice" : undefined}>
+            {/* The 40-visitor rerun: "+5 ⬛⬛🟩" didn't say what it ended in, so the line names it (behind the fold on a show date). */}
+            {episode.ending ? `It ended in ${endingLabel(episode.ending, dateNo).toLowerCase()}. ` : ""}
             You picked {endingLabel(episode.my_pick, dateNo)}
             {episode.drama_question &&
               episode.my_drama_pick &&
@@ -1039,6 +1048,7 @@ export default async function EpisodePage({
             )}
           </p>
         </section>
+        </ShowSpoilerFold>
       )}
 
       {episode.identity && (

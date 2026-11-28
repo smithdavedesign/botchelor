@@ -4,6 +4,15 @@ import type { Catalog } from "../translate";
 
 const catalog: Catalog = {
   "client": {
+    "Where to send it": "Ke mana dikirim",
+    "PayPal": "PayPal",
+    "Wise": "Wise",
+    "Bank transfer": "Transfer bank",
+    "Other": "Lainnya",
+    "Email for that account": "Email akun itu",
+    "Details (no full bank numbers: we'll ask for those privately)": "Detail (jangan nomor rekening lengkap: kami akan menanyakannya secara pribadi)",
+    "Save": "Simpan",
+    "Saved.": "Tersimpan.",
     "Watch": "Tonton",
     "Chat": "Obrolan",
     "Characters": "Karakter",
@@ -323,6 +332,22 @@ const catalog: Catalog = {
     "Manage connections": "Kelola koneksi"
   },
   "server": {
+    "Your earnings": "Penghasilanmu",
+    "What your characters have earned from tips and template sales, your share, and what we still owe you.": "Yang didapat karaktermu dari tip dan penjualan templat, bagianmu, dan yang masih kami utangkan padamu.",
+    "Owed to you": "Utang kami padamu",
+    "Earned in all": "Total penghasilan",
+    "Paid out": "Sudah dibayar",
+    "Tips: {n} for {amount}.": "Tip: {n} senilai {amount}.",
+    "Template sales: {n} for {amount}.": "Penjualan templat: {n} senilai {amount}.",
+    "Tips reach you after Stripe's fees, and a template sale pays you 70% of its price. We pay out by hand once a month, once you're owed {min} or more.": "Tip sampai padamu setelah biaya Stripe, dan penjualan templat membayarmu 70% dari harganya. Kami membayar manual sebulan sekali, setelah utang kami {min} atau lebih.",
+    "Make a free account to keep your earnings and say where to send them.": "Buat akun gratis untuk menyimpan penghasilanmu dan memberi tahu ke mana dikirim.",
+    "Recent": "Terbaru",
+    "Nothing yet. When someone tips one of your characters or buys one as a template, it shows here.": "Belum ada. Saat seseorang memberi tip ke salah satu karaktermu atau membelinya sebagai templat, akan muncul di sini.",
+    "The market": "Pasar",
+    "Tip": "Tip",
+    "Template sale": "Penjualan templat",
+    "Payouts": "Pembayaran",
+    "After Dark (18+) waitlist": "Daftar tunggu After Dark (18+)",
     "Skip to content": "Langsung ke konten",
     "The show": "Acara",
     "The Constellation": "Rasi Bintang",

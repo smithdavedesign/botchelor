@@ -98,10 +98,11 @@ export const COMPANION_LIMITS = { perHour: 150, perDay: 800 };
 export const COMPANION_OPEN_LIMITS = { perHour: 30, perDay: 100 };
 /**
  * Guests (no account, lib/companion-shared.ts) from one address, an HMAC of the IP (lib/limits.ts visitorKey): their
- * replies, and the conversations they open. A new cookie costs nothing, so the address is what holds a script back.
+ * replies, and the conversations they open. A new cookie costs nothing, so the address is what holds a script back. Four
+ * times one person's size since 2026-11-28 (lib/limits.ts SHARED_NETWORK_FACTOR): an office or a campus shares one address.
  */
-export const COMPANION_GUEST_IP_LIMITS = { perHour: 25, perDay: 60 };
-export const COMPANION_GUEST_OPEN_IP_LIMITS = { perHour: 8, perDay: 20 };
+export const COMPANION_GUEST_IP_LIMITS = { perHour: 25 * 4, perDay: 60 * 4 };
+export const COMPANION_GUEST_OPEN_IP_LIMITS = { perHour: 8 * 4, perDay: 20 * 4 };
 
 /**
  * A guest opening a conversation with this character: whether it's a new one (`fresh`), and why they can't (`block`, the

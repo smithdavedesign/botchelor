@@ -4,6 +4,15 @@ import type { Catalog } from "../translate";
 
 const catalog: Catalog = {
   "client": {
+    "Where to send it": "Adónde enviarlo",
+    "PayPal": "PayPal",
+    "Wise": "Wise",
+    "Bank transfer": "Transferencia bancaria",
+    "Other": "Otro",
+    "Email for that account": "Correo de esa cuenta",
+    "Details (no full bank numbers: we'll ask for those privately)": "Detalles (sin números bancarios completos: te los pediremos en privado)",
+    "Save": "Guardar",
+    "Saved.": "Guardado.",
     "Watch": "Ver",
     "Chat": "Chat",
     "Characters": "Personajes",
@@ -323,6 +332,22 @@ const catalog: Catalog = {
     "Manage connections": "Gestionar conexiones"
   },
   "server": {
+    "Your earnings": "Tus ganancias",
+    "What your characters have earned from tips and template sales, your share, and what we still owe you.": "Lo que tus personajes han ganado con propinas y ventas de plantillas, tu parte y lo que aún te debemos.",
+    "Owed to you": "Te debemos",
+    "Earned in all": "Ganado en total",
+    "Paid out": "Pagado",
+    "Tips: {n} for {amount}.": "Propinas: {n} por {amount}.",
+    "Template sales: {n} for {amount}.": "Ventas de plantillas: {n} por {amount}.",
+    "Tips reach you after Stripe's fees, and a template sale pays you 70% of its price. We pay out by hand once a month, once you're owed {min} or more.": "Las propinas te llegan después de las comisiones de Stripe, y una venta de plantilla te paga el 70% de su precio. Pagamos a mano una vez al mes, cuando te debemos {min} o más.",
+    "Make a free account to keep your earnings and say where to send them.": "Crea una cuenta gratis para conservar tus ganancias y decirnos adónde enviarlas.",
+    "Recent": "Reciente",
+    "Nothing yet. When someone tips one of your characters or buys one as a template, it shows here.": "Nada todavía. Cuando alguien dé una propina a uno de tus personajes o lo compre como plantilla, aparecerá aquí.",
+    "The market": "El mercado",
+    "Tip": "Propina",
+    "Template sale": "Venta de plantilla",
+    "Payouts": "Pagos",
+    "After Dark (18+) waitlist": "Lista de espera de After Dark (18+)",
     "Skip to content": "Saltar al contenido",
     "The show": "El programa",
     "The Constellation": "La Constelación",

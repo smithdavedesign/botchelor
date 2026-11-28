@@ -4,6 +4,15 @@ import type { Catalog } from "../translate";
 
 const catalog: Catalog = {
   "client": {
+    "Where to send it": "받을 곳",
+    "PayPal": "PayPal",
+    "Wise": "Wise",
+    "Bank transfer": "계좌 이체",
+    "Other": "기타",
+    "Email for that account": "해당 계정의 이메일",
+    "Details (no full bank numbers: we'll ask for those privately)": "상세 정보 (전체 계좌번호는 적지 마세요. 따로 비공개로 여쭤볼게요)",
+    "Save": "저장",
+    "Saved.": "저장했어요.",
     "Watch": "시청",
     "Chat": "채팅",
     "Characters": "캐릭터",
@@ -323,6 +332,22 @@ const catalog: Catalog = {
     "Manage connections": "연결 관리"
   },
   "server": {
+    "Your earnings": "내 수익",
+    "What your characters have earned from tips and template sales, your share, and what we still owe you.": "캐릭터가 팁과 템플릿 판매로 번 수익, 내 몫, 그리고 아직 지급하지 않은 금액입니다.",
+    "Owed to you": "받을 금액",
+    "Earned in all": "총 수익",
+    "Paid out": "지급 완료",
+    "Tips: {n} for {amount}.": "팁: {n}건, {amount}.",
+    "Template sales: {n} for {amount}.": "템플릿 판매: {n}건, {amount}.",
+    "Tips reach you after Stripe's fees, and a template sale pays you 70% of its price. We pay out by hand once a month, once you're owed {min} or more.": "팁은 Stripe 수수료를 뺀 금액이 지급되고, 템플릿이 팔리면 가격의 70%를 드립니다. 받을 금액이 {min} 이상이 되면 한 달에 한 번 직접 지급합니다.",
+    "Make a free account to keep your earnings and say where to send them.": "무료 계정을 만들면 수익을 보관하고 받을 곳을 알려 줄 수 있어요.",
+    "Recent": "최근",
+    "Nothing yet. When someone tips one of your characters or buys one as a template, it shows here.": "아직 없어요. 누군가 내 캐릭터에게 팁을 주거나 템플릿으로 구매하면 여기에 표시돼요.",
+    "The market": "마켓",
+    "Tip": "팁",
+    "Template sale": "템플릿 판매",
+    "Payouts": "지급 내역",
+    "After Dark (18+) waitlist": "After Dark (18+) 대기자 명단",
     "Skip to content": "본문으로 건너뛰기",
     "The show": "쇼",
     "The Constellation": "별자리",

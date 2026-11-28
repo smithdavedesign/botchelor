@@ -32,6 +32,7 @@ import CharacterName from "@/app/CharacterName";
 import { companionOpen } from "@/lib/companion-shared";
 import { planState, portalLink } from "@/lib/paid-plans";
 import { getT } from "@/lib/i18n/server";
+import { moneyOn } from "@/lib/money/switches";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +109,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Sear
       )}
       {claim && <ClaimCard {...claim} />}
       <AccountPanel next={next} emailConfirmed={emailConfirmed} persona={personaOn} />
+      {auth?.authenticated && (moneyOn("tips") || moneyOn("marketplace")) && (
+        <p data-earnings-link>
+          <Link href="/earnings">{t("Your earnings")}</Link>
+        </p>
+      )}
       <ThemeSetting initial={theme} />
       {showStyle && <WritingStylePicker side="show" initial={showStyle} price="included with your plan" />}
       {personaOn && <PersonaCard initial={persona} />}
