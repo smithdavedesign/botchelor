@@ -15,6 +15,7 @@ import { shareNextCard } from "@/lib/share-next";
 import { dateFilm } from "@/lib/date-film-read";
 import { getDb } from "@/lib/db";
 import { stageFigure } from "@/lib/cutout";
+import { characterPortrait } from "@/lib/portraits";
 import { dateListed } from "@/lib/public-cast";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
 import { viewerContinue } from "@/lib/adult/overnight";
@@ -291,7 +292,7 @@ export default async function EpisodePage({
     });
   // The theater's two figures (lib/cutout.ts stageFigure): started now, read with everything else.
   const figuresP = ready && episode.transcript?.length
-    ? Promise.all(episode.characters.map((c) => stageFigure(db, c.portrait).catch(() => null)))
+    ? Promise.all(episode.characters.map((c) => stageFigure(db, c.portrait ?? characterPortrait(c.id)).catch(() => null)))
     : Promise.resolve([null, null]);
   const talkP: Promise<{ id: string; name: string; signIn: boolean }[]> =
     ready && episode.revealed

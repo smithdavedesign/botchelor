@@ -93,6 +93,10 @@
   justify-content: flex-end;
   gap: 0;
 }
+/* The figures stand on the floor; their words and names sit above the playback controls. */
+.scene[data-staged] .scene-char {
+  padding-bottom: 5.25rem;
+}
 .scene[data-staged] .scene-char[data-standing] .scene-figure {
   position: absolute;
   inset: 0;
@@ -127,7 +131,7 @@
 }
 
 /* The line as a caption under its speaker, not a bubble over their head. */
-.scene[data-staged] .scene-char[data-standing] .scene-bubble {
+.scene[data-staged] .scene-char .scene-bubble {
   position: relative;
   z-index: 3;
   order: 2;
@@ -143,11 +147,11 @@
   box-shadow: none;
   backdrop-filter: blur(6px);
 }
-.scene[data-speaking="a"] .scene-char-b[data-standing] .scene-bubble,
-.scene[data-speaking="b"] .scene-char-a[data-standing] .scene-bubble {
+.scene[data-speaking="a"] .scene-char-b .scene-bubble,
+.scene[data-speaking="b"] .scene-char-a .scene-bubble {
   opacity: 0.55;
 }
-.scene[data-staged] .scene-char[data-standing] .scene-name {
+.scene[data-staged] .scene-char .scene-name {
   position: relative;
   z-index: 3;
   order: 3;
@@ -157,6 +161,21 @@
   font-size: var(--text-sm);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* Someone with no picture at all keeps their avatar, at the foot of the stage, under the same light. */
+.scene[data-staged] .scene-char:not([data-standing]) {
+  flex: 0 1 46%;
+  max-width: 46%;
+  justify-content: flex-end;
+}
+.scene[data-staged] .scene-char:not([data-standing]) .avatar {
+  order: 1;
+  margin-bottom: var(--space-3);
+}
+.scene[data-speaking="a"] .scene-char-b:not([data-standing]) .avatar,
+.scene[data-speaking="b"] .scene-char-a:not([data-standing]) .avatar {
+  filter: var(--stage-dim);
 }
 
 /* Their face for this line: a round close-up at the outside top, as a cut to the reaction. */
@@ -202,14 +221,22 @@
   .scene[data-staged] {
     --stage-bars: 0.6rem;
   }
+  .scene[data-staged] .scene-char {
+    padding-bottom: 0;
+  }
+  .scene[data-staged] .scene-char:not([data-standing]) .avatar {
+    scale: 0.6;
+    transform-origin: 50% 100%;
+    margin-bottom: 0;
+  }
   .scene[data-staged] .scene-cast {
     display: flex;
     top: var(--stage-bars);
     padding: 0 var(--space-2);
   }
   /* The words are in the thread under the banner, so the banner holds only the faces. */
-  .scene[data-staged] .scene-char[data-standing] .scene-bubble,
-  .scene[data-staged] .scene-char[data-standing] .scene-name,
+  .scene[data-staged] .scene-char .scene-bubble,
+  .scene[data-staged] .scene-char .scene-name,
   .scene[data-staged] .scene-closeup {
     display: none;
   }

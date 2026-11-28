@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Avatar from "./Avatar";
 import CharacterFigure from "./stage/CharacterFigure";
-import { venueBackdrop } from "@/lib/portraits";
+import { characterPortrait, venueBackdrop } from "@/lib/portraits";
 import { isPlaceholder, placeLabel, setPath, venueBackdropCss, venueName, type PlaceId } from "@/lib/venues";
 import type { CharacterRef } from "@/lib/game";
 
@@ -61,10 +61,12 @@ type SceneProps = {
  */
 export default function Scene({ characters, venue, lineA, lineB, actLabel, placeholder, setUrl, faceA, faceB, faceSize = 132, moodA = null, moodB = null, staged = null }: SceneProps) {
   const [a, b] = characters;
-  const standing = (c: CharacterRef) => Boolean(staged && (c.figure || c.portrait));
+  // A house character's portrait is its reviewed file (lib/portraits.ts), which the row doesn't carry.
+  const portraitOf = (c: CharacterRef) => c.portrait ?? characterPortrait(c.id);
+  const standing = (c: CharacterRef) => Boolean(staged && (c.figure || portraitOf(c)));
   const figureOf = (c: CharacterRef, mood: string | null) => (
     <>
-      <CharacterFigure portrait={c.portrait} cutout={c.figure ?? null} className="scene-figure" />
+      <CharacterFigure portrait={portraitOf(c)} cutout={c.figure ?? null} className="scene-figure" />
       {/* Their face for this line, as the close-up a two-shot cuts to (decorative: the line says it in words). */}
       {mood && (
         // eslint-disable-next-line @next/next/no-img-element -- a PG shot from its own route, already small
