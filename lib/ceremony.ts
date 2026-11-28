@@ -40,7 +40,7 @@ import { shotsJsonSql, shotUrl } from "./show-shots-sql";
 import { winnerOf } from "./situations";
 import { venuePhrase } from "./venues";
 import type { BombshellBoard } from "./bombshell";
-import { ceremonyRevealOn, exitInterview, exitInterviewsOn, type ExitInterview } from "./ceremony-night";
+import { ceremonyRevealOn, exitInterview, exitInterviewsOn, roseOrder, type ExitInterview } from "./ceremony-night";
 import { publicExtras, type CharacterExtras } from "./extras";
 
 /** How many days before a Sunday its vote opens (Thursday). */
@@ -520,6 +520,64 @@ async function facesOf(db: Db, ids: readonly string[]): Promise<{ faces: Map<str
     faces: new Map(rows.map((r) => [r.id, { id: r.id, name: r.name, hue: r.hue, portrait: r.portrait, house: r.house }])),
     roses: new Map(rows.flatMap((r) => (r.rose_id ? [[r.id, shotUrl(r.rose_id)] as const] : []))),
   };
+}
+
+/** One held ceremony as its share card draws it (app/api/og/ceremony/[day]): who kept a rose, who went home, the final rose. */
+export type CeremonyResult = {
+  title: string;
+  held_on: string;
+  week: number;
+  finale: boolean;
+  lead: CeremonyFace;
+  kept: CeremonyFace[];
+  went_home: CeremonyFace[];
+  final_rose: CeremonyFace | null;
+  /** Who the night's last rose went to, as the staged reveal tells it (lib/ceremony-night.ts): the final rose at a finale. */
+  last_rose: CeremonyFace | null;
+};
+
+/**
+ * A held ceremony by its Sunday (YYYY-MM-DD), for its share card (2026-11-28, Dave: "a ceremony result card"): only
+ * what the Botchelor card already shows everyone once it's held. Null for a day with no held ceremony. Two reads.
+ */
+export async function ceremonyResult(db: Db, heldOn: string): Promise<CeremonyResult | null> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return null;
+  const row = (
+    await db.query<Pick<CeremonyRow, "season_id" | "held_on" | "week" | "lead_id" | "finale" | "eliminated_by_vote" | "eliminated_by_lead" | "final_rose" | "remaining" | "choices">>(
+      `select season_id, held_on, week, lead_id, choices, finale, eliminated_by_vote, eliminated_by_lead, final_rose, remaining
+         from ceremonies where held_on = $1 and held_at is not null limit 1`,
+      [heldOn],
+    )
+  ).rows[0];
+  if (!row) return null;
+  // A finale's runners-up are everyone in it but the winner; a week's, whoever the vote and the lead sent home.
+  const home = row.finale
+    ? (row.choices ?? []).map((c) => c.id).filter((id) => id !== row.final_rose)
+    : [row.eliminated_by_vote, row.eliminated_by_lead].filter((s): s is string => Boolean(s));
+  const kept = row.finale ? [] : (row.remaining ?? []);
+  const [{ faces }, def] = await Promise.all([
+    facesOf(db, [row.lead_id, ...kept, ...home, ...(row.final_rose ? [row.final_rose] : [])]),
+    seasonFormatNow(db, new Date(`${row.held_on}T12:00:00Z`)).catch(() => null),
+  ]);
+  const face = (id: string): CeremonyFace => faces.get(id) ?? { id, name: "A suitor", hue: null, portrait: null, house: false };
+  const keptFaces = roseOrder(kept.map(face), row.held_on);
+  return {
+    title: def?.title ?? "The Botchelor",
+    held_on: row.held_on,
+    week: row.week,
+    finale: row.finale,
+    lead: face(row.lead_id),
+    kept: keptFaces,
+    went_home: home.map(face),
+    final_rose: row.final_rose ? face(row.final_rose) : null,
+    last_rose: row.finale ? (row.final_rose ? face(row.final_rose) : null) : row.eliminated_by_lead ? (keptFaces.at(-1) ?? null) : null,
+  };
+}
+
+/** The card's headline: "Mara got the final rose" at a finale, else the last rose of the night. */
+export function resultHeadline(result: Pick<CeremonyResult, "finale" | "last_rose" | "kept">): string {
+  if (result.last_rose) return `${shortName(result.last_rose.name)} got the ${result.finale ? "final" : "last"} rose`;
+  return result.kept.length ? `${result.kept.length} ${result.kept.length === 1 ? "rose" : "roses"}, handed out` : "The roses are handed out";
 }
 
 /** The Botchelor card's data for one viewer (/watch): null on any season without a lead, so a classic page is unchanged. */

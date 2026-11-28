@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import TestCard from "./TestCard";
 
 type Props = {
   /** What didn't load: "This page didn't load". */
@@ -14,12 +15,15 @@ type Props = {
 /**
  * What a page shows when it fails to render (each error.tsx): a way to try again and a way back, laid out like the 404
  * (app/not-found.tsx) and inside the site's layout, so the nav stays. Never the error's message: in production Next
- * strips it, and in development it can carry what a visitor shouldn't see.
+ * strips it, and in development it can carry what a visitor shouldn't see. Since 2026-11-28 it's the show's test card:
+ * colour bars and "Please stand by", the way a channel says something broke.
  */
 export default function PageError({ title, retry, home = { href: "/", label: "Back to the show" } }: Props) {
   return (
-    <article className="not-found">
-      <p className="kicker">Something went wrong</p>
+    <article className="not-found page-error">
+      {/* The channel's colour bars (app/TestCard.tsx): a failed page as television says it, not a bare error. */}
+      <TestCard />
+      <p className="kicker">Technical difficulties</p>
       <h1>{title}</h1>
       <p className="muted">It&apos;s on our side, not anything you did. Trying again usually works.</p>
       <p className="cta-row">

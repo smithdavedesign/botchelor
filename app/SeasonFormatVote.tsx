@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
+import VoteCast from "@/app/motion/VoteCast";
 import { showCrowd } from "@/lib/crowd-threshold";
 import type { SeasonBallot } from "@/lib/season-vote";
 
@@ -84,6 +85,7 @@ export default function SeasonFormatVote({ ballot, now, insider = false }: { bal
           );
         })}
       </ul>
+      <VoteCast pick={ballot.my_pick} />
       {error && <p className="error small">{error}</p>}
     </section>
   );

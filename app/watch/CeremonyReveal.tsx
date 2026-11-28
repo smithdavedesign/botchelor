@@ -5,6 +5,9 @@ import { useEffect, useState, type CSSProperties } from "react";
 import Avatar from "@/app/Avatar";
 import Icon from "@/app/Icon";
 import Petals from "@/app/motion/Petals";
+import SoundToggle from "@/app/motion/SoundToggle";
+import { cue } from "@/app/motion/cues";
+import ShareButton from "@/app/ShareButton";
 import { revealSteps, type NightFace, type RevealInput, type RevealStep } from "@/lib/ceremony-night";
 
 /** How long each step holds before the next, while it plays. */
@@ -129,9 +132,15 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
       setPlaying(false);
       return;
     }
-    const t = window.setTimeout(() => setShown((n) => n + 1), shown === 0 ? 300 : STEP_MS);
+    const t = window.setTimeout(() => {
+      // Each step's sound as it lands (app/motion/cues.ts; silent unless the viewer turned sound on).
+      const next = steps[shown];
+      if (next?.kind === "rose" || next?.kind === "goes_to") cue("chime");
+      else if (next?.kind === "limo") cue("door");
+      setShown((n) => n + 1);
+    }, shown === 0 ? 300 : STEP_MS);
     return () => window.clearTimeout(t);
-  }, [playing, shown, steps.length]);
+  }, [playing, shown, steps]);
   const markSeen = () => {
     try {
       window.localStorage.setItem(seenKey(last.held_on), "1");
@@ -141,6 +150,7 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
   };
   const play = () => {
     markSeen();
+    cue("tear");
     setShown(0);
     setPlayed(true);
     setPlaying(true);
@@ -160,7 +170,8 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
           </button>{" "}
           <button type="button" className="button-ghost small" onClick={all} data-track="ceremony-reveal-skip">
             Just tell me
-          </button>
+          </button>{" "}
+          <SoundToggle />
         </p>
       ) : (
         <ol className="ceremony-steps" aria-live="polite">
@@ -173,6 +184,17 @@ export default function CeremonyReveal({ last, staged }: { last: RevealInput; st
       )}
       {/* The last rose lands: petals over the whole card, once, for a viewer who watched it go out. */}
       {played && steps.slice(0, n).some((s) => s.kind === "goes_to") && <Petals delay={0.5} />}
+      {/* The night told: one tap shares it, as a link whose preview is the result card (app/api/og/ceremony). */}
+      {n >= steps.length && steps.length > 0 && (
+        <p className="ceremony-share">
+          <ShareButton
+            path={`/watch?ceremony=${last.held_on}#rose-ceremony`}
+            title={last.finale ? "The final rose · The Botchelor" : `Week ${last.week}'s rose ceremony · The Botchelor`}
+            label="Share the result"
+            track="ceremony-share"
+          />
+        </p>
+      )}
       {playing && n < steps.length && (
         <p>
           <button type="button" className="button-ghost small" onClick={all} data-track="ceremony-reveal-skip">

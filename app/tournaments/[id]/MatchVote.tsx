@@ -1,5 +1,6 @@
 "use client";
 
+import VoteCast from "@/app/motion/VoteCast";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
 import { requestJson } from "@/app/request";
@@ -81,6 +82,7 @@ export default function MatchVote({ tournamentId, m }: { tournamentId: string; m
         busy={busy}
         onVote={() => m.b && vote(m.b.id)}
       />
+      <VoteCast pick={m.my_pick} />
       {error && (
         <p className="form-error small" role="alert">
           {error}

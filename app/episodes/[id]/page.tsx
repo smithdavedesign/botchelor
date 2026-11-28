@@ -14,6 +14,8 @@ import { reportCardPath } from "@/lib/report-card";
 import { shareNextCard } from "@/lib/share-next";
 import { dateFilm } from "@/lib/date-film-read";
 import { getDb } from "@/lib/db";
+import { stageFigure } from "@/lib/cutout";
+import { characterPortrait } from "@/lib/portraits";
 import { dateListed } from "@/lib/public-cast";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
 import { viewerContinue } from "@/lib/adult/overnight";
@@ -288,6 +290,10 @@ export default async function EpisodePage({
       const can = await canMakeStory(db, viewerId, episode.is_creator);
       return { open: can, kept: null, price: can ? ((await storyPriceFor(db, viewerId ?? "")) ? `${STORY_TOKENS} bought date` : "included") : undefined };
     });
+  // The theater's two figures (lib/cutout.ts stageFigure): started now, read with everything else.
+  const figuresP = ready && episode.transcript?.length
+    ? Promise.all(episode.characters.map((c) => stageFigure(db, c.portrait ?? characterPortrait(c.id)).catch(() => null)))
+    : Promise.resolve([null, null]);
   const talkP: Promise<{ id: string; name: string; signIn: boolean }[]> =
     ready && episode.revealed
       ? (async () => {
@@ -327,6 +333,7 @@ export default async function EpisodePage({
     cut,
     upNext,
     film,
+    figures,
   ] = await Promise.all([
     // 🌙 on a date that carried an After Dark memory, only for someone After Dark is open to (never a hint to anyone else).
     episode.after_dark
@@ -416,6 +423,7 @@ export default async function EpisodePage({
     // The date on film (lib/date-film.ts): scenes of the two of them in the place, and diary-cam lines said to camera.
     // Only an aired date a stranger may see has any; nothing otherwise.
     ready && episode.revealed ? dateFilm(db, episode.id).catch(() => null) : null,
+    figuresP,
   ]);
   const { open: storyOpen, kept: keptStory, price: storyPrice } = await storyState.catch(() => ({ open: false, kept: null, price: undefined }));
   const talk = await talkP;
@@ -627,7 +635,10 @@ export default async function EpisodePage({
           {hasTheater && episode.ending && episode.transcript ? (
             <EpisodeTheater
               episodeId={episode.id}
-              characters={episode.characters}
+              characters={[
+                { ...episode.characters[0], figure: figures[0] ?? null },
+                { ...episode.characters[1], figure: figures[1] ?? null },
+              ]}
               venue={episode.venue ?? null}
               transcript={episode.transcript}
               endingLabel={endingTold}

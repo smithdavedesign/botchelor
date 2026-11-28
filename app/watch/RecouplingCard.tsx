@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { requestJson } from "@/app/request";
 import { useAction } from "@/app/useAction";
+import VoteCast from "@/app/motion/VoteCast";
 import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { RecouplingBoard } from "@/lib/recoupling";
 
@@ -53,6 +54,7 @@ export default function RecouplingCard({ board, now, insider = false }: { board:
               </span>
             ))}
           </p>
+          <VoteCast pick={board.my_pick} />
         </>
       ) : (
         Date.parse(board.runs_at) > now && <p className="muted small">The couples and singles of the season share one room, and pairs can re-form. The vote opens closer to the night.</p>

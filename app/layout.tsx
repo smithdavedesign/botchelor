@@ -79,8 +79,11 @@ import "./ux/phone.css";
 import "./ux/motion.css";
 import "./ux/finish.css";
 import "./ux/show-nights.css";
+import "./ux/broadcast.css";
+import "./ux/theater-stage.css";
 import Spotlight from "./motion/Spotlight";
 import NightBar from "./motion/NightBar";
+import OnAirBar from "./motion/OnAirBar";
 import { fontVariables } from "./fonts";
 import RoseSeal from "./RoseSeal";
 // The show's stage past the front door (the visual pop audit, 2026-11-20): SetHero, FaceRibbon, LoopClip.
@@ -263,6 +266,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </span>
           )}
           <Nav tokens={adHost && viewerId ? (adTokens ?? 0) : dates.left} meter={count.failed ? "none" : adHost ? (viewerId && afterDark && !door.admin ? "tokens" : "none") : "dates"} personal={adHost ? Boolean(viewerId) : ownAllowance(viewer, hasCharacter, dates)} unread={unread} texts={texts} afterDark={afterDark} adHost={adHost} showHref={showHome()} hasCharacter={hasCharacter} prefetchShow={!adHost} companions={companionOpen()} chat={navChat} adDoors={adDoors} characters={adHost ? [] : mine} character={rememberedCharacter(cookieStore)} />
+          {/* The next Sunday premiere, hanging under the header: live, tonight or this week (app/motion/OnAirBar.tsx). */}
+          {!adHost && <OnAirBar />}
         </header>
         {/* The season's arc runs under the header on the show's spectator pages (the design system's all-screens board).
             A lead season's (The Botchelor) counts to the final rose and opens its own page (docs/season-page.md). */}

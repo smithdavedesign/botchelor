@@ -24,7 +24,7 @@ import DateExcerpt from "@/app/DateExcerpt";
 import { pickFeaturedDate } from "@/lib/featured-date";
 import RecouplingCard from "./RecouplingCard";
 import BotchelorCard from "./BotchelorCard";
-import { ceremonyBoard } from "@/lib/ceremony";
+import { ceremonyBoard, ceremonyResult, resultHeadline } from "@/lib/ceremony";
 import { nextPremiere } from "@/lib/sunday-premiere";
 import WeeklyReveal from "@/app/WeeklyReveal";
 import { revealBoard } from "@/lib/weekly-reveal";
@@ -63,7 +63,24 @@ const DESCRIPTION =
 const pagePath = (page: number) => (page <= 1 ? "/watch" : `/watch?page=${page}`);
 
 export async function generateMetadata({ searchParams }: { searchParams: Search }): Promise<Metadata> {
-  const page = parsePage((await searchParams).page);
+  const search = await searchParams;
+  const page = parsePage(search.page);
+  // A shared ceremony result (CeremonyReveal's "Share the result"): the night's result card as the preview, canonical /watch.
+  const day = typeof search.ceremony === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.ceremony) ? search.ceremony : null;
+  if (day) {
+    const result = await getDb()
+      .then((db) => ceremonyResult(db, day))
+      .catch(() => null);
+    if (result) {
+      const headline = resultHeadline(result);
+      return pageMetadata({
+        title: `${headline} · ${result.title} · Botchelor`,
+        description: `${result.finale ? "The finale" : `Week ${result.week}`}'s rose ceremony on Botchelor, the AI dating show. Watch it back and vote on next Sunday's.`,
+        path: "/watch",
+        image: { url: `/api/og/ceremony/${day}`, width: 1200, height: 630, alt: `${headline}: the rose ceremony's result card` },
+      });
+    }
+  }
   return pageMetadata({
     title: page > 1 ? `${TITLE.replace(" · Botchelor", "")} (page ${page}) · Botchelor` : TITLE,
     description: DESCRIPTION,

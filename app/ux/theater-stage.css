@@ -1,0 +1,326 @@
+/* ================================================================================================================
+   The date theater, staged (2026-11-28, Dave: "both characters on both sides ... Do 1-5")
+   app/Scene.tsx with `staged` (the replay theater, app/episodes/[id]/EpisodeTheater.tsx): the two of them stand in the
+   place as figures, facing each other, the line as a caption under whoever said it; the speaker steps into the light
+   and the other dims; their face for the line cuts in as a close-up; the camera drifts and pushes in on the big lines;
+   the light changes with the act, golden hour to candlelight, with a dip to black and a letterboxed title between.
+   Everything that moves is inside the no-preference block at the end; under reduced motion the stage keeps its look.
+   ================================================================================================================ */
+
+.scene[data-staged] {
+  /* The light of each act, over the venue. */
+  --stage-golden: rgba(255, 176, 92, 0.3);
+  --stage-golden-low: rgba(255, 120, 60, 0.12);
+  --stage-dusk: rgba(196, 72, 160, 0.24);
+  --stage-dusk-low: rgba(54, 60, 168, 0.22);
+  --stage-candle: rgba(255, 150, 60, 0.26);
+  --stage-candle-dark: rgba(6, 3, 10, 0.62);
+  --stage-black: #050208;
+  --stage-caption-bg: rgba(8, 4, 12, 0.74);
+  --stage-caption-ink: #fff;
+  --stage-name-ink: rgba(255, 247, 242, 0.86);
+  --stage-dim: brightness(0.62) saturate(0.8);
+  --stage-lit: brightness(1.06) saturate(1.05);
+  --stage-closeup-ring: rgba(255, 255, 255, 0.9);
+  --stage-closeup-shadow: rgba(0, 0, 0, 0.55);
+  --stage-bars: 2.2rem;
+  overflow: hidden;
+  isolation: isolate;
+  background-size: 112%;
+}
+
+/* ---------------- The light of the act ---------------- */
+
+.scene-light {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.scene[data-act="0"] .scene-light {
+  background:
+    radial-gradient(ellipse 80% 70% at 15% 0%, var(--stage-golden), transparent 70%),
+    linear-gradient(180deg, transparent 40%, var(--stage-golden-low));
+}
+.scene[data-act="1"] .scene-light {
+  background:
+    radial-gradient(ellipse 70% 60% at 85% 10%, var(--stage-dusk), transparent 70%),
+    linear-gradient(200deg, transparent 30%, var(--stage-dusk-low));
+}
+.scene[data-act="2"] .scene-light {
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 100%, var(--stage-candle), transparent 75%),
+    radial-gradient(ellipse 90% 80% at 50% 55%, transparent 45%, var(--stage-candle-dark));
+}
+
+/* ---------------- Letterbox and the act's title card ---------------- */
+
+.scene[data-staged]::before,
+.scene[data-staged]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--stage-bars);
+  background: var(--stage-black);
+  z-index: 4;
+  pointer-events: none;
+}
+.scene[data-staged]::before {
+  top: 0;
+}
+.scene[data-staged]::after {
+  bottom: 0;
+}
+.scene-title-card {
+  display: none;
+}
+
+/* ---------------- The two of them, standing ---------------- */
+
+.scene[data-staged] .scene-cast {
+  z-index: 2;
+  top: calc(var(--stage-bars) + 3.5rem);
+  bottom: var(--stage-bars);
+  align-items: stretch;
+  padding: 0 clamp(0.5rem, 3vw, 3rem);
+  perspective: 900px;
+}
+.scene[data-staged] .scene-char[data-standing] {
+  position: relative;
+  flex: 0 1 46%;
+  max-width: 46%;
+  justify-content: flex-end;
+  gap: 0;
+}
+/* The figures stand on the floor; their words and names sit above the playback controls. */
+.scene[data-staged] .scene-char {
+  padding-bottom: 5.25rem;
+}
+.scene[data-staged] .scene-char[data-standing] .scene-figure {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+/* Turned a little toward each other, so it reads as a two-shot and not two passport photos. */
+.scene[data-staged] .scene-char-a[data-standing] .scene-figure {
+  transform: rotateY(10deg);
+  transform-origin: 30% 100%;
+}
+.scene[data-staged] .scene-char-b[data-standing] .scene-figure {
+  transform: rotateY(-10deg);
+  transform-origin: 70% 100%;
+}
+.scene[data-staged] .scene-char[data-standing] .character-figure-img {
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+/* The speaker steps into the light; the other one waits in the half-dark. */
+.scene[data-speaking="a"] .scene-char-b[data-standing] .scene-figure,
+.scene[data-speaking="b"] .scene-char-a[data-standing] .scene-figure {
+  filter: var(--stage-dim);
+  scale: 0.97;
+}
+.scene[data-speaking="a"] .scene-char-a[data-standing] .scene-figure,
+.scene[data-speaking="b"] .scene-char-b[data-standing] .scene-figure {
+  filter: var(--stage-lit);
+  scale: 1.02;
+  z-index: 1;
+}
+
+/* The line as a caption under its speaker, not a bubble over their head. */
+.scene[data-staged] .scene-char .scene-bubble {
+  position: relative;
+  z-index: 3;
+  order: 2;
+  align-self: center;
+  max-width: min(36ch, 100%);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--stage-caption-bg);
+  color: var(--stage-caption-ink);
+  text-align: center;
+  font-size: var(--text-md);
+  box-shadow: none;
+  backdrop-filter: blur(6px);
+}
+.scene[data-speaking="a"] .scene-char-b .scene-bubble,
+.scene[data-speaking="b"] .scene-char-a .scene-bubble {
+  opacity: 0.55;
+}
+.scene[data-staged] .scene-char .scene-name {
+  position: relative;
+  z-index: 3;
+  order: 3;
+  align-self: center;
+  margin-bottom: var(--space-2);
+  color: var(--stage-name-ink);
+  font-size: var(--text-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Someone with no picture at all keeps their avatar, at the foot of the stage, under the same light. */
+.scene[data-staged] .scene-char:not([data-standing]) {
+  flex: 0 1 46%;
+  max-width: 46%;
+  justify-content: flex-end;
+}
+.scene[data-staged] .scene-char:not([data-standing]) .avatar {
+  order: 1;
+  margin-bottom: var(--space-3);
+}
+.scene[data-speaking="a"] .scene-char-b:not([data-standing]) .avatar,
+.scene[data-speaking="b"] .scene-char-a:not([data-standing]) .avatar {
+  filter: var(--stage-dim);
+}
+
+/* Their face for this line: a round close-up at the outside top, as a cut to the reaction. */
+.scene-closeup {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  width: clamp(4.5rem, 9vw, 7rem);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-pill);
+  border: 3px solid var(--stage-closeup-ring);
+  box-shadow: 0 10px 30px var(--stage-closeup-shadow);
+}
+.scene-char-a .scene-closeup {
+  left: 0;
+}
+.scene-char-b .scene-closeup {
+  right: 0;
+}
+.scene[data-speaking="a"] .scene-char-b .scene-closeup,
+.scene[data-speaking="b"] .scene-char-a .scene-closeup {
+  opacity: 0;
+}
+
+/* The act chip and the venue's name clear the top bar. */
+.scene[data-staged] .scene-act {
+  top: calc(var(--stage-bars) + 2.4rem);
+  z-index: 3;
+}
+.scene[data-staged] .scene-venue,
+.scene[data-staged] .scene-placeholder {
+  z-index: 3;
+}
+
+/* ---------------- A phone: the banner gets taller and the two of them peek up from its foot ---------------- */
+
+@media (max-width: 760px) {
+  .theater-scene-area:has(.scene[data-staged]) {
+    height: 30vh;
+    min-height: 170px;
+  }
+  .scene[data-staged] {
+    --stage-bars: 0.6rem;
+  }
+  .scene[data-staged] .scene-char {
+    padding-bottom: 0;
+  }
+  .scene[data-staged] .scene-char:not([data-standing]) .avatar {
+    scale: 0.6;
+    transform-origin: 50% 100%;
+    margin-bottom: 0;
+  }
+  .scene[data-staged] .scene-cast {
+    display: flex;
+    top: var(--stage-bars);
+    padding: 0 var(--space-2);
+  }
+  /* The words are in the thread under the banner, so the banner holds only the faces. */
+  .scene[data-staged] .scene-char .scene-bubble,
+  .scene[data-staged] .scene-char .scene-name,
+  .scene[data-staged] .scene-closeup {
+    display: none;
+  }
+  .scene[data-staged] .scene-char[data-standing] .character-figure-img {
+    height: 135%;
+    object-position: center top;
+  }
+  .scene[data-staged] .scene-venue {
+    z-index: 5;
+  }
+}
+
+/* ---------------- What moves ---------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The camera never quite holds still: a slow drift across the place. */
+  .scene[data-staged] {
+    animation: stage-drift 38s ease-in-out infinite alternate;
+  }
+  /* On a big line it pushes in on the two of them. */
+  .scene[data-staged] .scene-cast {
+    transition: scale 1.4s var(--ease-out, ease-out);
+  }
+  .scene[data-push] .scene-cast {
+    scale: 1.05;
+  }
+  .scene[data-staged] .scene-figure {
+    transition:
+      filter 0.6s ease,
+      scale 0.6s var(--ease-out, ease-out);
+  }
+  .scene[data-staged] .scene-char[data-standing] .scene-bubble {
+    transition: opacity 0.4s ease;
+    animation: caption-up 0.35s var(--ease-out, ease-out);
+  }
+  .scene-closeup {
+    transition: opacity 0.3s ease;
+    animation: closeup-cut 0.4s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  .scene-light {
+    transition: opacity 1.2s ease;
+    animation: light-change 2s ease-out;
+  }
+  /* Between acts: a dip to black, then the act's title in letterbox, then the date carries on. */
+  .scene-title-card {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    background: var(--stage-black);
+    color: var(--stage-caption-ink);
+    font-family: var(--font-display), Georgia, serif;
+    font-size: var(--text-display);
+    font-style: italic;
+    pointer-events: none;
+    opacity: 0;
+    animation: title-card 2.6s ease-in-out;
+  }
+  .scene-title-card > span {
+    animation: title-card-words 2.6s ease-in-out;
+  }
+}
+
+@keyframes stage-drift {
+  from { background-position: 42% 50%; }
+  to { background-position: 58% 46%; }
+}
+@keyframes caption-up {
+  from { opacity: 0; translate: 0 0.5rem; }
+}
+@keyframes closeup-cut {
+  from { opacity: 0; scale: 0.7; }
+}
+@keyframes light-change {
+  from { opacity: 0; }
+}
+@keyframes title-card {
+  0% { opacity: 0; }
+  15%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes title-card-words {
+  0%, 15% { opacity: 0; letter-spacing: 0.3em; }
+  35%, 70% { opacity: 1; letter-spacing: 0.04em; }
+  100% { opacity: 0; }
+}

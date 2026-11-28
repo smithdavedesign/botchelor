@@ -1,6 +1,7 @@
 "use client";
 
 import "./globals.css";
+import "./ux/broadcast.css";
 import PageError from "./PageError";
 
 /**

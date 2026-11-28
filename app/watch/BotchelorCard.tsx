@@ -10,6 +10,7 @@ import type { CeremonyBoard, SuitorState } from "@/lib/ceremony";
 import type { NextPremiere } from "@/lib/premiere-clock";
 import { showSetBackground } from "@/lib/show-sets";
 import Icon from "@/app/Icon";
+import VoteCast from "@/app/motion/VoteCast";
 import CeremonyReveal from "./CeremonyReveal";
 
 const STATE_WORD: Record<SuitorState, string> = { in: "still in", out: "went home", final_rose: "the final rose", runner_up: "runner-up" };
@@ -112,6 +113,7 @@ export default function BotchelorCard({
               </span>
             ))}
           </p>
+          <VoteCast pick={board.vote.my_pick} />
         </>
       ) : board.next ? (
         <p className="muted small">
@@ -163,6 +165,7 @@ export default function BotchelorCard({
               </span>
             ))}
           </p>
+          <VoteCast pick={board.bombshell.my_pick} />
         </div>
       )}
       {board.bombshell?.state === "joined" && board.bombshell.joined && (

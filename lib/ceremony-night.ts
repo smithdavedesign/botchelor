@@ -75,7 +75,7 @@ export type RevealStep =
   | { kind: "close"; line: string };
 
 /** A steady order for the roses, from the ceremony's day: the same for every viewer and every replay. */
-function order<T extends { id: string }>(list: readonly T[], seed: string): T[] {
+export function roseOrder<T extends { id: string }>(list: readonly T[], seed: string): T[] {
   const h = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   return [...list].sort((a, b) => h(seed + a.id) - h(seed + b.id) || a.id.localeCompare(b.id));
 }
@@ -98,19 +98,19 @@ export function revealSteps(c: RevealInput): RevealStep[] {
   const short = (f: NightFace) => f.name.split(/\s+/)[0];
   const exitOf = (f: NightFace) => c.exits.find((e) => e.id === f.id);
   if (c.finale && c.final_rose) {
-    const faces = order([c.final_rose, ...c.runners_up], c.held_on);
+    const faces = roseOrder([c.final_rose, ...c.runners_up], c.held_on);
     steps.push({ kind: "last_rose", faces, line: `One rose. ${faces.length === 1 ? "One face" : `${faces.length} faces`}.` });
     steps.push({ kind: "goes_to", face: c.final_rose, line: take(lineWith(c.lines, `final rose goes to ${short(c.final_rose)}`, used) ?? lineWith(c.lines, short(c.final_rose), used)) });
     for (const r of c.runners_up) steps.push({ kind: "home", face: r, line: null });
   } else {
     if (c.voted_out) steps.push({ kind: "vote", face: c.voted_out, line: take(lineWith(c.lines, short(c.voted_out), used)) });
-    const roses = order(c.kept, c.held_on);
+    const roses = roseOrder(c.kept, c.held_on);
     // The last rose is between the last of the kept and whoever the lead sends home; with no lead pick, every rose is plain.
     const last = c.lead_out && roses.length ? roses[roses.length - 1] : null;
     const plain = last ? roses.slice(0, -1) : roses;
     plain.forEach((f, i) => steps.push({ kind: "rose", face: f, n: i + 1, of: roses.length }));
     if (last && c.lead_out) {
-      steps.push({ kind: "last_rose", faces: order([last, c.lead_out], c.held_on + "last"), line: "One rose left. Two faces." });
+      steps.push({ kind: "last_rose", faces: roseOrder([last, c.lead_out], c.held_on + "last"), line: "One rose left. Two faces." });
       steps.push({ kind: "goes_to", face: last, line: null });
       steps.push({ kind: "home", face: c.lead_out, line: take(lineWith(c.lines, short(c.lead_out), used)) });
     }

@@ -110,6 +110,18 @@ look under reduced motion; only nothing moves.
 headlines and Inter text, loaded as TTF from `assets/fonts` because next/og can't read WOFF2. A new card uses
 `OG_NIGHT`, `OgLetterbox`, `OgKicker` and `ogFontOptions()`, and never a literal font name.
 
+**On the air** (`app/ux/broadcast.css`, 2026-11-28): the in-between moments are a broadcast. A broken page is a
+test card ("Technical difficulties", `app/TestCard.tsx`), an empty list has a "Stay tuned" slate, a loading page a
+"Coming up" plate. A vote drops a ballot in a box and stamps the seal (`app/motion/VoteCast.tsx`). On Sundays an
+"on air" bar hangs under the header (live, tonight's countdown, a chip the rest of the week; `app/motion/OnAirBar.tsx`).
+Sound is off until a viewer turns it on (`app/motion/cues.ts`: synthesized, no files). A held ceremony has a result
+card (`/api/og/ceremony/<day>`), and a character's page has the confessional booth (`Booth.tsx`).
+
+**The staged theater** (`app/ux/theater-stage.css`, 2026-11-28): a date's replay stands both of them in the place as
+figures (`lib/cutout.ts` stageFigure), the line as a caption, the speaker lit and the other dimmed, their face for the
+line as a close-up, the camera drifting and pushing in on big lines (`lib/theater-beats.ts`), the light changing by act
+with a letterboxed title between. The live room and the companion keep the plain stage.
+
 Every type size is a fluid token: `clamp(min, preferred, max)` grows from the phone size to the desktop size,
 so small text never drops below 12px on a phone, and a control's label shrinks a little in a narrow card rather
 than wrapping badly. Use a token, never a fixed rem or px, for text. A size that's off the scale takes the nearest

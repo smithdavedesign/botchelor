@@ -4,6 +4,7 @@ import Link from "next/link";
 import Avatar from "./Avatar";
 import { requestJson } from "./request";
 import { useAction } from "./useAction";
+import VoteCast from "@/app/motion/VoteCast";
 import { showCrowd, tallyLine } from "@/lib/crowd-threshold";
 import type { SituationBoard } from "@/lib/situations";
 
@@ -75,6 +76,7 @@ export default function SituationVote({ board, now, insider = false, part = fals
           );
         })}
       </ul>
+      <VoteCast pick={board.my_pick} />
       {error && <p className="error small">{error}</p>}
       {board.last && (
         <p className="situation-last small">

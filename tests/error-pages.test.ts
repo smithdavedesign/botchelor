@@ -29,7 +29,7 @@ function find(node: ReactNode, match: (el: ReactElement<Record<string, unknown>>
 describe("the error pages", () => {
   it("say what didn't load and offer Try again and the way back, never the error itself", () => {
     const page = html(createElement(SiteError, { error: failed, retry: () => {} }));
-    expect(page).toContain('<article class="not-found">');
+    expect(page).toContain('<article class="not-found page-error">');
     expect(page).toContain("<h1>This page didn&#x27;t load</h1>");
     expect(page).toContain('<button type="button" class="button">Try again</button>');
     expect(page).toContain('<a class="button secondary" href="/">Back to the show</a>');
@@ -55,7 +55,7 @@ describe("the error pages", () => {
     expect(page).toMatch(/^<html lang="en">/);
     expect(page).toContain("<title>Something went wrong · Botchelor</title>");
     expect(page).toContain('<a href="/" class="logo">Botchelor</a>');
-    expect(page).toContain('<main id="main"><article class="not-found">');
+    expect(page).toContain('<main id="main"><article class="not-found page-error">');
     expect(page).toContain("Botchelor didn&#x27;t load");
     expect(page).not.toContain("secret_table");
   });
