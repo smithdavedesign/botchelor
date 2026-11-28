@@ -30,7 +30,8 @@ export function setSound(on: boolean): void {
 
 type Ctx = AudioContext;
 let ctx: Ctx | null = null;
-function audio(): Ctx | null {
+/** The page's one audio context (created on first use, resumed if the browser suspended it), or null where there's none. */
+export function audio(): Ctx | null {
   if (typeof window === "undefined") return null;
   const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return null;

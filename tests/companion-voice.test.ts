@@ -6,7 +6,12 @@ import { saveAdultSettings } from "@/lib/adult/settings";
 import { setCompanionModelForTests } from "@/lib/companion";
 import { COMPANION_EXTRAS, extraPrice } from "@/lib/companion-shared";
 import { extraState, takeExtra } from "@/lib/companion-extras";
-import { signedVoiceUrl, voiceLinkValid } from "@/lib/companion-voice";
+import { forgetUnusedVoices, signedVoiceUrl, voiceLinkValid } from "@/lib/companion-voice";
+import { GET as voicePicksRoute } from "@/app/api/voice/route";
+import { GET as voiceSampleRoute } from "@/app/api/voice/sample/[id]/route";
+import { ExtrasInput, normaliseExtras } from "@/lib/extras";
+import { pickedVoice } from "@/lib/voice";
+import { VOICE_PICKS, VOICE_SAMPLE_LINE } from "@/lib/voice-picks";
 import { HOUSE_CHARACTERS } from "@/lib/house";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { grantPlan } from "@/lib/paid-plans";
@@ -250,5 +255,58 @@ describe("voice notes", () => {
     const read = (await call({ action: "read", thread_id: opened.thread_id })).structuredContent;
     expect(read.messages.find((m: Any) => m.id === said.id).voice).toMatch(/sig=/);
     expect((await call({ action: "voice", thread_id: opened.thread_id })).isError).toBe(true);
+  });
+});
+
+// The voice picker (lib/voice-picks.ts, 2026-11-28): an owner picks one of the stock Inworld voices; off unless VOICE_PICKER=1.
+describe("picked voices", () => {
+  const pick = (id: string) => t.db.query(`update characters set extras = coalesce(extras, '{}'::jsonb) || jsonb_build_object('voice', $2::text) where id = $1`, [CAST.id, id]);
+
+  it("takes only a listed voice, and leaves out the childlike and theatrical ones", () => {
+    expect(normaliseExtras(ExtrasInput.parse({ voice: "ashley" })).voice).toBe("ashley");
+    expect(ExtrasInput.safeParse({ voice: "pixie" }).success).toBe(false);
+    expect(ExtrasInput.safeParse({ voice: "someone-real" }).success).toBe(false);
+    expect(VOICE_PICKS.map((p) => p.name)).not.toContain("Pixie");
+    expect(VOICE_PICKS.map((p) => p.name)).not.toContain("Hades");
+  });
+
+  it("does nothing while VOICE_PICKER is off: the default voice, no picker, no samples", async () => {
+    expect(pickedVoice({ extras: { voice: "ashley" } })).toBeNull();
+    expect(await (await voicePicksRoute()).json()).toEqual({ on: false, picks: [] });
+    expect((await voiceSampleRoute(new Request(`${BASE_URL}/api/voice/sample/ashley`), { params: Promise.resolve({ id: "ashley" }) })).status).toBe(404);
+    await pick("ashley");
+    const me = await person({ admin: true });
+    const { id, reply } = await thread(me.cookie);
+    expect((await voice(me.cookie, id, reply)).status).toBe(200);
+    expect(asked.at(-1)).toMatchObject({ model: "tts-kokoro", voice: voiceFor(CAST) });
+  });
+
+  it("with it on, a voice note is said in the picked voice, kept apart from the default one", async () => {
+    vi.stubEnv("VOICE_PICKER", "1");
+    expect(pickedVoice({ extras: { voice: "ashley" } })).toBe("inworld:Ashley");
+    expect(pickedVoice({ extras: { voice: "pixie" } })).toBeNull();
+    await pick("theodore");
+    const me = await person({ admin: true });
+    const { id, reply } = await thread(me.cookie);
+    expect((await voice(me.cookie, id, reply)).status).toBe(200);
+    expect(asked.at(-1)).toEqual({ model: "tts-inworld-1-5-max", input: "Tell me more about it.", voice: "Theodore", response_format: "wav" });
+    expect((await t.db.query<{ voice: string }>(`select voice from companion_voice`)).rows.map((r) => r.voice)).toEqual(["inworld:Theodore"]);
+  });
+
+  it("lists the picks and plays each sample, made once on Venice and never swept away", async () => {
+    vi.stubEnv("VOICE_PICKER", "1");
+    const listed = (await (await voicePicksRoute()).json()) as Any;
+    expect(listed.on).toBe(true);
+    expect(listed.picks).toHaveLength(VOICE_PICKS.length);
+    const play = (id: string) => voiceSampleRoute(new Request(`${BASE_URL}/api/voice/sample/${id}`), { params: Promise.resolve({ id }) });
+    const first = await play("olivia");
+    expect(first.status).toBe(200);
+    expect(first.headers.get("x-ai-generated")).toBe("true");
+    expect(asked).toEqual([{ model: "tts-inworld-1-5-max", input: VOICE_SAMPLE_LINE, voice: "Olivia", response_format: "wav" }]);
+    expect((await play("olivia")).status).toBe(200);
+    expect(asked).toHaveLength(1);
+    expect((await play("pixie")).status).toBe(503);
+    await forgetUnusedVoices(t.db);
+    expect((await t.db.query(`select 1 from companion_voice where key like 'sample:%'`)).rows).toHaveLength(1);
   });
 });

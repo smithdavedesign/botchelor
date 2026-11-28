@@ -827,6 +827,26 @@ David, 2026-11-09: "yes work on P3". The first of P3's three parts.
   have no session); `read` carries `voice` on a reply that has one. Free to agents, 10 an hour and 30 a day each
   (`COMPANION_AGENT_VOICE_LIMITS`), inside the same daily ceiling.
 
+### A voice of their own (built 2026-11-28, off until the freeze lifts)
+
+David, 2026-11-28: "make sure they are good voices and don't sound fake". The owner picks how their character sounds.
+- **The voices** (`lib/voice-picks.ts`): ten of Inworld TTS 1.5 Max's stock voices on Venice (`tts-inworld-1-5-max`),
+  which blind listening votes put around Elo 1,210–1,236 against Kokoro's 1,060. $12.50 a million characters against
+  Kokoro's $3.50: a 200-character voice note is about 0.25¢, made once and kept. Left out: Pixie (childlike: every
+  character is an adult), Hades (a theatrical narrator), Luna (meditations) and Elizabeth (voiceovers). Stock voices
+  only, never a cloned one, so nobody can make a character sound like a real person.
+- **Where it's picked:** the builder's How do they talk step, "Their speaking voice" (`app/create/SpokenVoicePicker.tsx`),
+  in a new character and when editing. ▶ plays each voice saying the same line (`GET /api/voice/sample/:id`, made once
+  on Venice and kept in `companion_voice` under a `sample:` key that `forgetUnusedVoices` leaves alone; ten voices,
+  about 1.4¢ in all). Saved as `extras.voice`; agents can set it too (`extrasJsonSchema`).
+- **Where it's heard:** voice notes (`lib/companion-voice.ts`) and After Dark's voiced lines and Step in
+  (`lib/adult/voice-lines.ts`, `lib/adult/step-in-voice.ts`), over the settings' voice model. When Venice is limited and
+  the line is said on Replicate's Kokoro instead, it's kept as the default voice, so the picked one is tried again next
+  time. Live calls keep their Deepgram Aura voice (another provider).
+- **Switch:** `VOICE_PICKER`, off unless `1` (the feature freeze to 2026-12-08). Off: no picker, no samples, and a saved
+  pick is kept but not used, so turning it off is the whole way back.
+- Tests: `tests/companion-voice.test.ts` ("picked voices").
+
 ### What extras cost (`lib/companion-extras.ts`)
 
 David's pricing call (2026-11-09): the Companion Plan includes some each month, then the show's bought tokens at about

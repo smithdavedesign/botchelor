@@ -122,6 +122,15 @@ figures (`lib/cutout.ts` stageFigure), the line as a caption, the speaker lit an
 line as a close-up, the camera drifting and pushing in on big lines (`lib/theater-beats.ts`), the light changing by act
 with a letterboxed title between. The live room and the companion keep the plain stage.
 
+**The theater as a show** (`app/ux/theater-show.css`, 2026-11-28): on the replay a chemistry heart between the two
+fills and drains with their interest and cracks on a walk-out; they walk in with name cards; the ending is acted out
+(petals, a wave, one of them walking off) before the end card; a confessional cuts in between acts in the booth's
+frame; viewers tap 😍 😬 💀 and their taps come back on the same lines for the next viewer ("12 viewers cringed
+here", real counts only, `lib/line-reactions.ts`); the peanut gallery, the show's own bots, heckle from templates
+(`lib/peanut-gallery.ts`), every one with a **Bot** tag and never counted as viewers; 📸 shares a line as a moment
+card (`/api/og/moment/<id>/<line>`); and with sound on the place has a quiet bed (`app/motion/beds.ts`). The 🍿
+button turns the crowd off; the daily clip records with it off.
+
 Every type size is a fluid token: `clamp(min, preferred, max)` grows from the phone size to the desktop size,
 so small text never drops below 12px on a phone, and a control's label shrinks a little in a narrow card rather
 than wrapping badly. Use a token, never a fixed rem or px, for text. A size that's off the scale takes the nearest
