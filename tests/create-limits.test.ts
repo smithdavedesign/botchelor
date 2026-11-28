@@ -3,7 +3,7 @@ import { POST as createCharacter } from "@/app/api/characters/route";
 import { drawShowPortrait, SHOW_PORTRAIT_LIMITS } from "@/lib/agent-portraits";
 import { CREATE_ALL_LIMITS, CREATE_CHECK_LIMITS, CREATE_LIMITS, createRefusal } from "@/lib/create-limits";
 import { internalRequest } from "@/lib/http";
-import { visitorKey } from "@/lib/limits";
+import { SHARED_NETWORK_FACTOR, visitorKey } from "@/lib/limits";
 import { handleMcpMessage, type McpContext } from "@/lib/mcp";
 import { BASE_URL, newUserCookie, signedInCookie, startTestDb, TEST_SESSION_SECRET, userIdOf, validCharacter } from "./helpers";
 
@@ -51,12 +51,13 @@ describe("making characters from the web", () => {
     const me = visitorKey(new Headers({ "do-connecting-ip": ADDRESS }))!;
     expect((await create(validCharacter({ name: "Ada Lumen" }))).status).toBe(201);
     expect(await hits("character_create")).toEqual([me]);
-    await used("character_create", me, CREATE_LIMITS.perHour - 1);
+    // The address is a shared network's ceiling, SHARED_NETWORK_FACTOR people's worth (2026-11-28).
+    await used("character_create", me, CREATE_LIMITS.perHour * SHARED_NETWORK_FACTOR - 1);
     const held = await create(validCharacter({ name: "Bo Quill" }), { address: ADDRESS });
     expect(held.status).toBe(429);
     const body = await held.json();
     expect(body.error).toBe("too_many_characters");
-    expect(body.message).toMatch(/try again tomorrow/);
+    expect(body.message).toMatch(/your network/);
     // A made-up forwarding header doesn't reset it; another address isn't held.
     const forged = createCharacter(
       new Request(`${BASE_URL}/api/characters`, {
@@ -76,7 +77,7 @@ describe("making characters from the web", () => {
     expect(check.status).toBe(200);
     expect((await hits("character_create")).length).toBe(CREATE_LIMITS.perHour);
     expect(await hits("character_check")).toEqual([me]);
-    await used("character_check", me, CREATE_CHECK_LIMITS.perHour);
+    await used("character_check", me, CREATE_CHECK_LIMITS.perHour * SHARED_NETWORK_FACTOR);
     const held = await create({ name: "Ada Lumen", check_only: true });
     expect(held.status).toBe(429);
     expect((await held.json()).error).toBe("too_many_checks");

@@ -16,6 +16,14 @@ making your copy, listing yours, and what your characters have earned).
 Every payment is an ordinary `orders` row granted by the existing signed Stripe webhook. The webhook is unchanged.
 Refunds work as they do today: a refunded order stops counting.
 
+## Decided
+
+- **2026-11-28, earnings views (David: "make an earnings view and tie it into an earnings view for me too").** Creators see
+  their paid tips (after Stripe's fee, estimated at 2.9% + 30¢) and template sales (70% of the price), what's been paid out,
+  what's owed and where to send it at `/earnings`; the owner sees every creator's balance and records each payout made by
+  hand at `/admin/earnings` (`lib/money/earnings.ts`, tables `creator_payout_methods` and `creator_payouts`). Payouts stay
+  by hand, monthly, from $10 owed.
+
 ## Decisions for Dave
 
 The site and the terms currently say creators are paid out by hand each month, with 70% of a template's price

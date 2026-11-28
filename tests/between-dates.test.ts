@@ -187,7 +187,8 @@ describe("notifications", () => {
     const { owner } = await airedCouple("second_date");
     const inbox = await listNotifications(t.db, owner);
     expect(inbox.map((n) => n.kind)).toContain("stage_up");
-    expect(inbox.find((n) => n.kind === "stage_up")!.title).toMatch(/Sparks/);
+    // With the show's own cast, the step up doesn't name the stage: the show stays unspoiled (lib/show-spoilers.ts).
+    expect(inbox.find((n) => n.kind === "stage_up")!.title).toMatch(/have news/);
   });
 
   it("a yes that needs the other creator notifies them", async () => {

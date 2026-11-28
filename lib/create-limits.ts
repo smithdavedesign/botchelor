@@ -72,7 +72,7 @@ export async function createRefusal(
   } else if (visitorKey(req.headers)) {
     // A browser: per person, with the address as a looser ceiling for shared networks (lib/limits.ts overPersonLimit).
     const check = await overPersonLimit(db, "character_check", sess.userId, req.headers, CREATE_CHECK_LIMITS, now);
-    if (check) return { status: 429, body: check === "self" ? CHECKS : NETWORK };
+    if (check) return { status: 429, body: check === "self" ? CHECKS : { ...NETWORK, error: CHECKS.error } };
     const save = checkOnly ? null : await overPersonLimit(db, "character_create", sess.userId, req.headers, CREATE_LIMITS, now);
     if (save) return { status: 429, body: save === "self" ? MINE : NETWORK };
   }
