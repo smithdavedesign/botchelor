@@ -4,6 +4,7 @@
 // own creator, the model writes the hello as before. Its prompt knows the same date.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { castOpenerLines, castOpenerTag } from "@/lib/cast-opener";
+import { SHOW_DATE_RULE } from "@/lib/companion-prompt";
 import { getThread, openThread, sendMessage, setCompanionModelForTests } from "@/lib/companion";
 import { runCompanionTool } from "@/lib/companion-mcp";
 import { companionDateOpener, watchLinkEpisode } from "@/lib/companion-shared";
@@ -136,11 +137,12 @@ describe("opening a thread with a cast character that isn't yours", () => {
     const all = await rows(o.thread_id);
     expect(all.map((m) => `${m.role}:${m.via}`)).toEqual(["system:text", "character:text", "character:photo", "character:text", "character:text"]);
     const said = all.filter((m) => m.role === "character" && m.via === "text").map((m) => m.text);
-    expect(said[0]).toMatch(new RegExp(`^Hey, I'm ${castFirst}\\. My last date was with ${character.name.split(" ")[0]} at .+ we left it as friends\\.$`));
-    // Its own reflection (side b's), never the other side's.
-    expect(said[1]).toBe("I laughed more than I meant to. I should say so next time.");
-    expect(said.join(" ")).not.toContain("private thought");
-    expect(said[2]).toBe("It aired, so you can watch it. Did I miss something?");
+    // A house character's date is the show's own: who and where, never how it went (David, 2026-11-28, lib/show-spoilers.ts).
+    expect(said[0]).toMatch(new RegExp(`^Hey, I'm ${castFirst}\\. My last date was with ${character.name.split(" ")[0]} at [^.]+\\.$`));
+    expect(said[1]).toBe("I'm not saying how it went: it aired, so you can watch it yourself.");
+    // Not even its reflection: it gives the ending away.
+    expect(said.join(" ")).not.toMatch(/friends|laughed more than I meant|private thought/);
+    expect(said[2]).toBe("Come back and tell me what you made of it?");
     expect(all.slice(1).every((m) => m.action === `opener:${episode.id}` && m.model === null)).toBe(true);
 
     const view = await getThread(t.db, me, o.thread_id);
@@ -161,13 +163,13 @@ describe("opening a thread with a cast character that isn't yours", () => {
     expect(await rows(o.thread_id)).toHaveLength(all.length);
   });
 
-  it("without the date's reflection: the plain line for that ending", async () => {
+  it("a disaster is kept back the same way: nothing says how it went", async () => {
     await airedDate("disaster", null);
     const o = await openThread(t.db, stranger(), CAST.id);
     if (!o.ok) throw new Error(o.error);
     const said = (await rows(o.thread_id)).filter((m) => m.role === "character" && m.via === "text").map((m) => m.text);
-    expect(said[0]).toContain("it went about as badly as a date can");
-    expect(said[1]).toBe("It got away from both of us. I'm still a bit wound up about it.");
+    expect(said.join(" ")).not.toMatch(/badly|wound up/);
+    expect(said[1]).toBe("I'm not saying how it went: it aired, so you can watch it yourself.");
     expect(replies).toHaveLength(0);
   });
 
@@ -221,7 +223,7 @@ describe("opening a thread with a cast character that isn't yours", () => {
     expect((await rows(o.thread_id)).some((m) => m.action?.startsWith("opener:"))).toBe(false);
   });
 
-  it("the cast's replies know the same date: who, where, how it ended and its reflection, as its own aired news", async () => {
+  it("the cast's replies know the same date, who and where, but not how it ended: the show is never spoiled", async () => {
     const { character } = await airedDate("friends");
     const me = stranger();
     const o = await openThread(t.db, me, CAST.id);
@@ -232,8 +234,9 @@ describe("opening a thread with a cast character that isn't yours", () => {
     const system = replies[0][0].content;
     expect(system).toContain("a person who picked you to talk to");
     expect(system).toContain("Your last date on the show (it aired, so anyone can watch it; it's your news, yours to talk about from the inside):");
-    expect(system).toMatch(new RegExp(`- With ${character.name}, at .+\\. How it ended: `));
-    expect(system).toContain('What you thought afterwards, in your own words: "I laughed more than I meant to. I should say so next time."');
+    expect(system).toMatch(new RegExp(`- With ${character.name}, at .+\\. How it ended: not yours to tell\\.`));
+    expect(system).toContain(SHOW_DATE_RULE);
+    expect(system).not.toContain("I laughed more than I meant to");
     expect(system).not.toContain("private thought");
     expect(system).not.toContain("Their note for your next date");
     // The opener's own lines are the conversation so far; its photo is told, not said.

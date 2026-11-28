@@ -143,7 +143,7 @@ async function confessionalReel(db: Db, span: SeasonSpan, limit: number): Promis
 }
 
 /** The season's awards, each included only when there is data for it. */
-export async function seasonAwards(db: Db, span: SeasonSpan): Promise<ReunionAward[]> {
+export async function seasonAwards(db: Db, span: SeasonSpan, now: Date = new Date()): Promise<ReunionAward[]> {
   const out: ReunionAward[] = [];
   const window = [span.start.toISOString(), span.end.toISOString()];
 
@@ -159,13 +159,16 @@ export async function seasonAwards(db: Db, span: SeasonSpan): Promise<ReunionAwa
     });
   }
 
+  // While the season runs, never one of the show's own dates (David, 2026-11-28, lib/show-spoilers.ts): naming it would
+  // spoil that episode. A closed season's finale may: it's the recap.
+  const running = span.end.getTime() > now.getTime();
   const worst = (
     await db.query<PairRow>(
       `select ${pairCols("a", "b")}
          from episodes e
          join characters a on a.id = e.character_a
          join characters b on b.id = e.character_b
-        where e.ending = 'disaster' and ${inSpanSql("e")}
+        where e.ending = 'disaster' and ${running ? "not a.is_house and not b.is_house and " : ""}${inSpanSql("e")}
         order by e.revealed_at desc limit 1`,
       window,
     )

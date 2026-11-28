@@ -45,7 +45,8 @@ describe("the reunion special", () => {
 
     const titles = r.awards.map((x) => x.title);
     expect(titles.some((x) => x.includes("golden couple"))).toBe(true);
-    expect(titles.some((x) => x.includes("Biggest disaster"))).toBe(true);
+    // b's disaster is with the house cast: while the season runs, the special never names it (lib/show-spoilers.ts).
+    expect(titles.some((x) => x.includes("Biggest disaster"))).toBe(false);
     expect(titles.some((x) => x.includes("Fan favourite"))).toBe(true);
 
     // Only the shared+aired confessionals make the reel (a's two lines, never b's).
@@ -81,9 +82,14 @@ describe("the reunion special", () => {
     expect(none.stats.aired).toBe(0);
     expect(none.couples).toEqual([]);
 
-    // A live account's disaster, aired later, is the one the special names.
+    // A live account's disaster, aired later, is the one the special names (with someone's character, not the house's:
+    // a show date is never named while the season runs).
     const live = await setupEpisode("disaster");
     await api.reveal(live.episode.id, live.creator);
+    await t.db.query(
+      `update characters set is_house = false, owner_id = 'someone-else' where id in (select character_a from episodes where id = $1 union select character_b from episodes where id = $1) and is_house`,
+      [live.episode.id],
+    );
     const r = await getReunion(t.db);
     const worst = r.awards.find((x) => x.title.includes("Biggest disaster"))!;
     expect(worst.name).toContain(live.character.name);

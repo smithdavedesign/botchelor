@@ -6,7 +6,8 @@
  * link to watch it (lib/companion-shared.ts watchLinkEpisode: the thread puts "Watch the date" under the last bubble).
  *
  * Templates only: no model call (the hello it replaces was one). A character with no aired date opens the way it did.
- * The ending is told here on purpose: the date aired and is public, and the character is telling its own news.
+ * The ending is told here on purpose when the date is between people's characters: it aired and is public, and the
+ * character is telling its own news. A date with the show's own cast never tells it (lib/show-spoilers.ts).
  * COMPANION_DATE_OPENER=0 turns it off (lib/companion-shared.ts companionDateOpener).
  */
 import type { LastDate } from "./last-date";
@@ -20,11 +21,19 @@ export const castOpenerTag = (episodeId: string): string => `opener:${episodeId}
  * The opener's bubbles (pure): hello and the date, the character's own words about it (or a plain line by ending), and
  * an invitation to watch that ends on at most one question.
  */
-export function castOpenerLines(character: string, d: Pick<LastDate, "partner" | "venue" | "ending" | "reflection" | "dateNumber">): string[] {
+export function castOpenerLines(character: string, d: Pick<LastDate, "partner" | "venue" | "ending" | "reflection" | "dateNumber"> & { show?: boolean }): string[] {
   const me = firstNameOf(character);
   const them = firstNameOf(d.partner);
   const where = d.venue ? ` at ${d.venue}` : "";
   const date = (d.dateNumber ?? 1) >= 2 ? `another one with ${them}${where}` : `with ${them}${where}`;
+  // The show's own dates are never spoiled (David, 2026-11-28): who and where, and an invitation to watch, but not how
+  // it went, and not the reflection (it gives the ending away).
+  if (d.show)
+    return [
+      `Hey, I'm ${me}. My last date was ${date}.`,
+      "I'm not saying how it went: it aired, so you can watch it yourself.",
+      "Come back and tell me what you made of it?",
+    ];
   switch (d.ending) {
     case "second_date":
       return [

@@ -501,6 +501,8 @@ const catalog: Catalog = {
     "Tip on Stripe": "Donner sur Stripe"
   },
   "server": {
+    "Points come from dates that air this season: {ending} for the right ending, {bonus} for the bonus question and {dealbreaker} for the right dealbreaker. Points and badges are free and carry no prizes.": "Les points viennent des rendez-vous diffusés cette saison : {ending} pour la bonne fin, {bonus} pour la question bonus et {dealbreaker} pour le bon point de rupture. Les points et les badges sont gratuits et ne donnent droit à aucun prix.",
+    "Aired": "Diffusé",
     "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark, le côté privé réservé aux adultes (18+), n'est pas encore ouvert et aura son propre prix à l'ouverture. Il est facturé par son propre prestataire de paiement, jamais par cette page :",
     "join the waitlist": "rejoins la liste d'attente",
     "Your earnings": "Tes gains",

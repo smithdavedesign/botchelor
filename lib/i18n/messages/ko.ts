@@ -501,6 +501,8 @@ const catalog: Catalog = {
     "Tip on Stripe": "Stripe로 팁 보내기"
   },
   "server": {
+    "Points come from dates that air this season: {ending} for the right ending, {bonus} for the bonus question and {dealbreaker} for the right dealbreaker. Points and badges are free and carry no prizes.": "포인트는 이번 시즌에 방송된 데이트에서 쌓입니다. 결말을 맞히면 {ending}, 보너스 질문은 {bonus}, 절대 안 되는 조건을 맞히면 {dealbreaker}. 포인트와 배지는 무료이며 상품은 없습니다.",
+    "Aired": "방송됨",
     "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark(18세 이상 전용 비공개 공간)는 아직 열리지 않았고, 열리면 별도 요금이 붙어요. 결제는 이 페이지가 아니라 전용 결제 대행사에서 해요:",
     "join the waitlist": "대기자 명단에 등록하기",
     "Your earnings": "내 수익",

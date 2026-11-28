@@ -89,6 +89,8 @@ export type PromptLastDate = {
   ending?: Ending;
   dateNumber?: number | null;
   at?: string;
+  /** A date with the show's own cast (lib/show-spoilers.ts): never told to anyone but the owner. */
+  show?: boolean;
 };
 
 const MONTH_DAY = { month: "long", day: "numeric", timeZone: "UTC" } as const;
@@ -107,6 +109,13 @@ function endedInWords(d: PromptLastDate): string {
       return d.endingLabel;
   }
 }
+
+/**
+ * The show's own dates are never spoiled (David, 2026-11-28, lib/show-spoilers.ts): to anyone but its owner, a cast
+ * character keeps how one ended to itself and sends them to watch it.
+ */
+export const SHOW_DATE_RULE =
+  "- It's one of the show's own dates, and the show is never spoiled: you can say who it was with, where, and how you felt walking in, but never how it ended (who said yes, friends, a disaster) or what you decided. If they ask, tell them to watch it and come back to talk.";
 
 /** The last date's line: who with, where, when, which date it was for the two of them, and how it ended. */
 export function lastDateLine(d: PromptLastDate): string {
@@ -579,8 +588,10 @@ export function companionMessages(args: {
           yours
             ? "Your last date (they sent you on it; it's the thing they most want to hear about, from you):"
             : "Your last date on the show (it aired, so anyone can watch it; it's your news, yours to talk about from the inside):",
-          lastDateLine(lastDate),
-          ...(lastDate.reflection ? [`- What you thought afterwards, in your own words: "${lastDate.reflection}"`] : []),
+          ...(!yours && lastDate.show
+            ? // Nothing that gives the ending away reaches the prompt: not the ending, not the reflection.
+              [lastDateLine({ ...lastDate, ending: undefined, endingLabel: "not yours to tell" }), SHOW_DATE_RULE]
+            : [lastDateLine(lastDate), ...(lastDate.reflection ? [`- What you thought afterwards, in your own words: "${lastDate.reflection}"`] : [])]),
           LAST_DATE_RULE,
           ...(nudge
             ? [`- Their note for your next date with ${lastDate.partner} (it goes with you into that date; you can say you've got it, in your own words, without reciting it): "${nudge}"`]
