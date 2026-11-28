@@ -55,10 +55,10 @@ export async function extrasState(db: Db, userId: string, now: Date = new Date()
 export type ExtraTicket = { ok: true; kind: CompanionExtraKind; source: "admin" | "included" | "credit"; month: string; bought: boolean };
 export type ExtraRefusal = { ok: false; status: number; error: "needs_tokens" | "price"; message: string; price: { tokens: number; bundle: number } };
 
-/** "1 token buys 100 voice notes" */
+/** "1 bought date buys 100 voice notes" (a date from a pack: the shop's one unit; 2026-11-28 simulation, "token" was never explained) */
 export const bundleWords = (kind: CompanionExtraKind, env: Env = process.env): string => {
   const x = extraTerms(kind, env);
-  return `${x.tokens} token${x.tokens === 1 ? "" : "s"} buys ${x.bundle} ${x.many}`;
+  return `${x.tokens} bought date${x.tokens === 1 ? "" : "s"} buys ${x.bundle} ${x.many}`;
 };
 
 /**
@@ -84,7 +84,7 @@ export async function takeExtra(db: Db, userId: string, kind: CompanionExtraKind
   const price = { tokens: x.tokens, bundle: x.bundle };
   if (!opts.buy) return { ok: false, status: 402, error: "price", price, message: `${cap(x.many)}: ${bundleWords(kind, opts.env)}.` };
   if (!(await spendBoughtTokens(db, userId, x.tokens))) {
-    return { ok: false, status: 402, error: "needs_tokens", price, message: `${cap(bundleWords(kind, opts.env))}, and you're out of tokens. Get more on the shop page.` };
+    return { ok: false, status: 402, error: "needs_tokens", price, message: `${cap(bundleWords(kind, opts.env))}, and you have no bought dates left. A pack of dates on the shop page buys more.` };
   }
   // The bundle, less the one this is.
   await db.query(

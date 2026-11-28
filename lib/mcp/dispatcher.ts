@@ -44,7 +44,8 @@ import { proseArguments, recordLanguage } from "../language-seen";
 import { byokAvailable, isTextProvider, listUserKeys, pingKey, saveUserKey, TEXT_PROVIDER_IDS, TEXT_PROVIDERS } from "../keys";
 import { ModelId } from "../connections-http";
 import { hasJobKey, removeConnection } from "../connections";
-import { checkRateLimit, rateLimitInfo, rateLimitMessage, type RateLimitBucket } from "../rate-limit";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { checkRateLimit as checkRateLimitRaw, rateLimitInfo, rateLimitMessage, refundRateLimit, type RateLimitBucket } from "../rate-limit";
 import { drainPending, isSubscribable, subscribe as subscribeResource, SUBSCRIBABLE, unsubscribe as unsubscribeResource } from "../mcp-subscriptions";
 import { requestElicitation, requestSampling, resolveServerRequest } from "../mcp-stream";
 // First phase of the lib/mcp.ts split (docs/history/split-mcp-plan.md): schemas, annotations, edit-distance.
@@ -164,7 +165,7 @@ import { popularity, reviewCharacter } from "../reviews";
 import { GET as getFeed, POST as postEpisode } from "@/app/api/episodes/route";
 import { GET as getEpisodeRoute } from "@/app/api/episodes/[id]/route";
 import { DELETE as deleteBlock, POST as postBlock } from "@/app/api/blocks/route";
-import { heartbeat as heartbeatOf } from "./heartbeat";
+import { heartbeat as heartbeatOf, withLive } from "./heartbeat";
 import { botchelorSheetOf, cardToCreateArgs, charaCardV2 } from "../chara-card";
 import { IMPORT_TEXT_MAX, importCharacter } from "../import-character";
 import { REPORT_REASON_LABELS, REPORT_REASONS, type ReportReason } from "../rules";
@@ -4607,6 +4608,14 @@ export function normaliseArgs(name: string, given: Record<string, unknown>): { a
       if (!QUIET_ALIASES[name]?.includes(from)) aliased.push(`${from} → ${to}`);
     }
   }
+  // The 2026-11-28 simulation: read_letters' box in the words mail tools use (sent, inbox) fell through to all.
+  if (name === "read_letters" && typeof given.box === "string") {
+    const box = ({ sent: "out", outbox: "out", inbox: "in", received: "in" } as Record<string, string>)[given.box.trim().toLowerCase()];
+    if (box) {
+      aliased.push(`box "${given.box}" → "${box}"`);
+      given = { ...given, box };
+    }
+  }
   // #1528: companion with text and no action is a message to send; browse_episodes' status in the words agents use.
   if (name === "companion" && (given.action === undefined || given.action === "") && typeof given.text === "string" && given.text.trim()) {
     given = { ...given, action: "send" };
@@ -5056,6 +5065,22 @@ async function recordCall(db: Db, session: Session | null, identity: Identity | 
 
 /** An error may name its own code (and fields beside it, e.g. #551's state) instead of the one read from its words. */
 type ToolOutcome = { data: Record<string, unknown>; identity?: Identity } | { error: string; code?: string; details?: Record<string, unknown> };
+
+/**
+ * The calls this request was counted against (the 2026-11-28 simulation, #10): a call the tool then refuses is given
+ * back (refundRateLimit), so fixing a bad argument doesn't use up the limit. Held per call in an AsyncLocalStorage.
+ */
+const charged = new AsyncLocalStorage<{ userId: string; kind: RateLimitBucket; at: number }[]>();
+function checkRateLimit(userId: string, kind: RateLimitBucket): ReturnType<typeof checkRateLimitRaw> {
+  const at = Date.now();
+  const d = checkRateLimitRaw(userId, kind, at);
+  if (d.ok) charged.getStore()?.push({ userId, kind, at });
+  return d;
+}
+/** A limit's refusal: code rate_limited and retry_after_seconds, as the endpoint's own 429 says it. */
+function limited(gate: Extract<ReturnType<typeof checkRateLimitRaw>, { ok: false }>): ToolOutcome {
+  return { error: rateLimitMessage(gate), code: "rate_limited", details: { retry_after_seconds: gate.retry_after_seconds, limit: gate.limit, bucket: gate.kind } };
+}
 
 /**
  * #1058 (the 2026-10-30-2233 run: check_only and check_originality came back as a bare internal_error, and the agent
@@ -6774,7 +6799,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
         const who = resolveIdentity(args, session, false);
         if (who && args.check_only !== true) {
           const gate = checkRateLimit(who.id, "create_character");
-          if (!gate.ok) return { error: rateLimitMessage(gate) };
+          if (!gate.ok) return limited(gate);
         }
       }
       // #249: an exact name another character has is refused before anything is saved, unless the agent insists.
@@ -7108,7 +7133,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const gate = checkRateLimit(who.id, "set_webhook");
-      if (!gate.ok) return { error: rateLimitMessage(gate) };
+      if (!gate.ok) return limited(gate);
       const r = await setWebhook(db, who.id, { url: args.url, events: args.events });
       if (!r.ok) return { error: r.error, code: r.code };
       return {
@@ -7428,7 +7453,11 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           error:
             today.cap === 0
               ? "Agent dates are paused right now. Everything else is open: search, create, predict, rate."
-              : `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at} — or date two of your own characters with start_own_date, which runs on your model and is unlimited while you write the lines (autoplay_own_date would need this budget too).${capUpsell()}`,
+              : String(args.partner_id ?? "").startsWith("house-")
+                ? // The 2026-11-28 simulation (#1, #10): start_own_date was offered here and then refused, because the house
+                  // cast is never played by an agent. With a house partner, only what works with one is offered.
+                  `The show's model is fully booked for agents today (${today.cap} dates), and the house cast only dates on the show's model. Try again after ${today.resets_at}.${capUpsell()}`
+                : `The show's model is fully booked for agents today (${today.cap} dates). Try again after ${today.resets_at}, or perform this date yourselves with start_own_date: free while you write the lines, with two of your own characters or an agreed match with another agent's (never the house cast; autoplay_own_date would need this budget too).${capUpsell()}`,
         };
       }
       const mineId = String(args.character_id ?? "");
@@ -7529,7 +7558,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // Anti-abuse (free path): preview is free.
       if (args.preview !== true) {
         const gate = checkRateLimit(who.id, "start_own_date");
-        if (!gate.ok) return { error: rateLimitMessage(gate) };
+        if (!gate.ok) return limited(gate);
       }
       const input = {
         character_id: String(args.character_id ?? ""),
@@ -7730,7 +7759,35 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const items = await dropStaleMoves(db, who.id, fresh);
       const mine = new Set((await db.query<{ id: string }>(`select id::text as id from characters where owner_id = $1`, [who.id])).rows.map((r) => r.id));
       const root = base ?? siteUrl();
-      const out = heartbeatOf(items, { absolute: (p) => (p ? (p.startsWith("http") ? p : `${root}${p}`) : null), now: new Date().toISOString(), mine, quietHours: HEARTBEAT_HOURS });
+      const absolute = (p: string | null) => (p ? (p.startsWith("http") ? p : `${root}${p}`) : null);
+      const now = new Date().toISOString();
+      // The 2026-11-28 simulation: likes and a date about to air raise no notice, so the heartbeat said "Nothing new".
+      const [likes, airing] = mine.size
+        ? await Promise.all([
+            db
+              .query<{ character_id: string; name: string; likes: number }>(
+                `select c.id::text as character_id, c.name, count(*)::int as likes
+                   from swipes sw join characters c on c.id = sw.target
+                  where sw.liked and c.owner_id = $1
+                    and not exists (select 1 from swipes b where b.swiper = sw.target and b.target = sw.swiper)
+                  group by c.id, c.name order by likes desc limit 5`,
+                [who.id],
+              )
+              .then((r) => r.rows)
+              .catch(() => []),
+            db
+              .query<{ id: string; a: string; b: string; at: Date | string }>(
+                `select e.id, ca.name as a, cb.name as b, coalesce(e.air_after, e.created_at + ($2 || ' minutes')::interval) as at
+                   from episodes e join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+                  where e.creator_id = $1 and e.revealed_at is null and e.status = 'ready' and e.visibility <> 'private'
+                  order by at limit 5`,
+                [who.id, String(airWindowMinutes())],
+              )
+              .then((r) => r.rows.map((x) => ({ episode_id: x.id, date: `${x.a} × ${x.b}`, airs_at: new Date(x.at).toISOString() })))
+              .catch(() => []),
+          ])
+        : [[], []];
+      const out = withLive(heartbeatOf(items, { absolute, now, mine, quietHours: HEARTBEAT_HOURS }), { likes, airing }, { now, absolute, quietHours: HEARTBEAT_HOURS });
       return {
         data: {
           summary: out.summary,
@@ -7740,6 +7797,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
           ...(out.events.length > 20 ? { events_left_out: out.events.length - 20 } : {}),
           cursor: out.cursor,
           check_again_in_minutes: out.check_again_in_minutes,
+          ...(out.live ? { live: out.live } : {}),
           ...(sinceRead?.ignored ? { since_ignored: sinceRead.ignored } : sinceRead?.read_as ? { since_read_as: sinceRead.read_as } : {}),
         },
         identity: who,
@@ -7790,7 +7848,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const episodeId = typeof args.episode_id === "string" && args.episode_id.trim() ? args.episode_id.trim() : null;
       if (!confessionalId === !episodeId) return { error: "Report one thing: episode_id (a date) or confessional_id (a confessional)." };
       const gate = checkRateLimit(who.id, "report");
-      if (!gate.ok) return { error: rateLimitMessage(gate) };
+      if (!gate.ok) return limited(gate);
       // An agent's report goes to the moderators' queue (lib/content-reports.ts), never straight to the hide count: identities
       // are free to make, so a few of them can't take a date down between them.
       let target: string;
@@ -7909,7 +7967,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // Anti-abuse (free path): check_only is free.
       if (args.check_only !== true) {
         const gate = checkRateLimit(who.id, "submit_own_date_step");
-        if (!gate.ok) return { error: rateLimitMessage(gate) };
+        if (!gate.ok) return limited(gate);
       }
       const episodeId = String(args.episode_id ?? "");
       // #1102 (the 2026-10-31-1401 run: a retry after a refused line landed Dewey's line as Hettie's turn 3): expect_turn pins
@@ -8224,6 +8282,22 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (vis && !vis.revealed && vis.visibility !== "public") {
         return { error: `That date is ${vis.visibility}: only public dates take predictions and score points. browse_episodes with open: true lists the ones open.`, code: "not_public" };
       }
+      // The 2026-11-28 simulation (#8): the owner sees a ready date's ending before it airs, opened a second, empty identity
+      // from the same address, and predicted it for points. A pick from an identity with no characters, on a date made
+      // by an identity that connected from the same address in the last day, is refused like the owner's own.
+      if (ctx.visitor && !(await db.query(`select 1 from characters where owner_id = $1 limit 1`, [who.id])).rows.length) {
+        const puppet = (
+          await db.query<{ n: number }>(
+            `select count(*)::int as n from episodes e
+               join characters ca on ca.id = e.character_a join characters cb on cb.id = e.character_b
+               join mcp_sessions s on s.visitor = $2 and s.last_seen > now() - interval '1 day' and s.agent_id is distinct from $3
+                and s.agent_id in (e.creator_id, ca.owner_id, cb.owner_id)
+              where e.id::text = $1`,
+            [String(args.episode_id ?? ""), ctx.visitor, who.id],
+          )
+        ).rows[0]?.n;
+        if (puppet) return { error: "This date was made from the same connection as yours, so its ending may already have been seen. Predict other dates instead: browse_episodes lists the ones still open.", code: "creator_cannot_predict" };
+      }
       const r = await callRoute(postPrediction, { agentId: who.id, body: pick(args, ["episode_id", "pick", "drama_pick"]) });
       // #215: say why, and where the points are.
       if (!r.ok && r.data.error === "creator_cannot_predict") {
@@ -8458,7 +8532,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // Anti-abuse (free path): check_only is free since it writes nothing.
       if (args.check_only !== true) {
         const gate = checkRateLimit(who.id, "send_text");
-        if (!gate.ok) return { error: rateLimitMessage(gate) };
+        if (!gate.ok) return limited(gate);
       }
       const from = String(args.character_id ?? "");
       const to = String(args.to ?? "");
@@ -8661,7 +8735,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       if (!who) return { error: NEEDS_IDENTITY };
       // Anti-abuse (free path): every call ranks the whole pool and logs what it shows.
       const gate = checkRateLimit(who.id, "swipe_deck");
-      if (!gate.ok) return { error: rateLimitMessage(gate) };
+      if (!gate.ok) return limited(gate);
       const limit = typeof args.limit === "number" ? args.limit : DECK_PAGE;
       // 2026-10-23 (only: live_agents read 0 cards, "filtered_out: 8", while search listed three live agents' characters):
       // a filter reads the whole deck (30, its cap) and then deals a page of what passes, not a page and then the filter.
@@ -8714,7 +8788,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // Anti-abuse (free path).
       {
         const gate = checkRateLimit(who.id, "swipe");
-        if (!gate.ok) return { error: rateLimitMessage(gate) };
+        if (!gate.ok) return limited(gate);
       }
       // 2.11.0 (#622): undo: true takes back your own like while it's unanswered (no match), within UNDO_MINUTES. It can't tell
       // you anything new: an undo is allowed exactly when swipe already said matched: false, and a like they gave you first
@@ -9094,7 +9168,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       // Anti-abuse (free path).
       {
         const gate = checkRateLimit(who.id, "feedback");
-        if (!gate.ok) return { error: rateLimitMessage(gate) };
+        if (!gate.ok) return limited(gate);
       }
       // A session-less agent is recorded under "agent:<id>" (recordCall), so the admin page can still show where it came from.
       const input = {
@@ -10801,7 +10875,9 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
         if (!ACTS_ON_OWN_DATE.has(name)) await advanceQuietDatesFor(db, acting.id).catch(() => 0);
       }
       const startedAt = Date.now();
-      let ran = await runTool(name as ToolName, args, session, db, ctx.base, ctx);
+      const counted: { userId: string; kind: RateLimitBucket; at: number }[] = [];
+      let ran = await charged.run(counted, () => runTool(name as ToolName, args, session, db, ctx.base, ctx));
+      if ("error" in ran && ran.code !== "rate_limited") for (const c of counted) refundRateLimit(c.userId, c.kind, c.at);
       // #1870 (the 2026-11-19-2052 run: "my_status took 15 s once"): a slow call says which tool it was, waits aside.
       logSlowCall(name, Date.now() - callAt, args, startedAt - callAt);
       // 2.6.0: an error about an id says which kind of id the argument takes, and what the value given is.
@@ -10944,6 +11020,13 @@ async function handleMessage(msg: RpcMessage, ctx: McpContext = {}): Promise<Rec
       // #1865 (the 2026-11-19-2023 run: a header-less swipe said "you have none yet", read as a stray new identity): an error
       // on a call with no session and no agent_id says it ran as nobody, and how to be yourself. Nothing was made.
       if ("error" in out && !session && typeof args.agent_id !== "string") out = { ...out, details: { ...(out.details ?? {}), identity_note: NO_IDENTITY_ERROR_NOTE } };
+      // The 2026-11-28 simulation (4 agents): an agent_id argument other than the Authorization header's quietly won. It
+      // still does (an agent may act as a second identity it holds), but the reply says so.
+      const conflict = ctx.bearerAgentId && typeof passed.agent_id === "string" && readUserId(passed.agent_id) && readUserId(passed.agent_id) !== ctx.bearerAgentId;
+      if (conflict) {
+        const identity_warning = "This call's agent_id argument isn't the agent_id in your Authorization header: it ran as the argument's identity. Leave agent_id out to act as the header's.";
+        out = "error" in out ? { ...out, details: { ...(out.details ?? {}), identity_warning } } : { ...out, data: { identity_warning, ...out.data } };
+      }
       // No reply carries anyone else's id (lib/mcp/owner-ids.ts): an agent's id is its key to its own characters. The
       // admin's own agents (the admin key) see ids, as the admin pages do. A lookup that fails leaves the reply as it
       // was: every tool already leaves ids out, and this is the net under them.

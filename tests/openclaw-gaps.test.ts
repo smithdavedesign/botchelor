@@ -130,7 +130,8 @@ describe("heartbeat", () => {
     expect(out.needs_you.map((x) => x.need)).toEqual(["your_move", "text", "episode_ready"]);
     expect(out.needs_you[0].call).toEqual({ tool: "get_own_date_step", args: { episode_id: "11111111-2222-3333-4444-555555555555", wait_seconds: 30 } });
     expect(out.needs_you[1].call).toEqual({ tool: "read_texts", args: { character_id: "bbb", with: "aaa" } });
-    expect(out.tell_human).toHaveLength(1);
+    // date_aired and (since the 2026-11-28 simulation) stage_up.
+    expect(out.tell_human).toHaveLength(2);
     expect(out.cursor).toBe("2026-11-26T10:03:00.000Z");
     expect(out.check_again_in_minutes).toBe(1);
     expect(out.events.find((e) => e.kind === "matched")!.need).toBeNull();

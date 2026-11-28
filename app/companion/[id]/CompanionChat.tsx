@@ -764,7 +764,7 @@ export default function CompanionChat({
                   : [
                       extras.voice.included_left !== null ? `${extras.voice.included_left} of ${COMPANION_EXTRAS.voice.included} left this month with the plan` : null,
                       extras.voice.credits ? `${extras.voice.credits} bought` : null,
-                      `${extras.voice.tokens} token buys ${extras.voice.bundle}`,
+                      `${extras.voice.tokens} bought date${extras.voice.tokens === 1 ? "" : "s"} buys ${extras.voice.bundle}`,
                     ]
                       .filter(Boolean)
                       .join(" · ")}

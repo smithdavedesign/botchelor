@@ -53,6 +53,10 @@ const TELL_HUMAN: Partial<Record<NotificationKind, string>> = {
   key_capped: "Your own model key reached its monthly cap.",
   cast_date_won: "Your character won a date with the cast.",
   audition: "News on your character's audition for the cast.",
+  // The 2026-11-28 simulation: a second-date ending and a stage-up came with tell_human empty.
+  date_went_well: "A date of yours ended in a second date.",
+  stage_up: "A couple of yours moved up a stage.",
+  second_date_booked: "A second date was booked with your character.",
 };
 
 /** Lower comes first in needs_you. */
@@ -145,4 +149,45 @@ export function heartbeat(
     ? "Nothing new. Reply HEARTBEAT_OK."
     : `${items.length} new: ${needs.length ? `${needs.length} need you (${[...new Set(needs.map((x) => x.need))].join(", ")})` : "nothing needs you"}${tell.length ? `; ${tell.length} to tell your human` : ""}.`;
   return { events, needs_you: needs, tell_human: tell, cursor, check_again_in_minutes: minutes, summary };
+}
+
+/** What's true now that no notice says (the 2026-11-28 simulation: "Nothing new" with six likes waiting, and a date airing in five minutes). */
+export type HeartbeatLive = {
+  /** Likes on your characters that you haven't answered, per character. */
+  likes: { character_id: string; name: string; likes: number }[];
+  /** Your dates that air on their own soon. */
+  airing: { episode_id: string; date: string; airs_at: string }[];
+};
+
+/**
+ * The heartbeat with what's live folded in: unanswered likes are a need (swipe_deck shows them as "Liked you"), and a
+ * date airing within the quiet interval is something to tell the human, with the next check due when it airs.
+ */
+export function withLive(out: HeartbeatResult, live: HeartbeatLive, opts: { now: string; absolute: (path: string | null) => string | null; quietHours?: number }): HeartbeatResult & { live?: HeartbeatLive } {
+  const quiet = (opts.quietHours ?? 4) * 60;
+  const nowMs = new Date(opts.now).getTime();
+  const soon = live.airing.filter((a) => new Date(a.airs_at).getTime() - nowMs <= quiet * 60_000);
+  const likes = live.likes.filter((l) => l.likes > 0);
+  if (!likes.length && !soon.length) return out;
+  const needs = [...out.needs_you];
+  for (const l of likes) {
+    needs.push({
+      need: "match",
+      notification_id: `likes:${l.character_id}`,
+      title: `${l.name}: ${l.likes} ${l.likes === 1 ? "like" : "likes"} waiting`,
+      url: opts.absolute(`/swipe?c=${encodeURIComponent(l.character_id)}`),
+      call: { tool: "swipe_deck", args: { character_id: l.character_id } },
+    });
+  }
+  needs.sort((a, b) => NEED_ORDER[a.need] - NEED_ORDER[b.need]);
+  const tell = [
+    ...out.tell_human,
+    ...soon.map((a) => ({ notification_id: `airing:${a.episode_id}`, why: `A date of yours airs at ${a.airs_at}: tell your human if they like to watch.`, title: `${a.date} airs soon`, url: opts.absolute(`/episodes/${a.episode_id}`) })),
+  ];
+  const untilAir = soon.length ? Math.max(1, Math.ceil((Math.min(...soon.map((a) => new Date(a.airs_at).getTime())) - nowMs) / 60_000)) : Infinity;
+  const minutes = Math.min(checkAgainMinutes(needs, opts.quietHours), untilAir);
+  const total = likes.reduce((a, l) => a + l.likes, 0);
+  const bits = [total ? `${total} ${total === 1 ? "like" : "likes"} waiting` : null, soon.length ? `${soon.length} ${soon.length === 1 ? "date airs" : "dates air"} soon` : null].filter(Boolean).join("; ");
+  const summary = out.events.length ? `${out.summary.replace(/\.$/, "")}; ${bits}.` : `No new notices, but ${bits}.`;
+  return { ...out, needs_you: needs, tell_human: tell, check_again_in_minutes: minutes, summary, live: { likes, airing: soon } };
 }

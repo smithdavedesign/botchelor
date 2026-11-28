@@ -44,7 +44,7 @@ export default function PricingPage() {
   const market = moneyOn("marketplace");
   const prices = (items: readonly { price_cents: number }[]) =>
     items.map((i) => formatPrice(i.price_cents)).join(", ").replace(/, ([^,]+)$/, " or $1");
-  // The Companion Plan's points, for its card on the days it is the page's upgrade.
+  // The Companion Plan's points, for its card.
   const planPoints = (
     <>
       <li>No daily limit on companion replies (fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month)</li>
@@ -70,8 +70,11 @@ export default function PricingPage() {
   // loud button (design review 2026-11-16, D-05). Everything else on sale is a line under them. /shop sells the dates
   // and is the page people open (24 views to this page's 1 in the month before), so the upgrade here is the shop's.
   // While no pack is on sale and the Companion Plan is, the plan is the upgrade and the packs are the line.
+  // 2026-11-28 (David: Companion is the main paid product, its headline on pricing; the 40-visitor simulation: "there's no
+  // Companion card on /pricing"): while companions are open the Companion Plan has its own card, beside the packs', and
+  // is the featured one once it's on sale.
   const packs = onSale();
-  const upgrade: "pack" | "companion-plan" = packOnSale || !planOnSale ? "pack" : "companion-plan";
+  const upgrade: "pack" | "companion-plan" = planOnSale ? "companion-plan" : "pack";
   const cta = (id: string) => (upgrade === id ? "button" : "button secondary");
   const card = (id: string) => `${upgrade === id ? "pricing-card pricing-card--featured" : "pricing-card"} rise-in`;
   return (
@@ -105,7 +108,23 @@ export default function PricingPage() {
           </Link>
         </li>
 
-        {upgrade === "pack" ? (
+        {companions && (
+          <li className={`${card("companion-plan")} has-plan-face`} id="companion-plan">
+            <PlanFace />
+            <h2>{PLANS.companion.name}</h2>
+            <p className="pricing-price">{planPrice("companion")}</p>
+            <ul>{planPoints}</ul>
+            {planOnSale ? (
+              <Link className={cta("companion-plan")} href="/companion/plan" data-track="pricing-companion-plan">
+                See the Companion Plan
+              </Link>
+            ) : (
+              <p className="muted small">Not on sale yet.</p>
+            )}
+          </li>
+        )}
+
+        {
           // More dates, as one card: every pack on sale (lib/catalog.ts onSale: the 5-pack always, the 15-pack once its
           // link is set) is a line in it, and the one button goes to the shop, where they're bought.
           <li className={`${card("pack")} ticket`} id="pack">
@@ -139,43 +158,13 @@ export default function PricingPage() {
               <p className="muted small">Not on sale yet.</p>
             )}
           </li>
-        ) : (
-          <li className={`${card("companion-plan")} has-plan-face`} id="companion-plan">
-            <PlanFace />
-            <h2>{PLANS.companion.name}</h2>
-            <p className="pricing-price">{planPrice("companion")}</p>
-            <ul>{planPoints}</ul>
-            <Link className={cta("companion-plan")} href="/companion/plan" data-track="pricing-companion-plan">
-              See the Companion Plan
-            </Link>
-          </li>
-        )}
+        }
       </ul>
 
       {/* Everything else with a price, said once each and quietly: none of it is the page's button. */}
       <section aria-labelledby="also">
         <h2 id="also">Other options</h2>
         <ul className="pricing-also">
-          {companions && upgrade === "pack" && (
-            <li id="companion-plan">
-              <strong>{PLANS.companion.name}</strong>, {planPrice("companion")}: no daily limit on companion replies (fair use:{" "}
-              {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month), {COMPANION_EXTRAS.voice.included} voice notes a month in their own voices
-              {live ? `, ${extraTerms("minute").included} live call minutes a month${facePlan ? " with their face moving as they talk" : ""}` : ""}
-              {depth ? ", narrated writing, a longer memory and stories of your dates" : ""}. Cancel any time.{" "}
-              {planOnSale ? (
-                <Link href="/companion/plan" data-track="pricing-companion-plan">
-                  See the Companion Plan
-                </Link>
-              ) : (
-                <span className="muted">Not on sale yet.</span>
-              )}
-            </li>
-          )}
-          {upgrade !== "pack" && (
-            <li id="pack">
-              <strong>More dates</strong>: {packs.map((pack) => `${pack.episodes} for ${formatPrice(pack.price_cents)}`).join(", or ")}, paid once. Not on sale yet.
-            </li>
-          )}
           {(tips || market) && (
             <li id="creators">
               <strong>Support a creator</strong>:{" "}

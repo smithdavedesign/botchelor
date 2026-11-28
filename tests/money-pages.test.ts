@@ -71,7 +71,8 @@ describe("/shop: offer tiles under a meter card", () => {
     expect(after).toMatch(
       /<p class="shop-also muted" data-shop-plan="companion">Talk with any companion as much as you like: <a[^>]*href="\/companion\/plan"[^>]*>the Companion Plan<\/a>, \$9\.99 a month\. Cancel any time\.<\/p>/,
     );
-    expect(after).toMatch(/<div class="shop-also shop-plus" data-shop-plus="true"><div class="plus-tile is-compact" data-plus-interest="shop">/);
+    // Plus's demand test isn't shown beside the Companion Plan (the 2026-11-28 simulation: two subscriptions confused).
+    expect(after).not.toContain("data-shop-plus");
     expect(html).not.toContain("plan-face");
     // Buy as before: the attestation box and the labelled button, the small print folded, the points rule in the open.
     // The only pack on sale is the one the page leads with, so its button is the loud one.

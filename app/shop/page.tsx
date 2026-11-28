@@ -214,8 +214,9 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
           {plan.per && ` ${plan.per}`}. Cancel any time.
         </p>
       )}
-      {unit === "date" && (
-        // Not for sale: a $0 demand test for a plan (docs/ideas.md's parked table). It says so.
+      {unit === "date" && !planLine && (
+        // Not for sale: a $0 demand test for a plan (docs/ideas.md's parked table). It says so. Not beside the Companion
+        // Plan (the 2026-11-28 simulation: two subscriptions read as one confusing choice).
         <div className="shop-also shop-plus" data-shop-plus>
           <PlusInterest place="shop" newsletter={newsletterOpen()} compact />
         </div>

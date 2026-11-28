@@ -426,7 +426,15 @@ export async function openThread(
   if (opts.opener !== false) {
     // Someone else's cast character with an aired date opens with it, written (lib/cast-opener.ts); anyone else the old way.
     const told = character.ownerId !== userId && (await castOpener(db, t, character, now).catch(() => false));
-    if (!told) await speak(db, t, character, tick(now, 1), { cue: OPENER_CUE }).catch(() => null);
+    if (!told) {
+      const said = await speak(db, t, character, tick(now, 1), { cue: OPENER_CUE }).catch(() => null);
+      // The 2026-11-28 simulation: with the model down the companion said nothing, so a first visit was a blank thread.
+      // Its creator's own hello (extras.lines.hello, a card's first_mes on import) opens instead, written, no model call.
+      const hello = !said?.ok && typeof character.extras?.lines?.hello === "string"
+        ? writtenLines([character.extras.lines.hello.replace(/\{\{\s*user\s*\}\}/gi, "you").replace(/\{\{\s*char\s*\}\}/gi, character.name.split(/\s+/)[0] ?? character.name)])
+        : null;
+      if (hello) await writeText(db, t.id, tick(now, 1), { lines: hello, tag: `hello:${character.id}` }).catch(() => null);
+    }
   }
   return { ok: true, thread_id: id, resumed: false };
 }

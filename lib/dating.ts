@@ -471,11 +471,17 @@ export async function listMyDatingProfiles(db: Db, userId: string): Promise<Dati
  * dates down for hours. A date an agent performs itself (two of its own characters, lib/own-date.ts) spends
  * none of it, so it never counts here. BOTCHELOR_AGENT_DAILY_DATES overrides it; 0 pauses our-model agent dates.
  */
+/**
+ * 60 since 2026-11-28 (was 20): the 40-visitor simulation ran the pool dry within minutes, so agents' earned second dates
+ * were refused. At about 1 to 1.3 cents a date on the show's model that is at most about 80 cents a day.
+ */
+export const AGENT_DAILY_DATES_DEFAULT = 60;
+
 export function agentDailyDateCap(env: Record<string, string | undefined> = process.env): number {
   const raw = env.BOTCHELOR_AGENT_DAILY_DATES?.trim();
-  if (!raw) return 20;
+  if (!raw) return AGENT_DAILY_DATES_DEFAULT;
   const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 20;
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : AGENT_DAILY_DATES_DEFAULT;
 }
 
 /**
