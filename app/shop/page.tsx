@@ -7,7 +7,7 @@ import PackVenues from "@/app/PackVenues";
 import WeeklyTime from "@/app/WeeklyTime";
 import { episodeAllowance, freshAllowance, type Allowance } from "@/lib/allowance";
 import { googleConfigured, sessionsSignable } from "@/lib/auth";
-import { CATALOG, formatPrice, frameClass, onSale, PACK_15, PACK_5, PACKS, type ItemKind } from "@/lib/catalog";
+import { CATALOG, formatPrice, frameClass, onSale, PACK_15, PACK_5, PACKS, type CatalogItem, type ItemKind } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
 import { authFromCookieStore } from "@/lib/http";
 import { ownedSkus } from "@/lib/payments";
@@ -21,6 +21,9 @@ import { planLink, planPrice, PLANS } from "@/lib/paid-plans";
 import BuyButton from "./BuyButton";
 import PlusInterest from "./PlusInterest";
 import SignInToBuy from "./SignInToBuy";
+import { getT } from "@/lib/i18n/server";
+import { fillNodes } from "@/app/fillNodes";
+import { english, msg, type T } from "@/lib/i18n/translate";
 
 export const dynamic = "force-dynamic";
 // Behind the 18+ gate, so a search result here landed people on the gate: /pricing is the open page with these prices
@@ -35,20 +38,20 @@ export const metadata: Metadata = {
 };
 
 const KIND_LABELS: Record<ItemKind, string> = {
-  house_character: "Premium house character",
-  frame: "Profile frame",
-  episode_pack: "Episode pack",
-  tip: "Tip",
-  template: "Character template",
+  house_character: msg("Premium house character"),
+  frame: msg("Profile frame"),
+  episode_pack: msg("Episode pack"),
+  tip: msg("Tip"),
+  template: msg("Character template"),
 };
 
 /** Off-sale items show only to someone who already owns one (restored by hand), so they know it still works. */
 const OWNED_NOTES: Record<ItemKind, string> = {
-  house_character: "Yours. Pick them when you send your character on a date.",
-  frame: "Yours. It shows around your name on league boards.",
-  episode_pack: "Bought before. Buy again whenever you like; the dates add up.",
-  tip: "Sent.",
-  template: "Yours. The copy is in your characters.",
+  house_character: msg("Yours. Pick them when you send your character on a date."),
+  frame: msg("Yours. It shows around your name on league boards."),
+  episode_pack: msg("Bought before. Buy again whenever you like; the dates add up."),
+  tip: msg("Sent."),
+  template: msg("Yours. The copy is in your characters."),
 };
 
 /** "$9.99 a month" as a headline: the amount big, the rest beside it. A label with no leading amount is shown whole. */
@@ -65,6 +68,15 @@ function Price({ amount, per }: { amount: string; per: string }) {
       {per && <span className="money-price-per">{per}</span>}
     </p>
   );
+}
+
+/** A pack's name and blurb in the reader's language (lib/catalog.ts writes them in English); anything else as it is. */
+function itemWords(item: CatalogItem, t: T): { name: string; description: string } {
+  if (item.kind !== "episode_pack" || !item.episodes) return { name: t(item.name), description: t(item.description) };
+  return {
+    name: t("{n} more dates", { n: item.episodes }),
+    description: t("{n} more dates for your characters, on top of the {free} free ones every week. Used after the free ones, they never expire. Adds episodes, never points.", { n: item.episodes, free: FREE_EPISODES_PER_SEASON }),
+  };
 }
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -86,6 +98,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  */
 export default async function ShopPage({ searchParams }: { searchParams: SearchParams }) {
   const { checkout } = await searchParams;
+  // After Dark's host stays English (its own tokens); the show is in the reader's language.
+  const t = afterDarkOnly() ? english : await getT();
   const viewer = authFromCookieStore(await cookies());
   const viewerId = viewer?.userId ?? null;
   // No loading screen (2026-11-22 audit: the first thing in its HTML was "Loading the shop…", the prices only later in a
@@ -104,7 +118,8 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
   // One word for one thing (2026-10-31 UX audit: the nav said "dates left", this page "tokens", the pack "Episode pack"):
   // the show counts dates. After Dark's host counts tokens (#1005), so there it says tokens.
   const unit = afterDarkOnly() ? "token" : "date";
-  const units = `${unit}s`;
+  const unitWord = unit === "date" ? t("date") : unit;
+  const units = unit === "date" ? t("dates") : `${unit}s`;
   // The Companion Plan sells on its own page (app/companion/plan): its line here, so the shop names everything on sale
   // (2026-11-07 audit, item 20: on a phone the shop never mentioned it). Only while companions are open and the plan has
   // its link; never on After Dark's host, which has its own tokens.
@@ -121,11 +136,11 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
       {unit === "date" ? (
         <SetHero
           set="booth"
-          kicker="The shop"
-          title="More dates"
+          kicker={t("The shop")}
+          title={t("More dates")}
           lede={
             <>
-              Top up when your free {units} run out. <strong>Each one sends a character on one date.</strong>
+              {t("Top up when your free {units} run out.", { units })} <strong>{t("Each one sends a character on one date.")}</strong>
             </>
           }
         />
@@ -142,45 +157,47 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
       <section className="card money-meter token-balance" aria-labelledby="shop-balance">
         <p className="money-meter-count">
           <strong>{dates.left}</strong>
-          <span>{dates.left === 1 ? unit : units} left</span>
+          <span>{t("{units} left", { units: dates.left === 1 ? unitWord : units })}</span>
         </p>
-        <div className="money-meter-track" role="img" aria-label={`${dates.free_left} of ${dates.free_per_season} free ${units} left this week`}>
+        <div className="money-meter-track" role="img" aria-label={t("{n} of {total} free {units} left this week", { n: dates.free_left, total: dates.free_per_season, units })}>
           <span className="money-meter-fill" style={{ width: `${freePct}%` }} />
         </div>
         <p id="shop-balance" className="money-meter-line muted small">
-          {dates.free_left} of {dates.free_per_season} free this week
-          {dates.pack_left > 0 && `, plus ${dates.pack_left} topped up`}. Free {units} come back <WeeklyTime weekday={1} />.
+          {dates.pack_left > 0
+            ? t("{n} of {total} free this week, plus {topped} topped up.", { n: dates.free_left, total: dates.free_per_season, topped: dates.pack_left })
+            : t("{n} of {total} free this week.", { n: dates.free_left, total: dates.free_per_season })}{" "}
+          {t("Free {units} come back", { units })} <WeeklyTime weekday={1} />.
         </p>
       </section>
       {checkout === "success" && (
         <p className="notice">
-          Thanks! Your {units} are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if
-          they aren&apos;t here yet.
+          {t("Thanks! Your {units} are added as soon as Stripe confirms the payment, usually within a few seconds. Refresh if they aren't here yet.", { units })}
         </p>
       )}
-      {!open && <p className="notice">Purchases open soon. Everything else on Botchelor is free.</p>}
+      {!open && <p className="notice">{t("Purchases open soon. Everything else on Botchelor is free.")}</p>}
 
       <ul className="money-tiles">
         {tiles.map((item) => {
           const itemOpen = paymentLinkFromEnv(env, item.sku) !== null;
+          const words = itemWords(item, t);
           return (
             <li key={item.sku} className="card money-tile shop-item" data-shop-sku={item.sku}>
               {/* On the show, a pack's places, one per date it buys (app/PackVenues.tsx); After Dark's tokens stay plain. */}
               {unit === "date" && item.kind === "episode_pack" && <PackVenues dates={item.episodes} />}
-              <Price amount={formatPrice(item.price_cents)} per="once" />
-              <strong className="money-tile-name">{item.name}</strong>
+              <Price amount={formatPrice(item.price_cents)} per={t("once")} />
+              <strong className="money-tile-name">{words.name}</strong>
               {/* A pack's name already says what it is ("5 more dates"); the bigger pack gets its one word. */}
-              {item.kind !== "episode_pack" && <span className="badge">{KIND_LABELS[item.kind]}</span>}
-              {item.sku === PACK_15.sku && <span className="badge">Best value</span>}
-              <p className="money-tile-what muted">{item.description}</p>
-              {owned.includes(item.sku) && <p className="notice">{OWNED_NOTES[item.kind]}</p>}
+              {item.kind !== "episode_pack" && <span className="badge">{t(KIND_LABELS[item.kind])}</span>}
+              {item.sku === PACK_15.sku && <span className="badge">{t("Best value")}</span>}
+              <p className="money-tile-what muted">{words.description}</p>
+              {owned.includes(item.sku) && <p className="notice">{t(OWNED_NOTES[item.kind])}</p>}
               <div className="money-tile-act">
                 {signInToBuy ? (
-                  <SignInToBuy sku={item.sku} label={`Buy ${item.name} · ${formatPrice(item.price_cents)}`} google={googleConfigured()} quiet={item !== lead} />
+                  <SignInToBuy sku={item.sku} label={t("Buy {name} · {price}", { name: words.name, price: formatPrice(item.price_cents) })} google={googleConfigured()} quiet={item !== lead} />
                 ) : (
                   <BuyButton
                     sku={item.sku}
-                    label={priceLabelFromEnv(env, `Buy ${item.name} for ${formatPrice(item.price_cents)}`, item.sku)}
+                    label={priceLabelFromEnv(env, t("Buy {name} for {price}", { name: words.name, price: formatPrice(item.price_cents) }), item.sku)}
                     disabled={!itemOpen}
                     place="shop"
                     quiet={item !== lead}
@@ -193,25 +210,25 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
         {ownedOffSale.map((item) => (
           <li key={item.sku} className="card money-tile shop-item is-owned">
             <p className="money-price is-owned">
-              <Icon name="check" /> Yours
+              <Icon name="check" /> {t("Yours")}
             </p>
-            <strong className={item.kind === "frame" ? `money-tile-name ${frameClass(item.sku)}` : "money-tile-name"}>{item.name}</strong>
-            <span className="badge">{KIND_LABELS[item.kind]}</span>
-            <p className="notice">{OWNED_NOTES[item.kind]}</p>
+            <strong className={item.kind === "frame" ? `money-tile-name ${frameClass(item.sku)}` : "money-tile-name"}>{itemWords(item, t).name}</strong>
+            <span className="badge">{t(KIND_LABELS[item.kind])}</span>
+            <p className="notice">{t(OWNED_NOTES[item.kind])}</p>
           </li>
         ))}
       </ul>
 
-      {signInToBuy && <p className="muted small">Buying needs an account, so what you buy follows you to any device.</p>}
+      {signInToBuy && <p className="muted small">{t("Buying needs an account, so what you buy follows you to any device.")}</p>}
       {/* What else there is, said once and quietly: neither is the page's button. */}
       {planLine && (
         <p className="shop-also muted" data-shop-plan="companion">
-          Talk with any companion as much as you like:{" "}
+          {t("Talk with any companion as much as you like:")}{" "}
           <Link href="/companion/plan" data-track="shop-companion-plan">
-            the {PLANS.companion.name}
+            {t("the {plan}", { plan: PLANS.companion.name })}
           </Link>
           , {plan.amount}
-          {plan.per && ` ${plan.per}`}. Cancel any time.
+          {plan.per && ` ${plan.per === "a month" ? t("a month") : plan.per}`}. {t("Cancel any time.")}
         </p>
       )}
       {unit === "date" && !planLine && (
@@ -221,18 +238,15 @@ export default async function ShopPage({ searchParams }: { searchParams: SearchP
           <PlusInterest place="shop" newsletter={newsletterOpen()} compact />
         </div>
       )}
-      <p className="muted small">Nothing here changes points, picks, badges or rank, and points can&apos;t be bought.</p>
+      <p className="muted small">{t("Nothing here changes points, picks, badges or rank, and points can't be bought.")}</p>
       {/* The small print, folded (2026-10-31 UX audit, A9). */}
       <details className="ux-fold shop-small-print">
-        <summary>How paying works</summary>
+        <summary>{t("How paying works")}</summary>
         <p className="muted">
-          You pay on Stripe&apos;s own page (a Stripe Payment Link); we never see your card. Purchases belong to your
-          account, so your {units} follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14
-          days, see the <Link href="/terms">terms</Link>.
+          {fillNodes(t("You pay on Stripe's own page (a Stripe Payment Link); we never see your card. Purchases belong to your account, so your {units} follow you to any device you sign in on. Keep your Stripe receipt. Refunds within 14 days, see the {terms}.", { units }), { terms: <Link href="/terms">{t("terms")}</Link> })}
         </p>
         <p className="muted">
-          Topped-up {units} also make a 4-second intro clip for a character of yours: one {unit} each, plus about $0.20 on
-          your own Google key (Veo). A clip Google can&apos;t make gives the {unit} back.
+          {t("Topped-up {units} also make a 4-second intro clip for a character of yours: one {unit} each, plus about $0.20 on your own Google key (Veo). A clip Google can't make gives the {unit} back.", { units, unit: unitWord })}
         </p>
       </details>
     </article>

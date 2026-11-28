@@ -13,6 +13,7 @@
  */
 import { PREMIUM_HOUSE_CHARACTERS } from "./house";
 import { FREE_EPISODES_PER_SEASON } from "./rules";
+import { msg } from "./i18n/translate";
 import { paymentLinkFromEnv } from "./stripe";
 
 export const ITEM_KINDS = ["house_character", "frame", "episode_pack", "tip", "template"] as const;
@@ -40,15 +41,15 @@ const FRAMES: readonly CatalogItem[] = [
   {
     sku: "frame_rose",
     kind: "frame",
-    name: "Rose frame",
-    description: "A rose-pink frame around your name on every league board. Cosmetic only.",
+    name: msg("Rose frame"),
+    description: msg("A rose-pink frame around your name on every league board. Cosmetic only."),
     price_cents: 200,
   },
   {
     sku: "frame_gold",
     kind: "frame",
-    name: "Gold frame",
-    description: "A gold frame around your name on every league board. Cosmetic only.",
+    name: msg("Gold frame"),
+    description: msg("A gold frame around your name on every league board. Cosmetic only."),
     price_cents: 200,
   },
 ];

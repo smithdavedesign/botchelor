@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { queueEvent } from "@/app/engagement";
 import { requestJson } from "@/app/request";
 import { PLUS_PITCH, type PlusPlace } from "@/lib/plus-interest";
+import { useT } from "@/app/I18nProvider";
 
 const STORAGE_KEY = "bz_plus_interest";
 
@@ -23,6 +24,7 @@ function remembered(): boolean {
  * is charged; the tile is a $0 demand test. `compact`: the version inside the out-of-dates wall.
  */
 export default function PlusInterest({ place, newsletter, compact = false }: { place: PlusPlace; newsletter: boolean; compact?: boolean }) {
+  const t = useT();
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [withEmail, setWithEmail] = useState(false);
   const [email, setEmail] = useState("");
@@ -53,7 +55,7 @@ export default function PlusInterest({ place, newsletter, compact = false }: { p
       }
       setError(message);
     } catch {
-      setError("Network error. Try again.");
+      setError(t("Network error. Try again."));
     }
     setState("idle");
   }
@@ -62,34 +64,34 @@ export default function PlusInterest({ place, newsletter, compact = false }: { p
   return (
     <div className={compact ? "plus-tile is-compact" : "plus-tile"} data-plus-interest={place}>
       <p className="plus-tile-head">
-        <strong>{PLUS_PITCH.name}</strong> <span className="badge">coming</span>
+        <strong>{PLUS_PITCH.name}</strong> <span className="badge">{t("coming")}</span>
       </p>
       <p className="plus-tile-what">
-        {PLUS_PITCH.price}: {PLUS_PITCH.gives.join(", ")}.
+        {t(PLUS_PITCH.price)}: {PLUS_PITCH.gives.map((g) => t(g)).join(", ")}.
       </p>
-      <p className="muted small">{PLUS_PITCH.honest}</p>
+      <p className="muted small">{t(PLUS_PITCH.honest)}</p>
       {state === "done" ? (
         <p className="notice plus-tile-done" role="status">
-          We&apos;ll tell you.{withEmail && " Check your inbox: the email we sent has the link that confirms your address."}
+          {t("We'll tell you.")}{withEmail && ` ${t("Check your inbox: the email we sent has the link that confirms your address.")}`}
         </p>
       ) : (
         <form className="plus-tile-form" onSubmit={tell}>
           {newsletter && (
             <>
               <label htmlFor={`${id}-email`} className="small">
-                Your email <span className="muted">(optional: it goes on the Sunday letter&apos;s list, confirmed by a click, and that letter is how we&apos;d tell you)</span>
+                {t("Your email")} <span className="muted">{t("(optional: it goes on the Sunday letter's list, confirmed by a click, and that letter is how we'd tell you)")}</span>
               </label>
               <input id={`${id}-email`} type="email" name="email" maxLength={254} autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               {email.trim() !== "" && (
                 <label className="check">
                   <input type="checkbox" name="attest" required />
-                  <span>I&apos;m 18 or older.</span>
+                  <span>{t("I'm 18 or older.")}</span>
                 </label>
               )}
             </>
           )}
           <button type="submit" className="secondary" disabled={state === "busy"} data-track="plus-interest">
-            {state === "busy" ? "Noting…" : "Tell me when it opens"}
+            {state === "busy" ? t("Noting…") : t("Tell me when it opens")}
           </button>
           {error && (
             <p className="error small" role="alert">

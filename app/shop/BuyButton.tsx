@@ -5,6 +5,8 @@ import { useState, type FormEvent } from "react";
 import { trackConversion } from "@/app/conversion";
 import { sendFunnel } from "@/app/funnel";
 import { requestJson } from "@/app/request";
+import { useT } from "@/app/I18nProvider";
+import { fillNodes } from "@/app/fillNodes";
 
 /**
  * Starts buying one item: the server stores a pending order and answers with the owner's Stripe Payment
@@ -26,6 +28,7 @@ export default function BuyButton({
   place?: string;
   quiet?: boolean;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signin, setSignin] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export default function BuyButton({
       // Buying needs an account (the server says so even if this page was loaded signed in and signed out since).
       if (status === 401 && typeof data.signin === "string") setSignin(data.signin);
     } catch {
-      setError("Network error. Try again.");
+      setError(t("Network error. Try again."));
     }
     setBusy(false);
   }
@@ -57,13 +60,13 @@ export default function BuyButton({
       <label className="check">
         <input type="checkbox" name="attest" required disabled={disabled} />
         <span>
-          I&apos;m 18 or older and agree to the <Link href="/terms">terms and refund policy</Link>.
+          {fillNodes(t("I'm 18 or older and agree to the {terms}."), { terms: <Link href="/terms">{t("terms and refund policy")}</Link> })}
         </span>
       </label>
       {/* Intent to pay, for RepoHQ's funnel (app/funnel.ts): every Buy click, counted on the click itself, since the
           required checkbox stops the form's submit until it's ticked. */}
       <button type="submit" className={quiet ? "secondary" : undefined} disabled={busy || disabled} onClick={() => sendFunnel("checkout")}>
-        {busy ? "Opening Stripe…" : label}
+        {busy ? t("Opening Stripe…") : label}
       </button>
       {error && (
         <p className="error">
@@ -71,7 +74,7 @@ export default function BuyButton({
           {signin && (
             <>
               {" "}
-              <Link href={signin}>Sign in</Link>
+              <Link href={signin}>{t("Sign in")}</Link>
             </>
           )}
         </p>

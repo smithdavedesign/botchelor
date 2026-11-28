@@ -5,6 +5,8 @@ import { useState } from "react";
 import Sheet from "@/app/Sheet";
 import { trackConversion } from "@/app/conversion";
 import { sendFunnel } from "@/app/funnel";
+import { useT } from "@/app/I18nProvider";
+import { fillNodes } from "@/app/fillNodes";
 
 /**
  * Buy, for a visitor who isn't signed in (2026-10-31 UX audit, A9): the price is still the button, and it asks them to
@@ -13,6 +15,7 @@ import { sendFunnel } from "@/app/funnel";
  * the shop again. `quiet`: the outlined button, as BuyButton's.
  */
 export default function SignInToBuy({ sku, label, google, quiet = false }: { sku: string; label: string; google: boolean; quiet?: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const next = encodeURIComponent("/shop");
   return (
@@ -28,23 +31,23 @@ export default function SignInToBuy({ sku, label, google, quiet = false }: { sku
       >
         {label}
       </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Sign in to buy">
-        <p>Your dates follow you to any device you sign in on, and your characters and dates so far come with you.</p>
+      <Sheet open={open} onClose={() => setOpen(false)} title={t("Sign in to buy")}>
+        <p>{t("Your dates follow you to any device you sign in on, and your characters and dates so far come with you.")}</p>
         {google ? (
           <>
             <a className="button-google" href={`/api/auth/google/start?next=${next}`}>
-              Continue with Google
+              {t("Continue with Google")}
             </a>
             <p className="muted small or-divider">
-              or <Link href={`/account?next=${next}`}>use a handle</Link>
+              {fillNodes(t("or {handle}"), { handle: <Link href={`/account?next=${next}`}>{t("use a handle")}</Link> })}
             </p>
           </>
         ) : (
           <Link className="button" href={`/account?next=${next}`}>
-            Sign in or create an account
+            {t("Sign in or create an account")}
           </Link>
         )}
-        <p className="muted small">Then you pay on Stripe&apos;s own page. We never see your card.</p>
+        <p className="muted small">{t("Then you pay on Stripe's own page. We never see your card.")}</p>
       </Sheet>
     </>
   );

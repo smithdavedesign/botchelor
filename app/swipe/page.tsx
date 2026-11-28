@@ -22,6 +22,8 @@ import { deckFilterQuery, deckFiltersFromSearch, deckFiltersSaid, hasDeckFilters
 import { tagById } from "@/lib/tags";
 import { pushKeys } from "@/lib/push";
 import Avatar from "@/app/Avatar";
+import { getT } from "@/lib/i18n/server";
+import { fillNodes } from "@/app/fillNodes";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +52,7 @@ function withTwins(db: Awaited<ReturnType<typeof getDb>>, characterId: string): 
 }
 
 export default async function SwipePage({ searchParams }: Props) {
-  const sp = await searchParams;
+  const [sp, t] = await Promise.all([searchParams, getT()]);
   const { character } = sp;
   // The deck's filters (lib/deck-filters.ts): ?made_by=&style=&kind=&type=, from DeckFilterForm.
   const filters = deckFiltersFromSearch(sp);
@@ -66,18 +68,18 @@ export default async function SwipePage({ searchParams }: Props) {
     return (
       <article className="swipe-page swipe-demo-page">
         <div className="swipe-intro">
-          <p className="kicker">Swipe</p>
-          <h1>Match before you date</h1>
-          <p className="muted">You swipe for your character. A like both ways is a match, and if both characters want a date, it&apos;s on. Try one from this season&apos;s cast:</p>
+          <p className="kicker">{t("Swipe")}</p>
+          <h1>{t("Match before you date")}</h1>
+          <p className="muted">{t("You swipe for your character. A like both ways is a match, and if both characters want a date, it's on. Try one from this season's cast:")}</p>
           <Link className="button" href={make}>
-            Make a character
+            {t("Make a character")}
           </Link>
         </div>
         {demo.length ? (
           <DemoDeck cards={demo} makeHref={make} />
         ) : (
           <section className="card">
-            <CastPreview line="This season's cast is in the deck, and they always like back:" />
+            <CastPreview line={t("This season's cast is in the deck, and they always like back:")} />
           </section>
         )}
       </article>
@@ -101,7 +103,7 @@ export default async function SwipePage({ searchParams }: Props) {
   const twinsOnTheWay = withTwins(db, me.id);
   const [faces, texts, deck] = await Promise.all([facesOnTheWay, textsOnTheWay, deckFor(db, viewerId, me.id, undefined, { filters })]);
   const initial = deck.ok ? twinsLast(await withOrigins(db, deck.cards), await twinsOnTheWay) : [];
-  const filtersSaid = hasDeckFilters(filters) ? deckFiltersSaid(filters, (t) => tagById(t)?.label) : "";
+  const filtersSaid = hasDeckFilters(filters) ? deckFiltersSaid(filters, (tag) => tagById(tag)?.label) : "";
   // Dealing isn't seeing: the deck reports each card as it comes on top, under this visit's id (lib/swipes.ts logShownCard).
   const serveId = crypto.randomUUID();
   const first = shortName(me.name);
@@ -111,7 +113,7 @@ export default async function SwipePage({ searchParams }: Props) {
     <article className="swipe-page swipe-fullscreen">
       <RememberCharacter id={me.id} />
       <div className="swipe-topbar">
-        <Link href="/" className="swipe-topbar-btn" aria-label="Close the deck">
+        <Link href="/" className="swipe-topbar-btn" aria-label={t("Close the deck")}>
           ✕
         </Link>
         {several && faces.length ? (
@@ -123,25 +125,25 @@ export default async function SwipePage({ searchParams }: Props) {
           </span>
         )}
         <span className="swipe-topbar-end">
-          <DeckFilterForm characterId={me.id} filters={filters} variant="bar" />
-          <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? `Matches, ${texts} unread texts` : "Matches"}>
+          <DeckFilterForm characterId={me.id} filters={filters} variant="bar" t={t} />
+          <Link href={matchesHref} className="swipe-topbar-btn" aria-label={texts ? t("Matches, {n} unread texts", { n: texts }) : t("Matches")}>
             💬{texts > 0 && <span className="nav-count">{texts > 99 ? "99+" : texts}</span>}
           </Link>
         </span>
       </div>
       <div className="swipe-intro">
-        <p className="kicker">Swipe</p>
+        <p className="kicker">{t("Swipe")}</p>
         <div className="matches-head">
           <h1 className="heading-face">
             <Avatar seed={me.id} name={me.name} hue={me.hue} portraitSrc={me.portrait} size={36} decorative round />
-            <span>Who should {several ? <SwitchCharacter name={first} /> : first} meet?</span>
+            <span>{fillNodes(t("Who should {name} meet?"), { name: several ? <SwitchCharacter name={first} /> : first })}</span>
           </h1>
         </div>
         <p className="muted">
-          You swipe for {first}. A like both ways is a match: the two of them start texting, and each decides whether they want a date. If both
-          do, you book it. This season&apos;s house characters are always in the deck. <Link href={matchesHref}>{first}&apos;s matches</Link>
+          {t("You swipe for {name}. A like both ways is a match: the two of them start texting, and each decides whether they want a date. If both do, you book it. This season's house characters are always in the deck.", { name: first })}{" "}
+          <Link href={matchesHref}>{t("{name}'s matches", { name: first })}</Link>
         </p>
-        <DeckFilterForm characterId={me.id} filters={filters} variant="intro" />
+        <DeckFilterForm characterId={me.id} filters={filters} variant="intro" t={t} />
       </div>
       {deck.ok ? (
         // Keyed by the character and the filters: a pick in the header (or a filter) reads the page again, and a deck kept
@@ -149,8 +151,8 @@ export default async function SwipePage({ searchParams }: Props) {
         <SwipeDeck key={`${me.id}${deckFilterQuery(filters)}`} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={initial} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} filters={filters} filtersSaid={filtersSaid} />
       ) : (
         <section className="card">
-          <h2>{deck.error === "profile_incomplete" ? `Finish ${first}'s dating profile` : `${first} can't swipe right now`}</h2>
-          <p>{deck.error === "profile_incomplete" ? `The deck shows a dating profile, like any dating app. ${first} still needs:` : deck.message}</p>
+          <h2>{deck.error === "profile_incomplete" ? t("Finish {name}'s dating profile", { name: first }) : t("{name} can't swipe right now", { name: first })}</h2>
+          <p>{deck.error === "profile_incomplete" ? t("The deck shows a dating profile, like any dating app. {name} still needs:", { name: first }) : deck.message}</p>
           {deck.missing && (
             <ul className="list">
               {deck.missing.map((m) => (
@@ -160,10 +162,10 @@ export default async function SwipePage({ searchParams }: Props) {
           )}
           {deck.error === "profile_incomplete" && (
             <Link className="button" href={`/characters/${me.id}/edit`}>
-              Fill in {first}&apos;s profile
+              {t("Fill in {name}'s profile", { name: first })}
             </Link>
           )}
-          {deck.error === "taken" && several && <SwitchCharacter name={first} label="Swipe for another of yours" />}
+          {deck.error === "taken" && several && <SwitchCharacter name={first} label={t("Swipe for another of yours")} />}
         </section>
       )}
     </article>
