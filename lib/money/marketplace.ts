@@ -127,6 +127,23 @@ export async function marketListings(db: Db, viewerId: string | null, env: Env =
   }));
 }
 
+/**
+ * A character's live listing, for its own page (the 2026-11-28 fourth run: a listed character's page offered a tip and
+ * no "Buy a copy", so the only way to buy was finding /market). Null when the market is off or it isn't listed.
+ */
+export async function listingForCharacter(db: Db, characterId: string, env: Env = process.env): Promise<{ id: string; price_cents: number } | null> {
+  if (!moneyOn("marketplace", env)) return null;
+  const row = (
+    await db.query<{ id: string; sku: string }>(
+      `select l.id, l.sku from market_listings l join characters c on c.id = l.character_id
+        where l.character_id = $1 and l.delisted_at is null and c.visibility = 'public' and ${listedCharacterSql("c")}
+        order by l.created_at desc limit 1`,
+      [characterId],
+    )
+  ).rows[0];
+  return row ? { id: row.id, price_cents: catalogItem(row.sku)?.price_cents ?? 0 } : null;
+}
+
 /** Starts buying a template: a pending order for the listing's price and the Payment Link to pay it. */
 export async function buyTemplate(db: Db, buyerUser: string, listingId: string, env: Env = process.env): Promise<{ ok: true; url: string; order_id: string } | Fail> {
   if (!moneyOn("marketplace", env)) return OFF;

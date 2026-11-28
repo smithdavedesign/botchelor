@@ -900,6 +900,7 @@ const catalog: Catalog = {
     "Invite a friend": "Convide um amigo"
   },
   "server": {
+    "{name} is on the market: buy a copy to make your own version. Their creator gets 70%.": "{name} está no mercado: compre uma cópia para fazer sua própria versão. Quem criou recebe 70%.",
     "Points come from dates that air this season: {ending} for the right ending, {bonus} for the bonus question and {dealbreaker} for the right dealbreaker. Points and badges are free and carry no prizes.": "Os pontos vêm dos encontros exibidos nesta temporada: {ending} pelo final certo, {bonus} pela pergunta bônus e {dealbreaker} pelo motivo de rompimento certo. Pontos e insígnias são grátis e não valem prêmios.",
     "Aired": "Exibido",
     "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "O After Dark, o lado privado só para adultos (18+), ainda não abriu e terá preço próprio quando abrir. Ele é cobrado pelo próprio processador de pagamentos, nunca por esta página:",

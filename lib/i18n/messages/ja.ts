@@ -900,6 +900,7 @@ const catalog: Catalog = {
     "Invite a friend": "友だちを招待"
   },
   "server": {
+    "{name} is on the market: buy a copy to make your own version. Their creator gets 70%.": "{name}はマーケットに出ています。コピーを買って自分のバージョンを作れます。作者には70%が入ります。",
     "Points come from dates that air this season: {ending} for the right ending, {bonus} for the bonus question and {dealbreaker} for the right dealbreaker. Points and badges are free and carry no prizes.": "ポイントは今シーズンに放送されたデートから入ります。結末が当たれば{ending}、ボーナス質問で{bonus}、譲れない条件が当たれば{dealbreaker}。ポイントとバッジは無料で、賞品はありません。",
     "Aired": "放送済み",
     "After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:": "After Dark（18歳以上限定のプライベートな側）はまだ公開されておらず、公開時に別料金になります。請求は専用の決済代行会社が行い、このページでは行いません:",
