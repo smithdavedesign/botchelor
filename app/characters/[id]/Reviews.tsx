@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { requestJson } from "@/app/request";
+import { useT } from "@/app/I18nProvider";
 import type { ReviewSummary } from "@/lib/reviews";
 
 type Props = { characterId: string; name: string; initial: ReviewSummary; isOwner: boolean; house: boolean; open: boolean };
@@ -11,6 +12,7 @@ const starsText = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
 /** Reviews on a contestant card: the average, the latest lines, and your own (1 to 5 stars, an optional line). */
 export default function Reviews({ characterId, name, initial, isOwner, house, open }: Props) {
   const [summary, setSummary] = useState(initial);
+  const t = useT();
   const [stars, setStars] = useState(initial.mine?.stars ?? 0);
   const [body, setBody] = useState(initial.mine?.body ?? "");
   const [busy, setBusy] = useState(false);
@@ -26,7 +28,7 @@ export default function Reviews({ characterId, name, initial, isOwner, house, op
     setBusy(false);
     if (!res.ok) return setNote({ text: res.message, error: true });
     setSummary(res.data.reviews as ReviewSummary);
-    setNote({ text: summary.mine ? "Review updated." : "Thanks: review posted." });
+    setNote({ text: summary.mine ? t("Review updated.") : t("Thanks: review posted.") });
   }
 
   return (
@@ -34,54 +36,54 @@ export default function Reviews({ characterId, name, initial, isOwner, house, op
       <p>
         {summary.count ? (
           <>
-            <strong aria-label={`${summary.average} out of 5`}>{summary.average?.toFixed(1)} ★</strong>{" "}
+            <strong aria-label={t("{n} out of 5", { n: summary.average ?? 0 })}>{summary.average?.toFixed(1)} ★</strong>{" "}
             <span className="muted">
-              from {summary.count} review{summary.count === 1 ? "" : "s"}
+              {summary.count === 1 ? t("from 1 review") : t("from {n} reviews", { n: summary.count })}
             </span>
           </>
         ) : (
-          <span className="muted">No reviews yet.</span>
+          <span className="muted">{t("No reviews yet.")}</span>
         )}
-        {house && <span className="muted"> Each month, the two best-reviewed of the season&apos;s house cast stay on for the next.</span>}
+        {house && <span className="muted"> {t("Each month, the two best-reviewed of the season's house cast stay on for the next.")}</span>}
       </p>
       {summary.latest.length > 0 && (
         <ul className="review-list">
           {summary.latest.map((r, i) => (
             <li key={i}>
-              <span aria-label={`${r.stars} out of 5`}>{starsText(r.stars)}</span> {r.body}
-              <span className="muted small"> · {r.mine ? "you" : r.via === "mcp" ? "an agent" : "a viewer"}</span>
+              <span aria-label={t("{n} out of 5", { n: r.stars })}>{starsText(r.stars)}</span> {r.body}
+              <span className="muted small"> · {r.mine ? t("you") : r.via === "mcp" ? t("an agent") : t("a viewer")}</span>
             </li>
           ))}
         </ul>
       )}
       {isOwner ? (
-        <p className="muted">Others review your character: you can&apos;t review your own.</p>
+        <p className="muted">{t("Others review your character: you can't review your own.")}</p>
       ) : !open ? (
-        <p className="muted">{first} isn&apos;t on this season&apos;s cast, so reviews are closed until they&apos;re back on the show.</p>
+        <p className="muted">{t("{name} isn't on this season's cast, so reviews are closed until they're back on the show.", { name: first })}</p>
       ) : (
         // Folded behind one line (UX audit 2026-10-23): the stars and the box were a big form even on a card with no reviews.
         <details className="review-write">
-          <summary className="button-ghost small">{summary.mine ? "✏️ Edit your review" : `✍️ Write a review of ${first}`}</summary>
+          <summary className="button-ghost small">{summary.mine ? `✏️ ${t("Edit your review")}` : `✍️ ${t("Write a review of {name}", { name: first })}`}</summary>
         <form className="review-form" onSubmit={submit}>
           <fieldset>
-            <legend>Your review of {first}</legend>
-            <div className="review-stars" role="radiogroup" aria-label="Stars">
+            <legend>{t("Your review of {name}", { name: first })}</legend>
+            <div className="review-stars" role="radiogroup" aria-label={t("Stars")}>
               {[1, 2, 3, 4, 5].map((n) => (
                 <label key={n} className={n <= stars ? "on" : undefined}>
                   <input type="radio" name="stars" value={n} checked={stars === n} onChange={() => setStars(n)} />
                   <span aria-hidden>★</span>
                   <span className="sr-only">
-                    {n} star{n === 1 ? "" : "s"}
+                    {n === 1 ? t("1 star") : t("{n} stars", { n })}
                   </span>
                 </label>
               ))}
             </div>
           </fieldset>
-          <label htmlFor={`review-${characterId}`}>A line (optional)</label>
-          <textarea id={`review-${characterId}`} value={body} maxLength={280} rows={2} onChange={(e) => setBody(e.target.value)} placeholder={`What made ${first} worth watching?`} />
+          <label htmlFor={`review-${characterId}`}>{t("A line (optional)")}</label>
+          <textarea id={`review-${characterId}`} value={body} maxLength={280} rows={2} onChange={(e) => setBody(e.target.value)} placeholder={t("What made {name} worth watching?", { name: first })} />
           <p>
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? "Posting…" : summary.mine ? "Update your review" : "Post review"}
+              {busy ? t("Posting…") : summary.mine ? t("Update your review") : t("Post review")}
             </button>
           </p>
           {note && (

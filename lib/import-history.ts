@@ -269,6 +269,7 @@ const WHY: Record<RejectReason, string> = {
   hate: "It reads as hate speech, so it can't come along.",
   threat: "It reads as a threat, so it can't come along.",
   personal_info: "It has personal info (a phone number, email or address), so it can't come along.",
+  injection: "It reads as instructions to an AI, so it can't come along.",
 };
 
 /**

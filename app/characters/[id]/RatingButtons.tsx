@@ -5,6 +5,7 @@ import { requestJson } from "@/app/request";
 import { RATING_CATEGORIES, type RatingCategory } from "@/lib/rules";
 import type { RatingCounts, RatingMine } from "@/lib/ratings";
 import { trackConversion } from "@/app/conversion";
+import { useT } from "@/app/I18nProvider";
 
 type Props = {
   characterId: string;
@@ -20,6 +21,7 @@ export default function RatingButtons({ characterId, counts, mine, isOwner, comp
   const [state, setState] = useState<{ counts: RatingCounts; mine: RatingMine }>({ counts, mine });
   const [busy, setBusy] = useState<RatingCategory | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
 
   async function toggle(category: RatingCategory) {
     setBusy(category);
@@ -45,7 +47,7 @@ export default function RatingButtons({ characterId, counts, mine, isOwner, comp
             {c.emoji} {state.counts[c.id]} {c.label.toLowerCase()}
           </span>
         ))}
-        {!compact && <p className="muted">Others rate your character — you can&apos;t rate your own.</p>}
+        {!compact && <p className="muted">{t("Others rate your character: you can't rate your own.")}</p>}
       </div>
     );
   }

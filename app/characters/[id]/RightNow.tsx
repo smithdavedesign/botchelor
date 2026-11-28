@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { CharacterNow } from "@/lib/character-now";
+import { english, type T } from "@/lib/i18n/translate";
 
 /**
  * "Right now" under a character's header (lib/character-now.ts): who they are seeing, after or feuding with, and the
@@ -7,10 +8,10 @@ import type { CharacterNow } from "@/lib/character-now";
  * the page shapes it from what it already read and renders it in its one pass. The page renders nothing for an empty
  * one, so there is no empty state here.
  */
-export default function RightNow({ name, now }: { name: string; now: CharacterNow }) {
+export default function RightNow({ name, now, t = english }: { name: string; now: CharacterNow; t?: T }) {
   return (
-    <section className="character-now" aria-label={`Right now with ${name}`} data-track-area="character-now">
-      <p className="kicker">Right now</p>
+    <section className="character-now" aria-label={t("Right now with {name}", { name })} data-track-area="character-now">
+      <p className="kicker">{t("Right now")}</p>
       <ul>
         {now.lines.map((l) => (
           <li key={l.key}>
@@ -32,7 +33,7 @@ export default function RightNow({ name, now }: { name: string; now: CharacterNo
         <p className="small character-now-more">
           {/* #talk is the Talk panel's own anchor: PageTabs opens the tab and scrolls to it. */}
           <a href="#talk" data-track="character-now" data-track-where="talk">
-            See the talk →
+            {t("See the talk")} →
           </a>
         </p>
       )}

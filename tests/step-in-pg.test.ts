@@ -225,6 +225,17 @@ describe("on a Step in date", () => {
     expect(r.body.view.lines.length).toBeGreaterThan(before);
   });
 
+  it("someone who says they're under 18 ends the date there, and nothing of it is kept (2026-11-28)", async () => {
+    const me = await admin();
+    const id = await start(me.cookie);
+    let r = await act(me.cookie, id, { action: "advance" });
+    expect(r.body.view.state).toBe("your_line");
+    r = await act(me.cookie, id, { action: "line", dialogue: "ok but honestly I'm 15" });
+    expect(r.status).toBe(403);
+    expect(r.body).toMatchObject({ error: "adults_only" });
+    expect((await t.db.query(`select 1 from episodes where id = $1`, [id])).rows).toHaveLength(0);
+  });
+
   it("a cast line that plays along is never said: the show draws another", async () => {
     const me = await admin();
     const id = await start(me.cookie);

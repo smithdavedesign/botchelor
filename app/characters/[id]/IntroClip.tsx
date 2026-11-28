@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/app/Icon";
+import { useT } from "@/app/I18nProvider";
 
 /** The links the browser measures as slow (Network Information API): a hello of 3 MB or more would take a minute. */
 const SLOW_LINKS = new Set(["slow-2g", "2g", "3g"]);
@@ -22,6 +23,7 @@ export function introStart(calm: boolean, link: { saveData?: boolean; effectiveT
  */
 export default function IntroClip({ src, poster, name }: { src: string; poster: string | undefined; name: string }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const t = useT();
   // "wait": before the page is live (no buttons yet, so nothing flashes); "still": the poster and a play button.
   const [state, setState] = useState<"wait" | "still" | "playing" | "paused">("wait");
   const [sound, setSound] = useState(false);
@@ -82,16 +84,16 @@ export default function IntroClip({ src, poster, name }: { src: string; poster: 
 
   return (
     <div className="intro-clip">
-      <video ref={ref} muted loop playsInline preload="none" poster={poster} aria-label={`${name} says hello`}>
+      <video ref={ref} muted loop playsInline preload="none" poster={poster} aria-label={t("{name} says hello", { name })}>
         <source src={src} />
       </video>
       {state === "still" ? (
-        <button type="button" className="intro-clip-play" onClick={() => play(!sound)} aria-label={`Play ${name}'s hello`} data-track="intro-play">
+        <button type="button" className="intro-clip-play" onClick={() => play(!sound)} aria-label={t("Play {name}'s hello", { name })} data-track="intro-play">
           <Icon name="play" />
         </button>
       ) : state !== "wait" ? (
         <span className="intro-clip-controls">
-          <button type="button" onClick={toggle} aria-label={state === "playing" ? "Pause" : "Play"} data-track="intro-pause">
+          <button type="button" onClick={toggle} aria-label={state === "playing" ? t("Pause") : t("Play")} data-track="intro-pause">
             <Icon name={state === "playing" ? "pause" : "play"} />
           </button>
           <button type="button" onClick={listen} aria-pressed={sound} aria-label={sound ? "Sound off" : `Hear ${name}`} data-track="intro-listen">
