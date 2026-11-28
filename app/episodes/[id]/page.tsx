@@ -15,7 +15,9 @@ import { shareNextCard } from "@/lib/share-next";
 import { dateFilm } from "@/lib/date-film-read";
 import { getDb } from "@/lib/db";
 import { stageFigure } from "@/lib/cutout";
-import { characterPortrait } from "@/lib/portraits";
+import { characterPortrait, stagePicture } from "@/lib/portraits";
+import CharacterFigure from "@/app/stage/CharacterFigure";
+import Silhouette from "@/app/stage/Silhouette";
 import { dateListed } from "@/lib/public-cast";
 import { viewerBridge } from "@/lib/adult/bridge-viewer";
 import { viewerContinue } from "@/lib/adult/overnight";
@@ -184,6 +186,7 @@ function EpisodeHero({
   code,
   title,
   set = null,
+  figures = null,
   children,
 }: {
   characters: [HeroCharacter, HeroCharacter];
@@ -196,6 +199,8 @@ function EpisodeHero({
   title?: string | null;
   /** One of the show's sets in place of the venue's photo (lib/show-sets.ts): the blind-date booth while it's being filmed. */
   set?: ShowSet | null;
+  /** Their stage figures (lib/cutout.ts stageFigure): both of them stand in the place, on the right of the card. */
+  figures?: readonly (string | null)[] | null;
   children?: React.ReactNode;
 }) {
   const [a, b] = characters;
@@ -212,6 +217,20 @@ function EpisodeHero({
     <header className={`episode-hero${photo ? "" : " no-photo"}`} style={{ backgroundImage: background }}>
       {/* The theater's camera on the venue: a slow push-in on the same picture (pass 2 of the visual pop audit). */}
       <span className="episode-hero-art" aria-hidden="true" style={{ backgroundImage: background }} />
+      {/* The two of them standing in the place (2026-11-28, Dave: "a date page that opens on the scene"): their figure,
+          their portrait softened, or their silhouette until they have one. */}
+      {figures && (
+        <div className="episode-hero-stage" aria-hidden="true">
+          {[a, b].map((c, i) => {
+            const portrait = c.portrait ?? characterPortrait(c.id);
+            return portrait || figures[i] ? (
+              <CharacterFigure key={c.id} portrait={portrait} cutout={figures[i] ?? stagePicture(portrait)} className="episode-hero-figure" />
+            ) : (
+              <Silhouette key={c.id} id={c.id} name={c.name} hue={c.hue} className="episode-hero-figure" />
+            );
+          })}
+        </div>
+      )}
       <div className="episode-hero-inner">
         <p className="episode-hero-kicker">
           <span>Botchelor</span>
@@ -614,6 +633,7 @@ export default async function EpisodePage({
       <EpisodeHero
         characters={episode.characters}
         venue={episode.venue ?? null}
+        figures={figures}
         setting={episode.setting}
         code={code}
         title={displayTitle}

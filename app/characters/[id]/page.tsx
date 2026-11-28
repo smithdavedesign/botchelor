@@ -650,6 +650,17 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               </p>
             </>
           )}
+          {/* The staged theater stands them as a silhouette until they have a picture (app/stage/Silhouette.tsx). */}
+          {!c.portrait_asset_id && (
+            <p className="owner-portrait-nudge">
+              🎬 On a date, {shortName(c.name)} stands on the stage as a silhouette until they have a portrait.{" "}
+              {pgStudio ? (
+                <Link href={`/studio?character=${encodeURIComponent(c.id)}`}>Give them one in the Photo Studio</Link>
+              ) : (
+                <>Generate one under Manage, below.</>
+              )}
+            </p>
+          )}
         </section>
       )}
       {ratings.is_owner && !c.house && !partnerStyle?.taken && <MixerJoin characterId={c.id} first={shortName(c.name)} />}

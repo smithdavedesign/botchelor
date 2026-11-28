@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Scene from "@/app/Scene";
+import { bigLine, speakerOf } from "@/lib/theater-beats";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { DATE_ACTS, endingLabel, WRITE_TIME, type Ending } from "@/lib/rules";
@@ -353,6 +354,7 @@ export default function GeneratingPoller({
               lineB={lastLine(shown, "b")}
               actLabel={actLabel}
               placeholder="They're arriving…"
+              staged={{ speaking: speakerOf(shown), act: shown.length ? shown[shown.length - 1].act : 0, push: bigLine(shown) }}
             />
           </div>
           <div className="theater-convo">
