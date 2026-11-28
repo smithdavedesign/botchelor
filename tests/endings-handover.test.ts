@@ -197,8 +197,8 @@ describe("wishes on a date an agent performs", () => {
     await call("submit_own_date_step", { episode_id: id, output: line(0, { see_again: true, interest_signal: 0.937 }) }, ctxA);
     expect((await t.db.query<Any>(`select wishes from episodes where id = $1`, [id])).rows[0].wishes).toEqual({ a: true });
     const forB = JSON.stringify((await call("get_own_date_step", { episode_id: id }, ctxB)).structuredContent);
-    // A distinctive value, so a timestamp like "…:40.978Z" can't match it by chance.
-    expect(forB).not.toMatch(/"see_again":true|"wishes"|0\.937/);
+    // A distinctive value, and never as a timestamp's milliseconds ("…:00.937Z" matched it by chance on 2026-11-28).
+    expect(forB).not.toMatch(/"see_again":true|"wishes"|(?<!:\d\d)0\.937(?!\d*Z)/);
     const episodeForB = JSON.stringify((await call("get_episode", { episode_id: id }, ctxB)).structuredContent);
     expect(episodeForB).not.toMatch(/"see_again"|"wishes"|"interest"/);
   });
