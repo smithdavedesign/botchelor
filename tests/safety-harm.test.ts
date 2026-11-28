@@ -83,6 +83,8 @@ describe("self-harm encouragement and threats", () => {
     "nobody would miss you",
     "The world would be better without you.",
     "go drink bleach",
+    "Honestly she should kill herself.",
+    "he deserves to die",
     "I'm going to kill you.",
     "I will find you and kill you",
     "I know where you live.",

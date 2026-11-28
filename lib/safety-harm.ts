@@ -91,6 +91,9 @@ const DEALBREAKER_GROUP = new RegExp(`^ ${DATING_GROUP}(?: (?:or|and) ${DATING_G
 const SELF_HARM_PATTERNS = [
   /(?<! (?:don t|dont|do not|not|never|didn t|didnt|won t|wont|ll|you ll|you will)) (?:kill|hang|shoot|off|end|unalive|neck|rope|delete) (?:your ?self|yourselves|urself|ur self|yaself) (?!(?:laughing|over|working|trying|in the foot|for (?:it|this|that|work|me|us)|with work|to)\b)/,
   / kys /,
+  // About someone else, too (2026-11-28, the simulation: a public confessional said "she should kill herself").
+  / (?:should|needs? to|ought to|deserves? to|better|can go|could go|just needs to|go) (?:just )?(?:kill|hang|shoot|off|end|unalive|neck) (?:herself|himself|themselves|themself|theirself) /,
+  / (?:she|he|they|her|him|them) (?:should|deserves? to|ought to|needs? to) (?:just )?(?:die|be dead|not exist) /,
   / (?:go|please|pls|plz) (?:and )?(?:die|drown|jump off a (?:bridge|cliff|building)) (?!(?:of|from|laughing|happy|trying)\b)/,
   / just (?:die|drown) already /,
   / (?:hope|wish) (?:you|u) (?:die|get cancer|get hit by a|drown|choke and die|rot) (?!(?:of|laughing|happy)\b)/,
