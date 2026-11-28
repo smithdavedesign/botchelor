@@ -390,6 +390,8 @@ export type CompanionThreadView = {
   roleplay: CompanionRoleplayView | null;
   /** The crisis resources are up: nothing more in character until the person carries on. */
   paused: boolean;
+  /** Closed because the person said they're under 18 (lib/companion.ts screen): what to tell them, in place of the help. */
+  adults_only?: string;
   /**
    * The newest reply's draws, when it has been drawn again and nothing has been said after it: how many there are, and
    * which one is showing (1 is the first drawn). {action: "swipe"} flips between them. Absent: one draw, or not the

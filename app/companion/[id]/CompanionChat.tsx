@@ -303,6 +303,12 @@ export default function CompanionChat({
         return { ok: false, status: res.status, data, crisis: true };
       }
       if (data?.view) setView(data.view);
+      if (res.status === 403 && data?.error === "adults_only" && typeof data.message === "string") {
+        const closed = data.message;
+        setCrisis(null);
+        setView((v) => ({ ...v, paused: true, adults_only: closed }));
+        return { ok: false, status: res.status, data, crisis: true };
+      }
       if (data?.allowance) setAllowance(data.allowance);
       if (data && "extras" in data) setExtras(data.extras ?? null);
       if (!res.ok && res.status !== 402 && !quiet) setNote(data?.message ?? "That didn't work. Try again in a moment.");
@@ -599,7 +605,7 @@ export default function CompanionChat({
     else setNote("Couldn't delete it. Try again.");
   }
 
-  const paused = view.paused || Boolean(crisis);
+  const paused = view.paused || Boolean(crisis) || Boolean(view.adults_only);
   // The box takes any length (2026-11-21: a 1,170-character paste was cut to 1,000 mid-word without a word); past the
   // limit, the count says by how much and Send waits until it's shorter.
   const lineMax = forNextTime ? COMPANION_NEXT_TIME_MAX : COMPANION_MESSAGE_MAX;
@@ -1126,7 +1132,16 @@ export default function CompanionChat({
         </div>
       </div>
 
-      {crisis && (
+      {view.adults_only && (
+        <div className="companion-pause" role="status">
+          <p>{view.adults_only}</p>
+          <Link className="button-ghost" href="/safety">
+            Help lines
+          </Link>
+        </div>
+      )}
+
+      {crisis && !view.adults_only && (
         <CrisisPause
           className="companion-pause"
           resources={crisis}
