@@ -7,6 +7,7 @@ import SetHero from "@/app/SetHero";
 import WeeklyTime from "@/app/WeeklyTime";
 import { formatPrice, MARKET_ITEMS, onSale, PACK_5, TIP_ITEMS } from "@/lib/catalog";
 import { COMPANION_EXTRAS, COMPANION_FAIR_USE_PER_MONTH, companionGuestReplies, companionGuestsOpen, companionOpen, extraTerms } from "@/lib/companion-shared";
+import { afterDarkHref } from "@/lib/after-dark-host";
 import { liveCallsOn } from "@/lib/companion-live";
 import { liveFaceMode } from "@/lib/live-face";
 import { moneyOn } from "@/lib/money/switches";
@@ -219,6 +220,13 @@ export default async function PricingPage() {
           </li>
           <li>
             {fillNodes(t("What the show costs us to run is public: {link}."), { link: <Link href="/costs">{t("What it costs")}</Link> })}
+          </li>
+          <li>
+            {t("After Dark, the private adults-only side (18+), isn't open yet and is priced separately when it opens. Its own payment processor bills it, never this page:")}{" "}
+            <a href={afterDarkHref("/after-dark/subscribe")} rel="nofollow">
+              {t("join the waitlist")}
+            </a>
+            .
           </li>
         </ul>
       </section>

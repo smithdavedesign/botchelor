@@ -5397,6 +5397,23 @@ create table if not exists market_purchases (
   claimed_at timestamptz
 );
 create index if not exists market_purchases_buyer_idx on market_purchases (buyer_user);
+-- Creator payouts (lib/money/earnings.ts, 2026-11-28): where a creator wants their earnings sent, and each payout the
+-- owner made by hand. What a creator is owed is always derived (paid tips and sales, less what's recorded here).
+create table if not exists creator_payout_methods (
+  user_id text primary key,
+  method text not null check (method in ('paypal', 'wise', 'bank', 'other')),
+  handle text not null,
+  updated_at timestamptz not null default now()
+);
+create table if not exists creator_payouts (
+  id text primary key,
+  user_id text not null,
+  amount_cents integer not null check (amount_cents > 0),
+  note text not null default '',
+  paid_by text not null,
+  paid_at timestamptz not null default now()
+);
+create index if not exists creator_payouts_user_idx on creator_payouts (user_id, paid_at desc);
 -- Sponsored house characters: a brand's character on the cast for a while, always labelled as sponsored. ends_at > starts_at is checked in lib/money/sponsored.ts.
 create table if not exists sponsorships (
   id text primary key,

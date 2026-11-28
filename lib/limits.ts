@@ -34,7 +34,8 @@ export const IMPORT_READ_ALL_LIMITS = { perHour: 60, perDay: 300 };
  * live show keeps its quota). Past any of them the builder opens its usual form.
  */
 export const EXPRESS_DRAFT_LIMITS = { perHour: 5, perDay: 10 };
-export const EXPRESS_DRAFT_IP_LIMITS = { perHour: 10, perDay: 30 };
+/** Times SHARED_NETWORK_FACTOR since 2026-11-28: the per-visitor and across-everyone caps still bound the spend. */
+export const EXPRESS_DRAFT_IP_LIMITS = { perHour: 10 * 4, perDay: 30 * 4 };
 export const EXPRESS_DRAFT_ALL_LIMITS = { perHour: 60, perDay: 300 };
 /**
  * "Bring their history" (POST /api/characters/import/history, lib/import-history.ts): one call each on the show's PAID
@@ -178,6 +179,31 @@ export async function overLimit(
   if (used.hour >= limits.perHour || used.day >= limits.perDay) return true;
   await db.query("insert into rate_hits (bucket, key, at) values ($1, $2, $3)", [bucket, key, now.toISOString()]);
   return false;
+}
+
+/**
+ * Shared networks (the 40-visitor rerun, 2026-11-28: an office, a campus or a phone carrier puts many people behind one
+ * address, and an address cap sized for one person stopped the second and third of them). A limit keyed per person
+ * counts each person (an account, else the browser's own session) at the person's size, and the address only as a
+ * looser ceiling, SHARED_NETWORK_FACTOR times that: a script minting fresh cookies still stops at the ceiling, and the
+ * site-wide caps beside these still bound the spend.
+ */
+export const SHARED_NETWORK_FACTOR = 4;
+
+/** Which limit a request is over: its own ("self"), its network's ceiling ("network"), or neither (null, and counted). */
+export async function overPersonLimit(
+  db: Db,
+  bucket: string,
+  person: string,
+  headers: Headers,
+  limits: { perHour: number; perDay: number },
+  now = new Date(),
+): Promise<"self" | "network" | null> {
+  if (await overLimit(db, `${bucket}:person`, person, limits, now)) return "self";
+  const visitor = visitorKey(headers);
+  const ceiling = { perHour: limits.perHour * SHARED_NETWORK_FACTOR, perDay: limits.perDay * SHARED_NETWORK_FACTOR };
+  if (visitor && (await overLimit(db, bucket, visitor, ceiling, now))) return "network";
+  return null;
 }
 
 /**

@@ -6,7 +6,7 @@ import NavProgress from "./NavProgress";
 import IntentLink from "./IntentLink";
 import { episodeAllowance, freshAllowance, ownAllowance } from "@/lib/allowance";
 import { adTokenBalance } from "@/lib/adult/tokens";
-import { afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
+import { afterDarkHref, afterDarkOnly, afterDarkOrigin } from "@/lib/after-dark-host";
 import { afterDarkDoors } from "@/lib/adult/doors";
 import { NO_AD_DOORS } from "@/lib/adult/door-links";
 import { analyticsConsent, CONSENT_COOKIE, consentDefaultScript } from "@/lib/consent";
@@ -329,6 +329,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <li><Link prefetch={false} href="/contact">{t("Contact")}</Link></li>
                 <li><Link prefetch={false} href="/security">{t("Security")}</Link></li>
                 <li><Link prefetch={false} href="/accessibility">{t("Accessibility")}</Link></li>
+                {/* After Dark's waitlist (David, 2026-11-28: it has one; the 40-visitor rerun found no way to it). A plain text link to
+                    the visitor landing, which shows nothing adult, so the show's pages stay PG for a launch-day visitor. */}
+                {!adHost && <li><a href={afterDarkHref("/after-dark/subscribe")} rel="nofollow">{t("After Dark (18+) waitlist")}</a></li>}
               </FooterGroup>
               {/* The two ways to tell us something stay side by side (tests/user-feedback.test.ts). On After Dark's host the
                   group stays open on a phone too: reporting and the 2257 statement are never a tap away there. Terms and

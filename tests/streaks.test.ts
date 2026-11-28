@@ -32,11 +32,26 @@ describe("a caller's record", () => {
   });
 });
 
-/** One public date with `ending`, called by each of `calls` (cookie → pick), then aired. */
+/**
+ * Airs a date as one between people's characters (its house side given an owner just for the airing, then put back):
+ * only those notices say how it ended and what a call scored (lib/show-spoilers.ts).
+ */
+async function airAsPeoples(episodeId: string, creator: string) {
+  const sides = `select character_a from episodes where id = $1 union select character_b from episodes where id = $1`;
+  const house = (await t.db.query<{ id: string }>(`select id from characters where is_house and id in (${sides})`, [episodeId])).rows.map((r) => r.id);
+  await t.db.query(`update characters set is_house = false, owner_id = 'peoples-owner' where id = any($1)`, [house]);
+  try {
+    expect((await api.reveal(episodeId, creator)).status).toBe(200);
+  } finally {
+    await t.db.query(`update characters set is_house = true, owner_id = null where id = any($1)`, [house]);
+  }
+}
+
+/** One public date with `ending` between people's characters, called by each of `calls` (cookie → pick), then aired. */
 async function airedDate(ending: Ending, calls: [string, Ending][]) {
   const { creator, episode } = await setupEpisode(ending);
   for (const [cookie, pick] of calls) expect((await api.predict({ episode_id: episode.id, pick }, cookie)).status).toBe(201);
-  expect((await api.reveal(episode.id, creator)).status).toBe(200);
+  await airAsPeoples(episode.id, creator);
   return episode.id as string;
 }
 

@@ -21,7 +21,7 @@ import { handle, json, parseBody, readJson, session, userIdFromRequest, type Ses
 import { crisisAware, str } from "@/lib/crisis";
 import { frontierAuthorized } from "@/lib/model";
 import { generationPaused, PAUSED_MESSAGE } from "@/lib/compute";
-import { DATE_START_LIMITS, overLimit, visitorKey } from "@/lib/limits";
+import { DATE_START_LIMITS, overPersonLimit, visitorKey } from "@/lib/limits";
 import { track } from "@/lib/analytics";
 import { recordCrossSpecies } from "@/lib/agent-funnel";
 import { stampDateModels } from "@/lib/model-league";
@@ -479,12 +479,17 @@ export const POST = crisisAware("date_note", (body) => [str(body.note), str(body
   // Per visitor, not per cookie (lib/limits.ts): free dates are counted per anonymous cookie, and a fresh cookie
   // costs nothing, so this is what stops a script minting identities to flood the show. In-process calls (the
   // MCP front door) carry no IP and have the agents' own daily cap; the owner's key skips it.
-  const visitor = useFrontier ? null : visitorKey(req.headers);
-  if (visitor && (await overLimit(db, "date_start", visitor, DATE_START_LIMITS))) {
+  // Per person, with the address as a looser ceiling for shared networks (lib/limits.ts overPersonLimit, 2026-11-28).
+  const over = useFrontier || !visitorKey(req.headers) ? null : await overPersonLimit(db, "date_start", sess.userId, req.headers, DATE_START_LIMITS);
+  if (over) {
     return json(
       {
         error: "too_many_dates",
-        message: "That's a lot of dates from one connection. Take a breather: you can start another within the hour.",
+        message:
+          over === "self"
+            ? "That's a lot of dates in a short time. Nothing was used up: you can start another within the hour."
+            : "Lots of people on your network are starting dates right now. Nothing was used up: try again in a few minutes.",
+        retry_after_seconds: over === "self" ? 3600 : 600,
       },
       429,
       sess,

@@ -8,6 +8,7 @@ import { setDbForTests, type Db } from "@/lib/db";
 import {
   claimPaidDate,
   DATE_START_LIMITS,
+  SHARED_NETWORK_FACTOR,
   DEFAULT_PAID_DATES_PER_DAY,
   overLimit,
   paidDatesPerDay,
@@ -72,11 +73,13 @@ describe("starting dates is limited per visitor, not per cookie", () => {
 
   it("a fresh cookie from the same connection can't keep starting free dates", async () => {
     Object.assign(DATE_START_LIMITS, { perHour: 2, perDay: 10 });
-    expect((await startDateFrom("203.0.113.7")).status).toBe(200);
-    expect((await startDateFrom("203.0.113.7")).status).toBe(200);
-    const third = await startDateFrom("203.0.113.7");
-    expect(third.status).toBe(429);
-    expect((await third.json()).error).toBe("too_many_dates");
+    // Each person gets their own 2; the address, a shared network's ceiling of SHARED_NETWORK_FACTOR people (2026-11-28).
+    for (let i = 0; i < 2 * SHARED_NETWORK_FACTOR; i++) expect((await startDateFrom("203.0.113.7")).status).toBe(200);
+    const over = await startDateFrom("203.0.113.7");
+    expect(over.status).toBe(429);
+    const body = await over.json();
+    expect(body.error).toBe("too_many_dates");
+    expect(body.message).toMatch(/your network/);
     // Someone else, and an in-process call with no IP (the MCP front door has its own daily cap), are unaffected.
     expect((await startDateFrom("198.51.100.9")).status).toBe(200);
     expect((await startDateFrom(null)).status).toBe(200);

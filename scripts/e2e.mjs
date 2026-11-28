@@ -288,11 +288,17 @@ async function main() {
       assert((await page.getByText("Secret agendas & the producer").count()) > 0, "agendas/producer section missing");
       assert((await page.getByText(/Ending:/).count()) > 0, "ending not shown to the creator");
       assert((await page.getByText("Meet the parents").count()) > 0, "the chosen show-format badge is missing");
+      // A date with the show's own cast keeps its ending folded (lib/show-spoilers.ts); the creator opens it to read on.
+      const fold = page.locator("details[data-show-spoiler]");
+      if ((await fold.count()) > 0 && !(await fold.first().evaluate((d) => d.open))) await fold.first().locator("summary").click();
       assert((await page.getByRole("heading", { name: "The afterglow" }).count()) > 0, "the afterglow section is missing for the creator");
     });
 
     await step("the creator reads the morning-after texts in the afterglow (owners see them straight away)", async () => {
       await page.goto(episodeUrl);
+      // A date with the show's own cast keeps its ending folded (lib/show-spoilers.ts); the creator opens it to read on.
+      const fold2 = page.locator("details[data-show-spoiler]");
+      if ((await fold2.count()) > 0 && !(await fold2.first().evaluate((d) => d.open))) await fold2.first().locator("summary").click();
       await page.locator(".afterglow .turn").first().scrollIntoViewIfNeeded();
       await page.locator(".afterglow .turn").first().waitFor({ timeout: 10_000 });
       assert((await page.locator(".afterglow .turn").count()) >= 1, "the afterglow thread did not open");

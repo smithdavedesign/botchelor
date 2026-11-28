@@ -173,7 +173,7 @@ export type AccountExport = {
   /** Clubs they founded, and which clubs their characters are in (lib/clubs.ts). */
   clubs: { founded: Record<string, unknown>[]; memberships: Record<string, unknown>[] };
   /** The money features (lib/money/*): tips sent and received, templates listed, bought and sold. Never another person's id. */
-  money: { tips_sent: Record<string, unknown>[]; tips_received: Record<string, unknown>[]; listings: Record<string, unknown>[]; purchases: Record<string, unknown>[]; sales: Record<string, unknown>[] };
+  money: { tips_sent: Record<string, unknown>[]; tips_received: Record<string, unknown>[]; listings: Record<string, unknown>[]; purchases: Record<string, unknown>[]; sales: Record<string, unknown>[]; payout_method: Record<string, unknown>[]; payouts: Record<string, unknown>[] };
   /** Places they paid to suggest on a filming date (lib/scene-suggestions.ts). */
   scene_suggestions: Record<string, unknown>[];
   /** Their ratings and reviews of other people's characters (lib/ratings.ts, lib/reviews.ts). */
@@ -637,6 +637,8 @@ async function exportTheRest(db: Db, userId: string): Promise<TheRest> {
       listings: await q("select id, character_id, sku, blurb, created_at, delisted_at from market_listings where seller_user = $1 order by created_at"),
       purchases: await q("select order_id, listing_id, copy_id, created_at, claimed_at from market_purchases where buyer_user = $1 order by created_at"),
       sales: await q("select p.listing_id, o.status, p.created_at from market_purchases p left join orders o on o.id = p.order_id where p.seller_user = $1 order by p.created_at"),
+      payout_method: await q("select method, handle, updated_at from creator_payout_methods where user_id = $1"),
+      payouts: await q("select id, amount_cents, note, paid_at from creator_payouts where user_id = $1 order by paid_at"),
     },
     scene_suggestions: await q("select episode_id, place, label, tokens, status, created_at from scene_suggestions where user_id = $1 order by created_at"),
     character_ratings: await q("select character_id, category, created_at from character_ratings where rater_id = $1 order by created_at"),
@@ -1151,6 +1153,7 @@ async function deleteTheRest(db: Db, userId: string): Promise<void> {
   await run("delete from tips where from_user = $1 or to_user = $1");
   await run("delete from market_purchases where buyer_user = $1 or seller_user = $1");
   await run("delete from market_listings where seller_user = $1");
+  await run("delete from creator_payout_methods where user_id = $1");
   // Casting: an audition of a character that stays as a tombstone would keep it in the running; a used invite stays used.
   await run("delete from cast_auditions where owner_id = $1");
   await run("update casting_invites set used_by = null where used_by = $1");

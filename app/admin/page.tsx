@@ -22,6 +22,7 @@ export default async function AdminPage() {
   const tiles = [
     { href: "/admin/reports", label: "Complaints and takedowns", note: "reports from /report: a minor, a real person, an intimate image (48 hours), copyright and the rest (7 business days)" },
     { href: "/admin/analytics", label: "Analytics", note: "people, agents and quality: trends, the funnel, top characters, and who connects over MCP" },
+    { href: "/admin/earnings", label: "Creators' earnings", note: "every paid tip and template sale, each creator's share and balance, and where to send it; record payouts made by hand" },
     { href: "/admin/spend", label: "Spend", note: "money in and out: API and infrastructure costs, income, and each provider's live balance" },
     { href: "/admin/tags", label: "Tags", note: "what people pick by tag (roleplays, character types; After Dark's too) against the census, and what the pickers order by" },
     { href: "/admin/social", label: "Social network", note: "the network day by day, the most central characters, what a dataset could license, and how often Might know lands" },

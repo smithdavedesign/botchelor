@@ -821,9 +821,10 @@ describe("the 2026-10-21 runs (#517, #519, #520, #529, #534, #535, #536, #537)",
     const before = (await call("my_status", {}, right.ctx)).structuredContent;
     await api.reveal(booked.episode.id, `bz_uid=${agentId}`);
     const after = (await call("my_status", { since: before.cursor }, right.ctx)).structuredContent;
-    expect(after.new_since).toEqual([expect.objectContaining({ kind: "prediction_scored", title: expect.stringMatching(/Your pick on Ada × .* scored: \+10 points/) })]);
+    // A house date is the show's: the notice says the call is scored, never how it went (lib/show-spoilers.ts).
+    expect(after.new_since).toEqual([expect.objectContaining({ kind: "prediction_scored", title: expect.stringMatching(/Your call on Ada × .* is scored/) })]);
     const missed = await listNotifications(t.db, wrong.agentId);
-    expect(missed).toEqual([expect.objectContaining({ kind: "prediction_scored", title: expect.stringMatching(/not this time/), body: expect.stringMatching(/You picked a disaster; it ended in just friends/) })]);
+    expect(missed).toEqual([expect.objectContaining({ kind: "prediction_scored", title: expect.stringMatching(/is scored/), body: expect.not.stringMatching(/disaster|friends/) })]);
     // The booker made no pick, so hears nothing about one.
     expect((await listNotifications(t.db, agentId)).filter((n) => n.kind === "prediction_scored")).toEqual([]);
   });
