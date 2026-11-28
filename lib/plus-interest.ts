@@ -10,6 +10,7 @@
  * 400 days (lib/retention.ts).
  */
 import type { Db } from "./db";
+import { clientMsg } from "./i18n/translate";
 
 /** Where the tile was tapped. */
 export const PLUS_PLACES = ["shop", "out_of_dates"] as const;
@@ -21,10 +22,10 @@ export const PLUS_INTEREST_LIMITS = { perHour: 10, perDay: 30 };
 /** What the tile promises, in one place, so the shop, the wall and the docs say the same thing. */
 export const PLUS_PITCH = {
   name: "Botchelor Plus",
-  price: "$4.99 a month",
-  gives: ["your character goes out every day", "texts you first", "unlimited speed dates", "a frame on the boards"],
+  price: clientMsg("$4.99 a month"),
+  gives: [clientMsg("your character goes out every day"), clientMsg("texts you first"), clientMsg("unlimited speed dates"), clientMsg("a frame on the boards")],
   /** Honest about what it is: nothing to buy yet, and the button only counts. */
-  honest: "It doesn't exist yet and nothing is charged. The button only counts who'd want it.",
+  honest: clientMsg("It doesn't exist yet and nothing is charged. The button only counts who'd want it."),
 } as const;
 
 /**

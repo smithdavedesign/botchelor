@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { shortName } from "@/lib/names";
+import { useT } from "@/app/I18nProvider";
 import { Card, type DeckCard } from "./SwipeDeck";
 
 /** How far a card has to be dragged to count as a swipe (the real deck's, app/swipe/SwipeDeck.tsx). */
@@ -15,6 +16,7 @@ const THRESHOLD = 110;
  * deck says what a real swipe would have done and offers Make a character.
  */
 export default function DemoDeck({ cards, makeHref }: { cards: DeckCard[]; makeHref: string }) {
+  const t = useT();
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [leaving, setLeaving] = useState<"left" | "right" | null>(null);
@@ -76,23 +78,23 @@ export default function DemoDeck({ cards, makeHref }: { cards: DeckCard[]; makeH
   const lean = Math.max(-1, Math.min(1, x / THRESHOLD));
 
   return (
-    <div className="swipe-deck swipe-demo" tabIndex={0} onKeyDown={onKey} aria-label={`A demo card: ${top.name}. Right arrow likes, left arrow passes. Nothing is sent.`}>
+    <div className="swipe-deck swipe-demo" tabIndex={0} onKeyDown={onKey} aria-label={t("A demo card: {name}. Right arrow likes, left arrow passes. Nothing is sent.", { name: top.name })}>
       {done ? (
         <div className="swipe-empty card swipe-demo-done" role="status">
           <p className="swipe-empty-icon" aria-hidden="true">
             {done.liked ? "💘" : "👋"}
           </p>
           <p>
-            <strong>{done.liked ? `You liked ${name}.` : `You passed on ${name}.`}</strong>
+            <strong>{done.liked ? t("You liked {name}.", { name }) : t("You passed on {name}.", { name })}</strong>
           </p>
-          <p className="muted">That one was a demo, so nothing was sent.</p>
-          <p className="swipe-demo-cta">Make a character to swipe for real — {name} likes back.</p>
+          <p className="muted">{t("That one was a demo, so nothing was sent.")}</p>
+          <p className="swipe-demo-cta">{t("Make a character to swipe for real — {name} likes back.", { name })}</p>
           <p className="swipe-demo-buttons">
             <Link className="button" href={makeHref}>
-              Make a character
+              {t("Make a character")}
             </Link>
             <button type="button" className="button-ghost" onClick={again}>
-              See {name} again
+              {t("See {name} again", { name })}
             </button>
           </p>
         </div>
@@ -111,23 +113,23 @@ export default function DemoDeck({ cards, makeHref }: { cards: DeckCard[]; makeH
               onPointerCancel={onCancel}
             >
               <span className="swipe-stamp swipe-stamp-like" style={{ opacity: Math.max(0, lean) }} aria-hidden="true">
-                Like
+                {t("Like")}
               </span>
               <span className="swipe-stamp swipe-stamp-nope" style={{ opacity: Math.max(0, -lean) }} aria-hidden="true">
-                Pass
+                {t("Pass")}
               </span>
             </Card>
           </div>
           <div className="swipe-actions">
-            <button type="button" className="swipe-btn swipe-btn-nope" onClick={() => void decide(false)} aria-label={`Pass on ${top.name}`}>
+            <button type="button" className="swipe-btn swipe-btn-nope" onClick={() => void decide(false)} aria-label={t("Pass on {name}", { name: top.name })}>
               ✕
             </button>
-            <button type="button" className="swipe-btn swipe-btn-like" onClick={() => void decide(true)} aria-label={`Like ${top.name}`}>
+            <button type="button" className="swipe-btn swipe-btn-like" onClick={() => void decide(true)} aria-label={t("Like {name}", { name: top.name })}>
               ♥
             </button>
           </div>
           <p className="swipe-keys muted small" aria-hidden="true">
-            ← Pass · Like →
+            ← {t("Pass")} · {t("Like")} →
           </p>
         </>
       )}

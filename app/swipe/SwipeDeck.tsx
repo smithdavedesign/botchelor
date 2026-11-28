@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import { shortName } from "@/lib/names";
+import { useT } from "@/app/I18nProvider";
+import { fillNodes } from "@/app/fillNodes";
 import type { DeckCard as BaseCard, MatchView } from "@/lib/swipes";
 import type { Origin } from "@/lib/origin";
 import OriginBadge from "@/app/OriginBadge";
@@ -50,6 +52,7 @@ const HUMAN = kindLabel({ kind: "human" });
  * comes on top, with its place in what this person has seen this visit. The hand that was dealt is never logged.
  */
 export default function SwipeDeck({ character, initial, serveId, undoMinutes, pushKey = null, filters = NO_DECK_FILTERS, filtersSaid = "" }: Props) {
+  const t = useT();
   const [cards, setCards] = useState(initial);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -136,7 +139,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
       setCards((c) => c.slice(1));
       setLeaving(null);
       setDragX(0);
-      setStatus(like ? `Liked ${card.name}.` : `Passed on ${card.name}.`);
+      setStatus(like ? t("Liked {name}.", { name: card.name }) : t("Passed on {name}.", { name: card.name }));
       setLastLike(null);
       setMatchedMeanwhile(null);
       // The next card can be swiped now (2026-10-31, live on a phone: a swipe within a second or so of the last one was
@@ -155,24 +158,24 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
           const data = (await res.json().catch(() => ({}))) as { message?: string; match?: MatchView | null };
           if (!res.ok) {
             gone.current.delete(card.id); // the server says what's dealt again
-            setError(data.message ?? `The swipe on ${card.name} didn't go through.`);
+            setError(data.message ?? t("The swipe on {name} didn't go through.", { name: card.name }));
           } else if (data.match) {
             const m = data.match;
             setMatched(card);
             setMatchPage(`/messages/${m.lo}/${m.hi}?as=${encodeURIComponent(character.id)}`);
-            setStatus(`It's a match: ${first} and ${card.name}.`);
+            setStatus(t("It's a match: {a} and {b}.", { a: first, b: card.name }));
           } else if (like && n === decided.current) {
             setLastLike(card);
           }
         } catch {
           gone.current.delete(card.id);
-          setError(`Network error: the swipe on ${card.name} didn't go through.`);
+          setError(t("Network error: the swipe on {name} didn't go through.", { name: card.name }));
         }
       };
       sending.current = sending.current.then(send);
       await sending.current;
     },
-    [cards, character.id, first],
+    [cards, character.id, first, t],
   );
 
   // #622: takes back the last like while it's unanswered; the card goes back on top. A match, or ten minutes, and it stands.
@@ -191,21 +194,21 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
       if (res.ok) {
         gone.current.delete(card.id);
         setCards((c) => [card, ...c.filter((x) => x.id !== card.id)]);
-        setStatus(`Took back the like on ${card.name}.`);
+        setStatus(t("Took back the like on {name}.", { name: card.name }));
       } else if (data.error === "already_matched") {
         // They liked back meanwhile: a match stays (both owners were told), and what happens next is in their thread.
         const [lo, hi] = character.id < card.id ? [character.id, card.id] : [card.id, character.id]; // pairKey's order
         setMatchedMeanwhile({ name: card.name, href: `/messages/${lo}/${hi}?as=${encodeURIComponent(character.id)}` });
       } else {
-        setError(data.message ?? "That like can't be undone now.");
+        setError(data.message ?? t("That like can't be undone now."));
       }
       setLastLike(null);
     } catch {
-      setError("Network error. Try again.");
+      setError(t("Network error. Try again."));
     } finally {
       busy.current = false;
     }
-  }, [lastLike, character.id]);
+  }, [lastLike, character.id, t]);
 
   // The Undo goes once the server would refuse it for its age anyway.
   useEffect(() => {
@@ -263,7 +266,7 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
 
   return (
     <>
-      <div className="swipe-deck" tabIndex={0} onKeyDown={onKey} aria-label={`${first}'s swipe deck. Right arrow likes, left arrow passes.`}>
+      <div className="swipe-deck" tabIndex={0} onKeyDown={onKey} aria-label={t("{name}'s swipe deck. Right arrow likes, left arrow passes.", { name: first })}>
         {top ? (
           <div className="swipe-stack">
             {next && <Card card={next} className="swipe-card swipe-next" behind />}
@@ -278,10 +281,10 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
               onPointerCancel={onCancel}
             >
               <span className="swipe-stamp swipe-stamp-like" style={{ opacity: Math.max(0, lean) }} aria-hidden="true">
-                Like
+                {t("Like")}
               </span>
               <span className="swipe-stamp swipe-stamp-nope" style={{ opacity: Math.max(0, -lean) }} aria-hidden="true">
-                Pass
+                {t("Pass")}
               </span>
             </Card>
           </div>
@@ -291,16 +294,16 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
               💌
             </p>
             <p>
-              <strong>{filtersSaid ? "Nobody else here fits these filters." : "That's everyone for now."}</strong>
+              <strong>{filtersSaid ? t("Nobody else here fits these filters.") : t("That's everyone for now.")}</strong>
             </p>
             <p className="muted small">
               {filtersSaid ? (
                 <>
-                  Showing only {filtersSaid}. <Link href={`/swipe?character=${encodeURIComponent(character.id)}`}>Clear the filters</Link>.
+                  {t("Showing only {filters}.", { filters: filtersSaid })} <Link href={`/swipe?character=${encodeURIComponent(character.id)}`}>{t("Clear the filters")}</Link>
                 </>
               ) : (
                 <>
-                  New characters join the deck every day. <Link href={`/matches?character=${encodeURIComponent(character.id)}`}>See {first}&apos;s matches</Link>.
+                  {t("New characters join the deck every day.")} <Link href={`/matches?character=${encodeURIComponent(character.id)}`}>{t("See {name}'s matches", { name: first })}</Link>
                 </>
               )}
             </p>
@@ -308,30 +311,30 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
         )}
         {top && (
           <div className="swipe-actions">
-            <button type="button" className="swipe-btn swipe-btn-nope" onClick={() => void decide(false)} aria-label={`Pass on ${top.name}`}>
+            <button type="button" className="swipe-btn swipe-btn-nope" onClick={() => void decide(false)} aria-label={t("Pass on {name}", { name: top.name })}>
               ✕
             </button>
-            <button type="button" className="swipe-btn swipe-btn-like" onClick={() => void decide(true)} aria-label={`Like ${top.name}`}>
+            <button type="button" className="swipe-btn swipe-btn-like" onClick={() => void decide(true)} aria-label={t("Like {name}", { name: top.name })}>
               ♥
             </button>
           </div>
         )}
         {top && (
           <p className="swipe-keys muted small" aria-hidden="true">
-            ← Pass · Like →
+            ← {t("Pass")} · {t("Like")} →
           </p>
         )}
         {lastLike && (
           <p className="muted small swipe-undo">
-            Liked {lastLike.name}.{" "}
+            {t("Liked {name}.", { name: lastLike.name })}{" "}
             <button type="button" className="button-ghost" onClick={() => void undo()}>
-              Undo
+              {t("Undo")}
             </button>
           </p>
         )}
         {matchedMeanwhile && (
           <p className="muted small swipe-undo">
-            {matchedMeanwhile.name} liked {first} back meanwhile, so it&apos;s a match: unmatching is in <Link href={matchedMeanwhile.href}>their chat</Link> (⋯).
+            {fillNodes(t("{them} liked {name} back meanwhile, so it's a match: unmatching is in {chat} (⋯)."), { them: matchedMeanwhile.name, name: first, chat: <Link href={matchedMeanwhile.href}>{t("their chat")}</Link> })}
           </p>
         )}
         <p className="sr-only" role="status">
@@ -351,21 +354,21 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
               <Avatar seed={character.id} name={character.name} hue={character.hue} portraitSrc={character.portrait} size={88} />
               <Avatar seed={matched.id} name={matched.name} hue={matched.hue} house={matched.house} portraitSrc={matched.portrait} size={88} />
             </div>
-            <h2 id="its-a-match">It&apos;s a match!</h2>
+            <h2 id="its-a-match">{t("It's a match!")}</h2>
             <p>
               {/* Full names when the first names are the same ("Marisol and Marisol" read as a typo). */}
-              {shortName(matched.name) === first ? `${character.name} and ${matched.name}` : `${first} and ${shortName(matched.name)}`} are texting now. If they both want a date, you&apos;ll be able to book it.
+              {t("{a} and {b} are texting now. If they both want a date, you'll be able to book it.", shortName(matched.name) === first ? { a: character.name, b: matched.name } : { a: first, b: shortName(matched.name) })}
             </p>
             <p className="swipe-match-buttons">
               <Link className="button" href={matchPage}>
-                Read their chat
+                {t("Read their chat")}
               </Link>
               <button ref={keep} type="button" className="button-ghost" onClick={() => setMatched(null)}>
-                Keep swiping
+                {t("Keep swiping")}
               </button>
             </p>
             {/* J3: the peak is when someone wants to hear what happens next; gone once notifications are on. */}
-            {pushKey && <PushToggle publicKey={pushKey} prompt emailFallback place="match" title="Tell me when they text" body="A note the moment they text or agree to a date, even with the site closed." />}
+            {pushKey && <PushToggle publicKey={pushKey} prompt emailFallback place="match" title={t("Tell me when they text")} body={t("A note the moment they text or agree to a date, even with the site closed.")} />}
           </div>
         </div>
       )}
@@ -391,6 +394,7 @@ type CardProps = {
  * demo deck's card (app/swipe/DemoDeck.tsx), so a visitor without a character swipes the real thing.
  */
 export function Card({ card, className, behind, style, children, ...pointer }: CardProps) {
+  const t = useT();
   // A long profile scrolls inside the card. With a mouse nothing said so (it faded out mid-sentence), so while there's
   // more below, a "More" button sits on the fade and scrolls it on.
   const body = useRef<HTMLDivElement>(null);
@@ -426,14 +430,14 @@ export function Card({ card, className, behind, style, children, ...pointer }: C
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => body.current?.scrollBy({ top: body.current.clientHeight * 0.7, behavior: "smooth" })}
         >
-          More ⌄
+          {t("More")} ⌄
         </button>
       )}
       <div className="swipe-photo">
         <Avatar seed={card.id} name={card.name} hue={card.hue} house={card.house} portraitSrc={card.portrait} size={140} />
       </div>
       {/* The profile scrolls inside the card, so a keyboard can reach it too: Tab, then up and down (left and right still swipe). */}
-      <div className="swipe-body" ref={body} onScroll={measure} role="region" aria-label={`${card.name}'s profile`} tabIndex={0}>
+      <div className="swipe-body" ref={body} onScroll={measure} role="region" aria-label={t("{name}'s profile", { name: card.name })} tabIndex={0}>
         <h2 className="swipe-name">
           {card.name}
           <span className="swipe-age">, {card.age}</span>
@@ -447,11 +451,11 @@ export function Card({ card, className, behind, style, children, ...pointer }: C
         )}
         <p className="swipe-badges">
           <OriginBadge origin={card.origin ?? (card.house ? "cast" : card.made_by === "agent" ? "agent" : "person")} />
-          {card.house && <span className="badge">On the show this season</span>}
+          {card.house && <span className="badge">{t("On the show this season")}</span>}
           {/* What they are (lib/kinds.ts), when it's something other than human: the cross-kind deck reads at a glance. */}
           {card.kind && card.kind !== HUMAN && <span className="badge">{card.kind}</span>}
           {/* #443: they already liked yours, so a like back is a match. A flag on this card only, never a list. */}
-          {card.liked_you && <span className="badge">Liked you</span>}
+          {card.liked_you && <span className="badge">{t("Liked you")}</span>}
         </p>
         {/* Whether a like here will be answered, and how soon (lib/activity.ts replyHint): this card's own state only. */}
         {card.replies_note && card.replies !== "instant" && (
@@ -462,7 +466,7 @@ export function Card({ card, className, behind, style, children, ...pointer }: C
         {/* #426 on the web: said before the profile, where it's read before a swipe (it sat under the fade at the card's foot). */}
         {card.reads_like_yours && (
           <p className="swipe-twin" title={card.reads_like_yours}>
-            👯 Reads a lot like your own character: {card.reads_like_yours}
+            👯 {t("Reads a lot like your own character: {why}", { why: card.reads_like_yours })}
           </p>
         )}
         <p className="swipe-bio">{card.bio}</p>
@@ -490,7 +494,7 @@ export function Card({ card, className, behind, style, children, ...pointer }: C
           </ul>
         )}
         <p className="swipe-looking">
-          <strong>Looking for:</strong> {card.looking_for}
+          <strong>{t("Looking for:")}</strong> {card.looking_for}
         </p>
         {card.why.length > 0 && <p className="swipe-why">💡 {card.why.slice(0, 2).join(" · ")}</p>}
       </div>
