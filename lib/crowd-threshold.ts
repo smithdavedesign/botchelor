@@ -7,6 +7,7 @@
  * One helper for every count. tests/crowd-threshold.test.ts pins the files that use it, so a new count can't slip
  * in unguarded. Pure, apart from `isInsider`, so client components may import the rule too.
  */
+import { clientMsg, english, type T } from "./i18n/translate";
 import type { Db } from "./db";
 
 /** The default: fewer than this many people is "a quiet room", not a number. Ten since 2026-11-16 (David: "10 viewers" still read as nobody's here); it was five. */
@@ -46,8 +47,9 @@ export function crowdLine(count: number, words: string | { one: string; many: st
  * stranger's lone vote read "1 vote so far" and a 100% bar: the empty room again). Ballots hide their share bars and
  * per-choice counts by the same test (`showCrowd(total, opts)`).
  */
-export function tallyLine(total: number, opts: CrowdOptions = {}): string {
-  return showCrowd(total, opts) ? `${total} ${total === 1 ? "vote" : "votes"} so far.` : "Your vote's in.";
+export function tallyLine(total: number, opts: CrowdOptions = {}, t: T = english): string {
+  if (!showCrowd(total, opts)) return t(clientMsg("Your vote's in."));
+  return total === 1 ? t(clientMsg("1 vote so far.")) : t(clientMsg("{n} votes so far."), { n: total });
 }
 
 /** An insider: someone with a character of their own on the show (the nav's own test, app/layout.tsx). */

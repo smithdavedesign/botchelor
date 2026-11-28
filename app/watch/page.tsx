@@ -241,7 +241,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           <h2 id="airing-soon" className="watch-block-head">
             {t("Airing soon: call it")}
           </h2>
-          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
+          {record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" t={t} />}
           <ul className="watch-airing scroll-row">
             {airing.map((episode) => (
               <AiringCard key={episode.id} episode={episode} now={now} t={t} />
@@ -279,7 +279,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
         ) : (
           featured && (
             <div className="watch-lead">
-              <DateExcerpt date={featured} wide />
+              <DateExcerpt date={featured} wide t={t} />
             </div>
           )
         )}
@@ -362,7 +362,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             {dares && <DareVote board={dares} insider={insider} />}
             {reveal && !lead && <WeeklyReveal board={reveal} now={now} insider={insider} />}
           </div>
-          {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" />}
+          {airing.length === 0 && record && record.called > 0 && <CallsLine record={record} airing={0} nameless={viewerId !== null && profileName === null} sharer={sharer} where="watch" t={t} />}
         </section>
       )}
 

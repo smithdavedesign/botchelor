@@ -7,7 +7,7 @@ export type WhenStyle = "ago" | "date" | "day-time" | "weekly";
  * unset is the runtime's own zone (the viewer's, in a browser), so "day-time" and "weekly" name the day it falls on
  * there: midnight UTC on a Thursday is a Wednesday evening in California.
  */
-export function formatWhen(iso: string, style: WhenStyle, now: number, timeZone?: string): string {
+export function formatWhen(iso: string, style: WhenStyle, now: number, timeZone?: string, lang = "en-US"): string {
   const d = new Date(iso);
   const zone = timeZone ? { timeZone } : {};
   if (style === "ago") {
@@ -15,12 +15,12 @@ export function formatWhen(iso: string, style: WhenStyle, now: number, timeZone?
     if (mins < 1) return "now";
     if (mins < 60) return `${mins}m`;
     if (mins < 24 * 60) return `${Math.floor(mins / 60)}h`;
-    if (mins < 6 * 24 * 60) return d.toLocaleDateString("en-US", { weekday: "short", ...zone });
+    if (mins < 6 * 24 * 60) return d.toLocaleDateString(lang, { weekday: "short", ...zone });
   }
   if (style === "day-time" || style === "weekly") {
-    const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short", ...zone });
-    if (style === "weekly") return `${d.toLocaleDateString("en-US", { weekday: "long", ...zone })}s, ${time}`;
-    return `${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", ...zone })}, ${time}`;
+    const time = d.toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit", timeZoneName: "short", ...zone });
+    if (style === "weekly") return `${d.toLocaleDateString(lang, { weekday: "long", ...zone })}s, ${time}`;
+    return `${d.toLocaleDateString(lang, { weekday: "short", month: "short", day: "numeric", ...zone })}, ${time}`;
   }
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...zone });
+  return d.toLocaleDateString(lang, { month: "short", day: "numeric", ...zone });
 }

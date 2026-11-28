@@ -2,6 +2,7 @@
  * Companions' client-safe half (lib/companion.ts is the server's): the shapes a thread page reads, the reply lengths,
  * the report reasons, the AI notice and the places a scene can be played at.
  */
+import { english, type T } from "./i18n/translate";
 import { VENUE_IDS, type VenueId } from "./venues";
 
 /** COMPANION_OPEN=1 opens companions to every signed-in adult; unset (the default) keeps them to admins. */
@@ -278,17 +279,17 @@ export type CompanionOffersView = {
 };
 
 /** The chips' labels, in the thread (pure; the page and the tests use it). */
-export function offerLabel(kind: CompanionOfferKind, o: { partner: string; character: string }): string {
+export function offerLabel(kind: CompanionOfferKind, o: { partner: string; character: string }, t: T = english): string {
   const first = (name: string) => name.trim().split(/\s+/)[0] || name;
   switch (kind) {
     case "overnight":
-      return `Say yes to the overnight date with ${first(o.partner)}`;
+      return t("Say yes to the overnight date with {name}", { name: first(o.partner) });
     case "second_date":
-      return `Yes, see ${first(o.partner)} again`;
+      return t("Yes, see {name} again", { name: first(o.partner) });
     case "someone_new":
-      return "Try someone new";
+      return t("Try someone new");
     case "advice":
-      return `Tell ${first(o.character)} what to do next time`;
+      return t("Tell {name} what to do next time", { name: first(o.character) });
   }
 }
 

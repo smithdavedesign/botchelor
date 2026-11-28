@@ -1,3 +1,4 @@
+import { english, type T } from "@/lib/i18n/translate";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import Avatar from "@/app/Avatar";
@@ -26,6 +27,7 @@ export default function DateExcerpt({
   wide = false,
   call = false,
   className = "",
+  t = english,
 }: {
   date: FeaturedDate;
   still?: boolean;
@@ -34,6 +36,8 @@ export default function DateExcerpt({
   /** The first-run track (app/FirstRunCall.tsx): call the ending on the card, then "Now send yours". A visitor's hero. */
   call?: boolean;
   className?: string;
+  /** The page's translator (docs/i18n.md); English when none is passed. */
+  t?: T;
 }) {
   const [a, b] = date.characters;
   const face = (side: "a" | "b") => (side === "a" ? a : b);
@@ -63,7 +67,7 @@ export default function DateExcerpt({
           <span className="date-excerpt-meta">{[date.code, date.title ? `“${date.title}”` : where].filter(Boolean).join(" · ")}</span>
         </span>
       </div>
-      <ol className="date-excerpt-lines" aria-label={date.from === "moment" ? "A moment from the date" : "The date's first lines"}>
+      <ol className="date-excerpt-lines" aria-label={date.from === "moment" ? t("A moment from the date") : t("The date's first lines")}>
         {date.lines.map((line, i) => {
           const who = face(line.side);
           const atOnce = i < EXCERPT_LINES_AT_ONCE;
@@ -92,15 +96,15 @@ export default function DateExcerpt({
       {cta && call && date.ending ? (
         <figcaption className="date-excerpt-cta is-call">
           <FirstRunCall ending={date.ending} dateNumber={date.date_number} watchHref={`${date.share_path}?play=1`} />
-          <span className="date-excerpt-note">A real date from the show: nobody wrote it in advance.</span>
+          <span className="date-excerpt-note">{t("A real date from the show: nobody wrote it in advance.")}</span>
         </figcaption>
       ) : (
         cta && (
           <figcaption className="date-excerpt-cta">
             <Link className="button" href={`${date.share_path}?play=1`} data-track="excerpt-watch">
-              <Icon name="play" /> Watch how it ends
+              <Icon name="play" /> {t("Watch how it ends")}
             </Link>
-            <span className="date-excerpt-note">A real date from the show: nobody wrote it in advance.</span>
+            <span className="date-excerpt-note">{t("A real date from the show: nobody wrote it in advance.")}</span>
           </figcaption>
         )
       )}
