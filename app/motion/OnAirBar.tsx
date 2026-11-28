@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { okJson } from "@/lib/ok-json";
 
 type Premiere = { at: string; state: "scheduled" | "built" | "live"; kind: "pilot" | "weekly"; finale: boolean; lead: string; suitor: string | null; room_path: string | null };
 
@@ -42,7 +43,7 @@ export default function OnAirBar() {
   useEffect(() => {
     let gone = false;
     fetch("/api/on-air")
-      .then((r) => (r.ok ? r.json() : null))
+      .then(okJson)
       .then((d: { premiere: Premiere | null } | null) => !gone && setP(d?.premiere ?? null))
       .catch(() => null);
     setNow(Date.now());
