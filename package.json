@@ -28,6 +28,7 @@
     "sim:relationships": "node scripts/sim-relationships.mjs",
     "sim:after-dark": "node scripts/sim-after-dark.mjs",
     "sim:companion": "vitest run --config scripts/sim-companion.config.mts --maxWorkers=1",
+    "sweep:characters": "vitest run --config scripts/sweep-characters.config.mts",
     "sim:visitors": "zsh scripts/loop/run-now.sh",
     "screenshots": "node scripts/screenshots.mjs",
     "screenshots:season": "node scripts/screenshots.mjs --season",
