@@ -174,7 +174,7 @@ describe("minutes", () => {
     expect(extraTerms("minute", {})).toMatchObject({ included: 20, bundle: 10, tokens: 1 });
     expect(extraTerms("minute", { COMPANION_LIVE_INCLUDED: "0", COMPANION_LIVE_BUNDLE: "15" })).toMatchObject({ included: 0, bundle: 15 });
     expect(extraTerms("minute", { COMPANION_LIVE_BUNDLE: "0" }).bundle).toBe(10);
-    expect(extraPrice("minute", { free: false, included_left: null, credits: 0, tokens: 1, bundle: 10, tokens_left: 3 })).toBe("1 bought date for 10 minutes");
+    expect(extraPrice("minute", { free: false, included_left: null, credits: 0, tokens: 1, bundle: 10, tokens_left: 3 })).toBe("10 call minutes for 1 bought date");
     expect(extraPrice("minute", { free: false, included_left: null, credits: 4, tokens: 1, bundle: 10, tokens_left: 3 })).toBe("");
   });
 });
@@ -383,7 +383,7 @@ describe("starting a call", () => {
     const priced = await live(me.cookie, id, { action: "start" });
     expect(priced.status).toBe(402);
     expect(priced.body).toMatchObject({ error: "price", price: { tokens: 1, bundle: 10 } });
-    expect(extraPrice("minute", priced.body.extras.minute)).toBe("1 bought date for 10 minutes");
+    expect(extraPrice("minute", priced.body.extras.minute)).toBe("10 call minutes for 1 bought date");
     expect(deepgram).toEqual([]);
     const bought = await live(me.cookie, id, { action: "start", buy: true });
     expect(bought.status).toBe(200);
