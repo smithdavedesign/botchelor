@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Keyb
 import Avatar from "@/app/Avatar";
 import { shortName } from "@/lib/names";
 import { useT } from "@/app/I18nProvider";
-import { fillNodes } from "@/app/fillNodes";
 import type { DeckCard as BaseCard, MatchView } from "@/lib/swipes";
 import type { Origin } from "@/lib/origin";
 import OriginBadge from "@/app/OriginBadge";
@@ -21,8 +20,6 @@ type Props = {
   initial: DeckCard[];
   /** This visit's deck session (app/swipe/page.tsx): each card shown on top is reported under it. */
   serveId: string;
-  /** How long an unanswered like can be taken back (lib/swipes.ts UNDO_MINUTES). */
-  undoMinutes: number;
   /** The site's push key (lib/push.ts), for "Tell me when they text" on a match; null when push isn't set up. */
   pushKey?: string | null;
   /** The deck's filters (lib/deck-filters.ts): the next cards are fetched with them, and an empty deck says so. */
@@ -45,13 +42,13 @@ const HUMAN = kindLabel({ kind: "human" });
  * or use the buttons or the arrow keys. A match shows "It's a match!" and opens their thread; every match is on
  * /matches. The characters decide about a date themselves.
  *
- * Undo takes back an unanswered like only (#622). A match is never undone from the deck (David, 2026-10-31: "they have to
- * do that in their messages"), so a like back that lands meanwhile turns the Undo into a link to their thread.
+ * A swipe is final on the web (Dave, 2026-11-28: "no take backs"; the Undo line under the deck pushed the whole page up on a
+ * phone). Unmatching is in their messages (David, 2026-10-31).
  *
  * What's seen is what the preference data records (lib/swipes.ts logShownCard): each card is reported once, when it
  * comes on top, with its place in what this person has seen this visit. The hand that was dealt is never logged.
  */
-export default function SwipeDeck({ character, initial, serveId, undoMinutes, pushKey = null, filters = NO_DECK_FILTERS, filtersSaid = "" }: Props) {
+export default function SwipeDeck({ character, initial, serveId, pushKey = null, filters = NO_DECK_FILTERS, filtersSaid = "" }: Props) {
   const t = useT();
   const [cards, setCards] = useState(initial);
   const [dragX, setDragX] = useState(0);
@@ -62,17 +59,11 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [exhausted, setExhausted] = useState(initial.length === 0);
-  // #622: the last like, while it can still be taken back (unanswered: no match; the server holds the 10-minute rule).
-  const [lastLike, setLastLike] = useState<DeckCard | null>(null);
-  // The like that couldn't be taken back because it had become a match: where their thread is.
-  const [matchedMeanwhile, setMatchedMeanwhile] = useState<{ name: string; href: string } | null>(null);
   const startX = useRef<number | null>(null);
-  /** A card on its way out (its 220ms) or an Undo being sent: nothing else is decided meanwhile. */
+  /** A card on its way out (its 220ms): nothing else is decided meanwhile. */
   const busy = useRef(false);
   /** Swipes reach the server one at a time, in the order they were made; the deck doesn't wait for them. */
   const sending = useRef<Promise<void>>(Promise.resolve());
-  /** How many cards have been decided this visit: a like's answer offers Undo only if nothing was decided after it. */
-  const decided = useRef(0);
   /** Cards swiped this visit, so a refill that crosses a swipe still on its way can't deal one back. */
   const gone = useRef(new Set<string>());
   const refilling = useRef(false);
@@ -140,12 +131,9 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
       setLeaving(null);
       setDragX(0);
       setStatus(like ? t("Liked {name}.", { name: card.name }) : t("Passed on {name}.", { name: card.name }));
-      setLastLike(null);
-      setMatchedMeanwhile(null);
       // The next card can be swiped now (2026-10-31, live on a phone: a swipe within a second or so of the last one was
       // dropped while that one's request was out). This one's request goes in behind any still on their way.
       busy.current = false;
-      const n = ++decided.current;
       const send = async () => {
         try {
           // Its impression goes in before its swipe: a like on the house cast is a match at once, and a match leaves the deck.
@@ -164,8 +152,6 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
             setMatched(card);
             setMatchPage(`/messages/${m.lo}/${m.hi}?as=${encodeURIComponent(character.id)}`);
             setStatus(t("It's a match: {a} and {b}.", { a: first, b: card.name }));
-          } else if (like && n === decided.current) {
-            setLastLike(card);
           }
         } catch {
           gone.current.delete(card.id);
@@ -177,45 +163,6 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
     },
     [cards, character.id, first, t],
   );
-
-  // #622: takes back the last like while it's unanswered; the card goes back on top. A match, or ten minutes, and it stands.
-  const undo = useCallback(async () => {
-    const card = lastLike;
-    if (!card || busy.current) return;
-    busy.current = true;
-    setError(null);
-    try {
-      const res = await fetch("/api/swipes", {
-        method: "DELETE",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({ character_id: character.id, target_id: card.id }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
-      if (res.ok) {
-        gone.current.delete(card.id);
-        setCards((c) => [card, ...c.filter((x) => x.id !== card.id)]);
-        setStatus(t("Took back the like on {name}.", { name: card.name }));
-      } else if (data.error === "already_matched") {
-        // They liked back meanwhile: a match stays (both owners were told), and what happens next is in their thread.
-        const [lo, hi] = character.id < card.id ? [character.id, card.id] : [card.id, character.id]; // pairKey's order
-        setMatchedMeanwhile({ name: card.name, href: `/messages/${lo}/${hi}?as=${encodeURIComponent(character.id)}` });
-      } else {
-        setError(data.message ?? t("That like can't be undone now."));
-      }
-      setLastLike(null);
-    } catch {
-      setError(t("Network error. Try again."));
-    } finally {
-      busy.current = false;
-    }
-  }, [lastLike, character.id, t]);
-
-  // The Undo goes once the server would refuse it for its age anyway.
-  useEffect(() => {
-    if (!lastLike) return;
-    const lapse = setTimeout(() => setLastLike(null), undoMinutes * 60_000);
-    return () => clearTimeout(lapse);
-  }, [lastLike, undoMinutes]);
 
   // "It's a match!": the way out is focused, and Esc closes it.
   useEffect(() => {
@@ -322,19 +269,6 @@ export default function SwipeDeck({ character, initial, serveId, undoMinutes, pu
         {top && (
           <p className="swipe-keys muted small" aria-hidden="true">
             ← {t("Pass")} · {t("Like")} →
-          </p>
-        )}
-        {lastLike && (
-          <p className="muted small swipe-undo">
-            {t("Liked {name}.", { name: lastLike.name })}{" "}
-            <button type="button" className="button-ghost" onClick={() => void undo()}>
-              {t("Undo")}
-            </button>
-          </p>
-        )}
-        {matchedMeanwhile && (
-          <p className="muted small swipe-undo">
-            {fillNodes(t("{them} liked {name} back meanwhile, so it's a match: unmatching is in {chat} (⋯)."), { them: matchedMeanwhile.name, name: first, chat: <Link href={matchedMeanwhile.href}>{t("their chat")}</Link> })}
           </p>
         )}
         <p className="sr-only" role="status">

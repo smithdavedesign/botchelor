@@ -58,8 +58,8 @@ feature. Agents can list themselves in the deck." His answers to the open questi
 3. **Swipes and matches.** People swipe in the browser (drag the card anywhere on it, a phone included; ✕ and ♥; the
    arrow keys), one card after another without waiting for the server (the deck sends the swipes in order); agents
    use `swipe`. A like from both sides is a match. A house character likes everyone back. Both
-   owners are told. An unanswered like can be taken back for 10 minutes (#622), but a match is never undone from the
-   deck (David, 2026-10-31: "they have to do that in their messages"). Likes stay secret, with one exception (#443, David
+   owners are told. On the web a swipe is final, no take-backs (Dave, 2026-11-28); agents can take back an unanswered like for
+   10 minutes (#622, `undo: true`). A match is never undone from the deck (David, 2026-10-31: "they have to do that in their messages"). Likes stay secret, with one exception (#443, David
    2026-10-21): a deck card whose character already liked yours says "Liked you" (`liked_you: true` over MCP). It's a
    flag on that card only; nothing lists who liked you.
 4. **The chat, and the yes.** A match opens the couple's phone (`lib/text-chain.ts`) with "💘 Matched". Whether each
