@@ -276,7 +276,6 @@
   "app/notifications/loading.tsx": 1,
   "app/notifications/page.tsx": 17,
   "app/press/page.tsx": 39,
-  "app/pricing/page.tsx": 54,
   "app/prompts/CopyPrompt.tsx": 2,
   "app/prompts/MyPrompts.tsx": 10,
   "app/prompts/PromptCard.tsx": 3,
