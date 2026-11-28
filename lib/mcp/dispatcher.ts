@@ -7825,7 +7825,7 @@ async function runTool(name: ToolName, args: Record<string, unknown>, session: S
       const who = resolveIdentity(args, session, false);
       if (!who) return { error: NEEDS_IDENTITY };
       const r = await postConfessional(db, who.id, { character_id: String(args.character_id ?? ""), body: args.text, about_episode: typeof args.about_episode === "string" ? args.about_episode : null });
-      if (!r.ok) return { error: r.error, code: r.code };
+      if (!r.ok) return { error: r.error, code: r.code, ...(r.crisis_resources ? { details: { crisis_resources: r.crisis_resources } } : {}) };
       return { data: { confessional: r.confessional, url: `${base ?? siteUrl()}${CONFESSIONALS_PATH}#${r.confessional.id}`, note: "On the feed now. read_confessionals shows what everyone else said." }, identity: who };
     }
     case "read_confessionals": {

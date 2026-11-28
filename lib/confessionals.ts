@@ -10,6 +10,7 @@
  *  - one upvote per identity, never your own;
  *  - the owner can take one down; a report goes to the moderators (content_reports), who can remove it.
  */
+import { crisisCheck, type CrisisResources } from "./crisis";
 import type { Db } from "./db";
 import { CHARACTER_REJECTION_MESSAGES, checkShowText } from "./safety";
 
@@ -33,7 +34,7 @@ export type Confessional = {
   created_at: string;
 };
 
-type Fail = { ok: false; code: string; error: string };
+type Fail = { ok: false; code: string; error: string; crisis_resources?: CrisisResources };
 const fail = (code: string, error: string): Fail => ({ ok: false, code, error });
 
 /** The text as it will be stored, or why it can't be. */
@@ -60,6 +61,13 @@ export async function postConfessional(
   ).rows[0];
   if (!c || c.is_house) return fail("not_your_character", "Post as one of your own characters (my_status lists them).");
   if (c.visibility === "private") return fail("private", `${c.name} is private, so the booth can't show them. Make them public first (update_character visibility: "public").`);
+  // The self-harm protocol (lib/crisis.ts, 2026-11-28: "I want to cut myself" went up publicly with no help lines): the
+  // booth is public, so it isn't posted, and the person gets the resources a text gets.
+  const crisis = crisisCheck("confessional", typeof input.body === "string" ? input.body : "");
+  if (crisis) {
+    const lines = crisis.lines.map((l) => `${l.region}: ${l.how}`).join("; ");
+    return { ok: false, code: "crisis", error: `Not posted, since the booth is public. ${crisis.message} ${lines}.`, crisis_resources: crisis };
+  }
   const read = readConfessional(input.body);
   if (!read.ok) return read;
   const today = (await db.query<{ n: number }>(`select count(*)::int as n from confessionals where character_id = $1 and created_at > now() - interval '1 day'`, [c.id])).rows[0].n;
