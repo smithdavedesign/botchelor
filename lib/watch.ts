@@ -30,7 +30,8 @@ import { shotsJsonSql, shotUrlsOf } from "./show-shots-sql";
 import { claimPaidDate } from "./limits";
 import { getDirectorModel, getModel, paidDefaultOn } from "./model";
 import { generateDate } from "./pipeline";
-import { claimNightPlan, datePlanAtNightOn, planIfFits } from "./night-plans";
+import { claimNightPlan, datePlanAtNightOn, lobbyPlanOn, planIfFits } from "./night-plans";
+import { lopsidedEnding, producerSwayOn, recentHouseDates, swayAvoidVenues, swayPick, SWAY_CANDIDATES, type Previewed } from "./casting-sway";
 import { beatFor } from "./producer";
 import { arcDate, arcsOn } from "./story-arcs";
 import type { BuiltDate } from "./simulation";
@@ -871,6 +872,16 @@ export type TemplateOpts = {
   venuePool?: readonly VenueId[];
   /** A friend of both set it up (lib/social/introductions.ts, lobbyDeal): the date says so, and both actors know who. */
   introduction?: Introduction | null;
+  /**
+   * The producer's casting sway (lib/casting-sway.ts): venues a show-dealt venue skips (the latest house disasters'),
+   * on top of the characters' own last two. Never read when the venue was chosen, agreed or is a one-venue pool.
+   */
+  avoidVenues?: readonly PlaceId[];
+  /**
+   * createTemplateParty only: the id the date is stored under when no plan written at night claims one (the casting
+   * sway previewed the date under it, so the preview is the date). Left out, a fresh id.
+   */
+  episodeId?: string;
 };
 
 /**
@@ -886,6 +897,27 @@ export async function buildTemplateDate(
   bId: string,
   opts: TemplateOpts = {},
 ): Promise<{ a: HouseRow; b: HouseRow; built: BuiltDate; decided: Outcome; trace: EngineTrace | null } | null> {
+  return templateDate(db, episodeId, aId, bId, opts, true);
+}
+
+/**
+ * The engine's decision for a house date before it is made (the casting sway, lib/casting-sway.ts): buildTemplateDate
+ * under the same id with the same options, minus deriving missing hot takes (flavour the engine never reads, and the
+ * only thing it writes), so the outcome is the one the real date will be decided with. Reads only; no model call.
+ */
+export async function previewTemplateDate(db: Db, episodeId: string, aId: string, bId: string, opts: TemplateOpts = {}): Promise<{ decided: Outcome; trace: EngineTrace | null; version: number | null } | null> {
+  const date = await templateDate(db, episodeId, aId, bId, opts, false);
+  return date ? { decided: date.decided, trace: date.trace, version: date.built.setup.engine_version ?? null } : null;
+}
+
+async function templateDate(
+  db: Db,
+  episodeId: string,
+  aId: string,
+  bId: string,
+  opts: TemplateOpts,
+  hotTakes: boolean,
+): Promise<{ a: HouseRow; b: HouseRow; built: BuiltDate; decided: Outcome; trace: EngineTrace | null } | null> {
   const rows = (
     await db.query<HouseRow>(
       `select id, name, age, bio, traits, want, dealbreaker, is_house, appearance, avatar_hue, pronouns, voice
@@ -898,7 +930,7 @@ export async function buildTemplateDate(
   if (!a || !b) return null;
   const forDate = (c: HouseRow): CharacterForDate => ({ id: c.id, sheet: houseSheet(c) });
   // Hot takes for a character with none yet, derived once on the free model (lib/hot-takes.ts). Never fails the room.
-  await ensureHotTakes(db, [a.id, b.id], getModel("minimal", false)).catch(() => {});
+  if (hotTakes) await ensureHotTakes(db, [a.id, b.id], getModel("minimal", false)).catch(() => {});
   // A house room has no owner: its characters bring in only their public history together.
   // The season format's thumbs are cosmetic framing like any format (lib/formats.ts): the engine never reads them.
   // The dare (lib/dares.ts) rides side A's private note; both can apply to one night.
@@ -911,6 +943,7 @@ export async function buildTemplateDate(
     creatorId: PUBLIC_ONLY,
     roleplay: opts.roleplay ?? null,
     venuePool: opts.venuePool ?? null,
+    ...(opts.avoidVenues?.length ? { alsoAvoidVenues: opts.avoidVenues } : {}),
     producerPick: opts.producer ?? null,
     introduction: opts.introduction ? { ...(opts.introduction.a === aId ? opts.introduction.lines : { a: opts.introduction.lines.b, b: opts.introduction.lines.a }), by: opts.introduction.byName } : null,
   });
@@ -926,7 +959,7 @@ export async function createTemplateParty(db: Db, aId: string, bId: string, opts
   // The plan written at night (lib/night-plans.ts): when the producer planned this pair's house date for today, the
   // date takes the id reserved for it, so it is the date the plan was written for. Its fit is checked once it's decided.
   const night = await claimNightPlan(db, aId, bId).catch(() => null);
-  const episodeId = night?.episode_id ?? crypto.randomUUID();
+  const episodeId = night?.episode_id ?? opts.episodeId ?? crypto.randomUUID();
   const date = await buildTemplateDate(db, episodeId, aId, bId, opts);
   if (!date) return null;
   const { a, b, built, decided, trace } = date;
@@ -1077,9 +1110,18 @@ export async function refreshLobby(
   // Today's later rooms deal a different pairing from the first one.
   const round = today.rows.length;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const deal = await lobbyDeal(db, now, attempt + 2 * round);
+    const n = attempt + 2 * round;
+    // The casting sway (lib/casting-sway.ts) previews the date under the id it will be stored under: the id the plan
+    // written at night reserved, when that plan is for the pair the sway picks now; otherwise a fresh one, re-dealt.
+    const planned = await lobbyPlanOn(db, day).catch(() => null);
+    let episodeId = planned?.episode_id ?? crypto.randomUUID();
+    let deal = await lobbyDeal(db, now, n, { episodeId });
+    if (deal && planned && (deal.a !== planned.a_id || deal.b !== planned.b_id)) {
+      episodeId = crypto.randomUUID();
+      deal = await lobbyDeal(db, now, n, { episodeId });
+    }
     if (!deal) continue;
-    const result = await createTemplateParty(db, deal.a, deal.b, deal.thumbs);
+    const result = await createTemplateParty(db, deal.a, deal.b, { ...deal.thumbs, episodeId });
     if (!result || !result.ok) continue;
     const { rows } = await db.query<{ n: number }>(
       `select jsonb_array_length(e.transcript)::int as n from watch_parties w join episodes e on e.id = w.episode_id where w.id = $1`,
@@ -1105,7 +1147,16 @@ export async function templateRoomsOn(db: Db, day: string): Promise<number> {
  * round): refreshLobby's own deal, on its own so the producer can know tomorrow's house date the night before
  * (lib/night-plans.ts). Null when the cast is too small to deal from.
  */
-export async function lobbyDeal(db: Db, now: Date, n: number): Promise<{ a: string; b: string; thumbs: TemplateOpts } | null> {
+export async function lobbyDeal(
+  db: Db,
+  now: Date,
+  n: number,
+  /**
+   * The casting sway (lib/casting-sway.ts): the id the date will be stored under, so the plainly dealt pair can be swayed
+   * by previewing each candidate's ending under it. Left out (or PRODUCER_SWAY=0), the dealt pair stands.
+   */
+  sway?: { episodeId: string; env?: Record<string, string | undefined> },
+): Promise<{ a: string; b: string; thumbs: TemplateOpts } | null> {
   const day = now.toISOString().slice(0, 10);
   // Paired from this season's cast (lib/season-cast.ts): the house cast and the fan picks; the rest of the roster sits
   // the season out.
@@ -1115,10 +1166,13 @@ export async function lobbyDeal(db: Db, now: Date, n: number): Promise<{ a: stri
   // A classic week with no twist passes nothing, and the date is built exactly as before.
   const def = await seasonFormatNow(db, now).catch(() => null);
   const twist = def ? twistOf(def, now) : null;
+  // The casting sway's venue heuristic: a venue the show deals skips the latest house disasters' (made before the day).
+  const avoid = await swayAvoidVenues(db, day, sway?.env).catch(() => []);
   const thumbs: TemplateOpts = {
     ...(twist?.format ? { format: twist.format } : {}),
     ...(twist?.producer ? { producer: twist.producer } : {}),
     ...(def?.venues ? { venuePool: def.venues } : {}),
+    ...(avoid.length ? { avoidVenues: avoid } : {}),
   };
   // A Botchelor season (lib/ceremony.ts): the lead with the suitor whose turn it is, a later room the next suitor.
   const courting = def?.lead ? suitorInTurn(now, n) : null;
@@ -1145,10 +1199,40 @@ export async function lobbyDeal(db: Db, now: Date, n: number): Promise<{ a: stri
   // whose pairing is its own. Without such a pair, or on the other deals, it's dealt as before.
   const intro = fresh.length ? null : await introductionFor(db, cast, day, n).catch(() => null);
   if (intro) return { a: intro.a, b: intro.b, thumbs: { ...thumbs, introduction: intro } };
-  const dealt = seedFrom("lobby-a", day, n);
-  const i = fresh.length ? cast.indexOf(fresh[dealt % fresh.length]) : dealt % cast.length;
-  const j = (i + 1 + (seedFrom("lobby-b", day, n) % (cast.length - 1))) % cast.length;
-  return { a: cast[i], b: cast[j], thumbs };
+  // The plain deal. Candidate 0 is the deal as ever; the casting sway may prefer one of the others dealt the same way.
+  const dealtAt = (k: number): [string, string] => {
+    const extra = k ? ["sway", k] : [];
+    const dealt = seedFrom("lobby-a", day, n, ...extra);
+    const i = fresh.length ? cast.indexOf(fresh[dealt % fresh.length]) : dealt % cast.length;
+    const j = (i + 1 + (seedFrom("lobby-b", day, n, ...extra) % (cast.length - 1))) % cast.length;
+    return [cast[i], cast[j]];
+  };
+  const [a, b] = dealtAt(0);
+  if (!sway || !producerSwayOn(sway.env)) return { a, b, thumbs };
+  const pairs: [string, string][] = [];
+  for (let k = 0; k < SWAY_CANDIDATES; k++) {
+    const p = dealtAt(k);
+    if (!pairs.some((q) => q[0] === p[0] && q[1] === p[1])) pairs.push(p);
+  }
+  const picked = await swayPair(db, now, sway.episodeId, pairs, thumbs).catch(() => 0);
+  return { a: pairs[picked][0], b: pairs[picked][1], thumbs };
+}
+
+/**
+ * The casting sway's pick among the plainly dealt pairs (lib/casting-sway.ts swayPick): each previewed under the date's
+ * own id. 0 (the dealt pair) when the recent house endings are varied, so nothing is built at all then.
+ */
+async function swayPair(db: Db, now: Date, episodeId: string, pairs: readonly [string, string][], thumbs: TemplateOpts): Promise<number> {
+  if (pairs.length < 2) return 0;
+  const recent = (await recentHouseDates(db, now)).map((r) => r.ending);
+  if (!lopsidedEnding(recent)) return 0;
+  const previewed: Previewed[] = [];
+  for (const [a, b] of pairs) {
+    const p = await previewTemplateDate(db, episodeId, a, b, thumbs);
+    // A pair that can't be built can't be picked: it previews as the very ending the mix leans on.
+    previewed.push(p ? { ending: p.decided.ending, margin: p.decided.margin, version: p.version } : { ending: lopsidedEnding(recent)!, version: null });
+  }
+  return swayPick(previewed, recent);
 }
 
 /** Toggles one of a viewer's emoji reactions on. Returns the new count and whether it is now theirs. */

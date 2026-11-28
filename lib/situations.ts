@@ -32,6 +32,7 @@ import { firstPickOn, seasonCastIds, suitorInTurn } from "./season-cast";
 import type { SeasonFormatDef } from "./season-format";
 import { seasonFormatNow } from "./season-format-store";
 import { createTemplateParty, type TemplateOpts } from "./watch";
+import { swayAvoidVenues } from "./casting-sway";
 import { beatFor, stagedPair, stageOf, twistsFor, type Twist } from "./producer";
 import { setWant } from "./story-state";
 
@@ -152,7 +153,15 @@ export async function situationDeal(db: Db, day: string): Promise<SituationDeal>
   const roleplay: DateRoleplay | null = winner ? { ...termsFor(winner, pair[0]), agreed: "auto" } : null;
   // The dared one goes in first (side A), so the dare rides its private note and the other side never sees it.
   const [first, second]: [string, string] = dared && dared !== pair[0] ? [pair[1], pair[0]] : [pair[0], pair[1]];
-  const opts: TemplateOpts = { roleplay, dare: dare ? producerDareNote(dare.text) : null, ...(twist?.venue ? { venuePool: [twist.venue] } : {}) };
+  // The twist's place is the vote's; without one the show deals the venue, and the casting sway's heuristic skips the
+  // latest house disasters' (lib/casting-sway.ts). The pair is the ballot's, never swayed.
+  const avoid = twist?.venue ? [] : await swayAvoidVenues(db, day).catch(() => []);
+  const opts: TemplateOpts = {
+    roleplay,
+    dare: dare ? producerDareNote(dare.text) : null,
+    ...(twist?.venue ? { venuePool: [twist.venue] } : {}),
+    ...(avoid.length ? { avoidVenues: avoid } : {}),
+  };
   return { ok: true, winner, twist, dare, dared, pair, first, second, opts, tally, dareTally, total: [...tally.values()].reduce((n, v) => n + v, 0) };
 }
 

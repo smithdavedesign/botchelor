@@ -483,6 +483,11 @@ export async function buildDate(
      * dates. A rebuild of a stored date passes the setup's snapshot (or [] for one from before), so the venue holds.
      */
     avoidVenues?: PlaceId[];
+    /**
+     * More venues to deal past on top of the characters' own last two (the producer's casting sway, lib/casting-sway.ts:
+     * the latest house disasters' backdrops). Only a venue the show deals reads it; a chosen or agreed place never does.
+     */
+    alsoAvoidVenues?: readonly PlaceId[];
     /** A rebuild of a stored date passes its venue (DateSetup.venue), so it's written where it was booked. */
     venueOverride?: PlaceId;
     /** Where the booker said it happens (DateParts.chosenPlace). */
@@ -583,7 +588,7 @@ export async function buildDate(
         : opts.legacyHistory && current
           ? { dates: current.dates, last_ending: current.last_ending }
           : current;
-  const avoidVenues = opts.avoidVenues ?? (await recentVenues(db, [a.id, b.id], episodeId));
+  const avoidVenues = opts.avoidVenues ?? [...new Set([...(await recentVenues(db, [a.id, b.id], episodeId)), ...(opts.alsoAvoidVenues ?? [])])];
   return assembleDate({
     episodeId, a, b, req, seed: seedOverride ?? seedFrom(episodeId), avoidVenues, venueOverride: opts.venueOverride, chosenPlace: opts.chosenPlace ?? null, agreedPlan: agreed,
     soulA, soulB, memoryA: withPairMemory(withPendingReflections(memoryA, pendingA), pairA), memoryB: withPairMemory(withPendingReflections(memoryB, pendingB), pairB), history, ex, signalsOverride,

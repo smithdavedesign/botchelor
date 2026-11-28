@@ -1131,7 +1131,9 @@ suitor whose turn it is). One plan a night. It can do this because a house date'
 episode id:
 
 1. It reserves an episode id, builds the date exactly as `createTemplateParty` will (`buildTemplateDate`: the same
-   pair, order, thumbs, roleplay or twist), and lets the engine decide it.
+   pair, order, thumbs, roleplay or twist), and lets the engine decide it. The lobby's id is reserved before its deal,
+   so the producer's casting sway (docs/seasons.md, "The casting sway") previews its candidates under it; the morning's
+   lobby keeps that id when the sway still picks the planned pair, else re-deals under a fresh one.
 2. It asks the show's free model for the three acts, in `DatePlan`'s shape, from the engine's reasons (the same
    `dateFacts` and outline the director always got) plus the house's story: the day's beat when it concerns these two,
    and each side's own story state (what it heard about the other and from whom, how far it trusts them, its want for

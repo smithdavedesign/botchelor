@@ -228,6 +228,12 @@ services:
       # - key: PRODUCER_PLANS
       #   value: "1"
       #   scope: RUN_AND_BUILD_TIME
+      # The casting sway (lib/casting-sway.ts; docs/seasons.md "The casting sway"): on by default, after a lopsided run
+      # of house-date endings the lobby's plainly dealt pair gives way to one whose engine-previewed ending differs, and
+      # a show-dealt venue skips the latest house disasters'. Never changes an ending. "0" deals exactly as before.
+      # - key: PRODUCER_SWAY
+      #   value: "0"
+      #   scope: RUN_AND_BUILD_TIME
       # Earned endings (lib/date-turn.ts; docs/date-quality.md "Round: endings the dialogue earns"): on by default, a
       # date played from the rules plan carries the moment its decided ending comes from, mid-date (measured: the
       # judge's "motivated" on disasters 2.25 -> 3.5, "natural" inside the noise). "0" plays every date from its beats
