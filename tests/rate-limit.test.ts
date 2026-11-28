@@ -55,3 +55,16 @@ describe("rate limiting", () => {
     }
   });
 });
+
+describe("refundRateLimit (2026-11-28 simulation #10)", () => {
+  it("gives back the call counted at that moment, and only that one", async () => {
+    const { refundRateLimit, peekRateLimit } = await import("@/lib/rate-limit");
+    const t = Date.now();
+    checkRateLimit("refund", "send_text", t);
+    checkRateLimit("refund", "send_text", t + 1);
+    refundRateLimit("refund", "send_text", t + 1);
+    expect(peekRateLimit("refund", "send_text", t + 2).used).toBe(1);
+    refundRateLimit("refund", "send_text", t + 99);
+    expect(peekRateLimit("refund", "send_text", t + 2).used).toBe(1);
+  });
+});

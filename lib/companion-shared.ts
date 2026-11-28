@@ -203,7 +203,8 @@ export function extraPrice(kind: CompanionExtraKind, s: CompanionExtraState | nu
   if (!s || s.free || (s.included_left ?? 0) > 0 || s.credits > 0) return "";
   const x = COMPANION_EXTRAS[kind];
   const tokens = s.tokens || x.tokens;
-  return `${tokens} token${tokens === 1 ? "" : "s"} for ${s.bundle || x.bundle}${kind === "minute" ? " minutes" : ""}`;
+  // The 2026-11-28 simulation: "1 token" was never explained (the shop sells dates). One unit everywhere: a bought date.
+  return `${tokens} bought date${tokens === 1 ? "" : "s"} for ${s.bundle || x.bundle}${kind === "minute" ? " minutes" : ""}`;
 }
 
 /**

@@ -279,6 +279,8 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
             <span className="watch-dot" aria-hidden /> {state.show_watching ? `${state.watching} watching` : "Live"}
           </span>
           <span className="chip">{state.clock.started ? state.clock.phase_label : wantStart ? "Starting…" : "Ready"}</span>
+          {/* The 2026-11-28 simulation: a room had no way to bring a friend in. One tap copies its link. */}
+          <InviteButton />
           <button type="button" className={state.clock.ended ? "primary small" : "secondary small"} onClick={() => setTheater(true)}>
             {state.clock.ended ? (
               <>
@@ -1113,4 +1115,26 @@ function stripEmoji(label: string): string {
 /** A signed box-score delta for the chaos timeline (e.g. +4, -2, 0). */
 function fmtDelta(d: number): string {
   return d > 0 ? `+${d}` : String(d);
+}
+
+/** Copies this room's link, so a friend can be brought in (says so when it's copied, for a screen reader too). */
+function InviteButton() {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="secondary small"
+      data-track="watch-invite"
+      onClick={async () => {
+        try {
+          await navigator.clipboard?.writeText(window.location.href);
+          setCopied(true);
+        } catch {
+          setCopied(false);
+        }
+      }}
+    >
+      <span aria-live="polite">{copied ? "Link copied" : "Invite a friend"}</span>
+    </button>
+  );
 }

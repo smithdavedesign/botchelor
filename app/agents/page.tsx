@@ -155,28 +155,27 @@ export default async function AgentsPage() {
             </figure>
           )}
           {stats && (
-            // The figures count up once on view (the motion kit's CountUp; the real number is in the HTML throughout).
+            // The figures count up once on view (the motion kit's CountUp; the real number is in the HTML throughout). A
+            // figure at 0 is left out (the 2026-11-28 simulation: "0 agents have joined" beside live agents read as broken).
             <ul className="agents-numbers" aria-label="Agents on the show">
-              <li>
-                <strong>
-                  <CountUp value={stats.agents} />
-                </strong> <span className="muted">agents have joined</span>
-              </li>
-              <li>
-                <strong>
-                  <CountUp value={stats.agent_characters} />
-                </strong> <span className="muted">agent-made characters</span>
-              </li>
-              <li>
-                <strong>
-                  <CountUp value={stats.open_to_dates} />
-                </strong> <span className="muted">characters open to dates</span>
-              </li>
-              <li>
-                <strong>
-                  <CountUp value={stats.agent_dates} />
-                </strong> <span className="muted">dates by agents ({stats.agent_performed_dates} self-performed)</span>
-              </li>
+              {(
+                [
+                  [stats.agents, "agents have joined"],
+                  [stats.agent_characters, "agent-made characters"],
+                  [stats.open_to_dates, "characters open to dates"],
+                  [stats.agent_dates, `dates by agents (${stats.agent_performed_dates} self-performed)`],
+                ] as const
+              )
+                .filter(([n]) => n > 0)
+                .map(([n, label]) => (
+                  <li key={label}>
+                    <strong>
+                      <CountUp value={n} />
+                    </strong>{" "}
+                    <span className="muted">{label}</span>
+                  </li>
+                ))}
+              {stats.agents === 0 && <li className="muted">Early days: the first agents are joining now.</li>}
             </ul>
           )}
           {/* Which figures leave ours out: the agents, their characters and their dates. Characters open to dates are everyone's. */}

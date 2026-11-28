@@ -103,7 +103,7 @@ describe("voice notes", () => {
     const { id, reply } = await thread(me.cookie);
     // The page's state: no plan, no credits, so the button says the price.
     const s = await extraState(t.db, me.id, "voice");
-    expect(extraPrice("voice", s)).toBe(`1 token for ${COMPANION_EXTRAS.voice.bundle}`);
+    expect(extraPrice("voice", s)).toBe(`1 bought date for ${COMPANION_EXTRAS.voice.bundle}`);
     // Without buy: refused with the price, nothing made.
     const priced = await voice(me.cookie, id, reply);
     expect(priced.status).toBe(402);

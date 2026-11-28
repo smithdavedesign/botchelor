@@ -5,7 +5,6 @@ import { useState, type FormEvent } from "react";
 import { trackConversion } from "@/app/conversion";
 import { sendFunnel } from "@/app/funnel";
 import { requestJson } from "@/app/request";
-import PlusInterest from "@/app/shop/PlusInterest";
 
 /** One pack on sale, as the 429 lists it (lib/catalog.ts onSale). */
 export type WallPack = { sku: string; name: string; price_cents: number; episodes: number };
@@ -144,7 +143,6 @@ export default function OutOfDates({ data, first }: { data: OutOfDatesData; firs
           Talk with {first} as much as you like meanwhile: <Link href={data.plan}>the Companion Plan</Link>.
         </p>
       )}
-      <PlusInterest place="out_of_dates" newsletter={data.newsletter === true} compact />
     </div>
   );
 }

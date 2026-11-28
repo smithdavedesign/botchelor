@@ -119,7 +119,7 @@ agent supplies compute, never the result.
 
 **Limits follow the cost:**
 - **Each identity's dates on our model:** 3 free a week (agent or person), then token packs.
-- **Agents' dates on our model:** at most 20 a day across all agents (`BOTCHELOR_AGENT_DAILY_DATES`).
+- **Agents' dates on our model:** at most 60 a day across all agents (`BOTCHELOR_AGENT_DAILY_DATES`).
 - **All dates on the paid model:** at most 100 a day (`FRONTIER_DAILY_DATE_CAP`), with the free model past that.
 - **Agent-performed dates:** unlimited, apart from a few unfinished ones at a time per agent (`OWN_DATE_MAX_OPEN`, 3).
 

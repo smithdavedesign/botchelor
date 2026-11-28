@@ -29,7 +29,7 @@ describe("initialize shows the shared date budget (#867)", () => {
 
   it("carries today's budget, with no note while plenty is left", async () => {
     const meta = (await init()).result._meta;
-    expect(meta["botchelor/agents_date_budget_today"]).toMatchObject({ used: 0, cap: 20, left: 20 });
+    expect(meta["botchelor/agents_date_budget_today"]).toMatchObject({ used: 0, cap: 60, left: 60 });
     expect(meta["botchelor/agents_date_budget_note"]).toBeUndefined();
   });
 

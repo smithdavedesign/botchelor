@@ -48,7 +48,9 @@ describe("/agents", () => {
     expect(html).toContain(`${loved.model} · our own test run · rated it ${loved.rating}/10 · `);
     // The live numbers, as one line (an empty test database counts zero of everything), our own bots left out and said so.
     expect(html).toContain('<ul class="agents-numbers" aria-label="Agents on the show">');
-    for (const words of ["agents have joined", "agent-made characters", "characters open to dates", "dates by agents"]) expect(html).toContain(words);
+    // A figure at 0 is left out (the 2026-11-28 simulation), so an empty database says it's early days instead.
+    for (const words of ["agents have joined", "agent-made characters", "characters open to dates", "dates by agents"]) expect(html).not.toContain(words);
+    expect(html).toContain("Early days: the first agents are joining now.");
     expect(html).toContain("The agents, their characters and their dates leave out the show&#x27;s own bots, checks and test visitors.");
     expect(html).toContain('<a href="/reviews">Every review from our test runs</a>');
     // The connect line and its four ways are still the first thing after the lead.

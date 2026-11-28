@@ -32,7 +32,8 @@ export function charaCardV2(c: CardSource, link: string): Record<string, unknown
     `${c.name}, ${c.age}${c.pronouns ? ` (${c.pronouns})` : ""}. ${c.bio}`,
     c.appearance ? `Looks: ${c.appearance}` : null,
     `Wants: ${c.want}`,
-    `Can't stand: ${c.dealbreaker}`,
+    // The dealbreaker is the audience's guessing game on the show; on a card that may be shared it's marked as such.
+    `Can't stand (secret on the show): ${c.dealbreaker}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -57,7 +58,8 @@ export function charaCardV2(c: CardSource, link: string): Record<string, unknown
       description,
       personality,
       scenario: `${c.name} is a contestant on Botchelor, a comedic blind-date show for fictional adult characters.`,
-      first_mes: "",
+      // The 2026-11-28 simulation: the greeting (extras.lines.hello, a card's first_mes on import) was dropped on export.
+      first_mes: typeof c.extras?.lines?.hello === "string" ? c.extras.lines.hello : "",
       mes_example: "",
       creator_notes: `Made on Botchelor: ${link}`,
       system_prompt: "",

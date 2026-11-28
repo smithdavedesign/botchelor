@@ -259,10 +259,8 @@ describe("money at the free-dates wall (2026-11-14)", () => {
     expect(html.match(/name="attest"/g)).toHaveLength(1);
     expect(html).toMatch(/<button[^>]*value="pack_15"[^>]*>15 more dates · \$10<\/button>/);
     expect(html).toMatch(/<button[^>]*value="pack_5"[^>]*>5 more dates · \$4<\/button>/);
-    // The Plus tile rides along, honest about what it is.
-    expect(html).toContain("Botchelor Plus");
-    expect(html).toContain("Tell me when it opens");
-    expect(html).toContain("nothing is charged");
+    // No Plus tile beside the Companion Plan line (the 2026-11-28 simulation: two subscriptions read as one confusing choice).
+    expect(html).not.toContain("Botchelor Plus");
   });
 
   it("the Plus tile says the plan doesn't exist yet and asks for an email only while the letter is open", async () => {

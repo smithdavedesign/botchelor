@@ -169,6 +169,36 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
         </section>
       )}
 
+      {/* Try before paying (the 2026-11-28 simulation: nobody would pay $9.99 for a chat they hadn't seen). What one is
+          like, plainly marked as an example we wrote, and the free way in. */}
+      <section className="card plan-card plan-sample" aria-labelledby="plan-sample">
+        <h2 id="plan-sample">What it&apos;s like</h2>
+        <p className="muted small">An example we wrote to show the shape of it, not a real conversation.</p>
+        <ol className="plan-sample-lines">
+          <li>
+            <strong>Them:</strong> You&apos;re back. I was halfway through telling you about the rooftop tour that went wrong.
+          </li>
+          <li>
+            <strong>You:</strong> Wrong how?
+          </li>
+          <li>
+            <strong>Them:</strong> The guide was afraid of heights. We did the whole thing from the gift shop. Best tour I&apos;ve ever had.
+          </li>
+          <li>
+            <strong>You:</strong> Would you go again?
+          </li>
+          <li>
+            <strong>Them:</strong> Only if you came. You&apos;d ask the right questions.
+          </li>
+        </ol>
+        <p>
+          They remember what you told them, text you first if you let them, and stay in character. Try it free first: {perDay} replies a day, no card.{" "}
+          <Link href="/companion" data-track="plan-try-free">
+            Pick a companion
+          </Link>
+        </p>
+      </section>
+
       <section className="card plan-card" aria-labelledby="plan-what">
         <h2 id="plan-what">What you get</h2>
         {/* The roles are spelled out: a phone lays the table out as blocks (app/ux/money.css), and some browsers drop a

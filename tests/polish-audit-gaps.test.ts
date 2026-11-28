@@ -22,7 +22,9 @@ describe("the visual pop audit's leftovers", () => {
 
   it("counts up the Agents figures and the Reviews stage's visitors and average, with the real number in the page", () => {
     const agents = read("app/agents/page.tsx");
-    for (const k of ["agents", "agent_characters", "open_to_dates", "agent_dates"]) expect(agents).toContain(`<CountUp value={stats.${k}} />`);
+    // One CountUp per figure, from a list (the 2026-11-28 simulation: a figure at 0 is left out).
+    expect(agents).toContain("<CountUp value={n} />");
+    for (const k of ["agents", "agent_characters", "open_to_dates", "agent_dates"]) expect(agents).toContain(`[stats.${k}, `);
     const reviews = read("app/BotReviews.tsx");
     expect(reviews).toContain("<CountUp value={view.visitors} />");
     expect(reviews).toContain("<CountUp value={view.average}");

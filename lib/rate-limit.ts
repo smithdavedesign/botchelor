@@ -100,6 +100,17 @@ export function checkRateLimit(userId: string, kind: RateLimitBucket, now: numbe
   return { ok: true, remaining: limit.max - entry.timestamps.length };
 }
 
+/**
+ * Give back a call counted at `at` (the 2026-11-28 simulation, #10: a call refused for a bad argument used up the limit,
+ * so agents fixing a mistake were then rate limited). The dispatcher calls it when the tool refused the call.
+ */
+export function refundRateLimit(userId: string, kind: RateLimitBucket, at: number): void {
+  const entry = BUCKETS.get(`${kind}:${userId}`);
+  if (!entry) return;
+  const i = entry.timestamps.lastIndexOf(at);
+  if (i >= 0) entry.timestamps.splice(i, 1);
+}
+
 /** For tests: forget every rate-limit bucket. Never call in production code. */
 export function resetRateLimitsForTests(): void {
   BUCKETS.clear();
