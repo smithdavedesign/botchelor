@@ -21,14 +21,22 @@ function timecode(seed: string): string {
  */
 export function Booth({ name, shot, lines }: { name: string; shot: string | null; lines: Line[] }) {
   const [i, setI] = useState(0);
+  // A shot that won't load leaves the booth's own set showing behind the line, never a black box (2026-11-28 review).
+  const [broken, setBroken] = useState(false);
   const at = lines.length ? i % lines.length : 0;
   const now = lines[at];
   return (
     <section className="card booth" aria-labelledby="booth-title">
       <h2 id="booth-title">In the confessional</h2>
-      <figure className="booth-frame">
+      <figure className="booth-frame" style={{ backgroundImage: `url(${showSetPath("confessional")})` }}>
         {/* eslint-disable-next-line @next/next/no-img-element -- a PG shot or a set file, already small */}
-        <img className="booth-shot" src={shot ?? showSetPath("confessional")} alt={shot ? `${name} in the confessional` : ""} loading="lazy" />
+        <img
+          className="booth-shot"
+          src={shot && !broken ? shot : showSetPath("confessional")}
+          alt={shot && !broken ? `${name} in the confessional` : ""}
+          loading="lazy"
+          onError={() => setBroken(true)}
+        />
         <span className="booth-marks" aria-hidden="true">
           <span />
           <span />

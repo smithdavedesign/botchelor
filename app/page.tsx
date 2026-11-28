@@ -49,6 +49,7 @@ import TonightVotes from "./TonightVotes";
 import { storyToday } from "@/lib/producer";
 import { latestHouseScene } from "@/lib/house-scenes";
 import EpisodeShelf from "./EpisodeShelf";
+import { showSetBackground } from "@/lib/show-sets";
 import { listLobby } from "@/lib/watch";
 import { nextPremiere } from "@/lib/sunday-premiere";
 import ShowSince from "./ShowSince";
@@ -455,22 +456,39 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         </p>
       )}
 
+      {/* How it works as a night on the show (2026-11-28 design review, item 6): the three steps on the stage set, as the
+          scenes of an episode, with one of the peanut gallery's bots (lib/peanut-gallery.ts, tagged Bot as everywhere)
+          heckling from the back row, rather than three plain cards. */}
       {!creator && (
-      <section className="home-how">
+      <section className="home-how home-night" style={{ backgroundImage: showSetBackground("stage", 0.7) }}>
         <h2>{t("How it works")}</h2>
         <ol className="features home-features">
-          {STEPS.map((f) => (
+          {STEPS.map((f, i) => (
             <li className="feature card" key={f.title}>
               <span className="feature-icon" aria-hidden="true">
                 <Icon name={f.icon} />
               </span>
               <div>
+                <span className="home-night-scene" aria-hidden="true">
+                  {t("Scene {n}", { n: i + 1 })}
+                </span>
                 <h3>{t(f.title)}</h3>
                 <p className="muted">{t(f.body)}</p>
               </div>
             </li>
           ))}
         </ol>
+        <p className="home-night-heckle">
+          <span className="home-night-heckle-face" aria-hidden="true">
+            🍿
+          </span>
+          <span>
+            <strong>
+              PopcornBot <span className="home-night-bot-tag" title="One of the show's bots: its remarks are written by the show">Bot</span>
+            </strong>{" "}
+            {t("I called “disaster” on the last one. I'm calling it again. I'm always calling it.")}
+          </span>
+        </p>
       </section>
       )}
 

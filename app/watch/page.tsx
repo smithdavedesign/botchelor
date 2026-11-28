@@ -4,6 +4,7 @@ import { english, type T } from "@/lib/i18n/translate";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import VenuePhoto from "@/app/VenuePhoto";
+import { showSetBackground } from "@/lib/show-sets";
 import Avatar from "@/app/Avatar";
 import { FeedEntry } from "@/app/EpisodeItem";
 import Icon from "@/app/Icon";
@@ -253,6 +254,9 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
           says which (the 2026-11-22 audit: the old On now heading sat over "Just aired" and "Off air · Nothing live
           right now"). */}
       <section className="watch-block" aria-labelledby="on-now">
+        {/* Tonight's hero (2026-11-28 design review, item 5): the heading and the lead date on the show's stage, so the
+            page opens like a TV guide's "tonight" slot, not a list. */}
+        <div className="watch-tonight" style={{ backgroundImage: showSetBackground("stage", 0.62) }}>
         <h2 id="on-now" className="watch-block-head">
           {live.length > 0 ? (
             <>
@@ -279,6 +283,7 @@ export default async function WatchLobbyPage({ searchParams }: { searchParams: S
             </div>
           )
         )}
+        </div>
         {/* The season, as one line under the date. */}
         <SeasonLine
           def={seasonDef}

@@ -1,0 +1,210 @@
+/* ================================================================================================================
+   The design pass (2026-11-28 design review, Dave: "Honestly just do all of them")
+   2. A character tile with no portrait stands their silhouette on a small lit stage (app/characters/(list)/page.tsx).
+   4. The confessional booth shows its set behind the line, never a black box (app/characters/[id]/Booth.tsx).
+   5. Watch opens on tonight's slot, on the show's stage; a venue with no photo yet shows the blind-date booth set, toned
+      by the venue's own colour (app/watch/page.tsx, app/VenuePhoto.tsx).
+   6. Home's How it works is a night on the show: the steps as scenes on the stage, a bot heckling (app/page.tsx).
+   7. A character's hero stands them full length on the card's stage (app/characters/[id]/page.tsx).
+   Colours are tokens, set once below. Anything that moves is inside the no-preference block at the end.
+   ================================================================================================================ */
+
+:root {
+  --pass-night: #130a16;
+  --pass-night-2: #1d1024;
+  --pass-ink: #fff7f2;
+  --pass-soft: rgba(255, 247, 242, 0.74);
+  --pass-glass: rgba(14, 8, 20, 0.62);
+  --pass-glass-edge: rgba(255, 255, 255, 0.14);
+  --pass-spot: rgba(255, 196, 140, 0.34);
+  --pass-spot-low: rgba(255, 120, 160, 0.14);
+  --pass-floor: rgba(0, 0, 0, 0.55);
+  --pass-scene: #f3c46b;
+  --pass-shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* ---------------- 2. The silhouette on a character tile ---------------- */
+.dir-portrait-stage {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 55% 70% at 50% 18%, var(--pass-spot) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 30% at 50% 100%, var(--pass-spot-low) 0%, transparent 70%),
+    linear-gradient(180deg, var(--pass-night-2) 0%, var(--pass-night) 100%);
+}
+.dir-portrait-stage .stage-silhouette {
+  position: absolute;
+  inset: 8% 14% 0;
+}
+.dir-portrait-stage .stage-silhouette-svg {
+  filter: drop-shadow(0 0 14px var(--stage-golden));
+}
+
+/* ---------------- 4. The booth's set behind the line ---------------- */
+/* Its own inline set picture (Booth.tsx): broadcast.css's background shorthand would reset the size. */
+.booth-frame[style] {
+  background-size: cover;
+  background-position: center;
+}
+
+/* ---------------- 5. Watch: tonight's slot, and the sets on the cards ---------------- */
+.watch-tonight {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background-color: var(--pass-night);
+  background-size: cover;
+  background-position: center 30%;
+  color: var(--pass-ink);
+  box-shadow: 0 18px 40px -24px var(--pass-shadow);
+}
+.watch-tonight > .watch-block-head {
+  margin-top: 0;
+  color: var(--pass-ink);
+  font-size: var(--text-2xl);
+  text-shadow: 0 2px 16px var(--pass-shadow);
+}
+.watch-tonight > .watch-lead {
+  margin: 0;
+}
+.watch-tonight .watch-lobby {
+  margin: 0;
+}
+/* A venue with no photo yet: the booth set, greyed and tinted by the venue's gradient underneath. */
+.venue-photo > img[data-set] {
+  opacity: 0.55;
+  mix-blend-mode: luminosity;
+}
+
+/* ---------------- 6. Home: a night on the show ---------------- */
+.home-night {
+  --ink: var(--pass-ink);
+  --muted: var(--pass-soft);
+  margin-block: var(--space-5);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border-radius: var(--radius-lg);
+  background-color: var(--pass-night);
+  background-size: cover;
+  background-position: center 35%;
+  color: var(--pass-ink);
+  color-scheme: dark;
+}
+.home-night > h2 {
+  margin-top: 0;
+  color: var(--pass-ink);
+  text-shadow: 0 2px 16px var(--pass-shadow);
+}
+.home-night .feature.card {
+  border-color: var(--pass-glass-edge);
+  background: var(--pass-glass);
+  color: var(--pass-ink);
+  backdrop-filter: blur(6px);
+}
+.home-night .feature-icon {
+  color: var(--pass-scene);
+}
+.home-night-scene {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--pass-scene);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.home-night-heckle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--space-4) 0 0 auto;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--crowd-edge);
+  border-radius: var(--radius-md);
+  background: var(--crowd-bubble);
+  color: var(--crowd-ink);
+  font-size: var(--text-sm);
+}
+.home-night-heckle strong {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--crowd-soft);
+}
+.home-night-heckle-face {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+.home-night-bot-tag {
+  padding: 0 0.4em;
+  border-radius: var(--radius-xs);
+  background: var(--crowd-bot-tag);
+  color: var(--crowd-bot-tag-ink);
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---------------- 7. A character standing on their card's stage ---------------- */
+.contestant-card[data-standing] {
+  grid-template-columns: clamp(9rem, 6rem + 11vw, 14rem) minmax(0, 1fr);
+}
+/* The stage is the set itself here, not a blur: they stand in it. */
+.contestant-card[data-standing] .contestant-card-stage img {
+  filter: blur(2px) saturate(1.1);
+}
+.contestant-card[data-standing] .contestant-card-face {
+  border: 0;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 20%, var(--pass-spot) 0%, transparent 72%),
+    radial-gradient(ellipse 70% 14% at 50% 97%, var(--pass-floor) 0%, transparent 100%);
+  box-shadow: none;
+  overflow: visible;
+}
+.contestant-card[data-standing] .contestant-figure {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.contestant-card[data-standing] .contestant-figure .character-figure-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 10px 18px var(--pass-shadow));
+}
+.contestant-card[data-standing] .lower-third {
+  z-index: 1;
+}
+@media (max-width: 560px) {
+  .watch-tonight,
+  .home-night {
+    padding: var(--space-3) var(--space-2) var(--space-2);
+  }
+  .contestant-card[data-standing] {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-night-heckle {
+    animation: pass-heckle-in 600ms ease-out 400ms both;
+  }
+  @keyframes pass-heckle-in {
+    from {
+      opacity: 0;
+      translate: 0 0.5rem;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+}

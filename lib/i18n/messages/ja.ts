@@ -385,6 +385,8 @@ const catalog: Catalog = {
     "A date from the show": "番組のデート",
     "Just aired": "放送されたばかり",
     "Watch more": "もっと観る",
+    "Scene {n}": "シーン{n}",
+    "I called “disaster” on the last one. I'm calling it again. I'm always calling it.": "前回は「大失敗」に賭けた。今回もそうする。いつだってそうする。",
     "How it works": "遊び方",
     "Questions": "質問",
     "More questions": "その他の質問",

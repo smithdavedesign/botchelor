@@ -17,7 +17,9 @@ import { castingBadgesOf, castingLead, type Casting } from "@/lib/casting";
 import { seasonPageLiveOn } from "@/lib/season-page";
 import { seasonPath } from "@/lib/season-ref";
 import { shared } from "@/lib/shared-cache";
-import { characterPortrait, venueBackdrop } from "@/lib/portraits";
+import { characterPortrait, stagePicture, venueBackdrop } from "@/lib/portraits";
+import CharacterFigure from "@/app/stage/CharacterFigure";
+import Silhouette from "@/app/stage/Silhouette";
 import { showSetPath } from "@/lib/show-sets";
 import Pager from "@/app/Pager";
 import { pageHref, pageOf as pageSlice, parsePage } from "@/lib/paging";
@@ -612,6 +614,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           .catch(() => null);
   const backdrop = (lastVenue && venueBackdrop(lastVenue)) || showSetPath("stage");
   const faceSrc = characterPortrait(c.id) ?? (c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}.webp?w=384` : null);
+  // The hero as a stage (2026-11-28 design review, item 7): a house character with a stage picture stands full length on
+  // the card's stage, as they do on a date; someone with no picture yet stands as their silhouette. A hello clip or an
+  // ordinary portrait keeps its framed face.
+  const standing = intro ? null : stagePicture(characterPortrait(c.id));
+  const faceless = !intro && !faceSrc;
   const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
   const stats: { key: string; n: string | number | null; label: string }[] = [
     ...(record.dates > 0 ? [{ key: "dates", n: record.dates, label: plural(record.dates, "aired date", "aired dates") }] : []),
@@ -736,7 +743,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           they have one (it had sat under "Right now"), else the portrait with a slow push-in; the counts as chips; the
           place of their last date blurred behind, or the stage when they haven't had one. Everything the header held is
           still in it, in the same order. */}
-      <div className={intro ? "contestant contestant-card has-intro" : "contestant contestant-card"}>
+      <div className={intro ? "contestant contestant-card has-intro" : "contestant contestant-card"} data-standing={standing ? "figure" : faceless ? "silhouette" : undefined}>
         <div className="contestant-card-stage" aria-hidden="true">
           {/* eslint-disable-next-line @next/next/no-img-element -- a static public asset (1024×576), blurred behind the card */}
           <img src={backdrop} alt="" width={1024} height={576} decoding="async" fetchPriority="low" />
@@ -744,6 +751,10 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <div className="contestant-card-face">
           {intro ? (
             <IntroClip src={intro.url} poster={faceSrc ?? undefined} name={shortName(c.name)} />
+          ) : standing ? (
+            <CharacterFigure portrait={faceSrc} cutout={standing} className="contestant-figure" />
+          ) : faceless ? (
+            <Silhouette id={c.id} name={c.name} hue={c.hue} className="contestant-figure" />
           ) : (
             <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} size={384} portraitSrc={c.portrait_asset_id ? `/api/assets/${c.portrait_asset_id}` : null} fill eager />
           )}

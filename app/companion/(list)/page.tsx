@@ -172,8 +172,17 @@ export default async function CompanionsPage({ searchParams }: { searchParams?: 
     // Closed, or open but only with an account here: say which, never a 404 (mobile audit C21).
     if (!companionOpen())
       return (
-        <NotOpenYet title="Companions">
-          One-to-one chats with the characters, off the show. They aren&apos;t open yet: the characters are on <Link href="/watch">Watch</Link> in the meantime.
+        <NotOpenYet
+          title="Companions"
+          action={
+            <Link className="button" href="/step-in" data-track="companion-closed-step-in">
+              Step into a date instead
+            </Link>
+          }
+          extra={<FaceRibbon title="Who you'll be able to text" />}
+        >
+          One-to-one chats with the characters, off the show. They aren&apos;t open yet: the characters are on <Link href="/watch">Watch</Link> in the meantime, and
+          you can step into a date with one of them, live, line by line.
         </NotOpenYet>
       );
     return (
