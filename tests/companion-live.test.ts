@@ -565,7 +565,7 @@ describe("connecting (the call screen)", () => {
     expect(begin).toContain("if (!stale()) pause(CONNECT_TIMED_OUT, false, true);");
     expect(begin).toContain("}, LIVE_CONNECT_MS);");
     expect(call).toMatch(/const CONNECT_TIMED_OUT =\s*"The call didn't connect\. If your browser is asking to use the microphone, allow it, then try again\.";/);
-    expect(call).toContain("`↻ Try again");
+    expect(call).toContain("`↻ ${t(\"Try again\")}");
     // A microphone allowed after the deadline goes straight off (live-audio.ts), and a socket that opens late is closed.
     expect(readFileSync("app/companion/[id]/live-audio.ts", "utf8")).toMatch(/if \(this\.stopped\) \{\s*stream\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\);/);
     expect(call).toContain("if (stale()) return line.close();");

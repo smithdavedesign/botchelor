@@ -13,48 +13,50 @@ import type { CompanionListItem, CompanionSource } from "@/lib/companion";
 import { byDemand, STATUSES, tagById, tagsIn } from "@/lib/tags";
 import { useTagDemand } from "@/app/useTagDemand";
 import { queueEvent } from "@/app/engagement";
+import { useT } from "@/app/I18nProvider";
+import { clientMsg } from "@/lib/i18n/translate";
 import TalkButton from "./TalkButton";
 
 const first = (name: string) => name.split(/\s+/)[0] || name;
 
 /** The "who" chips: every one but All narrows the list; a chip with nobody in it isn't shown. */
 const WHO = [
-  { id: "all", label: "Everyone" },
-  { id: "on_show", label: "On the show now" },
-  { id: "house", label: "House cast" },
-  { id: "agent", label: "Made by agents" },
-  { id: "community", label: "Creators'" },
-  { id: "yours", label: "Yours" },
+  { id: "all", label: clientMsg("Everyone") },
+  { id: "on_show", label: clientMsg("On the show now") },
+  { id: "house", label: clientMsg("House cast") },
+  { id: "agent", label: clientMsg("Made by agents") },
+  { id: "community", label: clientMsg("Creators'") },
+  { id: "yours", label: clientMsg("Yours") },
 ] as const;
 type Who = (typeof WHO)[number]["id"];
 
 const PRONOUNS = [
-  { id: "any", label: "Any pronouns" },
-  { id: "she/her", label: "She/her" },
-  { id: "he/him", label: "He/him" },
-  { id: "they/them", label: "They/them" },
+  { id: "any", label: clientMsg("Any pronouns") },
+  { id: "she/her", label: clientMsg("She/her") },
+  { id: "he/him", label: clientMsg("He/him") },
+  { id: "they/them", label: clientMsg("They/them") },
 ] as const;
 type Pronouns = (typeof PRONOUNS)[number]["id"];
 
 /** How they're drawn (lib/art-style.ts): shown once anyone listed is drawn rather than photographed (the show's anime cast, 2026-11-08; 2.5D, 2026-11-17). */
-const STYLES = [{ id: "any", label: "Any style" }, ...ART_STYLES.map((id) => ({ id, label: ART_STYLE_LABEL[id] }))] as const;
+const STYLES = [{ id: "any", label: clientMsg("Any style") }, ...ART_STYLES.map((id) => ({ id, label: ART_STYLE_LABEL[id] }))] as const;
 type Style = (typeof STYLES)[number]["id"];
 export const matchesStyle = (c: CompanionListItem, style: Style) => style === "any" || c.style === style;
 
 /** What kind of person (lib/character-tags.ts): the type tags, most wanted first (ours, lib/tag-demand.ts, else the census). */
-const typesBy = (demand?: Record<string, number>) => [{ id: "any", label: "Any type", icon: "" }, ...byDemand(tagsIn("type"), "sfw", demand)];
+const typesBy = (demand?: Record<string, number>) => [{ id: "any", label: clientMsg("Any type"), icon: "" }, ...byDemand(tagsIn("type"), "sfw", demand)];
 const TYPES = typesBy();
 /** Their love life, from the relationship graph's public layer: a private date never counts. */
-const LOVE = [{ id: "any", label: "Any love life", icon: "" }, ...STATUSES];
+const LOVE = [{ id: "any", label: clientMsg("Any love life"), icon: "" }, ...STATUSES];
 export const matchesType = (c: CompanionListItem, type: string) => type === "any" || c.tags.includes(type as never);
 export const matchesLove = (c: CompanionListItem, love: string) => love === "any" || c.status === love;
 
 const SORTS = [
-  { id: "suggested", label: "Suggested" },
-  { id: "az", label: "A to Z" },
-  { id: "newest", label: "Newest" },
-  { id: "youngest", label: "Youngest" },
-  { id: "oldest", label: "Oldest" },
+  { id: "suggested", label: clientMsg("Suggested") },
+  { id: "az", label: clientMsg("A to Z") },
+  { id: "newest", label: clientMsg("Newest") },
+  { id: "youngest", label: clientMsg("Youngest") },
+  { id: "oldest", label: clientMsg("Oldest") },
 ] as const;
 type Sort = (typeof SORTS)[number]["id"];
 
@@ -64,7 +66,7 @@ type Sort = (typeof SORTS)[number]["id"];
  */
 export const COMPANIONS_PAGE = 24;
 
-const SOURCE_LABEL: Record<CompanionSource, string> = { yours: "Yours", house: "House cast", agent: "Made by agents", community: "A creator's" };
+const SOURCE_LABEL: Record<CompanionSource, string> = { yours: clientMsg("Yours"), house: clientMsg("House cast"), agent: clientMsg("Made by agents"), community: clientMsg("A creator's") };
 
 export const matchesWho = (c: CompanionListItem, who: Who) => who === "all" || (who === "on_show" ? c.on_show : c.source === who);
 
@@ -87,19 +89,20 @@ export function sorted(list: CompanionListItem[], sort: Sort): CompanionListItem
 }
 
 function Action({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
+  const t = useT();
   if (signIn)
     return (
       <Link className="button secondary small" href="/account?next=%2Fcompanion">
-        Sign in to talk
+        {t("Sign in to talk")}
       </Link>
     );
   if (c.thread_id)
     return (
       <Link className="button secondary small" href={`/companion/${c.thread_id}`}>
-        Open
+        {t("Open")}
       </Link>
     );
-  return <TalkButton characterId={c.id} name={first(c.name)} label={`Talk to ${first(c.name)}`} className="button secondary small" />;
+  return <TalkButton characterId={c.id} name={first(c.name)} label={t("Talk to {name}", { name: first(c.name) })} className="button secondary small" />;
 }
 
 /** A conversation you've started: who, their last line, and when. */
@@ -130,6 +133,7 @@ export const TILE_FACE = 96;
 
 /** Someone you could talk with: a face, who they are, a few traits, and the button. */
 function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
+  const t = useT();
   // The card leans toward a mouse (the motion kit's tilt, the visual pop audit's "portrait cards").
   return (
     <Tilt as="li" className="companion-tile" max={4}>
@@ -144,10 +148,10 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
           <span className="companion-tile-badges">
             {c.on_show && (
               <span className="chip">
-                <Icon name="tv" /> On the show
+                <Icon name="tv" /> {t("On the show")}
               </span>
             )}
-            <span className="chip chip-quiet">{SOURCE_LABEL[c.source]}</span>
+            <span className="chip chip-quiet">{t(SOURCE_LABEL[c.source])}</span>
           </span>
         </div>
       </div>
@@ -155,17 +159,17 @@ function Tile({ c, signIn }: { c: CompanionListItem; signIn: boolean }) {
       {c.tags.length > 0 && (
         <p className="muted small companion-tile-tags">
           {c.tags
-            .map((t) => tagById(t))
+            .map((id) => tagById(id))
             .filter(Boolean)
-            .map((t) => `${t!.icon} ${t!.label}`)
+            .map((tag) => `${tag!.icon} ${t(tag!.label)}`)
             .join(" · ")}
         </p>
       )}
       {c.traits.length > 0 && (
-        <ul className="chips companion-tile-traits" aria-label="Traits">
-          {c.traits.map((t) => (
-            <li key={t} className="chip chip-quiet">
-              {t}
+        <ul className="chips companion-tile-traits" aria-label={t("Traits")}>
+          {c.traits.map((trait) => (
+            <li key={trait} className="chip chip-quiet">
+              {trait}
             </li>
           ))}
         </ul>
@@ -199,6 +203,7 @@ export default function CompanionBrowser({
   /** The filters from the URL (?q=&who=&pronouns=&style=&type=&love=&sort=), so Back and a shared link keep them. */
   initial?: CompanionFilters;
 }) {
+  const t = useT();
   const [q, setQ] = useState(initial.q ?? "");
   const [who, setWho] = useState<Who>(oneOf(WHO, initial.who, "all"));
   const [pronouns, setPronouns] = useState<Pronouns>(oneOf(PRONOUNS, initial.pronouns, "any"));
@@ -235,7 +240,7 @@ export default function CompanionBrowser({
   const filtered = q.trim() !== "" || who !== "all" || pronouns !== "any" || style !== "any" || type !== "any" || love !== "any";
   // Only the types and love lives someone listed has: a menu entry with nobody behind it is a dead end.
   const typeDemand = useTagDemand()?.types;
-  const typesShown = useMemo(() => typesBy(typeDemand).filter((t) => t.id === "any" || t.id === type || others.some((c) => c.tags.includes(t.id as never))), [others, type, typeDemand]);
+  const typesShown = useMemo(() => typesBy(typeDemand).filter((tag) => tag.id === "any" || tag.id === type || others.some((c) => c.tags.includes(tag.id as never))), [others, type, typeDemand]);
   const lovesShown = useMemo(() => LOVE.filter((l) => l.id === "any" || l.id === love || others.some((c) => c.status === l.id)), [others, love]);
   const clear = () => {
     setQ("");
@@ -250,7 +255,7 @@ export default function CompanionBrowser({
     <>
       {threads.length > 0 && (
         <section aria-labelledby="companion-threads">
-          <h2 id="companion-threads">Your conversations</h2>
+          <h2 id="companion-threads">{t("Your conversations")}</h2>
           <ul className="companion-list">
             {threads.map((c) => (
               <ThreadRow key={c.id} c={c} />
@@ -261,19 +266,19 @@ export default function CompanionBrowser({
 
       <div className="companion-filters" role="search">
         <label className="companion-search">
-          <span className="sr-only">Search companions</span>
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a name, a trait, anything in their bio" />
+          <span className="sr-only">{t("Search companions")}</span>
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search a name, a trait, anything in their bio")} />
         </label>
-        <div className="filter-pills" role="group" aria-label="Who">
+        <div className="filter-pills" role="group" aria-label={t("Who")}>
           {WHO.filter((w) => w.id === "all" || w.id === who || (counts.get(w.id) ?? 0) > 0).map((w) => (
             <button key={w.id} type="button" aria-pressed={who === w.id} onClick={() => setWho(w.id)}>
-              {w.label} <span className="filter-n">{counts.get(w.id)}</span>
+              {t(w.label)} <span className="filter-n">{counts.get(w.id)}</span>
             </button>
           ))}
         </div>
         <div className="companion-selects">
           <label>
-            <span className="sr-only">Pronouns</span>
+            <span className="sr-only">{t("Pronouns")}</span>
             <select
               value={pronouns}
               onChange={(e) => {
@@ -284,14 +289,14 @@ export default function CompanionBrowser({
             >
               {PRONOUNS.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label}
+                  {t(p.label)}
                 </option>
               ))}
             </select>
           </label>
           {(anyDrawn || style !== "any") && (
             <label>
-              <span className="sr-only">Style</span>
+              <span className="sr-only">{t("Style")}</span>
               <select
                 value={style}
                 onChange={(e) => {
@@ -302,7 +307,7 @@ export default function CompanionBrowser({
               >
                 {STYLES.map((st) => (
                   <option key={st.id} value={st.id}>
-                    {st.label}
+                    {t(st.label)}
                   </option>
                 ))}
               </select>
@@ -310,12 +315,12 @@ export default function CompanionBrowser({
           )}
           {typesShown.length > 1 && (
             <label>
-              <span className="sr-only">Type</span>
+              <span className="sr-only">{t("Type")}</span>
               <select value={type} onChange={(e) => setType(e.target.value)}>
-                {typesShown.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.icon ? `${t.icon} ` : ""}
-                    {t.label}
+                {typesShown.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {tag.icon ? `${tag.icon} ` : ""}
+                    {t(tag.label)}
                   </option>
                 ))}
               </select>
@@ -323,39 +328,39 @@ export default function CompanionBrowser({
           )}
           {lovesShown.length > 2 && (
             <label>
-              <span className="sr-only">Love life</span>
+              <span className="sr-only">{t("Love life")}</span>
               <select value={love} onChange={(e) => setLove(e.target.value)}>
                 {lovesShown.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.icon ? `${l.icon} ` : ""}
-                    {l.label}
+                    {t(l.label)}
                   </option>
                 ))}
               </select>
             </label>
           )}
           <label>
-            <span className="sr-only">Sort</span>
+            <span className="sr-only">{t("Sort")}</span>
             <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
               {SORTS.map((s) => (
                 <option key={s.id} value={s.id}>
-                  Sort: {s.label}
+                  {t("Sort: {how}", { how: t(s.label) })}
                 </option>
               ))}
             </select>
           </label>
           {filtered && (
             <button type="button" className="button-ghost small" onClick={clear}>
-              Clear filters
+              {t("Clear filters")}
             </button>
           )}
         </div>
       </div>
 
       <section aria-labelledby="companion-cast">
-        <h2 id="companion-cast">{threads.length ? "Someone new" : "Who you could talk with"}</h2>
+        <h2 id="companion-cast">{threads.length ? t("Someone new") : t("Who you could talk with")}</h2>
         <p className="muted small" aria-live="polite">
-          {filtered ? `${shown.length} of ${others.length}` : `${others.length} to choose from`}
+          {filtered ? t("{n} of {total}", { n: shown.length, total: others.length }) : t("{n} to choose from", { n: others.length })}
         </p>
         {shown.length ? (
           <>
@@ -367,10 +372,10 @@ export default function CompanionBrowser({
             {shown.length > limit && (
               <p className="companion-more">
                 <button type="button" className="button secondary" onClick={() => setPaging({ key: filterKey, limit: limit + COMPANIONS_PAGE })}>
-                  Show {Math.min(COMPANIONS_PAGE, shown.length - limit)} more
+                  {t("Show {n} more", { n: Math.min(COMPANIONS_PAGE, shown.length - limit) })}
                 </button>{" "}
                 <span className="muted small">
-                  {limit} of {shown.length} shown
+                  {t("{n} of {total} shown", { n: limit, total: shown.length })}
                 </span>
               </p>
             )}
@@ -378,15 +383,15 @@ export default function CompanionBrowser({
         ) : (
           <EmptyState
             emoji="🔎"
-            title={others.length ? "Nobody matches that" : "Nobody to talk with just now"}
+            title={others.length ? t("Nobody matches that") : t("Nobody to talk with just now")}
             action={
               others.length ? (
                 <button type="button" className="button small" onClick={clear}>
-                  Clear filters
+                  {t("Clear filters")}
                 </button>
               ) : undefined
             }
-            secondary={{ href: "/watch", label: "Watch the show" }}
+            secondary={{ href: "/watch", label: t("Watch the show") }}
           />
         )}
       </section>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useT } from "@/app/I18nProvider";
 import { atBottom, lastFinished, type Transcript } from "@/lib/companion-call-transcript";
 
 /**
@@ -9,6 +10,7 @@ import { atBottom, lastFinished, type Transcript } from "@/lib/companion-call-tr
  * It follows the newest line unless you've scrolled up to read back. Screen readers hear each finished line once.
  */
 export default function CallTranscript({ id, script, name }: { id: string; script: Transcript; name: string }) {
+  const t = useT();
   const list = useRef<HTMLOListElement>(null);
   // Following the newest line: until they scroll up, and again once they're back at the bottom.
   const stick = useRef(true);
@@ -19,13 +21,13 @@ export default function CallTranscript({ id, script, name }: { id: string; scrip
   }, [script]);
 
   const said = lastFinished(script);
-  const who = (w: "you" | "them") => (w === "you" ? "You" : name);
+  const who = (w: "you" | "them") => (w === "you" ? t("You") : name);
   const empty = script.lines.length === 0 && !script.interim;
 
   return (
-    <section className="companion-call-script" id={id} aria-label="Transcript">
+    <section className="companion-call-script" id={id} aria-label={t("Transcript")}>
       {empty ? (
-        <p className="companion-call-script-empty">Nothing said yet. What you both say shows here as it&apos;s said.</p>
+        <p className="companion-call-script-empty">{t("Nothing said yet. What you both say shows here as it's said.")}</p>
       ) : (
         <ol
           className="companion-call-script-lines"
@@ -39,12 +41,12 @@ export default function CallTranscript({ id, script, name }: { id: string; scrip
           {script.lines.map((l) => (
             <li key={l.id} className={`companion-call-script-line is-${l.who}${l.done ? "" : " is-going"}`}>
               <span className="companion-call-script-who">{who(l.who)}</span> {l.text}
-              {l.cut && <span className="companion-call-script-cut"> (cut off)</span>}
+              {l.cut && <span className="companion-call-script-cut"> ({t("cut off")})</span>}
             </li>
           ))}
           {script.interim && (
             <li className="companion-call-script-line is-you is-interim" aria-hidden="true">
-              <span className="companion-call-script-who">You</span> {script.interim}…
+              <span className="companion-call-script-who">{t("You")}</span> {script.interim}…
             </li>
           )}
         </ol>

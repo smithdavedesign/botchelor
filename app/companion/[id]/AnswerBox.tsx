@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/app/I18nProvider";
 import CrisisNotice, { crisisFrom } from "@/app/CrisisNotice";
 import { queueEvent } from "@/app/engagement";
 import type { CrisisResources } from "@/lib/crisis";
@@ -29,6 +30,7 @@ export default function AnswerBox({
   /** The thread as the server has it after the answer (their thanks included). */
   onThread: (view: CompanionThreadView) => void;
 }) {
+  const t = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -69,7 +71,7 @@ export default function AnswerBox({
       }}
     >
       <label htmlFor={id} className="companion-answer-label">
-        {question.label} <span className="muted">(saved to {first}&apos;s sheet)</span>
+        {question.label} <span className="muted">({t("saved to {name}'s sheet", { name: first })})</span>
       </label>
       <div className="companion-answer-row">
         <input
@@ -86,7 +88,7 @@ export default function AnswerBox({
           data-private
         />
         <button type="submit" className="button small" disabled={busy || disabled || !text.trim()} data-track="companion-answer">
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("Saving…") : t("Save")}
         </button>
       </div>
       {note && (

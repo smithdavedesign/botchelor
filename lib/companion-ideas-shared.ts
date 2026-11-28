@@ -5,11 +5,12 @@
  * under it). No server code here: the page imports it.
  */
 import type { CompanionMessageView } from "./companion-shared";
+import { clientMsg } from "./i18n/translate";
 
 /** One warm, one playful and one bold, in that order (in PG, bold is forward, never explicit). */
 export const IDEA_TONES = ["warm", "playful", "bold"] as const;
 export type IdeaTone = (typeof IDEA_TONES)[number];
-export const IDEA_TONE_LABELS: Record<IdeaTone, string> = { warm: "Warm", playful: "Playful", bold: "Bold" };
+export const IDEA_TONE_LABELS: Record<IdeaTone, string> = { warm: clientMsg("Warm"), playful: clientMsg("Playful"), bold: clientMsg("Bold") };
 
 /** Something the person could send next, with the tone it's in. */
 export type CompanionIdea = { tone: IdeaTone; text: string };

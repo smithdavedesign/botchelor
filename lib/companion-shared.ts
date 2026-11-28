@@ -2,7 +2,7 @@
  * Companions' client-safe half (lib/companion.ts is the server's): the shapes a thread page reads, the reply lengths,
  * the report reasons, the AI notice and the places a scene can be played at.
  */
-import { english, type T } from "./i18n/translate";
+import { clientMsg, english, type T } from "./i18n/translate";
 import { VENUE_IDS, type VenueId } from "./venues";
 
 /** COMPANION_OPEN=1 opens companions to every signed-in adult; unset (the default) keeps them to admins. */
@@ -143,7 +143,7 @@ export function companionStoryMode(env: Record<string, string | undefined> = pro
 
 export const REPLY_LENGTHS = ["short", "normal", "long"] as const;
 export type ReplyLength = (typeof REPLY_LENGTHS)[number];
-export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: "Short", normal: "Normal", long: "Long" };
+export const REPLY_LENGTH_LABELS: Record<ReplyLength, string> = { short: clientMsg("Short"), normal: clientMsg("Normal"), long: clientMsg("Long") };
 
 /** The longest message a person can send. */
 export const COMPANION_MESSAGE_MAX = 1000;
@@ -217,12 +217,12 @@ export type CompanionLiveOffer = { on: true };
 export const COMPANION_REPORT_REASONS = ["sexual", "minor", "hateful", "self_harm", "out_of_character", "other"] as const;
 export type CompanionReportReason = (typeof COMPANION_REPORT_REASONS)[number];
 export const COMPANION_REPORT_LABELS: Record<CompanionReportReason, string> = {
-  sexual: "Sexual or explicit",
-  minor: "About someone under 18",
-  hateful: "Hateful or cruel",
-  self_harm: "About self-harm",
-  out_of_character: "Broke character or made no sense",
-  other: "Something else",
+  sexual: clientMsg("Sexual or explicit"),
+  minor: clientMsg("About someone under 18"),
+  hateful: clientMsg("Hateful or cruel"),
+  self_harm: clientMsg("About self-harm"),
+  out_of_character: clientMsg("Broke character or made no sense"),
+  other: clientMsg("Something else"),
 };
 
 /**

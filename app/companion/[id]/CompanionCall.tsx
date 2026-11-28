@@ -13,6 +13,9 @@ import { sseData } from "@/lib/sse";
 import { kitComplete, type FaceKit } from "@/lib/face-kit-shared";
 import { CLIP_HOLD_MS, CLIP_LATE_MS, LISTEN_MIN_SPEECH_MS, LISTEN_PAUSE_MS, REACTION_GAP_MS, type ReactionKind, voiceForLiveFace, type LiveFaceSession } from "@/lib/live-face-shared";
 import { TRANSCRIPT_START, transcriptStep, type Transcript, type TranscriptEvent } from "@/lib/companion-call-transcript";
+import { fillNodes } from "@/app/fillNodes";
+import { useT } from "@/app/I18nProvider";
+import { english, type T } from "@/lib/i18n/translate";
 import CallNotice from "./CallNotice";
 import CallTranscript from "./CallTranscript";
 import LiveFace, { type LiveFaceHandle } from "./LiveFace";
@@ -50,10 +53,11 @@ export type CallMode = "live" | "classic";
 export type LiveOffer = { url: string; minutes: CompanionExtraState | null; face?: "yours" | "plan" | null };
 
 /** Their call minutes, in words: free (an admin), what's left, or the price of the next ten. */
-export function minutesWords(s: CompanionExtraState | null | undefined): string {
-  if (!s || s.free) return "free for you";
-  if ((s.included_left ?? 0) > 0) return `${s.included_left} minute${s.included_left === 1 ? "" : "s"} left this month with the plan`;
-  if (s.credits > 0) return `${s.credits} minute${s.credits === 1 ? "" : "s"} left`;
+export function minutesWords(s: CompanionExtraState | null | undefined, t: T = english): string {
+  if (!s || s.free) return t("free for you");
+  if ((s.included_left ?? 0) > 0)
+    return s.included_left === 1 ? t("1 minute left this month with the plan") : t("{n} minutes left this month with the plan", { n: s.included_left ?? 0 });
+  if (s.credits > 0) return s.credits === 1 ? t("1 minute left") : t("{n} minutes left", { n: s.credits });
   return extraPrice("minute", s);
 }
 
@@ -180,6 +184,7 @@ export default function CompanionCall({
   /** Their face kit (lib/face-kit.ts), when they have one: the still portrait comes to life on the call (./LiveFace.tsx). */
   kit?: FaceKit | null;
 }) {
+  const t = useT();
   const first = character.name.split(/\s+/)[0] || character.name;
   const who = { id: character.id, pronouns: character.pronouns ?? null };
   const speech = useSpeech();
@@ -1034,7 +1039,7 @@ export default function CompanionCall({
     // Pieces whose clip never came play the plain way (nothing when the turn was dropped: playPlain checks).
     if (mode === "undecided") goPlain();
     else for (const i of Array.from(held.keys()).sort((a, b) => a - b)) playPlain(i);
-    holds.forEach((t) => window.clearTimeout(t));
+    holds.forEach((h) => window.clearTimeout(h));
     if (!current()) return;
     if (failed) {
       log({ kind: "done" });
@@ -1074,20 +1079,20 @@ export default function CompanionCall({
   useEffect(() => {
     if (phase === "ready" || kitComplete(faceKit)) return;
     let tries = 0;
-    const t = setInterval(() => {
-      if (++tries > 40) return clearInterval(t);
+    const timer = setInterval(() => {
+      if (++tries > 40) return clearInterval(timer);
       fetch(`/api/face-kit?character=${encodeURIComponent(character.id)}`)
         .then(okJson)
         .then((data: { kit?: FaceKit | null } | null) => {
           if (!data) return;
           setFaceKit(data.kit ?? null);
           // Nothing on its way and nothing more will come: stop asking.
-          if (data.kit && !data.kit.making && (data.kit.failed || kitComplete(data.kit))) clearInterval(t);
-          if (!data.kit) clearInterval(t);
+          if (data.kit && !data.kit.making && (data.kit.failed || kitComplete(data.kit))) clearInterval(timer);
+          if (!data.kit) clearInterval(timer);
         })
         .catch(() => {});
     }, 15_000);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
     // Asked again when the call starts, or a kit stops being complete (it can't).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase === "ready", kitComplete(faceKit), character.id]);
@@ -1102,7 +1107,7 @@ export default function CompanionCall({
   // The clock, and the call ends after five quiet minutes.
   useEffect(() => {
     if (phase === "ready") return;
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       if (ended.current) return;
       setSeconds(Math.round((Date.now() - startedAt.current) / 1000));
       if (Date.now() - lastAt.current > QUIET_END_MS && phaseNow.current !== "thinking" && phaseNow.current !== "speaking") {
@@ -1124,7 +1129,7 @@ export default function CompanionCall({
         });
       }
     }, 1000);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase === "ready"]);
 
@@ -1156,31 +1161,31 @@ export default function CompanionCall({
 
   const status =
     phase === "connecting"
-      ? "Connecting…"
+      ? t("Connecting…")
       : phase === "listening"
-      ? "Listening…"
+      ? t("Listening…")
       : phase === "thinking"
-        ? `${first} is thinking…`
+        ? t("{name} is thinking…", { name: first })
         : phase === "speaking"
-          ? `${first} is talking`
+          ? t("{name} is talking", { name: first })
           : phase === "paused"
-            ? "Paused"
-            : `Call ${first}`;
+            ? t("Paused")
+            : t("Call {name}", { name: first });
 
   return (
     <div
       className={`companion-call is-${phase}${scriptOpen ? " has-script" : ""}`}
       role="dialog"
       aria-modal="true"
-      aria-label={`Call with ${first}`}
+      aria-label={t("Call with {name}", { name: first })}
       onKeyDown={(e) => {
         if (e.key === "Escape") phase === "ready" ? props.current.onEnd({ seconds: 0, turns: 0, voice }, null) : end();
       }}
     >
       <div className="companion-call-inner">
         <p className="companion-call-top">
-          <span className="chip companion-ai">🤖 AI character</span>
-          {phase !== "ready" && modeNow.current === "live" && <span className="chip companion-call-live">Live</span>}
+          <span className="chip companion-ai">🤖 {t("AI character")}</span>
+          {phase !== "ready" && modeNow.current === "live" && <span className="chip companion-call-live">{t("Live")}</span>}
           {phase !== "ready" && <span className="companion-call-clock">{clock(seconds)}</span>}
         </p>
         <div className="companion-call-face" ref={faceTile}>
@@ -1218,83 +1223,88 @@ export default function CompanionCall({
           <div className="companion-call-ready">
             {canLive && (
               <fieldset className="companion-call-voices companion-call-modes">
-                <legend>How to talk</legend>
+                <legend>{t("How to talk")}</legend>
                 <label className="check">
                   <input type="radio" name="call-mode" checked={mode === "live"} onChange={() => setMode("live")} />
                   <span>
-                    Live · {minutesWords(minutes)}
+                    {t("Live")} · {minutesWords(minutes, t)}
                     <span className="muted small">
                       {" "}
-                      (talk over each other, {first}&apos;s own voice{live?.face === "yours" ? " and moving face" : ""})
+                      (
+                      {live?.face === "yours"
+                        ? t("talk over each other, {name}'s own voice and moving face", { name: first })
+                        : t("talk over each other, {name}'s own voice", { name: first })}
+                      )
                     </span>
                   </span>
                 </label>
                 <label className="check">
                   <input type="radio" name="call-mode" checked={mode === "classic"} onChange={() => setMode("classic")} />
-                  <span>Taking turns · free</span>
+                  <span>{t("Taking turns · free")}</span>
                 </label>
               </fieldset>
             )}
             {canLive && mode === "live" && live?.face === "plan" && (
               <p className="muted small" data-testid="call-face-offer">
-                With the{" "}
-                <Link href="/companion/plan" data-track="companion-call-face-plan">
-                  Companion Plan
-                </Link>
-                , {first}&apos;s face moves as they talk on a live call.
+                {fillNodes(t("With the {plan}, {name}'s face moves as they talk on a live call.", { name: first }), {
+                  plan: (
+                    <Link href="/companion/plan" data-track="companion-call-face-plan">
+                      {/* i18n-ok: the plan's name */}Companion Plan
+                    </Link>
+                  ),
+                })}
               </p>
             )}
             {voicePrice !== null && !(canLive && mode === "live") && (
               <fieldset className="companion-call-voices">
-                <legend>Their voice</legend>
+                <legend>{t("Their voice")}</legend>
                 <label className="check">
                   <input type="radio" name="call-voice" checked={voice === "device"} onChange={() => setVoice("device")} />
-                  <span>{speakUrl ? `${first}'s call voice · free` : "Your device's voice · free"}</span>
+                  <span>{speakUrl ? t("{name}'s call voice · free", { name: first }) : t("Your device's voice · free")}</span>
                 </label>
                 <label className="check">
                   <input type="radio" name="call-voice" checked={voice === "own"} onChange={() => setVoice("own")} />
                   <span>
-                    {first}&apos;s own voice · {voicePrice || "from your voice notes"}
-                    <span className="muted small"> (a moment slower each time)</span>
+                    {t("{name}'s own voice", { name: first })} · {voicePrice || t("from your voice notes")}
+                    <span className="muted small"> ({t("a moment slower each time")})</span>
                   </span>
                 </label>
               </fieldset>
             )}
             <details className="companion-call-how">
-              <summary>How calls work</summary>
+              <summary>{t("How calls work")}</summary>
               {canLive && mode === "live" ? (
                 <>
                   <p>
-                    A live call is like a phone call: talk whenever you like, and if you start talking while {first} is, {first} stops to listen. Your voice
-                    goes from your browser to Deepgram, which turns it into words as you speak and keeps it only while it does; only the words come to
-                    Botchelor, kept in this conversation like messages. {first} is an AI character, and the voice is made by Deepgram from {first}&apos;s words, never a real
-                    person&apos;s.
+                    {t("A live call is like a phone call: talk whenever you like, and if you start talking while {name} is, {name} stops to listen. Your voice goes from your browser to Deepgram, which turns it into words as you speak and keeps it only while it does; only the words come to Botchelor, kept in this conversation like messages. {name} is an AI character, and the voice is made by Deepgram from {name}'s words, never a real person's.", { name: first })}
                   </p>
                   <p>
-                    It&apos;s by the minute: each minute on the line is a call minute ({minutesWords(minutes)}), and a quiet minute pauses it so silence
-                    isn&apos;t paid for.
+                    {t("It's by the minute: each minute on the line is a call minute ({minutes}), and a quiet minute pauses it so silence isn't paid for.", { minutes: minutesWords(minutes, t) })}
                     {live?.face === "yours"
-                      ? ` ${first}'s moving face costs nothing more: our own renderer draws it from ${first}'s portrait and voice as they speak, and your voice never goes to it.`
+                      ? ` ${t("{name}'s moving face costs nothing more: our own renderer draws it from {name}'s portrait and voice as they speak, and your voice never goes to it.", { name: first })}`
                       : ""}
                   </p>
                 </>
               ) : (
                 <p>
-                  You talk, {first} talks back. Your browser turns what you say into words (Chrome sends your voice to Google to do it, Safari to Apple),
-                  and only the words come to Botchelor, kept in this conversation like messages. {first} is an AI character, and the voice is made, never
-                  a real person&apos;s{speakUrl ? `: Deepgram makes it from ${first}'s words (your device's own voice when it can't)` : ""}.
+                  {speakUrl
+                    ? t("You talk, {name} talks back. Your browser turns what you say into words (Chrome sends your voice to Google to do it, Safari to Apple), and only the words come to Botchelor, kept in this conversation like messages. {name} is an AI character, and the voice is made, never a real person's: Deepgram makes it from {name}'s words (your device's own voice when it can't).", { name: first })
+                    : t("You talk, {name} talks back. Your browser turns what you say into words (Chrome sends your voice to Google to do it, Safari to Apple), and only the words come to Botchelor, kept in this conversation like messages. {name} is an AI character, and the voice is made, never a real person's.", { name: first })}
                 </p>
               )}
-              <p>Each time {first} answers counts as one reply, the same as a text.{left !== null ? ` You have ${left} left.` : ""}</p>
+              <p>
+                {t("Each time {name} answers counts as one reply, the same as a text.", { name: first })}
+                {left !== null ? ` ${t("You have {n} left.", { n: left })}` : ""}
+              </p>
             </details>
             {/* Always there, above the button that turns the microphone on: "How calls work" starts folded. */}
             <CallNotice mode={canLive && mode === "live" ? "live" : "classic"} />
             <p className="companion-call-controls">
               <button type="button" className="button companion-call-go" onClick={start} ref={mainButton} data-track="companion-call-start">
-                📞 Call {first}
+                📞 {t("Call {name}", { name: first })}
               </button>
               <button type="button" className="button-ghost" onClick={() => props.current.onEnd({ seconds: 0, turns: 0, voice }, null)}>
-                Not now
+                {t("Not now")}
               </button>
             </p>
           </div>
@@ -1304,7 +1314,7 @@ export default function CompanionCall({
               <CallTranscript id={SCRIPT_ID} script={script} name={first} />
             ) : (
               <div className="companion-call-words" aria-live="polite">
-                {phase === "listening" && <p className="companion-call-heard">{heard || "Say something…"}</p>}
+                {phase === "listening" && <p className="companion-call-heard">{heard || t("Say something…")}</p>}
                 {(phase === "thinking" || (phase === "speaking" && !them)) && you && <p className="companion-call-heard">“{you}”</p>}
                 {(phase === "speaking" || phase === "paused") && them && (
                   <p className="companion-call-said">
@@ -1315,7 +1325,7 @@ export default function CompanionCall({
               </div>
             )}
             {note && <p className="companion-call-note">{note}</p>}
-            {left !== null && <p className="companion-call-left">{left === 1 ? "1 reply left" : `${left} replies left`}</p>}
+            {left !== null && <p className="companion-call-left">{left === 1 ? t("1 reply left") : t("{n} replies left", { n: left })}</p>}
             <p className="companion-call-controls">
               <button
                 type="button"
@@ -1325,28 +1335,28 @@ export default function CompanionCall({
                 aria-controls={showScript ? SCRIPT_ID : undefined}
                 data-track="companion-call-transcript"
               >
-                💬 Transcript
+                💬 {t("Transcript")}
               </button>
               {phase === "speaking" && (
                 <button type="button" className="button-ghost" onClick={interrupt} data-track="companion-call-interrupt">
-                  ✋ Interrupt
+                  ✋ {t("Interrupt")}
                 </button>
               )}
               {phase === "paused" ? (
                 <button type="button" className="button" onClick={resume} ref={mainButton} data-track="companion-call-resume">
                   {retryOffer
-                    ? `↻ Try again${modeNow.current === "live" && extraPrice("minute", minutes) !== "" ? ` · ${extraPrice("minute", minutes)}` : ""}`
+                    ? `↻ ${t("Try again")}${modeNow.current === "live" && extraPrice("minute", minutes) !== "" ? ` · ${extraPrice("minute", minutes)}` : ""}`
                     : modeNow.current === "live" && extraPrice("minute", minutes) !== ""
-                      ? `🎙 ${buyOffer ? "Keep talking" : "Tap to talk"} · ${extraPrice("minute", minutes)}`
-                      : "🎙 Tap to talk"}
+                      ? `🎙 ${buyOffer ? t("Keep talking") : t("Tap to talk")} · ${extraPrice("minute", minutes)}`
+                      : `🎙 ${t("Tap to talk")}`}
                 </button>
               ) : (
                 <button type="button" className="button-ghost" onClick={() => pause(null)} disabled={phase === "thinking" || phase === "connecting"}>
-                  🔇 Mute
+                  🔇 {t("Mute")}
                 </button>
               )}
               <button type="button" className="button companion-call-end" onClick={() => end()} ref={endButton} data-track="companion-call-end">
-                End call
+                {t("End call")}
               </button>
             </p>
           </>

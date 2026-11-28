@@ -15,6 +15,10 @@ import { COMPANION_FAIR_USE_PER_MONTH, companionAllowance, companionFreePerDay }
 import { DEEP_TURNS, RECENT_TURNS } from "@/lib/companion-prompt";
 import { planLink, planPrice } from "@/lib/paid-plans";
 import { STORY_TOKENS, stylesAudience } from "@/lib/writing-style";
+import { fillNodes } from "@/app/fillNodes";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { HTML_LANG } from "@/lib/i18n/locales";
+import { english, type T } from "@/lib/i18n/translate";
 import { PlanCheckout, PlanWait } from "./PlanCheckout";
 
 export const metadata: Metadata = {
@@ -25,7 +29,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+const day = (iso: string, lang = "en-US") => new Date(iso).toLocaleDateString(lang, { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 /** How many companions' faces the hero shows. */
 const FACES = 8;
@@ -52,10 +56,10 @@ function pickFaces(people: { threads: CompanionListItem[]; cast: CompanionListIt
 }
 
 /** A row of the comparison that both sides have. */
-function Yes() {
+function Yes({ t = english }: { t?: T }) {
   return (
     <span className="money-yes">
-      <Icon name="check" /> Yes
+      <Icon name="check" /> {t("Yes")}
     </span>
   );
 }
@@ -68,17 +72,23 @@ function Yes() {
  */
 export default async function CompanionPlanPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
   const { checkout } = await searchParams;
+  const [t, locale] = await Promise.all([getT(), getLocale()]);
+  const lang = HTML_LANG[locale];
   const auth = authFromCookieStore(await cookies());
   const db = await getDb();
   if (!companionOpen() && !(auth?.authenticated && (await isAdmin(db, auth.userId))))
     // Closed: say so, never a 404 (mobile audit C21).
     return (
-      <NotOpenYet title="The Companion Plan">
-        Unlimited one-to-one chats and calls with the characters. Companions aren&apos;t open yet: the characters are on <Link href="/watch">Watch</Link> in the meantime.
+      <NotOpenYet title={t("The Companion Plan")}>
+        {fillNodes(t("Unlimited one-to-one chats and calls with the characters. Companions aren't open yet: the characters are on {watch} in the meantime."), {
+          watch: <Link href="/watch">{t("Watch")}</Link>,
+        })}
       </NotOpenYet>
     );
   const price = planPrice("companion");
-  const { amount, per } = priceParts(price);
+  const { amount, per: perEnglish } = priceParts(price);
+  const per = perEnglish === "a month" ? t("a month") : perEnglish;
+  const priceWords = per ? `${amount} ${per}` : amount;
   const onSale = planLink("companion") !== null;
   const [a, people] = await Promise.all([
     auth?.authenticated ? companionAllowance(db, auth.userId) : null,
@@ -98,16 +108,16 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
   return (
     <article className="companion-page plan-page money-page">
       <header className="money-hero">
-        <p className="kicker">Companions</p>
-        <h1>Companion Plan</h1>
+        <p className="kicker">{t("Companions")}</p>
+        <h1>{/* i18n-ok: the plan's name stays English */}Companion Plan</h1>
         <p className="money-price">
           <span className="money-price-amount">{amount}</span>
           {per && <span className="money-price-per">{per}</span>}
         </p>
-        <p className="muted">Talk with every companion as much as you like: the house cast, your own characters and the show&apos;s cast.</p>
+        <p className="muted">{t("Talk with every companion as much as you like: the house cast, your own characters and the show's cast.")}</p>
         {faces.length > 0 && (
           <>
-            <ul className="money-faces" aria-label="Some of the companions">
+            <ul className="money-faces" aria-label={t("Some of the companions")}>
               {faces.map((c) => (
                 <li key={c.id} className="money-face">
                   <Avatar seed={c.id} name={c.name} hue={c.hue} house={c.house} portraitSrc={c.portrait} size={44} />
@@ -115,29 +125,33 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
               ))}
             </ul>
             <p className="money-faces-line muted small">
-              {companions} {companions === 1 ? "companion" : "companions"} to talk with. <Link href="/companion">Meet them</Link>.
+              {fillNodes(companions === 1 ? t("1 companion to talk with. {meet}.") : t("{n} companions to talk with. {meet}.", { n: companions }), {
+                meet: <Link href="/companion">{t("Meet them")}</Link>,
+              })}
             </p>
           </>
         )}
         {!subscribed && (
           <div className="money-hero-buy" id="plan-buy">
             {!onSale ? (
-              <p className="muted">The plan isn&apos;t on sale right now.</p>
+              <p className="muted">{t("The plan isn't on sale right now.")}</p>
             ) : a?.admin ? (
-              <p className="muted small">You&apos;re an admin: companions have no limit for you.</p>
+              <p className="muted small">{t("You're an admin: companions have no limit for you.")}</p>
             ) : !auth?.authenticated ? (
               <p className="cta-row">
                 <Link className="button" href="/account?next=%2Fcompanion%2Fplan">
-                  Sign in to subscribe
+                  {t("Sign in to subscribe")}
                 </Link>
               </p>
             ) : (
-              <PlanCheckout price={price} />
+              <PlanCheckout price={priceWords} />
             )}
             {/* The renewal terms in full, with the button (California's auto-renewal law: said plainly before anyone pays). */}
             <p className="small muted">
-              {price}, charged now and every month after until you cancel. Cancel any time in Stripe&apos;s billing portal (the link is on this page and in your
-              receipt): the plan runs to the end of the month you paid for, and there are no partial refunds. <Link href="/terms#companion-plan">The plan&apos;s terms</Link>.
+              {fillNodes(
+                t("{price}, charged now and every month after until you cancel. Cancel any time in Stripe's billing portal (the link is on this page and in your receipt): the plan runs to the end of the month you paid for, and there are no partial refunds. {terms}.", { price: priceWords }),
+                { terms: <Link href="/terms#companion-plan">{t("The plan's terms")}</Link> },
+              )}
             </p>
           </div>
         )}
@@ -147,24 +161,28 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
 
       {subscribed && (
         <section className="card plan-card" aria-labelledby="plan-yours">
-          <h2 id="plan-yours">Your plan</h2>
+          <h2 id="plan-yours">{t("Your plan")}</h2>
           <p>
             {a.plan === "cancelled"
-              ? `Cancelled: it runs until ${a.plan_ends ? day(a.plan_ends) : "the end of the month you paid for"}, then stops. Nothing more is charged.`
-              : `It's on${a.plan_ends ? `, and renews on ${day(a.plan_ends)}` : ""}.`}
+              ? a.plan_ends
+                ? t("Cancelled: it runs until {date}, then stops. Nothing more is charged.", { date: day(a.plan_ends, lang) })
+                : t("Cancelled: it runs until the end of the month you paid for, then stops. Nothing more is charged.")
+              : a.plan_ends
+                ? t("It's on, and renews on {date}.", { date: day(a.plan_ends, lang) })
+                : t("It's on.")}
           </p>
           {a.manage ? (
             <p>
               <a href={a.manage} rel="noopener">
-                {a.plan === "cancelled" ? "Keep it going, or change your card" : "Cancel or change your card"}
+                {a.plan === "cancelled" ? t("Keep it going, or change your card") : t("Cancel or change your card")}
               </a>{" "}
-              <span className="muted small">(Stripe&apos;s billing portal: sign in with the email you paid with)</span>
+              <span className="muted small">({t("Stripe's billing portal: sign in with the email you paid with")})</span>
             </p>
           ) : (
-            <p className="muted small">To cancel, use the link in Stripe&apos;s receipt email.</p>
+            <p className="muted small">{t("To cancel, use the link in Stripe's receipt email.")}</p>
           )}
           <p>
-            <Link href="/companion">Talk with your companions</Link>
+            <Link href="/companion">{t("Talk with your companions")}</Link>
           </p>
         </section>
       )}
@@ -172,111 +190,113 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
       {/* Try before paying (the 2026-11-28 simulation: nobody would pay $9.99 for a chat they hadn't seen). What one is
           like, plainly marked as an example we wrote, and the free way in. */}
       <section className="card plan-card plan-sample" aria-labelledby="plan-sample">
-        <h2 id="plan-sample">What it&apos;s like</h2>
-        <p className="muted small">An example we wrote to show the shape of it, not a real conversation.</p>
+        <h2 id="plan-sample">{t("What it's like")}</h2>
+        <p className="muted small">{t("An example we wrote to show the shape of it, not a real conversation.")}</p>
         <ol className="plan-sample-lines">
           <li>
-            <strong>Them:</strong> You&apos;re back. I was halfway through telling you about the rooftop tour that went wrong.
+            <strong>{t("Them:")}</strong> {t("You're back. I was halfway through telling you about the rooftop tour that went wrong.")}
           </li>
           <li>
-            <strong>You:</strong> Wrong how?
+            <strong>{t("You:")}</strong> {t("Wrong how?")}
           </li>
           <li>
-            <strong>Them:</strong> The guide was afraid of heights. We did the whole thing from the gift shop. Best tour I&apos;ve ever had.
+            <strong>{t("Them:")}</strong> {t("The guide was afraid of heights. We did the whole thing from the gift shop. Best tour I've ever had.")}
           </li>
           <li>
-            <strong>You:</strong> Would you go again?
+            <strong>{t("You:")}</strong> {t("Would you go again?")}
           </li>
           <li>
-            <strong>Them:</strong> Only if you came. You&apos;d ask the right questions.
+            <strong>{t("Them:")}</strong> {t("Only if you came. You'd ask the right questions.")}
           </li>
         </ol>
         <p>
-          They remember what you told them, text you first if you let them, and stay in character. Try it free first: {perDay} replies a day, no card.{" "}
+          {t("They remember what you told them, text you first if you let them, and stay in character. Try it free first: {n} replies a day, no card.", { n: perDay })}{" "}
           <Link href="/companion" data-track="plan-try-free">
-            Pick a companion
+            {t("Pick a companion")}
           </Link>
         </p>
       </section>
 
       <section className="card plan-card" aria-labelledby="plan-what">
-        <h2 id="plan-what">What you get</h2>
+        <h2 id="plan-what">{t("What you get")}</h2>
         {/* The roles are spelled out: a phone lays the table out as blocks (app/ux/money.css), and some browsers drop a
             table's meaning once its parts stop displaying as one. */}
         <table className="money-compare" role="table">
           <thead role="rowgroup">
             <tr role="row">
               <th scope="col" role="columnheader">
-                <span className="sr-only">What</span>
+                <span className="sr-only">{t("What")}</span>
               </th>
               <th scope="col" role="columnheader">
-                Free
+                {t("Free")}
               </th>
               <th scope="col" role="columnheader" className="is-plan">
-                Companion Plan
+                {/* i18n-ok: the plan's name */}Companion Plan
               </th>
             </tr>
           </thead>
           <tbody role="rowgroup">
             <tr role="row">
               <th scope="row" role="rowheader">
-                Replies a day
+                {t("Replies a day")}
               </th>
-              <td role="cell">{perDay} a day across every companion</td>
+              <td role="cell">{t("{n} a day across every companion", { n: perDay })}</td>
               <td role="cell" className="is-plan">
-                No daily limit
-                <small>fair use: {COMPANION_FAIR_USE_PER_MONTH.toLocaleString("en-US")} a month</small>
+                {t("No daily limit")}
+                <small>{t("fair use: {n} a month", { n: COMPANION_FAIR_USE_PER_MONTH.toLocaleString(lang) })}</small>
               </td>
             </tr>
             <tr role="row">
               <th scope="row" role="rowheader">
-                Voice notes
-                <small>tap 🔊 on any reply to hear it in their own voice</small>
+                {t("Voice notes")}
+                <small>{t("tap 🔊 on any reply to hear it in their own voice")}</small>
               </th>
-              <td role="cell">One date from a pack buys {voice.bundle}</td>
+              <td role="cell">{t("One date from a pack buys {n}", { n: voice.bundle })}</td>
               <td role="cell" className="is-plan">
-                {voice.included} a month included
-                <small>after that, one date from a pack buys {voice.bundle}</small>
+                {t("{n} a month included", { n: voice.included })}
+                <small>{t("after that, one date from a pack buys {n}", { n: voice.bundle })}</small>
               </td>
             </tr>
             {live && (
               <tr role="row">
                 <th scope="row" role="rowheader">
-                  Live calls
-                  <small>where you can talk over each other</small>
+                  {t("Live calls")}
+                  <small>{t("where you can talk over each other")}</small>
                 </th>
-                <td role="cell">Calls that take turns are free</td>
+                <td role="cell">{t("Calls that take turns are free")}</td>
                 <td role="cell" className="is-plan">
-                  {minutes.included} minutes a month{facePlan ? ", with their face moving as they talk" : ""}
-                  <small>after that, one date from a pack buys {minutes.bundle} minutes; calls that take turns are free</small>
+                  {facePlan
+                    ? t("{n} minutes a month, with their face moving as they talk", { n: minutes.included })
+                    : t("{n} minutes a month", { n: minutes.included })}
+                  <small>{t("after that, one date from a pack buys {n} minutes; calls that take turns are free", { n: minutes.bundle })}</small>
                 </td>
               </tr>
             )}
             <tr role="row">
               <th scope="row" role="rowheader">
-                Their memory of you
-                <small>you can see and change all of it</small>
+                {t("Their memory of you")}
+                <small>{t("you can see and change all of it")}</small>
               </th>
               <td role="cell">
-                <Yes />
-                {depth && <small>the last {RECENT_TURNS} messages kept word for word</small>}
+                <Yes t={t} />
+                {depth && <small>{t("the last {n} messages kept word for word", { n: RECENT_TURNS })}</small>}
               </td>
               <td role="cell" className="is-plan">
-                <Yes />
-                {depth && <small>twice as long: the last {DEEP_TURNS} messages kept word for word</small>}
+                <Yes t={t} />
+                {depth && <small>{t("twice as long: the last {n} messages kept word for word", { n: DEEP_TURNS })}</small>}
               </td>
             </tr>
             {/* Depth comes with the plan, never by the line (lib/writing-style.ts). */}
             {depth && (
               <tr role="row">
                 <th scope="row" role="rowheader">
-                  Narrated writing
-                  <small>your dates and scenes told as prose, like a novel; pick it in your account</small>
+                  {t("Narrated writing")}
+                  <small>{t("your dates and scenes told as prose, like a novel; pick it in your account")}</small>
                 </th>
-                <td role="cell">The script: lines and a short action</td>
+                <td role="cell">{t("The script: lines and a short action")}</td>
                 <td role="cell" className="is-plan">
-                  Included
-                  <small>and stories of your dates (without the plan, {STORY_TOKENS} bought date each)</small>
+                  {t("Included")}
+                  <small>{t("and stories of your dates (without the plan, {n} bought date each)", { n: STORY_TOKENS })}</small>
                 </td>
               </tr>
             )}
@@ -285,9 +305,10 @@ export default async function CompanionPlanPage({ searchParams }: { searchParams
         {/* What "a date from a pack" is, said once (the audit: the unit was never explained), and the two rows that were
             Yes on both sides ("Another reply whenever you like", "How much they say") as the line they were. */}
         <p className="muted small">
-          A date from a pack is one of the show&apos;s bought dates (<Link href="/shop">More dates</Link>): it sends a character on a date, or buys a bundle
-          of the extras above. Everything that&apos;s free stays the same on the plan, like asking for another reply or choosing how much they say.{" "}
-          <Link href="/terms#companion-extras">How extras work</Link>.
+          {fillNodes(
+            t("A date from a pack is one of the show's bought dates ({shop}): it sends a character on a date, or buys a bundle of the extras above. Everything that's free stays the same on the plan, like asking for another reply or choosing how much they say. {how}."),
+            { shop: <Link href="/shop">{t("More dates")}</Link>, how: <Link href="/terms#companion-extras">{t("How extras work")}</Link> },
+          )}
         </p>
       </section>
     </article>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Avatar from "@/app/Avatar";
+import { useT } from "@/app/I18nProvider";
 import FaceLoop from "@/app/FaceLoop";
 // Only the type: lib/companion-preview.ts reads it on the server and the page passes it down.
 import type { CompanionPreview } from "@/lib/companion-preview";
@@ -35,6 +36,7 @@ export function rowStates(count: number, shown: number, typing: boolean): RowSta
  */
 export default function CompanionPhone({ preview }: { preview: CompanionPreview }) {
   const { id, name, hue, portrait, lines, watch } = preview;
+  const t = useT();
   const first = name.split(/\s+/)[0];
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const [shown, setShown] = useState(lines.length);
@@ -86,9 +88,9 @@ export default function CompanionPhone({ preview }: { preview: CompanionPreview 
             <Avatar seed={id} name={name} hue={hue ?? 0} house portraitSrc={portrait} size={PHONE_FACE} decorative />
           </FaceLoop>
           <strong>{first}</strong>
-          <span className="muted small">AI character · on the show</span>
+          <span className="muted small">{t("AI character · on the show")}</span>
         </div>
-        <ol className="companion-phone-thread" aria-label={`${first}'s first message`}>
+        <ol className="companion-phone-thread" aria-label={t("{name}'s first message", { name: first })}>
           {lines.map((line, n) => (
             <li key={n} className={`phone-msg phone-msg-them companion-phone-msg is-${states[n]}${n === 0 ? " starts" : ""}${n === lines.length - 1 ? " ends" : ""}`}>
               <p className="phone-bubble">{line}</p>
@@ -104,12 +106,12 @@ export default function CompanionPhone({ preview }: { preview: CompanionPreview 
         </ol>
         <p className={`companion-phone-watch small${shown < lines.length ? " is-waiting" : ""}`}>
           <Link href={watch} data-track="companion-phone-watch" data-track-character={id}>
-            <span aria-hidden="true">▶</span> Watch the date
+            <span aria-hidden="true">▶</span> {t("Watch the date")}
           </Link>
         </p>
       </div>
       <figcaption className="muted small">
-        {first}&apos;s real first message. The house cast open with their last aired date.
+        {t("{name}'s real first message. The house cast open with their last aired date.", { name: first })}
       </figcaption>
     </figure>
   );
