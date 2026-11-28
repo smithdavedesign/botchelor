@@ -226,7 +226,7 @@
   "app/invites/review/page.tsx": 23,
   "app/layout.tsx": 4,
   "app/leagues/[id]/LeagueActions.tsx": 11,
-  "app/leagues/[id]/page.tsx": 19,
+  "app/leagues/[id]/page.tsx": 16,
   "app/letters/Compose.tsx": 11,
   "app/letters/page.tsx": 24,
   "app/link/[code]/LinkConfirm.tsx": 2,

@@ -1,6 +1,6 @@
 import type { Db } from "./db";
-import { predictionPointsSql } from "./game";
-import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
+import { dealbreakerPointsRowsSql, predictionPointsSql } from "./game";
+import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
 import { seasonLabel, seasonWindow, weekWindow } from "./season-window";
 
 /**
@@ -88,11 +88,15 @@ export async function tryCloseDueSeasons(db: Db): Promise<void> {
 async function closeSeason(db: Db, season: Season): Promise<void> {
   await db.query(
     `with week_points as (
-       select p.user_id, sum(${predictionPointsSql("$4", "$5")})::int as points
-         from predictions p
-         join episodes e on e.id = p.episode_id
-        where e.revealed_at >= $2 and e.revealed_at < $3
-        group by p.user_id
+       select user_id, sum(points)::int as points from (
+         select p.user_id, ${predictionPointsSql("$4", "$5")} as points
+           from predictions p
+           join episodes e on e.id = p.episode_id
+          where e.revealed_at >= $2 and e.revealed_at < $3
+         union all
+         ${dealbreakerPointsRowsSql("$7", "$2", "$3")}
+       ) scored
+       group by user_id
      ),
      podium as (
        select m.league_id, m.user_id, w.points,
@@ -108,7 +112,7 @@ async function closeSeason(db: Db, season: Season): Promise<void> {
      )
      insert into seasons (id, starts_at, ends_at) values ($1, $2, $3)
      on conflict (id) do nothing`,
-    [season.id, season.starts_at, season.ends_at, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, PODIUM_SIZE],
+    [season.id, season.starts_at, season.ends_at, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK, PODIUM_SIZE, POINTS_PER_DEALBREAKER_PICK],
   );
 }
 

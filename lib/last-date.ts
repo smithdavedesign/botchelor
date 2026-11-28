@@ -1,3 +1,4 @@
+import { isShowDate } from "./show-spoilers";
 import type { Db } from "./db";
 import type { Reflections } from "./reflection";
 import { dateNumberSql } from "./date-number";
@@ -25,15 +26,17 @@ export type LastDate = {
   venueId: string | null;
   /** The two names as the date has them, side a then side b (for the snapshot's alt text, lib/date-photo.ts). */
   names: [string, string];
+  /** A date with the show's own cast (lib/show-spoilers.ts): how it ended is the episode's to tell. */
+  show?: boolean;
 };
 
-type Row = { id: string; ending: Ending; venue: string | null; reflections: Reflections | null; side: "a" | "b"; partner: string; partner_id: string; a_name: string; b_name: string; date_number: number | null; created_at: Date | string };
+type Row = { id: string; ending: Ending; venue: string | null; reflections: Reflections | null; side: "a" | "b"; partner: string; partner_id: string; a_name: string; b_name: string; a_house: boolean; b_house: boolean; date_number: number | null; created_at: Date | string };
 
 const select = (where: string) => `select e.id, e.ending, e.setup->>'venue' as venue, e.reflections, e.created_at,
             case when e.character_a = $1 then 'a' else 'b' end as side,
             case when e.character_a = $1 then b.name else a.name end as partner,
             case when e.character_a = $1 then b.id else a.id end as partner_id,
-            a.name as a_name, b.name as b_name,
+            a.name as a_name, b.name as b_name, a.is_house as a_house, b.is_house as b_house,
             ${dateNumberSql("e")} as date_number
        from episodes e
        join characters a on a.id = e.character_a
@@ -56,6 +59,7 @@ function toLastDate(r: Row | undefined): LastDate | null {
     dateNumber: r.date_number,
     venueId: r.venue,
     names: [r.a_name, r.b_name],
+    show: isShowDate(r.a_house, r.b_house),
   };
 }
 

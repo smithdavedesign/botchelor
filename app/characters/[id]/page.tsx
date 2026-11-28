@@ -33,6 +33,7 @@ import { hasExtras, moodLabel, profileComplete, profileMissing, type CharacterEx
 import { archetypeLabel, goalLabel } from "@/lib/kinds";
 import ProfileDetails from "./ProfileDetails";
 import { PREMIUM_HOUSE_CHARACTERS } from "@/lib/house";
+import { isShowDate } from "@/lib/show-spoilers";
 import { ensureAgentHandle } from "@/lib/agent-handle";
 import { getDb } from "@/lib/db";
 import { getCharacterDatesPage, getPublicCharacter } from "@/lib/game";
@@ -520,7 +521,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   // there is nothing to say, and then nothing is rendered. The newest aired date is the date record's first page's.
   const now =
     characterNowOn() && !c.private
-      ? shapeNow({ character: { id: c.id, name: c.name, private: c.private }, circle, talk: talkOfHouse, week, lastDate: datesPage === 1 ? (episodes[0] ?? null) : null, today: new Date().toISOString().slice(0, 10) })
+      ? shapeNow({ character: { id: c.id, name: c.name, private: c.private }, circle, talk: talkOfHouse, week, lastDate: datesPage === 1 && episodes[0] ? { ...episodes[0], show: isShowDate(c.house, episodes[0].partner.house) } : null, today: new Date().toISOString().slice(0, 10) })
       : null;
   // Stepping in leads when it's their verb (no character of their own, or theirs can't go); otherwise it's the quieter
   // second under the date.
@@ -1257,7 +1258,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
               {episodes.map((e) => (
                 <li key={e.episode_id} className="row-split">
                   <span className="row-2line-head">
-                    {t("vs")} <CharacterName character={e.partner} /> <span className="badge">{t(endingLabel(e.ending, e.date_number))}</span>
+                    {t("vs")} <CharacterName character={e.partner} /> <span className="badge">{isShowDate(c.house, e.partner.house) ? t("Aired") : t(endingLabel(e.ending, e.date_number))}</span>
                   </span>
                   <Link href={e.share_path}>{t("See the date")}</Link>
                 </li>

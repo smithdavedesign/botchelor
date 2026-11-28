@@ -77,7 +77,7 @@ import RecapToggle from "./RecapToggle";
 import ShowSpoilerFold from "./ShowSpoilerFold";
 import TranscriptRead from "./TranscriptRead";
 import { airIfDue, airWindowMinutes } from "@/lib/air";
-import { endingsLately } from "@/lib/endings-lately";
+import { endingsLately, LATELY_SHOWN_FROM } from "@/lib/endings-lately";
 import SafetyActions from "./SafetyActions";
 import SlidingDoors from "./SlidingDoors";
 import WatchPartyLaunch from "./WatchPartyLaunch";
@@ -383,7 +383,7 @@ export default async function EpisodePage({
           .catch(() => null)
       : null,
     // #728: how recent aired public dates ended, beside the prediction form, so a pick isn't blind (never this date's ending).
-    !episode.revealed && !episode.is_creator ? endingsLately(db).then((l) => (l.of ? l.says : null)).catch(() => null) : null,
+    !episode.revealed && !episode.is_creator ? endingsLately(db).then((l) => (l.of >= LATELY_SHOWN_FROM ? l.says : null)).catch(() => null) : null,
     viewerId ? getPoints(db, viewerId) : 0,
     episode.is_creator ? getProfileName(db, viewerId) : null,
     // The $0 mechanics: spectators get the dealbreaker quiz; the owner (host) sees the surprise reveal.

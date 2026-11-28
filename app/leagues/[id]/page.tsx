@@ -5,10 +5,11 @@ import { notFound } from "next/navigation";
 import { Podium } from "@/app/Badges";
 import { frameClass } from "@/lib/catalog";
 import { getDb } from "@/lib/db";
+import { getT } from "@/lib/i18n/server";
 import { userIdFromCookieStore } from "@/lib/http";
 import { getLeague } from "@/lib/leagues";
 import { getProfileName } from "@/lib/people";
-import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "@/lib/rules";
+import { PODIUM_SIZE, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK } from "@/lib/rules";
 import { seasonLabel, tryCloseDueSeasons } from "@/lib/seasons";
 import { InviteFriends, JoinLeague } from "./LeagueActions";
 
@@ -23,7 +24,7 @@ const day = (date: Date) => date.toLocaleDateString("en-US", { weekday: "short",
 export default async function LeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const viewerId = userIdFromCookieStore(await cookies());
-  const db = await getDb();
+  const [db, t] = await Promise.all([getDb(), getT()]);
   await tryCloseDueSeasons(db);
   const league = await getLeague(db, id, viewerId);
   if (!league) notFound();
@@ -83,8 +84,11 @@ export default async function LeaguePage({ params }: { params: Promise<{ id: str
       <details className="ux-fold league-points">
         <summary>How points work</summary>
         <p className="muted">
-          Points come from episodes whose finale airs this season: {POINTS_PER_CORRECT_PICK} for the right ending,{" "}
-          {POINTS_PER_DRAMA_PICK} for the bonus question. Points and badges are free and carry no prizes.
+          {t("Points come from dates that air this season: {ending} for the right ending, {bonus} for the bonus question and {dealbreaker} for the right dealbreaker. Points and badges are free and carry no prizes.", {
+            ending: POINTS_PER_CORRECT_PICK,
+            bonus: POINTS_PER_DRAMA_PICK,
+            dealbreaker: POINTS_PER_DEALBREAKER_PICK,
+          })}
         </p>
       </details>
       {league.is_member && (

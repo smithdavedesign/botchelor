@@ -1,6 +1,6 @@
 import type { Db } from "./db";
-import { predictionPointsSql } from "./game";
-import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
+import { dealbreakerPointsRowsSql, predictionPointsSql } from "./game";
+import { POINTS_PER_ARC, POINTS_PER_CORRECT_PICK, POINTS_PER_DEALBREAKER_PICK, POINTS_PER_DRAMA_PICK } from "./rules";
 import { listLeagueSeasons, seasonAt, seasonWindow, UNNAMED_MEMBER, weekWindow, type PastSeason } from "./seasons";
 import { poolStanding } from "./season-pool";
 
@@ -36,7 +36,8 @@ export async function getLeague(db: Db, id: string, viewerId: string | null, now
   if (!league) return null;
 
   const { start, end } = seasonWindow(now);
-  // Rank and points come only from predictions (episodes, and couples' arcs settled this week: lib/arcs.ts); the
+  // Rank and points come only from the calling game (endings, bonus and dealbreaker picks, and couples' arcs settled
+  // this week: lib/arcs.ts); the
   // frame is joined beside them and can't move anyone.
   const { rows } = await db.query<Omit<LeaderboardEntry, "frame"> & { frame: string | null }>(
     `with week_points as (
@@ -46,6 +47,9 @@ export async function getLeague(db: Db, id: string, viewerId: string | null, now
            join episodes e on e.id = p.episode_id
           where e.revealed_at >= $3 and e.revealed_at < $4 and e.visibility = 'public'
             and p.user_id in (select user_id from league_members where league_id = $1)
+         union all
+         select d.user_id, d.points from (${dealbreakerPointsRowsSql("$9", "$3", "$4")}) d
+          where d.user_id in (select user_id from league_members where league_id = $1)
          union all
          select ap.user_id, case when ap.pick = ap.outcome then $8::int else 0 end as points
            from arc_predictions ap
@@ -79,6 +83,7 @@ export async function getLeague(db: Db, id: string, viewerId: string | null, now
       POINTS_PER_DRAMA_PICK,
       UNNAMED_MEMBER,
       POINTS_PER_ARC,
+      POINTS_PER_DEALBREAKER_PICK,
     ],
   );
 

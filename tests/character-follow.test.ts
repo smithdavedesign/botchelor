@@ -709,7 +709,9 @@ describe("the character page", () => {
     // With one aired public date it has a line, and the week's line joins it.
     await episode(fresh, JUNIPER, { ending: "friends" });
     const block = nowBlock(await page(fresh, newUserCookie()))!;
-    expect(block).toContain(`Latest date, with ${first(JUNIPER)}: Just friends`);
+    // Juniper is the house's: the show's own date says it aired, never how it went (lib/show-spoilers.ts).
+    expect(block).toContain(`Latest date, with ${first(JUNIPER)}: watch it to see how it went`);
+    expect(block).not.toContain("Just friends");
     expect(block).toContain("This week: ");
   });
 

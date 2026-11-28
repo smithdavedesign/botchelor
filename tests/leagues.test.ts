@@ -109,6 +109,17 @@ describe("weekly league leaderboard (exit criterion)", () => {
     expect((await board(league.id))[0].points).toBe(15);
   });
 
+  it("adds a right dealbreaker guess to the board, as the episode page counts it (2026-11-28 run: 25 there, 20 here)", async () => {
+    const wren = await named(newUserCookie(), "Wren");
+    const league = await newLeague(wren);
+    const { creator, episode } = await setupEpisode("friends");
+    await api.predict({ episode_id: episode.id, pick: "friends" }, wren);
+    // validCharacter's dealbreaker is character_a's real one.
+    expect((await api.guessDealbreaker({ episode_id: episode.id, pick: "People who hate surprises" }, wren)).status).toBe(201);
+    await api.reveal(episode.id, creator);
+    expect((await board(league.id))[0].points).toBe(15);
+  });
+
   it("lists only members, with no user ids, and tells a non-member viewer they are not in it", async () => {
     const wren = await named(newUserCookie(), "Wren");
     const outsider = await named(newUserCookie(), "Outsider");
