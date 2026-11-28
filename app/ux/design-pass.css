@@ -183,6 +183,107 @@
 .contestant-card[data-standing] .lower-third {
   z-index: 1;
 }
+/* ---------------- Gateway pass 4: home's questions and last call on the same stage ---------------- */
+.home-night .faq {
+  max-width: var(--page-read);
+  margin: var(--space-6) auto 0;
+}
+.home-night .faq > h2 {
+  color: var(--pass-ink);
+  text-align: center;
+}
+.home-night .faq details.card {
+  border-color: var(--pass-glass-edge);
+  background: var(--pass-glass);
+  color: var(--pass-ink);
+}
+.home-night .faq-more a {
+  color: var(--pass-scene);
+}
+.home-night .cta-final {
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+/* ---------------- Gateway pass 3: Watch's votes in one row on a wide screen ----------------
+   The phone already swipes them (app/ux/show.css). Wide, they stood in one column a screen tall; side by side, each
+   card's choices stack, so nothing is squeezed into ~100px columns (the reason they were one column). */
+@media (min-width: 721px) {
+  .watch-votes:has(> :nth-child(2)) {
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    align-items: start;
+  }
+  .watch-votes:has(> :nth-child(2)) .situation-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------- Gateway pass 2: an owner's home ---------------- */
+/* The season's cast, portrait first and edge to edge (Characters' cards), not a small face in a big white box. */
+.home-cast-faces .home-cast-tile {
+  gap: var(--space-1);
+  padding: 0 0 var(--space-3);
+  overflow: hidden;
+}
+.home-cast-portrait {
+  align-self: stretch;
+  margin-bottom: var(--space-2);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--soft);
+}
+.home-cast-portrait .avatar-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  object-fit: cover;
+  object-position: center 20%;
+}
+.home-cast-tile .home-cast-portrait .avatar {
+  box-shadow: none;
+}
+/* Tonight's two votes: each choice's premise in two lines; the whole of it is a tap away on Watch. */
+.tonight-part .situation-premise {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ---------------- Gateway pass 5: Create's card stands them on the stage ---------------- */
+.wizard-deck-stage {
+  position: relative;
+  height: 12rem;
+  padding: 0;
+  background:
+    radial-gradient(ellipse 55% 70% at 50% 15%, var(--pass-spot) 0%, transparent 70%),
+    linear-gradient(180deg, var(--pass-night-2) 0%, var(--pass-night) 100%);
+}
+.wizard-deck-stage .stage-silhouette {
+  position: absolute;
+  inset: var(--space-3) 25% 0;
+}
+
+/* ---------------- Gateway pass 6: After Dark's closed door, no empty night under it ---------------- */
+.after-dark-mode:has(> [data-after-dark-unavailable]) {
+  min-height: 0;
+}
+[data-after-dark-unavailable] {
+  background: radial-gradient(ellipse 50% 60% at 92% 0%, var(--pass-spot-low) 0%, transparent 70%);
+}
+
+/* ---------------- Gateway pass 7: the agents' tools on six shelves ---------------- */
+.agents-shelf {
+  margin-top: var(--space-5);
+}
+.agents-shelf-head {
+  margin: 0 0 var(--space-2);
+}
+.agents-shelf > .agents-cards {
+  margin-top: 0;
+}
+
 @media (max-width: 560px) {
   .watch-tonight,
   .home-night {

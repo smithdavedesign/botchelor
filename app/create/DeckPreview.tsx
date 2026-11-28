@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Avatar from "../Avatar";
+import Silhouette from "../stage/Silhouette";
 import HouseDeck from "./HouseDeck";
 import { promptLabel, type CharacterExtras } from "@/lib/extras";
 import type { DeckCard } from "@/lib/house-deck";
@@ -112,8 +113,14 @@ export default function DeckPreview({ seed, name, age, hue, portrait, bio, want,
     <aside className="wizard-deck" aria-label={t("How others will see them")}>
       <p className="kicker">{t("How others will see them")}</p>
       <div className="swipe-card wizard-deck-card">
-        <div className="swipe-photo">
-          <Avatar seed={seed} name={name.trim() || "?"} hue={hue} portraitSrc={portrait} size={140} decorative />
+        {/* No picture yet: they stand on the show's stage as their silhouette, in their own colours, as they will on a
+            date (app/stage/Silhouette.tsx; 2026-11-28 gateway review, item 5), and the card fills in around them. */}
+        <div className={portrait ? "swipe-photo" : "swipe-photo wizard-deck-stage"}>
+          {portrait ? (
+            <Avatar seed={seed} name={name.trim() || "?"} hue={hue} portraitSrc={portrait} size={140} decorative />
+          ) : (
+            <Silhouette id={seed} name={name.trim() || "?"} hue={hue} />
+          )}
         </div>
         <div className="swipe-body">
           <h2 className="swipe-name">
