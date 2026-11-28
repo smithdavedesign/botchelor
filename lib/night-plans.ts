@@ -135,6 +135,19 @@ export async function claimNightPlan(db: Db, aId: string, bId: string, now: Date
   return rows[0] ?? null;
 }
 
+/**
+ * The day's lobby plan not yet used, read only: its reserved id and its two. The lobby's casting sway (lib/watch.ts
+ * refreshLobby, lib/casting-sway.ts) previews the date under that id, so a swayed pair the plan was written for keeps it.
+ */
+export async function lobbyPlanOn(db: Db, day: string, env: Env = process.env): Promise<{ episode_id: string; a_id: string; b_id: string } | null> {
+  if (!datePlanAtNightOn(env)) return null;
+  const { rows } = await db.query<{ episode_id: string; a_id: string; b_id: string }>(
+    `select episode_id, a_id, b_id from date_plans where slot = 'lobby' and day = $1 and used_at is null and plan is not null order by created_at limit 1`,
+    [day],
+  );
+  return rows[0] ?? null;
+}
+
 /** The claimed plan when the date turned out to be the one it was written for; otherwise null (the rules plan plays). */
 export async function planIfFits(db: Db, claimed: ClaimedPlan | null, built: BuiltDate, decided: Outcome): Promise<DatePlan | null> {
   if (!claimed) return null;
@@ -210,7 +223,7 @@ export async function writeNightPlans(db: Db, now: Date = new Date(), opts: { mo
   if (have.size) return { day, skipped: "nothing_due" };
   // Loaded here, not at the top: lib/watch.ts reads this module at date time.
   const [{ buildTemplateDate, lobbyDeal, templateRoomsOn }, { situationDeal }] = await Promise.all([import("./watch"), import("./situations")]);
-  const due: { slot: "situation" | "lobby"; a: string; b: string; opts: Parameters<typeof buildTemplateDate>[4]; beatDay: string }[] = [];
+  const due: { slot: "situation" | "lobby"; a: string; b: string; opts: Parameters<typeof buildTemplateDate>[4]; beatDay: string; episodeId?: string }[] = [];
   // The date the vote is staging is made on the first pass of the produced day, from the vote of the day before.
   const voteDay = dayOf(new Date(Date.parse(`${day}T00:00:00Z`) - 24 * 60 * 60 * 1000));
   const made = await db.query(`select 1 from situation_nights where day = $1`, [voteDay]);
@@ -220,8 +233,10 @@ export async function writeNightPlans(db: Db, now: Date = new Date(), opts: { mo
   // room yet, lib/watch.ts refreshLobby). On a day with a voted date the lobby only makes a room once somebody has
   // started that one, so no plan is spent on it. The round it is dealt as is how many of the day's rooms come before it.
   if (!due.length && !made.rows.length) {
-    const lobby = await lobbyDeal(db, new Date(`${day}T12:00:00Z`), 2 * (await templateRoomsOn(db, day))).catch(soft("night plans: the lobby", null));
-    if (lobby) due.push({ slot: "lobby", a: lobby.a, b: lobby.b, opts: lobby.thumbs, beatDay: day });
+    // The id is reserved first, so the casting sway (lib/casting-sway.ts) previews the pair under the id it is built under.
+    const episodeId = randomUUID();
+    const lobby = await lobbyDeal(db, new Date(`${day}T12:00:00Z`), 2 * (await templateRoomsOn(db, day)), { episodeId }).catch(soft("night plans: the lobby", null));
+    if (lobby) due.push({ slot: "lobby", a: lobby.a, b: lobby.b, opts: lobby.thumbs, beatDay: day, episodeId });
   }
   if (!due.length) return { day, skipped: "nothing_due" };
   const model = opts.model ?? getModel("minimal", false, NIGHT_PLAN_TIMEOUT_MS);
@@ -230,7 +245,7 @@ export async function writeNightPlans(db: Db, now: Date = new Date(), opts: { mo
     if (opts.budgetMs !== undefined && Date.now() - started > opts.budgetMs) break;
     try {
       const id = randomUUID();
-      const episodeId = randomUUID();
+      const episodeId = d.episodeId ?? randomUUID();
       const built = await buildTemplateDate(db, episodeId, d.a, d.b, d.opts);
       if (!built) continue;
       const key = fitKey(built.built, built.decided);

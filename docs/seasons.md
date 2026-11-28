@@ -275,7 +275,8 @@ date, which Sunday's roses judge like any walk-on's. `CASTING_INVITES=0` closes 
 The drama wave, 2026-11-15, part 4. Reality TV is produced: someone decides tonight what tomorrow's episode is about.
 Ours is [`lib/producer.ts`](../lib/producer.ts). It runs once a night in the hourly lobby job, reads the story state
 ([character-depth.md](character-depth.md), "Story state") and sets tomorrow's **situations**. It never sets an outcome:
-nothing it writes is read by the engine, the points, the odds or the endings.
+nothing it writes is read by the engine, the points, the odds or the endings. It may choose **who** goes on the house's
+own dates and **where** (the casting sway, below); the engine still decides every ending.
 
 **When.** The hourly job runs at :20. The 23:20 UTC pass produces the next UTC day: after the day's airings, before
 that day's vote opens at 00:00 and before the house's first dates of the day (the voted date and the lobby's room, on
@@ -349,9 +350,31 @@ confrontation | challenge: the kind of scene the beat suits) and `evidence.heard
 **The date plans written at night** are [`lib/night-plans.ts`](../lib/night-plans.ts): see
 [date-quality.md](date-quality.md), "Round: the plan at night".
 
+**The casting sway** ([`lib/casting-sway.ts`](../lib/casting-sway.ts); Dave's call, 2026-11-28, "for better
+television"). In local simulations 8 of 11 house dates ended in disaster, so a prediction player could always pick
+"disaster" and win. The producer now sways who goes on the house's own dates and where, never the ending:
+
+- **Who, exactly previewed.** Only the lobby's plainly dealt pair (`lobbyDeal` in `lib/watch.ts`, after the Botchelor's
+  suitor in turn, a challenge winner's pick, a staged arc step and an introduction, which all stand). The dealt pair is
+  candidate 0 and three more are dealt the same way from the day. When the house's last six endings run lopsided (the
+  latest two alike, or one ending in two thirds of them), each candidate's date is built under the one episode id the
+  real date is stored under and the engine's own decision is read (`previewTemplateDate`: the same input and seed,
+  minus the hot takes, which the engine never reads), so the preview is the ending the date will have. A candidate
+  whose ending differs from the one the mix leans on wins, the closest call first (the margin nearest a mark); ties
+  keep the dealt order. A varied mix, or no history, keeps the dealt pair exactly as before. The night's plan reserves
+  its id before the deal, and the morning's lobby keeps it when the sway still picks that pair, else re-deals under a
+  fresh id.
+- **Where, by a heuristic.** The engine never reads a venue, so nothing can be previewed there: a venue the show deals
+  for a house date (the lobby's, a voted date's without a twist's place) skips the venues of the latest two house
+  disasters made before that day, on top of the characters' own last two. A place a booker named, one agreed by text,
+  a twist's place and a one-venue pool are never changed.
+- **Never touched.** A pair or venue a person, an agent (`go_on_date`'s `partner_id` and `place`), a vote or the format
+  named; any vote's outcome; any ending, before or after. Booked dates, doubles, mixers, the weekly reveal's partner and
+  the Sunday premiere are dealt as before.
+
 **Switches** (the show's app; no deploy of code): `PRODUCER=0` writes no beats, wants or vote twists and reads none
 (the story state's own `STORY_STATE=0` turns it off too). `DATE_PLAN_AT_NIGHT` (on) and `PRODUCER_PLANS` (off) are the
-plans'.
+plans'. `PRODUCER_SWAY=0` turns the casting sway off: every house date is dealt exactly as before.
 
 **Cost.** Rows and templates, plus one logline call a night on the free model (about 250 tokens in, 40 out): $0 on the
 free tier, about 0.02¢ at paid Flash-Lite rates.
@@ -359,7 +382,9 @@ free tier, about 0.02¢ at paid Flash-Lite rates.
 **Tests.** `tests/producer.test.ts` (the pick: deterministic, once per day, the repeat rule, the skip; wants
 overwritten and not clobbered by the rules; twists and the dealt ballot with no beat; the Botchelor's limits; the
 lines; what came of it; the engine's input and decision unchanged), `tests/producer-lines.test.ts` (where the lines
-show, the clip picker and captions), `tests/night-plans.test.ts`.
+show, the clip picker and captions), `tests/night-plans.test.ts`, `tests/casting-sway.test.ts` (after a disaster streak
+the next dealt pair previews as something else and is decided as previewed; `PRODUCER_SWAY=0` and a varied mix deal as
+before; a named pair or venue stands).
 
 ## The house: the daily scene (2026-11-15)
 

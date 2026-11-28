@@ -31,7 +31,11 @@
  * THE RULES THAT NEVER BEND
  *  - Never the engine: nothing here is read by lib/engine.ts, the points, the odds or the endings. A twist chooses which
  *    two of the cast the house's voted date is for and where it happens; the engine then decides that date as it
- *    decides any other.
+ *    decides any other. The casting sway (lib/casting-sway.ts, PRODUCER_SWAY) is the same kind of thumb: it chooses WHO
+ *    goes on the lobby's plainly dealt house date (previewing the engine's own decision for each candidate under the
+ *    date's own id and seed, preferring a varied mix and close calls) and steers a show-dealt venue off the latest
+ *    disasters'. It writes nothing the engine reads, never re-picks a pair or venue someone named, and never changes an
+ *    ending: the engine still decides every date.
  *  - Only the public aired record: the beat is built from tensions, which are built from public aired dates between
  *    public characters. No public line ever says whether a claim is true (story-state: is_true is server-side only):
  *    the lines name people and the fact that something was said, in an order that doesn't depend on who is right.
