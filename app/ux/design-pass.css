@@ -209,8 +209,12 @@
    card's choices stack, so nothing is squeezed into ~100px columns (the reason they were one column). */
 @media (min-width: 721px) {
   .watch-votes:has(> :nth-child(2)) {
-    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     align-items: start;
+  }
+  /* Three: the situation, whose choices carry a premise each, gets the wider column. */
+  .watch-votes:has(> :nth-child(3)) {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
   }
   .watch-votes:has(> :nth-child(2)) .situation-choices {
     grid-template-columns: 1fr;
@@ -269,9 +273,6 @@
 .after-dark-mode:has(> [data-after-dark-unavailable]) {
   min-height: 0;
 }
-[data-after-dark-unavailable] {
-  background: radial-gradient(ellipse 50% 60% at 92% 0%, var(--pass-spot-low) 0%, transparent 70%);
-}
 
 /* ---------------- Gateway pass 7: the agents' tools on six shelves ---------------- */
 .agents-shelf {
@@ -282,6 +283,50 @@
 }
 .agents-shelf > .agents-cards {
   margin-top: 0;
+}
+@media (min-width: 1100px) {
+  .agents-shelf > .agents-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------------- Gateway pass 1: /pricing ---------------- */
+/* The Free card's row of faces sits where the pack's row of places does (app/ux/money.css .pack-venues). */
+.pricing-free-cast .pack-venues-list img {
+  object-position: center 22%;
+}
+/* Never for sale: the page's promise, as a band rather than one more paragraph. */
+.pricing-never {
+  margin-block: var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--pass-night);
+  color: var(--pass-ink);
+}
+.pricing-never > h2 {
+  margin-top: 0;
+  color: var(--pass-scene);
+}
+.pricing-never > p {
+  margin-bottom: 0;
+}
+/* Other options, side by side on a wide screen: still a line each, no card and no button of their own. */
+@media (min-width: 761px) {
+  .pricing-also:has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+  }
+  .pricing-small-print > ul {
+    columns: 2;
+    column-gap: var(--space-6);
+  }
+  .pricing-small-print > ul > li {
+    break-inside: avoid;
+  }
+}
+.pricing-small-print {
+  color: var(--muted);
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 560px) {

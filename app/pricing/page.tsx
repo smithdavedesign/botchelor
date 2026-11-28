@@ -18,6 +18,8 @@ import { pageMetadata } from "@/lib/seo";
 import { paymentLinkFromEnv } from "@/lib/stripe";
 import { STORY_TOKENS, stylesAudience } from "@/lib/writing-style";
 import { fillNodes } from "@/app/fillNodes";
+import { HOUSE_CHARACTERS } from "@/lib/house";
+import { characterPortrait } from "@/lib/portraits";
 import { getLocale, getT } from "@/lib/i18n/server";
 import { HTML_LANG } from "@/lib/i18n/locales";
 
@@ -35,6 +37,11 @@ export const dynamic = "force-dynamic";
  * plan that isn't on sale here says so instead of showing a price. The PG show only; After Dark has its own tokens.
  */
 /** In the page's language (docs/i18n.md); the prices stay in US dollars. */
+/** Five of the house cast, for the Free card's picture row. */
+const FREE_CAST = HOUSE_CHARACTERS.slice(0, 5)
+  .map((c) => ({ id: c.id, src: characterPortrait(c.id) }))
+  .filter((c): c is { id: string; src: string } => Boolean(c.src));
+
 export default async function PricingPage() {
   const [t, locale] = await Promise.all([getT(), getLocale()]);
   const packOnSale = paymentLinkFromEnv() !== null;
@@ -96,6 +103,18 @@ export default async function PricingPage() {
 
       <ul className="pricing-grid">
         <li className={card("free")} id="free">
+          {/* Who the free dates are with (2026-11-28 gateway review, item 1): the house cast, in the row the pack's
+              places take on its card, so the two cards stand level. */}
+          <div className="pack-venues is-row pricing-free-cast" aria-hidden="true">
+            <ul className="pack-venues-list">
+              {FREE_CAST.map((c) => (
+                <li key={c.id}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a reviewed house portrait, static */}
+                  <img src={c.src} alt="" width={96} height={64} loading="lazy" decoding="async" />
+                </li>
+              ))}
+            </ul>
+          </div>
           <h2>{t("Free")}</h2>
           <p className="pricing-price">$0</p>
           <ul>
@@ -199,14 +218,14 @@ export default async function PricingPage() {
         </ul>
       </section>
 
-      <section aria-labelledby="never">
+      <section aria-labelledby="never" className="pricing-never">
         <h2 id="never">{t("Never for sale")}</h2>
         <p>
           {t("Points, badges and rank. They're earned by calling how dates end, and nothing you buy changes them.")}
         </p>
       </section>
 
-      <section aria-labelledby="small-print">
+      <section aria-labelledby="small-print" className="pricing-small-print">
         <h2 id="small-print">{t("The small print")}</h2>
         <ul>
           <li>{t("Prices are in US dollars. You pay on Stripe's own page; we never see your card.")}</li>

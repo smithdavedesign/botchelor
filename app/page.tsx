@@ -526,7 +526,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
         <p className="muted">
           {fillNodes(t("A handful a month. Date one now, or {swipe} to match with another creator's character."), { swipe: <Link href="/swipe">{t("swipe")}</Link> })}
         </p>
-        <ul className="home-cast-faces grid-balanced" style={{ "--cols": balancedColumns(Math.min(cast.length, HOME_CAST_SHOWN), 4) } as CSSProperties}>
+        <ul className="home-cast-faces grid-balanced" style={{ "--cols": balancedColumns(Math.min(cast.length, HOME_CAST_SHOWN), 6) } as CSSProperties}>
           {cast.slice(0, HOME_CAST_SHOWN).map((p) => (
             <li key={p.id} className="card tap-card home-cast-tile">
               {/* Portrait first, edge to edge, as on Characters (2026-11-28 gateway review, item 2). */}
