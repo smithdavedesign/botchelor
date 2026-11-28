@@ -45,9 +45,11 @@ const render = async (sp: Record<string, string> = {}) => renderToStaticMarkup(a
 const items = (html: string) => html.match(/class="prompt-item"/g)?.length ?? 0;
 
 describe("the seed (lib/prompts-library.json, scripts/build-prompts-library.mjs)", () => {
-  it("is 2,000 distinct prompts from the openly licensed sets only, each with its source and licence", () => {
-    expect(ALL_PROMPTS).toHaveLength(2000);
-    expect(new Set(ALL_PROMPTS.map((p) => p.prompt.toLowerCase())).size).toBe(2000);
+  // 1,999 since 2026-11-28: the franchise check (lib/safety-harm.ts) took out a Harry Potter prompt; the next rebuild on
+  // the Mac (scripts/build-prompts-library.mjs) fills it back to 2,000.
+  it("is 1,999 distinct prompts from the openly licensed sets only, each with its source and licence", () => {
+    expect(ALL_PROMPTS).toHaveLength(1999);
+    expect(new Set(ALL_PROMPTS.map((p) => p.prompt.toLowerCase())).size).toBe(1999);
     for (const p of ALL_PROMPTS) {
       expect(Object.keys(LICENSE)).toContain(p.source);
       expect(p.license).toBe(LICENSE[p.source]);
