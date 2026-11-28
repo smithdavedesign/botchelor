@@ -33,14 +33,23 @@ export const dateNumberSql = (e: string) =>
        where ${samePair("pd", e)} and pd.id <> ${e}.id and (pd.created_at, pd.id) < (${e}.created_at, ${e}.id)
          and ${publicDateSql("pd")})) end`;
 
-/** The number a new date between these two gets at booking: 1 + their public dates so far, or null for a first date. */
+/**
+ * The number a new date between these two gets at booking: 1 + their public dates so far, or null for a first date. A
+ * public follow-up already booked with its number (a second date planned from date 1, not aired yet) counts too, so a
+ * date started after it takes the number after it (the 2026-11-28 run: start_own_date after a booked date 2 was a second
+ * "date 2"), the way a second date's own number is its parent's plus one before the parent airs (lib/second-date.ts).
+ */
 export async function nextDateNumber(db: Db, x: string, y: string, excludeId?: string): Promise<number | null> {
-  const { rows } = await db.query<{ n: number }>(
-    `select count(*)::int as n from episodes e
-      where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1)) and e.id <> $3
-        and ${publicDateSql("e")}`,
+  const { rows } = await db.query<{ n: number; top: number | null }>(
+    `select count(*) filter (where ${publicDateSql("e")})::int as n,
+            max(case when (e.setup->>'date_number') ~ '^[0-9]+$' then (e.setup->>'date_number')::int end)
+              filter (where e.visibility = 'public' and e.varies_episode_id is null) as top
+       from episodes e
+      where ((e.character_a = $1 and e.character_b = $2) or (e.character_a = $2 and e.character_b = $1)) and e.id <> $3`,
     [x, y, excludeId ?? ""],
   );
   const n = rows[0]?.n ?? 0;
-  return n > 0 ? n + 1 : null;
+  const top = rows[0]?.top ?? 0;
+  const next = Math.max(n > 0 ? n + 1 : 0, top >= 2 ? top + 1 : 0);
+  return next > 0 ? next : null;
 }
