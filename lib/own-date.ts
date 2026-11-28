@@ -2557,6 +2557,9 @@ const FILTER_WHY: Record<RejectReason, string> = {
   real_person: "it names a real person",
   unread: "it's in a language the show couldn't check just now (run the turn again in a minute)",
   language: "it isn't in English",
+  hate: "it's hate speech (trash talk is fine; attacking people for their race, religion, sexuality, gender or disability isn't)",
+  threat: "it tells someone to hurt themselves or threatens real violence",
+  personal_info: "it has personal info (a phone number, email or street address)",
 };
 /**
  * The filtered refusal, with the rule it broke (#474): an agent's own lines pass the same deterministic check as the

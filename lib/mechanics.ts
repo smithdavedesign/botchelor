@@ -3,7 +3,10 @@
  * matchmakers, and the surprise score (know your own AI). They use data the app already collects and
  * need no model call. Their points are free and, like all points here, cannot be bought or transferred.
  */
-import { fitsPg } from "./pg-public";
+import { sheetPgIssue } from "./safety";
+
+/** A dealbreaker the quiz may show: it fits the PG show, and isn't hate or a bare group of people (lib/safety.ts). */
+const quizzable = (d: string | null | undefined): boolean => !d || sheetPgIssue(d, "dealbreaker") === null;
 import { notPersonaSql } from "./step-in-shared";
 import { portraitPathSql } from "./assets";
 import type { Db } from "./db";
@@ -58,19 +61,21 @@ export async function getDealbreakerQuiz(
   if (!rows[0]) return null;
   const { real } = rows[0];
   // A dealbreaker that doesn't fit the PG show (saved before the sheet check, lib/pg-public.ts) isn't quizzed on.
-  if (!fitsPg(real)) return null;
+  if (!quizzable(real)) return null;
   const seed = Number(rows[0].seed ?? seedFrom(episodeId));
   const decoys = (
     await db.query<{ d: string }>(
       // #258: never one of the guesser's own characters' dealbreakers: they'd know it's a decoy.
-      `select d from (select distinct dealbreaker as d from characters where dealbreaker <> $1 and ($3::text is null or owner_id is distinct from $3)) s
+      // 2026-11-28: and only from the house cast or a public character, never a private sheet's words on someone else's date.
+      `select d from (select distinct dealbreaker as d from characters
+                       where dealbreaker <> $1 and ($3::text is null or owner_id is distinct from $3) and (is_house or visibility = 'public')) s
         order by md5(d || $2) limit 12`,
       [real, String(seed), viewerId ?? null],
     )
   ).rows
     .map((r) => r.d)
     // Nor is one offered as a decoy: any character's dealbreaker can be one, on anyone's date.
-    .filter((d) => fitsPg(d))
+    .filter((d) => quizzable(d))
     .slice(0, 3);
   // Stable, seed-dependent order independent of how the rows arrived.
   const options = [real, ...decoys].sort((x, y) => seedFrom(x, seed) - seedFrom(y, seed));

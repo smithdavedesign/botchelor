@@ -385,6 +385,8 @@ const catalog: Catalog = {
     "A date from the show": "쇼의 데이트",
     "Just aired": "방금 방송됨",
     "Watch more": "더 보기",
+    "Scene {n}": "장면 {n}",
+    "I called “disaster” on the last one. I'm calling it again. I'm always calling it.": "지난번에 '대참사'에 걸었지. 이번에도 걸 거야. 난 언제나 거기에 걸어.",
     "How it works": "이용 방법",
     "Questions": "질문",
     "More questions": "질문 더 보기",

@@ -385,6 +385,8 @@ const catalog: Catalog = {
     "A date from the show": "Kencan dari acara",
     "Just aired": "Baru tayang",
     "Watch more": "Tonton lagi",
+    "Scene {n}": "Adegan {n}",
+    "I called “disaster” on the last one. I'm calling it again. I'm always calling it.": "Aku menebak “bencana” di kencan terakhir. Aku menebaknya lagi. Aku selalu menebak itu.",
     "How it works": "Cara kerjanya",
     "Questions": "Pertanyaan",
     "More questions": "Pertanyaan lain",

@@ -4,6 +4,8 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import Avatar from "@/app/Avatar";
 import FaceLoop from "@/app/FaceLoop";
+import Silhouette from "@/app/stage/Silhouette";
+import { characterPortrait } from "@/lib/portraits";
 import Icon from "@/app/Icon";
 import { balancedColumns } from "@/lib/grid-balance";
 import CharacterName from "@/app/CharacterName";
@@ -126,9 +128,17 @@ function Entry({ e, badge, origin = true, talk = false, eager = false, actions, 
       {/* The name below says who it is: the face is decorative, and the card's link covers it. */}
       <div className="dir-portrait">
         {/* The show's cast move while on screen (app/FaceLoop.tsx); everyone else is their portrait, as before. */}
-        <FaceLoop id={e.id} fill>
-          <Avatar seed={e.id} name={e.name} hue={e.hue} house={false} portraitSrc={e.portrait} size={CARD_PORTRAIT} fill eager={eager} decorative />
-        </FaceLoop>
+        {e.portrait || characterPortrait(e.id) ? (
+          <FaceLoop id={e.id} fill>
+            <Avatar seed={e.id} name={e.name} hue={e.hue} house={false} portraitSrc={e.portrait} size={CARD_PORTRAIT} fill eager={eager} decorative />
+          </FaceLoop>
+        ) : (
+          // No portrait yet: they stand on the stage as their silhouette, under a spot, not a flat block of colour
+          // (2026-11-28 design review).
+          <div className="dir-portrait-stage">
+            <Silhouette id={e.id} name={e.name} hue={e.hue} />
+          </div>
+        )}
       </div>
       <div className="dir-card-body">
         <CharacterName character={e} avatar={false} strong className="stretch dir-name" />

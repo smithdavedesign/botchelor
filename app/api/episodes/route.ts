@@ -40,7 +40,7 @@ import {
   type GameBudget,
   dateLabel,
 } from "@/lib/rules";
-import { checkFields } from "@/lib/safety";
+import { checkFields, contentMessage } from "@/lib/safety";
 import { coupledSql, currentPartners, settleCharacter, takenSql } from "@/lib/partners";
 import { takenMessage } from "@/lib/partners-shared";
 import { seasonCastIds, seasonFanCastIds } from "@/lib/season-cast";
@@ -240,7 +240,7 @@ export const POST = crisisAware("date_note", (body) => [str(body.note), str(body
   if (input.note) {
     const verdict = checkFields({ note: input.note });
     if (!verdict.ok) {
-      return json({ error: "content_rejected", reason: verdict.reason, field: "note", message: "Keep the note clean: no real people, minors or sexual content." }, 422, sess);
+      return json({ error: "content_rejected", reason: verdict.reason, field: "note", message: contentMessage(verdict.reason, "Keep the note clean: no real people, minors or sexual content.") }, 422, sess);
     }
   }
 

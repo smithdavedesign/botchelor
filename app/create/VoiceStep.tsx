@@ -19,6 +19,7 @@ import {
 } from "@/lib/extras";
 import type { SetExtras } from "./DetailsStep";
 import { FieldIssue, invalidProps, useIssues } from "./FieldIssue";
+import SpokenVoicePicker from "./SpokenVoicePicker";
 
 const VOICE_PICKS = [
   { label: "Dry & deadpan", voice: "Dry and deadpan: short sentences, long pauses, never laughs at their own jokes." },
@@ -111,6 +112,9 @@ export default function VoiceStep({
         />
       </label>
       <FieldIssue k="voice" />
+
+      {/* How they sound out loud: a stock voice to pick, while VOICE_PICKER is on (lib/voice-picks.ts). */}
+      <SpokenVoicePicker extras={extras} setExtras={setExtras} />
 
       <details className="detail-group" open={startOpen.lines}>
         <summary>Sound like them</summary>

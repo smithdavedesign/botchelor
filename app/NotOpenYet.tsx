@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
  * on, rather than the 404 "This page isn't on the show", which read as a broken link to someone who followed an upsell.
  * Keep notFound() where hiding the page is the point (After Dark to someone it isn't open to, app/after-dark/layout.tsx).
  */
-export default function NotOpenYet({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+export default function NotOpenYet({ title, children, action, extra }: { title: string; children: ReactNode; action?: ReactNode; /** Shown under the buttons: who's waiting behind the door (the cast), so it reads as coming, not missing. */ extra?: ReactNode }) {
   return (
     <article className="not-found not-open-yet" data-not-open-yet>
       <p className="kicker">Not open yet</p>
@@ -18,6 +18,7 @@ export default function NotOpenYet({ title, children, action }: { title: string;
           Back to the show
         </Link>
       </p>
+      {extra}
     </article>
   );
 }

@@ -385,6 +385,8 @@ const catalog: Catalog = {
     "A date from the show": "Um encontro do programa",
     "Just aired": "Acabou de ir ao ar",
     "Watch more": "Assistir mais",
+    "Scene {n}": "Cena {n}",
+    "I called “disaster” on the last one. I'm calling it again. I'm always calling it.": "Apostei em “desastre” no último. Aposto de novo. Aposto sempre nisso.",
     "How it works": "Como funciona",
     "Questions": "Perguntas",
     "More questions": "Mais perguntas",

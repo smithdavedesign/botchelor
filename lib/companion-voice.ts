@@ -27,7 +27,7 @@ import { overLimit } from "./limits";
 import { keepBytes, objectStore, readBytes } from "./object-store";
 import { checkFamilyTalk } from "./safety";
 import { storySpeech } from "./story-reply";
-import { sayable, sayLine, voiceFor, voiceKey, voiceReady } from "./voice";
+import { pickedVoice, sayable, sayLine, voiceFor, voiceKey, voiceReady } from "./voice";
 
 /** One person's voice notes made an hour and a day (abuse only: each is paid for). */
 export const COMPANION_VOICE_LIMITS = { perHour: 60, perDay: 300 };
@@ -76,8 +76,10 @@ export async function voiceNote(
   const words = sayable(withoutStageDirections(m.form === "story" ? storySpeech(m.text).join(" ") : m.text));
   if (!words) return fail(422, "silent", "There's nothing to say out loud in that one.");
   if (!checkFamilyTalk(words).ok || crisisIntent(words)) return fail(422, "refused", "That one can't be voiced.");
-  const voice = voiceFor(character);
-  const key = voiceKey("companion", voice, words);
+  // The voice its owner picked (lib/voice-picks.ts), else their default stock one.
+  const picked = pickedVoice(character);
+  const voice = picked ?? voiceFor(character);
+  let key = voiceKey("companion", voice, words);
   // The same words in this voice were said before: this reply points at them, free.
   if ((await db.query(`select 1 from companion_voice where key = $1`, [key])).rows.length) {
     await db.query(`update companion_messages set voice_key = $2 where id = $1`, [m.id, key]);
@@ -94,12 +96,15 @@ export async function voiceNote(
   if (!ticket.ok) return { ok: false, status: ticket.status, error: ticket.error, message: ticket.message, price: ticket.price };
   const started = Date.now();
   try {
-    const said = await sayLine(db, { words, stock: voice });
+    const said = await sayLine(db, { words, stock: voiceFor(character), chosen: picked ?? undefined });
+    // A picked voice is Venice's: said on the fallback provider it came out in the default voice, so it's kept as that.
+    const keptVoice = picked && said.provider !== "venice" ? voiceFor(character) : voice;
+    if (keptVoice !== voice) key = voiceKey("companion", keptVoice, words);
     const id = randomUUID();
     const kept = await keepBytes("companion", id, said.value.bytes, said.value.mime);
     const won = await db.query(
       `insert into companion_voice (key, voice, chars, mime, data, object_key, provider) values ($1, $2, $3, $4, $5, $6, $7) on conflict (key) do nothing returning key`,
-      [key, voice, words.length, said.value.mime, kept.data, kept.object_key, said.provider],
+      [key, keptVoice, words.length, said.value.mime, kept.data, kept.object_key, said.provider],
     );
     // Two asks for the same line at once: the first one kept wins, and this copy goes (and so does what it took).
     if (!won.rows.length) {
@@ -133,7 +138,7 @@ export const voiceBytes = (f: { data: Buffer | null; object_key: string | null }
 export async function forgetUnusedVoices(db: Db): Promise<number> {
   try {
     const { rows } = await db.query<{ object_key: string | null }>(
-      `delete from companion_voice v where not exists (select 1 from companion_messages m where m.voice_key = v.key) returning v.object_key`,
+      `delete from companion_voice v where v.key not like 'sample:%' and not exists (select 1 from companion_messages m where m.voice_key = v.key) returning v.object_key`,
     );
     const store = rows.some((r) => r.object_key) ? objectStore() : null;
     for (const r of rows) if (r.object_key && store) await store.remove(r.object_key).catch(() => {});

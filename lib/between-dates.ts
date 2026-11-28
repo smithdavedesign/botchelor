@@ -22,6 +22,7 @@ import { notifyAll } from "./notifications";
 import { loadRelationship, pairContext, pairKey, PUBLIC_ONLY, refreshRelationship, textMakesPlan, type End } from "./relationships";
 import { AFTERGLOW_TEXT_MAX, parseAfterglowLine } from "./afterglow";
 import { checkFieldsAnyLanguage, UNREAD_MESSAGE } from "./language-check";
+import { contentMessage } from "./safety-reasons";
 import { loadChain, promptTexts, PUBLIC_VIEWER, type ChainItem } from "./text-chain";
 import { critiqueText, planAlreadyMade, writeCritiquedText } from "./text-critic";
 import { listedCharacterSql } from "./public-cast";
@@ -75,7 +76,7 @@ export async function setNudge(db: Db, userId: string, characterId: string, othe
   if (!verdict.ok) {
     return verdict.reason === "unread"
       ? { ok: false, status: 503, error: "unread", message: UNREAD_MESSAGE }
-      : { ok: false, status: 422, error: "content_rejected", message: "Keep it clean: no real people, minors or sexual content." };
+      : { ok: false, status: 422, error: "content_rejected", message: contentMessage(verdict.reason, "Keep it clean: no real people, minors or sexual content.") };
   }
   const owns = (await db.query(`select 1 from characters where id = $1 and owner_id = $2`, [characterId, userId])).rows.length > 0;
   if (!owns) return { ok: false, status: 403, error: "not_your_character", message: "You can only nudge your own character." };
