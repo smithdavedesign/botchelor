@@ -151,6 +151,25 @@ export function webLoopArgs({ src, out, start, seconds, crf = 26 }) {
  * enough for a phone to start at once. 540 wide (the theater's lines stay readable), 9:16 like the clip.
  */
 /** Press the theater's "Start the date" when its cold open is up (COLD_OPEN=0, or a date with nothing to set up: none). */
+/**
+ * The stage, framed for a vertical short (2026-11-28, Dave: "make the daily clip vertical and moment-first"): on a
+ * phone the theater gives the stage a 30vh banner and puts the words in the thread under it, which reads as a chat
+ * screenshot. The recording gives the stage most of the frame instead: both of them standing, the line as a caption
+ * under whoever is saying it, the chemistry heart between them, the walk-out and the ending acted out (app/ux/theater-
+ * show.css), with the thread below as the record. Injected into the recording only: the site is unchanged.
+ */
+export const CLIP_STAGE_CSS = `
+.theater-scene-area:has(.scene[data-staged]) { height: 60vh !important; }
+.scene[data-staged] .scene-char { padding-bottom: 0.75rem !important; }
+.scene[data-staged] .scene-char[data-standing] .character-figure-img { height: 100% !important; object-position: center bottom !important; }
+.scene[data-staged] .scene-char .scene-bubble { display: block !important; max-width: 96% !important; font-size: 0.92rem !important; line-height: 1.35 !important; }
+.scene[data-speaking="a"] .scene-char-b .scene-bubble, .scene[data-speaking="b"] .scene-char-a .scene-bubble { display: none !important; }
+.scene[data-staged] .scene-meter { top: 3.4rem !important; bottom: auto !important; left: 50% !important; translate: -50% 0 !important; }
+.scene[data-staged] .scene-meter svg { width: 40px !important; height: 38px !important; }
+.scene[data-staged] .scene-meter-word { display: inline !important; }
+.theater .crowd { display: none !important; }
+`;
+
 export async function startTheDate(page, timeout = 5_000) {
   const start = page.locator(".theater .cold-open").getByRole("button", { name: /Start the date/ });
   await start.waitFor({ timeout }).then(() => start.click(), () => {});
@@ -414,6 +433,8 @@ async function main() {
     await page.goto(`${base}/episodes/${episode.id}`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Watch in theater" }).click({ timeout: 20_000 });
     await page.locator(".theater").waitFor({ timeout: 20_000 });
+    // The stage takes most of the frame (CLIP_STAGE_CSS), so the short is the scene, not a chat.
+    if (process.env.CLIP_STAGE !== "0") await page.addStyleTag({ content: CLIP_STAGE_CSS });
     // The cold open (lib/cold-open.ts) holds the first line until Start: the clip starts where the date does, as before.
     await startTheDate(page);
     const cdp = await context.newCDPSession(page);

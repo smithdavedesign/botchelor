@@ -62,4 +62,12 @@ describe("the filming stage (GeneratingPoller.tsx)", () => {
     expect(stage).not.toMatch(/<Link href=\{`\/episodes\/\$\{episodeId\}`\}/);
     expect(stage).toContain("Back to the stage");
   });
+
+  it("frames the stage for the short: the scene takes most of the frame, the caption under the speaker, no crowd", () => {
+    expect(clip).toContain("await page.addStyleTag({ content: CLIP_STAGE_CSS })");
+    const css = clip.slice(clip.indexOf("export const CLIP_STAGE_CSS"), clip.indexOf("`;", clip.indexOf("export const CLIP_STAGE_CSS")));
+    for (const sel of [".theater-scene-area", ".scene-bubble", ".scene-meter", ".crowd"]) expect(css).toContain(sel);
+    const stage = read("app/ux/theater-stage.css") + read("app/ux/theater-show.css");
+    for (const cls of ["theater-scene-area", "scene-bubble", "scene-meter", "crowd"]) expect(stage).toContain(`.${cls}`);
+  });
 });
