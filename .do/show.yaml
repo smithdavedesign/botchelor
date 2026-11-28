@@ -108,6 +108,12 @@ services:
       - key: COMPANION_OPEN
         value: "1"
         scope: RUN_AND_BUILD_TIME
+      # The voice picker (docs/companions.md "A voice of their own", lib/voice-picks.ts): off unless "1". Owners pick one of
+      # ten stock Inworld voices for their character's voice notes and After Dark's voiced lines. Off through the feature
+      # freeze (to 2026-12-08); set "1" to open it.
+      # - key: VOICE_PICKER
+      #   value: "1"
+      #   scope: RUN_AND_BUILD_TIME
       # Cross-mode memory (docs/PRDs/cross-mode-memory.md). Each is on by default; "0" turns it off without a deploy of
       # code. MEMORY_EPISODES: the shared memory every mode reads and writes. MEMORY_EMBED: recall by meaning (words only
       # without it). LIFE_RECORD: the life record in prompts (the page still shows it). LIFE_FIELDS_OPEN: characters'

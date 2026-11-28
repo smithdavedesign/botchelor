@@ -11,6 +11,7 @@
  * dialogue; they never touch the engine, so editing them changes how future dates sound, never how any date
  * ends. Pure data + zod, no server imports: the builder (a client component) and the API share this file.
  */
+import { VOICE_PICK_IDS } from "./voice-picks";
 import { z } from "zod";
 import { LANGUAGE_CODES, type LanguageCode } from "./language";
 import {
@@ -241,6 +242,8 @@ export const ExtrasInput = z
     mood: z.enum(MOOD_IDS).optional(),
     /** The owner's yes to the show framing them as a season's antagonist (the villain edit, lib/show-ready.ts). Public. */
     villain_ok: z.boolean().optional(),
+    /** The voice they speak in, one of the picked stock voices (lib/voice-picks.ts). Unset: their own default voice. */
+    voice: z.enum(VOICE_PICK_IDS).optional(),
   })
   .strict();
 export type ExtrasInputType = z.infer<typeof ExtrasInput>;
@@ -278,6 +281,8 @@ export type CharacterExtras = Partial<Record<TextDetail, string>> & {
   mood?: MoodId;
   /** The owner said yes to the villain edit (lib/show-ready.ts). Stored only when true. */
   villain_ok?: true;
+  /** The voice they speak in (lib/voice-picks.ts): voice notes and After Dark's voiced lines. Unset: the default one. */
+  voice?: string;
 };
 
 /** Keeps only the filled entries of a keyed group; undefined when none are. */
@@ -340,6 +345,7 @@ export function normaliseExtras(input: ExtrasInputType | null | undefined): Char
   if (wins) out.wins_them_over = wins;
   if (input.mood) out.mood = input.mood;
   if (input.villain_ok) out.villain_ok = true;
+  if (input.voice) out.voice = input.voice;
   return out;
 }
 
@@ -587,6 +593,7 @@ export function extrasJsonSchema(): Record<string, unknown> {
         description: "Private: what really wins them over. When the other does it, it lands, and it weighs in their own see-them-again answer.",
       },
       villain_ok: { type: "boolean", description: "true: the show may frame them as a season's villain, from their real record." },
+      voice: { type: "string", enum: [...VOICE_PICK_IDS], description: "The stock voice their voice notes are spoken in (never a cloned one). Unset: a default voice from their pronouns." },
       mood: { type: "string", enum: [...MOOD_IDS], description: "How they date: playful (here for fun), balanced, or earnest (takes it seriously). Sets their tone on dates; two that don't match make friction." },
       hot_takes: {
         type: "array",

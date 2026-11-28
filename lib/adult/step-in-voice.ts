@@ -22,7 +22,7 @@ import { loadCharacter } from "../character";
 import type { Db } from "../db";
 import { keepBytes, readBytes } from "../object-store";
 import { checkAdultText } from "../safety";
-import { modelVoice, orpheusWords, replicateVoice, sayable, sayLine, voiceFor, voiceKey } from "../voice";
+import { modelVoice, orpheusWords, pickedVoice, replicateVoice, sayable, sayLine, voiceFor, voiceKey } from "../voice";
 import { eligibleIds } from "./characters";
 import { adultKeys, getAdultSettings, type VoiceModel } from "./settings";
 import { stepInNever } from "./step-in-lines";
@@ -65,7 +65,7 @@ export async function stepInVoice(db: Db, viewer: string, sceneId: string, messa
   // Their one stock voice (lib/voice.ts): Kokoro's on Replicate, the settings' voice model's on Venice.
   const stock = voiceFor(character);
   const model: VoiceModel = onReplicate ? "kokoro" : settings.voice_model;
-  const chosen = modelVoice(model, character);
+  const chosen = pickedVoice(character) ?? modelVoice(model, character);
   const voice = onReplicate ? replicateVoice(stock) : chosen;
   const key = voiceKey(viewer, voice, words);
   const keptRow = async () =>
@@ -84,7 +84,7 @@ export async function stepInVoice(db: Db, viewer: string, sceneId: string, messa
   if (left !== null && left <= 0) return fail(429, "capped", capSentence(await capOf(db, "voice_lines"), "voice_lines"));
   let said: Awaited<ReturnType<typeof sayLine>>;
   try {
-    said = await sayLine(db, { words, stock, chosen, spoken: model === "orpheus" ? orpheusWords(pieces[piece], words) : undefined });
+    said = await sayLine(db, { words, stock, chosen, spoken: chosen.startsWith("orpheus:") ? orpheusWords(pieces[piece], words) : undefined });
   } catch (err) {
     return fail(502, "voice_down", err instanceof Error && /limit|quota|429/i.test(err.message) ? "The voice is busy right now. Try again in a moment." : "The voice didn't answer. Try again in a moment.");
   }
