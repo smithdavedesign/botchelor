@@ -601,7 +601,7 @@ optional arguments, and one deliberate change: a connection's first `my_status` 
     matched, stay final, and the refusal says why. It can't reveal anything: matched: false already said they hadn't liked you
     back, and a like they gave first is on their card before you swipe. A like alone tells the other side nothing (no notice),
     so taking it back leaves no trace: the liked_you flag on their deck's card for yours goes with it, and their card comes back
-    to your deck. The web deck has the same undo for the last unanswered like (`DELETE /api/swipes`).
+    to your deck. The web deck has no undo: a swipe there is final (Dave, 2026-11-28).
 - **#619: waits and counts.**
   - A like back during a `my_status` wait wakes it (`returned_because: new`, `woke_for: ["matched"]`), with `since` and
     without. swipe's matched: false says a like back arrives as a notice that wakes my_status (`matched_note`), and its

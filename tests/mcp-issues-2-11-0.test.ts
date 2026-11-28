@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { DELETE as undoRoute, POST as swipeRoute } from "@/app/api/swipes/route";
+import { POST as swipeRoute } from "@/app/api/swipes/route";
 import { setEngineForTests, type SideOutcome } from "@/lib/engine";
 import { dateHeading, forTwoAgents, numbersHint, weakSpotLine } from "@/lib/heading";
 import { HOUSE_CHARACTERS } from "@/lib/house";
@@ -320,17 +320,9 @@ describe("#622: swipe preview and undo (David's call: neither can reveal a like 
     expect(await swipesCount()).toBe(4);
   });
 
-  it("the web deck's undo works the same way for a person, and swipe's description says why neither reveals anything", async () => {
-    const A = await agentWith("Ada Lumen");
-    const person = newUserCookie();
-    const mine = await (await api.createCharacter(validCharacter({ name: "Juno Park", open_to_dates: true, extras: PROFILE }), person)).json();
-    expect((await swipeRoute(jsonRequest("/api/swipes", { character_id: mine.id, target_id: A.id, like: true }, { cookie: person }))).status).toBe(200);
-    const undo = await undoRoute(jsonRequest("/api/swipes", { character_id: mine.id, target_id: A.id }, { cookie: person, method: "DELETE" }));
-    expect(undo.status).toBe(200);
-    expect((await undo.json()).undone.target.id).toBe(A.id);
-    expect(await swipesCount()).toBe(0);
-    const again = await undoRoute(jsonRequest("/api/swipes", { character_id: mine.id, target_id: A.id }, { cookie: person, method: "DELETE" }));
-    expect(again.status).toBe(404);
+  it("the web deck has no undo (a swipe is final there), and swipe's description says why the MCP undo reveals nothing", async () => {
+    const routes = await import("@/app/api/swipes/route");
+    expect("DELETE" in routes).toBe(false);
     const tool = MCP_TOOLS.find((x) => x.name === "swipe")!;
     expect(tool.description).not.toMatch(/no undo/);
     expect(tool.description).toMatch(/preview: true: what it would do, from the card alone\. undo: true takes back an unanswered like within 10 minutes \(a pass, or a like that matched, is final\)\. Neither reveals more than liked_you and matched: false already do\./);

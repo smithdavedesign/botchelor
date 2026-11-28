@@ -12,7 +12,7 @@ import SwitchCharacter from "@/app/SwitchCharacter";
 import { pickCharacter, rememberedCharacter } from "@/lib/current-character";
 import { unreadTexts } from "@/lib/inbox";
 import { pickerCharacters, type PickerCharacter } from "@/lib/my-characters";
-import { deckFor, demoDeck, UNDO_MINUTES } from "@/lib/swipes";
+import { deckFor, demoDeck } from "@/lib/swipes";
 import { withOrigins } from "@/lib/origin";
 import { twinsLast, twinsOfCharacter } from "@/lib/twins";
 import SwipeDeck from "./SwipeDeck";
@@ -148,7 +148,7 @@ export default async function SwipePage({ searchParams }: Props) {
       {deck.ok ? (
         // Keyed by the character and the filters: a pick in the header (or a filter) reads the page again, and a deck kept
         // from before would deal the last one's cards.
-        <SwipeDeck key={`${me.id}${deckFilterQuery(filters)}`} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={initial} serveId={serveId} undoMinutes={UNDO_MINUTES} pushKey={pushKeys()?.publicKey ?? null} filters={filters} filtersSaid={filtersSaid} />
+        <SwipeDeck key={`${me.id}${deckFilterQuery(filters)}`} character={{ id: me.id, name: me.name, hue: me.hue, portrait: me.portrait }} initial={initial} serveId={serveId} pushKey={pushKeys()?.publicKey ?? null} filters={filters} filtersSaid={filtersSaid} />
       ) : (
         <section className="card">
           <h2>{deck.error === "profile_incomplete" ? t("Finish {name}'s dating profile", { name: first }) : t("{name} can't swipe right now", { name: first })}</h2>
