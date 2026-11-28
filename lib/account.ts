@@ -467,7 +467,7 @@ export async function exportAccount(db: Db, userId: string, o: { nested?: boolea
         order by u.created_at`,
       [userId],
     ),
-    second_date_yeses: await q("select episode_id, overnight, created_at from second_date_requests where user_id = $1", [userId]),
+    second_date_yeses: await q("select episode_id, overnight, place, created_at from second_date_requests where user_id = $1", [userId]),
     date_proposals: await q(
       "select from_character, to_character, status, created_at, decided_at, case when from_user = $1 then 'sent' else 'received' end as direction from date_proposals where from_user = $1 or to_user = $1 order by created_at",
       [userId],

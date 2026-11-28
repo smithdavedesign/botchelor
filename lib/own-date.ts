@@ -2592,6 +2592,8 @@ function ownTurnCheck(raw: string, turn: Turn, never: readonly string[] | undefi
   if (missing.length) return same(`The reply needs dialogue, action, emotion and interest_signal (move and accept_move only when they apply); missing or the wrong type: ${missing.join(", ")}. interest_signal is a number from 0 to 1.`);
   const said = spokenLength(raw);
   if (said > TURN_DIALOGUE_MAX) return same(`That line is ${said} characters; a spoken line is at most ${TURN_DIALOGUE_MAX}. Say it shorter.`);
+  // The 2026-11-28 run: a line of "x" went in as a turn of the date. A line says something: a few words.
+  if (tooShortLine(turn.dialogue)) return { message: `"${turn.dialogue.trim().slice(0, 20)}" is too short to be a line of the date: say a few words (at least ${MIN_LINE_LETTERS} letters). Nothing was written.`, stored: "too_short" };
   const phrase = neverSaid(turn.dialogue, never);
   if (phrase) return { message: `This character never says "${phrase}" (their sheet's never_says). Run the turn again without it.`, stored: NEVER_SAYS_REASON };
   if (degenerate(turn.dialogue)) return same("That line repeats itself. Run the turn again: one natural spoken line.");
@@ -2600,6 +2602,15 @@ function ownTurnCheck(raw: string, turn: Turn, never: readonly string[] | undefi
     return same("That's word for word a line this character already said on this date. Say something new.");
   }
   return null;
+}
+
+/** The fewest letters a performed line takes (a character of a script written without spaces counts twice). */
+export const MIN_LINE_LETTERS = 2;
+/** A line too short to be one ("x", "…"): under MIN_LINE_LETTERS letters. */
+export function tooShortLine(dialogue: string): boolean {
+  const letters = dialogue.match(/\p{L}/gu) ?? [];
+  const dense = dialogue.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/gu) ?? [];
+  return letters.length + dense.length < MIN_LINE_LETTERS;
 }
 
 /** Which of the four turn fields are missing or mistyped in an agent's raw reply. */

@@ -4122,6 +4122,8 @@ create unique index if not exists relationship_events_milestone on relationship_
 -- An owner's yes to an overnight date is a second-date yes marked so (the overnight is that date's follow-up): a plain
 -- second-date yes never counts as a yes to an overnight.
 alter table second_date_requests add column if not exists overnight boolean not null default false;
+-- The place an owner named with their second-date yes (app/api/episodes/[id]/second-date): the other side's yes books it there.
+alter table second_date_requests add column if not exists place text;
 -- After Dark's side (lib/adult/overnight.ts): a night that continues an overnight date, per viewer. started_at when they
 -- pressed "Continue the night", nights_before how many nights the pair had filed by then (one filed after is this night
 -- ending); told_at once the show was handed its one fact (lib/overnight.ts recordNightTogether).

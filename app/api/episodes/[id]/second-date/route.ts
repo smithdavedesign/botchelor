@@ -6,7 +6,8 @@ import { track } from "@/lib/analytics";
 import { getDb } from "@/lib/db";
 import { handle, json, parseBody, passOn, readJson, session } from "@/lib/http";
 import { notify, ownersOf } from "@/lib/notifications";
-import { sayYesToSecondDate, secondDateState } from "@/lib/second-date";
+import { movePlace, placeRefusedWhy } from "@/lib/places";
+import { savedYesPlace, sayYesToSecondDate, secondDateState } from "@/lib/second-date";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -19,6 +20,7 @@ const REASONS: Record<string, string> = {
   planned: "Their second date is already booked.",
   blocked: "That match is no longer available.",
   partner_gone: "That character's creator has left the show.",
+  superseded: "They've been on a later date since this yes, so this second date has nothing left to book.",
   taken: "Yours is with someone else and wants one partner, so they only date them for now. To date others too, set them to “More than one” on their page.",
 };
 
@@ -55,10 +57,18 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
   if (!state) return json({ error: "not_your_date", message: "Only an owner of one of the two characters can plan their second date." }, 403, sess);
   if (!state.can_plan) {
     const r = state.reason ?? "unavailable";
-    return json({ error: r, message: REASONS[r] ?? "Not available.", ...(state.planned_episode_id ? { episode_id: state.planned_episode_id } : {}) }, 409, sess);
+    return json({ error: r, message: state.superseded_by?.note ?? REASONS[r] ?? "Not available.", ...(state.planned_episode_id ? { episode_id: state.planned_episode_id } : {}) }, 409, sess);
   }
 
-  await sayYesToSecondDate(db, id, sess.userId);
+  // The place named with a yes (the 2026-11-28 run: one side named it, the other's yes booked it, and the date went to a
+  // stock venue): checked now, kept with the yes, and used when the other side's yes books it without naming one. "my
+  // place" is kept as whose place it is, so it still means the same home when the other side books it.
+  const at = input.place ? movePlace(input.place, state.my_character_name, state.partner_name) : null;
+  if (input.place && !at) {
+    return json({ error: "place_not_allowed", field: "place", message: `That place can't host a date on the show. ${placeRefusedWhy(input.place)}` }, 422, sess);
+  }
+  const keep = at ? (at.startsWith("home@") ? at.slice("home@".length) : input.place!) : null;
+  await sayYesToSecondDate(db, id, sess.userId, keep);
   if (state.needs_their_yes && !state.they_asked) {
     if (!state.you_asked) {
       track("second_date_yes", { episode_id: id });
@@ -73,12 +83,19 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
       });
     }
     return json(
-      { episode_id: id, status: "waiting", message: `You said yes. ${state.partner_name}'s creator has to say yes too; whoever completes it books the date.` },
+      {
+        episode_id: id,
+        status: "waiting",
+        message: `You said yes. ${state.partner_name}'s creator has to say yes too; whoever completes it books the date.`,
+        ...(keep ? { place: keep, place_note: `"${keep}" is kept with your yes: the date happens there when their yes books it, unless they name another place.` } : {}),
+      },
       202,
       sess,
     );
   }
 
+  // No place named now: the other side's, named with their yes (they agreed to go there), when they named one.
+  const place = input.place ?? (state.they_asked ? await savedYesPlace(db, id, sess.userId) : null);
   // Booked through the episodes route, so it's charged, rate limited and generated exactly like any date.
   const headers = new Headers(req.headers);
   headers.set("content-type", "application/json");
@@ -94,7 +111,7 @@ export const POST = handle(async (req: Request, ctx: Ctx) => {
           partner_id: state.partner_character_id,
           second_date_of: id,
           ...(input.visibility ? { visibility: input.visibility } : {}),
-          ...(input.place ? { place: input.place } : {}),
+          ...(place ? { place } : {}),
         }),
       }),
     ),
