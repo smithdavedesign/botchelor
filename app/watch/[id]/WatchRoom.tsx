@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Avatar from "@/app/Avatar";
+import { fillNodes } from "@/app/fillNodes";
+import { useT } from "@/app/I18nProvider";
 import Icon from "@/app/Icon";
 import Scene, { sceneBackground } from "@/app/Scene";
 import { bigLine, speakerOf } from "@/lib/theater-beats";
@@ -10,6 +12,7 @@ import { latestFace } from "@/lib/show-shots-shared";
 import ChatThread from "@/app/ChatThread";
 import { useReplay } from "@/app/useReplay";
 import { requestJson } from "@/app/request";
+import { clientMsg } from "@/lib/i18n/translate";
 import { DATE_ACTS, DATE_VARIABLES, endingLabel, ENDINGS, formatCountdown, preshowCountdownLabel, VARIABLE_LABELS } from "@/lib/rules";
 import type { Turn } from "@/lib/conversation";
 import type { RoomState } from "@/lib/watch";
@@ -21,16 +24,17 @@ import { useOnAirTab } from "@/app/motion/useOnAirTab";
 
 /** Where to go once the date is decided, so a finished room is never a dead end (David, 2026-10-18). */
 function RoomNext({ state }: { state: RoomState }) {
+  const t = useT();
   return (
     <p className="room-next">
       <Link className="button secondary small" href={`/episodes/${state.episode_id}`}>
-        Read the full episode
+        {t("Read the full episode")}
       </Link>
       <Link className="button-ghost small" href="/watch">
-        More dates to watch
+        {t("More dates to watch")}
       </Link>
       <Link className="button-ghost small" href="/create">
-        Send your own character
+        {t("Send your own character")}
       </Link>
     </p>
   );
@@ -50,7 +54,7 @@ const VIEW_KEY = "bz_watch_view";
 const SIDE_KEY = "bz_watch_side";
 
 type RoomTab = "chat" | "script" | "vote";
-const TAB_LABELS: Record<RoomTab, string> = { chat: "Chat", script: "The date", vote: "Vote" };
+const TAB_LABELS: Record<RoomTab, string> = { chat: clientMsg("Chat"), script: clientMsg("The date"), vote: clientMsg("Vote") };
 
 /** Something to vote on right now: the prediction, or one of the audience polls. */
 function voteLive(state: RoomState): boolean {
@@ -99,6 +103,7 @@ function RoomPanel({
   // The opening tab, then the viewer's choice stands (it never jumps when, say, they vote). One move of its own: a room
   // opened before its predictions did (a just-started room renders before its clock runs) goes to Vote when they open,
   // unless the viewer has picked a tab (2026-10-31 UX audit: it stayed on Chat, with nothing to call the ending with).
+  const t = useT();
   const [tab, setTab] = useState<RoomTab>(start);
   const touched = useRef(false);
   const hasVote = tabs.includes("vote");
@@ -108,25 +113,25 @@ function RoomPanel({
   }, [hasVote, callNow]);
   const live = voteLive(state);
   return (
-    <aside className={`room-panel${dark ? " is-dark" : ""}${className ? ` ${className}` : ""}`} aria-label="The room">
-      <div className="room-tabs" role="tablist" aria-label="The room">
-        {tabs.map((t) => (
+    <aside className={`room-panel${dark ? " is-dark" : ""}${className ? ` ${className}` : ""}`} aria-label={t("The room")}>
+      <div className="room-tabs" role="tablist" aria-label={t("The room")}>
+        {tabs.map((name) => (
           <button
-            key={t}
+            key={name}
             type="button"
             role="tab"
-            id={`room-tab-${t}`}
-            aria-selected={tab === t}
-            aria-controls={`room-pane-${t}`}
+            id={`room-tab-${name}`}
+            aria-selected={tab === name}
+            aria-controls={`room-pane-${name}`}
             className="room-tab"
             onClick={() => {
               touched.current = true;
-              setTab(t);
+              setTab(name);
             }}
           >
-            {TAB_LABELS[t]}
-            {t === "chat" && state.messages.length > 0 && <span className="room-tab-count">{state.messages.length}</span>}
-            {t === "vote" && live && <span className="room-tab-live" aria-label="open now" />}
+            {t(TAB_LABELS[name])}
+            {name === "chat" && state.messages.length > 0 && <span className="room-tab-count">{state.messages.length}</span>}
+            {name === "vote" && live && <span className="room-tab-live" aria-label={t("open now")} />}
           </button>
         ))}
         {onHide && (
@@ -146,12 +151,13 @@ function RoomPanel({
 
 /** The voting tab: the prediction and the audience polls, or what to expect before any open. */
 function Votes({ state, onDone }: { state: RoomState; onDone: () => void }) {
+  const t = useT();
   const any = state.predictions_open || state.my_prediction || state.question.open || state.question.show_results || state.chaos.open || state.chemistry.open || state.chemistry.show_results;
   return (
     <div className="room-votes">
       <Predictions state={state} onDone={onDone} />
       <Polls state={state} onDone={onDone} />
-      {!any && <p className="muted room-empty">The votes open once the date gets going: call the ending, then the polls during the challenge.</p>}
+      {!any && <p className="muted room-empty">{t("The votes open once the date gets going: call the ending, then the polls during the challenge.")}</p>}
     </div>
   );
 }
@@ -165,6 +171,7 @@ function readChatHidden(): boolean {
 }
 
 export default function WatchRoom({ initial, autoStart = true }: { initial: RoomState; autoStart?: boolean }) {
+  const t = useT();
   const [state, setState] = useState<RoomState>(initial);
   // Whether this viewer's heartbeat may start a waiting open room (lib/watch.ts syncRoom `start`): from the page's
   // call on arrival, or from the Start button below. A ref too, so the polling closure reads the latest answer.
@@ -262,7 +269,7 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
           </div>
           <div>
             <p className="kicker">
-              The Botchelor · {state.kind === "template" ? "Open date room" : "Premiere"}
+              {t("The Botchelor")} · {state.kind === "template" ? t("Open date room") : t("Premiere")}
             </p>
             <h1>
               {/* The × stays with the first name, as on the episode page, so a wrapped title never starts with it. */}
@@ -276,19 +283,19 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
         <div className="watch-status">
           {/* The empty-room rule (lib/crowd-threshold.ts, decided server-side): a quiet room is "Live", not "1 watching". */}
           <span className="watch-live">
-            <span className="watch-dot" aria-hidden /> {state.show_watching ? `${state.watching} watching` : "Live"}
+            <span className="watch-dot" aria-hidden /> {state.show_watching ? t("{n} watching", { n: state.watching }) : t("Live")}
           </span>
-          <span className="chip">{state.clock.started ? state.clock.phase_label : wantStart ? "Starting…" : "Ready"}</span>
+          <span className="chip">{state.clock.started ? state.clock.phase_label : wantStart ? t("Starting…") : t("Ready")}</span>
           {/* The 2026-11-28 simulation: a room had no way to bring a friend in. One tap copies its link. */}
           <InviteButton />
           <button type="button" className={state.clock.ended ? "primary small" : "secondary small"} onClick={() => setTheater(true)}>
             {state.clock.ended ? (
               <>
-                <Icon name="play" /> Watch the replay
+                <Icon name="play" /> {t("Watch the replay")}
               </>
             ) : (
               <>
-                <Icon name="clapper" /> Theater mode
+                <Icon name="clapper" /> {t("Theater mode")}
               </>
             )}
           </button>
@@ -298,7 +305,7 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
       {/* The date, and beside it one sticky sidebar with the vote and the chat in tabs (2026-10-21: three columns, a
           tall empty chat box and a third column of polls). On a phone the sidebar follows the date. */}
       <div className="watch-grid">
-        <section className="watch-stage" aria-label="The date">
+        <section className="watch-stage" aria-label={t("The date")}>
           {openRoom ? (
             <OpenRoom state={state} left={preshowLeft} onStart={waiting ? startDate : undefined} onOpen={setSheet} />
           ) : (
@@ -307,7 +314,7 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
         </section>
         {sheet ? (
           <>
-            <button type="button" className="watch-sheet-backdrop" aria-label="Close" onClick={() => setSheet(null)} />
+            <button type="button" className="watch-sheet-backdrop" aria-label={t("Close")} onClick={() => setSheet(null)} />
             <RoomPanel
               key={`sheet-${sheet}`}
               className="is-sheet"
@@ -316,16 +323,16 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
               tabs={["vote", "chat"]}
               start={sheet}
               onHide={() => setSheet(null)}
-              hideLabel="Close"
+              hideLabel={t("Close")}
               hideIcon="✕"
             />
           </>
         ) : folded ? null : chatHidden ? (
           <aside className="room-panel room-panel-hidden">
             <p className="muted">
-              Chat hidden.{" "}
+              {t("Chat hidden.")}{" "}
               <button type="button" className="linklike" onClick={toggleChat}>
-                Show the chat and votes
+                {t("Show the chat and votes")}
               </button>
             </p>
           </aside>
@@ -336,14 +343,14 @@ export default function WatchRoom({ initial, autoStart = true }: { initial: Room
       {/* Phone only (CSS): the vote and the chat within thumb's reach, wherever the date has scrolled to. The open room
           has its own foot for them. */}
       {!sheet && !openRoom && (
-        <nav className="watch-dock" aria-label="The room">
+        <nav className="watch-dock" aria-label={t("The room")}>
           {/* Filled only while there's something to vote on. */}
           <button type="button" className={`watch-dock-btn${voteLive(state) ? "" : " secondary"}`} onClick={() => setSheet("vote")}>
-            <Icon name="vote" /> Vote
-            {voteLive(state) && <span className="room-tab-live" aria-label="open now" />}
+            <Icon name="vote" /> {t("Vote")}
+            {voteLive(state) && <span className="room-tab-live" aria-label={t("open now")} />}
           </button>
           <button type="button" className="watch-dock-btn secondary" onClick={() => setSheet("chat")}>
-            <Icon name="chat" /> Chat
+            <Icon name="chat" /> {t("Chat")}
             {state.messages.length > 0 && <span className="room-tab-count">{state.messages.length}</span>}
           </button>
         </nav>
@@ -376,6 +383,7 @@ function Theater({
   const [a, b] = state.characters;
   // The sidebar (chat, the date's lines, the vote) sits beside the stage; on a wide screen it can be hidden, and that's
   // remembered. On a phone it's the main view, under the scene.
+  const t = useT();
   const [side, setSide] = useState(true);
   const [phone, setPhone] = useState(false);
   useEffect(() => {
@@ -409,7 +417,7 @@ function Theater({
   const showVerdict = isReplay ? replay.done : state.show_ending;
 
   const actLabel = turns.length
-    ? DATE_ACTS[turns[turns.length - 1].act] ?? null
+    ? t(DATE_ACTS[turns[turns.length - 1].act] ?? "") || null
     : isReplay
       ? null
       : state.clock.started
@@ -434,7 +442,7 @@ function Theater({
             moodB={latestFace(state.characters[1].shots, turns, "b")}
             actLabel={actLabel}
             placeholder={
-              isReplay ? "The replay begins…" : preshow ? preshowCountdownLabel(state.clock.started ? preshowLeft : null) : "The date is about to begin…"
+              isReplay ? t("The replay begins…") : preshow ? preshowCountdownLabel(state.clock.started ? preshowLeft : null) : t("The date is about to begin…")
             }
             staged={{ speaking: speakerOf(turns), act: turns.length ? turns[turns.length - 1].act : 0, push: bigLine(turns) }}
           />
@@ -446,14 +454,14 @@ function Theater({
               <CharacterName character={a} /> <span className="vs">×</span> <CharacterName character={b} />
             </strong>
             {isReplay ? (
-              <span className="chip">Replay</span>
+              <span className="chip">{t("Replay")}</span>
             ) : (
               <>
                 <span className="watch-live">
-                  <span className="watch-dot" aria-hidden /> {state.show_watching ? `${state.watching} watching` : "Live"}
+                  <span className="watch-dot" aria-hidden /> {state.show_watching ? t("{n} watching", { n: state.watching }) : t("Live")}
                 </span>
                 <span className="chip">
-                  {state.clock.started ? state.clock.phase_label : "Starting…"}
+                  {state.clock.started ? state.clock.phase_label : t("Starting…")}
                   {preshow && state.clock.started && preshowLeft !== null && ` · ${formatCountdown(preshowLeft)}`}
                 </span>
               </>
@@ -462,25 +470,25 @@ function Theater({
           <div className="theater-tools">
             {isReplay && (
               <>
-                <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? "Pause" : "Play"} title={replay.playing ? "Pause" : "Play"}>
+                <button type="button" className="theater-icon" onClick={replay.toggle} aria-label={replay.playing ? t("Pause") : t("Play")} title={replay.playing ? t("Pause") : t("Play")}>
                   {replay.playing ? "⏸" : "▶"}
                 </button>
-                <button type="button" className="theater-icon" onClick={replay.restart} aria-label="Restart" title="Restart">
+                <button type="button" className="theater-icon" onClick={replay.restart} aria-label={t("Restart")} title={t("Restart")}>
                   ↻
                 </button>
-                <button type="button" className="theater-icon" onClick={replay.skip} aria-label="Skip to the end" title="Skip to the end">
+                <button type="button" className="theater-icon" onClick={replay.skip} aria-label={t("Skip to the end")} title={t("Skip to the end")}>
                   ⏭
                 </button>
               </>
             )}
             {!open && (
               <button type="button" className="theater-pill" onClick={() => showSide(true)}>
-                <Icon name="chat" /> Chat &amp; vote
-                {voteLive(state) && <span className="room-tab-live" aria-label="voting open" />}
+                <Icon name="chat" /> {t("Chat & vote")}
+                {voteLive(state) && <span className="room-tab-live" aria-label={t("voting open")} />}
               </button>
             )}
             <button type="button" className="secondary small" onClick={onExit}>
-              Exit theater
+              {t("Exit theater")}
             </button>
           </div>
         </header>
@@ -492,16 +500,16 @@ function Theater({
             {state.overnight_close && <p className="overnight-close">{state.overnight_close}</p>}
             {leadingChemistry && (
               <p className="muted">
-                The room said {stripEmoji(leadingChemistry.label)}; the characters chose {state.ending_label}.
+                {t("The room said {room}; the characters chose {ending}.", { room: stripEmoji(leadingChemistry.label), ending: state.ending_label ?? "" })}
               </p>
             )}
             {state.chaos.timeline && (
-              <p className="muted">🎲 Chaos: {state.chaos.timeline.label} → {state.chaos.timeline.ending_label} (non-canon).</p>
+              <p className="muted">🎲 {t("Chaos: {what} → {ending} (non-canon).", { what: state.chaos.timeline.label, ending: state.chaos.timeline.ending_label })}</p>
             )}
             {isReplay && (
               <p className="muted">
                 <button type="button" className="linklike" onClick={replay.restart}>
-                  Watch again
+                  {t("Watch again")}
                 </button>
               </p>
             )}
@@ -530,7 +538,7 @@ function Theater({
                 challenge={state.challenge}
                 tone="dark"
                 follow
-                empty={preshow ? null : "The conversation appears here, line by line."}
+                empty={preshow ? null : t("The conversation appears here, line by line.")}
               />
             </>
           }
@@ -550,6 +558,7 @@ function inPreshow(state: RoomState): boolean {
  * the empty conversation until the first line plays.
  */
 function Preshow({ state, left, tone = "light", onStart }: { state: RoomState; left: number | null; tone?: "light" | "dark"; onStart?: () => void }) {
+  const t = useT();
   const [a, b] = state.characters;
   const place = state.place_name ?? state.venue_name;
   return (
@@ -558,7 +567,7 @@ function Preshow({ state, left, tone = "light", onStart }: { state: RoomState; l
         // A waiting open room, for a viewer who hasn't asked for it yet: the date starts on their word, not their arrival.
         <p className="watch-countdown-start">
           <button type="button" className="primary" onClick={onStart} data-track="room-start">
-            Start the date
+            {t("Start the date")}
           </button>
         </p>
       ) : (
@@ -569,15 +578,18 @@ function Preshow({ state, left, tone = "light", onStart }: { state: RoomState; l
         <Avatar seed={b.id} name={b.name} hue={b.hue} house={b.house} portraitSrc={b.portrait} size={44} />
       </div>
       <p className="watch-countdown-who">
-        On stage: <CharacterName character={a} avatar={false} strong /> and <CharacterName character={b} avatar={false} strong />
-        {place ? <> at {place}</> : null}.
+        {fillNodes(place ? t("On stage: {a} and {b} at {place}.") : t("On stage: {a} and {b}."), {
+          a: <CharacterName character={a} avatar={false} strong />,
+          b: <CharacterName character={b} avatar={false} strong />,
+          place: place ?? "",
+        })}
       </p>
       <p className="watch-countdown-hint">
         {onStart
-          ? "Anyone who joins in the next few minutes watches it with you."
+          ? t("Anyone who joins in the next few minutes watches it with you.")
           : state.predictions_open
-            ? "Call the ending before the first line."
-            : "The first lines play when the countdown ends."}
+            ? t("Call the ending before the first line.")
+            : t("The first lines play when the countdown ends.")}
       </p>
     </div>
   );
@@ -591,6 +603,7 @@ function Preshow({ state, left, tone = "light", onStart }: { state: RoomState; l
  * viewer's own word, and the site footer with the crisis links stays under it. The live and aired rooms keep Stage.
  */
 function OpenRoom({ state, left, onStart, onOpen }: { state: RoomState; left: number | null; onStart?: () => void; onOpen: (tab: RoomTab) => void }) {
+  const t = useT();
   const [a, b] = state.characters;
   const place = state.place_name ?? state.venue_name;
   const said = state.messages.length;
@@ -600,8 +613,8 @@ function OpenRoom({ state, left, onStart, onOpen }: { state: RoomState; left: nu
         {/* The empty-room rule (lib/crowd-threshold.ts) still decides whether the room shows a head count. */}
         <span className="watch-live">
           {state.clock.started && <span className="watch-dot" aria-hidden />}
-          {state.clock.started ? state.clock.phase_label : "Ready"}
-          {state.show_watching ? ` · ${state.watching} watching` : ""}
+          {state.clock.started ? state.clock.phase_label : t("Ready")}
+          {state.show_watching ? ` · ${t("{n} watching", { n: state.watching })}` : ""}
         </span>
         {place && (
           <span className="venue-chip" title={place}>
@@ -609,7 +622,7 @@ function OpenRoom({ state, left, onStart, onOpen }: { state: RoomState; left: nu
           </span>
         )}
         <Link href="/watch" className="watch-open-exit">
-          Exit
+          {t("Exit")}
         </Link>
       </div>
       <div className="watch-open-centre">
@@ -641,27 +654,27 @@ function OpenRoom({ state, left, onStart, onOpen }: { state: RoomState; left: nu
         {onStart ? (
           // A waiting open room, for a viewer who hasn't asked for it yet: the date starts on their word, not their arrival.
           <button type="button" className="primary watch-open-start" onClick={onStart} data-track="room-start">
-            <Icon name="play" /> Start the date
+            <Icon name="play" /> {t("Start the date")}
           </button>
         ) : (
           <p className="watch-countdown-time">{preshowCountdownLabel(state.clock.started ? left : null)}</p>
         )}
         <p className="watch-open-note">
           {onStart
-            ? "Anyone who joins in the next few minutes watches it with you."
+            ? t("Anyone who joins in the next few minutes watches it with you.")
             : state.predictions_open
-              ? "Call the ending before the first line."
-              : "The first lines play when the countdown ends."}
+              ? t("Call the ending before the first line.")
+              : t("The first lines play when the countdown ends.")}
         </p>
       </div>
       <div className="watch-open-foot">
         {state.predictions_open && (
           <button type="button" className="secondary small" onClick={() => onOpen("vote")}>
-            <Icon name="vote" /> {state.my_prediction ? `Your call: ${stripEmoji(endingLabel(state.my_prediction, state.date_number))}` : "Call the ending"}
+            <Icon name="vote" /> {state.my_prediction ? t("Your call: {pick}", { pick: stripEmoji(endingLabel(state.my_prediction, state.date_number)) }) : t("Call the ending")}
           </button>
         )}
         <button type="button" className="secondary small" onClick={() => onOpen("chat")}>
-          <Icon name="chat" /> Chat
+          <Icon name="chat" /> {t("Chat")}
           {said > 0 && <span className="room-tab-count">{said}</span>}
         </button>
       </div>
@@ -670,6 +683,7 @@ function OpenRoom({ state, left, onStart, onOpen }: { state: RoomState; left: nu
 }
 
 function Stage({ state }: { state: RoomState }) {
+  const t = useT();
   const leadingChemistry = state.chemistry.options.find((o) => o.id === state.chemistry.leading);
   return (
     <>
@@ -704,7 +718,7 @@ function Stage({ state }: { state: RoomState }) {
       ) : (
         state.acts.map((act, i) => (
           <section className="card watch-beat" key={i}>
-            <h3 className="act">{act.act}</h3>
+            <h3 className="act">{t(act.act)}</h3>
             <p>{act.scene}</p>
             {act.act === "The challenge" && state.challenge && (
               <p className="watch-challenge">🎬 {state.challenge}</p>
@@ -715,16 +729,16 @@ function Stage({ state }: { state: RoomState }) {
 
       {state.show_twist && state.twist && (
         <section className="card watch-beat">
-          <h3 className="act">The twist</h3>
+          <h3 className="act">{t("The twist")}</h3>
           <p>{state.twist}</p>
         </section>
       )}
 
       {state.show_ending && (
         <section className="card watch-decision">
-          <h2>The decision</h2>
+          <h2>{t("The decision")}</h2>
           {state.finale && <p>{state.finale}</p>}
-          <p className="ending">Ending: {state.ending_label}</p>
+          <p className="ending">{t("Ending:")} {state.ending_label}</p>
           {state.overnight_close && <p className="overnight-close">{state.overnight_close}</p>}
           {state.drama_question && state.drama_answer && (
             <p className="muted">
@@ -733,34 +747,40 @@ function Stage({ state }: { state: RoomState }) {
           )}
           {state.question.show_results && state.question.prompt && (
             <p className="watch-payoff">
-              🎤 The room&apos;s question for the challenge: <strong>{state.question.prompt}</strong>
+              🎤 {fillNodes(t("The room's question for the challenge: {q}"), { q: <strong>{state.question.prompt}</strong> })}
             </p>
           )}
           {leadingChemistry && (
             <p className="watch-payoff">
-              The room called it <strong>{stripEmoji(leadingChemistry.label)}</strong>. The characters chose{" "}
-              <strong>{state.ending_label}</strong>.
+              {fillNodes(t("The room called it {room}. The characters chose {ending}."), {
+                room: <strong>{stripEmoji(leadingChemistry.label)}</strong>,
+                ending: <strong>{state.ending_label}</strong>,
+              })}
             </p>
           )}
           {state.chaos.timeline && (
             <div className="watch-chaos">
               <p className="watch-payoff">
-                🎲 The audience hit the <strong>chaos button</strong>: <strong>{state.chaos.timeline.label}</strong>. In
-                that timeline it ends <strong>{state.chaos.timeline.ending_label}</strong>.
+                🎲{" "}
+                {fillNodes(t("The audience hit the {button}: {what}. In that timeline it ends {ending}."), {
+                  button: <strong>{t("chaos button")}</strong>,
+                  what: <strong>{state.chaos.timeline.label}</strong>,
+                  ending: <strong>{state.chaos.timeline.ending_label}</strong>,
+                })}
               </p>
               <p className="muted">
-                {DATE_VARIABLES.map((v) => `${VARIABLE_LABELS[v]} ${fmtDelta(state.chaos.timeline!.box_score[v].delta)}`).join(" · ")}
+                {DATE_VARIABLES.map((v) => `${t(VARIABLE_LABELS[v])} ${fmtDelta(state.chaos.timeline!.box_score[v].delta)}`).join(" · ")}
               </p>
               <p className="muted">
-                A non-canon &ldquo;what if&rdquo; — the real ending above still stands. The engine just replayed the
-                crowd&apos;s curveball.
+                {t("A non-canon “what if”: the real ending above still stands. The engine just replayed the crowd's curveball.")}
               </p>
             </div>
           )}
           {state.my_prediction && (
             <p className={state.my_prediction === state.ending ? "notice" : "muted"}>
-              You predicted {endingLabel(state.my_prediction, state.date_number)}
-              {state.my_prediction === state.ending ? " — you called it." : "."}
+              {state.my_prediction === state.ending
+                ? t("You predicted {pick}: you called it.", { pick: endingLabel(state.my_prediction, state.date_number) })
+                : t("You predicted {pick}.", { pick: endingLabel(state.my_prediction, state.date_number) })}
             </p>
           )}
           <RoomNext state={state} />
@@ -799,13 +819,14 @@ function Reactions({ state, onDone }: { state: RoomState; onDone: () => void }) 
 }
 
 function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
+  const t = useT();
   return (
     <>
       {(state.question.open || state.question.show_results) && (
         <PollCard
-          title="Audience call: which question hangs over the challenge?"
-          openHint="You pick the question in the air during the challenge. It sets the mood between them — the ending is still theirs."
-          closedHint="The room put this question in the air for the challenge."
+          title={t("Audience call: which question hangs over the challenge?")}
+          openHint={t("You pick the question in the air during the challenge. It sets the mood between them: the ending is still theirs.")}
+          closedHint={t("The room put this question in the air for the challenge.")}
           poll="question"
           tally={state.question}
           roomId={state.id}
@@ -814,9 +835,9 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
       )}
       {state.chaos.open && (
         <PollCard
-          title="🎲 The chaos button: throw them a curveball"
-          openHint="The crowd's pick plays out as a non-canon 'what if' at the end — the real outcome is still the characters' call."
-          closedHint="The winning curveball plays out as a non-canon 'what if' at the decision."
+          title={`🎲 ${t("The chaos button: throw them a curveball")}`}
+          openHint={t("The crowd's pick plays out as a non-canon 'what if' at the end: the real outcome is still the characters' call.")}
+          closedHint={t("The winning curveball plays out as a non-canon 'what if' at the decision.")}
           poll="chaos"
           tally={state.chaos}
           roomId={state.id}
@@ -825,9 +846,9 @@ function Polls({ state, onDone }: { state: RoomState; onDone: () => void }) {
       )}
       {(state.chemistry.open || state.chemistry.show_results) && (
         <PollCard
-          title="Do they have chemistry?"
-          openHint="The split stays hidden until the decision."
-          closedHint="The room's read, revealed at the decision."
+          title={t("Do they have chemistry?")}
+          openHint={t("The split stays hidden until the decision.")}
+          closedHint={t("The room's read, revealed at the decision.")}
           poll="chemistry"
           tally={state.chemistry}
           roomId={state.id}
@@ -874,6 +895,7 @@ function PollCard({
   roomId: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The tap shows as your vote at once; the next sync confirms it (or the error reverts it).
@@ -901,17 +923,17 @@ function PollCard({
       <section className="card watch-poll is-closed">
         <div className="watch-poll-head">
           <h2>{title}</h2>
-          <span className="poll-status closed">Voting closed</span>
+          <span className="poll-status closed">{t("Voting closed")}</span>
         </div>
         {tally.total === 0 ? (
-          <p className="muted">Nobody voted on this one.</p>
+          <p className="muted">{t("Nobody voted on this one.")}</p>
         ) : (
           <ul className="watch-results">
             {tally.options.map((o) => (
               <li key={o.id} className={tally.leading === o.id ? "leading" : undefined}>
                 <span className="watch-result-label">
                   {o.label}
-                  {tally.my_choice === o.id && <span className="poll-yours"> · your vote</span>}
+                  {tally.my_choice === o.id && <span className="poll-yours"> · {t("your vote")}</span>}
                 </span>
                 <span className="watch-bar" style={{ width: `${(o.count / max) * 100}%` }} aria-hidden />
                 <span className="watch-count">{Math.round((o.count / tally.total) * 100)}%</span>
@@ -930,7 +952,7 @@ function PollCard({
         <h2>{title}</h2>
         {tally.open && (
           <span className="poll-status live">
-            <span className="watch-dot" aria-hidden /> Live{left !== null ? ` · ${fmtClock(left)}` : ""}
+            <span className="watch-dot" aria-hidden /> {t("Live")}{left !== null ? ` · ${fmtClock(left)}` : ""}
           </span>
         )}
       </div>
@@ -947,13 +969,13 @@ function PollCard({
           >
             <span className="poll-dot" aria-hidden />
             <span className="poll-label">{o.label}</span>
-            {mine === o.id && <span className="poll-mine">Your vote</span>}
+            {mine === o.id && <span className="poll-mine">{t("Your vote")}</span>}
           </button>
         ))}
       </div>
       <p className="muted">
-        {mine ? "Locked in — tap another to change it before it closes." : "Tap to vote."} {openHint}
-        {tally.total > 0 && ` ${tally.total} ${tally.total === 1 ? "vote" : "votes"} so far.`}
+        {mine ? t("Locked in: tap another to change it before it closes.") : t("Tap to vote.")} {openHint}
+        {tally.total > 0 && ` ${tally.total === 1 ? t("1 vote so far.") : t("{n} votes so far.", { n: tally.total })}`}
       </p>
       {error && <p className="error">{error}</p>}
     </section>
@@ -962,6 +984,7 @@ function PollCard({
 
 /** The ending's call. `compact`: just the options and what you picked, inside the pre-show card. */
 function Predictions({ state, onDone, compact = false }: { state: RoomState; onDone: () => void; compact?: boolean }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!state.predictions_open && !state.my_prediction) return null;
@@ -976,22 +999,22 @@ function Predictions({ state, onDone, compact = false }: { state: RoomState; onD
     onDone();
   }
   return (
-    <section className={compact ? "watch-predict is-compact" : "card watch-predict"} aria-label={compact ? "How does it end?" : undefined}>
+    <section className={compact ? "watch-predict is-compact" : "card watch-predict"} aria-label={compact ? t("How does it end?") : undefined}>
       {!compact && (
         <>
           <div className="watch-poll-head">
-            <h2>How does it end?</h2>
+            <h2>{t("How does it end?")}</h2>
             <span className={`poll-status ${state.predictions_open ? "live" : "closed"}`}>
-              {state.predictions_open ? "Open" : "Closed"}
+              {state.predictions_open ? t("Open") : t("Closed")}
             </span>
           </div>
           <p className="muted">
-            {state.predictions_open ? "Predict before the decision. A right call scores on the prediction board." : "Predictions closed at the decision."}
+            {state.predictions_open ? t("Predict before the decision. A right call scores on the prediction board.") : t("Predictions closed at the decision.")}
           </p>
         </>
       )}
       {state.predictions_open && (
-        <div className="poll-options" role="radiogroup" aria-label="How does it end?">
+        <div className="poll-options" role="radiogroup" aria-label={t("How does it end?")}>
           {ENDINGS.map((ending) => (
             <button
               key={ending}
@@ -1004,15 +1027,15 @@ function Predictions({ state, onDone, compact = false }: { state: RoomState; onD
             >
               <span className="poll-dot" aria-hidden />
               <span className="poll-label">{endingLabel(ending, state.date_number)}</span>
-              {state.my_prediction === ending && <span className="poll-mine">Your call</span>}
+              {state.my_prediction === ending && <span className="poll-mine">{t("Your call")}</span>}
             </button>
           ))}
         </div>
       )}
       {state.my_prediction && (
         <p className="notice">
-          Locked in: {endingLabel(state.my_prediction, state.date_number)}.
-          {state.predictions_open ? " You can change it until the decision." : ""}
+          {t("Locked in: {pick}.", { pick: endingLabel(state.my_prediction, state.date_number) })}
+          {state.predictions_open ? ` ${t("You can change it until the decision.")}` : ""}
         </p>
       )}
       {error && <p className="error">{error}</p>}
@@ -1021,6 +1044,7 @@ function Predictions({ state, onDone, compact = false }: { state: RoomState; onD
 }
 
 function Chat({ state, onDone }: { state: RoomState; onDone: () => void }) {
+  const t = useT();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1053,14 +1077,16 @@ function Chat({ state, onDone }: { state: RoomState; onDone: () => void }) {
       <div className="watch-messages" ref={listRef}>
         {state.messages.length === 0 ? (
           <p className="muted watch-welcome">
-            Welcome to the room{state.show_watching && state.watching > 1 ? `: ${state.watching} watching` : ""}. Say hi, or react to a line.
+            {state.show_watching && state.watching > 1
+              ? t("Welcome to the room: {n} watching. Say hi, or react to a line.", { n: state.watching })
+              : t("Welcome to the room. Say hi, or react to a line.")}
           </p>
         ) : (
           state.messages.map((m) => (
             <p key={m.id} className={`watch-msg${m.mine ? " mine" : ""}`}>
               <strong>{m.handle}</strong> {m.body}
               {!m.mine && (
-                <button type="button" className="watch-report" title="Report" onClick={() => report(m.id)}>
+                <button type="button" className="watch-report" title={t("Report")} onClick={() => report(m.id)}>
                   ⚑
                 </button>
               )}
@@ -1081,18 +1107,18 @@ function Chat({ state, onDone }: { state: RoomState; onDone: () => void }) {
           type="text"
           value={draft}
           maxLength={240}
-          placeholder="Say something…"
+          placeholder={t("Say something…")}
           onChange={(e) => setDraft(e.target.value)}
           disabled={busy}
-          aria-label="Chat message"
+          aria-label={t("Chat message")}
         />
         <button type="submit" disabled={busy || !draft.trim()}>
-          Send
+          {t("Send")}
         </button>
       </form>
       {error && <p className="error">{error}</p>}
       <p className="watch-fineprint muted">
-        Be kind. Slow mode is on, and anyone can report a message — three reports hide it.
+        {t("Be kind. Slow mode is on, and anyone can report a message: three reports hide it.")}
       </p>
     </div>
   );
@@ -1119,6 +1145,7 @@ function fmtDelta(d: number): string {
 
 /** Copies this room's link, so a friend can be brought in (says so when it's copied, for a screen reader too). */
 function InviteButton() {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -1134,7 +1161,7 @@ function InviteButton() {
         }
       }}
     >
-      <span aria-live="polite">{copied ? "Link copied" : "Invite a friend"}</span>
+      <span aria-live="polite">{copied ? t("Link copied") : t("Invite a friend")}</span>
     </button>
   );
 }

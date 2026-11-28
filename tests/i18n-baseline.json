@@ -325,7 +325,6 @@
   "app/watch/SeasonLine.tsx": 9,
   "app/watch/StripPager.tsx": 2,
   "app/watch/WatchActions.tsx": 5,
-  "app/watch/[id]/WatchRoom.tsx": 99,
   "app/watch/[id]/loading.tsx": 1,
   "app/watch/loading.tsx": 1,
   "app/watch/page.tsx": 4,
